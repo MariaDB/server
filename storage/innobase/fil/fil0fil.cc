@@ -94,13 +94,22 @@ bool fil_space_t::try_to_close(bool print_info)
 
     if (const auto n= space.set_closing())
     {
-      if (print_info)
-        ib::info() << "Cannot close file " << node->name
-                   << " because of "
-                   << (n & PENDING)
-                   << ((n & NEEDS_FSYNC)
-                       ? " pending operations and pending fsync"
-                       : " pending operations");
+      if (!print_info)
+        continue;
+      print_info= false;
+      const time_t now= time(nullptr);
+      if (now - fil_system.n_open_exceeded_time < 5)
+        continue; /* We display messages at most once in 5 seconds. */
+      fil_system.n_open_exceeded_time= now;
+
+      if (n & PENDING)
+        sql_print_information("InnoDB: Cannot close file %s because of "
+                              UINT32PF " pending operations%s", node->name,
+                              n & PENDING,
+                              (n & NEEDS_FSYNC) ? " and pending fsync" : "");
+      else if (n & NEEDS_FSYNC)
+        sql_print_information("InnoDB: Cannot close file %s because of "
+                              "pending fsync", node->name);
       continue;
     }
 
@@ -416,15 +425,18 @@ static bool fil_node_open_file(fil_node_t *node)
   ut_ad(node->space->purpose != FIL_TYPE_TEMPORARY);
   ut_ad(node->space->referenced());
 
+  const auto old_time= fil_system.n_open_exceeded_time;
+
   for (ulint count= 0; fil_system.n_open >= srv_max_n_open_files; count++)
   {
     if (fil_space_t::try_to_close(count > 1))
       count= 0;
     else if (count >= 2)
     {
-      ib::warn() << "innodb_open_files=" << srv_max_n_open_files
-                 << " is exceeded (" << fil_system.n_open
-                 << ") files stay open)";
+      if (old_time != fil_system.n_open_exceeded_time)
+        sql_print_warning("InnoDB: innodb_open_files=" ULINTPF
+                          " is exceeded (" ULINTPF " files stay open)",
+                          srv_max_n_open_files, fil_system.n_open);
       break;
     }
     else
@@ -1439,8 +1451,7 @@ fil_space_t *fil_space_t::get(ulint id)
 
   if (n & STOPPING)
     space= nullptr;
-
-  if ((n & CLOSING) && !space->prepare())
+  else if ((n & CLOSING) && !space->prepare())
     space= nullptr;
 
   return space;

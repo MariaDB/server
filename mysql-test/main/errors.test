@@ -275,7 +275,7 @@ SELECT 4;
 END IF ;
 END"where name = "P1";
 
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_UNDECLARED_VAR
 show create procedure P1;
 show warnings;
 

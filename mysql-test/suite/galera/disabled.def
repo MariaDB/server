@@ -39,7 +39,6 @@ galera_toi_truncate : MDEV-22996 Hang on galera_toi_truncate test case
 galera_trigger : MDEV-24048 galera.galera_trigger MTR fails: Result content mismatch
 galera_unicode_identifiers : MDEV-26500 : galera.galera_unicode_identifiers MTR failed: InnoDB: innodb_fatal_semaphore_wait_threshold was exceeded for dict_sys.mutex
 galera_var_dirty_reads : MDEV-25615 Galera test failure on galera_var_dirty_reads
-galera_var_ignore_apply_errors : MDEV-20451: Lock wait timeout exceeded in galera_var_ignore_apply_errors
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
 galera_var_reject_queries : assertion in inline_mysql_socket_send

@@ -1445,6 +1445,8 @@ public:
   sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
   /** number of currently open files; protected by mutex */
   ulint n_open;
+  /** last time we noted n_open exceeding the limit; protected by mutex */
+  time_t n_open_exceeded_time;
 	ulint		max_assigned_id;/*!< maximum space id in the existing
 					tables, or assigned during the time
 					mysqld has been up; at an InnoDB
