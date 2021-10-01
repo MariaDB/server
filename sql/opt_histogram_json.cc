@@ -39,7 +39,7 @@ static bool json_unescape_to_string(const char *val, int val_len, String* out)
     int res= json_unescape(&my_charset_utf8mb4_bin,
                            (const uchar*)val,
                            (const uchar*)val + val_len,
-                           &my_charset_utf8mb4_bin,
+                           out->charset(),
                            buf, buf + out->length());
     if (res >= 0)
     {
@@ -58,7 +58,7 @@ static bool json_unescape_to_string(const char *val, int val_len, String* out)
   Escape a JSON string and save it into *out.
 */
 
-static bool json_escape_to_string(const char *val, int val_len, String* out)
+static bool json_escape_to_string(const String *str, String* out)
 {
   // Make sure 'out' has some memory allocated.
   if (!out->alloced_length() && out->alloc(128))
@@ -68,10 +68,11 @@ static bool json_escape_to_string(const char *val, int val_len, String* out)
   {
     uchar *buf= (uchar*)out->ptr();
     out->length(out->alloced_length());
+    const uchar *str_ptr= (const uchar*)str->ptr();
 
-    int res= json_escape(&my_charset_utf8mb4_bin,
-                         (const uchar*)val,
-                         (const uchar*)val + val_len,
+    int res= json_escape(str->charset(),
+                         str_ptr,
+                         str_ptr + str->length(),
                          &my_charset_utf8mb4_bin,
                          buf, buf + out->length());
     if (res >= 0)
@@ -200,7 +201,7 @@ private:
 
     // Escape the value for JSON
     StringBuffer<MAX_FIELD_WIDTH> escaped_val;
-    if (json_escape_to_string(str->ptr(), str->length(), &escaped_val))
+    if (json_escape_to_string(str, &escaped_val))
       return true;
 
     // Note: The Json_writer does NOT do escapes (perhaps this should change?)
@@ -473,6 +474,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
       goto error;
     }
 
+    unescape_buf.set_charset(field->charset());
     uint len_to_copy= field->key_length();
     if (json_unescape_to_string(val, val_len, &unescape_buf))
     {
@@ -481,7 +483,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
       goto error;
     }
     field->store_text(unescape_buf.ptr(), unescape_buf.length(),
-                      &my_charset_bin);
+                      unescape_buf.charset());
     value_buf.alloc(field->pack_length());
     uint bytes= field->get_key_image((uchar*)value_buf.ptr(), len_to_copy,
                                      Field::itRAW);

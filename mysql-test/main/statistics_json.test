@@ -215,6 +215,19 @@ ANALYZE TABLE t PERSISTENT FOR ALL;
 select * from t1;
 drop table t1;
 
+create table t1 (a char(1)) character set latin1;
+insert into t1 values (0xD1);
+select hex(a) from t1;
+set histogram_type='json_hb';
+analyze table t1 persistent for all;
+
+select decode_histogram(hist_type, histogram)
+from mysql.column_stats
+where db_name=database() and table_name='t1';
+
+select * from t1;
+drop table t1;
+
 --echo #
 --echo # ASAN use-after-poison my_strnxfrm_simple_internal / Histogram_json_hb::range_selectivity ...
 --echo # (Just the testcase)
