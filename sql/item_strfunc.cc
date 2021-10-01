@@ -537,6 +537,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   if (type == JSON_HB)
   {
     // It's a JSON histogram. Return it as-is.
+    null_value= 0;
     return res;
   }
 

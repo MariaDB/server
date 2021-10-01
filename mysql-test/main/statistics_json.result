@@ -7841,6 +7841,35 @@ b	a
 2	bar
 drop table t1;
 #
+# MDEV-26589: Assertion failure upon DECODE_HISTOGRAM with NULLs in first column
+# (Just the testcase)
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (NULL,1), (NULL,2);
+SET histogram_type = JSON_HB;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT DECODE_HISTOGRAM(hist_type, histogram) from mysql.column_stats;
+DECODE_HISTOGRAM(hist_type, histogram)
+NULL
+{
+  "histogram_hb_v2": [
+    {
+      "start": "1",
+      "size": 0.5,
+      "ndv": 1
+    },
+    {
+      "start": "2",
+      "end": "2",
+      "size": 0.5,
+      "ndv": 1
+    }
+  ]
+}
+drop table t1;
 # MDEV-26711: Values in JSON histograms are not properly quoted
 #
 create table t1 (a varchar(32));
