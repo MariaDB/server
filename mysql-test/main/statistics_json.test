@@ -193,3 +193,13 @@ analyze table t1 persistent for all;
 select * from t1 where a = 'foo';
 drop table t1;
 
+--echo #
+--echo # MDEV-26724 Endless loop in json_escape_to_string upon ... empty string 
+--echo #
+CREATE TABLE t1 (f VARCHAR(8));
+INSERT INTO t1 VALUES ('a'),(''),('b');
+SET histogram_type=JSON_HB;
+ANALYZE TABLE t PERSISTENT FOR ALL;
+select * from t1;
+drop table t1;
+

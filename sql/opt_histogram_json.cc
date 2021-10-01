@@ -41,7 +41,7 @@ static bool json_unescape_to_string(const char *val, int val_len, String* out)
                            (const uchar*)val + val_len,
                            &my_charset_utf8mb4_bin,
                            buf, buf + out->length());
-    if (res > 0)
+    if (res >= 0)
     {
       out->length(res);
       return false; // Ok
@@ -74,7 +74,7 @@ static bool json_escape_to_string(const char *val, int val_len, String* out)
                          (const uchar*)val + val_len,
                          &my_charset_utf8mb4_bin,
                          buf, buf + out->length());
-    if (res > 0)
+    if (res >= 0)
     {
       out->length(res);
       return false; // Ok
