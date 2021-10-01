@@ -7842,7 +7842,6 @@ b	a
 drop table t1;
 #
 # MDEV-26589: Assertion failure upon DECODE_HISTOGRAM with NULLs in first column
-# (Just the testcase)
 #
 CREATE TABLE t1 (a INT, b INT);
 INSERT INTO t1 VALUES (NULL,1), (NULL,2);
@@ -7870,6 +7869,7 @@ NULL
   ]
 }
 drop table t1;
+#
 # MDEV-26711: Values in JSON histograms are not properly quoted
 #
 create table t1 (a varchar(32));
@@ -7883,7 +7883,7 @@ select * from t1 where a = 'foo';
 a
 drop table t1;
 #
-# MDEV-26724 Endless loop in json_escape_to_string upon ... empty string 
+# MDEV-26724 Endless loop in json_escape_to_string upon ... empty string
 #
 CREATE TABLE t1 (f VARCHAR(8));
 INSERT INTO t1 VALUES ('a'),(''),('b');
@@ -7898,3 +7898,17 @@ a
 
 b
 drop table t1;
+#
+# ASAN use-after-poison my_strnxfrm_simple_internal / Histogram_json_hb::range_selectivity ...
+# (Just the testcase)
+#
+CREATE TABLE t1 (f CHAR(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+SET histogram_type = JSON_HB;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM t1 WHERE f > 'qux';
+f
+DROP TABLE t1;
