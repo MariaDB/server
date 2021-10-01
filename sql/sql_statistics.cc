@@ -190,7 +190,7 @@ TABLE_FIELD_TYPE column_stat_fields[COLUMN_STAT_N_FIELDS] =
   },
   {
     { STRING_WITH_LEN("histogram") },
-    { STRING_WITH_LEN("blob") },
+    { STRING_WITH_LEN("longblob") },
     { NULL, 0 }
   }
 };
@@ -2880,7 +2880,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
 
   start_new_trans new_trans(thd);
 
-  if (open_stat_tables(thd, tables, TRUE))
+  if ((open_stat_tables(thd, tables, TRUE)))
     DBUG_RETURN(rc);
    
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();

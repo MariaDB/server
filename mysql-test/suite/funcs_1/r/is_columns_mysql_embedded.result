@@ -13,7 +13,7 @@ def	mysql	column_stats	avg_frequency	8	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL
 def	mysql	column_stats	avg_length	7	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL	NULL	decimal(12,4)					NEVER	NULL
 def	mysql	column_stats	column_name	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	varchar(64)	PRI				NEVER	NULL
 def	mysql	column_stats	db_name	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	varchar(64)	PRI				NEVER	NULL
-def	mysql	column_stats	histogram	11	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob					NEVER	NULL
+def	mysql	column_stats	histogram	11	NULL	YES	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob					NEVER	NULL
 def	mysql	column_stats	hist_size	9	NULL	YES	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(3) unsigned					NEVER	NULL
 def	mysql	column_stats	hist_type	10	NULL	YES	enum	14	42	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB')					NEVER	NULL
 def	mysql	column_stats	max_value	5	NULL	YES	varbinary	255	255	NULL	NULL	NULL	NULL	NULL	varbinary(255)					NEVER	NULL
@@ -343,7 +343,7 @@ NULL	mysql	column_stats	avg_length	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
 NULL	mysql	column_stats	avg_frequency	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
 NULL	mysql	column_stats	hist_size	tinyint	NULL	NULL	NULL	NULL	tinyint(3) unsigned
 3.0000	mysql	column_stats	hist_type	enum	14	42	utf8mb3	utf8mb3_bin	enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB')
-1.0000	mysql	column_stats	histogram	blob	65535	65535	NULL	NULL	blob
+1.0000	mysql	column_stats	histogram	longblob	4294967295	4294967295	NULL	NULL	longblob
 3.0000	mysql	db	Host	char	255	765	utf8mb3	utf8mb3_bin	char(255)
 3.0000	mysql	db	Db	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 3.0000	mysql	db	User	char	128	384	utf8mb3	utf8mb3_bin	char(128)

@@ -842,4 +842,4 @@ DELIMITER ;
 
 ALTER TABLE column_stats
   modify hist_type enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB'),
-  modify histogram blob;
+  modify histogram longblob;
