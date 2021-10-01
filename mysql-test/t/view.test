@@ -6608,6 +6608,25 @@ SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
 drop view v1;
 drop table t1;
 
+
+--echo #
+--echo # MDEV-26299: Some views force server (and mysqldump) to generate
+--echo # invalid SQL for their definitions
+--echo #
+
+create view v1 as
+ select * from
+  (select
+  "12345678901234567890123456789012345678901234567890123456789012345") as t1;
+
+let $definition=`select VIEW_DEFINITION from information_schema.views where TABLE_NAME="v1"`;
+
+drop view v1;
+
+eval CREATE VIEW v1 AS $definition;
+
+drop view v1;
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

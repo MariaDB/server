@@ -6876,5 +6876,16 @@ SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
 drop view v1;
 drop table t1;
 #
+# MDEV-26299: Some views force server (and mysqldump) to generate
+# invalid SQL for their definitions
+#
+create view v1 as
+select * from
+(select
+"12345678901234567890123456789012345678901234567890123456789012345") as t1;
+drop view v1;
+CREATE VIEW v1 AS select `t1`.`12345678901234567890123456789012345678901234567890123456789012345` AS `Name_exp_1` from (select '12345678901234567890123456789012345678901234567890123456789012345') `t1`;
+drop view v1;
+#
 # End of 10.2 tests
 #
