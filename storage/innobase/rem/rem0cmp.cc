@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, MariaDB Corporation.
+Copyright (c) 2020, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -224,7 +224,6 @@ static
 int
 cmp_geometry_field(
 /*===============*/
-	ulint		prtype,		/*!< in: precise type */
 	const byte*	a,		/*!< in: data field */
 	unsigned int	a_length,	/*!< in: data field length,
 					not UNIV_SQL_NULL */
@@ -234,8 +233,6 @@ cmp_geometry_field(
 {
 	double		x1, x2;
 	double		y1, y2;
-
-	ut_ad(prtype & DATA_GIS_MBR);
 
 	if (a_length < sizeof(double) || b_length < sizeof(double)) {
 		return(0);
@@ -297,8 +294,7 @@ cmp_gis_field(
 					not UNIV_SQL_NULL */
 {
 	if (mode == PAGE_CUR_MBR_EQUAL) {
-		return cmp_geometry_field(DATA_GIS_MBR,
-					  a, a_length, b, b_length);
+		return cmp_geometry_field(a, a_length, b, b_length);
 	} else {
 		return rtree_key_cmp(mode, a, int(a_length), b, int(b_length));
 	}
@@ -370,8 +366,6 @@ cmp_whole_field(
 	case DATA_MYSQL:
 		return(innobase_mysql_cmp(prtype,
 					  a, a_length, b, b_length));
-	case DATA_GEOMETRY:
-		return cmp_geometry_field(prtype, a, a_length, b, b_length);
 	default:
 		ib::fatal() << "Unknown data type number " << mtype;
 	}
@@ -433,9 +427,8 @@ cmp_data(
 		ut_ad(prtype & DATA_BINARY_TYPE);
 		pad = ULINT_UNDEFINED;
 		if (prtype & DATA_GIS_MBR) {
-			return(cmp_whole_field(mtype, prtype,
-					       data1, (unsigned) len1,
-					       data2, (unsigned) len2));
+			return(cmp_geometry_field(data1, (unsigned) len1,
+						  data2, (unsigned) len2));
 		}
 		break;
 	case DATA_BLOB:
