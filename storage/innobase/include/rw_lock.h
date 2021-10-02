@@ -196,8 +196,12 @@ public:
   /** Release an exclusive lock */
   void write_unlock()
   {
-    IF_DBUG_ASSERT(auto l=,)
-    lock.fetch_and(~WRITER, std::memory_order_release);
+    /* Below, we use fetch_sub(WRITER) instead of fetch_and(~WRITER).
+    The reason is that on IA-32 and AMD64 it translates into the 80486
+    instruction LOCK XADD, while fetch_and() translates into a loop
+    around LOCK CMPXCHG. For other ISA either form should be fine. */
+    static_assert(WRITER == 1U << 31, "compatibility");
+    IF_DBUG_ASSERT(auto l=,) lock.fetch_sub(WRITER, std::memory_order_release);
     /* the write lock must have existed */
 #ifdef SUX_LOCK_GENERIC
     DBUG_ASSERT((l & (WRITER | UPDATER)) == WRITER);
