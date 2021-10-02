@@ -724,7 +724,7 @@ private:
   void inc_current_row_for_warning() { m_current_row_for_warning++; }
 
   /** Reset the current row counter. Start counting from the first row. */
-  void reset_current_row_for_warning() { m_current_row_for_warning= 1; }
+  void reset_current_row_for_warning(int n) { m_current_row_for_warning= n; }
 
   /** Return the current counter value. */
   ulong current_row_for_warning() const { return m_current_row_for_warning; }
@@ -1148,8 +1148,8 @@ public:
   void inc_current_row_for_warning()
   { get_warning_info()->inc_current_row_for_warning(); }
 
-  void reset_current_row_for_warning()
-  { get_warning_info()->reset_current_row_for_warning(); }
+  void reset_current_row_for_warning(int n)
+  { get_warning_info()->reset_current_row_for_warning(n); }
 
   bool is_warning_info_read_only() const
   { return get_warning_info()->is_read_only(); }

@@ -1246,7 +1246,7 @@ c2 DECIMAL NULL DEFAULT 1.1,
 pk INT AUTO_INCREMENT PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Note	1265	Data truncated for column 'c2' at row 1
+Note	1265	Data truncated for column 'c2' at row 0
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	decimal(10,0)	YES		NULL	

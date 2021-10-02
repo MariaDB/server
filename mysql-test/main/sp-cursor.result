@@ -167,12 +167,12 @@ CALL p1('1b');
 v_a
 1
 Warnings:
-Warning	1265	Data truncated for column 'p_a' at row 1
+Warning	1265	Data truncated for column 'p_a' at row 0
 CALL p1('b1');
 v_a
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 1
+Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 0
 DROP PROCEDURE p1;
 SET sql_mode=DEFAULT;
 #

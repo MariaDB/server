@@ -2321,7 +2321,7 @@ END;
 |
 SET @@session.sql_mode = default;
 INSERT INTO t1 VALUES ('a'),('b');
-ERROR 22001: Data too long for column 'c' at row 1
+ERROR 22001: Data too long for column 'c' at row 0
 show create trigger t1_bi;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t1_bi	STRICT_TRANS_TABLES,STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi

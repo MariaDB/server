@@ -799,7 +799,7 @@ ERROR 42000: Invalid default value for 'a'
 #
 CREATE TABLE t1 (a INT DEFAULT '1 ');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -812,7 +812,7 @@ a
 DROP TABLE t1;
 CREATE TABLE t1 (a INT DEFAULT CONCAT('1 '));
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -827,7 +827,7 @@ a
 DROP TABLE t1;
 CREATE TABLE t1 (a INT DEFAULT COALESCE('1 '));
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

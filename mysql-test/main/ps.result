@@ -5241,13 +5241,13 @@ DECLARE a DATETIME;
 CALL p1(a);
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 PREPARE stmt FROM 'CALL p1(?)';
@@ -5255,7 +5255,7 @@ EXECUTE stmt  USING a;
 DEALLOCATE PREPARE stmt;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 DROP PROCEDURE p1;
 #
 # MDEV-14454 Binary protocol returns wrong collation ID for SP OUT parameters

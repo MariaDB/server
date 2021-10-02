@@ -1455,7 +1455,7 @@ pk INT AUTO_INCREMENT PRIMARY KEY,
 c DECIMAL NOT NULL DEFAULT 1.1
 ) ENGINE=rocksdb;
 Warnings:
-Note	1265	Data truncated for column 'c' at row 1
+Note	1265	Data truncated for column 'c' at row 0
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment

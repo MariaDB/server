@@ -728,6 +728,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   explain= (Explain_delete*)thd->lex->explain->get_upd_del_plan();
   explain->tracker.on_scan_init();
 
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
+
   if (!delete_while_scanning)
   {
     /*

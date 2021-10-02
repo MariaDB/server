@@ -628,7 +628,7 @@ v
 NULL
 Warnings:
 Note	1050	Table 't1' already exists
-Error	1406	Data too long for column 'v' at row 1
+Error	1406	Data too long for column 'v' at row 0
 DROP TABLE t1;
 DROP PROCEDURE p1;
 
@@ -1476,7 +1476,7 @@ ERROR 42000: Column 'id1' specified twice
 GET DIAGNOSTICS CONDITION 1 @var118= ROW_NUMBER;
 SELECT @var118;
 @var118
-1
+0
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
 INSERT INTO t1 VALUES (1);
@@ -1487,38 +1487,38 @@ ERROR HY000: Can't update table 't1' in stored function/trigger because it is al
 GET DIAGNOSTICS CONDITION 1 @var119= ROW_NUMBER;
 SELECT @var119;
 @var119
-1
+0
 INSERT INTO t1 VALUES (1) RETURNING id2;
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var120= ROW_NUMBER;
 SELECT @var120;
 @var120
-1
+0
 INSERT INTO t1(id2) VALUES(1);
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var121= ROW_NUMBER;
 SELECT @var121;
 @var121
-1
+0
 INSERT INTO v VALUES(1,2);
 ERROR HY000: Can not insert into join view 'test.v' without fields list
 GET DIAGNOSTICS CONDITION 1 @var122= ROW_NUMBER;
 SELECT @var122;
 @var122
-1
+0
 INSERT INTO v(a,b) VALUES (1,2);
 ERROR HY000: Can not modify more than one base table through a join view 'test.v'
 GET DIAGNOSTICS CONDITION 1 @var123= ROW_NUMBER;
 SELECT @var123;
 @var123
-1
+0
 # REPLACE STATEMENT
 REPLACE INTO t1(id1, id1) VALUES (1,1);
 ERROR 42000: Column 'id1' specified twice
 GET DIAGNOSTICS CONDITION 1 @var124= ROW_NUMBER;
 SELECT @var124;
 @var124
-1
+0
 CREATE FUNCTION f2() RETURNS INT
 BEGIN
 REPLACE INTO t1 VALUES (1);
@@ -1529,31 +1529,31 @@ ERROR HY000: Can't update table 't1' in stored function/trigger because it is al
 GET DIAGNOSTICS CONDITION 1 @var125= ROW_NUMBER;
 SELECT @var125;
 @var125
-1
+0
 REPLACE INTO t1 VALUES (1) RETURNING id2;
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var126= ROW_NUMBER;
 SELECT @var126;
 @var126
-1
+0
 REPLACE INTO t1(id2) VALUES(1);
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var127= ROW_NUMBER;
 SELECT @var127;
 @var127
-1
+0
 REPLACE INTO v VALUES(1,2);
 ERROR HY000: Can not insert into join view 'test.v' without fields list
 GET DIAGNOSTICS CONDITION 1 @var128= ROW_NUMBER;
 SELECT @var128;
 @var128
-1
+0
 REPLACE INTO v(a,b) VALUES (1,2);
 ERROR HY000: Can not modify more than one base table through a join view 'test.v'
 GET DIAGNOSTICS CONDITION 1 @var129= ROW_NUMBER;
 SELECT @var129;
 @var129
-1
+0
 DROP TABLE t1,t2;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
@@ -1598,7 +1598,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 GET DIAGNOSTICS CONDITION 1 @num = ROW_NUMBER, @msg = MESSAGE_TEXT;
 SELECT @num, @msg;
 @num	@msg
-2	Duplicate entry '1' for key 'PRIMARY'
+1	Duplicate entry '1' for key 'PRIMARY'
 DROP PROCEDURE sp;
 DROP TABLE t1;
 # Checking more errors

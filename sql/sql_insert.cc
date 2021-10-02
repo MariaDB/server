@@ -842,7 +842,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     switch_to_nullable_trigger_fields(*values, table);
   }
   its.rewind ();
-  thd->get_stmt_da()->reset_current_row_for_warning();
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
  
   /* Restore the current context. */
   ctx_state.restore_state(context, table_list);
@@ -1683,6 +1683,8 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     /* Restore the current context. */
     ctx_state.restore_state(context, table_list);
   }
+
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
 
   if (res)
     DBUG_RETURN(res);

@@ -11102,7 +11102,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   if (ignore && !alter_ctx->fk_error_if_delete_row)
     to->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-  thd->get_stmt_da()->reset_current_row_for_warning();
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
   restore_record(to, s->default_values);        // Create empty record
   to->reset_default_fields();
 

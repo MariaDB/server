@@ -62,7 +62,7 @@ CALL p1();
 a	b
 127	200
 Warnings:
-Warning	1264	Out of range value for column 'a' at row 1
+Warning	1264	Out of range value for column 'a' at row 0
 DROP PROCEDURE p1;
 DROP TABLE t1;
 SET sql_mode=DEFAULT;

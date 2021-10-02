@@ -1351,7 +1351,7 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
         goto error;
       thd->get_stmt_da()->inc_current_row_for_warning();
     }
-    thd->get_stmt_da()->reset_current_row_for_warning();
+    thd->get_stmt_da()->reset_current_row_for_warning(1);
   }
   DBUG_RETURN(FALSE);
 

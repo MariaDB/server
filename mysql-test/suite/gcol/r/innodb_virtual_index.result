@@ -280,7 +280,7 @@ INSERT IGNORE INTO t1 (id, a) VALUES (NULL, -1);
 Warnings:
 Warning	1264	Out of range value for column 'va' at row 1
 ALTER TABLE t1 FORCE;
-ERROR 22003: Out of range value for column 'va' at row 1
+ERROR 22003: Out of range value for column 'va' at row 0
 DROP TABLE t1;
 #
 # MDEV-24713 Assertion `dict_table_is_comp(index->table)' failed
