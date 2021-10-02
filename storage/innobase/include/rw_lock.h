@@ -50,9 +50,22 @@ protected:
   static constexpr uint32_t UPDATER= 1U << 29;
 #endif /* SUX_LOCK_GENERIC */
 
+  /** Start waiting for an exclusive lock. */
+  void write_lock_wait_start()
+  {
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    static_assert(WRITER_WAITING == 1U << 30, "compatibility");
+    __asm__ __volatile__("lock btsl $30, %0" : "+m" (lock));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+    static_assert(WRITER_WAITING == 1U << 30, "compatibility");
+    _interlockedbittestandset(reinterpret_cast<volatile long*>(&lock), 30);
+#else
+    lock.fetch_or(WRITER_WAITING, std::memory_order_relaxed);
+#endif
+  }
   /** Start waiting for an exclusive lock.
   @return current value of the lock word */
-  uint32_t write_lock_wait_start()
+  uint32_t write_lock_wait_start_read()
   { return lock.fetch_or(WRITER_WAITING, std::memory_order_relaxed); }
   /** Wait for an exclusive lock.
   @param l the value of the lock word
