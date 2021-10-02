@@ -829,27 +829,29 @@ Error	1758	Invalid condition number
 SELECT @var5, @var6;
 @var5	@var6
 3	NULL
-INSERT INTO t1 VALUES (9,CAST(123 AS CHAR(1)),1.00109);
-ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+INSERT INTO t1 VALUES (8,8,8),(9,CAST(123 AS CHAR(1)),1.00109);
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
 GET DIAGNOSTICS CONDITION 1 @var7= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var8= ROW_NUMBER;
 Warnings:
-Error	1292	Truncated incorrect CHAR(1) value: '123'
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
 Error	1758	Invalid condition number
 SELECT @var7, @var8;
 @var7	@var8
-1	NULL
-INSERT INTO t1 VALUES ('x','foo',1.0203);
-ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+2	NULL
+INSERT INTO t1 VALUES (10,10,10),('x','foo',1.0203);
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 GET DIAGNOSTICS CONDITION 1 @var9= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var10= ROW_NUMBER;
 Warnings:
-Error	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 Error	1758	Invalid condition number
 SELECT @var9, @var10;
 @var9	@var10
-1	NULL
-INSERT INTO t1 VALUES ((13,'m',1.0113));
+2	NULL
+INSERT INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113));
 ERROR 21000: Operand should contain 1 column(s)
 GET DIAGNOSTICS CONDITION 1 @var11= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var12= ROW_NUMBER;
@@ -858,7 +860,8 @@ Error	1241	Operand should contain 1 column(s)
 Error	1758	Invalid condition number
 SELECT @var11, @var12;
 @var11	@var12
-1	NULL
+2	NULL
+delete from t1 where id1=0;
 INSERT INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115), (16/0,'p',1.0116);
 Warnings:
 Warning	1365	Division by 0
@@ -910,7 +913,7 @@ Error	1758	Invalid condition number
 SELECT @var21, @var22;
 @var21	@var22
 3	NULL
-INSERT IGNORE INTO t1 VALUES (9,CAST(123 AS CHAR(1)),1.00109);
+INSERT IGNORE INTO t1 VALUES (8,8,8),(9,CAST(123 AS CHAR(1)),1.00109);
 Warnings:
 Warning	1292	Truncated incorrect CHAR(1) value: '123'
 GET DIAGNOSTICS CONDITION 1 @var23= ROW_NUMBER;
@@ -920,19 +923,19 @@ Warning	1292	Truncated incorrect CHAR(1) value: '123'
 Error	1758	Invalid condition number
 SELECT @var23, @var24;
 @var23	@var24
-1	NULL
-INSERT IGNORE INTO t1 VALUES ('x','foo',1.0203);
+2	NULL
+INSERT IGNORE INTO t1 VALUES (10,10,10),('x','foo',1.0203);
 Warnings:
-Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 GET DIAGNOSTICS CONDITION 1 @var25= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var26= ROW_NUMBER;
 Warnings:
-Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 Error	1758	Invalid condition number
 SELECT @var25, @var26;
 @var25	@var26
-1	NULL
-INSERT IGNORE INTO t1 VALUES ((13,'m',1.0113));
+2	NULL
+INSERT IGNORE INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113));
 ERROR 21000: Operand should contain 1 column(s)
 GET DIAGNOSTICS CONDITION 1 @var27= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var28= ROW_NUMBER;
@@ -941,7 +944,7 @@ Error	1241	Operand should contain 1 column(s)
 Error	1758	Invalid condition number
 SELECT @var27, @var28;
 @var27	@var28
-1	NULL
+2	NULL
 INSERT IGNORE INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115),
 (16/0,'p',1.0116);
 Warnings:
@@ -1067,18 +1070,19 @@ Error	1758	Invalid condition number
 SELECT @var51, @var52;
 @var51	@var52
 1	NULL
-INSERT INTO t1 VALUES ('x','foo',1.0203)
+INSERT INTO t1 VALUES (10,10,10),('x','foo',1.0203)
 ON DUPLICATE KEY UPDATE val1='c';
-ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 GET DIAGNOSTICS CONDITION 1 @var53= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var54= ROW_NUMBER;
 Warnings:
-Error	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 Error	1758	Invalid condition number
 SELECT @var53, @var54;
 @var53	@var54
-1	NULL
-INSERT INTO t1 VALUES ((13,'m',1.0113)) ON DUPLICATE KEY UPDATE val1='c';
+2	NULL
+INSERT INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113)) ON DUPLICATE KEY UPDATE val1='c';
 ERROR 21000: Operand should contain 1 column(s)
 GET DIAGNOSTICS CONDITION 1 @var55= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var56= ROW_NUMBER;
@@ -1087,7 +1091,7 @@ Error	1241	Operand should contain 1 column(s)
 Error	1758	Invalid condition number
 SELECT @var55, @var56;
 @var55	@var56
-1	NULL
+2	NULL
 INSERT INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115), (2/0,'p',1.00102)
 ON DUPLICATE KEY UPDATE val1='b';
 Warnings:
@@ -1256,27 +1260,29 @@ Error	1758	Invalid condition number
 SELECT @var81, @var82;
 @var81	@var82
 3	NULL
-REPLACE INTO t1 VALUES (9,CAST(123 AS CHAR(1)),1.00109);
-ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+REPLACE INTO t1 VALUES (8,8,8),(9,CAST(123 AS CHAR(1)),1.00109);
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
 GET DIAGNOSTICS CONDITION 1 @var83= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var84= ROW_NUMBER;
 Warnings:
-Error	1292	Truncated incorrect CHAR(1) value: '123'
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
 Error	1758	Invalid condition number
 SELECT @var83, @var84;
 @var83	@var84
-1	NULL
-REPLACE INTO t1 VALUES ('x','foo',1.0203);
-ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+2	NULL
+REPLACE INTO t1 VALUES (10,10,10),('x','foo',1.0203);
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 GET DIAGNOSTICS CONDITION 1 @var85= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var86= ROW_NUMBER;
 Warnings:
-Error	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 Error	1758	Invalid condition number
 SELECT @var85, @var86;
 @var85	@var86
-1	NULL
-REPLACE INTO t1 VALUES ((13,'m',1.0113));
+2	NULL
+REPLACE INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113));
 ERROR 21000: Operand should contain 1 column(s)
 GET DIAGNOSTICS CONDITION 1 @var87= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var88= ROW_NUMBER;
@@ -1285,7 +1291,7 @@ Error	1241	Operand should contain 1 column(s)
 Error	1758	Invalid condition number
 SELECT @var87, @var88;
 @var87	@var88
-1	NULL
+2	NULL
 REPLACE INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115), (16/0,'p',1.0116);
 Warnings:
 Warning	1365	Division by 0

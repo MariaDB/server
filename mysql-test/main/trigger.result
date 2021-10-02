@@ -2308,17 +2308,19 @@ DROP TABLE t1, t2;
 set time_zone="+00:00";
 SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 SET @@session.sql_mode = 'STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
+set @rpt=1;
 CREATE TABLE t1 (c CHAR(1) NOT NULL);
 CREATE TRIGGER t1_bi
 BEFORE INSERT
 ON t1
 FOR EACH ROW
 BEGIN
-SET NEW.c = 'www';
+SET NEW.c = repeat(@rpt,@rpt);
+set @rpt=@rpt+1;
 END;
 |
 SET @@session.sql_mode = default;
-INSERT INTO t1 VALUES ('a');
+INSERT INTO t1 VALUES ('a'),('b');
 ERROR 22001: Data too long for column 'c' at row 1
 show create trigger t1_bi;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
@@ -2327,7 +2329,8 @@ BEFORE INSERT
 ON t1
 FOR EACH ROW
 BEGIN
-SET NEW.c = 'www';
+SET NEW.c = repeat(@rpt,@rpt);
+set @rpt=@rpt+1;
 END	latin1	latin1_swedish_ci	latin1_swedish_ci	2001-01-01 10:20:30.00
 DROP TRIGGER t1_bi;
 DROP TABLE t1;
