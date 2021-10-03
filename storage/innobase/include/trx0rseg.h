@@ -105,6 +105,43 @@ private:
   static constexpr uint32_t REF= 4;
 
   uint32_t ref_load() const { return ref.load(std::memory_order_relaxed); }
+
+  /** Set a bit in ref */
+  template<bool needs_purge> void ref_set()
+  {
+    static_assert(SKIP == 1U << 0, "compatibility");
+    static_assert(NEEDS_PURGE == 1U << 1, "compatibility");
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    if (needs_purge)
+      __asm__ __volatile__("lock btsl $1, %0" : "+m" (ref));
+    else
+      __asm__ __volatile__("lock btsl $0, %0" : "+m" (ref));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+    _interlockedbittestandset(reinterpret_cast<volatile long*>(&ref),
+                              needs_purge);
+#else
+    ref.fetch_or(needs_purge ? NEEDS_PURGE : SKIP, std::memory_order_relaxed);
+#endif
+  }
+  /** Clear a bit in ref */
+  template<bool needs_purge> void ref_reset()
+  {
+    static_assert(SKIP == 1U << 0, "compatibility");
+    static_assert(NEEDS_PURGE == 1U << 1, "compatibility");
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    if (needs_purge)
+      __asm__ __volatile__("lock btrl $1, %0" : "+m" (ref));
+    else
+      __asm__ __volatile__("lock btrl $0, %0" : "+m" (ref));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+    _interlockedbittestandreset(reinterpret_cast<volatile long*>(&ref),
+                                needs_purge);
+#else
+    ref.fetch_and(needs_purge ? ~NEEDS_PURGE : ~SKIP,
+                  std::memory_order_relaxed);
+#endif
+  }
+
 public:
 
   /** Initialize the fields that are not zero-initialized. */
@@ -115,21 +152,22 @@ public:
   void destroy();
 
   /** Note that undo tablespace truncation was started. */
-  void set_skip_allocation()
-  { ut_ad(is_persistent()); ref.fetch_or(SKIP, std::memory_order_relaxed); }
+  void set_skip_allocation() { ut_ad(is_persistent()); ref_set<false>(); }
   /** Note that undo tablespace truncation was completed. */
   void clear_skip_allocation()
   {
     ut_ad(is_persistent());
+#if defined DBUG_OFF
+    ref_reset<false>();
+#else
     ut_d(auto r=) ref.fetch_and(~SKIP, std::memory_order_relaxed);
     ut_ad(r == SKIP);
+#endif
   }
   /** Note that the rollback segment requires purge. */
-  void set_needs_purge()
-  { ref.fetch_or(NEEDS_PURGE, std::memory_order_relaxed); }
+  void set_needs_purge() { ref_set<true>(); }
   /** Note that the rollback segment will not require purge. */
-  void clear_needs_purge()
-  { ref.fetch_and(~NEEDS_PURGE, std::memory_order_relaxed); }
+  void clear_needs_purge() { ref_reset<true>(); }
   /** @return whether the segment is marked for undo truncation */
   bool skip_allocation() const { return ref_load() & SKIP; }
   /** @return whether the segment needs purge */

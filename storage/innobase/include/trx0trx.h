@@ -342,6 +342,38 @@ struct trx_lock_t
   1=another transaction chose this as a victim in deadlock resolution. */
   Atomic_relaxed<byte> was_chosen_as_deadlock_victim;
 
+  /** Clear the deadlock victim status. */
+  void clear_deadlock_victim()
+  {
+#ifndef WITH_WSREP
+    was_chosen_as_deadlock_victim= false;
+#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    /* There is no 8-bit version of the 80386 BTR instruction.
+    Technically, this is the wrong addressing mode (16-bit), but
+    there are other data members stored after the byte. */
+    __asm__ __volatile__("lock btrw $0, %0"
+                         : "+m" (was_chosen_as_deadlock_victim));
+#else
+    was_chosen_as_deadlock_victim.fetch_and(byte(~1));
+#endif
+  }
+
+#ifdef WITH_WSREP
+  /** Flag the lock owner as a victim in Galera conflict resolution. */
+  void set_wsrep_victim()
+  {
+# if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    /* There is no 8-bit version of the 80386 BTS instruction.
+    Technically, this is the wrong addressing mode (16-bit), but
+    there are other data members stored after the byte. */
+    __asm__ __volatile__("lock btsw $1, %0"
+                         : "+m" (was_chosen_as_deadlock_victim));
+# else
+    was_chosen_as_deadlock_victim.fetch_or(2);
+# endif
+  }
+#endif
+
   /** Next available rec_pool[] entry */
   byte rec_cached;
   /** Next available table_pool[] entry */

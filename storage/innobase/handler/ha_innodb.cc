@@ -18512,7 +18512,7 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
                       wsrep_thd_transaction_state_str(vthd),
                       wsrep_thd_query(vthd));
           /* Mark transaction as a victim for Galera abort */
-          vtrx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
+          vtrx->lock.set_wsrep_victim();
           if (!wsrep_thd_set_wsrep_aborter(bf_thd, vthd))
             aborting= true;
           else
@@ -18567,7 +18567,7 @@ wsrep_abort_transaction(
 			wsrep_thd_transaction_state_str(victim_thd));
 
 	if (victim_trx) {
-		victim_trx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
+		victim_trx->lock.set_wsrep_victim();
 
 		wsrep_thd_kill_LOCK(victim_thd);
 		wsrep_thd_LOCK(victim_thd);

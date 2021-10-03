@@ -1282,8 +1282,7 @@ lock_rec_enqueue_waiting(
 	}
 
 	trx->lock.wait_thr = thr;
-	trx->lock.was_chosen_as_deadlock_victim
-		IF_WSREP(.fetch_and(byte(~1)), = false);
+	trx->lock.clear_deadlock_victim();
 
 	DBUG_LOG("ib_lock", "trx " << ib::hex(trx->id)
 		 << " waits for lock in index " << index->name
@@ -3333,8 +3332,7 @@ lock_table_enqueue_waiting(
 	lock_table_create(table, mode | LOCK_WAIT, trx, c_lock);
 
 	trx->lock.wait_thr = thr;
-	trx->lock.was_chosen_as_deadlock_victim
-		IF_WSREP(.fetch_and(byte(~1)), = false);
+	trx->lock.clear_deadlock_victim();
 
 	MONITOR_INC(MONITOR_TABLELOCK_WAIT);
 	return(DB_LOCK_WAIT);
