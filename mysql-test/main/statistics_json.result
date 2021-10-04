@@ -7940,3 +7940,9 @@ test.t1	analyze	status	OK
 SELECT * FROM t1 WHERE f > 'qux';
 f
 DROP TABLE t1;
+#
+# MDEV-26737: Outdated VARIABLE_COMMENT for HISTOGRAM_TYPE in I_S.SYSTEM_VARIABLES
+#
+select variable_comment from information_schema.system_variables where VARIABLE_NAME='HISTOGRAM_TYPE';
+variable_comment
+Specifies type of the histograms created by ANALYZE. Possible values are: SINGLE_PREC_HB - single precision height-balanced, DOUBLE_PREC_HB - double precision height-balanced, JSON_HB - height-balanced, stored as JSON.

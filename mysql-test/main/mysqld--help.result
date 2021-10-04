@@ -368,7 +368,8 @@ The following specify which files/extra groups are read (specified before remain
  Specifies type of the histograms created by ANALYZE.
  Possible values are: SINGLE_PREC_HB - single precision
  height-balanced, DOUBLE_PREC_HB - double precision
- height-balanced.
+ height-balanced, JSON_HB - height-balanced, stored as
+ JSON.
  --host-cache-size=# How many host names should be cached to avoid resolving.
  (Automatically configured unless set explicitly)
  --idle-readonly-transaction-timeout=# 

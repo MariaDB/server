@@ -242,3 +242,8 @@ ANALYZE TABLE t1 PERSISTENT FOR ALL;
 SELECT * FROM t1 WHERE f > 'qux';
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-26737: Outdated VARIABLE_COMMENT for HISTOGRAM_TYPE in I_S.SYSTEM_VARIABLES
+--echo #
+select variable_comment from information_schema.system_variables where VARIABLE_NAME='HISTOGRAM_TYPE';
+
