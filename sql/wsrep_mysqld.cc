@@ -105,7 +105,7 @@ long wsrep_slave_threads;                       // No. of slave appliers threads
 ulong wsrep_retry_autocommit;                   // Retry aborted autocommit trx
 ulong wsrep_max_ws_size;                        // Max allowed ws (RBR buffer) size
 ulong wsrep_max_ws_rows;                        // Max number of rows in ws
-ulong wsrep_forced_binlog_format;
+ulong wsrep_forced_binlog_format= BINLOG_FORMAT_UNSPEC;
 ulong wsrep_mysql_replication_bundle;
 bool wsrep_gtid_mode;                           // Use wsrep_gtid_domain_id
                                                 // for galera transactions?
