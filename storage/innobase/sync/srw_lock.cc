@@ -193,10 +193,10 @@ void ssux_lock_impl<spinloop>::write_lock(bool holding_u)
 {
   for (;;)
   {
-    uint32_t l= write_lock_wait_start();
+    write_lock_wait_start();
 
     const uint32_t e= holding_u ? WRITER_WAITING | UPDATER : WRITER_WAITING;
-    l= e;
+    uint32_t l= e;
     if (write_lock_wait_try(l))
       return;
 
@@ -213,7 +213,7 @@ void ssux_lock_impl<spinloop>::write_lock(bool holding_u)
           return;
       }
 
-      for (l= write_lock_wait_start() | WRITER_WAITING;
+      for (l= write_lock_wait_start_read() | WRITER_WAITING;
            (l | WRITER_WAITING) == e; )
         if (write_lock_wait_try(l))
           return;

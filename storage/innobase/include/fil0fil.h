@@ -511,7 +511,9 @@ public:
 
   /** Note that operations on the tablespace must stop.
   @return whether the operations were already stopped */
-  inline bool set_stopping();
+  inline bool set_stopping_check();
+  /** Note that operations on the tablespace must stop. */
+  inline void set_stopping();
 
   /** Note that operations on the tablespace can resume after truncation */
   inline void clear_stopping();
@@ -566,9 +568,35 @@ public:
 
   /** Clear the NEEDS_FSYNC flag */
   void clear_flush()
-  { n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release); }
+  {
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
+    __asm__ __volatile__("lock btrl $29, %0" : "+m" (n_pending));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+    static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
+    _interlockedbittestandreset(reinterpret_cast<volatile long*>
+                                (&n_pending), 29);
+#else
+    n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release);
+#endif
+  }
 
 private:
+  /** Clear the CLOSING flag */
+  void clear_closing()
+  {
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    static_assert(CLOSING == 1U << 30, "compatibility");
+    __asm__ __volatile__("lock btrl $30, %0" : "+m" (n_pending));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+    static_assert(CLOSING == 1U << 30, "compatibility");
+    _interlockedbittestandreset(reinterpret_cast<volatile long*>
+                                (&n_pending), 30);
+#else
+    n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
+#endif
+  }
+
   /** @return pending operations (and flags) */
   uint32_t pending()const { return n_pending.load(std::memory_order_acquire); }
 public:
@@ -1452,16 +1480,46 @@ inline void fil_space_t::reacquire()
 
 /** Note that operations on the tablespace must stop.
 @return whether the operations were already stopped */
-inline bool fil_space_t::set_stopping()
+inline bool fil_space_t::set_stopping_check()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  __asm__ goto("lock btsl $31, %0\t\njnc %l1" : : "m" (n_pending)
+               : "cc", "memory" : not_stopped);
+  return true;
+not_stopped:
+  return false;
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  return _interlockedbittestandset(reinterpret_cast<volatile long*>
+                                   (&n_pending), 31);
+#else
   return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
+#endif
+}
+
+/** Note that operations on the tablespace must stop.
+@return whether the operations were already stopped */
+inline void fil_space_t::set_stopping()
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  __asm__ __volatile__("lock btsl $31, %0" : "+m" (n_pending));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  _interlockedbittestandset(reinterpret_cast<volatile long*>(&n_pending), 31);
+#else
+  n_pending.fetch_or(STOPPING, std::memory_order_relaxed);
+#endif
 }
 
 inline void fil_space_t::clear_stopping()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_d(auto n=) n_pending.fetch_and(~STOPPING, std::memory_order_relaxed);
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  ut_d(auto n=) n_pending.fetch_sub(STOPPING, std::memory_order_relaxed);
   ut_ad(n & STOPPING);
 }
 

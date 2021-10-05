@@ -6789,9 +6789,13 @@ wsrep_store_key_val_for_row(
 
 			/* In a column prefix index, we may need to truncate
 			the stored value: */
-
 			if (true_len > key_len) {
 				true_len = key_len;
+			}
+			/* cannot exceed max column lenght either, we may need to truncate
+			the stored value: */
+			if (true_len > sizeof(sorted)) {
+			  true_len = sizeof(sorted);
 			}
 
 			memcpy(sorted, data, true_len);
@@ -6805,8 +6809,8 @@ wsrep_store_key_val_for_row(
 				actual data. The rest of the space was reset to zero
 				in the bzero() call above. */
 				if (true_len > buff_space) {
-					fprintf (stderr,
-						 "WSREP: key truncated: %s\n",
+					WSREP_DEBUG (
+						 "write set key truncated for: %s\n",
 						 wsrep_thd_query(thd));
 					true_len = buff_space;
 				}
@@ -18507,7 +18511,7 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
                       wsrep_thd_transaction_state_str(vthd),
                       wsrep_thd_query(vthd));
           /* Mark transaction as a victim for Galera abort */
-          vtrx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
+          vtrx->lock.set_wsrep_victim();
           if (!wsrep_thd_set_wsrep_aborter(bf_thd, vthd))
             aborting= true;
           else
@@ -18562,7 +18566,7 @@ wsrep_abort_transaction(
 			wsrep_thd_transaction_state_str(victim_thd));
 
 	if (victim_trx) {
-		victim_trx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
+		victim_trx->lock.set_wsrep_victim();
 
 		wsrep_thd_kill_LOCK(victim_thd);
 		wsrep_thd_LOCK(victim_thd);

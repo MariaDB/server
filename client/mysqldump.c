@@ -4518,7 +4518,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     if (!opt_xml && opt_copy_s3_tables && (ignore_flag & IGNORE_S3_TABLE))
     {
       DYNAMIC_STRING alter_string;
-      init_dynamic_string_checked(&alter_string, "ATER TABLE ", 1024, 1024);
+      init_dynamic_string_checked(&alter_string, "ALTER TABLE ", 1024, 1024);
       dynstr_append_checked(&alter_string, opt_quoted_table);
       dynstr_append_checked(&alter_string, " ENGINE=S3;\n");
       fputs(alter_string.str, md_result_file);

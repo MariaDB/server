@@ -320,7 +320,7 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 	this->size += size;
 	UT_LIST_ADD_LAST(chain, node);
 	if (node->is_open()) {
-		n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
+		clear_closing();
 		if (++fil_system.n_open >= srv_max_n_open_files) {
 			reacquire();
 			try_to_close(true);
@@ -683,7 +683,7 @@ ATTRIBUTE_COLD bool fil_space_t::prepare(bool have_mutex)
   }
   else
 clear:
-   n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
+    clear_closing();
 
   if (!have_mutex)
     mysql_mutex_unlock(&fil_system.mutex);
@@ -1527,38 +1527,23 @@ static void fil_name_write(uint32_t space_id, const char *name,
 fil_space_t *fil_space_t::check_pending_operations(uint32_t id)
 {
   ut_a(!is_system_tablespace(id));
-  bool being_deleted= false;
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
 
-  if (!space);
-  else if (space->pending() & STOPPING)
-    being_deleted= true;
-  else
-  {
-    if (space->crypt_data)
-    {
-      space->reacquire();
-      mysql_mutex_unlock(&fil_system.mutex);
-      fil_space_crypt_close_tablespace(space);
-      mysql_mutex_lock(&fil_system.mutex);
-      space->release();
-    }
-    being_deleted= space->set_stopping();
-  }
-  mysql_mutex_unlock(&fil_system.mutex);
-
   if (!space)
-    return nullptr;
-
-  if (being_deleted)
   {
+    mysql_mutex_unlock(&fil_system.mutex);
+    return nullptr;
+  }
+
+  if (space->pending() & STOPPING)
+  {
+being_deleted:
     /* A thread executing DDL and another thread executing purge may
     be executing fil_delete_tablespace() concurrently for the same
     tablespace. Wait for the other thread to complete the operation. */
     for (ulint count= 0;; count++)
     {
-      mysql_mutex_lock(&fil_system.mutex);
       space= fil_space_get_by_id(id);
       ut_ad(!space || space->is_stopping());
       mysql_mutex_unlock(&fil_system.mutex);
@@ -1569,8 +1554,24 @@ fil_space_t *fil_space_t::check_pending_operations(uint32_t id)
         sql_print_warning("InnoDB: Waiting for tablespace " UINT32PF
                           " to be deleted", id);
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      mysql_mutex_lock(&fil_system.mutex);
     }
   }
+  else
+  {
+    if (space->crypt_data)
+    {
+      space->reacquire();
+      mysql_mutex_unlock(&fil_system.mutex);
+      fil_space_crypt_close_tablespace(space);
+      mysql_mutex_lock(&fil_system.mutex);
+      space->release();
+    }
+    if (space->set_stopping_check())
+      goto being_deleted;
+  }
+
+  mysql_mutex_unlock(&fil_system.mutex);
 
   for (ulint count= 0;; count++)
   {
