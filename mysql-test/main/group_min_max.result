@@ -3664,7 +3664,7 @@ f1	COUNT(DISTINCT f2)
 3	4
 explain SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	f1	5	NULL	9	Using index for group-by
+1	SIMPLE	t1	range	NULL	f1	5	NULL	8	Using index for group-by
 drop table t1;
 # End of test#50539.
 #
