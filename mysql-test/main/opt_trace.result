@@ -1408,7 +1408,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	20	NULL	8	Using where; Using index for group-by
+1	SIMPLE	t1	range	NULL	a	20	NULL	7	Using where; Using index for group-by
 select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
@@ -1495,8 +1495,8 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                         "index": "a",
                         "covering": true,
                         "ranges": ["(2,3) <= (b,c) <= (2,3)"],
-                        "rows": 8,
-                        "cost": 2.2
+                        "rows": 7,
+                        "cost": 2.05
                       }
                     ]
                   },
@@ -1507,8 +1507,8 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                     "min_aggregate": true,
                     "max_aggregate": false,
                     "distinct_aggregate": false,
-                    "rows": 8,
-                    "cost": 2.2,
+                    "rows": 7,
+                    "cost": 2.05,
                     "key_parts_used_for_access": ["a", "b", "c"],
                     "ranges": ["(2,3) <= (b,c) <= (2,3)"],
                     "chosen": true
@@ -1521,13 +1521,13 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                       "min_aggregate": true,
                       "max_aggregate": false,
                       "distinct_aggregate": false,
-                      "rows": 8,
-                      "cost": 2.2,
+                      "rows": 7,
+                      "cost": 2.05,
                       "key_parts_used_for_access": ["a", "b", "c"],
                       "ranges": ["(2,3) <= (b,c) <= (2,3)"]
                     },
-                    "rows_for_plan": 8,
-                    "cost_for_plan": 2.2,
+                    "rows_for_plan": 7,
+                    "cost_for_plan": 2.05,
                     "chosen": true
                   }
                 }
@@ -1545,16 +1545,16 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                       "considered_access_paths": [
                         {
                           "access_type": "index_merge",
-                          "resulting_rows": 8,
-                          "cost": 2.2,
+                          "resulting_rows": 7,
+                          "cost": 2.05,
                           "chosen": true,
                           "use_tmp_table": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "index_merge",
-                        "records": 8,
-                        "cost": 2.2,
+                        "records": 7,
+                        "cost": 2.05,
                         "uses_join_buffering": false
                       }
                     }
@@ -1564,9 +1564,9 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
               {
                 "plan_prefix": [],
                 "table": "t1",
-                "rows_for_plan": 8,
-                "cost_for_plan": 3.8,
-                "cost_for_sorting": 8
+                "rows_for_plan": 7,
+                "cost_for_plan": 3.45,
+                "cost_for_sorting": 7
               }
             ]
           },
