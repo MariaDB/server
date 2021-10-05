@@ -3627,10 +3627,15 @@ void set_statistics_for_table(THD *thd, TABLE *table)
 {
   TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
   Table_statistics *read_stats= stats_cb->table_stats;
-  table->used_stat_records= 
+
+  /*
+    The MAX below is to ensure that we don't return 0 rows for a table if it
+    not guaranteed to be empty.
+  */
+  table->used_stat_records=
     (!check_eits_preferred(thd) ||
      !table->stats_is_read || read_stats->cardinality_is_null) ?
-    table->file->stats.records : read_stats->cardinality;
+    table->file->stats.records : MY_MAX(read_stats->cardinality, 1);
 
   /*
     For partitioned table, EITS statistics is based on data from all partitions.
