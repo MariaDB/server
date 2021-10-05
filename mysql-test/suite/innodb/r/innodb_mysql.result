@@ -191,8 +191,8 @@ min(7)
 7
 explain select min(7) from t2i join t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
-1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
 select min(7) from t2i join t1i;
 min(7)
 NULL
@@ -207,8 +207,8 @@ max(7)
 7
 explain select max(7) from t2i join t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
-1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
 select max(7) from t2i join t1i;
 max(7)
 NULL
@@ -239,7 +239,7 @@ select 1, max(1) from t1i where 1=99;
 explain select count(*), min(7), max(7) from t1m, t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1m	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	
 select count(*), min(7), max(7) from t1m, t1i;
 count(*)	min(7)	max(7)
 0	NULL	NULL
@@ -253,7 +253,7 @@ count(*)	min(7)	max(7)
 explain select count(*), min(7), max(7) from t2m, t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2m	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	
 select count(*), min(7), max(7) from t2m, t1i;
 count(*)	min(7)	max(7)
 0	NULL	NULL

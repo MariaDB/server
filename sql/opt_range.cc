@@ -2678,11 +2678,16 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   Item *notnull_cond= NULL;
   TABLE_READ_PLAN *best_trp= NULL;
   SEL_ARG **backup_keys= 0;
+  ha_rows table_records= head->stat_records();
+  /* We trust that if stat_records() is 0 the table is really empty! */
+  bool impossible_range= table_records == 0;
   DBUG_ENTER("SQL_SELECT::test_quick_select");
   DBUG_PRINT("enter",("keys_to_use: %lu  prev_tables: %lu  const_tables: %lu",
 		      (ulong) keys_to_use.to_ulonglong(), (ulong) prev_tables,
 		      (ulong) const_tables));
-  DBUG_PRINT("info", ("records: %lu", (ulong) head->stat_records()));
+  DBUG_PRINT("info", ("records: %llu", (ulonglong) table_records));
+  DBUG_ASSERT(table_records || !head->file->stats.records);
+
   delete quick;
   quick=0;
   needed_reg.clear_all();
@@ -2691,10 +2696,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   DBUG_ASSERT(!head->is_filled_at_execution());
   if (keys_to_use.is_clear_all() || head->is_filled_at_execution())
     DBUG_RETURN(0);
-  records= head->stat_records();
+  records= table_records;
   notnull_cond= head->notnull_cond;
-  if (!records)
-    records++;					/* purecov: inspected */
   if (head->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
     only_single_index_range_scan= 1;
 
@@ -2721,8 +2724,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
   DBUG_PRINT("info",("Time to scan table: %g", read_time));
 
-  Json_writer_object table_records(thd);
-  table_records.add_table_name(head);
+  Json_writer_object table_info(thd);
+  table_info.add_table_name(head);
 
   Json_writer_object trace_range(thd, "range_analysis");
   {
@@ -2888,7 +2891,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       {
         if (tree->type == SEL_TREE::IMPOSSIBLE)
         {
-          records=0L;                      /* Return -1 from this function. */
+          records= 0;
+          impossible_range= 1;             /* Return -1 from this function. */
           read_time= (double) HA_POS_ERROR;
           trace_range.add("impossible_range", true);
           goto free_mem;
@@ -2987,7 +2991,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       }
 
       if (optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
-          head->stat_records() != 0 && !only_single_index_range_scan)
+          table_records != 0 && !only_single_index_range_scan)
       {
         /* Try creating index_merge/ROR-union scan. */
         SEL_IMERGE *imerge;
@@ -3029,7 +3033,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       if ((group_trp= get_best_group_min_max(&param, tree, read_time)))
       {
         param.table->opt_range_condition_rows= MY_MIN(group_trp->records,
-                                                  head->stat_records());
+                                                      table_records);
         Json_writer_object grp_summary(thd, "best_group_range_summary");
 
         if (unlikely(thd->trace_started()))
@@ -3054,6 +3058,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     if (best_trp)
     {
       records= best_trp->records;
+      impossible_range= records == 0;           // No matching rows
       if (!(quick= best_trp->make_quick(&param, TRUE)) || quick->init())
       {
         delete quick;
@@ -3087,7 +3092,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     Assume that if the user is using 'limit' we will only need to scan
     limit rows if we are using a key
   */
-  DBUG_RETURN(records ? MY_TEST(quick) : -1);
+  set_if_smaller(records, table_records);
+  DBUG_RETURN(impossible_range ? -1 : MY_TEST(quick));
 }
 
 /****************************************************************************

@@ -638,10 +638,10 @@ DEFAULT SUBSTRING_INDEX(USER(),'@',1)
 );
 EXPLAIN UPDATE gafld SET nuigafld = 0 WHERE nuigafld = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	gafld	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 EXPLAIN UPDATE gafld SET nuigafld = 0 WHERE nuigafld = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	gafld	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 DROP TABLE gafld;
 # (duplicate) MDEV-17653 replace into generated columns is unstable
 # Some columns are snipped from the MDEV test

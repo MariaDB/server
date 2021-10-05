@@ -664,16 +664,19 @@ SQL_SELECT *prepare_simple_select(THD *thd, Item *cond,
 
   /* Assume that no indexes cover all required fields */
   table->covering_keys.clear_all();
+  table->file->info(HA_STATUS_VARIABLE);
+  table->used_stat_records= table->file->stats.records;
 
   SQL_SELECT *res= make_select(table, 0, 0, cond, 0, 0, error);
-  if (unlikely(*error) ||
-      (likely(res) && unlikely(res->check_quick(thd, 0, HA_POS_ERROR))) ||
-      (likely(res) && res->quick && unlikely(res->quick->reset())))
-  {
-    delete res;
-    res=0;
-  }
-  return res;
+  if (unlikely(!res) || unlikely(*error))
+    goto error;
+  (void) res->check_quick(thd, 0, HA_POS_ERROR);
+  if (!res->quick || res->quick->reset() == 0)
+    return res;
+
+error:
+  delete res;
+  return 0;
 }
 
 /*
@@ -1076,7 +1079,9 @@ error:
   new_trans.restore_old_transaction();
 
 error2:
-  DBUG_RETURN(TRUE);
+  if (!thd->is_error())
+    my_eof(thd);
+  DBUG_RETURN(thd->is_error());
 }
 
 
