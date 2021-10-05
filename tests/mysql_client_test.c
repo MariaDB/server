@@ -21194,10 +21194,7 @@ static void test_explain_meta()
 }
 
 
-#if __has_feature(memory_sanitizer)
-/* FIXME: MDEV-26761: main.mysql_client_test fails with MemorySanitizer */
-#elif defined EMBEDDED_LIBRARY
-#else
+#ifndef EMBEDDED_LIBRARY
 #define MDEV19838_MAX_PARAM_COUNT 32
 #define MDEV19838_FIELDS_COUNT 17
 static void test_mdev19838()
@@ -21689,10 +21686,7 @@ static struct my_tests_st my_tests[]= {
 #endif
   { "test_ps_params_in_ctes", test_ps_params_in_ctes },
   { "test_explain_meta", test_explain_meta },
-#if __has_feature(memory_sanitizer)
-/* FIXME: MDEV-26761: main.mysql_client_test fails with MemorySanitizer */
-#elif defined EMBEDDED_LIBRARY
-#else
+#ifndef EMBEDDED_LIBRARY
   { "test_mdev19838", test_mdev19838 },
 #endif
   { "test_mdev18408", test_mdev18408 },
