@@ -182,6 +182,17 @@ int ha_blackhole::info(uint flag)
   DBUG_ENTER("ha_blackhole::info");
 
   bzero((char*) &stats, sizeof(stats));
+  /*
+    The following is required to get replication to work as otherwise
+    test_quick_select() will think the table is empty and thus any
+    update/delete will not have any rows to update.
+  */
+  stats.records= 2;
+  /*
+    Block size should not be 0 as this will cause division by zero
+    in scan_time()
+  */
+  stats.block_size= 8192;
   if (flag & HA_STATUS_AUTO)
     stats.auto_increment_value= 1;
   DBUG_RETURN(0);
