@@ -3230,7 +3230,7 @@ double records_in_column_ranges(PARAM *param, uint idx,
   SEL_ARG_RANGE_SEQ seq;
   KEY_MULTI_RANGE range;
   range_seq_t seq_it;
-  double rows;
+  double rows, table_records;
   Field *field;
   uint flags= 0;
   double total_rows= 0;
@@ -3284,10 +3284,14 @@ double records_in_column_ranges(PARAM *param, uint idx,
       total_rows= DBL_MAX;
       break;
     }
-    total_rows += rows;
-  }    
-  return total_rows;
-} 
+    total_rows+= rows;
+  }
+  table_records= rows2double(param->table->stat_records());
+  if (total_rows > table_records)
+    DBUG_PRINT("error", ("table_records: %g < total_records: %g",
+                         table_records, total_rows));
+  return MY_MIN(total_rows, table_records);
+}
 
 
 /*
@@ -14759,6 +14763,8 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     num_groups= (ha_rows) rint(num_groups * quick_prefix_selectivity);
     set_if_bigger(num_groups, 1);
   }
+  /* Ensure we don't have more groups than rows in table */
+  set_if_smaller(num_groups, table_records);
 
   if (used_key_parts > group_key_parts)
   { /*
