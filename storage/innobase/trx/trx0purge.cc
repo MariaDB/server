@@ -540,6 +540,12 @@ static void trx_purge_cleanse_purge_queue(const fil_space_t& space)
 	mutex_exit(&purge_sys.pq_mutex);
 }
 
+#if defined __GNUC__ && __GNUC__ == 4 && !defined __clang__
+# if defined __arm__ || defined __aarch64__
+/* Work around an internal compiler error in GCC 4.8.5 */
+__attribute__((optimize(0)))
+# endif
+#endif
 /**
 Removes unnecessary history data from rollback segments. NOTE that when this
 function is called, the caller must not have any latches on undo log pages!
