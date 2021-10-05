@@ -1445,10 +1445,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 DELETE FROM t1 WHERE a = 10;
 EXPLAIN DELETE FROM t1 WHERE a = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 ANALYZE DELETE FROM t1 WHERE a = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	0.00	100.00	100.00	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 DELETE FROM t1 USING t1, t2;
 EXPLAIN DELETE FROM t1 USING t1, t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1790,10 +1790,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 DELETE FROM t1 WHERE a = 10;
 EXPLAIN DELETE FROM t1 WHERE a = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 ANALYZE DELETE FROM t1 WHERE a = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	0.00	100.00	100.00	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 DELETE FROM t1 USING t1, t2;
 EXPLAIN DELETE FROM t1 USING t1, t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
