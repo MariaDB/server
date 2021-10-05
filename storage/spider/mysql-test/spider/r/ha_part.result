@@ -248,6 +248,13 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 8	g	2011-05-05 21:33:30
 9	h	2011-05-05 22:32:10
 DROP TABLE ta_l2;
+connection master_1;
+CREATE TABLE t (c INT) PARTITION BY LIST COLUMNS (c) (PARTITION p DEFAULT ENGINE=SPIDER);
+INSERT INTO t VALUES (1);
+ERROR HY000: Unable to connect to foreign data source: localhost
+DELETE FROM t;
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE t;
 
 deinit
 connection master_1;

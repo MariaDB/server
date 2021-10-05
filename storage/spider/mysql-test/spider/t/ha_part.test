@@ -982,6 +982,15 @@ if ($HAVE_PARTITION)
   }
 }
 
+--connection master_1
+ 
+CREATE TABLE t (c INT) PARTITION BY LIST COLUMNS (c) (PARTITION p DEFAULT ENGINE=SPIDER);
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT INTO t VALUES (1);
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+DELETE FROM t;
+
+DROP TABLE t;
 --echo
 --echo deinit
 --disable_warnings

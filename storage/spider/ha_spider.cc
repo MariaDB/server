@@ -8844,7 +8844,9 @@ int ha_spider::info(
                 share->init_error = TRUE;
                 share->init = TRUE;
               }
-              if (sql_command == SQLCOM_SHOW_CREATE)
+              if (sql_command == SQLCOM_SHOW_CREATE ||
+                  sql_command == SQLCOM_DELETE ||
+                  sql_command == SQLCOM_INSERT)
               {
                 if (thd->is_error())
                 {
