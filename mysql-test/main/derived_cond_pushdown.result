@@ -19281,7 +19281,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
-Note	1003	/* select#1 */ select NULL AS `f`,`v2`.`f` AS `f` from `test`.`t1` `a` straight_join `test`.`t1` `b` join `test`.`v2` where 0
+Note	1003	/* select#1 */ select NULL AS `f`,NULL AS `f` from `test`.`t1` `a` straight_join `test`.`t1` `b` join `test`.`v2` where 0
 DROP VIEW v1,v2;
 DROP TABLE t1;
 #
@@ -19749,7 +19749,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	2	
 3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	cp2	range	NULL	a	5	NULL	8	Using index for group-by
+2	DERIVED	cp2	range	NULL	a	5	NULL	7	Using index for group-by
 explain format=json select * from t1, (select a from t1 cp2 group by a) dt, t3
 where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
 EXPLAIN
@@ -19830,7 +19830,7 @@ EXPLAIN
                     "key": "a",
                     "key_length": "5",
                     "used_key_parts": ["a"],
-                    "rows": 8,
+                    "rows": 7,
                     "filtered": 100,
                     "using_index_for_group_by": true
                   }
