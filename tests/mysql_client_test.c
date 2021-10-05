@@ -40,6 +40,8 @@
 #include <arpa/inet.h>
 #endif
 
+#include "my_valgrind.h"
+
 static const my_bool my_true= 1;
 
 
@@ -672,6 +674,11 @@ static void test_wl4435()
 
   /* Init PS-parameters. */
 
+  memset(str_data, 0, sizeof str_data);
+  memset(dbl_data, 0, sizeof dbl_data);
+  memset(dec_data, 0, sizeof dec_data);
+  memset(int_data, 0, sizeof int_data);
+
   bzero((char *) ps_params, sizeof (ps_params));
 
   /* - v0 -- INT */
@@ -1072,7 +1079,7 @@ static void test_wl4435_2()
   MYSQL_RES *rs_metadata; \
   MYSQL_FIELD *fields; \
   c_type pspv c_type_ext; \
-  my_bool psp_null; \
+  my_bool psp_null= FALSE; \
   \
   bzero(&pspv, sizeof (pspv)); \
   \
@@ -1133,6 +1140,7 @@ static void test_wl4435_3()
 {
   char tmp[255];
 
+  memset(tmp, 0, sizeof tmp);
   puts("");
 
   /*
@@ -1631,6 +1639,7 @@ static void test_double_compare()
   my_bind[2].buffer= (void *)&double_data;
 
   tiny_data= 1;
+  memset(real_data, 0, sizeof real_data);
   strmov(real_data, "10.2");
   double_data= 34.5;
   rc= mysql_stmt_bind_param(stmt, my_bind);
@@ -7419,6 +7428,7 @@ static void test_decimal_bug()
   rc= mysql_stmt_bind_param(stmt, my_bind);
   check_execute(stmt, rc);
 
+  memset(data, 0, sizeof data);
   strmov(data, "8.0");
   rc= mysql_stmt_execute(stmt);
   check_execute(stmt, rc);
@@ -11571,6 +11581,7 @@ static void test_view_insert_fields()
     my_bind[i].is_null= 0;
     my_bind[i].buffer= (char *)&parm[i];
 
+    memset(parm[i], 0, sizeof parm[i]);
     strmov(parm[i], "1");
     my_bind[i].buffer_length= 2;
     my_bind[i].length= &l[i];
@@ -13168,6 +13179,7 @@ static void test_bug8330()
     check_execute(stmt[i], rc);
 
     my_bind[i].buffer_type= MYSQL_TYPE_LONG;
+    lval[i]= 0;
     my_bind[i].buffer= (void*) &lval[i];
     my_bind[i].is_null= 0;
     mysql_stmt_bind_param(stmt[i], &my_bind[i]);
@@ -15904,6 +15916,7 @@ static void test_bug20152()
   my_bind[0].buffer_type= MYSQL_TYPE_DATE;
   my_bind[0].buffer= (void*)&tm;
 
+  memset(&tm, 0, sizeof tm);
   tm.year = 2006;
   tm.month = 6;
   tm.day = 18;
@@ -18939,6 +18952,7 @@ static void test_bug49972()
 
   in_param_bind.buffer_type= MYSQL_TYPE_LONG;
   in_param_bind.buffer= (char *) &int_data;
+  int_data= 0;
   in_param_bind.length= 0;
   in_param_bind.is_null= 0;
 
@@ -19460,6 +19474,7 @@ static void test_ps_sp_out_params()
   DIE_UNLESS(mysql_stmt_param_count(stmt) == 1);
 
   memset(bind, 0, sizeof(MYSQL_BIND));
+  memset(buffer, 0, sizeof buffer);
   bind[0].buffer= buffer;
   bind[0].buffer_length= sizeof(buffer);
   bind[0].buffer_type= MYSQL_TYPE_STRING;
@@ -20135,6 +20150,7 @@ static void test_mdev14454_internal(const char *init,
   DIE_UNLESS(rc == 0);
   DIE_UNLESS(mysql_stmt_param_count(stmt) == 1);
 
+  memset(&bind, 0, sizeof bind);
   bind.buffer_type= MYSQL_TYPE_NULL;
   rc= mysql_stmt_bind_param(stmt, &bind);
   DIE_UNLESS(rc == 0);
@@ -20143,7 +20159,6 @@ static void test_mdev14454_internal(const char *init,
   DIE_UNLESS(rc == 0);
 
   memset(res, 0, sizeof(res));
-  memset(&bind, 0, sizeof(bind));
   bind.buffer_type= MYSQL_TYPE_STRING;
   bind.buffer_length= sizeof(res);
   bind.buffer= res;
@@ -20756,6 +20771,7 @@ static void test_ps_params_in_ctes()
 
   int_data[0]=2;
 
+  memset(ps_params, 0, sizeof ps_params);
   ps_params[0].buffer_type= MYSQL_TYPE_LONG;
   ps_params[0].buffer= (char *) &int_data[0];
   ps_params[0].length= 0;
@@ -21181,7 +21197,10 @@ static void test_explain_meta()
 }
 
 
-#ifndef EMBEDDED_LIBRARY
+#if __has_feature(memory_sanitizer)
+/* FIXME: MDEV-26761: main.mysql_client_test fails with MemorySanitizer */
+#elif defined EMBEDDED_LIBRARY
+#else
 #define MDEV19838_MAX_PARAM_COUNT 32
 #define MDEV19838_FIELDS_COUNT 17
 static void test_mdev19838()
@@ -21802,7 +21821,10 @@ static struct my_tests_st my_tests[]= {
 #endif
   { "test_ps_params_in_ctes", test_ps_params_in_ctes },
   { "test_explain_meta", test_explain_meta },
-#ifndef EMBEDDED_LIBRARY
+#if __has_feature(memory_sanitizer)
+/* FIXME: MDEV-26761: main.mysql_client_test fails with MemorySanitizer */
+#elif defined EMBEDDED_LIBRARY
+#else
   { "test_mdev19838", test_mdev19838 },
 #endif
   { "test_mdev18408", test_mdev18408 },
