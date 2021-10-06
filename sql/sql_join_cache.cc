@@ -1080,7 +1080,7 @@ int JOIN_CACHE::init(bool for_explain)
 
 
 /* 
-  Check the possibility to read the access keys directly from the join buffer       
+  Check the possibility to read the access keys directly from the join buffer
   SYNOPSIS
     check_emb_key_usage()
 

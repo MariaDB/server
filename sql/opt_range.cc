@@ -19,8 +19,8 @@
   Fix that MAYBE_KEY are stored in the tree so that we can detect use
   of full hash keys for queries like:
 
-  select s.id, kws.keyword_id from sites as s,kws where s.id=kws.site_id and kws.keyword_id in (204,205);
-
+  select s.id, kws.keyword_id from sites as s,kws where s.id=kws.site_id and
+  kws.keyword_id in (204,205);
 */
 
 /*
@@ -2626,7 +2626,8 @@ static int fill_used_fields_bitmap(PARAM *param)
     In the table struct the following information is updated:
       quick_keys           - Which keys can be used
       quick_rows           - How many rows the key matches
-      opt_range_condition_rows - E(# rows that will satisfy the table condition)
+      opt_range_condition_rows - E(# rows that will satisfy the table
+                                 condition)
 
   IMPLEMENTATION
     opt_range_condition_rows value is obtained as follows:
@@ -2774,7 +2775,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
     thd->no_errors=1;				// Don't warn about NULL
     init_sql_alloc(key_memory_quick_range_select_root, &alloc,
-                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
+                   thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
     if (!(param.key_parts=
            (KEY_PART*) alloc_root(&alloc,
                                   sizeof(KEY_PART) *
@@ -2931,6 +2933,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       TRP_INDEX_INTERSECT *intersect_trp;
       bool can_build_covering= FALSE;
       Json_writer_object trace_range(thd, "analyzing_range_alternatives");
+      TABLE_READ_PLAN *range_trp;
 
       backup_keys= (SEL_ARG**) alloca(sizeof(backup_keys[0])*param.keys);
       memcpy(&backup_keys[0], &tree->keys[0],
@@ -2939,9 +2942,9 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       remove_nonrange_trees(&param, tree);
 
       /* Get best 'range' plan and prepare data for making other plans */
-      if (auto range_trp= get_key_scans_params(&param, tree,
-                                               only_single_index_range_scan,
-                                               true, best_read_time))
+      if ((range_trp= get_key_scans_params(&param, tree,
+                                           only_single_index_range_scan,
+                                           true, best_read_time)))
       {
         best_trp= range_trp;
         best_read_time= best_trp->read_cost;
@@ -3048,7 +3051,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         {
           grp_summary.add("chosen", true);
           best_trp= group_trp;
-          best_read_time= best_trp->read_cost;
         }
         else
           grp_summary.add("chosen", false).add("cause", "cost");
@@ -3112,7 +3114,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   SYNOPSIS
     create_key_parts_for_pseudo_indexes()
       param       IN/OUT data structure for the descriptors to be built 
-      used_fields bitmap of columns for which the descriptors are to be built          
+      used_fields bitmap of columns for which the descriptors are to be built
 
   DESCRIPTION
     For each column marked in the bitmap used_fields the function builds
@@ -3209,9 +3211,10 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
   SYNOPSIS
     records_in_column_ranges()
       param      the data structure to access descriptors of pseudo indexes
-                 built over columns used in the condition of the processed query
+                 built over columns used in the condition of the processed
+                 query
       idx        the index of the descriptor of interest in param
-      tree       the tree representing ranges built for the interesting column         
+      tree       the tree representing ranges built for the interesting column
 
   DESCRIPTION
     This function retrieves the ranges represented by the SEL_ARG 'tree' and
@@ -3334,7 +3337,8 @@ int cmp_quick_ranges(TABLE *table, uint *a, uint *b)
   DESCRIPTION
     This function calculates the selectivity of range conditions cond imposed
     on the rows of 'table' in the processed query.
-    The calculated selectivity is assigned to the field table->cond_selectivity.
+    The calculated selectivity is assigned to the field
+    table->cond_selectivity.
     
     Selectivity is calculated as a product of selectivities imposed by:
 
@@ -3346,6 +3350,8 @@ int cmp_quick_ranges(TABLE *table, uint *a, uint *b)
     3. Reading a few records from the table pages and checking the condition
        selectivity (this is used for conditions like "column LIKE '%val%'" 
        where approaches #1 and #2 do not provide selectivity data).
+    4. If the selectivity calculated by get_best_ror_intersect() is smaller,
+       use this instead.
 
   NOTE
     Currently the selectivities of range conditions over different columns are
@@ -3362,6 +3368,9 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   MY_BITMAP *used_fields= &table->cond_set;
   double table_records= (double)table->stat_records();
   uint optimal_key_order[MAX_KEY];
+  MY_BITMAP handled_columns;
+  my_bitmap_map *buf;
+  QUICK_SELECT_I *quick;
   DBUG_ENTER("calculate_cond_selectivity_for_table");
 
   table->cond_selectivity= 1.0;
@@ -3369,7 +3378,6 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   if (table_records == 0)
     DBUG_RETURN(FALSE);
 
-  QUICK_SELECT_I *quick;
   if ((quick=table->reginfo.join_tab->quick) &&
       quick->get_type() == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
   {
@@ -3377,14 +3385,14 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     DBUG_RETURN(FALSE);
   }
 
-  if (!*cond)
+  if (!*cond || table->pos_in_table_list->schema_table)
     DBUG_RETURN(FALSE);
 
-  if (table->pos_in_table_list->schema_table)
-    DBUG_RETURN(FALSE);
-  
-  MY_BITMAP handled_columns;
-  my_bitmap_map* buf;
+  /*
+    This should be pre-alloced so that we could use the same bitmap for all
+    tables. Would also avoid extra memory allocations if this function would
+    be called multiple times per query.
+  */
   if (!(buf= (my_bitmap_map*)thd->alloc(table->s->column_bitmap_size)))
     DBUG_RETURN(TRUE);
   my_bitmap_init(&handled_columns, buf, table->s->fields);
@@ -3512,7 +3520,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     double rows;
   
     init_sql_alloc(key_memory_quick_range_select_root, &alloc,
-                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
+                   thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
     param.thd= thd;
     param.mem_root= &alloc;
     param.old_root= thd->mem_root;
@@ -3531,9 +3540,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
     thd->no_errors=1;		    
 
-    tree= cond[0]->get_mm_tree(&param, cond);
-
-    if (!tree)
+    if (!(tree= cond[0]->get_mm_tree(&param, cond)))
       goto free_alloc;
     
     table->reginfo.impossible_range= 0;
@@ -3557,7 +3564,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     for (uint idx= 0; idx < param.keys; idx++)
     {
       SEL_ARG *key= tree->keys[idx];
-      if (key)
+      if (key)                                  // Quick range found for key
       {
         Json_writer_object selectivity_for_column(thd);
         selectivity_for_column.add("column_name", key->field->field_name);
@@ -5671,8 +5678,7 @@ bool create_fields_bitmap(PARAM *param, MY_BITMAP *fields_bitmap)
 static
 int cmp_intersect_index_scan(INDEX_SCAN_INFO **a, INDEX_SCAN_INFO **b)
 {
-  return (*a)->records < (*b)->records ?
-          -1 : (*a)->records == (*b)->records ? 0 : 1;
+  return CMP_NUM((*a)->records, (*b)->records);
 }
 
 
@@ -6269,7 +6275,8 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
     size_t max_memory_size= common_info->max_memory_size; 
     
     records_sent_to_unique+= ext_index_scan_records;
-    cost= Unique::get_use_cost(buff_elems, (size_t) records_sent_to_unique, key_size,
+    cost= Unique::get_use_cost(buff_elems, (size_t) records_sent_to_unique,
+                               key_size,
                                max_memory_size, compare_factor, TRUE,
                                &next->in_memory);
     if (records_filtered_out_by_cpk)
@@ -6584,6 +6591,11 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
     if (bitmap_is_set(&param->needed_fields, key_part->fieldnr-1))
       bitmap_set_bit(&ror_scan->covered_fields, key_part->fieldnr-1);
   }
+
+  /*
+    Cost of reading the keys for the rows, which are later stored in the
+    ror queue.
+  */
   ror_scan->index_read_cost=
     param->table->file->keyread_time(ror_scan->keynr, 1, ror_scan->records);
   DBUG_RETURN(ror_scan);
@@ -6895,7 +6907,7 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
                    avoid duplicating the inference code)
 
   NOTES
-    Adding a ROR scan to ROR-intersect "makes sense" iff the cost of ROR-
+    Adding a ROR scan to ROR-intersect "makes sense" if the cost of ROR-
     intersection decreases. The cost of ROR-intersection is calculated as
     follows:
 
@@ -7057,8 +7069,12 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
 {
   uint idx;
   double min_cost= DBL_MAX;
-  DBUG_ENTER("get_best_ror_intersect");
   THD *thd= param->thd;
+  DBUG_ENTER("get_best_ror_intersect");
+  DBUG_PRINT("enter", ("opt_range_condition_rows: %llu  cond_selectivity: %g",
+                       (ulonglong) param->table->opt_range_condition_rows,
+                       param->table->cond_selectivity));
+
   Json_writer_object trace_ror(thd, "analyzing_roworder_intersect");
 
   if ((tree->n_ror_scans < 2) || !param->table->stat_records() ||
@@ -7267,6 +7283,8 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
                             ? "too few indexes to merge"
                             : "cost");
   }
+  DBUG_PRINT("enter", ("opt_range_condition_rows: %llu",
+                       (ulonglong) param->table->opt_range_condition_rows));
   DBUG_RETURN(trp);
 }
 
@@ -11535,7 +11553,8 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
                            bool *is_ror_scan)
 {
   SEL_ARG_RANGE_SEQ seq;
-  RANGE_SEQ_IF seq_if = {NULL, sel_arg_range_seq_init, sel_arg_range_seq_next, 0, 0};
+  RANGE_SEQ_IF seq_if=
+    {NULL, sel_arg_range_seq_init, sel_arg_range_seq_next, 0, 0};
   handler *file= param->table->file;
   ha_rows rows= HA_POS_ERROR;
   uint keynr= param->real_keynr[idx];
@@ -11603,24 +11622,24 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
         This check is needed as sometimes that table statistics or range
         estimates may be slightly out of sync.
       */
-      rows= table_records;
-      set_if_bigger(rows, 1);
+      rows= MY_MAX(table_records, 1);
       param->quick_rows[keynr]= rows;
     }
     param->possible_keys.set_bit(keynr);
     if (update_tbl_stats)
     {
+      TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
       param->table->opt_range_keys.set_bit(keynr);
-      param->table->opt_range[keynr].key_parts= param->max_key_parts;
-      param->table->opt_range[keynr].ranges= param->range_count;
+      range->key_parts= param->max_key_parts;
+      range->ranges= param->range_count;
       param->table->opt_range_condition_rows=
         MY_MIN(param->table->opt_range_condition_rows, rows);
-      param->table->opt_range[keynr].rows= rows;
-      param->table->opt_range[keynr].cost= cost->total_cost();
+      range->rows= rows;
+      range->cost= cost->total_cost();
       if (param->table->file->is_clustering_key(keynr))
-	param->table->opt_range[keynr].index_only_cost= 0;
+	range->index_only_cost= 0;
       else
-        param->table->opt_range[keynr].index_only_cost= cost->index_only_cost();
+        range->index_only_cost= cost->index_only_cost();
     }
   }
 
@@ -14821,11 +14840,13 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   set_if_smaller(num_groups, table_records);
 
   if (used_key_parts > group_key_parts)
-  { /*
+  {
+    /*
       Compute the probability that two ends of a subgroup are inside
       different blocks.
     */
-    keys_per_subgroup= (ha_rows) index_info->actual_rec_per_key(used_key_parts - 1);
+    keys_per_subgroup= (ha_rows) index_info->actual_rec_per_key(used_key_parts -
+                                                                1);
     if (keys_per_subgroup >= keys_per_block) /* If a subgroup is bigger than */
       p_overlap= 1.0;       /* a block, it will overlap at least two blocks. */
     else
@@ -14849,10 +14870,13 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     reads the next record without having to re-position to it on every
     group. To make the CPU cost reflect this, we estimate the CPU cost
     as the sum of:
-    1. Cost for evaluating the condition (similarly as for index scan).
+    1. Cost for evaluating the condition for each num_group
+       (1/TIME_FOR_COMPARE) (similarly as for index scan).
     2. Cost for navigating the index structure (assuming a b-tree).
-       Note: We only add the cost for one comparision per block. For a
-             b-tree the number of comparisons will be larger.
+       Note: We only add the cost for one index comparision per block. For a
+             b-tree the number of comparisons will be larger. However the cost
+             is low as all of the upper level b-tree blocks should be in
+             memory.
        TODO: This cost should be provided by the storage engine.
   */
   const double tree_traversal_cost=
@@ -14860,8 +14884,8 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
          log(static_cast<double>(keys_per_block))) * 
     1/(2*TIME_FOR_COMPARE);
 
-  const double cpu_cost= num_groups *
-                         (tree_traversal_cost + 1/TIME_FOR_COMPARE_IDX);
+  const double cpu_cost= (num_groups *
+                          (tree_traversal_cost + 1/TIME_FOR_COMPARE_IDX));
 
   *read_cost= io_cost + cpu_cost;
   *records= num_groups;
@@ -14910,7 +14934,8 @@ TRP_GROUP_MIN_MAX::make_quick(PARAM *param, bool retrieve_full_rows,
                                         group_prefix_len, group_key_parts,
                                         used_key_parts, index_info, index,
                                         read_cost, records, key_infix_len,
-                                        key_infix, parent_alloc, is_index_scan);
+                                        key_infix, parent_alloc,
+                                        is_index_scan);
   if (!quick)
     DBUG_RETURN(NULL);
 
