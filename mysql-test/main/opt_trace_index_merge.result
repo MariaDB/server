@@ -193,7 +193,11 @@ explain select * from t1 where a=1 or b=1	{
                 }
               },
               {
-                "selectivity_for_indexes": [],
+                "selectivity_for_indexes": [
+                  {
+                    "use_opt_range_condition_rows_selectivity": 0.002
+                  }
+                ],
                 "selectivity_for_columns": [],
                 "cond_selectivity": 0.002
               }
