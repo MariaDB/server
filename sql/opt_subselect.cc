@@ -2491,24 +2491,13 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
         sjm->is_used= FALSE;
         double subjoin_out_rows, subjoin_read_time;
 
-        /*
-        join->get_partial_cost_and_fanout(n_tables + join->const_tables,
-                                          table_map(-1),
-                                          &subjoin_read_time, 
-                                          &subjoin_out_rows);
-        */
-        join->get_prefix_cost_and_fanout(n_tables, 
+        join->get_prefix_cost_and_fanout(n_tables,
                                          &subjoin_read_time,
                                          &subjoin_out_rows);
 
         sjm->materialization_cost.convert_from_cost(subjoin_read_time);
         sjm->rows_with_duplicates= sjm->rows= subjoin_out_rows;
         
-        // Don't use the following list because it has "stale" items. use
-        // ref_pointer_array instead:
-        //
-        //List<Item> &right_expr_list= 
-        //  sj_nest->sj_subq_pred->unit->first_select()->item_list;
         /*
           Adjust output cardinality estimates. If the subquery has form
 
@@ -3416,8 +3405,8 @@ bool Firstmatch_picker::check_qep(JOIN *join,
             optimizer_flag(join->thd, OPTIMIZER_SWITCH_SEMIJOIN_WITH_CACHE))
         {
           /* 
-            An important special case: only one inner table, and @@optimizer_switch
-            allows join buffering.
+            An important special case: only one inner table, and
+            @@optimizer_switch allows join buffering.
              - read_time is the same (i.e. FirstMatch doesn't add any cost
              - remove fanout added by the last table
           */
@@ -3564,8 +3553,7 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
       Add the cost of temptable use. The table will have sj_outer_fanout
       records, and we will make 
       - sj_outer_fanout table writes
-      - sj_inner_fanout*sj_outer_fanout  lookups.
-
+      - sj_inner_fanout*sj_outer_fanout lookups.
     */
     double one_lookup_cost= get_tmp_table_lookup_cost(join->thd,
                                                       sj_outer_fanout,
@@ -3638,33 +3626,37 @@ void JOIN::dbug_verify_sj_inner_tables(uint prefix_size) const
 */
 
 void restore_prev_sj_state(const table_map remaining_tables, 
-                                  const JOIN_TAB *tab, uint idx)
+                           const JOIN_TAB *tab, uint idx)
 {
   TABLE_LIST *emb_sj_nest;
 
-  if (tab->emb_sj_nest)
+  if ((emb_sj_nest= tab->emb_sj_nest))
   {
-    table_map subq_tables= tab->emb_sj_nest->sj_inner_tables;
+    table_map subq_tables= emb_sj_nest->sj_inner_tables;
     tab->join->sjm_lookup_tables &= ~subq_tables;
-  }
 
-  if (!tab->join->emb_sjm_nest && (emb_sj_nest= tab->emb_sj_nest))
-  {
-    table_map subq_tables= emb_sj_nest->sj_inner_tables &
-                           ~tab->join->const_table_map;
-    /* If we're removing the last SJ-inner table, remove the sj-nest */
-    if ((remaining_tables & subq_tables) == subq_tables)
+    if (!tab->join->emb_sjm_nest)
     {
-      // All non-const tables of the SJ nest are in the remaining_tables.
-      // we are not in the nest anymore.
-      tab->join->cur_sj_inner_tables &= ~emb_sj_nest->sj_inner_tables;
-    }
-    else
-    {
-      // Semi-join nest has:
-      // - a table being removed (not in the prefix)
-      // - some tables in the prefix.
-      tab->join->cur_sj_inner_tables |= emb_sj_nest->sj_inner_tables;
+      table_map subq_tables= (emb_sj_nest->sj_inner_tables &
+                              ~tab->join->const_table_map);
+      /* If we're removing the last SJ-inner table, remove the sj-nest */
+      if ((remaining_tables & subq_tables) == subq_tables)
+      {
+        /*
+          All non-const tables of the SJ nest are in the remaining_tables.
+          we are not in the nest anymore.
+        */
+        tab->join->cur_sj_inner_tables &= ~emb_sj_nest->sj_inner_tables;
+      }
+      else
+      {
+        /*
+          Semi-join nest has:
+          - a table being removed (not in the prefix)
+          - some tables in the prefix.
+        */
+        tab->join->cur_sj_inner_tables |= emb_sj_nest->sj_inner_tables;
+      }
     }
   }
 
@@ -6615,7 +6607,6 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
 
       /* Get the cost of the modified IN-EXISTS plan. */
       inner_read_time_2= inner_join->best_read;
-
     }
     else
     {

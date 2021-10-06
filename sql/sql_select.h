@@ -1320,7 +1320,9 @@ public:
   void dbug_verify_sj_inner_tables(uint n_positions) const;
 #endif
 
-  /* We also maintain a stack of join optimization states in * join->positions[] */
+  /*
+    We also maintain a stack of join optimization states in join->positions[]
+  */
 /******* Join optimization state members end *******/
 
   /*
