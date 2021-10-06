@@ -315,16 +315,6 @@ int fts_doc_id_cmp(
 	const void*	p2);			/*!< in: id2 */
 
 /******************************************************************//**
-Decode and return the integer that was encoded using our VLC scheme.*/
-UNIV_INLINE
-ulint
-fts_decode_vlc(
-/*===========*/
-			/*!< out: value decoded */
-	byte**	ptr);	/*!< in: ptr to decode from, this ptr is
-			incremented by the number of bytes decoded */
-
-/******************************************************************//**
 Duplicate a string. */
 UNIV_INLINE
 void
@@ -337,28 +327,6 @@ fts_string_dup(
 	fts_string_t*		dst,		/*!< in: dup to here */
 	const fts_string_t*	src,		/*!< in: src string */
 	mem_heap_t*		heap);		/*!< in: heap to use */
-
-/******************************************************************//**
-Return length of val if it were encoded using our VLC scheme. */
-UNIV_INLINE
-ulint
-fts_get_encoded_len(
-/*================*/
-						/*!< out: length of value
-						 encoded, in bytes */
-	ulint		val);			/*!< in: value to encode */
-
-/******************************************************************//**
-Encode an integer using our VLC scheme and return the length in bytes. */
-UNIV_INLINE
-ulint
-fts_encode_int(
-/*===========*/
-						/*!< out: length of value
-						encoded, in bytes */
-	ulint		val,			/*!< in: value to encode */
-	byte*		buf);			/*!< in: buffer, must have
-						enough space */
 
 /******************************************************************//**
 Get the selected FTS aux INDEX suffix. */
@@ -381,6 +349,5 @@ fts_select_index(
 	ulint			len);
 
 #include "fts0types.ic"
-#include "fts0vlc.ic"
 
 #endif /* INNOBASE_FTS0TYPES_H */

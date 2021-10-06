@@ -8543,8 +8543,7 @@ calc_row_difference(
 		    && prebuilt->table->fts
 		    && innobase_strcasecmp(
 			field->field_name, FTS_DOC_ID_COL_NAME) == 0) {
-			doc_id = (doc_id_t) mach_read_from_n_little_endian(
-				n_ptr, 8);
+			doc_id = mach_read_uint64_little_endian(n_ptr);
 			if (doc_id == 0) {
 				return(DB_FTS_INVALID_DOCID);
 			}
@@ -8787,16 +8786,6 @@ calc_row_difference(
 					<< innodb_table->name;
 
 				return(DB_FTS_INVALID_DOCID);
-			} else if ((doc_id
-				    - prebuilt->table->fts->cache->next_doc_id)
-				   >= FTS_DOC_ID_MAX_STEP) {
-
-				ib::warn() << "Doc ID " << doc_id << " is too"
-					" big. Its difference with largest"
-					" Doc ID used " << prebuilt->table->fts
-					->cache->next_doc_id - 1
-					<< " cannot exceed or equal to "
-					<< FTS_DOC_ID_MAX_STEP;
 			}
 
 
