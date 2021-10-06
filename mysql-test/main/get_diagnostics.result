@@ -1608,3 +1608,33 @@ SELECT @var1;
 2
 DROP TABLE t1;
 DROP PROCEDURE sp;
+#
+# MDEV-26684: Unexpected ROW_NUMBER in a condition raised by a diagnostics statement
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+GET DIAGNOSTICS CONDITION 5 @msg = MESSAGE_TEXT;
+Warnings:
+Error	1758	Invalid condition number
+SHOW WARNINGS;
+Level	Code	Message
+Error	1758	Invalid condition number
+GET DIAGNOSTICS CONDITION 1 @ind = ROW_NUMBER, @msg = MESSAGE_TEXT;
+SELECT @ind, @msg;
+@ind	@msg
+0	Invalid condition number
+INSERT INTO t1 VALUES (3),(4);
+GET DIAGNOSTICS CONDITION 1 @ind = ROW_NUMBER, @msg = MESSAGE_TEXT;
+Warnings:
+Error	1758	Invalid condition number
+SELECT @ind, @msg;
+@ind	@msg
+0	Invalid condition number
+GET DIAGNOSTICS CONDITION 5 @ind = ROW_NUMBER, @msg = MESSAGE_TEXT;
+Warnings:
+Error	1758	Invalid condition number
+Error	1758	Invalid condition number
+SELECT @ind, @msg;
+@ind	@msg
+0	Invalid condition number
+DROP TABLE t1;

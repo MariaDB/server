@@ -1496,3 +1496,27 @@ SELECT @var1;
 
 DROP TABLE t1;
 DROP PROCEDURE sp;
+
+--echo #
+--echo # MDEV-26684: Unexpected ROW_NUMBER in a condition raised by a diagnostics statement
+--echo #
+
+CREATE TABLE t1 (a INT);
+
+INSERT INTO t1 VALUES (1),(2);
+
+GET DIAGNOSTICS CONDITION 5 @msg = MESSAGE_TEXT;
+SHOW WARNINGS;
+
+GET DIAGNOSTICS CONDITION 1 @ind = ROW_NUMBER, @msg = MESSAGE_TEXT;
+SELECT @ind, @msg;
+
+INSERT INTO t1 VALUES (3),(4);
+
+GET DIAGNOSTICS CONDITION 1 @ind = ROW_NUMBER, @msg = MESSAGE_TEXT;
+SELECT @ind, @msg;
+
+GET DIAGNOSTICS CONDITION 5 @ind = ROW_NUMBER, @msg = MESSAGE_TEXT;
+SELECT @ind, @msg;
+
+DROP TABLE t1;
