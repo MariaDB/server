@@ -934,6 +934,13 @@ public:
   */
   uint used_key_parts;
 
+  /*
+    Set to 1 if we used group by optimization to calculate number of rows
+    in the result, stored in table->opt_range_condition_rows.
+    This is only used for asserts.
+  */
+  bool group_by_optimization_used;
+
   QUICK_SELECT_I();
   virtual ~QUICK_SELECT_I(){};
 

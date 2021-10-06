@@ -1,0 +1,52 @@
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+#
+# Test changes in calculate_cond_selectivity_for_table()
+#
+create or replace table t1 (a int, b int, c int, key(a,c), key(b,c), key (c,b)) engine=aria;
+insert into t1 select seq/100+1, mod(seq,10), mod(seq,15) from seq_1_to_10000;
+insert into t1 select seq/100+1, mod(seq,10), 10 from seq_1_to_1000;
+optimize table t1;
+
+select count(*) from t1 where a=2;
+select count(*) from t1 where b=5;
+select count(*) from t1 where c=5;
+select count(*) from t1 where c=10;
+select count(*) from t1 where a=2 and b=5;
+select count(*) from t1 where c=10 and b=5;
+select count(*) from t1 where c=5 and b=5;
+
+set optimizer_trace="enabled=on";
+select count(*) from t1 where a=2 and b=5 and c=10;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+select count(*) from t1 where a=2 and b=5 and c=5;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo # Ensure that we only use selectivity from non used index for simple cases
+
+
+select count(*) from t1 where (a=2 and b= 5);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo # All of the following should have selectivity=1 for index 'b'
+select count(*) from t1 where (a=2 and b between 0 and 100);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select count(*) from t1 where (a in (2,3) and b between 0 and 100);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select count(*) from t1 where (a>2 and b between 0 and 100);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select count(*) from t1 where (a>=2 and b between 0 and 100);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select count(*) from t1 where (a<=2 and b between 0 and 100);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select count(*) from t1 where (a<2 and b between 0 and 100);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select count(*) from t1 where (a between 2 and 3 and b between 0 and 100);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+drop table t1;
+set optimizer_trace='enabled=off';
