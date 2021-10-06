@@ -568,35 +568,32 @@ void Opt_trace_stmt::set_allowed_mem_size(size_t mem_size)
 
 void Json_writer::add_table_name(const JOIN_TAB *tab)
 {
+  char table_name_buffer[SAFE_NAME_LEN];
+  DBUG_ASSERT(tab != NULL);
   DBUG_ASSERT(tab->join->thd->trace_started());
-  if (tab != NULL)
+
+  if (tab->table && tab->table->derived_select_number)
   {
-    char table_name_buffer[SAFE_NAME_LEN];
-    if (tab->table && tab->table->derived_select_number)
-    {
-      /* Derived table name generation */
-      size_t len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
-                             "<derived%u>",
-                             tab->table->derived_select_number);
-      add_str(table_name_buffer, len);
-    }
-    else if (tab->bush_children)
-    {
-      JOIN_TAB *ctab= tab->bush_children->start;
-      size_t len= my_snprintf(table_name_buffer,
-                           sizeof(table_name_buffer)-1,
-                           "<subquery%d>",
-                           ctab->emb_sj_nest->sj_subq_pred->get_identifier());
-      add_str(table_name_buffer, len);
-    }
-    else
-    {
-      TABLE_LIST *real_table= tab->table->pos_in_table_list;
-      add_str(real_table->alias.str, real_table->alias.length);
-    }
+    /* Derived table name generation */
+    size_t len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
+                            "<derived%u>",
+                            tab->table->derived_select_number);
+    add_str(table_name_buffer, len);
+  }
+  else if (tab->bush_children)
+  {
+    JOIN_TAB *ctab= tab->bush_children->start;
+    size_t len= my_snprintf(table_name_buffer,
+                            sizeof(table_name_buffer)-1,
+                            "<subquery%d>",
+                            ctab->emb_sj_nest->sj_subq_pred->get_identifier());
+    add_str(table_name_buffer, len);
   }
   else
-    DBUG_ASSERT(0);
+  {
+    TABLE_LIST *real_table= tab->table->pos_in_table_list;
+    add_str(real_table->alias.str, real_table->alias.length);
+  }
 }
 
 void Json_writer::add_table_name(const TABLE *table)
