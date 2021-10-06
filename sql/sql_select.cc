@@ -5821,7 +5821,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         get_delayed_table_estimates(s->table, &s->records, &s->read_time,
                                     &s->startup_cost);
         s->found_records= s->records;
-        table->opt_range_condition_rows=s->records;
+        s->table->opt_range_condition_rows= s->records;
+        s->table->used_stat_records= s->records;
       }
       else
         s->scan_time();
@@ -5845,8 +5846,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       */
       add_group_and_distinct_keys(join, s);
 
-      s->table->cond_selectivity= 1.0;
-
+      /* This will be updated in calculate_cond_selectivity_for_table() */
+      s->table->set_cond_selectivity(1.0);
+      DBUG_ASSERT(s->table->used_stat_records == 0 ||
+                  s->table->cond_selectivity <=
+                  s->table->opt_range_condition_rows /
+                  s->table->used_stat_records);
       /*
         Perform range analysis if there are keys it could use (1).
         Don't do range analysis for materialized subqueries (2).
@@ -7727,6 +7732,15 @@ double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
     TABLE *table= s->table;
     double sel= table->cond_selectivity;
     double table_records= rows2double(s->records);
+    DBUG_ASSERT(sel >= 0 && sel <= 1.0);
+    /*
+      table->cond_selectivity will include data from opt_range.
+      Here we check that this is indeeded the case.
+      Note that if table_records == 0, then 'sel' is probably 1
+    */
+    DBUG_ASSERT(table_records == 0 ||
+                sel <= s->table->opt_range_condition_rows /
+                table_records);
     dbl_records= table_records * sel;
     return dbl_records;
   }
@@ -9880,7 +9894,11 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           However if sel becomes greater than 2 then with high probability
           something went wrong.
 	*/
-        sel /= (double)table->opt_range[key].rows / (double) table->stat_records();
+        DBUG_ASSERT(sel <= 1.0);
+        DBUG_ASSERT(table->opt_range[key].rows <=
+                    (double) table->stat_records());
+        sel /= ((double) table->opt_range[key].rows /
+                (double) table->stat_records());
         set_if_smaller(sel, 1.0);
         used_range_selectivity= true;
       }
@@ -10024,6 +10042,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 exit:
   if (ref_keyuse_steps != ref_keyuse_steps_buf)
     my_free(ref_keyuse_steps);
+  DBUG_ASSERT(sel >= 0.0 and sel <= 1.0);
   return sel;
 }
 
@@ -11454,6 +11473,7 @@ bool JOIN::get_best_combination()
     */
     j->records_read= best_positions[tablenr].records_read;
     j->cond_selectivity= best_positions[tablenr].cond_selectivity;
+    DBUG_ASSERT(j->cond_selectivity <= 1.0);
     map2table[j->table->tablenr]= j;
 
     /* If we've reached the end of sjm nest, switch back to main sequence */
@@ -27783,6 +27803,15 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   char table_name_buffer[SAFE_NAME_LEN];
   KEY *key_info= 0;
   uint key_len= 0;
+
+#ifdef NOT_YET
+  /*
+    Would be good to keep this condition up to date.
+    Another alternative is to remove JOIN_TAB::cond_selectivity and use
+    TABLE::cond_selectivity everywhere
+  */
+  DBUG_ASSERT(cond_selectivity == table->cond_selectivity);
+#endif
 
   explain_plan= eta;
   eta->key.clear();
