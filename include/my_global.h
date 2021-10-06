@@ -806,6 +806,8 @@ inline unsigned long long my_double2ulonglong(double d)
 
 #ifdef __cplusplus
 #include <cmath>
+#else
+#include <tgmath.h>
 #endif
 
 /* Define missing math constants. */

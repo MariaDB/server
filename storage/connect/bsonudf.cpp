@@ -12,6 +12,7 @@
 #include <mysql.h>
 #include <sql_error.h>
 #include <stdio.h>
+#include <cassert>
 
 #include "bsonudf.h"
 
@@ -621,7 +622,7 @@ PVAL BJNX::GetCalcValue(PGLOBAL g, PBVAL bap, int n)
 {
 	// For calculated arrays, a local Value must be used
 	int     lng = 0;
-	short   type, prec = 0;
+	short   type = 0, prec = 0;
 	bool    b = n < Nod - 1;
 	PVAL    valp;
 	PBVAL   vlp, vp;
@@ -690,7 +691,7 @@ PVAL BJNX::GetCalcValue(PGLOBAL g, PBVAL bap, int n)
 
 			break;
 		default:
-			break;
+			DBUG_ASSERT(!"Implement new op type support.");
 	} // endswitch Op
 
 	return valp = AllocateValue(g, type, lng, prec);
@@ -4978,7 +4979,7 @@ char *bbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		uint	n = 2;
 		int* x = GetIntArgPtr(g, args, n);
 		BJNX  bnx(g, NULL, TYPE_STRING);
-		PBVAL jarp, top, jvp = NULL;
+		PBVAL jarp = nullptr, top = nullptr, jvp = nullptr;
 		PBVAL jsp = bnx.MakeValue(args, 0, true, &top);
 
 		if (bnx.CheckPath(g, args, jsp, jvp, 2))
@@ -5611,7 +5612,7 @@ char *bbin_object_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!bsp) {
 		if (!CheckMemory(g, initid, args, 1, true, true)) {
 			BJNX  bnx(g);
-			PBVAL top, jarp;
+			PBVAL top, jarp = nullptr;
 			PBVAL jvp = bnx.MakeValue(args, 0, true, &top);
 
 			if (jvp->Type == TYPE_JOB) {
