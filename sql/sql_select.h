@@ -1341,7 +1341,9 @@ public:
   int dbug_join_tab_array_size;
 #endif
 
-  /* We also maintain a stack of join optimization states in * join->positions[] */
+  /*
+    We also maintain a stack of join optimization states in join->positions[]
+  */
 /******* Join optimization state members end *******/
 
   /*
