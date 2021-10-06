@@ -318,7 +318,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
                       double *current_record_count, double *current_read_time,
                       POSITION *loose_scan_pos);
 void restore_prev_sj_state(const table_map remaining_tables, 
-                                  const JOIN_TAB *tab, uint idx);
+                           const JOIN_TAB *tab, uint idx);
 
 void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 
