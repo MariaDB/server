@@ -338,6 +338,7 @@ x86/
 build/
 bld/
 [Bb]in/
+/cmake-build-debug/
 [Oo]bj/
 
 # Roslyn cache directories
@@ -518,4 +519,5 @@ compile_commands.json
 # Visual Studio Code workspace
 .vscode/
 
+/.idea/
 .cache/clangd

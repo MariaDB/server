@@ -2470,13 +2470,13 @@ row_upd_sec_index_entry(
 				case DB_LOCK_WAIT_TIMEOUT:
 					WSREP_DEBUG("Foreign key check fail: "
 						"%s on table %s index %s query %s",
-						ut_strerr(err), index->name, index->table->name,
+						ut_strerr(err), index->name(), index->table->name.m_name,
 						wsrep_thd_query(trx->mysql_thd));
 					break;
 				default:
 					WSREP_ERROR("Foreign key check fail: "
 						"%s on table %s index %s query %s",
-						ut_strerr(err), index->name, index->table->name,
+						ut_strerr(err), index->name(), index->table->name.m_name,
 						wsrep_thd_query(trx->mysql_thd));
 					break;
 				}
@@ -2806,14 +2806,14 @@ check_fk:
 			case DB_LOCK_WAIT_TIMEOUT:
 				WSREP_DEBUG("Foreign key check fail: "
 					    "%s on table %s index %s query %s",
-					    ut_strerr(err), index->name, index->table->name,
+					    ut_strerr(err), index->name(), index->table->name.m_name,
 					    wsrep_thd_query(trx->mysql_thd));
 
 				goto err_exit;
 			default:
 				WSREP_ERROR("Foreign key check fail: "
 					    "%s on table %s index %s query %s",
-					    ut_strerr(err), index->name, index->table->name,
+					    ut_strerr(err), index->name(), index->table->name.m_name,
 					    wsrep_thd_query(trx->mysql_thd));
 
 				goto err_exit;
@@ -3037,13 +3037,13 @@ row_upd_del_mark_clust_rec(
 		case DB_LOCK_WAIT_TIMEOUT:
 			WSREP_DEBUG("Foreign key check fail: "
 				    "%d on table %s index %s query %s",
-				    err, index->name, index->table->name,
+				    err, index->name(), index->table->name.m_name,
 				    wsrep_thd_query(trx->mysql_thd));
 			break;
 		default:
 			WSREP_ERROR("Foreign key check fail: "
 				    "%d on table %s index %s query %s",
-				    err, index->name, index->table->name,
+				    err, index->name(), index->table->name.m_name,
 				    wsrep_thd_query(trx->mysql_thd));
 			break;
 		}
