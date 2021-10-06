@@ -2460,8 +2460,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT 1 FROM t1 AS t1_outer WHERE 
 a IN (SELECT max(b) FROM t1 GROUP BY a HAVING a < 2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1_outer	index	a	a	10	NULL	15	Using where; Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	test.t1_outer.a	1	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
+1	PRIMARY	t1_outer	ref	a	a	5	<subquery2>.max(b)	3	Using index
 2	MATERIALIZED	t1	range	a	a	5	NULL	5	Using where; Using index
 EXPLAIN SELECT 1 FROM t1 AS t1_outer GROUP BY a HAVING 
 a > (SELECT max(b) FROM t1 GROUP BY a HAVING a < 2);
