@@ -39,7 +39,8 @@ double Range_rowid_filter_cost_info::lookup_cost(
 
 /**
   @brief
-    The average gain in cost per row to use the range filter with this cost info
+    The average gain in cost per row to use the range filter with this cost
+    info
 */
 
 inline
@@ -58,8 +59,9 @@ double Range_rowid_filter_cost_info::avg_access_and_eval_gain_per_row(
   @param access_cost_factor the adjusted cost of access a row
 
   @details
-    The current code to estimate the cost of a ref access is quite inconsistent:
-    in some cases the effect of page buffers is taken into account, for others
+    The current code to estimate the cost of a ref access is quite
+    inconsistent:
+    In some cases the effect of page buffers is taken into account, for others
     just the engine dependent read_time() is employed. That's why the average
     cost of one random seek might differ from 1.
     The parameter access_cost_factor can be considered as the cost of a random

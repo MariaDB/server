@@ -5968,7 +5968,7 @@ unit_common_op st_select_lex_unit::common_op()
       else
       {
         if (operation != op)
-          operation= OP_MIX;
+          return OP_MIX;
       }
     }
   }
@@ -5978,12 +5978,13 @@ unit_common_op st_select_lex_unit::common_op()
   Save explain structures of a UNION. The only variable member is whether the 
   union has "Using filesort".
 
-  There is also save_union_explain_part2() function, which is called before we read
-  UNION's output.
+  There is also save_union_explain_part2() function, which is called before we
+  read UNION's output.
 
   The reason for it is examples like this:
 
-     SELECT col1 FROM t1 UNION SELECT col2 FROM t2 ORDER BY (select ... from t3 ...)
+     SELECT col1 FROM t1 UNION SELECT col2 FROM t2
+     ORDER BY (select ... from t3 ...)
 
   Here, the (select ... from t3 ...) subquery must be a child of UNION's
   st_select_lex. However, it is not connected as child until a very late 
@@ -10178,7 +10179,7 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
 
 /**
   Add primary expression as the next term in a given query expression body
-  pruducing a new query expression body
+  producing a new query expression body
 */
 
 SELECT_LEX_UNIT *

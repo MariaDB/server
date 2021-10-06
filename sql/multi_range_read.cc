@@ -37,8 +37,8 @@
   @param n_ranges_arg    Number of ranges in the sequence, or 0 if the caller
                          can't efficiently determine it
   @param bufsz    INOUT  IN:  Size of the buffer available for use
-                         OUT: Size of the buffer that is expected to be actually
-                              used, or 0 if buffer is not needed.
+                         OUT: Size of the buffer that is expected to be
+                              actually used, or 0 if buffer is not needed.
   @param flags    INOUT  A combination of HA_MRR_* flags
   @param cost     OUT    Estimated cost of MRR access
 
@@ -284,11 +284,15 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     (single_point_ranges - assigned_single_point_ranges).
 
     We don't add these to io_blocks as we don't want to penalize equal
-    readss (if we did, a range that would read 5 rows would be
+    reads (if we did, a range that would read 5 rows would be
     regarded as better than one equal read).
 
     Better to assume we have done a records_in_range() for the equal
     range and it's also cached.
+
+    One effect of this is that io_blocks for simple ranges are often 0,
+    as the blocks where already read by records_in_range and we assume
+    that we don't have to read it again.
   */
   io_blocks= (range_blocks_cnt - edge_blocks_cnt);
   unassigned_single_point_ranges+= (single_point_ranges -
@@ -1989,9 +1993,10 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
   else
   {
     cost->reset();
-    *buffer_size= (uint)MY_MAX(*buffer_size, 
-                      (size_t)(1.2*rows_in_last_step) * elem_size + 
-                      primary_file->ref_length + table->key_info[keynr].key_length);
+    *buffer_size= ((uint) MY_MAX(*buffer_size,
+                                 (size_t)(1.2*rows_in_last_step) * elem_size +
+                                 primary_file->ref_length +
+                                 table->key_info[keynr].key_length));
   }
   
   Cost_estimate last_step_cost;

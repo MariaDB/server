@@ -2491,24 +2491,13 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
         sjm->is_used= FALSE;
         double subjoin_out_rows, subjoin_read_time;
 
-        /*
-        join->get_partial_cost_and_fanout(n_tables + join->const_tables,
-                                          table_map(-1),
-                                          &subjoin_read_time, 
-                                          &subjoin_out_rows);
-        */
-        join->get_prefix_cost_and_fanout(n_tables, 
+        join->get_prefix_cost_and_fanout(n_tables,
                                          &subjoin_read_time,
                                          &subjoin_out_rows);
 
         sjm->materialization_cost.convert_from_cost(subjoin_read_time);
         sjm->rows_with_duplicates= sjm->rows= subjoin_out_rows;
         
-        // Don't use the following list because it has "stale" items. use
-        // ref_pointer_array instead:
-        //
-        //List<Item> &right_expr_list= 
-        //  sj_nest->sj_subq_pred->unit->first_select()->item_list;
         /*
           Adjust output cardinality estimates. If the subquery has form
 
@@ -3399,8 +3388,8 @@ bool Firstmatch_picker::check_qep(JOIN *join,
             optimizer_flag(join->thd, OPTIMIZER_SWITCH_SEMIJOIN_WITH_CACHE))
         {
           /* 
-            An important special case: only one inner table, and @@optimizer_switch
-            allows join buffering.
+            An important special case: only one inner table, and
+            @@optimizer_switch allows join buffering.
              - read_time is the same (i.e. FirstMatch doesn't add any cost
              - remove fanout added by the last table
           */
@@ -3547,8 +3536,7 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
       Add the cost of temptable use. The table will have sj_outer_fanout
       records, and we will make 
       - sj_outer_fanout table writes
-      - sj_inner_fanout*sj_outer_fanout  lookups.
-
+      - sj_inner_fanout*sj_outer_fanout lookups.
     */
     double one_lookup_cost= get_tmp_table_lookup_cost(join->thd,
                                                       sj_outer_fanout,
@@ -6548,7 +6536,6 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
 
       /* Get the cost of the modified IN-EXISTS plan. */
       inner_read_time_2= inner_join->best_read;
-
     }
     else
     {
