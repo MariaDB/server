@@ -1544,7 +1544,7 @@ static bool check_if_pq_applicable(Sort_param *param,
     DBUG_RETURN(false);
   }
 
-  if (param->max_rows + 2 >= UINT_MAX)
+  if (param->max_rows >= UINT_MAX - 2)
   {
     DBUG_PRINT("info", ("Too large LIMIT"));
     DBUG_RETURN(false);
@@ -2171,8 +2171,8 @@ Type_handler_timestamp_common::sort_length(THD *thd,
 
 void
 Type_handler_int_result::sort_length(THD *thd,
-                                        const Type_std_attributes *item,
-                                        SORT_FIELD_ATTR *sortorder) const
+                                     const Type_std_attributes *item,
+                                     SORT_FIELD_ATTR *sortorder) const
 {
   sortorder->original_length= sortorder->length= 8; // Sizof intern longlong
 }
@@ -2180,8 +2180,8 @@ Type_handler_int_result::sort_length(THD *thd,
 
 void
 Type_handler_real_result::sort_length(THD *thd,
-                                        const Type_std_attributes *item,
-                                        SORT_FIELD_ATTR *sortorder) const
+                                      const Type_std_attributes *item,
+                                      SORT_FIELD_ATTR *sortorder) const
 {
   sortorder->original_length= sortorder->length= sizeof(double);
 }
@@ -2205,8 +2205,8 @@ Type_handler_decimal_result::sort_length(THD *thd,
   @param thd			  Thread handler
   @param sortorder		  Order of items to sort
   @param s_length	          Number of items to sort
-  @param allow_packing_for_sortkeys [out]  set to false if packing sort keys is not
-                                     allowed
+  @param allow_packing_for_sortkeys [out]  set to false if packing sort keys
+                                  is not allowed
 
   @note
    * sortorder->length and other members are updated for each sort item.

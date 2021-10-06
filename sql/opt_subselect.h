@@ -320,7 +320,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
 void update_sj_state(JOIN *join, const JOIN_TAB *new_tab,
                      uint idx, table_map remaining_tables);
 void restore_prev_sj_state(const table_map remaining_tables, 
-                                  const JOIN_TAB *tab, uint idx);
+                           const JOIN_TAB *tab, uint idx);
 
 void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 
