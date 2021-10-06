@@ -1520,3 +1520,35 @@ GET DIAGNOSTICS CONDITION 5 @ind = ROW_NUMBER, @msg = MESSAGE_TEXT;
 SELECT @ind, @msg;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26681: ROW_NUMBER is not available within compound statement blocks
+--echo #
+
+CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY, a CHAR(3));
+INSERT IGNORE INTO t1 VALUES (1,'foo'),(1,'bar'),(2,'foobar');
+
+DELIMITER |;
+
+BEGIN NOT ATOMIC
+  DECLARE i INT DEFAULT 0;
+  DECLARE rnum INT DEFAULT -1;
+  DECLARE msg VARCHAR(1024) DEFAULT '';
+  DECLARE err INT DEFAULT -1;
+  WHILE i < @@warning_count
+  DO
+    SET i = i + 1;
+    GET DIAGNOSTICS CONDITION i rnum = ROW_NUMBER, msg = MESSAGE_TEXT, err = MYSQL_ERRNO;
+    SELECT i, rnum, msg, err;
+  END WHILE;
+END |
+
+DELIMITER ;|
+
+GET DIAGNOSTICS CONDITION 1 @rnum = ROW_NUMBER, @msg = MESSAGE_TEXT, @err = MYSQL_ERRNO;
+select @rnum, @msg, @err;
+
+GET DIAGNOSTICS CONDITION 2 @rnum = ROW_NUMBER, @msg = MESSAGE_TEXT, @err = MYSQL_ERRNO;
+SELECT @rnum, @msg, @err;
+
+DROP TABLE t1;
