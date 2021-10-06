@@ -2744,7 +2744,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     KEY_PART *key_parts;
     KEY *key_info;
     PARAM param;
-    bool force_group_by = false;
+    bool force_group_by= false, group_by_optimization_used= false;
 
     if (check_stack_overrun(thd, 2*STACK_MIN_SIZE + sizeof(PARAM), buff))
       DBUG_RETURN(0);                           // Fatal error flag is set
@@ -3035,8 +3035,14 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         restore_nonrange_trees(&param, tree, backup_keys);
       if ((group_trp= get_best_group_min_max(&param, tree, read_time)))
       {
-        param.table->opt_range_condition_rows= MY_MIN(group_trp->records,
-                                                      table_records);
+        /* mark that we are changing opt_range_condition_rows */
+        group_by_optimization_used= 1;
+        set_if_smaller(param.table->opt_range_condition_rows, group_trp->records);
+        DBUG_PRINT("info", ("table_rows: %llu  opt_range_condition_rows: %llu  "
+                            "group_trp->records: %ull",
+                            table_records, param.table->opt_range_condition_rows,
+                            group_trp->records));
+
         Json_writer_object grp_summary(thd, "best_group_range_summary");
 
         if (unlikely(thd->trace_started()))
@@ -3066,6 +3072,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         delete quick;
         quick= NULL;
       }
+      else
+        quick->group_by_optimization_used= group_by_optimization_used;
     }
     possible_keys= param.possible_keys;
 
@@ -3298,6 +3306,26 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
 
 /*
+  Compare quick select ranges according to number of found rows
+  If there is equal amounts of rows, use the long key part.
+  The idea is that if we have keys (a),(a,b) and (a,b,c) and we have
+  a query like WHERE a=1 and b=1 and c=1,
+  it is better to use key (a,b,c) than (a) as it will ensure we don't also
+  use histograms for columns b and c
+*/
+
+static
+int cmp_quick_ranges(TABLE::OPT_RANGE **a, TABLE::OPT_RANGE **b)
+{
+  int tmp=CMP_NUM((*a)->rows, (*b)->rows);
+  if (tmp)
+    return tmp;
+  return -CMP_NUM((*a)->key_parts, (*b)->key_parts);
+
+}
+
+
+/*
   Calculate the selectivity of the condition imposed on the rows of a table
 
   SYNOPSIS
@@ -3335,16 +3363,16 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
 bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 {
-  uint keynr;
-  uint max_quick_key_parts= 0;
+  uint keynr, range_index, ranges;
   MY_BITMAP *used_fields= &table->cond_set;
-  double table_records= (double)table->stat_records(); 
+  double table_records= (double)table->stat_records(), original_selectivity;
+  TABLE::OPT_RANGE *optimal_key_order[MAX_KEY];
   MY_BITMAP handled_columns;
   my_bitmap_map* buf;
   QUICK_SELECT_I *quick;
   DBUG_ENTER("calculate_cond_selectivity_for_table");
 
-  table->cond_selectivity= 1.0;
+  table->set_cond_selectivity(1.0);
 
   if (table_records == 0)
     DBUG_RETURN(FALSE);
@@ -3352,7 +3380,10 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   if ((quick=table->reginfo.join_tab->quick) &&
       quick->get_type() == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
   {
-    table->cond_selectivity*= (quick->records/table_records);
+    DBUG_ASSERT(table->opt_range_condition_rows <= quick->records);
+    table->set_cond_selectivity(MY_MIN(quick->records,
+                                       table->opt_range_condition_rows)/
+                                       table_records);
     DBUG_RETURN(FALSE);
   }
 
@@ -3379,100 +3410,141 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   Json_writer_object trace_wrapper(thd);
   Json_writer_array selectivity_for_indexes(thd, "selectivity_for_indexes");
 
-  for (keynr= 0;  keynr < table->s->keys; keynr++)
-  {
-    if (table->opt_range_keys.is_set(keynr))
-      set_if_bigger(max_quick_key_parts, table->opt_range[keynr].key_parts);
-  }
-
-  /* 
-    Walk through all indexes, indexes where range access uses more keyparts 
-    go first.
+  /*
+    Walk through all quick ranges in the order of least found rows.
   */
-  for (uint quick_key_parts= max_quick_key_parts;
-       quick_key_parts; quick_key_parts--)
-  {
-    for (keynr= 0;  keynr < table->s->keys; keynr++)
-    {
-      if (table->opt_range_keys.is_set(keynr) &&
-          table->opt_range[keynr].key_parts == quick_key_parts)
-      {
-        uint i;
-        uint used_key_parts= table->opt_range[keynr].key_parts;
-        double quick_cond_selectivity= (table->opt_range[keynr].rows /
-                                        table_records);
-        KEY *key_info= table->key_info + keynr;
-        KEY_PART_INFO* key_part= key_info->key_part;
-        /*
-          Suppose, there are range conditions on two keys
-            KEY1 (col1, col2)
-            KEY2 (col3, col2)
-          
-          we don't want to count selectivity of condition on col2 twice.
-          
-          First, find the longest key prefix that's made of columns whose
-          selectivity wasn't already accounted for.
-        */
-        for (i= 0; i < used_key_parts; i++, key_part++)
-        {
-          if (bitmap_is_set(&handled_columns, key_part->fieldnr-1))
-	    break; 
-          bitmap_set_bit(&handled_columns, key_part->fieldnr-1);
-        }
-        if (i)
-        {
-          double UNINIT_VAR(selectivity_mult);
+  for (ranges= keynr= 0 ; keynr < table->s->keys; keynr++)
+    if (table->opt_range_keys.is_set(keynr))
+      optimal_key_order[ranges++]= table->opt_range + keynr;
 
-          /* 
-            There is at least 1-column prefix of columns whose selectivity has
-            not yet been accounted for.
-          */
-          table->cond_selectivity*= quick_cond_selectivity;
-          Json_writer_object selectivity_for_index(thd);
-          selectivity_for_index.add("index_name", key_info->name)
-                               .add("selectivity_from_index",
-                                    quick_cond_selectivity);
-          if (i != used_key_parts)
-	  {
-            /*
-              Range access got us estimate for #used_key_parts.
-              We need estimate for #(i-1) key parts.
-            */
-            double f1= key_info->actual_rec_per_key(i-1);
-            double f2= key_info->actual_rec_per_key(i);
-            if (f1 > 0 && f2 > 0)
-              selectivity_mult= f1 / f2;
-            else
-            {
-              /* 
-                No statistics available, assume the selectivity is proportional
-                to the number of key parts.
-                (i=0 means 1 keypart, i=1 means 2 keyparts, so use i+1)
-              */
-              selectivity_mult= ((double)(i+1)) / i;
-            }
-            table->cond_selectivity*= selectivity_mult;
-            selectivity_for_index.add("selectivity_multiplier",
-                                      selectivity_mult);
-          }
+  my_qsort(optimal_key_order, ranges,
+           sizeof(optimal_key_order[0]),
+           (qsort_cmp) cmp_quick_ranges);
+
+  for (range_index= 0 ; range_index < ranges ; range_index++)
+  {
+    TABLE::OPT_RANGE *range= optimal_key_order[range_index];
+    uint keynr= range - table->opt_range;
+    uint i;
+    uint used_key_parts= range->key_parts;
+    double quick_cond_selectivity= (range->rows / table_records);
+    KEY *key_info= table->key_info + keynr;
+    KEY_PART_INFO* key_part= key_info->key_part;
+    double UNINIT_VAR(selectivity_mult);
+    DBUG_ASSERT(quick_cond_selectivity <= 1.0);
+
+    /*
+      Suppose, there are range conditions on these keys
+      KEY1 (col1, col2)
+      KEY2 (col2, col6)
+      KEY3 (col3, col2)
+      KEY4 (col4, col5)
+
+      We don't want to count selectivity for ranges that uses a column
+      that was used before.
+      If the first column of an index was not used before, we can use the
+      key part statistics to calculate selectivity for this column. We cannot
+      calculate statistics for any other columns as the key part statistics
+      is also depending on the values of the previous key parts and not only
+      the last key part.
+
+      In other words, if KEY1 has the smallest range, we will only use first
+      part of KEY3 and range of KEY4 to calculate selectivity.
+    */
+    for (i= 0; i < used_key_parts; i++)
+    {
+      if (bitmap_is_set(&handled_columns, key_part[i].fieldnr-1))
+      {
+        double rec_per_key;
+        if (!i)
+        {
           /*
-            We need to set selectivity for fields supported by indexes.
-            For single-component indexes and for some first components
-            of other indexes we do it here. For the remaining fields
-            we do it later in this function, in the same way as for the
-            fields not used in any indexes.
-	  */
-	  if (i == 1)
-	  {
-            uint fieldnr= key_info->key_part[0].fieldnr;
-            table->field[fieldnr-1]->cond_selectivity= quick_cond_selectivity;
-            if (i != used_key_parts)
-	      table->field[fieldnr-1]->cond_selectivity*= selectivity_mult;
-            bitmap_clear_bit(used_fields, fieldnr-1);
-	  }
+            We cannot use this key part for selectivity calculation as
+            key_info->actual_rec_per_key for later keys are depending on the
+            distribution of the previous key parts.
+          */
+          goto end_of_range_loop;
         }
+        /*
+          A later key part was already used. We can still use key
+          statistics for the first key part to get some approximation
+          of the selectivity of this key. This can be done if the
+          first key part is a constant:
+          WHERE key1_part1=1 and key2_part1=5 and key2_part2 BETWEEN 0 and 10
+          Even if key1 is used and it also includes the field for key2_part1
+          as a key part, we can still use selectivity for key2_part1
+        */
+        if ((rec_per_key= key_info->actual_rec_per_key(0)) == 0.0 ||
+            !range->first_key_part_has_only_one_value)
+          goto end_of_range_loop;
+        /*
+          Use key distribution statistics, except if range selectivity
+          is bigger. This can happen if the used key value has more
+          than an average number of instances.
+        */
+        set_if_smaller(rec_per_key, table->file->stats.records);
+        set_if_bigger(quick_cond_selectivity,
+                      rec_per_key / table->file->stats.records);
+        used_key_parts= 1;
+        break;
       }
     }
+    /* Set bits only after we have checked the used columns */
+    for (i= 0; i < used_key_parts; i++, key_part++)
+      bitmap_set_bit(&handled_columns, key_part->fieldnr-1);
+
+    /*
+      There is at least 1-column prefix of columns whose selectivity has
+      not yet been accounted for.
+    */
+    table->multiply_cond_selectivity(quick_cond_selectivity);
+
+    {
+      Json_writer_object selectivity_for_index(thd);
+      selectivity_for_index.add("index_name", key_info->name)
+        .add("selectivity_from_index",
+             quick_cond_selectivity);
+    }
+    /*
+      We need to set selectivity for fields supported by indexes.
+      For single-component indexes and for some first components
+      of other indexes we do it here. For the remaining fields
+      we do it later in this function, in the same way as for the
+      fields not used in any indexes.
+    */
+    if (used_key_parts == 1)
+    {
+      uint fieldnr= key_info->key_part[0].fieldnr;
+      table->field[fieldnr-1]->cond_selectivity= quick_cond_selectivity;
+      DBUG_ASSERT(table->field[fieldnr-1]->cond_selectivity <= 1.0);
+      /*
+        Reset bit in used_fields to ensure this field is ignored in the loop
+        below.
+      */
+      bitmap_clear_bit(used_fields, fieldnr-1);
+    }
+end_of_range_loop:
+    continue;
+  }
+  /*
+    Take into account number of matching rows calculated by
+    get_best_ror_intersect() stored in table->opt_range_condition_rows
+    Use the smaller found selectivity.
+  */
+  original_selectivity= (table->opt_range_condition_rows /
+                         table_records);
+  if (original_selectivity < table->cond_selectivity)
+  {
+    DBUG_ASSERT(quick &&
+                (quick->group_by_optimization_used ||
+                 quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
+                 quick->get_type() == QUICK_SELECT_I::QS_TYPE_ROR_UNION ||
+                 quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE ||
+                 quick->get_type() == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT));
+    Json_writer_object selectivity_for_index(thd);
+    table->cond_selectivity= original_selectivity;
+    selectivity_for_index.add("use_opt_range_condition_rows_selectivity",
+                              original_selectivity);
   }
   selectivity_for_indexes.end();
    
@@ -3555,6 +3627,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
           if (rows != DBL_MAX)
           {
             key->field->cond_selectivity= rows/table_records;
+            DBUG_ASSERT(key->field->cond_selectivity <= 1.0);
             selectivity_for_column.add("selectivity_from_histogram",
                                        key->field->cond_selectivity);
           }
@@ -3569,7 +3642,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
           table_field->cond_selectivity < 1.0)
       {
         if (!bitmap_is_set(&handled_columns, table_field->field_index))
-          table->cond_selectivity*= table_field->cond_selectivity;
+          table->multiply_cond_selectivity(table_field->cond_selectivity);
       }
     }
 
@@ -3580,12 +3653,6 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
   }
   selectivity_for_columns.end();
-
-  if (quick && (quick->get_type() == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
-     quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE))
-  {
-    table->cond_selectivity*= (quick->records/table_records);
-  }
 
   bitmap_union(used_fields, &handled_columns);
 
@@ -3624,7 +3691,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
           DBUG_PRINT("info", ("The predicate selectivity : %g",
                               (double)stat->positive / examined_rows));
           double selectivity= ((double)stat->positive) / examined_rows;
-          table->cond_selectivity*= selectivity;
+          table->multiply_cond_selectivity(selectivity);
           /*
             If a field is involved then we register its selectivity in case
             there in an equality with the field.
@@ -11495,6 +11562,26 @@ void SEL_ARG::test_use_count(SEL_ARG *root)
 }
 #endif
 
+
+/**
+  Check if first key part has only one value
+
+  @retval 1 yes
+  @retval 0 no
+*/
+
+static bool check_if_first_key_part_has_only_one_value(SEL_ARG *arg)
+{
+  if (arg->left != &null_element || arg->right != &null_element)
+    return 0;                                    // Multiple key values
+  if ((arg->min_flag | arg->max_flag) & (NEAR_MIN | NEAR_MAX))
+    return 0;
+  if (unlikely(arg->type != SEL_ARG::KEY_RANGE)) // Not a valid range
+    return 0;
+  return arg->min_value == arg->max_value || !arg->cmp_min_to_max(arg);
+}
+
+
 /*
   Calculate cost and E(#rows) for a given index and intervals tree 
 
@@ -11615,6 +11702,8 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
 	range->index_only_cost= 0;
       else
         range->index_only_cost= cost->index_only_cost();
+      range->first_key_part_has_only_one_value=
+        check_if_first_key_part_has_only_one_value(tree);
     }
   }
 
@@ -11647,6 +11736,8 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   *is_ror_scan= seq.is_ror_scan;
 
   DBUG_PRINT("exit", ("Records: %lu", (ulong) rows));
+  DBUG_ASSERT(rows == HA_POS_ERROR ||
+              rows <= MY_MAX(param->table->stat_records(), 1));
   DBUG_RETURN(rows); //psergey-merge:todo: maintain first_null_comp.
 }
 
