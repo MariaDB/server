@@ -4644,7 +4644,7 @@ Warnings:
 Note	1003	select `test`.`t1_json`.`a` AS `a` from `test`.`t1_json` where `test`.`t1_json`.`a` < 'b-1a'
 analyze select * from t1_json where a > 'zzzzzzzzz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	0.00	0.00	Using where
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
 drop table ten;
 UPDATE mysql.column_stats 
 SET histogram='["not-what-you-expect"]' WHERE table_name='t1_json';
