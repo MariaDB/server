@@ -4,6 +4,7 @@
 #
 
 --source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings
@@ -574,9 +575,10 @@ INSERT INTO t1(a, b, c) VALUES (1, 1, 1),
                                (1, 2, 2),
                                (1, 2, 3);
 
-EXPLAIN SELECT DISTINCT a, b, d, c FROM t1;
-
 SELECT DISTINCT a, b, d, c FROM t1;
+EXPLAIN SELECT DISTINCT a, b, d, c FROM t1;
+INSERT INTO t1 SELECT seq/10,seq/10,seq/10,seq/10,seq from seq_1_to_100;
+EXPLAIN SELECT DISTINCT a, b, d, c FROM t1;
 
 DROP TABLE t1;
 
