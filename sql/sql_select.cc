@@ -7777,7 +7777,17 @@ static double matching_candidates_in_table(JOIN_TAB *s,
 
   if (with_found_constraint)
     dbl_records-= dbl_records/4;
-  return dbl_records;
+
+  /*
+    Ensure we return at least one row if there is any possibility to have
+    a matching row.  Having rows >= 1.0 helps ensure that when we calculate
+    total rows of joins, the number of resulting rows will not be less
+    after the join. In other words, we assume there is at least one matching
+    row when joining a row with the next table.
+    0.0 is returned only if it is guaranteed there are no matching rows
+    (for example if the table is empty).
+  */
+  return dbl_records ? MY_MAX(dbl_records, 1.0) : 0.0;
 }
 
 
