@@ -77,8 +77,8 @@ and r_name = 'ASIA'
 order by
 s_acctbal desc, n_name, s_name, p_partkey;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	0.31	Using where; Using temporary; Using filesort
-1	PRIMARY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where; Using temporary; Using filesort
+1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	0.50	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
 1	PRIMARY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 1	PRIMARY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
