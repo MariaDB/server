@@ -165,20 +165,20 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                     
                     {
                         "access_type": "index_merge",
-                        "resulting_rows": 0.6,
-                        "cost": 2.172957403,
+                        "resulting_rows": 1,
+                        "cost": 2.092957403,
                         "chosen": true
                     }
                 ],
                 "chosen_access_method": 
                 {
                     "type": "index_merge",
-                    "records": 0.6,
-                    "cost": 2.172957403,
+                    "records": 1,
+                    "cost": 2.092957403,
                     "uses_join_buffering": false
                 }
             },
-            "rows_for_plan": 0.6,
+            "rows_for_plan": 1,
             "cost_for_plan": 2.292957403
         }
     ]
