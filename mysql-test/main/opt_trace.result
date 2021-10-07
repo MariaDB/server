@@ -1113,8 +1113,8 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                             },
                             {
                               "access_type": "scan",
-                              "resulting_rows": 100,
-                              "cost": 2.317382812,
+                              "resulting_rows": 75,
+                              "cost": 7.317382812,
                               "chosen": false
                             }
                           ],
@@ -1160,8 +1160,8 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                             },
                             {
                               "access_type": "scan",
-                              "resulting_rows": 100,
-                              "cost": 2.317382812,
+                              "resulting_rows": 75,
+                              "cost": 7.317382812,
                               "chosen": false
                             }
                           ],
@@ -2685,8 +2685,8 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                             },
                             {
                               "access_type": "scan",
-                              "resulting_rows": 2,
-                              "cost": 8.017578125,
+                              "resulting_rows": 1.5,
+                              "cost": 8.417578125,
                               "chosen": false
                             }
                           ],
@@ -9586,8 +9586,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                     
                                     {
                                         "access_type": "scan",
-                                        "resulting_rows": 800,
-                                        "cost": 44.19726562,
+                                        "resulting_rows": 600,
+                                        "cost": 84.19726562,
                                         "chosen": false
                                     }
                                 ],
@@ -9844,8 +9844,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                     
                                     {
                                         "access_type": "scan",
-                                        "resulting_rows": 100,
-                                        "cost": 2.219726562,
+                                        "resulting_rows": 75,
+                                        "cost": 7.219726562,
                                         "chosen": false
                                     }
                                 ],
@@ -9911,16 +9911,16 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                     
                                     {
                                         "access_type": "scan",
-                                        "resulting_rows": 10,
-                                        "cost": 2.021972656,
+                                        "resulting_rows": 7.5,
+                                        "cost": 2.521972656,
                                         "chosen": true
                                     }
                                 ],
                                 "chosen_access_method": 
                                 {
                                     "type": "scan",
-                                    "records": 10,
-                                    "cost": 2.021972656,
+                                    "records": 7.5,
+                                    "cost": 2.521972656,
                                     "uses_join_buffering": true
                                 }
                             }
@@ -9934,10 +9934,10 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         "t2"
                     ],
                     "table": "t1",
-                    "rows_for_plan": 1000,
-                    "cost_for_plan": 224.2416992,
+                    "rows_for_plan": 750,
+                    "cost_for_plan": 174.7416992,
                     "pruned_by_cost": true,
-                    "current_cost": 224.2416992,
+                    "current_cost": 174.7416992,
                     "best_cost": 36.0278306
                 }
             ]
@@ -10353,9 +10353,9 @@ create table t3 (a int, b int, c int);
 insert into t3 values (0,0,0),(1,1,1),(2,2,2),(3,3,3),(4,4,4);
 explain select * from t2,t1,t3 where t2.b= t1.b and t1.a=t3.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t1	ref	PRIMARY	PRIMARY	8	test.t3.a,test.t2.b	1	Using index
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	12	NULL	5	Using where; Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (incremental, BNL join)
 set @trace=(select trace from information_schema.optimizer_trace);
 set @path= (select json_search(@trace, 'one', 'no predicate for first keypart'));
 set @sub_path= substr(@path, 2, locate('.best_access_path', @path)-2);

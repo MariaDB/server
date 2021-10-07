@@ -380,7 +380,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery5>	eq_ref	distinct_key	distinct_key	16	func,func	1	100.00	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 5	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
-5	MATERIALIZED	t2i	ref	it2i1,it2i2,it2i3	it2i3	18	test.t3.c1,test.t3.c2	1	100.00	Using index
+5	MATERIALIZED	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	75.00	Using where; Using index; Using join buffer (flat, BNL join)
 4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
@@ -405,7 +405,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 1	PRIMARY	<subquery5>	eq_ref	distinct_key	distinct_key	16	func,func	1	100.00	
 5	MATERIALIZED	t3c	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
-5	MATERIALIZED	t2i	ref	it2i1,it2i2,it2i3	it2i3	18	test.t3c.c1,test.t3c.c2	1	100.00	Using index
+5	MATERIALIZED	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	75.00	Using where; Using index; Using join buffer (flat, BNL join)
 4	MATERIALIZED	t3b	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 3	DEPENDENT SUBQUERY	t3a	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
@@ -439,7 +439,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery5>	eq_ref	distinct_key	#	#	#	1	100.00	#
 2	MATERIALIZED	t2	ALL	NULL	#	#	#	5	100.00	#
 5	MATERIALIZED	t3	ALL	NULL	#	#	#	4	100.00	#
-5	MATERIALIZED	t2i	ref	it2i1,it2i2,it2i3	#	#	#	1	100.00	#
+5	MATERIALIZED	t2i	index	it2i1,it2i2,it2i3	#	#	#	5	75.00	#
 4	MATERIALIZED	t3	ALL	NULL	#	#	#	4	100.00	#
 3	MATERIALIZED	t3	ALL	NULL	#	#	#	4	100.00	#
 7	UNION	t1i	range	it1i1,it1i2,it1i3	#	#	#	3	100.00	#
@@ -475,7 +475,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	16	func,func	1	100.00	
 4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
-4	MATERIALIZED	t2i	ref	it2i1,it2i2,it2i3	it2i3	18	test.t3.c1,test.t3.c2	1	100.00	Using index
+4	MATERIALIZED	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	75.00	Using where; Using index; Using join buffer (flat, BNL join)
 2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
@@ -499,7 +499,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	16	func,func	1	100.00	
 4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
-4	MATERIALIZED	t2i	ref	it2i1,it2i2,it2i3	it2i3	18	test.t3.c1,test.t3.c2	1	100.00	Using index
+4	MATERIALIZED	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	75.00	Using where; Using index; Using join buffer (flat, BNL join)
 2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
