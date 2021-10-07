@@ -2739,7 +2739,7 @@ EXPLAIN
         "selectivity_pct": 6.730769231
       },
       "rows": 7,
-      "filtered": 6.730769157,
+      "filtered": 14.28571415,
       "index_condition": "t2.d is not null",
       "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
     },
