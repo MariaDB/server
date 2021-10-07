@@ -1092,8 +1092,8 @@ a	b	c	a	b	c
 set optimizer_switch='firstmatch=off';
 explain update t1, t2 set t2.c=1 where t1.a=t2.a and t1.b in (select b from t3 where t3.c< t2.c) order by t2.c, t1.c limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
-1	PRIMARY	t1	ref	a	a	5	test.t2.a	1	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+1	PRIMARY	t1	ALL	a	NULL	NULL	NULL	10	Using where
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary; End temporary
 update t1, t2 set t2.c=1 where t1.a=t2.a and t1.b in (select b from t3 where t3.c<=t2.c) order by t2.c, t1.c limit 5;
 select * from t2;

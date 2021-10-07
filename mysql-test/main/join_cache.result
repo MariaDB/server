@@ -3071,11 +3071,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.metaid	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 1	SIMPLE	t7	ref	PRIMARY	PRIMARY	4	test.t1.metaid	1	Using index
 1	SIMPLE	t8	eq_ref	PRIMARY	PRIMARY	4	test.t7.artistid	1	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	t3	ref	t3_metaid,t3_formatid,t3_metaidformatid	t3_metaidformatid	4	test.t1.metaid	1	Using index condition; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	t4	eq_ref	PRIMARY,t4_formatclassid,t4_formats_idx	PRIMARY	4	test.t3.formatid	1	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 1	SIMPLE	t9	index	PRIMARY,t9_subgenreid,t9_metaid	PRIMARY	8	NULL	2	Using where; Using index; Using join buffer (incremental, BNL join)
 1	SIMPLE	t10	eq_ref	PRIMARY,t10_genreid	PRIMARY	4	test.t9.subgenreid	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 1	SIMPLE	t11	eq_ref	PRIMARY	PRIMARY	4	test.t10.genreid	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t3	ref	t3_metaid,t3_formatid,t3_metaidformatid	t3_metaidformatid	4	test.t1.metaid	1	Using index condition; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t4	eq_ref	PRIMARY,t4_formatclassid,t4_formats_idx	PRIMARY	4	test.t3.formatid	1	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 SELECT t1.uniquekey, t1.xml AS affiliateXml,
 t8.name AS artistName, t8.artistid, 
 t11.name AS genreName, t11.genreid, t11.priority AS genrePriority,
@@ -4507,8 +4507,8 @@ SET SESSION join_buffer_size = 256;
 EXPLAIN
 SELECT t1.a, t2.c FROM t1,t2 WHERE t1.a=t2.a AND t2.b=99;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	idx	NULL	NULL	NULL	15	Using where
-1	SIMPLE	t1	hash_ALL	NULL	#hash#$hj	5	test.t2.a	36	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	36	
+1	SIMPLE	t2	ALL	idx	NULL	NULL	NULL	15	Using where; Using join buffer (flat, BNL join)
 SELECT t1.a, t2.c FROM t1,t2 WHERE t1.a=t2.a AND t2.b=99;
 a	c
 SET SESSION join_cache_level=@save_join_cache_level;
