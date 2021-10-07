@@ -900,7 +900,7 @@ test	t1	b	2	10	0.0000	4.0000	1.1111	0	NULL	NULL
 analyze
 select * from t1 where a=1 and b=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	2.78	10.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	10.00	Using where
 drop table t1;
 set @@global.histogram_size=@save_histogram_size;
 # End of 10.4 tests
