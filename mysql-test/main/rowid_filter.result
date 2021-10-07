@@ -1239,7 +1239,7 @@ EXPLAIN
       "key_length": "4",
       "used_key_parts": ["l_receiptDATE"],
       "rows": 18,
-      "filtered": 0.566194832,
+      "filtered": 5.555555344,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
     },
@@ -1264,7 +1264,7 @@ l_shipdate BETWEEN '1996-10-01' AND '1996-10-10' AND
 l_receiptdate BETWEEN '1996-10-05' AND '1996-10-10' AND
 o_totalprice BETWEEN 200000 AND 250000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	lineitem	range	PRIMARY,i_l_shipdate,i_l_receiptdate,i_l_orderkey,i_l_orderkey_quantity	i_l_receiptdate	4	NULL	18	18.00	0.57	38.89	Using index condition; Using where
+1	SIMPLE	lineitem	range	PRIMARY,i_l_shipdate,i_l_receiptdate,i_l_orderkey,i_l_orderkey_quantity	i_l_receiptdate	4	NULL	18	18.00	5.56	38.89	Using index condition; Using where
 1	SIMPLE	orders	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	1.00	7.47	14.29	Using where
 set statement optimizer_switch='rowid_filter=on' for ANALYZE FORMAT=JSON SELECT l_shipdate, l_receiptdate, o_totalprice
 FROM orders, lineitem
@@ -1296,7 +1296,7 @@ ANALYZE
       "r_rows": 18,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 0.566194832,
+      "filtered": 5.555555344,
       "r_filtered": 38.88888889,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
@@ -1361,7 +1361,7 @@ EXPLAIN
       "key_length": "4",
       "used_key_parts": ["l_receiptDATE"],
       "rows": 18,
-      "filtered": 0.566194832,
+      "filtered": 5.555555344,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
     },
@@ -1386,7 +1386,7 @@ l_shipdate BETWEEN '1996-10-01' AND '1996-10-10' AND
 l_receiptdate BETWEEN '1996-10-05' AND '1996-10-10' AND
 o_totalprice BETWEEN 200000 AND 250000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	lineitem	range	PRIMARY,i_l_shipdate,i_l_receiptdate,i_l_orderkey,i_l_orderkey_quantity	i_l_receiptdate	4	NULL	18	18.00	0.57	38.89	Using index condition; Using where
+1	SIMPLE	lineitem	range	PRIMARY,i_l_shipdate,i_l_receiptdate,i_l_orderkey,i_l_orderkey_quantity	i_l_receiptdate	4	NULL	18	18.00	5.56	38.89	Using index condition; Using where
 1	SIMPLE	orders	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	1.00	7.47	14.29	Using where
 set statement optimizer_switch='rowid_filter=off' for ANALYZE FORMAT=JSON SELECT l_shipdate, l_receiptdate, o_totalprice
 FROM orders, lineitem
@@ -1418,7 +1418,7 @@ ANALYZE
       "r_rows": 18,
       "r_table_time_ms": "REPLACED",
       "r_other_time_ms": "REPLACED",
-      "filtered": 0.566194832,
+      "filtered": 5.555555344,
       "r_filtered": 38.88888889,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
