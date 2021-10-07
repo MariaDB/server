@@ -3968,7 +3968,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           if (!column->length)
           {
             if (key->type == Key::UNIQUE)
-              is_hash_field_needed= true;
+              is_hash_field_needed= true;  // for case "a BLOB UNIQUE"
             else if (key->type == Key::MULTIPLE)
               column->length= file->max_key_length() + 1;
             else
@@ -4064,8 +4064,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
               /* Align key length to multibyte char boundary */
               key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
             }
-            else
-              is_hash_field_needed= true;
           }
         }
         // Catch invalid use of partial keys 
@@ -4111,11 +4109,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         }
         else
         {
-          if (key->type == Key::UNIQUE)
-          {
-            is_hash_field_needed= true;
-          }
-          else
+          if (key->type != Key::UNIQUE)
           {
             key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
             my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
@@ -4123,6 +4117,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           }
         }
       }
+
+      if (key->type == Key::UNIQUE
+          && key_part_length > MY_MIN(max_key_length,
+                                      file->max_key_part_length()))
+      {
+        is_hash_field_needed= true;
+      }
+
       /* We can not store key_part_length more then 2^16 - 1 in frm */
       if (is_hash_field_needed && column->length > UINT_MAX16)
       {
