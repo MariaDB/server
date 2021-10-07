@@ -13686,6 +13686,12 @@ cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     The group-by list is a permutation of the select attributes, according
     to their order in the index.
 
+  EXAMPLES of handled queries
+    select max(keypart2) from t1 group by keypart1
+    select max(keypart2) from t1 where  keypart2 <= const group by keypart1
+    select distinct keypart1 from table;
+    select count(distinct keypart1) from table;
+
   TODO
   - What happens if the query groups by the MIN/MAX field, and there is no
     other field as in: "select MY_MIN(a) from t1 group by a" ?
@@ -14767,7 +14773,22 @@ get_field_keypart(KEY *index, Field *field)
     This method computes the access cost of a TRP_GROUP_MIN_MAX instance and
     the number of rows returned.
 
+    The used algorithm used for finding the rows is:
+
+    For each range (if no ranges, the range is the whole table)
+      Do an index search for the start of the range
+      As long as the found key is withing the range
+        If the found row matches the where clause, use the row otherwise skip it
+        Scan index for next group, jumping over all identical keys, done in
+        QUICK_GROUP_MIN_MAX_SELECT::next_prefix
+        If the engine does not support a native next_prefix, we will
+        either scan the index for the next value or do a new index dive
+        with 'find next bigger key'.
+
   NOTES
+    See get_best_group_min_max() for which kind of queries this function
+    will be called.
+
     The cost computation distinguishes several cases:
     1) No equality predicates over non-group attributes (thus no key_infix).
        If groups are bigger than blocks on the average, then we assume that it
@@ -14834,17 +14855,18 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   if (!group_key_parts)
   {
     /* Summary over the whole table */
-    keys_per_group= table_records;
+    keys_per_group= MY_MAX(table_records,1);
   }
   else
   {
     keys_per_group= (ha_rows) index_info->actual_rec_per_key(group_key_parts -
                                                              1);
+    if (keys_per_group == 0) /* If there is no statistics try to guess */
+    {
+      /* each group contains 10% of all records */
+      keys_per_group= (table_records / 10) + 1;
+    }
   }
-
-  if (keys_per_group == 0) /* If there is no statistics try to guess */
-    /* each group contains 10% of all records */
-    keys_per_group= (table_records / 10) + 1;
   num_groups= (table_records / keys_per_group) + 1;
 
   /* Apply the selectivity of the quick select for group prefixes. */
@@ -14853,7 +14875,21 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     quick_prefix_selectivity= (double) quick_prefix_records /
                               (double) table_records;
     num_groups= (ha_rows) rint(num_groups * quick_prefix_selectivity);
-    set_if_bigger(num_groups, 1);
+    /*
+      Expect at least as many groups as there is ranges in the index
+      WHERE a in (1,2,3) GROUP BY a
+
+      This is mostly relevant for queries with few records, which is
+      something we have a lot of in our test suites.
+      In theory it is possible to scan the index_tree and for cases
+      where all ranges are eq ranges, we could calculate the exact number
+      of groups. This is probably an overkill so for now we estimate
+      the lower level of number of groups by the range elements in the
+      tree.
+    */
+    set_if_bigger(num_groups, MY_MAX(index_tree->elements, 1));
+    /* There cannot be more groups than matched records */
+    set_if_smaller(num_groups, quick_prefix_records);
   }
   /* Ensure we don't have more groups than rows in table */
   set_if_smaller(num_groups, table_records);
@@ -14890,21 +14926,22 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     group. To make the CPU cost reflect this, we estimate the CPU cost
     as the sum of:
     1. Cost for evaluating the condition for each num_group
-       (1/TIME_FOR_COMPARE) (similarly as for index scan).
+       (1/TIME_FOR_COMPARE_IDX) (similarly as for index scan).
     2. Cost for navigating the index structure (assuming a b-tree).
        Note: We only add the cost for one index comparision per block. For a
              b-tree the number of comparisons will be larger. However the cost
              is low as all of the upper level b-tree blocks should be in
              memory.
        TODO: This cost should be provided by the storage engine.
+    3. Cost for comparing the row with the where clause
   */
   const double tree_traversal_cost=
     ceil(log(static_cast<double>(table_records))/
          log(static_cast<double>(keys_per_block))) * 
-    1/(2*TIME_FOR_COMPARE);
+    1/(TIME_FOR_COMPARE_IDX);
 
   const double cpu_cost= (num_groups *
-                          (tree_traversal_cost + 1/TIME_FOR_COMPARE_IDX));
+                          (tree_traversal_cost + 1/TIME_FOR_COMPARE));
 
   *read_cost= io_cost + cpu_cost;
   *records= num_groups;
