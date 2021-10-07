@@ -1116,7 +1116,7 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_log_writes = srv_stats.log_writes;
 
-	mysql_mutex_lock(&lock_sys.wait_mutex);
+	lock_sys.wait_mutex_lock();
 	export_vars.innodb_row_lock_waits = lock_sys.get_wait_cumulative();
 
 	export_vars.innodb_row_lock_current_waits= lock_sys.get_wait_pending();
@@ -1125,7 +1125,7 @@ srv_export_innodb_status(void)
 		/ 1000;
 	export_vars.innodb_row_lock_time_max = lock_sys.get_wait_time_max()
 		/ 1000;
-	mysql_mutex_unlock(&lock_sys.wait_mutex);
+	lock_sys.wait_mutex_unlock();
 
 	export_vars.innodb_row_lock_time_avg= export_vars.innodb_row_lock_waits
 		? static_cast<ulint>(export_vars.innodb_row_lock_time

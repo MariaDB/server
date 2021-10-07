@@ -1687,14 +1687,14 @@ srv_mon_process_existing_counter(
 
 	/* innodb_row_lock_time_avg */
 	case MONITOR_OVLD_LOCK_AVG_WAIT_TIME:
-		mysql_mutex_lock(&lock_sys.wait_mutex);
+		lock_sys.wait_mutex_lock();
 		if (auto count = lock_sys.get_wait_cumulative()) {
 			value = lock_sys.get_wait_time_cumulative() / 1000
 				/ count;
 		} else {
 			value = 0;
 		}
-		mysql_mutex_unlock(&lock_sys.wait_mutex);
+		lock_sys.wait_mutex_unlock();
 		break;
 
 	/* innodb_row_lock_waits */

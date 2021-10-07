@@ -37,6 +37,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "gis0rtree.h"
 #include "lock0prdt.h"
 #include "transactional_lock_guard.h"
+#include "my_cpu.h"
 
 // Forward declaration
 class ReadView;
@@ -710,6 +711,31 @@ public:
 
   /** mutex covering lock waits; @see trx_lock_t::wait_lock */
   MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t wait_mutex;
+
+  template<bool spinloop = false>
+  void wait_mutex_lock()
+  {
+    if (spinloop)
+    {
+      if (!mysql_mutex_trylock(&wait_mutex))
+        return;
+
+      for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+      {
+        ut_delay(srv_spin_wait_delay);
+        if (!mysql_mutex_trylock(&wait_mutex))
+         return;
+      }
+    }
+
+    mysql_mutex_lock(&wait_mutex);
+  }
+
+  void wait_mutex_unlock()
+  {
+    mysql_mutex_unlock(&wait_mutex);
+  }
+
 private:
   /** The increment of wait_count for a wait. Anything smaller is a
   pending wait count. */

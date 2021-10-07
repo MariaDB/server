@@ -925,14 +925,14 @@ static void lock_wait_wsrep(trx_t *trx)
   std::set<trx_t*> victims;
 
   lock_sys.wr_lock(SRW_LOCK_CALL);
-  mysql_mutex_lock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_lock();
 
   const lock_t *wait_lock= trx->lock.wait_lock;
   if (!wait_lock)
   {
 func_exit:
     lock_sys.wr_unlock();
-    mysql_mutex_unlock(&lock_sys.wait_mutex);
+    lock_sys.wait_mutex_unlock();
     return;
   }
 
@@ -990,7 +990,7 @@ func_exit:
                   };);
 
   lock_sys.wr_unlock();
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_unlock();
 
   for (const auto &v : victim_id)
     lock_wait_wsrep_kill(trx, v.first, v.second);
@@ -1667,9 +1667,9 @@ static void lock_wait_rpl_report(trx_t *trx)
   even for wait_lock->is_table(). */
   if (!lock_sys.wr_lock_try())
   {
-    mysql_mutex_unlock(&lock_sys.wait_mutex);
+    lock_sys.wait_mutex_unlock();
     lock_sys.wr_lock(SRW_LOCK_CALL);
-    mysql_mutex_lock(&lock_sys.wait_mutex);
+    lock_sys.wait_mutex_lock();
     wait_lock= trx->lock.wait_lock;
     if (!wait_lock)
     {
@@ -1795,7 +1795,7 @@ dberr_t lock_wait(que_thr_t *thr)
                  ? THD_WAIT_TABLE_LOCK : THD_WAIT_ROW_LOCK);
   dberr_t error_state= DB_SUCCESS;
 
-  mysql_mutex_lock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_lock<true>();
   if (trx->lock.wait_lock)
   {
     if (Deadlock::check_and_resolve(trx))
@@ -1868,7 +1868,7 @@ dberr_t lock_wait(que_thr_t *thr)
   }
 
 end_wait:
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_unlock();
   thd_wait_end(trx->mysql_thd);
 
   trx->error_state= error_state;
@@ -1927,7 +1927,7 @@ one can now be granted! */
 static void lock_rec_cancel(lock_t *lock)
 {
   trx_t *trx= lock->trx;
-  mysql_mutex_lock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_lock<true>();
   trx->mutex_lock();
 
   ut_d(lock_sys.hash_get(lock->type_mode).
@@ -1940,7 +1940,7 @@ static void lock_rec_cancel(lock_t *lock)
 
   /* The following releases the trx from lock wait */
   lock_wait_end(trx);
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_unlock();
   trx->mutex_unlock();
 }
 
@@ -1990,7 +1990,7 @@ static void lock_rec_dequeue_from_page(lock_t *in_lock, bool owns_wait_mutex)
 		}
 
 		if (!owns_wait_mutex) {
-			mysql_mutex_lock(&lock_sys.wait_mutex);
+			lock_sys.wait_mutex_lock<true>();
 			acquired = owns_wait_mutex = true;
 		}
 
@@ -2014,7 +2014,7 @@ static void lock_rec_dequeue_from_page(lock_t *in_lock, bool owns_wait_mutex)
 	}
 
 	if (acquired) {
-		mysql_mutex_unlock(&lock_sys.wait_mutex);
+		lock_sys.wait_mutex_unlock();
 	}
 }
 
@@ -3598,7 +3598,7 @@ static void lock_table_dequeue(lock_t *in_lock, bool owns_wait_mutex)
 		}
 
 		if (!owns_wait_mutex) {
-			mysql_mutex_lock(&lock_sys.wait_mutex);
+			lock_sys.wait_mutex_lock<true>();
 			acquired = owns_wait_mutex = true;
 		}
 
@@ -3623,7 +3623,7 @@ static void lock_table_dequeue(lock_t *in_lock, bool owns_wait_mutex)
 	}
 
 	if (acquired) {
-		mysql_mutex_unlock(&lock_sys.wait_mutex);
+		lock_sys.wait_mutex_unlock();
 	}
 }
 
@@ -3766,7 +3766,7 @@ released:
 		if (!lock->is_waiting()) {
 			continue;
 		}
-		mysql_mutex_lock(&lock_sys.wait_mutex);
+		lock_sys.wait_mutex_lock<true>();
 		ut_ad(lock->trx->lock.wait_trx);
 		ut_ad(lock->trx->lock.wait_lock);
 
@@ -3778,7 +3778,7 @@ released:
 			ut_ad(trx != lock->trx);
 			lock_grant(lock);
 		}
-		mysql_mutex_unlock(&lock_sys.wait_mutex);
+		lock_sys.wait_mutex_unlock();
 	}
 }
 
@@ -3921,9 +3921,9 @@ restart:
 released:
   if (UNIV_UNLIKELY(Deadlock::to_be_checked))
   {
-    mysql_mutex_lock(&lock_sys.wait_mutex);
+    lock_sys.wait_mutex_lock<true>();
     lock_sys.deadlock_check();
-    mysql_mutex_unlock(&lock_sys.wait_mutex);
+    lock_sys.wait_mutex_unlock();
   }
 
   trx->lock.was_chosen_as_deadlock_victim= false;
@@ -5589,7 +5589,7 @@ static void lock_release_autoinc_locks(trx_t *trx)
 {
   {
     LockMutexGuard g{SRW_LOCK_CALL};
-    mysql_mutex_lock(&lock_sys.wait_mutex);
+    lock_sys.wait_mutex_lock();
     trx->mutex_lock();
     auto autoinc_locks= trx->autoinc_locks;
     ut_a(autoinc_locks);
@@ -5606,7 +5606,7 @@ static void lock_release_autoinc_locks(trx_t *trx)
       lock_trx_table_locks_remove(lock);
     }
   }
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_unlock();
   trx->mutex_unlock();
 }
 
@@ -5644,7 +5644,7 @@ TRANSACTIONAL_TARGET
 void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
 {
   lock_sys.wr_lock(SRW_LOCK_CALL);
-  mysql_mutex_lock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_lock();
   if (lock_t *lock= trx->lock.wait_lock)
   {
     /* check if victim is still waiting */
@@ -5652,7 +5652,7 @@ void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
       lock_cancel_waiting_and_release(lock);
   }
   lock_sys.wr_unlock();
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_unlock();
 }
 #endif /* WITH_WSREP */
 
@@ -5676,9 +5676,9 @@ dberr_t lock_sys_t::cancel(trx_t *trx, lock_t *lock)
   {
     if (!lock_sys.rd_lock_try())
     {
-      mysql_mutex_unlock(&lock_sys.wait_mutex);
+      lock_sys.wait_mutex_unlock();
       lock_sys.rd_lock(SRW_LOCK_CALL);
-      mysql_mutex_lock(&lock_sys.wait_mutex);
+      lock_sys.wait_mutex_lock<true>();
       lock= trx->lock.wait_lock;
       if (!lock);
       else if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
@@ -5695,9 +5695,9 @@ resolve_table_lock:
         /* The correct latching order is:
         lock_sys.latch, table->lock_mutex_lock(), lock_sys.wait_mutex.
         Thus, we must release lock_sys.wait_mutex for a blocking wait. */
-        mysql_mutex_unlock(&lock_sys.wait_mutex);
+        lock_sys.wait_mutex_unlock();
         table->lock_mutex_lock();
-        mysql_mutex_lock(&lock_sys.wait_mutex);
+        lock_sys.wait_mutex_lock();
         lock= trx->lock.wait_lock;
         if (!lock)
           goto retreat;
@@ -5727,9 +5727,9 @@ retreat:
     during a page split or merge, we must hold exclusive lock_sys.latch. */
     if (!lock_sys.wr_lock_try())
     {
-      mysql_mutex_unlock(&lock_sys.wait_mutex);
+      lock_sys.wait_mutex_unlock();
       lock_sys.wr_lock(SRW_LOCK_CALL);
-      mysql_mutex_lock(&lock_sys.wait_mutex);
+      lock_sys.wait_mutex_lock();
       lock= trx->lock.wait_lock;
       if (!lock);
       else if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
@@ -5759,7 +5759,7 @@ resolve_record_lock:
 /** Cancel a waiting lock request (if any) when killing a transaction */
 void lock_sys_t::cancel(trx_t *trx)
 {
-  mysql_mutex_lock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_lock<true>();
   if (lock_t *lock= trx->lock.wait_lock)
   {
     /* Dictionary transactions must be immune to KILL, because they
@@ -5772,7 +5772,7 @@ void lock_sys_t::cancel(trx_t *trx)
     }
   }
   lock_sys.deadlock_check();
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_unlock();
 }
 
 /*********************************************************************//**
@@ -5817,13 +5817,13 @@ dberr_t lock_trx_handle_wait(trx_t *trx)
   if (!trx->lock.wait_lock)
     return DB_SUCCESS;
   dberr_t err= DB_SUCCESS;
-  mysql_mutex_lock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_lock<true>();
   if (trx->lock.was_chosen_as_deadlock_victim)
     err= DB_DEADLOCK;
   else if (lock_t *wait_lock= trx->lock.wait_lock)
     err= lock_sys_t::cancel<true>(trx, wait_lock);
   lock_sys.deadlock_check();
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  lock_sys.wait_mutex_unlock();
   return err;
 }
 
@@ -6108,9 +6108,9 @@ namespace Deadlock
     which would interrupt a memory transaction. */
     if (current_trx && !lock_sys.wr_lock_try())
     {
-      mysql_mutex_unlock(&lock_sys.wait_mutex);
+      lock_sys.wait_mutex_unlock();
       lock_sys.wr_lock(SRW_LOCK_CALL);
-      mysql_mutex_lock(&lock_sys.wait_mutex);
+      lock_sys.wait_mutex_lock();
     }
 
     {
