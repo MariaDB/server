@@ -3191,10 +3191,10 @@ ORDER BY path;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	15	Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	15	Using where
-3	RECURSIVE UNION	t2	ALL	NULL	NULL	NULL	NULL	15	Using where
-3	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.t2.id	2	
-4	RECURSIVE UNION	t2	ALL	NULL	NULL	NULL	NULL	15	Using where
-4	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.t2.id	2	
+3	RECURSIVE UNION	t2	ALL	NULL	NULL	NULL	NULL	15	
+3	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	15	Using where; Using join buffer (flat, BNL join)
+4	RECURSIVE UNION	t2	ALL	NULL	NULL	NULL	NULL	15	
+4	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	15	Using where; Using join buffer (flat, BNL join)
 NULL	UNION RESULT	<union2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
 DROP TABLE t1,t2;
 set tmp_memory_table_size=default;
@@ -4354,8 +4354,8 @@ NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL
 3	DERIVED	v	ALL	NULL	NULL	NULL	NULL	12	Using where
 3	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 3	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
-2	RECURSIVE UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	
-2	RECURSIVE UNION	h	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+2	RECURSIVE UNION	h	ALL	NULL	NULL	NULL	NULL	12	
+2	RECURSIVE UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 2	RECURSIVE UNION	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
 NULL	UNION RESULT	<union3,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 prepare stmt from "with recursive
@@ -4453,8 +4453,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 5	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
 2	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	
-2	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using join buffer (flat, BNL join)
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
 prepare stmt from "with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
 w_id, w_name, w_dob, w_father, w_mother)
