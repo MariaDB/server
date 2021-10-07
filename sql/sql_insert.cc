@@ -1158,8 +1158,13 @@ values_loop_end:
     table->file->ha_release_auto_increment();
     if (using_bulk_insert)
     {
-      if (unlikely(table->file->ha_end_bulk_insert()) &&
-          !error)
+      /*
+        if my_error() wasn't called yet on some specific row, end_bulk_insert()
+        can still do it, but the error shouldn't be for any specific row number
+      */
+      if (!error)
+        thd->get_stmt_da()->reset_current_row_for_warning(0);
+      if (unlikely(table->file->ha_end_bulk_insert()) && !error)
       {
         table->file->print_error(my_errno,MYF(0));
         error=1;
