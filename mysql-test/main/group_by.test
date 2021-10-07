@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 # Initialise
 --disable_warnings
 drop table if exists t1,t2,t3;
@@ -1135,6 +1137,11 @@ EXPLAIN SELECT a from t2 GROUP BY a;
 SELECT a from t2 GROUP BY a;
 EXPLAIN SELECT b from t2 GROUP BY b;
 SELECT b from t2 GROUP BY b;
+
+# Show that we are using 'range' when there is more NULL rows in the table
+insert into t2 SELECT NULL, NULL from seq_1_to_10;
+--echo # Expect: Using index for group-by
+EXPLAIN SELECT b from t2 GROUP BY a;
 
 DROP TABLE t1;
 DROP TABLE t2;

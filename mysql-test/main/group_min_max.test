@@ -898,23 +898,27 @@ t1;
 
 DROP TABLE t1,t2,t3,t4,t5,t6;
 
-#
-# Bug#22342: No results returned for query using max and group by
-#
+--echo #
+--echo # Bug#22342: No results returned for query using max and group by
+--echo #
 CREATE TABLE t1 (a int, b int, KEY (a,b), KEY b (b));
 INSERT INTO t1 VALUES
   (1,1),(1,2),(1,0),(1,3),
   (1,-1),(1,-2),(1,-3),(1,-4);
 ANALYZE TABLE t1;
-
-explain SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
-SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
-SELECT MIN(b), a FROM t1 WHERE b > 1 AND a = 1 GROUP BY a;
 CREATE TABLE t2 (a int, b int, c int, PRIMARY KEY (a,b,c));
 INSERT INTO t2 SELECT a,b,b FROM t1;
+
+explain SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
+insert into t1 select 1,seq from seq_1_to_100;
+explain SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
+analyze table t1;
+explain SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
+
+SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
+SELECT MIN(b), a FROM t1 WHERE b > 1 AND a = 1 GROUP BY a;
 explain SELECT MIN(c) FROM t2 WHERE b = 2 and a = 1 and c > 1 GROUP BY a;
 SELECT MIN(c) FROM t2 WHERE b = 2 and a = 1 and c > 1 GROUP BY a;
-
 DROP TABLE t1,t2;
 
 #
@@ -1438,10 +1442,12 @@ CREATE TABLE t1 (
 ) ;
 insert into t1 values(1,'A'),(1 , 'B'), (1, 'C'), (2, 'A'), 
 (3, 'A'), (3, 'B'), (3, 'C'), (3, 'D');
-
+explain SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
+SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
+insert into t1 select seq/10,char(64+mod(seq,4)) from seq_1_to_100;
+explain SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
 SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
 explain SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
- 
 drop table t1;
 --echo # End of test#50539.
 
