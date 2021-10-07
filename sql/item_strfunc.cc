@@ -5682,7 +5682,7 @@ String *Item_func_natural_sort_key::val_str(String *out)
     if (tmp.copy(out, cs, &errs) || out->copy(tmp))
       goto error_exit;
   }
-
+  null_value= false;
   return out;
 
 error_exit:

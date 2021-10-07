@@ -190,3 +190,16 @@ pic120              	pic2120
 pic121              	pic2121
 pic02000            	pic32000
 tom                 	tom
+create table t (a varchar(8), b varchar(8) as (natural_sort_key(a)));
+insert into t (a) values ('a2'),(NULL),('a11');
+select * from t order by b;
+a	b
+NULL	NULL
+a2	a02
+a11	a111
+select a, b from t order by b;
+a	b
+NULL	NULL
+a2	a02
+a11	a111
+drop table t;
