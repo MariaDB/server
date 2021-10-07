@@ -572,7 +572,7 @@ public:
 
 class Item_func_unix_timestamp :public Item_func_seconds_hybrid
 {
-  bool get_timestamp_value(my_time_t *seconds, ulong *second_part);
+  bool get_timestamp_value(longlong *seconds, ulong *second_part);
 public:
   Item_func_unix_timestamp(THD *thd): Item_func_seconds_hybrid(thd) {}
   Item_func_unix_timestamp(THD *thd, Item *a):
