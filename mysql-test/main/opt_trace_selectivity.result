@@ -103,8 +103,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
             ],
             "table": "t1",
             "rows_for_plan": 7,
-            "cost_for_plan": 3.573416331,
-            "estimated_join_cardinality": 7
+            "cost_for_plan": 3.573416331
         }
     ]
 ]
@@ -206,8 +205,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
             ],
             "table": "t1",
             "rows_for_plan": 0.6,
-            "cost_for_plan": 2.292957403,
-            "estimated_join_cardinality": 0.6
+            "cost_for_plan": 2.292957403
         }
     ]
 ]

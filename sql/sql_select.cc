@@ -7701,7 +7701,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
 
   @param s                      Current JOIN_TAB
   @param with_found_constraint  There is a filtering condition on the
-                                current table. See more below
+                                current table of type. See below.
   @param use_cond_selectivity   Value of optimizer_use_condition_selectivity.
                                 If > 1 then use table->cond_selecitivity.
 
@@ -7715,16 +7715,27 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
    - apply the part of WHERE that refers only to this table.
    - The result cannot be bigger than table records
 
+   'with_found_constraint' is true if the WHERE has a top level expression of
+   type:
+   current_table.key_part=expression_that_contains_fields_from_previous_tables
+   Examples (assuming join order t1,t2):
+   WHERE t2.keypart1=t1.some_field
+   WHERE t2.keypart1=t1.some_field+t1.other_field
+
+   TODO:
+   Extend with_found_constraint' to be set for a top level expression of type
+   X=Y where X and Y has fields from current table and at least one field from
+   one o more previous tables.
+
   @see also
     table_after_join_selectivity() produces selectivity of condition that is
     checked after joining rows from this table to rows from preceding tables.
 */
 
-inline
-double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
-                                    uint use_cond_selectivity)
+static double matching_candidates_in_table(JOIN_TAB *s,
+                                           bool with_found_constraint,
+                                           uint use_cond_selectivity)
 {
-  ha_rows records;
   double dbl_records;
 
   if (use_cond_selectivity > 1)
@@ -7742,10 +7753,19 @@ double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
                 sel <= s->table->opt_range_condition_rows /
                 table_records);
     dbl_records= table_records * sel;
-    return dbl_records;
   }
-
-  records = s->found_records;
+  else
+  {
+    /*
+      This is only taking into considering constant key parts used with
+      this table!
+      If no such conditions existed the following should hold:
+      s->table->opt_range_condition_rows == s->found_rows ==
+      s->records.
+    */
+    DBUG_ASSERT(s->table->opt_range_condition_rows <= s->found_records);
+    dbl_records= rows2double(s->table->opt_range_condition_rows);
+  }
 
   /*
     If there is a filtering condition on the table (i.e. ref analyzer found
@@ -7756,17 +7776,9 @@ double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
     This heuristic is supposed to force tables used in exprZ to be before
     this table in join order.
   */
+
   if (with_found_constraint)
-    records-= records/4;
-
-    /*
-      If applicable, get a more accurate estimate. Don't use the two
-      heuristics at once.
-    */
-  if (s->table->opt_range_condition_rows != s->found_records)
-    records= s->table->opt_range_condition_rows;
-
-  dbl_records= (double)records;
+    dbl_records-= dbl_records/4;
   return dbl_records;
 }
 
@@ -7990,6 +8002,9 @@ best_access_path(JOIN      *join,
           {
             found_part|= keyuse->keypart_map;
             key_parts_dependent= 0;
+            found_constraint|= (keyuse->used_tables &
+                                ~(remaining_tables |
+                                  join->const_table_map));
             if (!(keyuse->used_tables & ~join->const_table_map))
               const_part|= keyuse->keypart_map;
 
@@ -8024,6 +8039,7 @@ best_access_path(JOIN      *join,
         if (all_parts & 1)
           key_dependent|= key_parts_dependent;
 	found_ref|= best_part_found_ref;
+        /* Remember if the key expression used previous non const tables */
       } while (keyuse->table == table && keyuse->key == key);
 
       /*
@@ -8053,7 +8069,6 @@ best_access_path(JOIN      *join,
       }
       else
       {
-        found_constraint= MY_TEST(found_part);
         loose_scan_opt.check_ref_access_part1(s, key, start_key, found_part);
 
         /* Check if we found full key */
