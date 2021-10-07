@@ -486,5 +486,22 @@ xa commit 'foo';
 drop table t1;
 
 --echo #
+--echo # MDEV-22445 Crash on HANDLER READ NEXT after XA PREPARE
+--echo #
+
+CREATE TABLE t (a INT KEY) ENGINE=InnoDB;
+HANDLER t OPEN AS t;
+XA START '0';
+SELECT * FROM t;
+XA END '0';
+XA PREPARE '0';
+--error ER_XAER_RMFAIL
+HANDLER t READ NEXT;
+
+--echo # Cleanup
+XA COMMIT '0';
+DROP TABLE t;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
