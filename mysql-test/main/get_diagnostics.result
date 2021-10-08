@@ -1598,7 +1598,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 GET DIAGNOSTICS CONDITION 1 @num = ROW_NUMBER, @msg = MESSAGE_TEXT;
 SELECT @num, @msg;
 @num	@msg
-1	Duplicate entry '1' for key 'PRIMARY'
+2	Duplicate entry '1' for key 'PRIMARY'
 DROP PROCEDURE sp;
 DROP TABLE t1;
 # Checking more errors

@@ -441,7 +441,7 @@ bool Sql_cmd_resignal::execute(THD *thd)
   }
 
   Sql_condition signaled_err(thd->mem_root, *signaled, signaled->message,
-                             da->current_row_for_warning());
+                             signaled->m_row_number);
 
   if (m_cond)
   {
