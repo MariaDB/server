@@ -17,6 +17,8 @@ insert t1 (a, b) values (1, repeat("def", 1000));
 insert t1 (a, b) values (2, repeat("ghi", 10000));
 select a, left(b, 9), length(b) from t1;
 
+--source include/restart_mysqld.inc
+
 --echo # xtrabackup backup
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 

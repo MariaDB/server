@@ -12,6 +12,7 @@ a	left(b, 9)	length(b)
 0	abcabcabc	300
 1	defdefdef	3000
 2	ghighighi	30000
+# restart
 # xtrabackup backup
 # xtrabackup prepare;
 # shutdown server
