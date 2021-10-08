@@ -4801,45 +4801,17 @@ private:
     @param msg the condition message text
     @return The condition raised, or NULL
   */
-  Sql_condition*
-  raise_condition(uint sql_errno,
-                  const char* sqlstate,
-                  Sql_condition::enum_warning_level level,
-                  const char* msg)
+  Sql_condition* raise_condition(uint sql_errno, const char* sqlstate,
+                  Sql_condition::enum_warning_level level, const char* msg)
   {
-    return raise_condition(sql_errno, sqlstate, level,
-                           Sql_user_condition_identity(), msg);
+    Sql_condition cond(NULL, // don't strdup the msg
+                       Sql_condition_identity(sql_errno, sqlstate, level,
+                                              Sql_user_condition_identity()),
+                       msg, get_stmt_da()->current_row_for_warning());
+    return raise_condition(&cond);
   }
 
-  /**
-    Raise a generic or a user defined SQL condition.
-    @param ucid      - the user condition identity
-                       (or an empty identity if not a user condition)
-    @param sql_errno - the condition error number
-    @param sqlstate  - the condition SQLSTATE
-    @param level     - the condition level
-    @param msg       - the condition message text
-    @return The condition raised, or NULL
-  */
-  Sql_condition*
-  raise_condition(uint sql_errno,
-                  const char* sqlstate,
-                  Sql_condition::enum_warning_level level,
-                  const Sql_user_condition_identity &ucid,
-                  const char* msg);
-
-  Sql_condition*
-  raise_condition(const Sql_condition *cond)
-  {
-    Sql_condition *raised= raise_condition(cond->get_sql_errno(),
-                                           cond->get_sqlstate(),
-                                           cond->get_level(),
-                                           *cond/*Sql_user_condition_identity*/,
-                                           cond->get_message_text());
-    if (raised)
-      raised->copy_opt_attributes(cond);
-    return raised;
-  }
+  Sql_condition* raise_condition(const Sql_condition *cond);
 
 private:
   void push_warning_truncated_priv(Sql_condition::enum_warning_level level,

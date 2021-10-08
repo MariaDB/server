@@ -3269,7 +3269,7 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   {
     if (unlikely(MyFlags & ME_FATAL))
       thd->is_fatal_error= 1;
-    (void) thd->raise_condition(error, NULL, level, str);
+    (void) thd->raise_condition(error, "\0\0\0\0\0", level, str);
   }
   else
     mysql_audit_general(0, MYSQL_AUDIT_GENERAL_ERROR, error, str);

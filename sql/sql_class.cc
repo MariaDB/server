@@ -965,10 +965,8 @@ Internal_error_handler *THD::pop_internal_handler()
 void THD::raise_error(uint sql_errno)
 {
   const char* msg= ER_THD(this, sql_errno);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_ERROR,
-                         msg);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_ERROR, msg);
 }
 
 void THD::raise_error_printf(uint sql_errno, ...)
@@ -981,20 +979,16 @@ void THD::raise_error_printf(uint sql_errno, ...)
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_ERROR,
-                         ebuff);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_ERROR, ebuff);
   DBUG_VOID_RETURN;
 }
 
 void THD::raise_warning(uint sql_errno)
 {
   const char* msg= ER_THD(this, sql_errno);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_WARN,
-                         msg);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_WARN, msg);
 }
 
 void THD::raise_warning_printf(uint sql_errno, ...)
@@ -1007,10 +1001,8 @@ void THD::raise_warning_printf(uint sql_errno, ...)
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_WARN,
-                         ebuff);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_WARN, ebuff);
   DBUG_VOID_RETURN;
 }
 
@@ -1021,10 +1013,8 @@ void THD::raise_note(uint sql_errno)
   if (!(variables.option_bits & OPTION_SQL_NOTES))
     DBUG_VOID_RETURN;
   const char* msg= ER_THD(this, sql_errno);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_NOTE,
-                         msg);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_NOTE, msg);
   DBUG_VOID_RETURN;
 }
 
@@ -1040,21 +1030,20 @@ void THD::raise_note_printf(uint sql_errno, ...)
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_NOTE,
-                         ebuff);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_NOTE, ebuff);
   DBUG_VOID_RETURN;
 }
 
-Sql_condition* THD::raise_condition(uint sql_errno,
-                                    const char* sqlstate,
-                                    Sql_condition::enum_warning_level level,
-                                    const Sql_user_condition_identity &ucid,
-                                    const char* msg)
+Sql_condition* THD::raise_condition(const Sql_condition *cond)
 {
+  uint sql_errno= cond->get_sql_errno();
+  const char *sqlstate= cond->get_sqlstate();
+  Sql_condition::enum_warning_level level= cond->get_level();
+  const char *msg= cond->get_message_text();
+
   Diagnostics_area *da= get_stmt_da();
-  Sql_condition *cond= NULL;
+  Sql_condition *raised= NULL;
   DBUG_ENTER("THD::raise_condition");
   DBUG_ASSERT(level < Sql_condition::WARN_LEVEL_END);
 
@@ -1082,22 +1071,18 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     sql_errno= ER_UNKNOWN_ERROR;
   if (msg == NULL)
     msg= ER_THD(this, sql_errno);
-  if (sqlstate == NULL)
+  if (!*sqlstate)
    sqlstate= mysql_errno_to_sqlstate(sql_errno);
 
-  if ((level == Sql_condition::WARN_LEVEL_WARN) &&
-      really_abort_on_warning())
+  if ((level == Sql_condition::WARN_LEVEL_WARN) && really_abort_on_warning())
   {
-    /*
-      FIXME:
-      push_warning and strict SQL_MODE case.
-    */
+    /* FIXME: push_warning and strict SQL_MODE case. */
     level= Sql_condition::WARN_LEVEL_ERROR;
   }
 
   if (!is_fatal_error &&
-      handle_condition(sql_errno, sqlstate, &level, msg, &cond))
-    DBUG_RETURN(cond);
+      handle_condition(sql_errno, sqlstate, &level, msg, &raised))
+    goto ret;
 
   switch (level) {
   case Sql_condition::WARN_LEVEL_NOTE:
@@ -1122,8 +1107,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
       With wsrep we allow converting BF abort error to warning if
       errors are ignored.
      */
-    if (!is_fatal_error &&
-        no_errors       &&
+    if (!is_fatal_error && no_errors &&
         (wsrep_trx().bf_aborted() || wsrep_retry_counter))
     {
       WSREP_DEBUG("BF abort error converted to warning");
@@ -1134,7 +1118,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
       if (!da->is_error())
       {
 	set_row_count_func(-1);
-	da->set_error_status(sql_errno, msg, sqlstate, ucid, cond);
+	da->set_error_status(sql_errno, msg, sqlstate, *cond, raised);
       }
     }
   }
@@ -1149,10 +1133,13 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   if (likely(!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
                                   sql_errno == ER_OUTOFMEMORY))))
   {
-    cond= da->push_warning(this, sql_errno, sqlstate, level, ucid, msg,
-                           da->current_row_for_warning());
+    raised= da->push_warning(this, sql_errno, sqlstate, level, *cond, msg,
+                             cond->m_row_number);
   }
-  DBUG_RETURN(cond);
+ret:
+  if (raised)
+    raised->copy_opt_attributes(cond);
+  DBUG_RETURN(raised);
 }
 
 extern "C"

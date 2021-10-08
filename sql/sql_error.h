@@ -443,7 +443,6 @@ private:
                 const char *msg, ulong current_row_for_warning)
    : Sql_condition_identity(value), m_mem_root(mem_root)
   {
-    DBUG_ASSERT(mem_root != NULL);
     DBUG_ASSERT(value.get_sql_errno() != 0);
     DBUG_ASSERT(msg != NULL);
     set_builtin_message_text(msg);
@@ -746,10 +745,8 @@ private:
 
     @return a pointer to the added SQL-condition.
   */
-  Sql_condition *push_warning(THD *thd,
-                              const Sql_condition_identity *identity,
-                              const char* msg,
-                              ulong current_row_number);
+  Sql_condition *push_warning(THD *thd, const Sql_condition_identity *identity,
+                              const char* msg, ulong current_row_number);
 
   /**
     Add a new SQL-condition to the current list and increment the respective

@@ -217,7 +217,7 @@ Sql_condition::set_builtin_message_text(const char* str)
   */
   const char* copy;
 
-  copy= strdup_root(m_mem_root, str);
+  copy= m_mem_root ? strdup_root(m_mem_root, str) : str;
   m_message_text.set(copy, strlen(copy), error_message_charset_info);
   DBUG_ASSERT(! m_message_text.is_alloced());
 }
@@ -727,7 +727,7 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
   if (level == Sql_condition::WARN_LEVEL_ERROR)
     level= Sql_condition::WARN_LEVEL_WARN;
 
-  (void) thd->raise_condition(code, NULL, level, msg);
+  (void) thd->raise_condition(code, "\0\0\0\0\0", level, msg);
 
   /* Make sure we also count warnings pushed after calling set_ok_status(). */
   thd->get_stmt_da()->increment_warning();
