@@ -67,7 +67,7 @@ enum privilege_t: unsigned long long
   REPL_MASTER_ADMIN_ACL = (1ULL << 35), // Added in 10.5.2
   BINLOG_ADMIN_ACL      = (1ULL << 36), // Added in 10.5.2
   BINLOG_REPLAY_ACL     = (1ULL << 37), // Added in 10.5.2
-  SLAVE_MONITOR_ACL     = (1ULL << 38)  // Added in 10.5.8
+  SLAVE_MONITOR_ACL     = (1ULL << 38)  // Added in 10.5.9
   /*
     When adding new privilege bits, don't forget to update:
     In this file:
