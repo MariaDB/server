@@ -1393,7 +1393,10 @@ String *Item_func_sformat::val_str(String *res)
       break;
     case DECIMAL_RESULT: // TODO
     case REAL_RESULT:
-      vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_real());
+      if (args[carg]->field_type() == MYSQL_TYPE_FLOAT)
+        vargs[carg-1]= fmt::detail::make_arg<ctx>((float)args[carg]->val_real());
+      else
+        vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_real());
       break;
     case STRING_RESULT:
       if (!(parg= args[carg]->val_str(&val_arg[carg-1])))

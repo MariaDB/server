@@ -207,3 +207,9 @@ echo #;
 prepare s from 'select sformat("={:d}=", ?)';
 execute s using 100;
 execute s using 'abc';
+
+echo #;
+echo # MDEV-26691 SFORMAT: Pass down FLOAT as FLOAT, without upcast to DOUBLE;
+echo #;
+
+select sformat('{}', cast(1.1 as float));

@@ -449,3 +449,9 @@ sformat("={:d}=", ?)
 NULL
 Warnings:
 Warning	4183	SFORMAT error: invalid type specifier
+#
+# MDEV-26691 SFORMAT: Pass down FLOAT as FLOAT, without upcast to DOUBLE
+#
+select sformat('{}', cast(1.1 as float));
+sformat('{}', cast(1.1 as float))
+1.1
