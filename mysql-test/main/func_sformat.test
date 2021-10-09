@@ -199,7 +199,7 @@ select hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442'));
 create table t1 as select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442') as x;
 show create table t1;
 drop table t1;
-
+set names latin1;
 
 echo #;
 echo # ps parameters;
@@ -213,3 +213,16 @@ echo # MDEV-26691 SFORMAT: Pass down FLOAT as FLOAT, without upcast to DOUBLE;
 echo #;
 
 select sformat('{}', cast(1.1 as float));
+
+echo #;
+echo # MDEV-26646 SFORMAT Does not allow @variable use;
+echo #;
+
+set names utf8;
+set @a=3.14;
+select sformat('{:f}', @a);
+set names latin1;
+
+echo #;
+echo # End of 10.7 tests;
+echo #;
