@@ -71,10 +71,10 @@ order by revenue desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 1	SIMPLE	nation	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
+1	SIMPLE	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	
 1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	
 1	SIMPLE	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (12%)	Using where; Using rowid filter
 1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
-1	SIMPLE	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.lineitem.l_suppkey	1	Using where
 select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
 from customer, orders, lineitem, supplier, nation, region
 where c_custkey = o_custkey and l_orderkey = o_orderkey
@@ -85,7 +85,7 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
 group by n_name
 order by revenue desc;
 n_name	revenue
-PERU	321915.8715
+PERU	321915.87150000007
 ARGENTINA	69817.1451
 set optimizer_switch=@save_optimizer_switch;
 delete from mysql.index_stats;
@@ -178,10 +178,10 @@ order by revenue desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 1	SIMPLE	nation	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
+1	SIMPLE	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	
 1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	
 1	SIMPLE	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (12%)	Using where; Using rowid filter
 1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
-1	SIMPLE	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.lineitem.l_suppkey	1	Using where
 select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
 from customer, orders, lineitem, supplier, nation, region
 where c_custkey = o_custkey and l_orderkey = o_orderkey
@@ -192,7 +192,7 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
 group by n_name
 order by revenue desc;
 n_name	revenue
-PERU	321915.8715
+PERU	321915.87150000007
 ARGENTINA	69817.1451
 set optimizer_switch=@save_optimizer_switch;
 EXPLAIN select o_year,

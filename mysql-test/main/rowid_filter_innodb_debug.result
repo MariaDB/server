@@ -48,3 +48,6 @@ ERROR 70100: Query execution was interrupted
 set debug_sync='RESET';
 drop table t2,t3;
 set default_storage_engine=default;
+create table t2 (a int);
+insert into t1 select 0,seq from seq_1_to_20;
+insert into t2 select seq from seq_1_to_100;
