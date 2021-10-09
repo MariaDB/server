@@ -52,8 +52,7 @@ static void add_to_plugin_load_list(const char *plugin_def)
 static char XTRABACKUP_EXE[] = "xtrabackup";
 
 /*
-  Read "plugin-load" value (encryption plugin) from backup-my.cnf during
-  prepare phase.
+  Read "plugin-load" value from backup-my.cnf during prepare phase.
   The value is stored during backup phase.
 */
 static std::string get_encryption_plugin_from_cnf()
@@ -191,7 +190,7 @@ void encryption_plugin_prepare_init(int argc, char **argv)
   std::string plugin_load= get_encryption_plugin_from_cnf();
   if (plugin_load.size())
   {
-    msg("Loading encryption plugin from %s", plugin_load.c_str());
+    msg("Loading plugins from %s", plugin_load.c_str());
   }
   else
   {
@@ -221,9 +220,9 @@ static void encryption_plugin_init(int argc, char **argv)
   /* Patch optional and mandatory plugins, we only need to load the one in xb_plugin_load. */
   mysql_optional_plugins[0] = mysql_mandatory_plugins[0] = 0;
   plugin_maturity = MariaDB_PLUGIN_MATURITY_UNKNOWN; /* mariabackup accepts all plugins */
-  msg("Loading encryption plugin");
+  msg("Loading plugins");
   for (int i= 1; i < argc; i++)
-    msg("\t Encryption plugin parameter :  '%s'", argv[i]);
+    msg("\t Plugin parameter :  '%s'", argv[i]);
   plugin_init(&argc, argv, PLUGIN_INIT_SKIP_PLUGIN_TABLE);
 }
 
