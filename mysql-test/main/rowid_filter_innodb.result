@@ -2502,7 +2502,7 @@ ANALYZE
           "r_rows": 1,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
-          "filtered": 49.20000076,
+          "filtered": 100,
           "r_filtered": 100,
           "index_condition": "t1.nm like '500%'",
           "attached_condition": "t1.fl2 = 0"
@@ -2555,7 +2555,7 @@ ANALYZE
           "r_rows": 1,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
-          "filtered": 49.20000076,
+          "filtered": 100,
           "r_filtered": 100,
           "index_condition": "t1.nm like '500%'",
           "attached_condition": "t1.fl2 = 0"
@@ -2737,33 +2737,20 @@ ANALYZE
       {
         "table": {
           "table_name": "t1",
-          "access_type": "ref",
+          "access_type": "range",
           "possible_keys": ["idx1", "idx2"],
-          "key": "idx2",
-          "key_length": "5",
-          "used_key_parts": ["fl2"],
-          "ref": ["const"],
-          "rowid_filter": {
-            "range": {
-              "key": "idx1",
-              "used_key_parts": ["nm"]
-            },
-            "rows": 44,
-            "selectivity_pct": 0.44,
-            "r_rows": 44,
-            "r_lookups": 1000,
-            "r_selectivity_pct": 0,
-            "r_buffer_size": "REPLACED",
-            "r_filling_time_ms": "REPLACED"
-          },
+          "key": "idx1",
+          "key_length": "256",
+          "used_key_parts": ["nm"],
           "r_loops": 1,
-          "rows": 863,
-          "r_rows": 0,
+          "rows": 44,
+          "r_rows": 44,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
-          "filtered": 0.439999998,
-          "r_filtered": 100,
-          "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+          "filtered": 8.630000114,
+          "r_filtered": 0,
+          "index_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'",
+          "attached_condition": "t1.fl2 = 0"
         }
       }
     ]
@@ -2803,31 +2790,20 @@ ANALYZE
       {
         "table": {
           "table_name": "t1",
-          "access_type": "ref",
+          "access_type": "range",
           "possible_keys": ["idx1", "idx2"],
-          "key": "idx2",
-          "key_length": "5",
-          "used_key_parts": ["fl2"],
-          "ref": ["const"],
-          "rowid_filter": {
-            "range": {
-              "key": "idx1",
-              "used_key_parts": ["nm"]
-            },
-            "rows": 44,
-            "selectivity_pct": 0.44,
-            "r_rows": 0,
-            "r_lookups": 0,
-            "r_selectivity_pct": 0,
-            "r_buffer_size": "REPLACED",
-            "r_filling_time_ms": "REPLACED"
-          },
+          "key": "idx1",
+          "key_length": "256",
+          "used_key_parts": ["nm"],
           "r_loops": 1,
-          "rows": 853,
+          "rows": 44,
           "r_rows": 0,
-          "filtered": 0.439999998,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 8.529999733,
           "r_filtered": 100,
-          "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+          "index_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'",
+          "attached_condition": "t1.fl2 = 0"
         }
       }
     ]
@@ -2975,7 +2951,7 @@ id	y	x
 explain extended select * from t1 join t2 on t1.id = t2.x where t2.y = 2 and t1.id = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	#	Using index
-1	SIMPLE	t2	ref	x,y	y	5	const	2	#	Using where
+1	SIMPLE	t2	index_merge	x,y	y,x	5,5	NULL	1	#	Using intersect(y,x); Using where; Using index
 Warnings:
 Note	1003	select 1 AS `id`,`test`.`t2`.`y` AS `y`,`test`.`t2`.`x` AS `x` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`y` = 2 and `test`.`t2`.`x` = 1
 drop table t1, t2;
@@ -3012,7 +2988,7 @@ count(*)
 5
 explain extended select count(*) from t1 where a between 21 and 30 and b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	24 (10%)	9.60	Using where; Using rowid filter
+1	SIMPLE	t1	ref	b,a	b	5	const	24	9.60	Using where
 Warnings:
 Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` between 21 and 30
 select * from t1 where a between 21 and 30 and b=2;
@@ -4106,7 +4082,7 @@ WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
 WHERE t2.i1 = t1.pk AND t2.i1 BETWEEN 3 AND 5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using where
-2	DEPENDENT SUBQUERY	t2	ref|filter	c1,i1	c1|i1	3|5	func	38 (25%)	25.00	Using where; Full scan on NULL key; Using rowid filter
+2	DEPENDENT SUBQUERY	t2	ref	c1,i1	i1	5	test.t1.pk	20	100.00	Using index condition; Using where
 2	DEPENDENT SUBQUERY	a1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t1.pk' of SELECT #2 was resolved in SELECT #1

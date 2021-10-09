@@ -133,9 +133,8 @@ set join_buffer_size= @save_join_buffer_size;
 set max_heap_table_size= @save_max_heap_table_size;
 explain select * from t1 where a in (select b from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t2	index	b	b	5	NULL	20	Using index
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t2	ref	b	b	5	test.t1.a	1	Using index; FirstMatch(t1)
 select * from t1;
 a	b
 1	1
@@ -842,9 +841,9 @@ SELECT * FROM t3
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	alias1	const	PRIMARY	PRIMARY	4	const	#	Using index
-1	PRIMARY	alias2	index	f12	f12	7	NULL	#	Using index; LooseScan
-1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using index; FirstMatch(alias2)
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	alias2	index	f12	f12	7	NULL	#	Using index; Start temporary
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using index
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	#	Using where; End temporary; Using join buffer (flat, BNL join)
 SELECT * FROM t3 
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
 f12
@@ -1511,8 +1510,7 @@ t3.sack_id = 33479 AND t3.kit_id = 6;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	ref	PRIMARY	PRIMARY	5	const,const	5	Using index
 1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.cat_id	1	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t4	index	cat_id	cat_id	4	NULL	19	Using index
+1	PRIMARY	t4	ref	cat_id	cat_id	4	test.t3.cat_id	1	Using index; FirstMatch(t1)
 SELECT count(*) FROM t1, t3 
 WHERE  t1.cat_id = t3.cat_id AND 
 t3.cat_id IN (SELECT cat_id FROM t4) AND 
@@ -1838,16 +1836,15 @@ explain
 SELECT t2.id FROM t2,t1
 WHERE  t2.id IN (SELECT t3.ref_id FROM t3,t1 where t3.id = t1.id) and t2.id = t1.id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	index	PRIMARY	PRIMARY	4	NULL	30	Using index
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.id	1	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	14	
-2	MATERIALIZED	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.id	1	Using index
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	14	Using where; Start temporary
+1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	test.t3.ref_id	1	Using where; Using index
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.id	1	Using index; End temporary
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.ref_id	1	Using where; Using index
 SELECT t2.id FROM t2,t1
 WHERE  t2.id IN (SELECT t3.ref_id FROM t3,t1 where t3.id = t1.id) and t2.id = t1.id;
 id
-10
 11
+10
 set optimizer_switch='materialization=off';
 SELECT t2.id FROM t2,t1
 WHERE  t2.id IN (SELECT t3.ref_id FROM t3,t1 where t3.id = t1.id) and t2.id = t1.id;
@@ -1946,17 +1943,17 @@ AND t3.id_product IN (SELECT id_product FROM t2 t2_5 WHERE t2_5.id_t2 = 29 OR t2
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	index	PRIMARY	PRIMARY	4	NULL	18	Using index
 1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
-1	PRIMARY	t5	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery5>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
 1	PRIMARY	t4	eq_ref	PRIMARY	PRIMARY	8	test.t3.id_product,const	1	Using where; Using index
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
-1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
-1	PRIMARY	<subquery5>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
-1	PRIMARY	t1	index	NULL	PRIMARY	8	NULL	73	Using where; Using index; Using join buffer (flat, BNL join)
+1	PRIMARY	t5	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	<subquery6>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	t1	index	NULL	PRIMARY	8	NULL	73	Using where; Using index; Using join buffer (flat, BNL join)
 3	MATERIALIZED	t2_2	ref	id_t2,id_product	id_t2	5	const	12	
-2	MATERIALIZED	t2_1	ALL	id_t2,id_product	NULL	NULL	NULL	223	Using where
-4	MATERIALIZED	t2_3	range	id_t2,id_product	id_t2	5	NULL	33	Using index condition; Using where
 5	MATERIALIZED	t2_4	range	id_t2,id_product	id_t2	5	NULL	18	Using index condition; Using where
+4	MATERIALIZED	t2_3	range	id_t2,id_product	id_t2	5	NULL	33	Using index condition; Using where
+2	MATERIALIZED	t2_1	ALL	id_t2,id_product	NULL	NULL	NULL	223	Using where
 6	MATERIALIZED	t2_5	range	id_t2,id_product	id_t2	5	NULL	31	Using index condition; Using where
 set optimizer_switch='rowid_filter=default';
 drop table t1,t2,t3,t4,t5;
