@@ -238,7 +238,10 @@ explain select * from t1 where a=1 or b=1	{
             ]
           },
           {
-            "best_join_order": ["t1"]
+            "best_join_order": ["t1"],
+            "best_access_method": {
+              "cost": 2.883903732
+            }
           },
           {
             "substitute_best_equal": {
