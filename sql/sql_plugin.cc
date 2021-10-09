@@ -1267,7 +1267,13 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
   if (!deinit)
     deinit= (plugin_type_init)(plugin->plugin->deinit);
 
-  if (!deinit || !deinit(plugin))
+  if (deinit && deinit(plugin))
+  {
+    if (THD *thd= current_thd)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   WARN_PLUGIN_BUSY, ER_THD(thd, WARN_PLUGIN_BUSY));
+  }
+  else
     plugin->state= PLUGIN_IS_UNINITIALIZED; // free to unload
 
   if (ref_check && plugin->ref_count)

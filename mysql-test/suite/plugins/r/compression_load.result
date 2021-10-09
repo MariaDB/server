@@ -17,6 +17,8 @@ a	left(b, 9)	length(b)
 1	defdefdef	3000
 2	ghighighi	30000
 uninstall plugin provider_lz4;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
 select plugin_name, plugin_status from information_schema.plugins where plugin_name='provider_lz4';
 plugin_name	plugin_status
 provider_lz4	INACTIVE

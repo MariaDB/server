@@ -10,6 +10,19 @@ connection default;
 UNINSTALL SONAME 'ha_rocksdb';
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
 SELECT ENGINE, SUPPORT FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='ROCKSDB';
 ENGINE	SUPPORT
 ROCKSDB	NO
