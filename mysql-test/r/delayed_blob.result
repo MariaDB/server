@@ -1,0 +1,17 @@
+#
+# MDEV-25925 Warning: Memory not freed: 32 on INSERT DELAYED
+#
+SET sql_mode='TRADITIONAL';
+CREATE TABLE t1 (c BLOB) ENGINE=MyISAM;
+INSERT DELAYED INTO t1 VALUES (''||'');
+ERROR 22007: Truncated incorrect DOUBLE value: ''
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-24467 Memory not freed after failed INSERT DELAYED
+#
+CREATE TABLE t1 (a VARCHAR(1)) ENGINE=MyISAM;
+ALTER TABLE t1 ADD b BLOB DEFAULT 'x';
+INSERT DELAYED INTO t1 (a) VALUES ('foo');
+ERROR 22001: Data too long for column 'a' at row 1
+DROP TABLE t1;
