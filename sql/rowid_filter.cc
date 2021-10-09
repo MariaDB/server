@@ -23,7 +23,6 @@
 #include "opt_trace.h"
 
 
-inline
 double Range_rowid_filter_cost_info::
 lookup_cost(Rowid_filter_container_type cont_type)
 {

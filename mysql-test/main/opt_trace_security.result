@@ -95,25 +95,28 @@ select * from db1.t1	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.005126953,
+                      "cost": 2.605126953,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.005126953,
+                    "cost": 2.605126953,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.605126953,
+                "cost_for_plan": 3.205126953,
                 "estimated_join_cardinality": 3
               }
             ]
           },
           {
-            "best_join_order": ["t1"]
+            "best_join_order": ["t1"],
+            "best_access_method": {
+              "cost": 3.204126953
+            }
           },
           {
             "attaching_conditions_to_tables": {
@@ -217,25 +220,28 @@ select * from db1.v1	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.005126953,
+                      "cost": 2.605126953,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.005126953,
+                    "cost": 2.605126953,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.605126953,
+                "cost_for_plan": 3.205126953,
                 "estimated_join_cardinality": 3
               }
             ]
           },
           {
-            "best_join_order": ["t1"]
+            "best_join_order": ["t1"],
+            "best_access_method": {
+              "cost": 3.204126953
+            }
           },
           {
             "attaching_conditions_to_tables": {

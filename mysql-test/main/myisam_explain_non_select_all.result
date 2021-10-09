@@ -256,8 +256,8 @@ FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1            WHERE 1 IN (SELECT 1 FROM t2 WHERE t2.b < 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where `test`.`t2`.`b` < 3
@@ -932,15 +932,15 @@ Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be
 EXPLAIN DELETE t1,t2,t3 FROM t1,t2,t3 WHERE a1=a2 AND b2=a3 AND b1=b3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t2	ALL	PRIMARY	NULL	NULL	NULL	3	Using where
-1	SIMPLE	t3	ALL	PRIMARY	NULL	NULL	NULL	3	Using where
+1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	test.t1.a1	1	
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	8	test.t2.b2,test.t1.b1	1	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE t1,t2,t3 FROM t1,t2,t3 WHERE a1=a2 AND b2=a3 AND b1=b3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	PRIMARY	NULL	NULL	NULL	3	75.00	Using where
-1	SIMPLE	t3	ALL	PRIMARY	NULL	NULL	NULL	3	75.00	Using where
+1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	test.t1.a1	1	100.00	
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	8	test.t2.b2,test.t1.b1	1	100.00	
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	13
@@ -949,8 +949,8 @@ FLUSH TABLES;
 EXPLAIN EXTENDED SELECT *        FROM t1,t2,t3 WHERE a1=a2 AND b2=a3 AND b1=b3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	index	PRIMARY	PRIMARY	8	NULL	3	75.00	Using where; Using index; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	index	PRIMARY	PRIMARY	8	NULL	3	75.00	Using where; Using index; Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	test.t1.a1	1	100.00	Using index
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	8	test.t2.b2,test.t1.b1	1	100.00	Using index
 Warnings:
 Note	1003	select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`b2` AS `b2`,`test`.`t3`.`a3` AS `a3`,`test`.`t3`.`b3` AS `b3` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t2`.`a2` = `test`.`t1`.`a1` and `test`.`t3`.`a3` = `test`.`t2`.`b2` and `test`.`t3`.`b3` = `test`.`t1`.`b1`
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
@@ -960,16 +960,16 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Status of "equivalent" SELECT query execution:
 Variable_name	Value
-Handler_read_first	2
-Handler_read_key	13
-Handler_read_next	6
+Handler_read_key	19
+Handler_read_next	3
 Handler_read_rnd_next	4
 # Status of testing query execution:
 Variable_name	Value
 Handler_delete	8
-Handler_read_key	13
+Handler_read_key	19
+Handler_read_next	3
 Handler_read_rnd	5
-Handler_read_rnd_next	28
+Handler_read_rnd_next	4
 
 DROP TABLE t1, t2, t3;
 #20
@@ -1507,7 +1507,7 @@ FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
+1	SIMPLE	t2	index	NULL	a	15	NULL	5	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` where `test`.`t2`.`b` = 10 order by `test`.`t2`.`a`,`test`.`t2`.`c` limit 5
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
@@ -1517,11 +1517,9 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Status of "equivalent" SELECT query execution:
 Variable_name	Value
+Handler_read_first	1
 Handler_read_key	8
-Handler_read_rnd_next	27
-Sort_priority_queue_sorts	1
-Sort_rows	1
-Sort_scan	1
+Handler_read_next	26
 # Status of testing query execution:
 Variable_name	Value
 Handler_delete	1
@@ -2024,7 +2022,7 @@ FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t2     WHERE b = 10 ORDER BY a, c LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
+1	SIMPLE	t2	index	NULL	a	15	NULL	5	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` where `test`.`t2`.`b` = 10 order by `test`.`t2`.`a`,`test`.`t2`.`c` limit 5
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
@@ -2034,11 +2032,9 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Status of "equivalent" SELECT query execution:
 Variable_name	Value
+Handler_read_first	1
 Handler_read_key	8
-Handler_read_rnd_next	27
-Sort_priority_queue_sorts	1
-Sort_rows	1
-Sort_scan	1
+Handler_read_next	26
 # Status of testing query execution:
 Variable_name	Value
 Handler_read_key	8
