@@ -2198,7 +2198,7 @@ EXPLAIN EXTENDED
 SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	t2	ref	i1,i2	i1	5	const	1	100.00	Using index condition; Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk` from `test`.`t1` having 0
 DROP TABLE t1,t2;
@@ -2236,7 +2236,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
 WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	101	100.00	Using where
-1	PRIMARY	t1	eq_ref|filter	PRIMARY,b1	PRIMARY|b1	4|4	test.t2.a2	1 (87%)	87.00	Using where; Using rowid filter
+1	PRIMARY	t1	eq_ref	PRIMARY,b1	PRIMARY	4	test.t2.a2	1	87.00	Using where
 2	SUBQUERY	t2	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using index condition
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t2`.`pk2` AS `pk2`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`b2` AS `b2` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`pk1` = `test`.`t2`.`a2` and `test`.`t1`.`b1` <= (/* select#2 */ select max(`test`.`t2`.`b2`) from `test`.`t2` where `test`.`t2`.`pk2` <= 1) and `test`.`t2`.`a2` <> `test`.`t2`.`pk2`
@@ -2265,14 +2265,6 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["pk1"],
           "ref": ["test.t2.a2"],
-          "rowid_filter": {
-            "range": {
-              "key": "b1",
-              "used_key_parts": ["b1"]
-            },
-            "rows": 87,
-            "selectivity_pct": 87
-          },
           "rows": 1,
           "filtered": 87,
           "attached_condition": "t1.b1 <= (subquery#2)"
@@ -2351,7 +2343,7 @@ INSERT INTO t1 VALUES (0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4);
 explain
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref|filter	a,b	b|a	5|5	const	2 (14%)	Using where; Using rowid filter
+1	SIMPLE	t1	range|filter	a,b	a|b	5|5	NULL	1 (29%)	Using index condition; Using where; Using rowid filter
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 a	b
 1	0
@@ -2491,7 +2483,7 @@ id	y	x
 explain extended select * from t1 join t2 on t1.id = t2.x where t2.y = 2 and t1.id = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	#	Using index
-1	SIMPLE	t2	ref	x,y	y	5	const	2	#	Using where
+1	SIMPLE	t2	index_merge	x,y	y,x	5,5	NULL	1	#	Using intersect(y,x); Using where; Using index
 Warnings:
 Note	1003	select 1 AS `id`,`test`.`t2`.`y` AS `y`,`test`.`t2`.`x` AS `x` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`y` = 2 and `test`.`t2`.`x` = 1
 drop table t1, t2;
@@ -2529,17 +2521,17 @@ count(*)
 6
 explain extended select count(*) from t1 where a in (22,83,11) and b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	59 (3%)	3.30	Using where; Using rowid filter
+1	SIMPLE	t1	range|filter	b,a	a|b	5|5	NULL	33 (6%)	5.90	Using index condition; Using where; Using rowid filter
 Warnings:
 Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` in (22,83,11)
 select * from t1 where a in (22,83,11) and b=2;
 a	b
 11	2
 11	2
-83	2
 11	2
-83	2
 22	2
+83	2
+83	2
 drop table t1;
 set optimizer_switch=@save_optimizer_switch;
 SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
@@ -2797,7 +2789,7 @@ WHERE 1 = 1 AND domain = 'www.mailhost.i-dev.fr' AND
 timestamp >= DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -1 MONTH)
 ORDER BY timestamp DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref|filter	ixEventWhoisDomainDomain,ixEventWhoisDomainTimestamp	ixEventWhoisDomainDomain|ixEventWhoisDomainTimestamp	767|4	const	2 (14%)	14.29	Using index condition; Using where; Using filesort; Using rowid filter
+1	SIMPLE	t1	range|filter	ixEventWhoisDomainDomain,ixEventWhoisDomainTimestamp	ixEventWhoisDomainTimestamp|ixEventWhoisDomainDomain	4|767	NULL	1 (29%)	100.00	Using where; Using rowid filter
 Warnings:
 Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`domain` AS `domain`,`test`.`t1`.`registrant_name` AS `registrant_name`,`test`.`t1`.`registrant_organization` AS `registrant_organization`,`test`.`t1`.`registrant_street1` AS `registrant_street1`,`test`.`t1`.`registrant_street2` AS `registrant_street2`,`test`.`t1`.`registrant_street3` AS `registrant_street3`,`test`.`t1`.`registrant_street4` AS `registrant_street4`,`test`.`t1`.`registrant_street5` AS `registrant_street5`,`test`.`t1`.`registrant_city` AS `registrant_city`,`test`.`t1`.`registrant_postal_code` AS `registrant_postal_code`,`test`.`t1`.`registrant_country` AS `registrant_country`,`test`.`t1`.`registrant_email` AS `registrant_email`,`test`.`t1`.`registrant_telephone` AS `registrant_telephone`,`test`.`t1`.`administrative_name` AS `administrative_name`,`test`.`t1`.`administrative_organization` AS `administrative_organization`,`test`.`t1`.`administrative_street1` AS `administrative_street1`,`test`.`t1`.`administrative_street2` AS `administrative_street2`,`test`.`t1`.`administrative_street3` AS `administrative_street3`,`test`.`t1`.`administrative_street4` AS `administrative_street4`,`test`.`t1`.`administrative_street5` AS `administrative_street5`,`test`.`t1`.`administrative_city` AS `administrative_city`,`test`.`t1`.`administrative_postal_code` AS `administrative_postal_code`,`test`.`t1`.`administrative_country` AS `administrative_country`,`test`.`t1`.`administrative_email` AS `administrative_email`,`test`.`t1`.`administrative_telephone` AS `administrative_telephone`,`test`.`t1`.`technical_name` AS `technical_name`,`test`.`t1`.`technical_organization` AS `technical_organization`,`test`.`t1`.`technical_street1` AS `technical_street1`,`test`.`t1`.`technical_street2` AS `technical_street2`,`test`.`t1`.`technical_street3` AS `technical_street3`,`test`.`t1`.`technical_street4` AS `technical_street4`,`test`.`t1`.`technical_street5` AS `technical_street5`,`test`.`t1`.`technical_city` AS `technical_city`,`test`.`t1`.`technical_postal_code` AS `technical_postal_code`,`test`.`t1`.`technical_country` AS `technical_country`,`test`.`t1`.`technical_email` AS `technical_email`,`test`.`t1`.`technical_telephone` AS `technical_telephone`,`test`.`t1`.`json` AS `json`,`test`.`t1`.`timestamp` AS `timestamp` from `test`.`t1` where `test`.`t1`.`domain` = 'www.mailhost.i-dev.fr' and `test`.`t1`.`timestamp` >= <cache>(current_timestamp() + interval -1 month) order by `test`.`t1`.`timestamp` desc
 SET optimizer_switch=@save_optimizer_switch;
