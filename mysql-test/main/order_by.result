@@ -3188,13 +3188,13 @@ explain
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t2.a limit 25;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
+1	SIMPLE	t2	index	a	a	5	NULL	25	Using where
 1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
 explain
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t3.a limit 25;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
+1	SIMPLE	t2	index	a	a	5	NULL	25	Using where
 1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t2.a limit 25;

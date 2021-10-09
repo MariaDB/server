@@ -2730,33 +2730,20 @@ ANALYZE
       {
         "table": {
           "table_name": "t1",
-          "access_type": "ref",
+          "access_type": "range",
           "possible_keys": ["idx1", "idx2"],
-          "key": "idx2",
-          "key_length": "5",
-          "used_key_parts": ["fl2"],
-          "ref": ["const"],
-          "rowid_filter": {
-            "range": {
-              "key": "idx1",
-              "used_key_parts": ["nm"]
-            },
-            "rows": 44,
-            "selectivity_pct": 0.44,
-            "r_rows": 44,
-            "r_lookups": 1000,
-            "r_selectivity_pct": 0,
-            "r_buffer_size": "REPLACED",
-            "r_filling_time_ms": "REPLACED"
-          },
+          "key": "idx1",
+          "key_length": "256",
+          "used_key_parts": ["nm"],
           "r_loops": 1,
-          "rows": 863,
-          "r_rows": 0,
+          "rows": 44,
+          "r_rows": 44,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
-          "filtered": 0.439999998,
-          "r_filtered": 100,
-          "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+          "filtered": 8.630000114,
+          "r_filtered": 0,
+          "index_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'",
+          "attached_condition": "t1.fl2 = 0"
         }
       }
     ]
@@ -2796,31 +2783,20 @@ ANALYZE
       {
         "table": {
           "table_name": "t1",
-          "access_type": "ref",
+          "access_type": "range",
           "possible_keys": ["idx1", "idx2"],
-          "key": "idx2",
-          "key_length": "5",
-          "used_key_parts": ["fl2"],
-          "ref": ["const"],
-          "rowid_filter": {
-            "range": {
-              "key": "idx1",
-              "used_key_parts": ["nm"]
-            },
-            "rows": 44,
-            "selectivity_pct": 0.44,
-            "r_rows": 0,
-            "r_lookups": 0,
-            "r_selectivity_pct": 0,
-            "r_buffer_size": "REPLACED",
-            "r_filling_time_ms": "REPLACED"
-          },
+          "key": "idx1",
+          "key_length": "256",
+          "used_key_parts": ["nm"],
           "r_loops": 1,
-          "rows": 853,
+          "rows": 44,
           "r_rows": 0,
-          "filtered": 0.439999998,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 8.529999733,
           "r_filtered": 100,
-          "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+          "index_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'",
+          "attached_condition": "t1.fl2 = 0"
         }
       }
     ]
