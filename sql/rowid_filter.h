@@ -379,7 +379,7 @@ public:
   whether usage of the range filter promises some gain.
 */
 
-class Range_rowid_filter_cost_info : public Sql_alloc
+class Range_rowid_filter_cost_info final: public Sql_alloc
 {
   /* The table for which the range filter is to be built (if needed) */
   TABLE *table;
@@ -419,7 +419,8 @@ public:
 
   double build_cost(Rowid_filter_container_type container_type);
 
-  inline double lookup_cost(Rowid_filter_container_type cont_type);
+  double lookup_cost(Rowid_filter_container_type cont_type);
+  inline double lookup_cost() { return lookup_cost(container_type); }
 
   inline double
   avg_access_and_eval_gain_per_row(Rowid_filter_container_type cont_type);
@@ -451,6 +452,8 @@ public:
 
   Rowid_filter_container *create_container();
 
+  double get_setup_cost() { return cost_of_building_range_filter; }
+  double get_lookup_cost();
   double get_gain() { return gain; }
   uint get_key_no() { return key_no; }
 

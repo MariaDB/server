@@ -142,9 +142,8 @@ set join_buffer_size= @save_join_buffer_size;
 set max_heap_table_size= @save_max_heap_table_size;
 explain select * from t1 where a in (select b from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t2	index	b	b	5	NULL	20	Using index
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t2	ref	b	b	5	test.t1.a	1	Using index; FirstMatch(t1)
 select * from t1;
 a	b
 1	1
@@ -840,9 +839,9 @@ SELECT * FROM t3
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	alias1	const	PRIMARY	PRIMARY	4	const	#	Using index
-1	PRIMARY	alias2	index	f12	f12	7	NULL	#	Using index; LooseScan
-1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using index; FirstMatch(alias2)
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	alias2	index	f12	f12	7	NULL	#	Using index; Start temporary
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using index; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	hash_ALL	NULL	#hash#$hj	3	test.alias2.f12	#	Using where; End temporary; Using join buffer (incremental, BNLH join)
 SELECT * FROM t3 
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
 f12
@@ -1225,9 +1224,9 @@ explain
 SELECT * FROM t1, t3 WHERE t3_c IN ( SELECT t1_pk2 FROM t4, t2 WHERE t2_c = t1_pk2 AND t2_i >= t3_i ) AND ( t1_pk1 = 'POL' );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ref	PRIMARY	PRIMARY	5	const	1	Using where; Using index
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Start temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	t4	hash_index	NULL	#hash#$hj:PRIMARY	54:59	test.t3.t3_c	2	Using where; Using index; End temporary; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	hash_index	NULL	#hash#$hj:PRIMARY	54:59	test.t2.t2_c	2	Using where; Using index; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t3	hash_ALL	NULL	#hash#$hj	38	test.t2.t2_c	2	Using where; End temporary; Using join buffer (incremental, BNLH join)
 DROP TABLE t1,t2,t3,t4;
 #
 # MDEV-6263: Wrong result when using IN subquery with order by
