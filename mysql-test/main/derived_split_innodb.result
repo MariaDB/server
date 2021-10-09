@@ -208,8 +208,8 @@ t2
 where t1.id = dt.id and t1.itemid = dt.itemid and t2.id=t1.itemid;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived2>	ref	key1	key1	4	test.t2.id	2	
-1	PRIMARY	t1	ALL	idx	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ref	idx	idx	4	test.t2.id	1	
+1	PRIMARY	<derived2>	ref	key0	key0	9	test.t2.id,test.t1.id	2	
 2	DERIVED	t3	ref	idx1,idx2	idx1	4	const	5	Using where; Using index
 select t1.id, t1.itemid, dt.id, t2.id
 from t1,
@@ -227,8 +227,8 @@ t2
 where t1.id = dt.id and t1.itemid = dt.itemid and t2.id=t1.itemid;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived2>	ref	key1	key1	4	test.t2.id	2	
-1	PRIMARY	t1	ALL	idx	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ref	idx	idx	4	test.t2.id	1	
+1	PRIMARY	<derived2>	ref	key0	key0	9	test.t2.id,test.t1.id	2	
 2	DERIVED	t3	ref	idx1	idx1	4	const	5	Using where; Using index
 select t1.id, t1.itemid, dt.id, t2.id
 from t1,

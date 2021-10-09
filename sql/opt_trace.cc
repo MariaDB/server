@@ -677,6 +677,11 @@ void print_final_join_order(JOIN *join)
   for (j= join->join_tab,i=0 ; i < join->top_join_tab_count;
        i++, j++)
     best_order.add_table_name(j);
+  best_order.end();
+
+  /* Write information about the resulting join */
+  Json_writer_object obj(join->thd, "best_access_method");
+  obj.add("cost", join->best_read);
 }
 
 
