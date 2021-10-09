@@ -1007,12 +1007,12 @@ id	first_name	last_name	score
 3	John	Smith	6
 select * from t1 order by first_name desc fetch first 3 rows with ties;
 id	first_name	last_name	score
-8	Silvia	Ganush	10
-2	John	Doe	6
-3	John	Smith	6
-4	John	Smith	6
-5	John	Smith	7
-6	John	Elton	8.1
+#	Silvia	#	#
+#	John	#	#
+#	John	#	#
+#	John	#	#
+#	John	#	#
+#	John	#	#
 (select * from t1 order by 1 fetch first 3 rows with ties)
 intersect
 (select * from t1 order by first_name desc fetch first 3 rows with ties)
