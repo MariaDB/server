@@ -14,6 +14,10 @@ extern "C" {
 #include <stddef.h>
 #endif
 
+#ifndef MYSQL_DYNAMIC_PLUGIN
+#define provider_service_lzma provider_service_lzma_static
+#endif
+
 #ifndef LZMA_VERSION
 typedef enum
 {

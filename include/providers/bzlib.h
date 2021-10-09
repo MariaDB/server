@@ -12,6 +12,10 @@ extern "C" {
 #include <stdbool.h>
 #endif
 
+#ifndef MYSQL_DYNAMIC_PLUGIN
+#define provider_service_bzip2 provider_service_bzip2_static
+#endif
+
 #ifndef BZ_RUN
 #define BZ_RUN          0
 #define BZ_FINISH       2

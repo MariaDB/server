@@ -13,6 +13,10 @@ extern "C" {
 #include <stdbool.h>
 #endif
 
+#ifndef MYSQL_DYNAMIC_PLUGIN
+#define provider_service_snappy provider_service_snappy_static
+#endif
+
 #ifndef SNAPPY_C
 typedef enum
 {

@@ -14,6 +14,10 @@ extern "C" {
 #include <stdint.h>
 #endif
 
+#ifndef MYSQL_DYNAMIC_PLUGIN
+#define provider_service_lz4 provider_service_lz4_static
+#endif
+
 #ifndef LZ4_VERSION_NUMBER
 #define LZ4_MAX_INPUT_SIZE 0x7E000000
 

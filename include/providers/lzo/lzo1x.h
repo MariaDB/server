@@ -12,6 +12,10 @@ extern "C" {
 #include <stdbool.h>
 #endif
 
+#ifndef MYSQL_DYNAMIC_PLUGIN
+#define provider_service_lzo provider_service_lzo_static
+#endif
+
 #ifndef LZO_E_OK
 #define LZO_E_OK                0
 #define LZO_E_INTERNAL_ERROR    (-99)
