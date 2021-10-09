@@ -2782,8 +2782,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain select * from t1 left join (t3 join t2) on t1.a=t3.b and t3.a<5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	hash_range	a	#hash#$hj:a	5:5	test.t1.a	5	Using where; Rowid-ordered scan; Using join buffer (incremental, BNLH join)
+1	SIMPLE	t3	hash_range	a	#hash#$hj:a	5:5	test.t1.a	5	Using where; Rowid-ordered scan; Using join buffer (flat, BNLH join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (incremental, BNL join)
 #
 # .. part 2: make sure condition selectivity can use the condition too.
 #
