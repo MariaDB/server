@@ -81,7 +81,10 @@ static bool json_escape_to_string(const String *str, String* out)
       return false; // Ok
     }
 
-    // We get here if the escaped string didn't fit into memory.
+    if (res != JSON_ERROR_OUT_OF_SPACE)
+      return true; // Some conversion error
+
+    // Out of space error. Try with a bigger buffer
     if (out->alloc(out->alloced_length()*2))
       return true;
   }

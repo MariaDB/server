@@ -229,6 +229,20 @@ select * from t1;
 drop table t1;
 
 --echo #
+--echo # Another testcase: use a character that cannot be represented in utf8:
+--echo #
+create table t1 ( a varchar(100) character set cp1251);
+insert into t1 values ( _cp1251 x'88'),( _cp1251 x'98');
+analyze table t1 persistent for all;
+
+--echo # Command succeeded but no histogram was collected:
+select hist_type, histogram
+from mysql.column_stats
+where db_name=database() and table_name='t1';
+
+drop table t1;
+
+--echo #
 --echo # ASAN use-after-poison my_strnxfrm_simple_internal / Histogram_json_hb::range_selectivity ...
 --echo # (Just the testcase)
 --echo #

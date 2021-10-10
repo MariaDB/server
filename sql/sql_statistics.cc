@@ -1771,19 +1771,24 @@ public:
     @brief
     Calculate a histogram of the tree
   */
-  void walk_tree_with_histogram(ha_rows rows)
+  bool walk_tree_with_histogram(ha_rows rows)
   {
     Histogram_base *hist= table_field->collected_stats->histogram;
     Histogram_builder *hist_builder=
        hist->create_builder(table_field, tree_key_length, rows);
 
-    tree->walk(table_field->table, histogram_build_walk,
-               (void *) hist_builder);
+    if (tree->walk(table_field->table, histogram_build_walk,
+                   (void*)hist_builder))
+    {
+      delete hist_builder;
+      return true; // Error
+    }
     hist_builder->finalize();
     distincts= hist_builder->counters.get_count_distinct();
     distincts_single_occurence= hist_builder->counters.
                                   get_count_single_occurence();
     delete hist_builder;
+    return false;
   }
 
   ulonglong get_count_distinct()
@@ -2497,7 +2502,13 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows,
     if (!have_histogram)
       count_distinct->walk_tree();
     else
-      count_distinct->walk_tree_with_histogram(rows - nulls);
+    {
+      if (count_distinct->walk_tree_with_histogram(rows - nulls))
+      {
+        delete histogram;
+        histogram= NULL;
+      }
+    }
 
     ulonglong distincts= count_distinct->get_count_distinct();
     ulonglong distincts_single_occurence=
@@ -2535,12 +2546,11 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows,
       have_histogram= false;
 
     set_not_null(COLUMN_STAT_HIST_SIZE);
-    if (have_histogram && distincts)
+    if (have_histogram && distincts && histogram)
     {
       set_not_null(COLUMN_STAT_HIST_TYPE);
-      histogram= count_distinct->get_histogram();
       set_not_null(COLUMN_STAT_HISTOGRAM);
-    } 
+    }
     delete count_distinct;
     count_distinct= NULL;
   }
