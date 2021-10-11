@@ -38,7 +38,7 @@ Build-Depends: bison,
                libsystemd-dev [linux-any],
                liburing-dev [linux-any],
                libxml2-dev,
-               libzstd-dev,
+               libzstd-dev (>= 1.3.3),
                lsb-release,
                perl:any,
                po-debconf,
@@ -378,6 +378,7 @@ Description: MariaDB database core client binaries
 Package: mariadb-client-10.7
 Architecture: any
 Depends: debianutils (>=1.6),
+         libconfig-inifiles-perl,
          mariadb-client-core-10.7 (>= ${source:Version}),
          mariadb-common,
          ${misc:Depends},
