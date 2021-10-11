@@ -235,7 +235,6 @@ create table t1 ( a varchar(100) character set cp1251);
 insert into t1 values ( _cp1251 x'88'),( _cp1251 x'98');
 analyze table t1 persistent for all;
 
---echo # Command succeeded but no histogram was collected:
 select hist_type, histogram
 from mysql.column_stats
 where db_name=database() and table_name='t1';

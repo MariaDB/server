@@ -7443,14 +7443,11 @@ create table t1 ( a varchar(100) character set cp1251);
 insert into t1 values ( _cp1251 x'88'),( _cp1251 x'98');
 analyze table t1 persistent for all;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	OK
-# Command succeeded but no histogram was collected:
+test.t1	analyze	status	Operation failed
 select hist_type, histogram
 from mysql.column_stats
 where db_name=database() and table_name='t1';
 hist_type	histogram
-NULL	NULL
 drop table t1;
 #
 # ASAN use-after-poison my_strnxfrm_simple_internal / Histogram_json_hb::range_selectivity ...

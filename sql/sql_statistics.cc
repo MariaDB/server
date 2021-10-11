@@ -314,7 +314,7 @@ public:
 
   inline void init(THD *thd, Field * table_field);
   inline bool add();
-  inline void finish(MEM_ROOT *mem_root, ha_rows rows, double sample_fraction);
+  inline bool finish(MEM_ROOT *mem_root, ha_rows rows, double sample_fraction);
   inline void cleanup();
 };
 
@@ -2468,7 +2468,7 @@ bool Column_statistics_collected::add()
 */
 
 inline
-void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows,
+bool Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows,
                                          double sample_fraction)
 {
   double val;
@@ -2507,6 +2507,10 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows,
       {
         delete histogram;
         histogram= NULL;
+
+        delete count_distinct;
+        count_distinct= NULL;
+        return true; // Error
       }
     }
 
@@ -2559,7 +2563,8 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows,
     val= 1.0;
     set_avg_frequency(val); 
     set_not_null(COLUMN_STAT_AVG_FREQUENCY);
-  } 
+  }
+  return false;
 }
 
 
@@ -2810,7 +2815,10 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
       continue;
     bitmap_set_bit(table->write_set, table_field->field_index); 
     if (!rc)
-      table_field->collected_stats->finish(&table->mem_root, rows, sample_fraction);
+    {
+      rc= table_field->collected_stats->finish(&table->mem_root, rows,
+                                               sample_fraction);
+    }
     else
       table_field->collected_stats->cleanup();
   }
