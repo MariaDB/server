@@ -3534,6 +3534,7 @@ const char *Item_func_json_format::func_name() const
 bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
+  collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   maybe_null= 1;
   return FALSE;
