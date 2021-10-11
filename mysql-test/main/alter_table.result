@@ -3375,3 +3375,8 @@ drop table t1;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-26767 Server crashes when rename table and alter storage engine
+#
+alter table txxx engine=innodb, rename to tyyy;
+ERROR 42S02: Table 'test.txxx' doesn't exist

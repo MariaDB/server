@@ -11260,7 +11260,6 @@ bool LEX::stmt_alter_table_exchange_partition(Table_ident *table)
 bool LEX::stmt_alter_table(Table_ident *table)
 {
   DBUG_ASSERT(sql_command == SQLCOM_ALTER_TABLE);
-  DBUG_ASSERT(!m_sql_cmd);
   first_select_lex()->db= table->db;
   if (first_select_lex()->db.str == NULL &&
       copy_db_to(&first_select_lex()->db))
