@@ -55,12 +55,13 @@ static char XTRABACKUP_EXE[] = "xtrabackup";
   Read "plugin-load" value from backup-my.cnf during prepare phase.
   The value is stored during backup phase.
 */
-static std::string get_encryption_plugin_from_cnf()
+static std::string get_encryption_plugin_from_cnf(const char *dir)
 {
-  FILE *f = fopen("backup-my.cnf", "r");
+  std::string path = dir + std::string("/backup-my.cnf");
+  FILE *f = fopen(path.c_str(), "r");
   if (!f)
   {
-    die("Can't open backup-my.cnf for reading");
+    die("Can't open %s for reading", path.c_str());
   }
   char line[512];
   std::string plugin_load;
@@ -185,9 +186,9 @@ const char *encryption_plugin_get_config()
 extern int finalize_encryption_plugin(st_plugin_int *plugin);
 
 
-void encryption_plugin_prepare_init(int argc, char **argv)
+void encryption_plugin_prepare_init(int argc, char **argv, const char *dir)
 {
-  std::string plugin_load= get_encryption_plugin_from_cnf();
+  std::string plugin_load= get_encryption_plugin_from_cnf(dir ? dir : ".");
   if (plugin_load.size())
   {
     msg("Loading plugins from %s", plugin_load.c_str());

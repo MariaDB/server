@@ -5774,7 +5774,7 @@ static bool xtrabackup_prepare_func(char** argv)
 	}
 
 	int argc; for (argc = 0; argv[argc]; argc++) {}
-	encryption_plugin_prepare_init(argc, argv);
+	encryption_plugin_prepare_init(argc, argv, xtrabackup_incremental_dir);
 
 	xtrabackup_target_dir= mysql_data_home_buff;
 	xtrabackup_target_dir[0]=FN_CURLIB;		// all paths are relative from here
@@ -6332,12 +6332,17 @@ void handle_options(int argc, char **argv, char ***argv_server,
           {
             prepare= true;
           }
-          else if (!strncmp(argv[i], "--target-dir", optend - argv[i]) &&
+          else if (!strncmp(argv[i], "--incremental-dir", optend - argv[i]) &&
                    *optend)
           {
             target_dir= optend + 1;
           }
-          else if (!*optend && argv[i][0] != '-')
+          else if (!strncmp(argv[i], "--target-dir", optend - argv[i]) &&
+                   *optend && !target_dir)
+          {
+            target_dir= optend + 1;
+          }
+          else if (!*optend && argv[i][0] != '-' && !target_dir)
           {
             target_dir= argv[i];
           }
