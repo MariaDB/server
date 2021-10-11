@@ -514,7 +514,7 @@ void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
 	case DB_DECRYPTION_FAILED:
 		ib::error()
 			<< "Background Page read failed to "
-			"read or decrypt " << page_id;
+			"read, uncompress, or decrypt " << page_id;
 		break;
 	default:
 		ib::fatal() << "Error " << err << " in background read of "

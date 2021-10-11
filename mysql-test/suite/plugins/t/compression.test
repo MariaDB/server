@@ -19,8 +19,8 @@ call mtr.add_suppression("MariaDB tried to use the .+ compression, but its provi
 if ($engine == "innodb") {
   eval set global innodb_compression_algorithm = $alg;
   let $table_params = page_compressed = 1;
-  call mtr.add_suppression("InnoDB: Background Page read failed to read or decrypt \\[page id: space=\\d+, page number=\\d+\\]");
-  call mtr.add_suppression("InnoDB: Failed to read page \\d+ from file './test/t1.ibd': Table is encrypted but decrypt failed");
+  call mtr.add_suppression("Background Page read failed to read, uncompress, or decrypt");
+  call mtr.add_suppression("Table is compressed or encrypted but uncompress or decrypt failed");
   call mtr.add_suppression("InnoDB: Table `test`.`t1` is compressed with (\\w+), which is not currently loaded. Please load the \\1 provider plugin to open the table");
 }
 if ($engine == "mroonga") {

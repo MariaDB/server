@@ -249,10 +249,10 @@ struct sql_service_st sql_service_handler=
 #define DEFINE_warning_function(name, ret) {                                \
   static query_id_t last_query_id= -1;                                      \
   THD *thd= current_thd;                                                    \
-  if(thd && thd->query_id != last_query_id)                                 \
+  if((thd ? thd->query_id : 0) != last_query_id)                            \
   {                                                                         \
     my_error(ER_PROVIDER_NOT_LOADED, MYF(ME_ERROR_LOG|ME_WARNING), name);   \
-    last_query_id= thd->query_id;                                           \
+    last_query_id= thd ? thd->query_id : 0;                                 \
   }                                                                         \
   return ret;                                                               \
 }

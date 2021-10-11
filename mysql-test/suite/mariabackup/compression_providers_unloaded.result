@@ -1,5 +1,5 @@
-call mtr.add_suppression("Background Page read failed to read or decrypt");
-call mtr.add_suppression("InnoDB: Failed to read page \\d+ from file './test/t1.ibd': Table is encrypted but decrypt failed");
+call mtr.add_suppression("Background Page read failed to read, uncompress, or decrypt");
+call mtr.add_suppression("Table is compressed or encrypted but uncompress or decrypt failed");
 #
 # Testing mariabackup with bzip2 compression
 #
