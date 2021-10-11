@@ -5657,7 +5657,7 @@ String *Item_func_natural_sort_key::val_str(String *out)
   */
   if (cs->mbminlen != 1)
   {
-    if (!tmp.copy(in, &my_charset_utf8mb4_bin, &errs))
+    if (tmp.copy(in, &my_charset_utf8mb4_bin, &errs))
       goto error_exit;
     in= &tmp;
   }

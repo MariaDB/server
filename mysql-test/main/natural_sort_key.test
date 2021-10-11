@@ -93,3 +93,5 @@ select * from t order by b;
 select a, b from t order by b;
 drop table t;
 
+# MDEV-26796 Natural sort does not work for utf32/utf16/ucs2
+select natural_sort_key(_utf16 0x0031),natural_sort_key(_ucs2 0x0031), natural_sort_key(_utf32 0x00000031);
