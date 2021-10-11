@@ -4268,7 +4268,8 @@ mysql_select(THD *thd,
   bool free_join= 1;
   DBUG_ENTER("mysql_select");
 
-  select_lex->context.resolve_in_select_list= TRUE;
+  if (!fields.is_empty())
+    select_lex->context.resolve_in_select_list= true;
   JOIN *join;
   if (select_lex->join != 0)
   {
