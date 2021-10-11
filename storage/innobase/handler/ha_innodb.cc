@@ -5744,6 +5744,54 @@ test_ut_format_name()
 }
 #endif /* !DBUG_OFF */
 
+/** Compares InnoDB type against MariaDB type and reports mismatch */
+static bool match_column_type(const dict_field_t *&ib_field,
+                              const dict_field_t *ib_field_end,
+                              const Field *field)
+{
+  ut_ad(ib_field != ib_field_end);
+
+  size_t is_unsigned;
+  size_t col_type= get_innobase_type_from_mysql_type(&is_unsigned, field);
+
+  /* Ignore InnoDB specific system columns. */
+  while (ib_field->col->mtype == DATA_SYS)
+  {
+    ib_field++;
+
+    if (ib_field >= ib_field_end)
+      return false;
+  }
+
+  /* MariaDB-5.5 compatibility */
+  if ((field->real_type() == MYSQL_TYPE_ENUM ||
+       field->real_type() == MYSQL_TYPE_SET) &&
+      ib_field->col->mtype == DATA_FIXBINARY)
+    col_type= DATA_FIXBINARY;
+
+  if (col_type != ib_field->col->mtype)
+  {
+    /* If the col_type we get from mysql type is a geometry
+    data type, we should check if mtype is a legacy type
+    from 5.6, either upgraded to DATA_GEOMETRY or not.
+    This is indeed not an accurate check, but should be
+    safe, since DATA_BLOB would be upgraded once we create
+    spatial index on it and we intend to use DATA_GEOMETRY
+    for legacy GIS data types which are of var-length. */
+    switch (col_type) {
+    case DATA_GEOMETRY:
+      if (ib_field->col->mtype == DATA_BLOB)
+        break;
+      /* Fall through */
+    default:
+      /* Column type mismatches */
+      return false;
+    }
+  }
+
+  return true;
+}
+
 /** Match index columns between MySQL and InnoDB.
 This function checks whether the index column information
 is consistent between KEY info from mysql and that from innodb index.
@@ -5781,49 +5829,10 @@ innobase_match_index_columns(
 	One hidden assumption here is that the index column sequences
 	are matched up between those in mysql and InnoDB. */
 	for (; key_part != key_end; ++key_part) {
-		ulint	col_type;
-		ibool	is_unsigned;
-		ulint	mtype = innodb_idx_fld->col->mtype;
 
-		/* Need to translate to InnoDB column type before
-		comparison. */
-		col_type = get_innobase_type_from_mysql_type(
-			&is_unsigned, key_part->field);
-
-		/* Ignore InnoDB specific system columns. */
-		while (mtype == DATA_SYS) {
-			innodb_idx_fld++;
-
-			if (innodb_idx_fld >= innodb_idx_fld_end) {
-				DBUG_RETURN(FALSE);
-			}
-		}
-
-		/* MariaDB-5.5 compatibility */
-		if ((key_part->field->real_type() == MYSQL_TYPE_ENUM ||
-		     key_part->field->real_type() == MYSQL_TYPE_SET) &&
-		    mtype == DATA_FIXBINARY) {
-			col_type= DATA_FIXBINARY;
-		}
-
-		if (col_type != mtype) {
-			/* If the col_type we get from mysql type is a geometry
-			data type, we should check if mtype is a legacy type
-			from 5.6, either upgraded to DATA_GEOMETRY or not.
-			This is indeed not an accurate check, but should be
-			safe, since DATA_BLOB would be upgraded once we create
-			spatial index on it and we intend to use DATA_GEOMETRY
-			for legacy GIS data types which are of var-length. */
-			switch (col_type) {
-			case DATA_GEOMETRY:
-				if (mtype == DATA_BLOB) {
-					break;
-				}
-				/* Fall through */
-			default:
-				/* Column type mismatches */
-				DBUG_RETURN(false);
-			}
+		if (!match_column_type(innodb_idx_fld, innodb_idx_fld_end,
+				       key_part->field)) {
+			DBUG_RETURN(false);
 		}
 
 		innodb_idx_fld++;
@@ -6041,6 +6050,24 @@ innobase_build_v_templ(
 	DBUG_VOID_RETURN;
 }
 
+static bool is_part_of_a_primary_key(const Field *field)
+{
+  const TABLE_SHARE *s= field->table->s;
+
+  if (s->primary_key == MAX_KEY)
+    return false;
+
+  const KEY &key= field->table->key_info[s->primary_key];
+
+  for (uint i= 0; i < key.user_defined_key_parts; i++)
+  {
+    if (!strcmp(field->field_name, key.key_part[i].field->field_name))
+      return true;
+  }
+
+  return false;
+}
+
 /** Check consistency between .frm indexes and InnoDB indexes.
 @param[in]	table	table object formed from .frm
 @param[in]	ib_table	InnoDB table definition
@@ -6050,14 +6077,12 @@ check_index_consistency(const TABLE* table, const dict_table_t* ib_table)
 {
 	ulint mysql_num_index = table->s->keys;
 	ulint ib_num_index = UT_LIST_GET_LEN(ib_table->indexes);
-	bool ret = true;
 
 	/* If there exists inconsistency between MySQL and InnoDB dictionary
 	(metadata) information, the number of index defined in MySQL
 	could exceed that in InnoDB, return error */
 	if (ib_num_index < mysql_num_index) {
-		ret = false;
-		goto func_exit;
+		return false;
 	}
 
 	/* For each index in the mysql key_info array, fetch its
@@ -6072,8 +6097,7 @@ check_index_consistency(const TABLE* table, const dict_table_t* ib_table)
 			sql_print_error("Cannot find index %s in InnoDB"
 					" index dictionary.",
 					table->key_info[count].name);
-			ret = false;
-			goto func_exit;
+			return false;
 		}
 
 		/* Double check fetched index has the same
@@ -6083,13 +6107,103 @@ check_index_consistency(const TABLE* table, const dict_table_t* ib_table)
 			sql_print_error("Found index %s whose column info"
 					" does not match that of MariaDB.",
 					table->key_info[count].name);
-			ret = false;
-			goto func_exit;
+			return false;
 		}
 	}
 
-func_exit:
-	return ret;
+	const dict_index_t *clust = dict_table_get_first_index(ib_table);
+	ut_ad(clust);
+
+	const dict_field_t *ib_field = clust->fields;
+	const dict_field_t *ib_field_end = clust->fields + clust->n_fields;
+
+	std::vector<const char *> pk_fields;
+
+	if (table->s->primary_key != MAX_KEY) {
+		const KEY &pk = table->key_info[table->s->primary_key];
+
+		pk_fields.reserve(pk.user_defined_key_parts);
+
+		for (const KEY_PART_INFO *it = pk.key_part,
+			*end = pk.key_part + pk.user_defined_key_parts;
+			it != end; it++) {
+			const Field *field= it->field;
+
+			if (field->vcol_info
+			    && !field->vcol_info->stored_in_db) {
+				continue;
+			}
+
+			pk_fields.push_back(field->field_name);
+
+			if (!match_column_type(ib_field, ib_field_end,
+					       field)) {
+				return false;
+			}
+
+			ib_field++;
+		}
+	} else if (ib_field->col->mtype != DATA_SYS) {
+		return false;
+	}
+
+        /* Ignore InnoDB specific system columns. */
+	while (ib_field != ib_field_end && ib_field->col->mtype == DATA_SYS) {
+		ib_field++;
+	}
+
+	for (uint i = 0; i < table->s->fields; i++) {
+		const Field *field= table->field[i];
+
+		for (;;) {
+			if (ib_field == ib_field_end) {
+				break;
+			}
+
+			bool skip_field = false;
+			for (std::vector<const char *>::const_iterator
+				it = pk_fields.begin(),
+				end = pk_fields.end(); it != end; ++it) {
+				if (!innobase_strcasecmp(ib_field->name,
+							 *it)) {
+					skip_field = true;
+					break;
+				}
+			}
+
+			if (skip_field) {
+				ib_field++;
+			} else {
+				break;
+			}
+		}
+
+                if (!is_part_of_a_primary_key(field)) {
+			if (field->vcol_info
+			    && !field->vcol_info->stored_in_db) {
+				continue;
+			}
+
+			if (!match_column_type(ib_field, ib_field_end,
+					       field)) {
+				return false;
+			}
+
+			ib_field++;
+		}
+	}
+
+	if (ib_field != ib_field_end) {
+		if (ib_field_end - ib_field != 1) {
+			return false;
+		}
+
+		if (strcmp(ib_field->name, FTS_DOC_ID_COL_NAME)) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 /********************************************************************//**
@@ -6384,6 +6498,18 @@ no_such_table:
 		sql_print_error("InnoDB indexes are inconsistent with what "
 				"defined in .frm for table %s",
 				name);
+		if (THDVAR(thd, strict_mode)) {
+			ib_table->file_unreadable = true;
+			ib_table->corrupted = true;
+			dict_table_close(ib_table, false, false);
+			set_my_errno(ENOENT);
+			DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+		} else {
+			push_warning_printf(thd,
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_NO_SUCH_TABLE_IN_ENGINE,
+				table->s->db.str, table->s->table_name);
+		}
 	}
 
 	/* Allocate a buffer for a 'row reference'. A row reference is

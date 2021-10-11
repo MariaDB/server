@@ -1,3 +1,5 @@
+call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table");
+call mtr.add_suppression("Innodb: Table `test`.`t1` is corrupted. Please drop the table and recreate.");
 CREATE TABLE t1 (D INT) ENGINE=innodb;
 INSERT INTO t1 VALUES (10);
 ALTER TABLE t1 MODIFY COLUMN d INT;
@@ -37,4 +39,24 @@ t1	CREATE TABLE `t1` (
   `D` int(11) DEFAULT NULL,
   KEY `my_d` (`D`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+#  MDEV-18186 assertion failure on missing InnoDB index
+#
+CREATE TABLE t (a INT, INDEX i1 (a)) ENGINE=INNODB;
+DROP TABLE t;
+CREATE TABLE t (a INT) ENGINE=INNODB;
+SHOW CREATE TABLE t;
+ERROR 42S02: Table 'test.t' doesn't exist in engine
+DROP TABLE t;
+CREATE TABLE t1 (a INT, b VARCHAR(255)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0,'');
+ALTER TABLE t1 MODIFY a INT AFTER b;
+FLUSH TABLES;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Error	Table 'test.t1' doesn't exist in engine
+test.t1	check	status	Operation failed
+SELECT * FROM t1;
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
 DROP TABLE t1;

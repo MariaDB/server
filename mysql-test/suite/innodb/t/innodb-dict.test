@@ -1,5 +1,10 @@
 --source include/have_innodb.inc
 
+call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table");
+call mtr.add_suppression("Innodb: Table `test`.`t1` is corrupted. Please drop the table and recreate.");
+
+let $datadir=`select @@datadir`;
+
 #
 # Fix MySQL Bug#20755615: InnoDB compares column names case sensitively,
 # while according to Storage Engine API column names should be compared
@@ -28,4 +33,44 @@ ALTER TABLE t1 ADD INDEX my_d (D);
 EXPLAIN SELECT d FROM t1 WHERE d = 5;
 EXPLAIN SELECT D FROM t1 WHERE D = 5;
 SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-18186 assertion failure on missing InnoDB index
+--echo #
+
+--disable_query_log
+call mtr.add_suppression("Cannot find index i1 in InnoDB index dictionary");
+call mtr.add_suppression("InnoDB indexes are inconsistent with what defined");
+call mtr.add_suppression("Table test/t contains 0 indexes");
+call mtr.add_suppression("InnoDB could not find key no");
+--enable_query_log
+
+# Test an attempt to rename a nonexistent index inside InnoDB
+-- let $MYSQL_DATA_DIR = `SELECT @@datadir`
+CREATE TABLE t (a INT, INDEX i1 (a)) ENGINE=INNODB;
+-- copy_file $MYSQL_DATA_DIR/test/t.frm $MYSQL_DATA_DIR/test/t.fr_
+DROP TABLE t;
+CREATE TABLE t (a INT) ENGINE=INNODB;
+-- remove_file $MYSQL_DATA_DIR/test/t.frm
+-- move_file $MYSQL_DATA_DIR/test/t.fr_ $MYSQL_DATA_DIR/test/t.frm
+--enable_prepare_warnings
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+SHOW CREATE TABLE t;
+--disable_prepare_warnings
+DROP TABLE t;
+
+
+CREATE TABLE t1 (a INT, b VARCHAR(255)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0,'');
+--copy_file $datadir/test/t1.frm $datadir/test/old.frm
+ALTER TABLE t1 MODIFY a INT AFTER b;
+FLUSH TABLES;
+
+--remove_file $datadir/test/t1.frm
+--move_file $datadir/test/old.frm $datadir/test/t1.frm
+
+CHECK TABLE t1;
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+SELECT * FROM t1;
 DROP TABLE t1;

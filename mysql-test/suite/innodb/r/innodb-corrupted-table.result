@@ -1,11 +1,13 @@
 call mtr.add_suppression("Table .* has a primary key in InnoDB data dictionary, but not in MariaDB.*");
 call mtr.add_suppression("InnoDB: Table .* contains .* indexes inside InnoDB, which is different from the number of indexes .* defined in the MariaDB.*");
+call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table");
 create table t1 (pk int, i int, key(i)) engine=InnoDB;
 insert into t1 values (1,1),(2,2);
 flush tables;
 # Save the .frm file without the PK
 alter table t1 add primary key (pk);
 # Stop the server, replace the frm with the old one and restart the server
+set global innodb_strict_mode=off;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -14,6 +16,7 @@ t1	CREATE TABLE `t1` (
   KEY `i` (`i`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 Warnings:
+Warning	1932	test
 Warning	1082	InnoDB: Table test/t1 has a primary key in InnoDB data dictionary, but not in MariaDB!
 Warning	1082	InnoDB: Table test/t1 contains 2 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
 select * from t1;
@@ -34,6 +37,7 @@ t1	CREATE TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   KEY `i` (`i`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+set global innodb_strict_mode=on;
 alter table t1 add primary key (pk);
 show warnings;
 Level	Code	Message
