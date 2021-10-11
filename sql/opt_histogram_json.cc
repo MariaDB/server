@@ -100,7 +100,7 @@ class Histogram_json_builder : public Histogram_builder
   /*
     Number of rows that we intend to have in the bucket. That is, this is
 
-      n_rows_in_table / histo_width
+      n_rows_in_table / hist_width
 
     Actual number of rows in the buckets we produce may vary because of
     "popular values" and rounding.
@@ -129,7 +129,14 @@ public:
                          ha_rows rows)
     : Histogram_builder(col, col_len, rows), histogram(hist)
   {
-    bucket_capacity= records / histogram->get_width();
+    /*
+      When computing number of rows in the bucket, round it UP. This way, we
+      will not end up with a histogram that has more buckets than intended.
+
+      We may end up producing a histogram with fewer buckets than intended, but
+      this is considered tolerable.
+    */
+    bucket_capacity= round(rows2double(records) / histogram->get_width() + 0.5);
     if (bucket_capacity == 0)
       bucket_capacity= 1;
     hist_width= histogram->get_width();
