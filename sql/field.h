@@ -1499,7 +1499,7 @@ public:
 
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
 
   bool vers_update_unversioned() const
@@ -4469,7 +4469,7 @@ public:
   }
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
   void create_length_to_internal_length_bit();
   void create_length_to_internal_length_newdecimal();
@@ -4813,6 +4813,15 @@ public:
   }
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;
+
+  bool is_some_bigint() const
+  {
+    return type_handler() == &type_handler_longlong ||
+           type_handler() == &type_handler_vers_trx_id;
+  }
+
+  bool vers_check_timestamp(const Lex_table_name &table_name) const;
+  bool vers_check_bigint(const Lex_table_name &table_name) const;
 };
 
 

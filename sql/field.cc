@@ -2360,7 +2360,7 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
   tmp->unireg_check= Field::NONE;
   tmp->flags&= (NOT_NULL_FLAG | BLOB_FLAG | UNSIGNED_FLAG |
                 ZEROFILL_FLAG | BINARY_FLAG | ENUM_FLAG | SET_FLAG |
-                VERS_SYS_START_FLAG | VERS_SYS_END_FLAG |
+                VERS_ROW_START | VERS_ROW_END |
                 VERS_UPDATE_UNVERSIONED_FLAG);
   tmp->reset_fields();
   tmp->invisible= VISIBLE;
@@ -10967,7 +10967,7 @@ Field *make_field(TABLE_SHARE *share,
                  f_is_zerofill(pack_flag) != 0,
                  f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_LONGLONG:
-    if (flags & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+    if (flags & (VERS_ROW_START|VERS_ROW_END))
     {
       return new (mem_root)
         Field_vers_trx_id(ptr, field_length, null_pos, null_bit,
