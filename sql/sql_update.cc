@@ -314,7 +314,8 @@ int mysql_update(THD *thd,
                  ha_rows *found_return, ha_rows *updated_return)
 {
   bool		using_limit= limit != HA_POS_ERROR;
-  bool          safe_update= thd->variables.option_bits & OPTION_SAFE_UPDATES;
+  bool          safe_update= (thd->variables.option_bits & OPTION_SAFE_UPDATES)
+                             && !thd->lex->describe;
   bool          used_key_is_modified= FALSE, transactional_table;
   bool          will_batch= FALSE;
   bool		can_compare_record;
@@ -517,7 +518,7 @@ int mysql_update(THD *thd,
   }
 
   /* If running in safe sql mode, don't allow updates without keys */
-  if (table->quick_keys.is_clear_all())
+  if (!select || !select->quick)
   {
     thd->set_status_no_index_used();
     if (safe_update && !using_limit)

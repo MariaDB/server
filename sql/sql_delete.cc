@@ -371,7 +371,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_RETURN(TRUE);
 
   const_cond= (!conds || conds->const_item());
-  safe_update= MY_TEST(thd->variables.option_bits & OPTION_SAFE_UPDATES);
+  safe_update= (thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
+               !thd->lex->describe;
   if (safe_update && const_cond)
   {
     my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
@@ -497,7 +498,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
 
   /* If running in safe sql mode, don't allow updates without keys */
-  if (table->quick_keys.is_clear_all())
+  if (!select || !select->quick)
   {
     thd->set_status_no_index_used();
     if (safe_update && !using_limit)
