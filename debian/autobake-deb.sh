@@ -88,6 +88,15 @@ then
   sed '/-DWITH_PMEM=yes/d' -i debian/rules
 fi
 
+# Debian stretch doesn't support the zstd version 1.1.3 required
+# for RocksDB. zstd isn't enabled in Mroonga even though code exists
+# for it. If someone happens to have a non-default zstd installed
+# (not 1.1.2), assume its a backport and build with it.
+if [ "$(lsb_release -sc)" = stretch ] && [ "$(apt-cache madison 'libzstd-dev' | grep -v 1.1.2)" = '' ]
+then
+  sed '/libzstd-dev/d' -i debian/control
+fi
+
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
 
