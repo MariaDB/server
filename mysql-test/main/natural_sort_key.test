@@ -95,3 +95,8 @@ drop table t;
 
 # MDEV-26796 Natural sort does not work for utf32/utf16/ucs2
 select natural_sort_key(_utf16 0x0031),natural_sort_key(_ucs2 0x0031), natural_sort_key(_utf32 0x00000031);
+
+# MDEV-26806 Server crash in Charset::charset / Item_func_natural_sort_key::val_str
+select get_lock('a', 0);
+select natural_sort_key(release_lock('a'));
+

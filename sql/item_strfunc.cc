@@ -5638,13 +5638,13 @@ static NATSORT_ERR to_natsort_key(const String *in, String *out,
 
 String *Item_func_natural_sort_key::val_str(String *out)
 {
-  if (args[0]->is_null())
+  String *in= args[0]->val_str();
+  if (args[0]->null_value || !in)
   {
     null_value= true;
     return nullptr;
   }
   NATSORT_ERR err= NATSORT_ERR::SUCCESS;
-  String *in= args[0]->val_str();
   CHARSET_INFO *cs= in->charset();
   ulong max_allowed_packet= current_thd->variables.max_allowed_packet;
   uint errs;
