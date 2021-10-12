@@ -308,7 +308,10 @@ Hence, we will manually translate fetch_or() using GCC-style inline
 assembler code or a Microsoft intrinsic function.
 
 */
-#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+
+#if defined __clang_major__ && __clang_major__ < 10
+/* Only clang-10 introduced support for asm goto */
+#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
 # define IF_FETCH_OR_GOTO(mem, bit, label)				\
   __asm__ goto("lock btsl $" #bit ", %0\n\t"				\
                "jc %l1" : : "m" (mem) : "cc", "memory" : label);

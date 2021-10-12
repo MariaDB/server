@@ -1539,7 +1539,10 @@ inline void fil_space_t::reacquire()
 inline bool fil_space_t::set_stopping_check()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+#if defined __clang_major__ && __clang_major__ < 10
+  /* Only clang-10 introduced support for asm goto */
+  return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
+#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
   static_assert(STOPPING == 1U << 31, "compatibility");
   __asm__ goto("lock btsl $31, %0\t\njnc %l1" : : "m" (n_pending)
                : "cc", "memory" : not_stopped);
