@@ -1,0 +1,93 @@
+#
+# Purpose:
+#   This test ensures that issuing a CHANGE MASTER will not put a replica into
+# an inconsistent state if the slave cannot find the log files (i.e. the call to
+# find_log_pos in reset_logs fails). More specifically, right before a replica
+# purges the relay logs (part of the `CHANGE MASTER TO` logic), the relay log is
+# temporarily closed with state LOG_TO_BE_OPENED. If the server is issued a
+# CHANGE MASTER and it errors in-between the temporary log closure and purge,
+# i.e. during the function find_log_pos, the log should be closed. The bug
+# reported by MDEV-25284 revealed the log is not properly closed, such that
+# future relay log updates fail, and future CHANGE MASTER calls crash the
+# server.
+#
+# Methodology:
+#   This test ensures that the relay log is properly closed by ensuring future
+# updates and CHANGE MASTER calls succeed.
+#
+# References:
+#   MDEV-25284: Assertion `info->type == READ_CACHE ||
+#               info->type == WRITE_CACHE' failed
+#
+--source include/master-slave.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # Failed CHANGE MASTER TO should not change relay log status
+--echo #
+
+--connection slave
+--source include/stop_slave.inc
+SET @@debug_dbug="d,simulate_find_log_pos_error";
+error 1373;
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=SLAVE_POS;
+SET @@debug_dbug="";
+--source include/start_slave.inc
+
+
+--echo #
+--echo # Ensure relay log can be updated after a failed CHANGE MASTER
+--echo #
+
+FLUSH RELAY LOGS;
+--let $slave_param= Relay_Log_File
+--let $slave_param_value= slave-relay-bin.000003
+--source include/wait_for_slave_param.inc
+
+
+--echo #
+--echo # Slave should continue to receive data from old master after failed
+--echo # CHANGE MASTER TO
+--echo #
+
+--connection master
+CREATE TABLE t1 (a int);
+insert into t1 values (1);
+--let $master_checksum= `CHECKSUM TABLE t1`
+--sync_slave_with_master
+
+--connection slave
+if ($master_checksum != `CHECKSUM TABLE t1`)
+{
+    die("Replica failed to pull data from primary after failed CHANGE MASTER TO");
+}
+
+
+--echo #
+--echo # Future CHANGE MASTER calls should succeed
+--echo #
+
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=SLAVE_POS;
+--source include/start_slave.inc
+
+
+--echo ########################
+--echo # Cleanup
+--echo ########################
+
+--connection master
+DROP TABLE t1;
+
+--connection slave
+--source include/stop_slave.inc
+RESET SLAVE ALL;
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval change master to master_port=$MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+--source include/start_slave.inc
+
+--disable_query_log
+call mtr.add_suppression("Failed to locate old binlog or relay log files");
+--enable_query_log
+
+--source include/rpl_end.inc
