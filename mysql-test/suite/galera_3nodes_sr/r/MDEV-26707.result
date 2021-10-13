@@ -71,16 +71,35 @@ connection node_3a;
 SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_sync_wait = DEFAULT;
 connection node_1a;
+Timeout in wait_condition.inc for SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+Id	User	Host	db	Command	Time	State	Info	Progress
+1	system user		NULL	Sleep	66	wsrep aborter idle	NULL	0.000
+2	system user		NULL	Sleep	66	closing tables	NULL	0.000
+10	root	localhost	test	Sleep	58		NULL	0.000
+11	root	localhost:52722	test	Sleep	56		NULL	0.000
+12	root	localhost:52724	test	Query	0	starting	show full processlist	0.000
 SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
 EXPECT_0
-0
+1
 connection node_2a;
+Timeout in wait_condition.inc for SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+Id	User	Host	db	Command	Time	State	Info	Progress
+1	system user		NULL	Sleep	96	wsrep aborter idle	NULL	0.000
+2	system user		NULL	Sleep	87	closing tables	NULL	0.000
+10	root	localhost:37222	test	Sleep	64		NULL	0.000
+11	root	localhost:37228	test	Query	0	starting	show full processlist	0.000
 SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
 EXPECT_0
-0
+1
 connection node_3a;
+Timeout in wait_condition.inc for SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+Id	User	Host	db	Command	Time	State	Info	Progress
+1	system user		NULL	Sleep	122	wsrep aborter idle	NULL	0.000
+2	system user		NULL	Sleep	117	closing tables	NULL	0.000
+10	root	localhost:60992	test	Sleep	117		NULL	0.000
+11	root	localhost:60994	test	Query	0	starting	show full processlist	0.000
 SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
 EXPECT_0
-0
+1
 connection node_1;
 DROP TABLE t1;
