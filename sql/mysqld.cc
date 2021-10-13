@@ -8502,7 +8502,9 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if (global_system_variables.low_priority_updates)
     thr_upgraded_concurrent_insert_lock= TL_WRITE_LOW_PRIORITY;
 
-  if (ft_boolean_check_syntax_string((uchar*) ft_boolean_syntax))
+  if (ft_boolean_check_syntax_string((uchar*) ft_boolean_syntax,
+                                     strlen(ft_boolean_syntax),
+                                     system_charset_info))
   {
     sql_print_error("Invalid ft-boolean-syntax string: %s",
                     ft_boolean_syntax);

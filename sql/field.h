@@ -1797,7 +1797,7 @@ public:
 
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
 
   bool vers_update_unversioned() const
@@ -5305,7 +5305,7 @@ public:
   }
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
   void create_length_to_internal_length_bit();
   void create_length_to_internal_length_newdecimal();

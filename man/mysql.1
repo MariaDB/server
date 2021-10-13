@@ -206,7 +206,14 @@ option\&.
 .\" binary-mode option: mysql
 \fB\-\-binary\-mode\fR
 .sp
-By default, ASCII '\e0' is disallowed and '\er\en' is translated to '\en'\&. This switch turns off both features, and also turns off parsing of all client commands except \eC and DELIMITER, in non-interactive mode (for input piped to mysql or loaded using the 'source' command)\&. This is necessary when processing output from mysqlbinlog that may contain blobs\&.
+Binary mode allows certain character sequences to be processed as data that
+would otherwise be treated with a special meaning by the parser\&.
+Specifically, this switch turns off parsing of all client commands except \eC
+and DELIMITER in non-interactive mode (i\&.e\&., when binary mode is combined
+with either 1) piped input, 2) the --batch mysql option, or 3) the 'source'
+command)\&. Also, in binary mode, occurrences of '\er\en' and ASCII '\e0' are
+preserved within strings, whereas by default, '\er\en' is translated to '\en'
+and '\e0' is disallowed in user input\&.
 .RE
 .sp
 .RS 4

@@ -1,0 +1,86 @@
+connection node_2;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connect node_3a, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+connection node_2;
+SET SESSION wsrep_trx_fragment_size=1;
+BEGIN;
+INSERT INTO t1 VALUES (21);
+connection node_1;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+EXPECT_1
+1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+EXPECT_1
+1
+connection node_3;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+EXPECT_1
+1
+connection node_3a;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_2a;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_2;
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continue';
+COMMIT;
+connection node_2a;
+SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait = DEFAULT;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_2;
+ERROR HY000: Got error 6 "No such device or address" during COMMIT
+connection node_2a;
+SET DEBUG_SYNC = 'RESET';
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_3a;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+SET SESSION wsrep_sync_wait = 0;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+EXPECT_1
+1
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+EXPECT_1
+1
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_2a;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_3a;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_1a;
+SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+EXPECT_0
+0
+connection node_2a;
+SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+EXPECT_0
+0
+connection node_3a;
+SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+EXPECT_0
+0
+connection node_1;
+DROP TABLE t1;

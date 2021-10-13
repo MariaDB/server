@@ -378,6 +378,7 @@ x86/
 build/
 bld/
 [Bb]in/
+/cmake-build-debug/
 [Oo]bj/
 
 # Roslyn cache directories
@@ -560,7 +561,7 @@ compile_commands.json
 .vscode/
 
 # Clion && other JetBrains ides
-.idea
+/.idea/
 
 .cache/clangd
 

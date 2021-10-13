@@ -51,20 +51,37 @@ INSERT INTO t1 VALUES (5);
 --source include/kill_galera.inc
 --source include/start_mysqld.inc
 
-# Expect that the SR table will get some entries after the restart
---let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
---source include/wait_condition.inc
+--connection node_1
+# The following COMMIT usually succeeds. Due to timing,
+# it is however possible that this node delivers the same
+# view twice during configuration change. In which case
+# this transaction will mistakenly be considered orphaned,
+# and aborted.
+--error 0, ER_LOCK_DEADLOCK
+COMMIT;
+
+
+--disable_query_log
+if ($mysql_errno == 0) {
+    --connection node_1
+    SELECT COUNT(*) = 5 AS count_match FROM t1;
+    --connection node_2
+    SELECT COUNT(*) = 5 AS count_match FROM t1;
+}
+
+if ($mysql_errno == 1213) {
+    --connection node_1
+    SELECT COUNT(*) = 0 AS count_match FROM t1;
+    --connection node_2
+    SELECT COUNT(*) = 0 AS count_match FROM t1;
+}
+--enable_query_log
 
 --connection node_1
-COMMIT;
-SELECT COUNT(*) = 5 FROM t1;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 --connection node_2
-SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
---let $wait_condition = SELECT COUNT(*) = 5 FROM t1;
---source include/wait_condition.inc
-
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 DROP TABLE t1;

@@ -8799,6 +8799,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   if (!thd->is_error())
   {
     thd->abort_on_warning= FALSE;
+    if (table->default_field && table->update_default_fields(ignore_errors))
+      goto err;
     if (table->versioned())
       table->vers_update_fields();
     if (table->vfield &&

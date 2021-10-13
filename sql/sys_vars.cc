@@ -1180,7 +1180,9 @@ static Sys_var_ulong Sys_flush_time(
 static bool check_ftb_syntax(sys_var *self, THD *thd, set_var *var)
 {
   return ft_boolean_check_syntax_string((uchar*)
-                      (var->save_result.string_value.str));
+                      (var->save_result.string_value.str),
+                      var->save_result.string_value.length,
+                      self->charset(thd));
 }
 static bool query_cache_flush(sys_var *self, THD *thd, enum_var_type type)
 {

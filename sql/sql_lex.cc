@@ -9605,7 +9605,7 @@ bool LEX::last_field_generated_always_as_row_start()
   Vers_parse_info &info= vers_get_info();
   Lex_ident *p= &info.as_row.start;
   return last_field_generated_always_as_row_start_or_end(p, "START",
-                                                         VERS_SYS_START_FLAG);
+                                                         VERS_ROW_START);
 }
 
 
@@ -9614,7 +9614,7 @@ bool LEX::last_field_generated_always_as_row_end()
   Vers_parse_info &info= vers_get_info();
   Lex_ident *p= &info.as_row.end;
   return last_field_generated_always_as_row_start_or_end(p, "END",
-                                                         VERS_SYS_END_FLAG);
+                                                         VERS_ROW_END);
 }
 
 void st_select_lex_unit::reset_distinct()
