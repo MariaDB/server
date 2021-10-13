@@ -1973,7 +1973,7 @@ void srv_init_purge_tasks()
 
 static void srv_shutdown_purge_tasks()
 {
-  purge_coordinator_task.wait();
+  purge_coordinator_task.disable();
   delete purge_coordinator_timer;
   purge_coordinator_timer= nullptr;
   purge_worker_task.wait();
