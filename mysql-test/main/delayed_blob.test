@@ -1,0 +1,21 @@
+--echo #
+--echo # MDEV-25925 Warning: Memory not freed: 32 on INSERT DELAYED
+--echo #
+
+SET sql_mode='TRADITIONAL';
+CREATE TABLE t1 (c BLOB) ENGINE=MyISAM;
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT DELAYED INTO t1 VALUES (''||'');
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # MDEV-24467 Memory not freed after failed INSERT DELAYED
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(1)) ENGINE=MyISAM;
+ALTER TABLE t1 ADD b BLOB DEFAULT 'x';
+--error ER_DATA_TOO_LONG
+INSERT DELAYED INTO t1 (a) VALUES ('foo');
+DROP TABLE t1;

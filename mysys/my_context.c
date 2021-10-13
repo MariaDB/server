@@ -29,6 +29,10 @@
 #endif
 
 #ifdef MY_CONTEXT_USE_UCONTEXT
+#ifdef __APPLE__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 /*
   The makecontext() only allows to pass integers into the created context :-(
   We want to pass pointers, so we do it this kinda hackish way.
@@ -154,6 +158,9 @@ my_context_destroy(struct my_context *c)
   DBUG_FREE_CODE_STATE(&c->dbug_state);
 }
 
+#ifdef __APPLE__
+#pragma GCC diagnostic pop
+#endif
 #endif  /* MY_CONTEXT_USE_UCONTEXT */
 
 

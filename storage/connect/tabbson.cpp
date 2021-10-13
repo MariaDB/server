@@ -871,7 +871,7 @@ PBVAL BCUTIL::MakeBson(PGLOBAL g, PBVAL jsp, int n)
 /***********************************************************************/
 PBVAL BCUTIL::GetRowValue(PGLOBAL g, PBVAL row, int i)
 {
-  int    nod = Cp->Nod, n = nod - 1;
+  int    nod = Cp->Nod;
   JNODE *nodes = Cp->Nodes;
   PBVAL  arp;
   PBVAL  bvp = NULL;

@@ -1988,6 +1988,22 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-24742 Server crashes in Charset::numchars / String::numchars
+--echo #
+
+SELECT NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux');
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+
+--echo #
 --echo # Start of 10.3 tests
 --echo #
 
