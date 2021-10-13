@@ -1361,7 +1361,7 @@ public:
   virtual void release_auto_increment();
 private:
   virtual int reset_auto_increment(ulonglong value);
-  void update_next_auto_inc_val();
+  int update_next_auto_inc_val();
   virtual void lock_auto_increment()
   {
     /* lock already taken */
