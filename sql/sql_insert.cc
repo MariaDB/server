@@ -1348,7 +1348,18 @@ values_loop_end:
 abort:
 #ifndef EMBEDDED_LIBRARY
   if (lock_type == TL_WRITE_DELAYED)
+  {
     end_delayed_insert(thd);
+    /*
+      In case of an error (e.g. data truncation), the data type specific data
+      in fields (e.g. Field_blob::value) was not taken over
+      by the delayed writer thread. All fields in table_list->table
+      will be freed by free_root() soon. We need to free the specific
+      data before free_root() to avoid a memory leak.
+    */
+    for (Field **ptr= table_list->table->field ; *ptr ; ptr++)
+      (*ptr)->free();
+  }
 #endif
   if (table != NULL)
     table->file->ha_release_auto_increment();

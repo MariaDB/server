@@ -1347,7 +1347,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     if (check_vcol_forward_refs(field, field->vcol_info, 0) ||
         check_vcol_forward_refs(field, field->check_constraint, 1) ||
         check_vcol_forward_refs(field, field->default_value, 0))
+    {
+      *error_reported= true;
       goto end;
+    }
   }
 
   table->find_constraint_correlated_indexes();
@@ -2647,9 +2650,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (versioned)
     {
       if (i == vers.start_fieldno)
-        flags|= VERS_SYS_START_FLAG;
+        flags|= VERS_ROW_START;
       else if (i == vers.end_fieldno)
-        flags|= VERS_SYS_END_FLAG;
+        flags|= VERS_ROW_END;
 
       if (flags & VERS_SYSTEM_FIELD)
       {

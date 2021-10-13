@@ -7854,7 +7854,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       def= new (thd->mem_root) Create_field(thd, field, field);
       def->invisible= INVISIBLE_SYSTEM;
       alter_info->flags|= ALTER_CHANGE_COLUMN;
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags & VERS_ROW_START)
         create_info->vers_info.as_row.start= def->field_name= Vers_parse_info::default_start;
       else
         create_info->vers_info.as_row.end= def->field_name= Vers_parse_info::default_end;
@@ -7885,9 +7885,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           def->change= alter->name;
           def->field_name= alter->new_name;
           column_rename_param.fields.push_back(def);
-          if (field->flags & VERS_SYS_START_FLAG)
+          if (field->flags & VERS_ROW_START)
             create_info->vers_info.as_row.start= alter->new_name;
-          else if (field->flags & VERS_SYS_END_FLAG)
+          else if (field->flags & VERS_ROW_END)
             create_info->vers_info.as_row.end= alter->new_name;
           if (table->s->period.name)
           {
@@ -7949,9 +7949,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       !vers_system_invisible)
   {
     StringBuffer<NAME_LEN*3> tmp;
-    if (!(dropped_sys_vers_fields & VERS_SYS_START_FLAG))
+    if (!(dropped_sys_vers_fields & VERS_ROW_START))
       append_drop_column(thd, &tmp, table->vers_start_field());
-    if (!(dropped_sys_vers_fields & VERS_SYS_END_FLAG))
+    if (!(dropped_sys_vers_fields & VERS_ROW_END))
       append_drop_column(thd, &tmp, table->vers_end_field());
     my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
     goto err;
