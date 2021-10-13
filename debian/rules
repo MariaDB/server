@@ -34,8 +34,8 @@ ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
     NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
     MAKEFLAGS += -j$(NUMJOBS)
 else
-    # NUMJOBS cannot be empty as it is used as a parameter to mtr, default to 1.
-    NUMJOBS = 1
+    # NUMJOBS cannot be empty as it is used as a parameter to mtr, default to 'auto'.
+    NUMJOBS = auto
 endif
 
 # RocksDB cannot build on 32-bit platforms

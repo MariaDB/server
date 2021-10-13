@@ -1841,7 +1841,7 @@ public:
     return page_cleaner_is_idle;
   }
   /** Wake up the page cleaner if needed */
-  inline void page_cleaner_wakeup();
+  void page_cleaner_wakeup();
 
   /** Register whether an explicit wakeup of the page cleaner is needed */
   void page_cleaner_set_idle(bool deep_sleep)

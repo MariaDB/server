@@ -1,0 +1,168 @@
+#
+# MDEV-26707: SR transaction rolls back locally, but not in cluster
+#
+# This test excercises the following scenario:
+# Initially we have a three node cluster where node 2 has an active
+# SR transaction that has replicated one fragment.
+# Node 3 disconnects from the cluster, followed by disconnect of node 2.
+# Node 2 attempts to COMMIT its transaction, but fails because node 2 is
+# non-primary. This failure causes the transaction to rolled back locally
+# (node 2 can't communicate with the cluster at this point, so rollback
+# fragment cannot be sent successfully)
+# Node 3 joins back creating non-primary view (node 1, node 3).
+# Then node 2 joins back creating primary view (node 1, node 1, node 3).
+# If bug is present, we have that node 2 has rolled back locally, while
+# the same transaction is still active nodes 1 and 3, leaving entries
+# in their wsrep_streaming_log tables.
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connect node_3a, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+--connection node_2
+SET SESSION wsrep_trx_fragment_size=1;
+BEGIN;
+INSERT INTO t1 VALUES (21);
+
+--connection node_1
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+
+--connection node_3
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+
+#
+# Disconnect node 3 from cluster
+#
+--connection node_3a
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+#
+# Issue commit block COMMIT before certification on node 2
+#
+--connection node_2
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continue';
+--send COMMIT
+
+--connection node_2a
+SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
+
+#
+# Disconnect node 2
+#
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+
+#
+# Unblock COMMIT and expect it to fail
+#
+SET DEBUG_SYNC = 'now SIGNAL continue';
+
+--connection node_2
+--error ER_ERROR_DURING_COMMIT
+--reap
+
+--connection node_2a
+SET DEBUG_SYNC = 'RESET';
+
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+
+#
+# Reconnect node 3
+#
+--connection node_3a
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+
+#
+# Reconnect node 2
+#
+--connection node_2a
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--source include/galera_wait_ready.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--source include/galera_wait_ready.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+--connection node_3a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--source include/galera_wait_ready.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+
+#
+# Expect no entries in wsrep_streaming_log
+#
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+--connection node_3a
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+
+
+--connection node_1
+DROP TABLE t1;

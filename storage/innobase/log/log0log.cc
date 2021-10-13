@@ -803,6 +803,9 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
     return;
   }
 
+repeat:
+  lsn_t ret_lsn1= 0, ret_lsn2= 0;
+
   if (flush_to_disk &&
       flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
     return;
@@ -817,20 +820,32 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
     log_write(rotate_key);
 
     ut_a(log_sys.write_lsn == write_lsn);
-    write_lock.release(write_lsn);
+    ret_lsn1= write_lock.release(write_lsn);
   }
 
-  if (!flush_to_disk)
-    return;
+  if (flush_to_disk)
+  {
+    /* Flush the highest written lsn.*/
+    auto flush_lsn = write_lock.value();
+    flush_lock.set_pending(flush_lsn);
+    log_write_flush_to_disk_low(flush_lsn);
+    ret_lsn2= flush_lock.release(flush_lsn);
 
-  /* Flush the highest written lsn.*/
-  auto flush_lsn = write_lock.value();
-  flush_lock.set_pending(flush_lsn);
-  log_write_flush_to_disk_low(flush_lsn);
-  flush_lock.release(flush_lsn);
+    log_flush_notify(flush_lsn);
+    DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
+  }
 
-  log_flush_notify(flush_lsn);
-  DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
+  if (ret_lsn1 || ret_lsn2)
+  {
+    /*
+     There is no new group commit lead, some async waiters could stall.
+     Rerun log_write_up_to(), to prevent that.
+    */
+    lsn= std::max(ret_lsn1, ret_lsn2);
+    static const completion_callback dummy{[](void *) {},nullptr};
+    callback= &dummy;
+    goto repeat;
+  }
 }
 
 /** Write to the log file up to the last log entry.

@@ -763,6 +763,25 @@ set system_versioning_alter_history= keep;
 alter ignore table t1 drop pk;
 drop table t1;
 #
+# MDEV-22660 SIGSEGV on adding system versioning and modifying system column
+#
+create or replace table t1 (a int);
+alter table t1
+add row_start timestamp(6) as row start,
+add row_end timestamp(6) as row end,
+add period for system_time(row_start, row_end),
+with system versioning,
+modify row_end varchar(8);
+ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `row_start` and `row_end`
+alter table t1
+add row_start timestamp(6) as row start,
+add row_end timestamp(6) as row end,
+add period for system_time(row_start, row_end),
+with system versioning,
+modify row_start varchar(8);
+ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `row_start` and `row_end`
+drop table t1;
+#
 # MDEV-21941 RENAME doesn't work for system time or period fields
 #
 create or replace table t1 (a int) with system versioning;

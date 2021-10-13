@@ -32,14 +32,18 @@ Killing server ...
 # restart
 connection node_1;
 COMMIT;
-SELECT COUNT(*) = 5 FROM t1;
-COUNT(*) = 5
+count_match
 1
+count_match
+1
+connection node_1;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
 connection node_2;
-SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
-COUNT(*) = 0
-1
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
 connection node_1;
 DROP TABLE t1;
 DROP TABLE t2;

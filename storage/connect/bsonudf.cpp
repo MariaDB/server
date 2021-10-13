@@ -12,6 +12,7 @@
 #include <mysql.h>
 #include <sql_error.h>
 #include <stdio.h>
+#include <cassert>
 
 #include "bsonudf.h"
 
@@ -691,7 +692,7 @@ PVAL BJNX::GetCalcValue(PGLOBAL g, PBVAL bap, int n)
 
 			break;
 		default:
-			break;
+			DBUG_ASSERT(!"Implement new op type support.");
 	} // endswitch Op
 
 	return valp = AllocateValue(g, type, lng, prec);
@@ -4979,7 +4980,7 @@ char *bbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		uint	n = 2;
 		int* x = GetIntArgPtr(g, args, n);
 		BJNX  bnx(g, NULL, TYPE_STRING);
-		PBVAL top, jarp = NULL, jvp = NULL;
+		PBVAL jarp = NULL, top = NULL, jvp = NULL;
 		PBVAL jsp = bnx.MakeValue(args, 0, true, &top);
 
 		if (bnx.CheckPath(g, args, jsp, jvp, 2))

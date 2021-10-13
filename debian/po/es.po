@@ -1,4 +1,4 @@
-# mariadb translation to spanish
+# MariaDB translation to Spanish
 # Copyright (C) 2005-2016 Software in the Public Interest, SPI Inc.
 # This file is distributed under the same license as the mariadb package.
 #
