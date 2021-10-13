@@ -38,7 +38,7 @@ include(CheckFunctionExists)
 macro(check_lib package var)
   STRING(TOUPPER ${package} PACKAGE_NAME)
   SET(WITH_ROCKSDB_${package} AUTO CACHE STRING
-        "Build RocksDB  with ${package} compression. Possible values are 'ON', 'OFF', 'AUTO' and default is 'AUTO'")
+        "Build RocksDB with ${package} compression. Possible values are 'ON', 'OFF', 'AUTO' and default is 'AUTO'")
 
   IF (NOT ${WITH_ROCKSDB_${package}} STREQUAL "OFF")
     FIND_PACKAGE(${package} QUIET)
@@ -53,7 +53,7 @@ macro(check_lib package var)
       ENDIF()
     ENDIF()
   ENDIF()
-  ADD_FEATURE_INFO(ROCKSDB_${PACKAGE_NAME} HAVE_ROCKSDB_${PACKAGE_NAME} "${package} Compression in the RocksDB storage engine")
+  ADD_FEATURE_INFO(ROCKSDB_${PACKAGE_NAME} ${${var}_VALID} "${package} Compression in the RocksDB storage engine")
 
   IF(${${var}_VALID})
     MESSAGE_ONCE(rocksdb_${var} "Found ${package}: ${${var}_LIBRARIES}")
