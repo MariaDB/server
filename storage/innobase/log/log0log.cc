@@ -795,20 +795,15 @@ loop:
 
 /** Flush the recently written changes to the log file.
 and invoke log_mutex_enter(). */
-static
-void
-log_write_flush_to_disk_low()
+static void log_write_flush_to_disk_low()
 {
-	/* FIXME: This is not holding log_sys.mutex while
-	calling os_event_set()! */
-	ut_a(log_sys.n_pending_flushes == 1); /* No other threads here */
+	ut_a(log_sys.n_pending_flushes);
 
 	bool	do_flush = srv_file_flush_method != SRV_O_DSYNC;
 
 	if (do_flush) {
 		fil_flush(SRV_LOG_SPACE_FIRST_ID);
 	}
-
 
 	log_mutex_enter();
 	if (do_flush) {
@@ -1123,7 +1118,7 @@ ATTRIBUTE_COLD void log_write_and_flush()
 
   /* Code adapted from log_write_flush_to_disk_low() */
 
-  ut_a(log_sys.n_pending_flushes == 1); /* No other threads here */
+  ut_a(log_sys.n_pending_flushes);
 
   if (srv_file_flush_method != SRV_O_DSYNC)
     fil_flush(SRV_LOG_SPACE_FIRST_ID);

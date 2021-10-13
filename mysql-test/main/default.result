@@ -3387,6 +3387,14 @@ CREATE OR REPLACE TABLE t1(i int);
 ALTER TABLE t1 ADD b CHAR(255) DEFAULT `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`;
 ERROR 42S22: Unknown column 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' in 'DEFAULT'
 DROP TABLE t1;
+#
+# MDEV-18278 Misleading error message in error log upon failed table creation
+#
+create table t1 (a int as (a));
+ERROR 01000: Expression for field `a` is referring to uninitialized field `a`
+show warnings;
+Level	Code	Message
+Error	4029	Expression for field `a` is referring to uninitialized field `a`
 # end of 10.2 test
 #
 # MDEV-22703 DEFAULT() on a BLOB column can overwrite the default
@@ -3403,3 +3411,4 @@ length(DEFAULT(h))
 25
 INSERT INTO t1 () VALUES ();
 drop table t1;
+# end of 10.3 test

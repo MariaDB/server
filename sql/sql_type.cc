@@ -7776,7 +7776,7 @@ Field *Type_handler_longlong::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
-  if (flags & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+  if (flags & (VERS_ROW_START|VERS_ROW_END))
     return new (mem_root)
       Field_vers_trx_id(rec.ptr(), (uint32) attr->length,
                         rec.null_ptr(), rec.null_bit(),

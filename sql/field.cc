@@ -2394,7 +2394,7 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
   tmp->unireg_check= Field::NONE;
   tmp->flags&= (NOT_NULL_FLAG | BLOB_FLAG | UNSIGNED_FLAG |
                 ZEROFILL_FLAG | BINARY_FLAG | ENUM_FLAG | SET_FLAG |
-                VERS_SYS_START_FLAG | VERS_SYS_END_FLAG |
+                VERS_ROW_START | VERS_ROW_END |
                 VERS_UPDATE_UNVERSIONED_FLAG);
   tmp->reset_fields();
   tmp->invisible= VISIBLE;

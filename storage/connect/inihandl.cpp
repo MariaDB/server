@@ -193,7 +193,7 @@ static void PROFILE_Save( FILE *file, PROFILESECTION *section )
       secno++;
     }
 
-    for (key = section->key; key; key = key->next)
+    for (key = section->key; key; key = key->next) {
       if (key->name[0]) {
         fprintf(file, "%s", SVP(key->name));
 
@@ -201,9 +201,9 @@ static void PROFILE_Save( FILE *file, PROFILESECTION *section )
           fprintf(file, "=%s", SVP(key->value));
 
         fprintf(file, "\n");
-        } // endif key->name
-
-    }  // endfor section
+      } // endif key->name
+    }
+  }  // endfor section
 
 } // end of PROFILE_Save
 

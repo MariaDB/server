@@ -2302,11 +2302,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
     else
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags & VERS_ROW_START)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW START"));
       }
-      else if (field->flags & VERS_SYS_END_FLAG)
+      else if (field->flags & VERS_ROW_END)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW END"));
       }
@@ -6119,7 +6119,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     }
     else if (field->flags & VERS_SYSTEM_FIELD)
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags & VERS_ROW_START)
       {
         table->field[21]->store(STRING_WITH_LEN("ROW START"), cs);
         buf.set(STRING_WITH_LEN("STORED GENERATED"), cs);

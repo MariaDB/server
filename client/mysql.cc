@@ -1672,11 +1672,14 @@ static struct my_option my_long_options[] =
     &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"binary-mode", 0,
-   "By default, ASCII '\\0' is disallowed and '\\r\\n' is translated to '\\n'. "
-   "This switch turns off both features, and also turns off parsing of all client"
-   "commands except \\C and DELIMITER, in non-interactive mode (for input "
-   "piped to mysql or loaded using the 'source' command). This is necessary "
-   "when processing output from mysqlbinlog that may contain blobs.",
+   "Binary mode allows certain character sequences to be processed as data "
+   "that would otherwise be treated with a special meaning by the parser. "
+   "Specifically, this switch turns off parsing of all client commands except "
+   "\\C and DELIMITER in non-interactive mode (i.e., when binary mode is "
+   "combined with either 1) piped input, 2) the --batch mysql option, or 3) "
+   "the 'source' command). Also, in binary mode, occurrences of '\\r\\n' and "
+   "ASCII '\\0' are preserved within strings, whereas by default, '\\r\\n' is "
+   "translated to '\\n' and '\\0' is disallowed in user input.",
    &opt_binary_mode, &opt_binary_mode, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"connect-expired-password", 0,
    "Notify the server that this client is prepared to handle expired "
@@ -2316,8 +2319,15 @@ static bool add_line(String &buffer, char *line, size_t line_length,
     {
       // Found possbile one character command like \c
 
-      if (!(inchar = (uchar) *++pos))
-	break;				// readline adds one '\'
+      /*
+        The null-terminating character (ASCII '\0') marks the end of user
+        input. Then, by default, upon encountering a '\0' while parsing, it
+        should stop.  However, some data naturally contains binary zeros
+        (e.g., zipped files). Real_binary_mode signals the parser to expect
+        '\0' within the data and not to end parsing if found.
+       */
+      if (!(inchar = (uchar) *++pos) && (!real_binary_mode || !*in_string))
+        break;				// readline adds one '\'
       if (*in_string || inchar == 'N')	// \N is short for NULL
       {					// Don't allow commands in string
 	*out++='\\';

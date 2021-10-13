@@ -653,3 +653,25 @@ set system_versioning_alter_history= keep;
 alter ignore table t1 drop pk;
 # cleanup
 drop table t1;
+
+
+--echo #
+--echo # MDEV-22660 SIGSEGV on adding system versioning and modifying system column
+--echo #
+create or replace table t1 (a int);
+--error ER_VERS_PERIOD_COLUMNS
+alter table t1
+  add row_start timestamp(6) as row start,
+  add row_end timestamp(6) as row end,
+  add period for system_time(row_start, row_end),
+  with system versioning,
+  modify row_end varchar(8);
+--error ER_VERS_PERIOD_COLUMNS
+alter table t1
+  add row_start timestamp(6) as row start,
+  add row_end timestamp(6) as row end,
+  add period for system_time(row_start, row_end),
+  with system versioning,
+  modify row_start varchar(8);
+# cleanup
+drop table t1;
