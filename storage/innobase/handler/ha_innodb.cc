@@ -17214,7 +17214,12 @@ innodb_max_dirty_pages_pct_update(
 	}
 
 	srv_max_buf_pool_modified_pct = in_val;
-	pthread_cond_signal(&buf_pool.do_flush_list);
+
+	mysql_mutex_unlock(&LOCK_global_system_variables);
+	mysql_mutex_lock(&buf_pool.flush_list_mutex);
+	buf_pool.page_cleaner_wakeup();
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /****************************************************************//**
@@ -17245,7 +17250,12 @@ innodb_max_dirty_pages_pct_lwm_update(
 	}
 
 	srv_max_dirty_pages_pct_lwm = in_val;
-	pthread_cond_signal(&buf_pool.do_flush_list);
+
+	mysql_mutex_unlock(&LOCK_global_system_variables);
+	mysql_mutex_lock(&buf_pool.flush_list_mutex);
+	buf_pool.page_cleaner_wakeup();
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /*************************************************************//**

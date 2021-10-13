@@ -123,7 +123,7 @@ static void buf_flush_validate_skip()
 #endif /* UNIV_DEBUG */
 
 /** Wake up the page cleaner if needed */
-inline void buf_pool_t::page_cleaner_wakeup()
+void buf_pool_t::page_cleaner_wakeup()
 {
   if (!page_cleaner_idle())
     return;
