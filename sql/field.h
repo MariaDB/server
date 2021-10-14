@@ -1648,6 +1648,8 @@ protected:
   }
   int warn_if_overflow(int op_result);
   Copy_func *get_identical_copy_func() const;
+  bool cmp_is_done_using_type_handler_of_this(const Item_bool_func *cond,
+                                              const Item *item) const;
   bool can_optimize_scalar_range(const RANGE_OPT_PARAM *param,
                                  const KEY_PART *key_part,
                                  const Item_bool_func *cond,
