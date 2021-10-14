@@ -40,6 +40,7 @@ cross_bootstrap=0
 auth_root_authentication_method=socket
 auth_root_socket_user=""
 skip_test_db=0
+extra_file=""
 
 dirname0=`dirname $0 2>/dev/null`
 dirname0=`dirname $dirname0 2>/dev/null`
@@ -95,6 +96,8 @@ Usage: $0 [OPTIONS]
                        user.  You must be root to use this option.  By default
                        mysqld runs using your current login name and files and
                        directories that it creates will be owned by you.
+  --extra-file=file    Add user defined SQL file, to be executed following
+                       regular database initialization.
 
 All other options are passed to the mysqld program
 
@@ -178,6 +181,8 @@ parse_arguments()
       --auth-root-socket-user=*)
         auth_root_socket_user="$(parse_arg "$arg")" ;;
       --skip-test-db) skip_test_db=1 ;;
+      --extra-file=*)
+        extra_file="$(parse_arg "$arg")" ;;
 
       *)
         if test -n "$pick_args"
@@ -399,6 +404,13 @@ do
   fi
 done
 
+# Verify extra file exists if it's not null
+if test ! -z "$extra_file" -a ! -f "$extra_file"
+then
+  cannot_find_file "$extra_file"
+  exit 1
+fi
+
 if test ! -x "$mysqld"
 then
   cannot_find_file "$mysqld"
@@ -553,6 +565,12 @@ cat_sql()
   if test "$skip_test_db" -eq 0
   then
     cat "$mysql_test_db"
+  fi
+
+  # cat extra file if it's not null
+  if test ! -z "$extra_file"
+  then
+    cat "$extra_file"
   fi
 }
 
