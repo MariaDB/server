@@ -46,9 +46,9 @@ Completed by Sunny Bains and Marko Makela
 #include "row0vers.h"
 #include "handler0alter.h"
 #include "btr0bulk.h"
-#ifdef BTR_CUR_ADAPT
+#ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
-#endif /* BTR_CUR_ADAPT */
+#endif /* BTR_CUR_HASH_ADAPT */
 #include "ut0stage.h"
 #include "fil0crypt.h"
 

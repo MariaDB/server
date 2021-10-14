@@ -236,7 +236,7 @@ inline buf_block_t* btr_block_get_func(const dict_index_t& index,
 
 	if (buf_block_t* block = buf_page_get_gen(
 		    page_id_t(index.table->space->id, page),
-		    index.table->space->zip_size(), mode, NULL, BUF_GET,
+		    index.table->space->zip_size(), mode, BUF_GET,
 		    file, line, mtr, &err, merge && !index.is_clust())) {
 		ut_ad(err == DB_SUCCESS);
 		if (mode != RW_NO_LATCH) {

@@ -210,7 +210,7 @@ NOTE! The following macros should be used instead of buf_page_get_gen,
 to improve debugging. Only values RW_S_LATCH and RW_X_LATCH are allowed
 in LA! */
 #define buf_page_get(ID, SIZE, LA, MTR)					\
-	buf_page_get_gen(ID, SIZE, LA, NULL, BUF_GET, __FILE__, __LINE__, MTR)
+	buf_page_get_gen(ID, SIZE, LA, BUF_GET, __FILE__, __LINE__, MTR)
 
 /**************************************************************//**
 Use these macros to bufferfix a page with no latching. Remember not to
@@ -219,7 +219,7 @@ the contents of the page! We have separated this case, because it is
 error-prone programming not to set a latch, and it should be used
 with care. */
 #define buf_page_get_with_no_latch(ID, SIZE, MTR)	\
-	buf_page_get_gen(ID, SIZE, RW_NO_LATCH, NULL, BUF_GET_NO_LATCH, \
+	buf_page_get_gen(ID, SIZE, RW_NO_LATCH, BUF_GET_NO_LATCH, \
 			 __FILE__, __LINE__, MTR)
 /********************************************************************//**
 This is the general function used to get optimistic access to a database
@@ -275,7 +275,6 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size);
 @param[in]	page_id			page id
 @param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
-@param[in]	guess			guessed block or NULL
 @param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
 BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 @param[in]	file			file name
@@ -290,7 +289,6 @@ buf_page_get_gen(
 	const page_id_t		page_id,
 	ulint			zip_size,
 	ulint			rw_latch,
-	buf_block_t*		guess,
 	ulint			mode,
 	const char*		file,
 	unsigned		line,
@@ -302,7 +300,6 @@ buf_page_get_gen(
 @param[in]	page_id			page id
 @param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
-@param[in]	guess			guessed block or NULL
 @param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
 BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 @param[in]	file			file name
@@ -319,7 +316,6 @@ buf_page_get_low(
 	const page_id_t		page_id,
 	ulint			zip_size,
 	ulint			rw_latch,
-	buf_block_t*		guess,
 	ulint			mode,
 	const char*		file,
 	unsigned		line,

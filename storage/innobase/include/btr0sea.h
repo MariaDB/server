@@ -159,19 +159,6 @@ static inline bool btr_search_own_any();
 /** Unlock all search latches from shared mode. */
 static inline void btr_search_s_unlock_all();
 
-#else /* BTR_CUR_HASH_ADAPT */
-# define btr_search_sys_create()
-# define btr_search_sys_free()
-# define btr_search_drop_page_hash_index(block)
-# define btr_search_s_lock_all(index)
-# define btr_search_s_unlock_all(index)
-# define btr_search_info_update(index, cursor)
-# define btr_search_move_or_delete_hash_entries(new_block, block)
-# define btr_search_update_hash_on_insert(cursor, ahi_latch)
-# define btr_search_update_hash_on_delete(cursor)
-#endif /* BTR_CUR_HASH_ADAPT */
-
-#ifdef BTR_CUR_ADAPT
 /** Create and initialize search info.
 @param[in,out]	heap		heap where created
 @return own: search info struct */
@@ -183,16 +170,12 @@ static inline btr_search_t* btr_search_get_info(dict_index_t* index)
 {
 	return(index->search_info);
 }
-#endif /* BTR_CUR_ADAPT */
 
 /** The search info struct in an index */
 struct btr_search_t{
 	/* @{ The following fields are not protected by any latch.
 	Unfortunately, this means that they must be aligned to
 	the machine word, i.e., they cannot be turned into bit-fields. */
-	buf_block_t* root_guess;/*!< the root page frame when it was last time
-				fetched, or NULL */
-#ifdef BTR_CUR_HASH_ADAPT
 	ulint	hash_analysis;	/*!< when this exceeds
 				BTR_SEARCH_HASH_ANALYSIS, the hash
 				analysis starts; this is reset if no
@@ -234,7 +217,6 @@ struct btr_search_t{
 				far */
 	ulint	n_searches;	/*!< number of searches */
 #endif /* UNIV_SEARCH_PERF_STAT */
-#endif /* BTR_CUR_HASH_ADAPT */
 #ifdef UNIV_DEBUG
 	ulint	magic_n;	/*!< magic number @see BTR_SEARCH_MAGIC_N */
 /** value of btr_search_t::magic_n, used in assertions */
@@ -242,7 +224,6 @@ struct btr_search_t{
 #endif /* UNIV_DEBUG */
 };
 
-#ifdef BTR_CUR_HASH_ADAPT
 /** The hash index system */
 struct btr_search_sys_t
 {
@@ -385,8 +366,17 @@ the hash index */
 over calls from MySQL. If we notice someone waiting for the latch, we
 again set this much timeout. This is to reduce contention. */
 #define BTR_SEA_TIMEOUT			10000
+# include "btr0sea.ic"
+#else /* BTR_CUR_HASH_ADAPT */
+# define btr_search_sys_create()
+# define btr_search_sys_free()
+# define btr_search_drop_page_hash_index(block)
+# define btr_search_s_lock_all(index)
+# define btr_search_s_unlock_all(index)
+# define btr_search_info_update(index, cursor)
+# define btr_search_move_or_delete_hash_entries(new_block, block)
+# define btr_search_update_hash_on_insert(cursor, ahi_latch)
+# define btr_search_update_hash_on_delete(cursor)
 #endif /* BTR_CUR_HASH_ADAPT */
-
-#include "btr0sea.ic"
 
 #endif

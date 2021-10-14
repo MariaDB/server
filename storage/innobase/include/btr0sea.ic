@@ -28,6 +28,7 @@ Created 2/17/1996 Heikki Tuuri
 #include "btr0cur.h"
 #include "buf0buf.h"
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** Create and initialize search info.
 @param[in,out]	heap		heap where created
 @return own: search info struct */
@@ -36,14 +37,11 @@ static inline btr_search_t* btr_search_info_create(mem_heap_t* heap)
 	btr_search_t*	info = static_cast<btr_search_t*>(
 		mem_heap_zalloc(heap, sizeof(btr_search_t)));
 	ut_d(info->magic_n = BTR_SEARCH_MAGIC_N);
-#ifdef BTR_CUR_HASH_ADAPT
 	info->n_fields = 1;
 	info->left_side = TRUE;
-#endif /* BTR_CUR_HASH_ADAPT */
 	return(info);
 }
 
-#ifdef BTR_CUR_HASH_ADAPT
 /** Updates the search info.
 @param[in,out]	info	search info
 @param[in,out]	cursor	cursor which was just positioned */

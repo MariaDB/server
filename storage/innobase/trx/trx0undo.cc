@@ -1009,7 +1009,6 @@ trx_undo_mem_create(
 
 	undo->top_undo_no = IB_ID_MAX;
 	undo->top_page_no = page_no;
-	undo->guess_block = NULL;
 	ut_ad(undo->empty());
 
 	return(undo);
@@ -1185,8 +1184,7 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 	if (undo) {
 		return buf_page_get_gen(
 			page_id_t(undo->rseg->space->id, undo->last_page_no),
-			0, RW_X_LATCH, undo->guess_block,
-			BUF_GET, __FILE__, __LINE__, mtr, err);
+			0, RW_X_LATCH, BUF_GET, __FILE__, __LINE__, mtr, err);
 	}
 
 	trx_rseg_t* rseg = trx->rsegs.m_redo.rseg;
@@ -1239,8 +1237,7 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 	if (*undo) {
 		return buf_page_get_gen(
 			page_id_t(rseg->space->id, (*undo)->last_page_no),
-			0, RW_X_LATCH, (*undo)->guess_block,
-			BUF_GET, __FILE__, __LINE__, mtr, err);
+			0, RW_X_LATCH, BUF_GET, __FILE__, __LINE__, mtr, err);
 	}
 
 	DBUG_EXECUTE_IF(

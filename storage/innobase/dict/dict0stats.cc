@@ -1519,7 +1519,7 @@ dict_stats_analyze_index_below_cur(
 		dberr_t err = DB_SUCCESS;
 
 		block = buf_page_get_gen(page_id, zip_size,
-					 RW_S_LATCH, NULL, BUF_GET,
+					 RW_S_LATCH, BUF_GET,
 					 __FILE__, __LINE__, &mtr, &err,
 					 !index->is_clust()
 					 && 1 == btr_page_get_level(page));

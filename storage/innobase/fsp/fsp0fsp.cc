@@ -412,7 +412,6 @@ xdes_get_descriptor_const(
 
 	if (buf_block_t* block = buf_page_get_gen(page_id_t(space->id, page),
 						  zip_size, RW_S_LATCH,
-						  nullptr,
 						  BUF_GET_POSSIBLY_FREED,
 						  __FILE__, __LINE__, mtr)) {
 		buf_block_dbg_add_level(block, SYNC_FSP_PAGE);

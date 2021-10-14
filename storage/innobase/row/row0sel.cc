@@ -1183,7 +1183,7 @@ re_scan:
 			cur_block = buf_page_get_gen(
 				page_id_t(index->table->space_id, page_no),
 				index->table->space->zip_size(),
-				RW_X_LATCH, NULL, BUF_GET,
+				RW_X_LATCH, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 		} else {
 			mtr->start();
@@ -3384,7 +3384,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 			buf_block_t*	block = buf_page_get_gen(
 				btr_pcur_get_block(prebuilt->pcur)->page.id(),
 				btr_pcur_get_block(prebuilt->pcur)->zip_size(),
-				RW_NO_LATCH, NULL, BUF_GET,
+				RW_NO_LATCH, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 			mem_heap_t*	heap = mem_heap_create(256);
 			dtuple_t*       tuple = dict_index_build_data_tuple(

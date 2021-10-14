@@ -1074,10 +1074,10 @@ struct dict_index_t {
 	dict_add_v_col_info* new_vcol_info;
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
-#ifdef BTR_CUR_ADAPT
+#ifdef BTR_CUR_HASH_ADAPT
 	btr_search_t*	search_info;
 				/*!< info used in optimistic searches */
-#endif /* BTR_CUR_ADAPT */
+#endif /* BTR_CUR_HASH_ADAPT */
 	row_log_t*	online_log;
 				/*!< the log of modifications
 				during online index creation;

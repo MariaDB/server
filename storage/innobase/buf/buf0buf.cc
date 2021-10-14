@@ -2844,7 +2844,6 @@ done:
 @param[in]	page_id			page id
 @param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
-@param[in]	guess			guessed block or NULL
 @param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
 BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 @param[in]	file			file name
@@ -2861,7 +2860,6 @@ buf_page_get_low(
 	const page_id_t		page_id,
 	ulint			zip_size,
 	ulint			rw_latch,
-	buf_block_t*		guess,
 	ulint			mode,
 	const char*		file,
 	unsigned		line,
@@ -2924,31 +2922,11 @@ buf_page_get_low(
 	buf_pool.stat.n_page_gets++;
 loop:
 	buf_block_t* fix_block;
-	block = guess;
 
 	page_hash_latch* hash_lock = buf_pool.page_hash.lock<false>(fold);
 
-	if (block) {
-
-		/* If the guess is a compressed page descriptor that
-		has been allocated by buf_page_alloc_descriptor(),
-		it may have been freed by buf_relocate(). */
-
-		if (!buf_pool.is_uncompressed(block)
-		    || page_id != block->page.id()
-		    || block->page.state() != BUF_BLOCK_FILE_PAGE) {
-			/* Our guess was bogus or things have changed
-			since. */
-			guess = nullptr;
-			goto lookup;
-		} else {
-			ut_ad(!block->page.in_zip_hash);
-		}
-	} else {
-lookup:
-		block = reinterpret_cast<buf_block_t*>(
-			buf_pool.page_hash_get_low(page_id, fold));
-	}
+	block = reinterpret_cast<buf_block_t*>(
+		buf_pool.page_hash_get_low(page_id, fold));
 
 	if (!block || buf_pool.watch_is_sentinel(block->page)) {
 		hash_lock->read_unlock();
@@ -3284,15 +3262,12 @@ re_evict:
 				: buf_pool.page_hash_get_low(page_id, fold));
 			hash_lock->write_unlock();
 
-			if (block != NULL) {
+			if (block) {
 				/* Either the page has been read in or
 				a watch was set on that in the window
 				where we released the buf_pool.mutex
 				and before we acquire the hash_lock
 				above. Try again. */
-				guess = block;
-
-				goto loop;
 			}
 
 			return(NULL);
@@ -3409,7 +3384,6 @@ get_latch:
 @param[in]	page_id			page id
 @param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
-@param[in]	guess			guessed block or NULL
 @param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
 BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 @param[in]	file			file name
@@ -3424,7 +3398,6 @@ buf_page_get_gen(
 	const page_id_t		page_id,
 	ulint			zip_size,
 	ulint			rw_latch,
-	buf_block_t*		guess,
 	ulint			mode,
 	const char*		file,
 	unsigned		line,
@@ -3461,7 +3434,7 @@ buf_page_get_gen(
   }
 
   return buf_page_get_low(page_id, zip_size, rw_latch,
-                          guess, mode, file, line, mtr, err, allow_ibuf_merge);
+                          mode, file, line, mtr, err, allow_ibuf_merge);
 }
 
 /********************************************************************//**

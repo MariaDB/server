@@ -317,8 +317,6 @@ struct trx_undo_t {
 					log if we think of it as a stack */
 	undo_no_t	top_undo_no;	/*!< undo number of the latest record
 					(IB_ID_MAX if the undo log is empty) */
-	buf_block_t*	guess_block;	/*!< guess for the buffer block where
-					the top page might reside */
 
 	/** @return whether the undo log is empty */
 	bool empty() const { return top_undo_no == IB_ID_MAX; }

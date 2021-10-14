@@ -360,7 +360,7 @@ btr_root_adjust_on_import(
 
 	buf_block_t* block = buf_page_get_gen(
 		page_id_t(table->space->id, index->page),
-		table->space->zip_size(), RW_X_LATCH, NULL, BUF_GET,
+		table->space->zip_size(), RW_X_LATCH, BUF_GET,
 		__FILE__, __LINE__,
 		&mtr, &err);
 	if (!block) {

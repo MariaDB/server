@@ -2159,8 +2159,8 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 	in the buffer pool, evict it now, because
 	we no longer evict the pages on DISCARD TABLESPACE. */
 	buf_page_get_gen(block->page.id(), get_zip_size(),
-			 RW_NO_LATCH, NULL, BUF_EVICT_IF_IN_POOL,
-			 __FILE__, __LINE__, NULL, NULL);
+			 RW_NO_LATCH, BUF_EVICT_IF_IN_POOL,
+			 __FILE__, __LINE__, nullptr);
 
 	uint16_t page_type;
 

@@ -1291,7 +1291,7 @@ dict_index_t *dict_index_t::clone() const
   ut_ad(!rtr_track);
 
   const size_t size= sizeof *this + n_fields * sizeof(*fields) +
-#ifdef BTR_CUR_ADAPT
+#ifdef BTR_CUR_HASH_ADAPT
     sizeof *search_info +
 #endif
     1 + strlen(name) +
@@ -1308,9 +1308,9 @@ dict_index_t *dict_index_t::clone() const
   index->name= mem_heap_strdup(heap, name);
   index->fields= static_cast<dict_field_t*>
     (mem_heap_dup(heap, fields, n_fields * sizeof *fields));
-#ifdef BTR_CUR_ADAPT
+#ifdef BTR_CUR_HASH_ADAPT
   index->search_info= btr_search_info_create(index->heap);
-#endif /* BTR_CUR_ADAPT */
+#endif /* BTR_CUR_HASH_ADAPT */
   index->stat_n_diff_key_vals= static_cast<ib_uint64_t*>
     (mem_heap_zalloc(heap, n_uniq * sizeof *stat_n_diff_key_vals));
   index->stat_n_sample_sizes= static_cast<ib_uint64_t*>
@@ -2156,9 +2156,9 @@ dict_index_add_to_cache(
 	/* Add the new index as the last index for the table */
 
 	UT_LIST_ADD_LAST(new_index->table->indexes, new_index);
-#ifdef BTR_CUR_ADAPT
+#ifdef BTR_CUR_HASH_ADAPT
 	new_index->search_info = btr_search_info_create(new_index->heap);
-#endif /* BTR_CUR_ADAPT */
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	new_index->page = unsigned(page_no);
 	rw_lock_create(index_tree_rw_lock_key, &new_index->lock,
