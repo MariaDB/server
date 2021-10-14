@@ -3227,21 +3227,22 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
                            const Account_options &options,
                            const ulong privileges)
 {
+  ACL_USER_PARAM::AUTH *work_copy= NULL;
   if (nauth)
   {
-    if (acl_user->nauth >= nauth)
-      acl_user->nauth= nauth;
-    else
-      acl_user->alloc_auth(&acl_memroot, nauth);
+    if (!(work_copy= (ACL_USER_PARAM::AUTH*)
+            alloc_root(thd->mem_root, nauth * sizeof(ACL_USER_PARAM::AUTH))))
+      return 1;
 
     USER_AUTH *auth= combo.auth;
     for (uint i= 0; i < nauth; i++, auth= auth->next)
     {
-      acl_user->auth[i].plugin= auth->plugin;
-      acl_user->auth[i].auth_string= safe_lexcstrdup_root(&acl_memroot, auth->auth_str);
-      if (fix_user_plugin_ptr(acl_user->auth + i))
-        acl_user->auth[i].plugin= safe_lexcstrdup_root(&acl_memroot, auth->plugin);
-      if (set_user_auth(thd, acl_user->user, acl_user->auth + i, auth->pwtext))
+      work_copy[i].plugin= auth->plugin;
+      work_copy[i].auth_string= safe_lexcstrdup_root(&acl_memroot,
+                                                     auth->auth_str);
+      if (fix_user_plugin_ptr(work_copy + i))
+        work_copy[i].plugin= safe_lexcstrdup_root(&acl_memroot, auth->plugin);
+      if (set_user_auth(thd, acl_user->user, work_copy + i, auth->pwtext))
         return 1;
     }
   }
@@ -3269,11 +3270,34 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
   if (options.account_locked != ACCOUNTLOCK_UNSPECIFIED)
     acl_user->account_locked= options.account_locked == ACCOUNTLOCK_LOCKED;
 
-  /* Unexpire the user password */
+  if (thd->is_error())
+  {
+    // If something went wrong (including OOM) we will not spoil acl cache
+    return 1;
+  }
+  /* Unexpire the user password and copy AUTH (when no more errors possible)*/
   if (nauth)
   {
     acl_user->password_expired= false;
-    acl_user->password_last_changed= thd->query_start();;
+    acl_user->password_last_changed= thd->query_start();
+
+    if (acl_user->nauth >= nauth)
+    {
+      acl_user->nauth= nauth;
+    }
+    else
+    {
+      if (acl_user->alloc_auth(&acl_memroot, nauth))
+      {
+        /*
+          acl_user is a copy, so NULL assigned in case of an error do not
+          change the acl cache
+        */
+        return 1;
+      }
+    }
+    DBUG_ASSERT(work_copy); // allocated under the same condinition
+    memcpy(acl_user->auth, work_copy,  nauth * sizeof(ACL_USER_PARAM::AUTH));
   }
 
   switch (options.password_expire) {
