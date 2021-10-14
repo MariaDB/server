@@ -1565,3 +1565,56 @@ GET DIAGNOSTICS CONDITION 2 @n= ROW_NUMBER, @m = MESSAGE_TEXT;
 SELECT @n, @m;
 
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-26832: ROW_NUMBER in SIGNAL/RESIGNAL causes a syntax error
+--echo #
+
+--echo # using signal
+
+DELIMITER |;
+CREATE PROCEDURE signal_syntax()
+BEGIN
+  DECLARE errno INT DEFAULT 0;
+  DECLARE msg TEXT DEFAULT "foo";
+  DECLARE row_num INT DEFAULT 0;
+  DECLARE cond CONDITION FOR SQLSTATE "01234";
+  DECLARE CONTINUE HANDLER for 1012
+  BEGIN
+    GET DIAGNOSTICS CONDITION 1 errno = MYSQL_ERRNO, msg = MESSAGE_TEXT, row_num= ROW_NUMBER;
+  END;
+
+  SIGNAL cond SET MESSAGE_TEXT = "Signal message", MYSQL_ERRNO = 1012, ROW_NUMBER= 5;
+
+  SELECT errno, msg, row_num;
+END|
+DELIMITER ;|
+
+CALL signal_syntax();
+
+DROP PROCEDURE signal_syntax;
+
+--echo # using resignal
+
+DELIMITER |;
+
+CREATE PROCEDURE resignal_syntax()
+BEGIN
+   DECLARE CONTINUE HANDLER
+   FOR 1146
+   BEGIN
+      RESIGNAL SET
+      MESSAGE_TEXT = '`temptab` does not exist', ROW_NUMBER= 105;
+   END;
+   SELECT `c` FROM `temptab`;
+END|
+
+DELIMITER ;|
+
+--error ER_NO_SUCH_TABLE
+CALL resignal_syntax();
+
+GET DIAGNOSTICS CONDITION 1 @row_num= ROW_NUMBER;
+SELECT @row_num;
+
+DROP PROCEDURE resignal_syntax;

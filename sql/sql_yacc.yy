@@ -3475,6 +3475,8 @@ signal_condition_information_item_name:
           { $$= DIAG_MESSAGE_TEXT; }
         | MYSQL_ERRNO_SYM
           { $$= DIAG_MYSQL_ERRNO; }
+        | ROW_NUMBER_SYM
+          { $$= DIAG_ROW_NUMBER; }
         ;
 
 resignal_stmt:

@@ -560,7 +560,8 @@ typedef enum enum_diag_condition_item_name
   DIAG_CURSOR_NAME= 9,
   DIAG_MESSAGE_TEXT= 10,
   DIAG_MYSQL_ERRNO= 11,
-  LAST_DIAG_SET_PROPERTY= DIAG_MYSQL_ERRNO
+  DIAG_ROW_NUMBER= 12,
+  LAST_DIAG_SET_PROPERTY= DIAG_ROW_NUMBER
 } Diag_condition_item_name;
 
 /**

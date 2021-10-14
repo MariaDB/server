@@ -204,6 +204,7 @@ Sql_condition::copy_opt_attributes(const Sql_condition *cond)
   copy_string(m_mem_root, & m_table_name, & cond->m_table_name);
   copy_string(m_mem_root, & m_column_name, & cond->m_column_name);
   copy_string(m_mem_root, & m_cursor_name, & cond->m_cursor_name);
+  m_row_number= cond->m_row_number;
 }
 
 

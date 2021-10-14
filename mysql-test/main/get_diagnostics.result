@@ -1689,3 +1689,42 @@ SELECT @n, @m;
 @n	@m
 2	Out of range value for column 'f' at row 2
 DROP TABLE t;
+#
+# MDEV-26832: ROW_NUMBER in SIGNAL/RESIGNAL causes a syntax error
+#
+# using signal
+CREATE PROCEDURE signal_syntax()
+BEGIN
+DECLARE errno INT DEFAULT 0;
+DECLARE msg TEXT DEFAULT "foo";
+DECLARE row_num INT DEFAULT 0;
+DECLARE cond CONDITION FOR SQLSTATE "01234";
+DECLARE CONTINUE HANDLER for 1012
+BEGIN
+GET DIAGNOSTICS CONDITION 1 errno = MYSQL_ERRNO, msg = MESSAGE_TEXT, row_num= ROW_NUMBER;
+END;
+SIGNAL cond SET MESSAGE_TEXT = "Signal message", MYSQL_ERRNO = 1012, ROW_NUMBER= 5;
+SELECT errno, msg, row_num;
+END|
+CALL signal_syntax();
+errno	msg	row_num
+1012	Signal message	5
+DROP PROCEDURE signal_syntax;
+# using resignal
+CREATE PROCEDURE resignal_syntax()
+BEGIN
+DECLARE CONTINUE HANDLER
+FOR 1146
+BEGIN
+RESIGNAL SET
+MESSAGE_TEXT = '`temptab` does not exist', ROW_NUMBER= 105;
+END;
+SELECT `c` FROM `temptab`;
+END|
+CALL resignal_syntax();
+ERROR 42S02: `temptab` does not exist
+GET DIAGNOSTICS CONDITION 1 @row_num= ROW_NUMBER;
+SELECT @row_num;
+@row_num
+105
+DROP PROCEDURE resignal_syntax;

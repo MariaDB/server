@@ -44,6 +44,7 @@ const LEX_CSTRING Diag_condition_item_names[]=
   { STRING_WITH_LEN("CURSOR_NAME") },
   { STRING_WITH_LEN("MESSAGE_TEXT") },
   { STRING_WITH_LEN("MYSQL_ERRNO") },
+  { STRING_WITH_LEN("ROW_NUMBER") },
 
   { STRING_WITH_LEN("CONDITION_IDENTIFIER") },
   { STRING_WITH_LEN("CONDITION_NUMBER") },
@@ -307,6 +308,26 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
       goto end;
     }
     cond->m_sql_errno= (int) code;
+  }
+
+  set= m_set_signal_information.m_item[DIAG_ROW_NUMBER];
+  if (set != NULL)
+  {
+    if (set->is_null())
+    {
+      thd->raise_error_printf(ER_WRONG_VALUE_FOR_VAR,
+                              "ROW_NUMBER", "NULL");
+      goto end;
+    }
+    longlong row_number_value= set->val_int();
+    if (row_number_value < 0)
+    {
+      str= set->val_str(& str_value);
+      thd->raise_error_printf(ER_WRONG_VALUE_FOR_VAR,
+                              "ROW_NUMBER", str->c_ptr_safe());
+      goto end;
+    }
+    cond->m_row_number= (ulong) row_number_value;
   }
 
   /*
