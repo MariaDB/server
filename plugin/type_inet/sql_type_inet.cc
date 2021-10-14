@@ -168,8 +168,7 @@ bool Inet4::ascii_to_ipv4(const char *str, size_t str_length)
   IPv4-part differently on different platforms.
 */
 
-template<>
-bool Inet6Bundle::Fbt::ascii_to_fbt(const char *str, size_t str_length)
+bool Inet6::ascii_to_fbt(const char *str, size_t str_length)
 {
   if (str_length < 2)
   {
@@ -382,8 +381,7 @@ size_t Inet4::to_string(char *dst, size_t dstsize) const
   Windows Vista, but out the minimum supported version is Windows 2000.
 */
 
-template<>
-size_t Inet6Bundle::Fbt::to_string(char *dst, size_t dstsize) const
+size_t Inet6::to_string(char *dst, size_t dstsize) const
 {
   struct Region
   {
@@ -509,8 +507,7 @@ size_t Inet6Bundle::Fbt::to_string(char *dst, size_t dstsize) const
   return (size_t) (p - dst);
 }
 
-template<>
-const Name &Inet6Bundle::Type_handler_fbt::default_value() const
+const Name &Inet6::default_value()
 {
   static Name def(STRING_WITH_LEN("::"));
   return def;

@@ -1,5 +1,6 @@
 CREATE TABLE t1 (a UUID);
 Field   1:  `a`
+Org_field:  `a`
 Catalog:    `def`
 Database:   `test`
 Table:      `t1`

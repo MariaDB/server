@@ -26,16 +26,19 @@
 #define MYSQL_SERVER
 #include "sql_class.h" // THD, SORT_FIELD_ATTR
 #include "opt_range.h" // SEL_ARG, null_element
+#include "sql_type_fixedbin_storage.h"
 
 /***********************************************************************/
-template<size_t NATIVE_LEN, size_t MAX_CHAR_LEN>
+
+
+template<class FbtImpl>
 class FixedBinTypeBundle
 {
 public:
-  class Fbt
+  class Fbt: public FbtImpl
   {
   protected:
-    char m_buffer[NATIVE_LEN];
+    using FbtImpl::m_buffer;
     bool make_from_item(Item *item, bool warn)
     {
       if (item->type_handler() == type_handler_fbt())
@@ -49,24 +52,23 @@ public:
           memcpy(m_buffer, tmp.ptr(), sizeof(m_buffer));
         return false;
       }
-      StringBuffer<MAX_CHAR_LEN+1> tmp;
+      StringBuffer<FbtImpl::max_char_length()+1> tmp;
       String *str= item->val_str(&tmp);
       return str ? make_from_character_or_binary_string(str, warn) : true;
     }
 
-    bool ascii_to_fbt(const char *str, size_t str_length); // XXX
     bool character_string_to_fbt(const char *str, size_t str_length,
                                   CHARSET_INFO *cs)
     {
       if (cs->state & MY_CS_NONASCII)
       {
-        char tmp[MAX_CHAR_LEN+1];
+        char tmp[FbtImpl::max_char_length()+1];
         String_copier copier;
         uint length= copier.well_formed_copy(&my_charset_latin1, tmp, sizeof(tmp),
                                              cs, str, str_length);
-        return ascii_to_fbt(tmp, length);
+        return FbtImpl::ascii_to_fbt(tmp, length);
       }
-      return ascii_to_fbt(str, str_length);
+      return FbtImpl::ascii_to_fbt(str, str_length);
     }
     bool make_from_character_or_binary_string(const String *str, bool warn)
     {
@@ -101,21 +103,11 @@ public:
     Fbt() { }
 
   public:
-    static uint binary_length() { return NATIVE_LEN; }
-    static uint max_char_length() { return MAX_CHAR_LEN; }
-    static bool only_zero_bytes(const char *ptr, uint length)
-    {
-      for (uint i= 0 ; i < length; i++)
-      {
-        if (ptr[i] != 0)
-          return false;
-      }
-      return true;
-    }
+
      static Fbt zero()
      {
        Fbt fbt;
-       bzero(&fbt.m_buffer, sizeof(fbt.m_buffer));
+       fbt.set_zero();
        return fbt;
      }
 
@@ -153,13 +145,13 @@ public:
     {
       return to->copy(m_buffer, sizeof(m_buffer));
     }
-    size_t to_string(char *dst, size_t dstsize) const; // XXX
     bool to_string(String *to) const
     {
       to->set_charset(&my_charset_latin1);
-      if (to->alloc(MAX_CHAR_LEN+1))
+      if (to->alloc(FbtImpl::max_char_length()+1))
         return true;
-      to->length((uint32) to_string(const_cast<char*>(to->ptr()), MAX_CHAR_LEN+1));
+      to->length((uint32) FbtImpl::to_string(const_cast<char*>(to->ptr()),
+                                             FbtImpl::max_char_length()+1));
       return false;
     }
     int cmp(const char *str, size_t length) const
@@ -222,7 +214,7 @@ public:
   public:
     Type_std_attributes_fbt()
      :Type_std_attributes(
-        Type_numeric_attributes(MAX_CHAR_LEN, 0, true),
+        Type_numeric_attributes(FbtImpl::max_char_length(), 0, true),
         DTCollation_numeric())
     { }
   };
@@ -235,7 +227,7 @@ public:
       if (str->charset() == &my_charset_bin)
       {
         // Convert from a binary string
-        if (str->length() != NATIVE_LEN ||
+        if (str->length() != FbtImpl::binary_length() ||
             to->copy(str->ptr(), str->length()))
         {
           thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
@@ -261,7 +253,10 @@ public:
       return &type_collection_fbt;
     }
 
-    const Name &default_value() const override; // XXX
+    const Name &default_value() const override
+    {
+      return FbtImpl::default_value();
+    }
     protocol_send_type_t protocol_send_type() const override
     {
       return PROTOCOL_SEND_STRING;
@@ -295,7 +290,7 @@ public:
 
     uint32 max_display_length_for_field(const Conv_source &src) const override
     {
-      return MAX_CHAR_LEN;
+      return FbtImpl::max_char_length();
     }
 
     const Type_handler *type_handler_for_comparison() const override
@@ -309,7 +304,7 @@ public:
       Fbt_null ni(item); // Convert Item to Fbt
       if (ni.is_null())
         return 0;
-      NativeBuffer<NATIVE_LEN+1> tmp;
+      NativeBuffer<FbtImpl::binary_length()+1> tmp;
       if (field->val_native(&tmp))
       {
         DBUG_ASSERT(0);
@@ -348,7 +343,7 @@ public:
     decimal_digits_t  Item_decimal_precision(const Item *item) const override
     {
       /* This will be needed if we ever allow cast from Fbt to DECIMAL. */
-      return (NATIVE_LEN*8+7)/10*3; // = bytes to decimal digits
+      return (FbtImpl::binary_length()*8+7)/10*3; // = bytes to decimal digits
     }
 
     /*
@@ -377,7 +372,7 @@ public:
     // Fix attributes after the parser
     bool Column_definition_fix_attributes(Column_definition *c) const override
     {
-      c->length= MAX_CHAR_LEN;
+      c->length= FbtImpl::max_char_length();
       return false;
     }
 
@@ -424,7 +419,7 @@ public:
                                       partition_value_print_mode_t mode)
                                       const override
     {
-      StringBuffer<MAX_CHAR_LEN+64> fbtstr;
+      StringBuffer<FbtImpl::max_char_length()+64> fbtstr;
       Fbt_null fbt(item_expr);
       if (fbt.is_null())
       {
@@ -471,20 +466,20 @@ public:
                             Sort_param *param) const override
     {
       DBUG_ASSERT(item->type_handler() == this);
-      NativeBuffer<NATIVE_LEN+1> tmp;
+      NativeBuffer<FbtImpl::binary_length()+1> tmp;
       item->val_native_result(current_thd, &tmp);
       if (item->maybe_null())
       {
         if (item->null_value)
         {
-          memset(to, 0, NATIVE_LEN + 1);
+          memset(to, 0, FbtImpl::binary_length() + 1);
           return;
         }
         *to++= 1;
       }
       DBUG_ASSERT(!item->null_value);
-      DBUG_ASSERT(NATIVE_LEN == tmp.length());
-      DBUG_ASSERT(NATIVE_LEN == sort_field->length);
+      DBUG_ASSERT(FbtImpl::binary_length() == tmp.length());
+      DBUG_ASSERT(FbtImpl::binary_length() == sort_field->length);
       memcpy(to, tmp.ptr(), tmp.length());
     }
     uint make_packed_sort_key_part(uchar *to, Item *item,
@@ -492,7 +487,7 @@ public:
                                    Sort_param *param) const override
     {
       DBUG_ASSERT(item->type_handler() == this);
-      NativeBuffer<NATIVE_LEN+1> tmp;
+      NativeBuffer<FbtImpl::binary_length()+1> tmp;
       item->val_native_result(current_thd, &tmp);
       if (item->maybe_null())
       {
@@ -504,28 +499,28 @@ public:
         *to++= 1;
       }
       DBUG_ASSERT(!item->null_value);
-      DBUG_ASSERT(NATIVE_LEN == tmp.length());
-      DBUG_ASSERT(NATIVE_LEN == sort_field->length);
+      DBUG_ASSERT(FbtImpl::binary_length() == tmp.length());
+      DBUG_ASSERT(FbtImpl::binary_length() == sort_field->length);
       memcpy(to, tmp.ptr(), tmp.length());
       return tmp.length();
     }
     void sort_length(THD *thd, const Type_std_attributes *item,
                     SORT_FIELD_ATTR *attr) const override
     {
-      attr->original_length= attr->length= NATIVE_LEN;
+      attr->original_length= attr->length= FbtImpl::binary_length();
       attr->suffix_length= 0;
     }
     uint32 max_display_length(const Item *item) const override
     {
-      return MAX_CHAR_LEN;
+      return FbtImpl::max_char_length();
     }
     uint32 calc_pack_length(uint32 length) const override
     {
-      return NATIVE_LEN;
+      return FbtImpl::binary_length();
     }
     void Item_update_null_value(Item *item) const override
     {
-      NativeBuffer<NATIVE_LEN+1> tmp;
+      NativeBuffer<FbtImpl::binary_length()+1> tmp;
       item->val_native(current_thd, &tmp);
     }
     bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override
@@ -578,7 +573,7 @@ public:
     bool Item_param_val_native(THD *thd, Item_param *item, Native *to)
                                const override
     {
-      StringBuffer<MAX_CHAR_LEN+1> buffer;
+      StringBuffer<FbtImpl::max_char_length()+1> buffer;
       String *str= item->val_str(&buffer);
       if (!str)
         return true;
@@ -606,7 +601,7 @@ public:
 
     String *print_item_value(THD *thd, Item *item, String *str) const override
     {
-      StringBuffer<MAX_CHAR_LEN+64> buf;
+      StringBuffer<FbtImpl::max_char_length()+64> buf;
       String *result= item->val_str(&buf);
       /*
         TODO: This should eventually use one of these notations:
@@ -705,9 +700,9 @@ public:
     }
     int cmp_native(const Native &a, const Native &b) const override
     {
-      DBUG_ASSERT(a.length() == NATIVE_LEN);
-      DBUG_ASSERT(b.length() == NATIVE_LEN);
-      return memcmp(a.ptr(), b.ptr(), NATIVE_LEN);
+      DBUG_ASSERT(a.length() == FbtImpl::binary_length());
+      DBUG_ASSERT(b.length() == FbtImpl::binary_length());
+      return memcmp(a.ptr(), b.ptr(), FbtImpl::binary_length());
     }
     bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override
     {
@@ -782,7 +777,7 @@ public:
     {
       if (item->type_handler() == this)
         return item->val_native(thd, to); // No conversion needed
-      StringBuffer<MAX_CHAR_LEN+1> buffer;
+      StringBuffer<FbtImpl::max_char_length()+1> buffer;
       String *str= item->val_str(&buffer);
       return str ? character_or_binary_string_to_native(thd, str, to) : true;
     }
@@ -791,14 +786,14 @@ public:
     {
       if (item->type_handler() == this)
         return item->val_native_result(thd, to); // No conversion needed
-      StringBuffer<MAX_CHAR_LEN+1> buffer;
+      StringBuffer<FbtImpl::max_char_length()+1> buffer;
       String *str= item->str_result(&buffer);
       return str ? character_or_binary_string_to_native(thd, str, to) : true;
     }
 
     bool Item_val_bool(Item *item) const override
     {
-      NativeBuffer<NATIVE_LEN+1> tmp;
+      NativeBuffer<FbtImpl::binary_length()+1> tmp;
       if (item->val_native(current_thd, &tmp))
         return false;
       return !Fbt::only_zero_bytes(tmp.ptr(), tmp.length());
@@ -824,10 +819,10 @@ public:
     String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str)
                                         const override
     {
-      NativeBuffer<NATIVE_LEN+1> tmp;
+      NativeBuffer<FbtImpl::binary_length()+1> tmp;
       if ((item->null_value= item->arguments()[0]->val_native(current_thd, &tmp)))
         return nullptr;
-      DBUG_ASSERT(tmp.length() == NATIVE_LEN);
+      DBUG_ASSERT(tmp.length() == FbtImpl::binary_length());
       if (str->set_hex(tmp.ptr(), tmp.length()))
       {
         str->length(0);
@@ -839,13 +834,13 @@ public:
     String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *item,
                                                 String *str) const override
     {
-      NativeBuffer<NATIVE_LEN+1> native;
+      NativeBuffer<FbtImpl::binary_length()+1> native;
       if (item->val_native(current_thd, &native))
       {
         DBUG_ASSERT(item->null_value);
         return nullptr;
       }
-      DBUG_ASSERT(native.length() == NATIVE_LEN);
+      DBUG_ASSERT(native.length() == FbtImpl::binary_length());
       Fbt_null tmp(native.ptr(), native.length());
       return tmp.is_null() || tmp.to_string(str) ? nullptr : str;
     }
@@ -985,7 +980,7 @@ public:
       {
         static Item_char_typecast_func_handler_fbt_to_binary
                  item_char_typecast_func_handler_fbt_to_binary;
-        item->fix_length_and_dec_native_to_binary(NATIVE_LEN);
+        item->fix_length_and_dec_native_to_binary(FbtImpl::binary_length());
         item->set_func_handler(&item_char_typecast_func_handler_fbt_to_binary);
         return false;
       }
@@ -1070,11 +1065,11 @@ public:
   {
     static void set_min_value(char *ptr)
     {
-      memset(ptr, 0, NATIVE_LEN);
+      memset(ptr, 0, FbtImpl::binary_length());
     }
     static void set_max_value(char *ptr)
     {
-      memset(ptr, 0xFF, NATIVE_LEN);
+      memset(ptr, 0xFF, FbtImpl::binary_length());
     }
     void store_warning(const ErrConv &str,
                        Sql_condition::enum_warning_level level)
@@ -1112,13 +1107,13 @@ public:
       if (fbt.is_null())
         return maybe_null() ? set_null_with_warn(err)
                             : set_min_value_with_warn(err);
-      fbt.to_binary((char *) ptr, NATIVE_LEN);
+      fbt.to_binary((char *) ptr, FbtImpl::binary_length());
       return 0;
     }
 
   public:
     Field_fbt(const LEX_CSTRING *field_name_arg, const Record_addr &rec)
-      :Field(rec.ptr(), MAX_CHAR_LEN,
+      :Field(rec.ptr(), FbtImpl::max_char_length(),
              rec.null_ptr(), rec.null_bit(), Field::NONE, field_name_arg)
     {
       flags|= BINARY_FLAG | UNSIGNED_FLAG;
@@ -1165,11 +1160,11 @@ public:
     }
     uint32 pack_length() const override
     {
-      return NATIVE_LEN;
+      return FbtImpl::binary_length();
     }
     uint pack_length_from_metadata(uint field_metadata) const override
     {
-      return NATIVE_LEN;
+      return FbtImpl::binary_length();
     }
 
     void sql_type(String &str) const override
@@ -1225,13 +1220,13 @@ public:
     bool val_bool(void) override
     {
       DBUG_ASSERT(marked_for_read());
-      return !Fbt::only_zero_bytes((const char *) ptr, NATIVE_LEN);
+      return !Fbt::only_zero_bytes((const char *) ptr, FbtImpl::binary_length());
     }
 
     int store_native(const Native &value) override
     {
       DBUG_ASSERT(marked_for_write_or_computed());
-      DBUG_ASSERT(value.length() == NATIVE_LEN);
+      DBUG_ASSERT(value.length() == FbtImpl::binary_length());
       memcpy(ptr, value.ptr(), value.length());
       return 0;
     }
@@ -1298,7 +1293,7 @@ public:
           dynamic_cast<const Type_handler_general_purpose_string*>
             (to->type_handler()))
       {
-        NativeBuffer<NATIVE_LEN+1> res;
+        NativeBuffer<FbtImpl::binary_length()+1> res;
         val_native(&res);
         return to->store(res.ptr(), res.length(), &my_charset_bin);
       }
@@ -1336,7 +1331,7 @@ public:
 
     static void do_field_fbt_native_to_binary(Copy_field *copy)
     {
-      NativeBuffer<NATIVE_LEN+1> res;
+      NativeBuffer<FbtImpl::binary_length()+1> res;
       copy->from_field->val_native(&res);
       copy->to_field->store(res.ptr(), res.length(), &my_charset_bin);
     }
@@ -1353,7 +1348,7 @@ public:
       if (type_handler() == source.type_handler() ||
           (source.type_handler() == &type_handler_string &&
            source.type_handler()->max_display_length_for_field(source) ==
-           NATIVE_LEN))
+           FbtImpl::binary_length()))
         return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
       return CONV_TYPE_IMPOSSIBLE;
     }
@@ -1449,19 +1444,19 @@ public:
     {
       DBUG_ASSERT(type() == binlog_type());
       return Binlog_type_info_fixed_string(Field_fbt::binlog_type(),
-                                           NATIVE_LEN, &my_charset_bin);
+                                           FbtImpl::binary_length(), &my_charset_bin);
     }
 
     uchar *pack(uchar *to, const uchar *from, uint max_length) override
     {
       DBUG_PRINT("debug", ("Packing field '%s'", field_name.str));
-      return StringPack(&my_charset_bin, NATIVE_LEN).pack(to, from, max_length);
+      return StringPack(&my_charset_bin, FbtImpl::binary_length()).pack(to, from, max_length);
     }
 
     const uchar *unpack(uchar *to, const uchar *from, const uchar *from_end,
                         uint param_data) override
     {
-      return StringPack(&my_charset_bin, NATIVE_LEN).unpack(to, from, from_end, param_data);
+      return StringPack(&my_charset_bin, FbtImpl::binary_length()).unpack(to, from, from_end, param_data);
     }
 
     uint max_packed_col_length(uint max_length) override
@@ -1555,7 +1550,7 @@ public:
 
   class Item_cache_fbt: public Item_cache
   {
-    NativeBuffer<NATIVE_LEN+1> m_value;
+    NativeBuffer<FbtImpl::binary_length()+1> m_value;
   public:
     Item_cache_fbt(THD *thd)
      :Item_cache(thd, type_handler_fbt()) { }
@@ -1669,7 +1664,7 @@ public:
     }
     void print(String *str, enum_query_type query_type) override
     {
-      StringBuffer<MAX_CHAR_LEN+64> tmp;
+      StringBuffer<FbtImpl::max_char_length()+64> tmp;
       tmp.append(type_handler_fbt()->name().lex_cstring());
       my_caseup_str(&my_charset_latin1, tmp.c_ptr());
       str->append(tmp);
@@ -1690,7 +1685,7 @@ public:
 
   class Item_copy_fbt: public Item_copy
   {
-    NativeBuffer<NATIVE_LEN+1> m_value;
+    NativeBuffer<Fbt::binary_length()+1> m_value;
   public:
     Item_copy_fbt(THD *thd, Item *item_arg): Item_copy(thd, item_arg) {}
 
