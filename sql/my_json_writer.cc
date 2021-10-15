@@ -260,6 +260,8 @@ void Json_writer::add_str(const String &str)
   add_str(str.ptr(), str.length());
 }
 
+thread_local std::vector<bool> Json_writer_struct::named_items_expectation;
+
 Json_writer_temp_disable::Json_writer_temp_disable(THD *thd_arg)
 {
   thd= thd_arg;
