@@ -1458,8 +1458,8 @@ cast(a as DECIMAL(3,2))
 9.99
 Warnings:
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 2
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 3
 select cast(a as DECIMAL(3,2)), count(*)
 from (select 11.1233 as a
 UNION select 11.1234
@@ -1470,8 +1470,8 @@ cast(a as DECIMAL(3,2))	count(*)
 Warnings:
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 2
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 3
 create table t1 (s varchar(100));
 insert into t1 values (0.00000000010000000000000000364321973154977415791655470655996396089904010295867919921875);
 drop table t1;

@@ -1671,3 +1671,21 @@ SELECT @rnum, @msg, @err;
 @rnum	@msg	@err
 3	Data truncated for column 'a' at row 3	1265
 DROP TABLE t1;
+#
+# ROW_NUMBER differs from the number in the error message upon
+# ER_WARN_DATA_OUT_OF_RANGE
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+SELECT CAST(a AS DECIMAL(2,2)) AS f FROM t;
+f
+0.99
+0.99
+Warnings:
+Warning	1264	Out of range value for column 'f' at row 1
+Warning	1264	Out of range value for column 'f' at row 2
+GET DIAGNOSTICS CONDITION 2 @n= ROW_NUMBER, @m = MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+2	Out of range value for column 'f' at row 2
+DROP TABLE t;

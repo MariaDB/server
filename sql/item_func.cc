@@ -1004,7 +1004,8 @@ err:
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_WARN_DATA_OUT_OF_RANGE,
                       ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE),
-                      name.str, 1L);
+                      name.str,
+                      thd->get_stmt_da()->current_row_for_warning());
   return dec;
 }
 
