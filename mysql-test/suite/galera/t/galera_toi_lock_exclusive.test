@@ -32,6 +32,7 @@ INSERT INTO t1 VALUES (2, 2);
 SELECT COUNT(*) = 2 FROM t1;
 
 --connection node_2
+--disconnect node_2a
 INSERT INTO t1 VALUES (3, 3);
 SELECT COUNT(*) = 3 FROM t1;
 

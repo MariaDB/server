@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -83,7 +83,7 @@ enum enum_slave_parallel_mode {
 
 /* Function prototypes */
 void kill_mysql(THD *thd= 0);
-void close_connection(THD *thd, uint sql_errno= 0);
+void close_connection(THD *thd, uint sql_errno= 0, bool sync= true);
 void handle_connection_in_main_thread(CONNECT *thd);
 void create_thread_to_handle_connection(CONNECT *connect);
 void signal_thd_deleted();

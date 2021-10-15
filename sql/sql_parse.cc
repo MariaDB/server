@@ -2159,6 +2159,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     }
     DBUG_PRINT("quit",("Got shutdown command for level %u", level));
     general_log_print(thd, command, NullS);
+    DBUG_EXECUTE_IF("shutdown_unireg_abort", { unireg_abort(1); });
     my_eof(thd);
     kill_mysql(thd);
     error=TRUE;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2391,7 +2391,7 @@ static void clean_up_mutexes()
 static void set_ports()
 {
 }
-void close_connection(THD *thd, uint sql_errno)
+void close_connection(THD *thd, uint sql_errno, bool sync)
 {
 }
 #else
@@ -2867,7 +2867,7 @@ static void network_init(void)
     For the connection that is doing shutdown, this is called twice
 */
 
-void close_connection(THD *thd, uint sql_errno)
+void close_connection(THD *thd, uint sql_errno, bool sync)
 {
   DBUG_ENTER("close_connection");
 
@@ -2877,7 +2877,7 @@ void close_connection(THD *thd, uint sql_errno)
   thd->print_aborted_warning(3, sql_errno ? ER_DEFAULT(sql_errno)
                                           : "CLOSE_CONNECTION");
 
-  thd->disconnect();
+  thd->disconnect(sync);
 
   MYSQL_CONNECTION_DONE((int) sql_errno, thd->thread_id);
 
