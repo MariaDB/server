@@ -4,7 +4,9 @@
 # MDEV-3909 remote user enumeration
 # unix_socket tests
 #
-update mysql.global_priv set priv=json_insert(priv, '$.plugin', 'unix_socket')  where user='root';
+create table global_priv_backup select * from mysql.global_priv;
+update mysql.global_priv set priv=json_insert(priv, '$.plugin', 'unix_socket');
+delete from mysql.global_priv where user != 'root';
 flush privileges;
 
 # Make sure that the replace works, even if $USER is 'user' or something else
@@ -22,5 +24,6 @@ connect (fail,localhost,$USER);
 --error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
 change_user $USER;
 
-update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin'))  where user='root';
+replace mysql.global_priv select * from global_priv_backup;
 flush privileges;
+drop table global_priv_backup;
