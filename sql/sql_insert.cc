@@ -229,6 +229,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
     }
     if (values.elements != table->s->visible_fields)
     {
+      thd->get_stmt_da()->reset_current_row_for_warning(1);
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
     }
@@ -253,6 +254,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 
     if (fields.elements != values.elements)
     {
+      thd->get_stmt_da()->reset_current_row_for_warning(1);
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
     }

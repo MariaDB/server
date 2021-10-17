@@ -1747,3 +1747,21 @@ SELECT @n, @m;
 @n	@m
 2	Data truncated for column 'a' at row 2
 DROP TABLE t1;
+#
+# MDEV-26841: ROW_NUMBER is not set and differs from the message upon
+# ER_WRONG_VALUE_COUNT_ON_ROW for the 1st row
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1,2),(3);
+ERROR 21S01: Column count doesn't match value count at row 1
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER, @m= MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+1	Column count doesn't match value count at row 1
+INSERT INTO t1(a) VALUES(1,2), (3);
+ERROR 21S01: Column count doesn't match value count at row 1
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER, @m= MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+1	Column count doesn't match value count at row 1
+DROP TABLE t1;
