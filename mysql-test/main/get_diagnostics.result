@@ -1734,3 +1734,16 @@ SELECT @row_num;
 @row_num
 105
 DROP PROCEDURE resignal_syntax;
+#
+# MDEV-26842: ROW_NUMBER is not set and differs from the message upon
+# WARN_DATA_TRUNCATED produced by inplace ALTER
+#
+CREATE TABLE t1 (a VARCHAR(64)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('foo'),(null);
+ALTER TABLE t1 ADD PRIMARY KEY(a), ALGORITHM=INPLACE;
+ERROR 01000: Data truncated for column 'a' at row 2
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER, @m= MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+2	Data truncated for column 'a' at row 2
+DROP TABLE t1;

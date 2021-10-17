@@ -1,3 +1,5 @@
+--source include/have_innodb.inc
+
 SET NAMES utf8;
 
 --echo #
@@ -1614,3 +1616,19 @@ GET DIAGNOSTICS CONDITION 1 @row_num= ROW_NUMBER;
 SELECT @row_num;
 
 DROP PROCEDURE resignal_syntax;
+
+--echo #
+--echo # MDEV-26842: ROW_NUMBER is not set and differs from the message upon
+--echo # WARN_DATA_TRUNCATED produced by inplace ALTER
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(64)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('foo'),(null);
+
+--error WARN_DATA_TRUNCATED
+ALTER TABLE t1 ADD PRIMARY KEY(a), ALGORITHM=INPLACE;
+
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER, @m= MESSAGE_TEXT;
+SELECT @n, @m;
+
+DROP TABLE t1;

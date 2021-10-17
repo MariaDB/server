@@ -11101,6 +11101,14 @@ Field::set_warning(Sql_condition::enum_warning_level level, uint code,
     will have table == NULL.
   */
   THD *thd= get_thd();
+
+  /*
+    In INPLACE ALTER, server can't know which row has generated
+    the warning, so the value of current row is supplied by the engine.
+  */
+  if (current_row)
+    thd->get_stmt_da()->reset_current_row_for_warning(current_row);
+
   if (thd->count_cuted_fields > CHECK_FIELD_EXPRESSION)
   {
     thd->cuted_fields+= cut_increment;
