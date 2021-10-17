@@ -312,7 +312,9 @@ public:
 /* A common base for Json_writer_object and Json_writer_array */
 class Json_writer_struct
 {
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
   static thread_local std::vector<bool> named_items_expectation;
+#endif
 protected:
   Json_writer* my_writer;
   Json_value_helper context;
@@ -327,12 +329,16 @@ public:
     my_writer= thd->opt_trace.get_current_json();
     context.init(my_writer);
     closed= false;
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
     named_items_expectation.push_back(expect_named_children);
+#endif
   }
 
   virtual ~Json_writer_struct()
   {
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
     named_items_expectation.pop_back();
+#endif
   }
 
   bool trace_started() const
@@ -340,11 +346,13 @@ public:
     return my_writer != 0;
   }
 
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
   bool named_item_expected() const
   {
     return named_items_expectation.size() > 1
         && *(named_items_expectation.rbegin() + 1);
   }
+#endif
 };
 
 
@@ -367,7 +375,9 @@ public:
   explicit Json_writer_object(THD *thd)
   : Json_writer_struct(thd, true)
   {
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
     DBUG_ASSERT(!named_item_expected());
+#endif
     if (unlikely(my_writer))
       my_writer->start_object();
   }
@@ -375,7 +385,9 @@ public:
   explicit Json_writer_object(THD* thd, const char *str)
   : Json_writer_struct(thd, true)
   {
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
     DBUG_ASSERT(named_item_expected());
+#endif
     if (unlikely(my_writer))
       my_writer->add_member(str).start_object();
   }
@@ -542,7 +554,9 @@ public:
   Json_writer_array(THD *thd)
   : Json_writer_struct(thd, false)
   {
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
     DBUG_ASSERT(!named_item_expected());
+#endif
     if (unlikely(my_writer))
       my_writer->start_array();
   }
@@ -550,7 +564,9 @@ public:
   Json_writer_array(THD *thd, const char *str)
   : Json_writer_struct(thd, false)
   {
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
     DBUG_ASSERT(named_item_expected());
+#endif
     if (unlikely(my_writer))
       my_writer->add_member(str).start_array();
   }
