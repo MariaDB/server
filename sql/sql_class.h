@@ -1781,6 +1781,25 @@ private:
 };
 
 
+struct Silence_warnings : public Internal_error_handler
+{
+public:
+  virtual bool handle_condition(THD *,
+                                uint,
+                                const char* sqlstate,
+                                Sql_condition::enum_warning_level *level,
+                                const char* msg,
+                                Sql_condition ** cond_hdl)
+  {
+    *cond_hdl= NULL;
+    if (*level == Sql_condition::WARN_LEVEL_WARN)
+      return TRUE;
+
+    return FALSE;
+  }
+};
+
+
 /**
   Internal error handler to process an error from MDL_context::upgrade_lock()
   and mysql_lock_tables(). Used by implementations of HANDLER READ and
