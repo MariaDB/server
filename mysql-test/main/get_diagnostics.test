@@ -1667,3 +1667,23 @@ GET DIAGNOSTICS CONDITION 2 @n= ROW_NUMBER;
 SELECT @n;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26844: DELETE returns ROW_NUMBER=1 for every row upon
+--echo # ER_TRUNCATED_WRONG_VALUE
+--echo #
+
+--echo # without ORDER BY
+
+CREATE TABLE t (a VARCHAR(8));
+
+INSERT INTO t VALUES ('val1'),('val2'),('100'),('val4');
+SELECT * FROM t;
+
+DELETE FROM t WHERE a = 100;
+SHOW WARNINGS;
+
+GET DIAGNOSTICS CONDITION 3 @n = ROW_NUMBER;
+SELECT @n;
+
+DROP TABLE t;

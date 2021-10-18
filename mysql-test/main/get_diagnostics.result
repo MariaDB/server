@@ -1783,3 +1783,31 @@ SELECT @n;
 @n
 4
 DROP TABLE t1;
+#
+# MDEV-26844: DELETE returns ROW_NUMBER=1 for every row upon
+# ER_TRUNCATED_WRONG_VALUE
+#
+# without ORDER BY
+CREATE TABLE t (a VARCHAR(8));
+INSERT INTO t VALUES ('val1'),('val2'),('100'),('val4');
+SELECT * FROM t;
+a
+val1
+val2
+100
+val4
+DELETE FROM t WHERE a = 100;
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'val1'
+Warning	1292	Truncated incorrect DOUBLE value: 'val2'
+Warning	1292	Truncated incorrect DOUBLE value: 'val4'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect DOUBLE value: 'val1'
+Warning	1292	Truncated incorrect DOUBLE value: 'val2'
+Warning	1292	Truncated incorrect DOUBLE value: 'val4'
+GET DIAGNOSTICS CONDITION 3 @n = ROW_NUMBER;
+SELECT @n;
+@n
+4
+DROP TABLE t;

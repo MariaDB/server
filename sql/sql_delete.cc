@@ -795,9 +795,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &deleted);
 
+  thd->get_stmt_da()->reset_current_row_for_warning(0);
   while (likely(!(error=info.read_record())) && likely(!thd->killed) &&
          likely(!thd->is_error()))
   {
+    thd->get_stmt_da()->inc_current_row_for_warning();
     if (delete_while_scanning)
       delete_record= record_should_be_deleted(thd, table, select, explain,
                                               delete_history);
@@ -873,6 +875,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     else
       break;
   }
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
 
 terminate_delete:
   killed_status= thd->killed;
