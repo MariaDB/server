@@ -83,6 +83,7 @@ ha_spider::ha_spider(
   spider_thread_id = 0;
   trx_conn_adjustment = 0;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+#error
   trx_hs_r_conn_adjustment = 0;
   trx_hs_w_conn_adjustment = 0;
 #endif
