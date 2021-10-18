@@ -52,12 +52,12 @@ send INSERT INTO child SET a=5;
 
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR fk';
-SET foreign_key_checks=0;
+SET foreign_key_checks=0, innodb_lock_wait_timeout=0;
+--error ER_LOCK_WAIT_TIMEOUT
 TRUNCATE TABLE parent;
 SET DEBUG_SYNC='now SIGNAL go';
 
 connection dml;
---error ER_NO_REFERENCED_ROW_2
 reap;
 SELECT * FROM parent;
 SELECT * FROM child;

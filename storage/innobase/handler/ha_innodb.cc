@@ -13645,7 +13645,6 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 
 	DEBUG_SYNC_C("innodb_rename_table_ready");
 
-	trx_start_if_not_started(trx, true);
 	ut_ad(trx->will_lock);
 
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, use_fk);
@@ -13782,7 +13781,23 @@ int ha_innobase::truncate()
 	dict_table_t *table_stats = nullptr, *index_stats = nullptr;
 	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
 
-	dberr_t error = lock_table_for_trx(ib_table, trx, LOCK_X);
+	dberr_t error = DB_SUCCESS;
+
+	dict_sys.freeze(SRW_LOCK_CALL);
+	for (const dict_foreign_t* f : ib_table->referenced_set) {
+		if (dict_table_t* child = f->foreign_table) {
+			error = lock_table_for_trx(child, trx, LOCK_X);
+			if (error != DB_SUCCESS) {
+				break;
+			}
+		}
+	}
+	dict_sys.unfreeze();
+
+	if (error == DB_SUCCESS) {
+		error = lock_table_for_trx(ib_table, trx, LOCK_X);
+	}
+
 	const bool fts = error == DB_SUCCESS
 		&& ib_table->flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
 
@@ -13945,6 +13960,26 @@ ha_innobase::rename_table(
 
 	dberr_t error = DB_SUCCESS;
 
+	if (dict_table_t::is_temporary_name(norm_from)) {
+		/* There is no need to lock any FOREIGN KEY child tables. */
+	} else if (dict_table_t *table = dict_table_open_on_name(
+		    norm_from, false, DICT_ERR_IGNORE_FK_NOKEY)) {
+		dict_sys.freeze(SRW_LOCK_CALL);
+		for (const dict_foreign_t* f : table->referenced_set) {
+			if (dict_table_t* child = f->foreign_table) {
+				error = lock_table_for_trx(child, trx, LOCK_X);
+				if (error != DB_SUCCESS) {
+					break;
+				}
+			}
+		}
+		dict_sys.unfreeze();
+		if (error == DB_SUCCESS) {
+			error = lock_table_for_trx(table, trx, LOCK_X);
+		}
+		table->release();
+	}
+
 	if (strcmp(norm_from, TABLE_STATS_NAME)
 	    && strcmp(norm_from, INDEX_STATS_NAME)
 	    && strcmp(norm_to, TABLE_STATS_NAME)
@@ -13966,7 +14001,7 @@ ha_innobase::rename_table(
 			dict_sys.unfreeze();
 		}
 
-		if (table_stats && index_stats
+		if (error == DB_SUCCESS && table_stats && index_stats
 		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME)
 		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
 		    !(error = lock_table_for_trx(table_stats, trx, LOCK_X))) {
