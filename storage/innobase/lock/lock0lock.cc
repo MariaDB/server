@@ -3883,6 +3883,124 @@ released:
 #endif
 }
 
+/** Release non-exclusive locks on XA PREPARE,
+and wake up possible other transactions waiting because of these locks.
+@param trx   transaction in XA PREPARE state
+@return whether all locks were released */
+static bool lock_release_on_prepare_try(trx_t *trx)
+{
+  /* At this point, trx->lock.trx_locks can still be modified by other
+  threads to convert implicit exclusive locks into explicit ones.
+
+  The function lock_table_create() should never be invoked on behalf
+  of a transaction that is running in another thread. Also there, we
+  will assert that the current transaction be active. */
+  DBUG_ASSERT(trx->state == TRX_STATE_PREPARED);
+
+  bool all_released= true;
+  lock_sys.rd_lock(SRW_LOCK_CALL);
+  trx->mutex_lock();
+
+  /* Note: Normally, trx->mutex is not held while acquiring
+  a lock table latch, but here we are following the opposite order.
+  To avoid deadlocks, we only try to acquire the lock table latches
+  but not keep waiting for them. */
+
+  for (lock_t *prev, *lock= UT_LIST_GET_LAST(trx->lock.trx_locks); lock;
+       lock= prev)
+  {
+    ut_ad(lock->trx == trx);
+    prev= UT_LIST_GET_PREV(trx_locks, lock);
+    if (!lock->is_table())
+    {
+      ut_ad(!lock->index->table->is_temporary());
+      if (lock->mode() == LOCK_X && !lock->is_gap())
+        continue;
+      auto &lock_hash= lock_sys.hash_get(lock->type_mode);
+      auto cell= lock_hash.cell_get(lock->un_member.rec_lock.page_id.fold());
+      auto latch= lock_sys_t::hash_table::latch(cell);
+      if (latch->try_acquire())
+      {
+        lock_rec_dequeue_from_page(lock, false);
+        latch->release();
+      }
+      else
+        all_released= false;
+    }
+    else
+    {
+      dict_table_t *table= lock->un_member.tab_lock.table;
+      ut_ad(!table->is_temporary());
+      switch (lock->mode()) {
+      case LOCK_IS:
+      case LOCK_S:
+        if (table->lock_mutex_trylock())
+        {
+          lock_table_dequeue(lock, false);
+          table->lock_mutex_unlock();
+        }
+        else
+          all_released= false;
+        break;
+      case LOCK_IX:
+      case LOCK_X:
+        ut_ad(table->id >= DICT_HDR_FIRST_ID || trx->dict_operation);
+        /* fall through */
+      default:
+        break;
+      }
+    }
+  }
+
+  lock_sys.rd_unlock();
+  trx->mutex_unlock();
+  return all_released;
+}
+
+/** Release non-exclusive locks on XA PREPARE,
+and release possible other transactions waiting because of these locks. */
+void lock_release_on_prepare(trx_t *trx)
+{
+  for (ulint count= 5; count--; )
+    if (lock_release_on_prepare_try(trx))
+      return;
+
+  LockMutexGuard g{SRW_LOCK_CALL};
+  trx->mutex_lock();
+
+  for (lock_t *prev, *lock= UT_LIST_GET_LAST(trx->lock.trx_locks); lock;
+       lock= prev)
+  {
+    ut_ad(lock->trx == trx);
+    prev= UT_LIST_GET_PREV(trx_locks, lock);
+    if (!lock->is_table())
+    {
+      ut_ad(!lock->index->table->is_temporary());
+      if (lock->mode() != LOCK_X || lock->is_gap())
+        lock_rec_dequeue_from_page(lock, false);
+    }
+    else
+    {
+      dict_table_t *table= lock->un_member.tab_lock.table;
+      ut_ad(!table->is_temporary());
+      switch (lock->mode()) {
+      case LOCK_IS:
+      case LOCK_S:
+        lock_table_dequeue(lock, false);
+        break;
+      case LOCK_IX:
+      case LOCK_X:
+        ut_ad(table->id >= DICT_HDR_FIRST_ID || trx->dict_operation);
+        /* fall through */
+      default:
+        break;
+      }
+    }
+  }
+
+  trx->mutex_unlock();
+}
+
 /** Release locks on a table whose creation is being rolled back */
 ATTRIBUTE_COLD void lock_release_on_rollback(trx_t *trx, dict_table_t *table)
 {
