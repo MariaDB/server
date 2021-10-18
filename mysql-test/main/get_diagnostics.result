@@ -1765,3 +1765,21 @@ SELECT @n, @m;
 @n	@m
 1	Column count doesn't match value count at row 1
 DROP TABLE t1;
+#
+# MDEV-26830: Wrong ROW_NUMBER in diagnostics upon INSERT IGNORE with
+# CHECK violation
+#
+CREATE TABLE t1 (a INT, CHECK(a>0));
+INSERT IGNORE INTO t1 VALUES (1),(0),(2),(0);
+Warnings:
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+@n
+2
+GET DIAGNOSTICS CONDITION 2 @n= ROW_NUMBER;
+SELECT @n;
+@n
+4
+DROP TABLE t1;
