@@ -1971,6 +1971,20 @@ trx_prepare(
 		We must not be holding any mutexes or latches here. */
 
 		trx_flush_log_if_needed(lsn, trx);
+
+		if (!UT_LIST_GET_LEN(trx->lock.trx_locks)
+		    || trx->isolation_level == TRX_ISO_SERIALIZABLE) {
+			/* Do not release any locks at the
+			SERIALIZABLE isolation level. */
+		} else if (!trx->mysql_thd
+			   || thd_sql_command(trx->mysql_thd)
+			   != SQLCOM_XA_PREPARE) {
+			/* Do not release locks for XA COMMIT ONE PHASE
+			or for internal distributed transactions
+			(XID::get_my_xid() would be nonzero). */
+		} else {
+			lock_release_on_prepare(trx);
+		}
 	}
 }
 
