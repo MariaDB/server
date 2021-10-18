@@ -276,3 +276,22 @@ select histogram from mysql.column_stats where table_name = 't1';
 
 drop table t1;
 
+--echo #
+--echo # MDEV-26750: Estimation for filtered rows is far off with JSON_HB histogram
+--echo #
+create table t1 (c char(8));
+
+insert into t1 values ('1x');
+insert into t1 values ('1x');
+insert into t1 values ('1xx');
+insert into t1 values ('0xx');
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+
+set histogram_type= JSON_HB;
+analyze table t1 persistent for all;
+analyze
+select c from t1 where c > '1';
+
+drop table t1;
+

@@ -569,21 +569,34 @@ double position_in_interval(Field *field, const  uchar *key, uint key_len,
   if (field->pos_through_val_str())
   {
     StringBuffer<64> buf1, buf2, buf3;
-    String empty_buf1, empty_buf2, empty_buf3;
 
     store_key_image_to_rec_no_null(field, left.data(), left.size());
-    String *min_str= field->val_str(&buf1, &empty_buf1);
+    String *min_str= field->val_str(&buf1);
+    /*
+      Make sure we've saved a copy of the data, not a pointer into the
+      field->ptr. We will overwrite the contents of field->ptr with the next
+      store_key_image_to_rec_no_null call
+    */
+    if (&buf1 != min_str)
+      buf1.copy(*min_str);
+    else
+      buf1.copy();
 
     store_key_image_to_rec_no_null(field, right.data(), right.size());
-    String *max_str= field->val_str(&buf2, &empty_buf2);
+    String *max_str= field->val_str(&buf2);
+    /* Same as above */
+    if (&buf2 != max_str)
+      buf2.copy(*max_str);
+    else
+      buf2.copy();
 
     store_key_image_to_rec_no_null(field, (const char*)key, key_len);
-    String *midp_str= field->val_str(&buf3, &empty_buf3);
+    String *midp_str= field->val_str(&buf3);
 
     res= pos_in_interval_for_string(field->charset(),
            (const uchar*)midp_str->ptr(), midp_str->length(),
-           (const uchar*)min_str->ptr(), min_str->length(),
-           (const uchar*)max_str->ptr(), max_str->length());
+           (const uchar*)buf1.ptr(), buf1.length(),
+           (const uchar*)buf2.ptr(), buf2.length());
   }
   else
   {
