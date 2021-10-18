@@ -6494,7 +6494,8 @@ static Sys_var_enum Sys_histogram_type(
        "Specifies type of the histograms created by ANALYZE. "
        "Possible values are: "
        "SINGLE_PREC_HB - single precision height-balanced, "
-       "DOUBLE_PREC_HB - double precision height-balanced.",
+       "DOUBLE_PREC_HB - double precision height-balanced."
+       "JSON_HB - height-balanced, stores values not fractions",
        SESSION_VAR(histogram_type), CMD_LINE(REQUIRED_ARG),
        histogram_types, DEFAULT(1));
 
