@@ -635,6 +635,7 @@ public:
     uninitialised. Real initialisation happens in create().
   */
   log_t(): m_initialised(false) {}
+  ~log_t(){ close(); }
 
   /** @return whether the redo log is encrypted */
   bool is_encrypted() const { return(log.is_encrypted()); }

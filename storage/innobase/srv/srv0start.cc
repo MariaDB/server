@@ -2084,7 +2084,6 @@ void innodb_shutdown()
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 	ibuf_close();
-	log_sys.close();
 	purge_sys.close();
 	trx_sys.close();
 	buf_dblwr.close();

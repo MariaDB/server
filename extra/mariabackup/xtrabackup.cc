@@ -5947,7 +5947,6 @@ static bool xtrabackup_prepare_func(char** argv)
 		os_event_destroy(srv_allow_writes_event);
 #endif
 		innodb_free_param();
-		log_sys.close();
 		sync_check_close();
 		if (!ok) goto error_cleanup;
 	}
