@@ -24,8 +24,8 @@
 
 
 inline
-double Range_rowid_filter_cost_info::lookup_cost(
-                                     Rowid_filter_container_type cont_type)
+double Range_rowid_filter_cost_info::
+lookup_cost(Rowid_filter_container_type cont_type)
 {
   switch (cont_type) {
   case SORTED_ARRAY_CONTAINER:
@@ -44,8 +44,8 @@ double Range_rowid_filter_cost_info::lookup_cost(
 */
 
 inline
-double Range_rowid_filter_cost_info::avg_access_and_eval_gain_per_row(
-                                     Rowid_filter_container_type cont_type)
+double Range_rowid_filter_cost_info::
+avg_access_and_eval_gain_per_row(Rowid_filter_container_type cont_type)
 {
   return (1+1.0/TIME_FOR_COMPARE) * (1 - selectivity) -
          lookup_cost(cont_type);
@@ -76,10 +76,11 @@ double Range_rowid_filter_cost_info::avg_access_and_eval_gain_per_row(
 */
 
 inline
-double Range_rowid_filter_cost_info::avg_adjusted_gain_per_row(
-				         double access_cost_factor)
+double Range_rowid_filter_cost_info::
+avg_adjusted_gain_per_row(double access_cost_factor)
 {
-  return a - (1 - access_cost_factor) * (1 - selectivity);
+  DBUG_ASSERT(access_cost_factor >= 0.0 && access_cost_factor <= 1.0);
+  return gain - (1 - access_cost_factor) * (1 - selectivity);
 }
 
 
@@ -93,10 +94,11 @@ double Range_rowid_filter_cost_info::avg_adjusted_gain_per_row(
 */
 
 inline void
-Range_rowid_filter_cost_info::set_adjusted_gain_param(double access_cost_factor)
+Range_rowid_filter_cost_info::
+set_adjusted_gain_param(double access_cost_factor)
 {
-  a_adj= avg_adjusted_gain_per_row(access_cost_factor);
-  cross_x_adj= b / a_adj;
+  gain_adj= avg_adjusted_gain_per_row(access_cost_factor);
+  cross_x_adj= cost_of_building_range_filter / gain_adj;
 }
 
 
@@ -118,13 +120,13 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
   table= tab;
   key_no= idx;
   est_elements= (ulonglong) table->opt_range[key_no].rows;
-  b= build_cost(container_type);
+  cost_of_building_range_filter= build_cost(container_type);
   selectivity= est_elements/((double) table->stat_records());
-  a= avg_access_and_eval_gain_per_row(container_type);
-  if (a > 0)
-    cross_x= b/a;
+  gain= avg_access_and_eval_gain_per_row(container_type);
+  if (gain > 0)
+    cross_x= cost_of_building_range_filter/gain;
   else
-    cross_x= b+1;
+    cross_x= cost_of_building_range_filter+1;
   abs_independent.clear_all();
 }
 
@@ -179,7 +181,7 @@ int compare_range_rowid_filter_cost_info_by_a(
                         Range_rowid_filter_cost_info **filter_ptr_1,
                         Range_rowid_filter_cost_info **filter_ptr_2)
 {
-  double diff= (*filter_ptr_2)->get_a() - (*filter_ptr_1)->get_a();
+  double diff= (*filter_ptr_2)->get_gain() - (*filter_ptr_1)->get_gain();
   return (diff < 0 ? -1 : (diff > 0 ? 1 : 0));
 }
 
@@ -206,7 +208,8 @@ void TABLE::prune_range_rowid_filters()
     the elements if this bit matrix.
   */
 
-  Range_rowid_filter_cost_info **filter_ptr_1= range_rowid_filter_cost_info_ptr;
+  Range_rowid_filter_cost_info **filter_ptr_1=
+    range_rowid_filter_cost_info_ptr;
   for (uint i= 0;
        i < range_rowid_filter_cost_info_elems;
        i++, filter_ptr_1++)
@@ -245,7 +248,7 @@ void TABLE::prune_range_rowid_filters()
   */
 
   Range_rowid_filter_cost_info **cand_filter_ptr=
-                                   range_rowid_filter_cost_info_ptr;
+    range_rowid_filter_cost_info_ptr;
   for (uint i= 0;
        i < range_rowid_filter_cost_info_elems;
        i++, cand_filter_ptr++)
@@ -439,7 +442,7 @@ void Range_rowid_filter_cost_info::trace_info(THD *thd)
 {
   Json_writer_object js_obj(thd);
   js_obj.add("key", table->key_info[key_no].name);
-  js_obj.add("build_cost", b);
+  js_obj.add("build_cost", cost_of_building_range_filter);
   js_obj.add("rows", est_elements);
 }
 
