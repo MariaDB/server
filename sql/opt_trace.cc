@@ -692,7 +692,7 @@ void print_best_access_for_table(THD *thd, POSITION *pos,
   obj.add("uses_join_buffering", pos->use_join_buffer);
   if (pos->range_rowid_filter_info)
   {
-    uint key_no= pos->range_rowid_filter_info->key_no;
+    uint key_no= pos->range_rowid_filter_info->get_key_no();
     obj.add("rowid_filter_key",
             pos->table->table->key_info[key_no].name);
   }

@@ -1917,9 +1917,9 @@ bool JOIN::make_range_rowid_filters()
       continue;
 
     DBUG_ASSERT(!(tab->ref.key >= 0 &&
-                  tab->ref.key == (int) tab->range_rowid_filter_info->key_no));
+                  tab->ref.key == (int) tab->range_rowid_filter_info->get_key_no()));
     DBUG_ASSERT(!(tab->ref.key == -1 && tab->quick &&
-                  tab->quick->index == tab->range_rowid_filter_info->key_no));
+                  tab->quick->index == tab->range_rowid_filter_info->get_key_no()));
 
     int err;
     SQL_SELECT *sel= NULL;
@@ -1932,7 +1932,7 @@ bool JOIN::make_range_rowid_filters()
 
     key_map filter_map;
     filter_map.clear_all();
-    filter_map.set_bit(tab->range_rowid_filter_info->key_no);
+    filter_map.set_bit(tab->range_rowid_filter_info->get_key_no());
     filter_map.merge(tab->table->with_impossible_ranges);
     bool force_index_save= tab->table->force_index;
     tab->table->force_index= true;
@@ -8429,7 +8429,7 @@ best_access_path(JOIN      *join,
             tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
             DBUG_ASSERT(tmp >= 0);
             trace_access_idx.add("rowid_filter_key",
-                                 table->key_info[filter->key_no].name);
+                                 table->key_info[filter->get_key_no()].name);
           }
         }
       }
