@@ -385,14 +385,16 @@ class Range_rowid_filter_cost_info : public Sql_alloc
   TABLE *table;
   /* Estimated number of elements in the filter */
   ulonglong est_elements;
-  /* The cost of building the range filter */
-  double b;
+  /* The index whose range scan would be used to build the range filter */
+  uint key_no;
+  double cost_of_building_range_filter;
   /*
-     a*N-b yields the gain of the filter
-     for N key tuples of the index key_no
+     (gain*row_combinations)-cost_of_building_range_filter yields the gain of
+     the filter for 'row_combinations' key tuples of the index key_no
+     calculated with avg_access_and_eval_gain_per_row(container_type);
   */
-  double a;
-  /* The value of N where the gain is  0 */
+  double gain;
+  /* The value of row_combinations where the gain is 0 */
   double cross_x;
   /* Used for pruning of the potential range filters */
   key_map abs_independent;
@@ -401,16 +403,14 @@ class Range_rowid_filter_cost_info : public Sql_alloc
     These two parameters are used to choose the best range filter
     in the function TABLE::best_range_rowid_filter_for_partial_join
   */
-  double a_adj;
+  double gain_adj;
   double cross_x_adj;
 
 public:
-  /* The type of the container of the range filter */
-  Rowid_filter_container_type container_type;
-  /* The index whose range scan would be used to build the range filter */
-  uint key_no;
   /* The selectivity of the range filter */
   double selectivity;
+  /* The type of the container of the range filter */
+  Rowid_filter_container_type container_type;
 
   Range_rowid_filter_cost_info() : table(0), key_no(0) {}
 
@@ -429,29 +429,30 @@ public:
   inline void set_adjusted_gain_param(double access_cost_factor);
 
   /* Get the gain that usage of filter promises for r key tuples */
-  inline double get_gain(double r)
+  inline double get_gain(double row_combinations)
   {
-    return r * a - b;
+    return row_combinations * gain - cost_of_building_range_filter;
   }
 
   /* Get the adjusted gain that usage of filter promises for r key tuples */
-  inline double get_adjusted_gain(double r)
+  inline double get_adjusted_gain(double row_combinations)
   {
-    return r * a_adj - b;
+    return row_combinations * gain_adj - cost_of_building_range_filter;
   }
 
   /*
     The gain promised by usage of the filter for r key tuples
     due to less condition evaluations
   */
-  inline double get_cmp_gain(double r)
+  inline double get_cmp_gain(double row_combinations)
   {
-    return r * (1 - selectivity) / TIME_FOR_COMPARE;
+    return row_combinations * (1 - selectivity) / TIME_FOR_COMPARE;
   }
 
   Rowid_filter_container *create_container();
 
-  double get_a() { return a; }
+  double get_gain() { return gain; }
+  uint get_key_no() { return key_no; }
 
   void trace_info(THD *thd);
 
