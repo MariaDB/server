@@ -13473,6 +13473,8 @@ int ha_innobase::delete_table(const char *name)
   }
 #endif
 
+  DEBUG_SYNC(thd, "before_delete_table_stats");
+
   if (err == DB_SUCCESS && dict_stats_is_persistent_enabled(table) &&
       !table->is_stats_table())
   {
@@ -13496,11 +13498,29 @@ int ha_innobase::delete_table(const char *name)
       dict_sys.unfreeze();
     }
 
+    auto &timeout= THDVAR(thd, lock_wait_timeout);
+    const auto save_timeout= timeout;
+    if (table->name.is_temporary())
+      timeout= 0;
+
     if (table_stats && index_stats &&
         !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&
         !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
         !(err= lock_table_for_trx(table_stats, trx, LOCK_X)))
       err= lock_table_for_trx(index_stats, trx, LOCK_X);
+
+    if (err != DB_SUCCESS && !timeout)
+    {
+      /* We may skip deleting statistics if we cannot lock the tables,
+      when the table carries a temporary name. */
+      err= DB_SUCCESS;
+      dict_table_close(table_stats, false, thd, mdl_table);
+      dict_table_close(index_stats, false, thd, mdl_index);
+      table_stats= nullptr;
+      index_stats= nullptr;
+    }
+
+    timeout= save_timeout;
   }
 
   if (err == DB_SUCCESS)
@@ -13959,8 +13979,9 @@ ha_innobase::rename_table(
 	normalize_table_name(norm_to, to);
 
 	dberr_t error = DB_SUCCESS;
+	const bool from_temp = dict_table_t::is_temporary_name(norm_from);
 
-	if (dict_table_t::is_temporary_name(norm_from)) {
+	if (from_temp) {
 		/* There is no need to lock any FOREIGN KEY child tables. */
 	} else if (dict_table_t *table = dict_table_open_on_name(
 		    norm_from, false, DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -14003,9 +14024,31 @@ ha_innobase::rename_table(
 
 		if (error == DB_SUCCESS && table_stats && index_stats
 		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME)
-		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
-		    !(error = lock_table_for_trx(table_stats, trx, LOCK_X))) {
-			error = lock_table_for_trx(index_stats, trx, LOCK_X);
+		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
+			auto &timeout = THDVAR(thd, lock_wait_timeout);
+			const auto save_timeout = timeout;
+			if (from_temp) {
+				timeout = 0;
+			}
+			error = lock_table_for_trx(table_stats, trx, LOCK_X);
+			if (error == DB_SUCCESS) {
+				error = lock_table_for_trx(index_stats, trx,
+							   LOCK_X);
+			}
+			if (error != DB_SUCCESS && from_temp) {
+				error = DB_SUCCESS;
+				/* We may skip renaming statistics if
+				we cannot lock the tables, when the
+				table is being renamed from from a
+				temporary name. */
+				dict_table_close(table_stats, false, thd,
+						 mdl_table);
+				dict_table_close(index_stats, false, thd,
+						 mdl_index);
+				table_stats = nullptr;
+				index_stats = nullptr;
+			}
+			timeout = save_timeout;
 		}
 	}
 
