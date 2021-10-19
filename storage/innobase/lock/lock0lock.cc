@@ -3981,7 +3981,7 @@ void lock_release_on_prepare(trx_t *trx)
     }
     else
     {
-      dict_table_t *table= lock->un_member.tab_lock.table;
+      ut_d(dict_table_t *table= lock->un_member.tab_lock.table);
       ut_ad(!table->is_temporary());
       switch (lock->mode()) {
       case LOCK_IS:
