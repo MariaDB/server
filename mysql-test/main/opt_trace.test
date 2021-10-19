@@ -48,12 +48,12 @@ create view v1 as select a from t1 group by b;
 create view v2 as select a from t2;
 
 --echo # Mergeable view
+--optimizer_trace
 explain select * from v2 ;
-select * from information_schema.OPTIMIZER_TRACE;
 
 --echo # Non-Mergeable view
+--optimizer_trace
 explain select * from v1 ;
-select * from information_schema.OPTIMIZER_TRACE;
 drop table t1,t2;
 drop view v1,v2;
 
