@@ -18,6 +18,14 @@
 #include "sql_string.h"
 #include "my_json_writer.h"
 
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
+bool Json_writer::named_item_expected() const
+{
+  return named_items_expectation.size()
+      && named_items_expectation.back();
+}
+#endif
+
 void Json_writer::append_indent()
 {
   if (!document_start)
@@ -28,6 +36,9 @@ void Json_writer::append_indent()
 
 void Json_writer::start_object()
 {
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
+  named_items_expectation.push_back(true);
+#endif
   fmt_helper.on_start_object();
 
   if (!element_started)
@@ -42,6 +53,9 @@ void Json_writer::start_object()
 
 void Json_writer::start_array()
 {
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
+  named_items_expectation.push_back(false);
+#endif
   if (fmt_helper.on_start_array())
     return;
 
@@ -63,6 +77,9 @@ void Json_writer::end_object()
     append_indent();
   first_child= false;
   output.append("}");
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
+  named_items_expectation.pop_back();
+#endif
 }
 
 
@@ -74,11 +91,17 @@ void Json_writer::end_array()
   if (!first_child)
     append_indent();
   output.append("]");
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
+  named_items_expectation.pop_back();
+#endif
 }
 
 
 Json_writer& Json_writer::add_member(const char *name)
 {
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
+  DBUG_ASSERT(named_item_expected());
+#endif
   size_t len= strlen(name);
   if (fmt_helper.on_add_member(name, len))
     return *this; // handled
@@ -95,6 +118,9 @@ Json_writer& Json_writer::add_member(const char *name)
 
 Json_writer& Json_writer::add_member(const char *name, size_t len)
 {
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
+  DBUG_ASSERT(named_item_expected());
+#endif
   if (fmt_helper.on_add_member(name, len))
     return *this; // handled
 
@@ -259,10 +285,6 @@ void Json_writer::add_str(const String &str)
 {
   add_str(str.ptr(), str.length());
 }
-
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-thread_local std::vector<bool> Json_writer_struct::named_items_expectation;
-#endif
 
 Json_writer_temp_disable::Json_writer_temp_disable(THD *thd_arg)
 {

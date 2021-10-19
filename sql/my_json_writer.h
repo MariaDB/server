@@ -185,6 +185,14 @@ private:
 
 class Json_writer
 {
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
+
+  std::vector<bool> named_items_expectation;
+
+  bool named_item_expected() const;
+
+#endif
+
 public:
   /* Add a member. We must be in an object. */
   Json_writer& add_member(const char *name);
@@ -312,9 +320,6 @@ public:
 /* A common base for Json_writer_object and Json_writer_array */
 class Json_writer_struct
 {
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-  static thread_local std::vector<bool> named_items_expectation;
-#endif
 protected:
   Json_writer* my_writer;
   Json_value_helper context;
@@ -324,35 +329,21 @@ protected:
   bool closed;
 
 public:
-  explicit Json_writer_struct(THD *thd, bool expect_named_children)
+  explicit Json_writer_struct(THD *thd)
   {
     my_writer= thd->opt_trace.get_current_json();
     context.init(my_writer);
     closed= false;
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    named_items_expectation.push_back(expect_named_children);
-#endif
   }
 
   virtual ~Json_writer_struct()
   {
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    named_items_expectation.pop_back();
-#endif
   }
 
   bool trace_started() const
   {
     return my_writer != 0;
   }
-
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-  bool named_item_expected() const
-  {
-    return named_items_expectation.size() > 1
-        && *(named_items_expectation.rbegin() + 1);
-  }
-#endif
 };
 
 
@@ -373,21 +364,15 @@ private:
   }
 public:
   explicit Json_writer_object(THD *thd)
-  : Json_writer_struct(thd, true)
+  : Json_writer_struct(thd)
   {
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    DBUG_ASSERT(!named_item_expected());
-#endif
     if (unlikely(my_writer))
       my_writer->start_object();
   }
 
   explicit Json_writer_object(THD* thd, const char *str)
-  : Json_writer_struct(thd, true)
+  : Json_writer_struct(thd)
   {
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    DBUG_ASSERT(named_item_expected());
-#endif
     if (unlikely(my_writer))
       my_writer->add_member(str).start_object();
   }
@@ -552,21 +537,15 @@ class Json_writer_array : public Json_writer_struct
 {
 public:
   Json_writer_array(THD *thd)
-  : Json_writer_struct(thd, false)
+  : Json_writer_struct(thd)
   {
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    DBUG_ASSERT(!named_item_expected());
-#endif
     if (unlikely(my_writer))
       my_writer->start_array();
   }
 
   Json_writer_array(THD *thd, const char *str)
-  : Json_writer_struct(thd, false)
+  : Json_writer_struct(thd)
   {
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    DBUG_ASSERT(named_item_expected());
-#endif
     if (unlikely(my_writer))
       my_writer->add_member(str).start_array();
   }
@@ -728,5 +707,6 @@ public:
   }
 #endif
 };
+
 
 #endif
