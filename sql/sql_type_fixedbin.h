@@ -111,6 +111,12 @@ public:
        return fbt;
      }
 
+     static Fbt record_to_memory(const char *ptr)
+     {
+       Fbt fbt;
+       FbtImpl::record_to_memory(fbt.m_buffer, ptr);
+       return fbt;
+     }
     /*
       Check at Item's fix_fields() time if "item" can return a nullable value
       on conversion to Fbt, or conversion produces a NOT NULL Fbt value.
@@ -132,10 +138,10 @@ public:
     {
       *error= make_from_item(item, warn);
     }
-    void to_binary(char *str, size_t str_size) const
+    void to_record(char *str, size_t str_size) const
     {
       DBUG_ASSERT(str_size >= sizeof(m_buffer));
-      memcpy(str, m_buffer, sizeof(m_buffer));
+      FbtImpl::memory_to_record(str, m_buffer);
     }
     bool to_binary(String *to) const
     {
@@ -154,18 +160,13 @@ public:
                                              FbtImpl::max_char_length()+1));
       return false;
     }
-    int cmp(const char *str, size_t length) const
-    {
-      DBUG_ASSERT(length == sizeof(m_buffer));
-      return memcmp(m_buffer, str, length);
-    }
     int cmp(const Binary_string &other) const
     {
-      return cmp(other.ptr(), other.length());
+      return FbtImpl::cmp(FbtImpl::to_lex_cstring(), other.to_lex_cstring());
     }
     int cmp(const Fbt &other) const
     {
-      return memcmp(m_buffer, other.m_buffer, sizeof(m_buffer));
+      return FbtImpl::cmp(FbtImpl::to_lex_cstring(), other.to_lex_cstring());
     }
   };
 
@@ -191,9 +192,9 @@ public:
       DBUG_ASSERT(!is_null());
       return *this;
     }
-    void to_binary(char *str, size_t str_size) const
+    void to_record(char *str, size_t str_size) const
     {
-      to_fbt().to_binary(str, str_size);
+      to_fbt().to_record(str, str_size);
     }
     bool to_binary(String *to) const
     {
@@ -256,6 +257,10 @@ public:
     const Name &default_value() const override
     {
       return FbtImpl::default_value();
+    }
+    ulong KEY_pack_flags(uint column_nr) const override
+    {
+      return FbtImpl::KEY_pack_flags(column_nr);
     }
     protocol_send_type_t protocol_send_type() const override
     {
@@ -480,7 +485,7 @@ public:
       DBUG_ASSERT(!item->null_value);
       DBUG_ASSERT(FbtImpl::binary_length() == tmp.length());
       DBUG_ASSERT(FbtImpl::binary_length() == sort_field->length);
-      memcpy(to, tmp.ptr(), tmp.length());
+      FbtImpl::memory_to_record((char*) to, tmp.ptr());
     }
     uint make_packed_sort_key_part(uchar *to, Item *item,
                                    const SORT_FIELD_ATTR *sort_field,
@@ -501,7 +506,7 @@ public:
       DBUG_ASSERT(!item->null_value);
       DBUG_ASSERT(FbtImpl::binary_length() == tmp.length());
       DBUG_ASSERT(FbtImpl::binary_length() == sort_field->length);
-      memcpy(to, tmp.ptr(), tmp.length());
+      FbtImpl::memory_to_record((char*) to, tmp.ptr());
       return tmp.length();
     }
     void sort_length(THD *thd, const Type_std_attributes *item,
@@ -700,9 +705,7 @@ public:
     }
     int cmp_native(const Native &a, const Native &b) const override
     {
-      DBUG_ASSERT(a.length() == FbtImpl::binary_length());
-      DBUG_ASSERT(b.length() == FbtImpl::binary_length());
-      return memcmp(a.ptr(), b.ptr(), FbtImpl::binary_length());
+      return FbtImpl::cmp(a.to_lex_cstring(), b.to_lex_cstring());
     }
     bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override
     {
@@ -1107,7 +1110,7 @@ public:
       if (fbt.is_null())
         return maybe_null() ? set_null_with_warn(err)
                             : set_min_value_with_warn(err);
-      fbt.to_binary((char *) ptr, FbtImpl::binary_length());
+      fbt.to_record((char *) ptr, FbtImpl::binary_length());
       return 0;
     }
 
@@ -1184,11 +1187,27 @@ public:
       return false;
     }
 
-    String *val_str(String *val_buffer, String *) override
+    bool val_native(Native *to) override
     {
       DBUG_ASSERT(marked_for_read());
-      Fbt_null tmp((const char *) ptr, pack_length());
-      return tmp.to_string(val_buffer) ? NULL : val_buffer;
+      DBUG_ASSERT(!is_null());
+      if (to->alloc(FbtImpl::binary_length()))
+        return true;
+      to->length(FbtImpl::binary_length());
+      FbtImpl::record_to_memory((char*) to->ptr(), (const char*) ptr);
+      return false;
+    }
+
+    Fbt to_fbt() const
+    {
+      DBUG_ASSERT(marked_for_read());
+      DBUG_ASSERT(!is_null());
+      return Fbt::record_to_memory((const char*) ptr);
+    }
+
+    String *val_str(String *val_buffer, String *) override
+    {
+      return to_fbt().to_string(val_buffer) ? NULL : val_buffer;
     }
 
     my_decimal *val_decimal(my_decimal *to) override
@@ -1227,7 +1246,7 @@ public:
     {
       DBUG_ASSERT(marked_for_write_or_computed());
       DBUG_ASSERT(value.length() == FbtImpl::binary_length());
-      memcpy(ptr, value.ptr(), value.length());
+      FbtImpl::memory_to_record((char*) ptr, value.ptr());
       return 0;
     }
 
@@ -1409,6 +1428,13 @@ public:
                   item->type_handler() == type_handler());
       return true;
     }
+    void hash(ulong *nr, ulong *nr2)
+    {
+      if (is_null())
+        *nr^= (*nr << 1) | 1;
+      else
+        FbtImpl::hash_record(ptr, nr, nr2);
+    }
     SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
                          const Item_bool_func *cond,
                          scalar_comparison_op op, Item *value) override
@@ -1450,13 +1476,13 @@ public:
     uchar *pack(uchar *to, const uchar *from, uint max_length) override
     {
       DBUG_PRINT("debug", ("Packing field '%s'", field_name.str));
-      return StringPack(&my_charset_bin, FbtImpl::binary_length()).pack(to, from, max_length);
+      return FbtImpl::pack(to, from, max_length);
     }
 
     const uchar *unpack(uchar *to, const uchar *from, const uchar *from_end,
                         uint param_data) override
     {
-      return StringPack(&my_charset_bin, FbtImpl::binary_length()).unpack(to, from, from_end, param_data);
+      return FbtImpl::unpack(to, from, from_end, param_data);
     }
 
     uint max_packed_col_length(uint max_length) override
