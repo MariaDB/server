@@ -59,4 +59,13 @@ SET GLOBAL innodb_compression_level=1;
 CREATE TABLE t(c INT) ENGINE=InnoDB page_compressed=1;
 DROP TABLE IF EXISTS t;
 --enable_warnings
+
+SET GLOBAL innodb_compression_level=1;
+CREATE TABLE t(a INT)ENGINE=InnoDB ROW_FORMAT=DYNAMIC page_compressed=1;
+SET GLOBAL innodb_compression_level=0;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+ALTER TABLE t FORCE, ROW_FORMAT=DEFAULT, ALGORITHM=INPLACE;
+--error ER_CANT_CREATE_TABLE
+ALTER TABLE t FORCE, ROW_FORMAT=DEFAULT, ALGORITHM=COPY;
+DROP TABLE t;
 SET GLOBAL innodb_compression_level=@save_level;
