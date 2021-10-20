@@ -925,6 +925,8 @@ ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
 disconnect con1;
+# Restore the timeout to avoid occasional races with purge.
+SET innodb_lock_wait_timeout=DEFAULT;
 TRUNCATE TABLE parent;
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;

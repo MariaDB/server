@@ -919,6 +919,7 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
+SET innodb_lock_wait_timeout=DEFAULT;
 TRUNCATE TABLE parent;
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
