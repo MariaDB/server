@@ -108,9 +108,17 @@ static int run_query_with_table_creation(MYSQL *mysql, const char *query,
     unsigned int rc= mysql_errno(mysql);
     if (rc != ER_NO_SUCH_TABLE)
     {
-      // suppress this error in case of try to add the same password twice
       if (rc != ER_DUP_ENTRY)
+      {
         report_sql_error(mysql);
+      }
+      else
+      {
+        // warning used to do not change error code
+        my_printf_error(ER_NOT_VALID_PASSWORD,
+                        "password_reuse_check: The password was already used",
+                        ME_WARNING);
+      }
       return 1;
     }
     if (create_table(mysql))
