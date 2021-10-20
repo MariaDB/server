@@ -11991,10 +11991,6 @@ bool create_table_info_t::innobase_table_flags()
 	modified by another thread while the table is being created. */
 	const ulint	file_format_allowed = srv_file_format;
 
-	/* Cache the value of innobase_compression_level, in case it is
-	modified by another thread while the table is being created. */
-	const ulint     default_compression_level = page_zip_level;
-
 	ha_table_option_struct *options= m_form->s->option_struct;
 
 	m_flags = 0;
@@ -12199,13 +12195,23 @@ index_bad:
 		m_flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
 	}
 
+	ulint level = options->page_compression_level;
+	if (!level) {
+		level = page_zip_level;
+		if (!level && options->page_compressed) {
+			push_warning_printf(
+				m_thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_ILLEGAL_HA_CREATE_OPTION,
+				"InnoDB: PAGE_COMPRESSED requires"
+				" PAGE_COMPRESSION_LEVEL or"
+				" innodb_compression_level > 0");
+			DBUG_RETURN(false);
+		}
+	}
+
 	/* Set the table flags */
 	dict_tf_set(&m_flags, innodb_row_format, zip_ssize,
-			m_use_data_dir,
-			options->page_compressed,
-		    	options->page_compression_level == 0 ?
-		        default_compression_level : static_cast<ulint>(options->page_compression_level),
-		    	0);
+		    m_use_data_dir, options->page_compressed, level, 0);
 
 	/* Set the flags2 when create table or alter tables */
 	m_flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
