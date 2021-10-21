@@ -327,15 +327,18 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
       uint limited_ranges= (uint) MY_MIN((ulonglong) n_ranges, io_blocks);
       cost->cpu_cost= read_time(keyno, limited_ranges, total_rows);
     }
-    cost->cpu_cost+= (rows2double(total_rows) / TIME_FOR_COMPARE +
+    cost->comp_cost= (rows2double(total_rows) / TIME_FOR_COMPARE +
                       MULTI_RANGE_READ_SETUP_COST);
   }
   DBUG_PRINT("statistics",
              ("key: %s  rows: %llu  total_cost: %.3f  io_blocks: %llu  "
-              "idx_io_count: %.3f  cpu_cost: %.3f  io_count: %.3f",
+              "idx_io_count: %.3f  cpu_cost: %.3f  io_count: %.3f  "
+              "compare_cost: %.3f",
               table->s->keynames.type_names[keyno],
-              (ulonglong) total_rows, cost->total_cost(), (ulonglong) io_blocks,
-              cost->idx_io_count, cost->cpu_cost, cost->io_count));
+              (ulonglong) total_rows, cost->total_cost(),
+              (ulonglong) io_blocks,
+              cost->idx_io_count, cost->cpu_cost, cost->io_count,
+              cost->comp_cost));
   DBUG_RETURN(total_rows);
 }
 
@@ -407,7 +410,7 @@ ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
   {
     cost->cpu_cost= read_time(keyno, n_ranges, (uint)n_rows);
   }
-  cost->cpu_cost+= rows2double(n_rows) / TIME_FOR_COMPARE;
+  cost->comp_cost= rows2double(n_rows) / TIME_FOR_COMPARE;
   return 0;
 }
 
