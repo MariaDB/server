@@ -7836,26 +7836,6 @@ double cost_for_index_read(const THD *thd, const TABLE *table, uint key,
 }
 
 
-/*
-  Adjust cost from table->quick_costs calculated by
-  multi_range_read_info_const() to be comparable with cost_for_index_read()
-
-  This functions is needed because best_access_path() doesn't add
-  TIME_FOR_COMPARE to it's costs until very late.
-  Preferably we should fix so that all costs are comparably.
-  (All compared costs should include TIME_FOR_COMPARE for all found
-  rows).
-*/
-
-double adjust_quick_cost(double quick_cost, ha_rows records)
-{
-  double cost= (quick_cost - MULTI_RANGE_READ_SETUP_COST -
-                rows2double(records)/TIME_FOR_COMPARE);
-  DBUG_ASSERT(cost > 0.0);
-  return cost;
-}
-
-
 /**
   Find the best access path for an extension of a partial execution
   plan and add this path to the plan.
@@ -8119,7 +8099,7 @@ best_access_path(JOIN      *join,
                 add("access_type", join_type_str[type]).
                 add("index", keyinfo->name);
             if (!found_ref && table->opt_range_keys.is_set(key))
-              tmp= adjust_quick_cost(table->opt_range[key].cost, 1);
+              tmp= table->opt_range[key].fetch_cost;
             else
               tmp= table->file->avg_io_cost();
             /*
@@ -8160,8 +8140,7 @@ best_access_path(JOIN      *join,
               {
                 records= (double) table->opt_range[key].rows;
                 trace_access_idx.add("used_range_estimates", true);
-                tmp= adjust_quick_cost(table->opt_range[key].cost,
-                                       table->opt_range[key].rows);
+                tmp= table->opt_range[key].fetch_cost;
                 goto got_cost2;
               }
               /* quick_range couldn't use key! */
@@ -8287,8 +8266,7 @@ best_access_path(JOIN      *join,
                 table->opt_range[key].ranges == 1 + MY_TEST(ref_or_null_part)) //(C3)
             {
               records= (double) table->opt_range[key].rows;
-              tmp= adjust_quick_cost(table->opt_range[key].cost,
-                                     table->opt_range[key].rows);
+              tmp= table->opt_range[key].fetch_cost;
               trace_access_idx.add("used_range_estimates", true);
               goto got_cost2;
             }
