@@ -2865,6 +2865,7 @@ public:
   double cpu_cost;        /* total cost of operations in CPU               */
   double idx_cpu_cost;    /* cost of operations in CPU for index           */
   double import_cost;     /* cost of remote operations     */
+  double comp_cost;       /* Cost of comparing found rows with WHERE clause */
   double mem_cost;        /* cost of used memory           */
 
   static constexpr double IO_COEFF= 1;
@@ -2881,9 +2882,28 @@ public:
   {
     return IO_COEFF*io_count*avg_io_cost +
            IO_COEFF*idx_io_count*idx_avg_io_cost +
+           CPU_COEFF*(cpu_cost + idx_cpu_cost + comp_cost) +
+           MEM_COEFF*mem_cost + IMPORT_COEFF*import_cost;
+  }
+
+  /* Cost of fetching a row */
+  double fetch_cost() const
+  {
+    return IO_COEFF*io_count*avg_io_cost +
+           IO_COEFF*idx_io_count*idx_avg_io_cost +
            CPU_COEFF*(cpu_cost + idx_cpu_cost) +
            MEM_COEFF*mem_cost + IMPORT_COEFF*import_cost;
   }
+
+  /*
+    Cost of comparing the row with the WHERE clause
+    Note that fetch_cost() + compare_cost() == total_cost()
+  */
+  double compare_cost() const
+  {
+    return CPU_COEFF*comp_cost;
+  }
+
 
   double index_only_cost()
   {
@@ -2899,14 +2919,15 @@ public:
   bool is_zero() const
   {
     return io_count == 0.0 && idx_io_count == 0.0 && cpu_cost == 0.0 &&
-      import_cost == 0.0 && mem_cost == 0.0;
+      import_cost == 0.0 && mem_cost == 0.0 && comp_cost;
   }
 
   void reset()
   {
     avg_io_cost= 1.0;
     idx_avg_io_cost= 1.0;
-    io_count= idx_io_count= cpu_cost= idx_cpu_cost= mem_cost= import_cost= 0.0;
+    io_count= idx_io_count= cpu_cost= idx_cpu_cost= mem_cost= import_cost=
+      comp_cost= 0.0;
   }
 
   void multiply(double m)
@@ -2916,6 +2937,7 @@ public:
     idx_io_count *= m;
     idx_cpu_cost *= m;
     import_cost *= m;
+    comp_cost *= m;
     /* Don't multiply mem_cost */
   }
 
@@ -2940,6 +2962,7 @@ public:
     cpu_cost += cost->cpu_cost;
     idx_cpu_cost += cost->idx_cpu_cost;
     import_cost += cost->import_cost;
+    comp_cost+= cost->comp_cost;
   }
 
   void add_io(double add_io_cnt, double add_avg_cost)
@@ -2953,15 +2976,6 @@ public:
       io_count= io_count_sum;
     }
   }
-
-  /// Add to CPU cost
-  void add_cpu(double add_cpu_cost) { cpu_cost+= add_cpu_cost; }
-
-  /// Add to import cost
-  void add_import(double add_import_cost) { import_cost+= add_import_cost; }
-
-  /// Add to memory cost
-  void add_mem(double add_mem_cost) { mem_cost+= add_mem_cost; }
 
   /*
     To be used when we go from old single value-based cost calculations to

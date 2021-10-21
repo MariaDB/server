@@ -11764,7 +11764,9 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
       param->table->opt_range_condition_rows=
         MY_MIN(param->table->opt_range_condition_rows, rows);
       range->rows= rows;
-      range->cost= cost->total_cost();
+      range->fetch_cost= cost->fetch_cost();
+      /* Same as total cost */
+      range->cost= range->fetch_cost + cost->compare_cost();
       if (param->table->file->is_clustering_key(keynr))
 	range->index_only_cost= 0;
       else
