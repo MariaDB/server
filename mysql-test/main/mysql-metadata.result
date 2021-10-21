@@ -79,7 +79,7 @@ Database:   ``
 Table:      ``
 Org_table:  ``
 Type:       LONG_BLOB (format=json)
-Collation:  binary (63)
+Collation:  latin1_swedish_ci (8)
 Length:     4294967295
 Max_length: 0
 Decimals:   0

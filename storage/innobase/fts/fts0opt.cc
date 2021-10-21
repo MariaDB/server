@@ -36,6 +36,7 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "ut0list.h"
 #include "zlib.h"
 #include "fts0opt.h"
+#include "fts0vlc.h"
 
 /** The FTS optimize thread's work queue. */
 ib_wqueue_t* fts_optimize_wq;
@@ -1122,7 +1123,7 @@ fts_optimize_encode_node(
 	ulint		pos_enc_len;
 	doc_id_t	doc_id_delta;
 	dberr_t		error = DB_SUCCESS;
-	byte*		src = enc->src_ilist_ptr;
+	const byte*	src = enc->src_ilist_ptr;
 
 	if (node->first_doc_id == 0) {
 		ut_a(node->last_doc_id == 0);
@@ -1179,7 +1180,7 @@ fts_optimize_encode_node(
 
 	/* Encode the doc id. Cast to ulint, the delta should be small and
 	therefore no loss of precision. */
-	dst += fts_encode_int((ulint) doc_id_delta, dst);
+	dst = fts_encode_int(doc_id_delta, dst);
 
 	/* Copy the encoded pos array. */
 	memcpy(dst, src, pos_enc_len);
@@ -1226,7 +1227,8 @@ fts_optimize_node(
 		doc_id_t	delta;
 		doc_id_t	del_doc_id = FTS_NULL_DOC_ID;
 
-		delta = fts_decode_vlc(&enc->src_ilist_ptr);
+		delta = fts_decode_vlc(
+			(const byte**)&enc->src_ilist_ptr);
 
 test_again:
 		/* Check whether the doc id is in the delete list, if
@@ -1254,7 +1256,7 @@ test_again:
 
 			/* Skip the entries for this document. */
 			while (*enc->src_ilist_ptr) {
-				fts_decode_vlc(&enc->src_ilist_ptr);
+				fts_decode_vlc((const byte**)&enc->src_ilist_ptr);
 			}
 
 			/* Skip the end of word position marker. */
@@ -2666,6 +2668,9 @@ fts_optimize_request_sync_table(
 	add_msg(msg, true);
 
 	table->fts->sync_message = true;
+
+	DBUG_EXECUTE_IF("fts_optimize_wq_count_check",
+			DBUG_ASSERT(fts_optimize_wq->length <= 1000););
 
 	mutex_exit(&fts_optimize_wq->mutex);
 }

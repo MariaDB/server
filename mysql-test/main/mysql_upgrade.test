@@ -356,6 +356,44 @@ select count(*) from mysql.global_priv;
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 
+#
+# MDEV-26363 Former mysql-5.7 tables have password_last_changed to 0
+#            on MariaDB updates, resulting in mysql_upgrade leaving them
+#            with password expired.
+#
+
+--echo #
+--echo # Ensure that mysql_upgrade accounted for 0 password_last_changed
+--echo # and doesn't PASSWORD EXPIRE a user account because < 10.4 zeroed it.
+--echo #
+
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
+drop table mysql.user;
+truncate table mysql.tables_priv;
+--copy_file std_data/mysql57user.frm $MYSQLD_DATADIR/mysql/user.frm
+--copy_file std_data/mysql57user.MYI $MYSQLD_DATADIR/mysql/user.MYI
+--copy_file std_data/mysql57user.MYD $MYSQLD_DATADIR/mysql/user.MYD
+FLUSH TABLES mysql.user;
+FLUSH PRIVILEGES;
+
+CREATE USER mariadb_102;
+# manually set the value like <10.4 previously did for testing mysql_upgrade.
+UPDATE mysql.user SET password_last_changed=0 WHERE user='mariadb_102';
+FLUSH PRIVILEGES;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+# Should not have "PASSWORD EXPIRED"
+SHOW CREATE USER mariadb_102;
+connect con1,localhost,mariadb_102;
+select current_user();
+disconnect con1;
+connection default;
+
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
 --echo # End of 10.4 tests
 
 #
