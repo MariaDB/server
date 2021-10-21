@@ -1256,6 +1256,7 @@ sub command_line_setup {
   {
     $path_client_bindir= mtr_path_exists("$bindir/client_release",
 					 "$bindir/client_debug",
+					 "$bindir/client/debug",
 					 "$bindir/client$opt_vs_config",
 					 "$bindir/client",
 					 "$bindir/bin");

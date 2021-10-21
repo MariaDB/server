@@ -58,6 +58,7 @@ Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "dict0crea.h"
+#include "fts0vlc.h"
 
 /** The latest successfully looked up innodb_fts_aux_table */
 UNIV_INTERN table_id_t innodb_ft_aux_table_id;
@@ -2759,7 +2760,7 @@ i_s_fts_index_cache_fill_one_index(
 		/* Decrypt the ilist, and display Dod ID and word position */
 		for (ulint i = 0; i < ib_vector_size(word->nodes); i++) {
 			fts_node_t*	node;
-			byte*		ptr;
+			const byte*	ptr;
 			ulint		decoded = 0;
 			doc_id_t	doc_id = 0;
 
@@ -2769,13 +2770,11 @@ i_s_fts_index_cache_fill_one_index(
 			ptr = node->ilist;
 
 			while (decoded < node->ilist_size) {
-				ulint	pos = fts_decode_vlc(&ptr);
 
-				doc_id += pos;
+				doc_id += fts_decode_vlc(&ptr);
 
 				/* Get position info */
 				while (*ptr) {
-					pos = fts_decode_vlc(&ptr);
 
 					OK(field_store_string(
 						   fields[I_S_FTS_WORD],
@@ -2796,7 +2795,7 @@ i_s_fts_index_cache_fill_one_index(
 						   doc_id, true));
 
 					OK(fields[I_S_FTS_ILIST_DOC_POS]->store(
-						   pos, true));
+						   fts_decode_vlc(&ptr), true));
 
 					OK(schema_table_store_record(
 						   thd, table));
@@ -3130,7 +3129,7 @@ i_s_fts_index_table_fill_one_fetch(
 		/* Decrypt the ilist, and display Dod ID and word position */
 		for (ulint i = 0; i < ib_vector_size(word->nodes); i++) {
 			fts_node_t*	node;
-			byte*		ptr;
+			const byte*	ptr;
 			ulint		decoded = 0;
 			doc_id_t	doc_id = 0;
 
@@ -3140,13 +3139,10 @@ i_s_fts_index_table_fill_one_fetch(
 			ptr = node->ilist;
 
 			while (decoded < node->ilist_size) {
-				ulint	pos = fts_decode_vlc(&ptr);
-
-				doc_id += pos;
+				doc_id += fts_decode_vlc(&ptr);
 
 				/* Get position info */
 				while (*ptr) {
-					pos = fts_decode_vlc(&ptr);
 
 					OK(field_store_string(
 						   fields[I_S_FTS_WORD],
@@ -3165,7 +3161,7 @@ i_s_fts_index_table_fill_one_fetch(
 						longlong(doc_id), true));
 
 					OK(fields[I_S_FTS_ILIST_DOC_POS]->store(
-						   pos, true));
+						   fts_decode_vlc(&ptr), true));
 
 					OK(schema_table_store_record(
 						   thd, table));

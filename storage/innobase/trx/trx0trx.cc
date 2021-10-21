@@ -1377,14 +1377,6 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   ut_ad(!rsegs.m_redo.undo);
   ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
 
-  if (trx_rseg_t *rseg= rsegs.m_redo.rseg)
-  {
-    mutex_enter(&rseg->mutex);
-    ut_ad(rseg->trx_ref_count > 0);
-    --rseg->trx_ref_count;
-    mutex_exit(&rseg->mutex);
-  }
-
   if (mtr)
   {
     if (trx_undo_t *&undo= rsegs.m_noredo.undo)
@@ -1437,6 +1429,16 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   }
 
   ut_ad(!rsegs.m_noredo.undo);
+
+  /* Only after trx_undo_commit_cleanup() it is safe to release
+  our rseg reference. */
+  if (trx_rseg_t *rseg= rsegs.m_redo.rseg)
+  {
+    mutex_enter(&rseg->mutex);
+    ut_ad(rseg->trx_ref_count > 0);
+    --rseg->trx_ref_count;
+    mutex_exit(&rseg->mutex);
+  }
 
   /* Free all savepoints, starting from the first. */
   trx_named_savept_t *savep= UT_LIST_GET_FIRST(trx_savepoints);

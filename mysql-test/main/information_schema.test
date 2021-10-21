@@ -1952,6 +1952,27 @@ SELECT * FROM v LIMIT ROWS EXAMINED 9;
 DROP VIEW v;
 
 --echo #
+--echo # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+--echo #
+
+# Expect empty sets if requested TABLE_NAME or TABLE_SCHEMA with zero bytes
+CREATE TABLE t (a INT);
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=CONCAT('t',0x00,'1');
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=CONCAT('test',0x00,'1');
+DROP TABLE t;
+
+# Make sure check_table_name() does not reject special characters
+CREATE TABLE `a/~.b` (a INT);
+SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='a/~.b';
+DROP TABLE `a/~.b`;
+
+# Make sure check_db_name() does not reject special characters
+CREATE DATABASE `a/~.b`;
+CREATE TABLE `a/~.b`.t1 (a INT);
+SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='a/~.b';
+DROP DATABASE `a/~.b`;
+
+--echo #
 --echo # End of 10.2 Test
 --echo #
 

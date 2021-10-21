@@ -3,6 +3,7 @@
 -- source include/have_utf32.inc
 -- source include/have_utf8mb4.inc
 
+let $MYSQLD_DATADIR= `select @@datadir`;
 
 SET TIME_ZONE='+03:00';
 
@@ -809,6 +810,42 @@ let $coll_pad='utf16le_general_ci';
 let $coll='utf16le_nopad_bin';
 let $coll_pad='utf16le_bin';
 --source include/ctype_pad_all_engines.inc
+
+--echo #
+--echo # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+--echo #
+
+
+
+SET NAMES utf8;
+SET SESSION character_set_connection= utf16le;
+
+CREATE TABLE kv (v TEXT CHARACTER SET latin1);
+CREATE TABLE t (a INT);
+CREATE VIEW v AS SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v.frm' REPLACE INTO TABLE kv CHARACTER SET latin1;
+SELECT LOWER(v) FROM kv WHERE v LIKE _binary'query=%';
+TRUNCATE TABLE kv;
+SELECT * FROM v;
+LOCK TABLE t WRITE;
+UNLOCK TABLES;
+DROP VIEW v;
+DROP TABLE t;
+DROP TABLE kv;
+
+CREATE TABLE t (a INT);
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=CONCAT('t',0x00,'1');
+LOCK TABLE t WRITE;
+UNLOCK TABLES;
+DROP TABLE t;
+
+CREATE TABLE t (a INT);
+SELECT TABLE_NAME, HEX(TABLE_NAME) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=CONCAT('t',0x00,'1');
+SELECT TABLE_NAME, TABLE_SCHEMA, HEX(TABLE_NAME) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=CONCAT('test',0x00,'1');
+DROP TABLE t;
+
+SET NAMES utf8;
 
 --echo #
 --echo # End of 10.2 tests
