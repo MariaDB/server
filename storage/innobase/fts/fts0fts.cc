@@ -32,7 +32,7 @@ Full Text Search interface
 #include "fts0priv.h"
 #include "fts0types.h"
 #include "fts0types.ic"
-#include "fts0vlc.ic"
+#include "fts0vlc.h"
 #include "fts0plugin.h"
 #include "dict0priv.h"
 #include "dict0stats.h"
@@ -579,6 +579,7 @@ fts_cache_init(
 	cache->sync_heap->arg = mem_heap_create(1024);
 
 	cache->total_size = 0;
+	cache->total_size_at_sync = 0;
 
 	mutex_enter((ib_mutex_t*) &cache->deleted_lock);
 	cache->deleted_doc_ids = ib_vector_create(
@@ -1246,7 +1247,7 @@ fts_cache_node_add_positions(
 	ulint		enc_len;
 	ulint		last_pos;
 	byte*		ptr_start;
-	ulint		doc_id_delta;
+	doc_id_t	doc_id_delta;
 
 #ifdef UNIV_DEBUG
 	if (cache) {
@@ -1257,7 +1258,7 @@ fts_cache_node_add_positions(
 	ut_ad(doc_id >= node->last_doc_id);
 
 	/* Calculate the space required to store the ilist. */
-	doc_id_delta = (ulint)(doc_id - node->last_doc_id);
+	doc_id_delta = doc_id - node->last_doc_id;
 	enc_len = fts_get_encoded_len(doc_id_delta);
 
 	last_pos = 0;
@@ -1306,14 +1307,14 @@ fts_cache_node_add_positions(
 	ptr_start = ptr;
 
 	/* Encode the new fragment. */
-	ptr += fts_encode_int(doc_id_delta, ptr);
+	ptr = fts_encode_int(doc_id_delta, ptr);
 
 	last_pos = 0;
 	for (i = 0; i < ib_vector_size(positions); i++) {
 		ulint	pos = *(static_cast<ulint*>(
 			 ib_vector_get(positions, i)));
 
-		ptr += fts_encode_int(pos - last_pos, ptr);
+		ptr = fts_encode_int(pos - last_pos, ptr);
 		last_pos = pos;
 	}
 
@@ -3546,11 +3547,14 @@ fts_add_doc_by_id(
 					get_doc->index_cache,
 					doc_id, doc.tokens);
 
-				bool	need_sync = false;
-				if ((cache->total_size > fts_max_cache_size / 10
-				     || fts_need_sync)
-				    && !cache->sync->in_progress) {
-					need_sync = true;
+				bool	need_sync = !cache->sync->in_progress
+					&& (fts_need_sync
+					    || (cache->total_size
+						- cache->total_size_at_sync)
+					    > fts_max_cache_size / 10);
+				if (need_sync) {
+					cache->total_size_at_sync =
+						cache->total_size;
 				}
 
 				rw_lock_x_unlock(&table->fts->cache->lock);

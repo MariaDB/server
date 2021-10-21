@@ -3000,5 +3000,38 @@ DROP TABLE t1;
 #
 SET STORAGE_ENGINE=Default;
 #
+# MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+#
+SET NAMES utf8;
+SET SESSION character_set_connection= utf16le;
+CREATE TABLE kv (v TEXT CHARACTER SET latin1);
+CREATE TABLE t (a INT);
+CREATE VIEW v AS SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+LOAD DATA INFILE 'MYSQLD_DATADIR/test/v.frm' REPLACE INTO TABLE kv CHARACTER SET latin1;
+SELECT LOWER(v) FROM kv WHERE v LIKE _binary'query=%';
+LOWER(v)
+query=select `information_schema`.`tables`.`table_catalog` as `table_catalog`,`information_schema`.`tables`.`table_schema` as `table_schema`,`information_schema`.`tables`.`table_name` as `table_name`,`information_schema`.`tables`.`table_type` as `table_type`,`information_schema`.`tables`.`engine` as `engine`,`information_schema`.`tables`.`version` as `version`,`information_schema`.`tables`.`row_format` as `row_format`,`information_schema`.`tables`.`table_rows` as `table_rows`,`information_schema`.`tables`.`avg_row_length` as `avg_row_length`,`information_schema`.`tables`.`data_length` as `data_length`,`information_schema`.`tables`.`max_data_length` as `max_data_length`,`information_schema`.`tables`.`index_length` as `index_length`,`information_schema`.`tables`.`data_free` as `data_free`,`information_schema`.`tables`.`auto_increment` as `auto_increment`,`information_schema`.`tables`.`create_time` as `create_time`,`information_schema`.`tables`.`update_time` as `update_time`,`information_schema`.`tables`.`check_time` as `check_time`,`information_schema`.`tables`.`table_collation` as `table_collation`,`information_schema`.`tables`.`checksum` as `checksum`,`information_schema`.`tables`.`create_options` as `create_options`,`information_schema`.`tables`.`table_comment` as `table_comment`,`information_schema`.`tables`.`max_index_length` as `max_index_length`,`information_schema`.`tables`.`temporary` as `temporary` from `information_schema`.`tables` where `information_schema`.`tables`.`table_name` = 't1'
+TRUNCATE TABLE kv;
+SELECT * FROM v;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+LOCK TABLE t WRITE;
+UNLOCK TABLES;
+DROP VIEW v;
+DROP TABLE t;
+DROP TABLE kv;
+CREATE TABLE t (a INT);
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=CONCAT('t',0x00,'1');
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+LOCK TABLE t WRITE;
+UNLOCK TABLES;
+DROP TABLE t;
+CREATE TABLE t (a INT);
+SELECT TABLE_NAME, HEX(TABLE_NAME) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=CONCAT('t',0x00,'1');
+TABLE_NAME	HEX(TABLE_NAME)
+SELECT TABLE_NAME, TABLE_SCHEMA, HEX(TABLE_NAME) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=CONCAT('test',0x00,'1');
+TABLE_NAME	TABLE_SCHEMA	HEX(TABLE_NAME)
+DROP TABLE t;
+SET NAMES utf8;
+#
 # End of 10.2 tests
 #

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -46,6 +46,8 @@ struct ib_wqueue_t
 	ib_mutex_t	mutex;
 	/** Work item list */
 	ib_list_t*	items;
+	/** ib_list_len(*items) */
+	size_t		length;
 	/** event we use to signal additions to list;
 	os_event_set() and os_event_reset() are protected by the mutex */
 	os_event_t	event;
@@ -102,13 +104,6 @@ Return first item on work queue or NULL if queue is empty
 void*
 ib_wqueue_nowait(
 /*=============*/
-	ib_wqueue_t*	wq);		/*<! in: work queue */
-/********************************************************************
-Get number of items on queue.
-@return number of items on queue */
-ulint
-ib_wqueue_len(
-/*==========*/
 	ib_wqueue_t*	wq);		/*<! in: work queue */
 
 #endif /* IB_WORK_QUEUE_H */

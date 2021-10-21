@@ -972,6 +972,30 @@ DROP PROCEDURE testp_bug11763507;
 DROP FUNCTION testf_bug11763507;
 #END OF BUG#11763507 test.
 #
+# MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+#
+SET NAMES utf8;
+SET SESSION character_set_connection=latin1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a VARCHAR(10) CHARACTER SET utf8;
+SET a='ä';
+SELECT a, 'ä' AS b;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set a@0 NULL
+1	set a@0 'ä'
+2	stmt 0 "SELECT a, 'ä' AS b"
+CALL p1;
+a	b
+ä	ä
+DROP PROCEDURE p1;
+#
+# End of 10.2 tests
+#
+#
 # MDEV-13581 ROW TYPE OF t1 and t1%ROWTYPE for routine parameters
 #
 CREATE TABLE t1 (a INT, b TEXT);
@@ -1329,3 +1353,6 @@ Pos	Instruction
 4	jump 2
 5	hpop 1
 drop function f1;
+#
+# End of 10.3 tests
+#

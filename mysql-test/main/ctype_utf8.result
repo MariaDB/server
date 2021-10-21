@@ -11239,6 +11239,23 @@ DROP TABLE t1;
 #
 SET STORAGE_ENGINE=Default;
 #
+# MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+#
+SET NAMES utf8;
+SET SESSION character_set_connection=latin1;
+CREATE VIEW v1 AS SELECT 'ä' AS c1;
+SELECT c1, HEX(c1) FROM v1;
+c1	HEX(c1)
+ä	E4
+CREATE TABLE kv (v BLOB);
+LOAD DATA INFILE 'MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv;
+SELECT * FROM kv WHERE v LIKE _binary'query=%';
+v
+query=select 'ä' AS `c1`
+DROP TABLE kv;
+DROP VIEW v1;
+SET NAMES utf8;
+#
 # End of 10.2 tests
 #
 #

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11716,19 +11716,21 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   restore_empty_query_table_list(thd->lex);
 
 #if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
-    if (WSREP(thd) && thd->wsrep_exec_mode == REPL_RECV)
-    {
-      query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-    }
+  if (WSREP(thd) && thd->wsrep_exec_mode == REPL_RECV)
+    query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
 #endif /* WITH_WSREP && HAVE_QUERY_CACHE */
 
-    if (unlikely(get_flags(STMT_END_F) &&
-                 (error= rows_event_stmt_cleanup(rgi, thd))))
-    slave_rows_error_report(ERROR_LEVEL,
-                            thd->is_error() ? 0 : error,
-                            rgi, thd, table,
-                            get_type_str(),
-                            RPL_LOG_NAME, log_pos);
+  if (get_flags(STMT_END_F))
+  {
+    if (unlikely(error= rows_event_stmt_cleanup(rgi, thd)))
+      slave_rows_error_report(ERROR_LEVEL,
+                              thd->is_error() ? 0 : error,
+                              rgi, thd, table,
+                              get_type_str(),
+                              RPL_LOG_NAME, log_pos);
+    if (thd->slave_thread)
+      free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
+  }
   DBUG_RETURN(error);
 
 err:

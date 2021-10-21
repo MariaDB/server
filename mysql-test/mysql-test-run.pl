@@ -426,6 +426,7 @@ sub check_wsrep_support() {
     my $my_print_defaults_exe=
       mtr_exe_maybe_exists(
         "$bindir/extra/my_print_defaults",
+        "$bindir/extra/Debug/my_print_defaults",
         "$path_client_bindir/my_print_defaults");
     my $epath= "";
     if ($my_print_defaults_exe ne "") {
@@ -1422,6 +1423,7 @@ sub command_line_setup {
   {
     $path_client_bindir= mtr_path_exists("$bindir/client_release",
 					 "$bindir/client_debug",
+					 "$bindir/client/debug",
 					 "$bindir/client$opt_vs_config",
 					 "$bindir/client",
 					 "$bindir/bin");
