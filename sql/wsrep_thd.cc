@@ -1,4 +1,4 @@
-/* Copyright (C) 2013 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2021 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -314,7 +314,8 @@ int wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal)
   THD *victim_thd= (THD *) victim_thd_ptr;
   THD *bf_thd= (THD *) bf_thd_ptr;
 
-  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
 
   /* Note that when you use RSU node is desynced from cluster, thus WSREP(thd)
   might not be true.
@@ -327,16 +328,14 @@ int wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal)
   {
       WSREP_DEBUG("wsrep_abort_thd, by: %llu, victim: %llu", (bf_thd) ?
                   (long long)bf_thd->real_id : 0, (long long)victim_thd->real_id);
-      mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
       ha_abort_transaction(bf_thd, victim_thd, signal);
-      mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   }
   else
   {
     WSREP_DEBUG("wsrep_abort_thd not effective: %p %p", bf_thd, victim_thd);
+    wsrep_thd_UNLOCK(victim_thd);
   }
 
-  mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   DBUG_RETURN(1);
 }
 
@@ -344,6 +343,9 @@ bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
 {
   WSREP_LOG_THD(bf_thd, "BF aborter before");
   WSREP_LOG_THD(victim_thd, "victim before");
+
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
 
   DBUG_EXECUTE_IF("sync.wsrep_bf_abort",
                   {
@@ -358,7 +360,7 @@ bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
   if (WSREP(victim_thd) && !victim_thd->wsrep_trx().active())
   {
     WSREP_DEBUG("wsrep_bf_abort, BF abort for non active transaction");
-    switch (victim_thd->wsrep_trx().state()) 
+    switch (victim_thd->wsrep_trx().state())
     {
     case wsrep::transaction::s_aborting: /* fall through */
     case wsrep::transaction::s_aborted:
@@ -367,7 +369,13 @@ bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
     default:
       break;
     }
+    /* Test: galera_create_table_as_select. Here we enter wsrep-lib
+    were LOCK_thd_data will be acquired, thus we need to release it.
+    However, we can still hold LOCK_thd_kill to protect from
+    disconnect or delete. */
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
     wsrep_start_transaction(victim_thd, victim_thd->wsrep_next_trx_id());
+    mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   }
 
   bool ret;
@@ -375,11 +383,21 @@ bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
 
   if (wsrep_thd_is_toi(bf_thd))
   {
+    /* Here we enter wsrep-lib were LOCK_thd_data will be acquired,
+    thus we need to release it. However, we can still hold
+    LOCK_thd_kill to protect from disconnect or delete. */
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
     ret= victim_thd->wsrep_cs().total_order_bf_abort(bf_seqno);
+    mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   }
   else
   {
+    /* Test: mysql-wsrep-features#165. Here we enter wsrep-lib
+    were LOCK_thd_data will be acquired and later LOCK_thd_kill
+    thus we need to release them. */
+    wsrep_thd_UNLOCK(victim_thd);
     ret= victim_thd->wsrep_cs().bf_abort(bf_seqno);
+    wsrep_thd_LOCK(victim_thd);
   }
   if (ret)
   {

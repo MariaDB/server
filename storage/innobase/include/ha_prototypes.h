@@ -230,12 +230,11 @@ innobase_casedn_str(
 	char*	a);	/*!< in/out: string to put in lower case */
 
 #ifdef WITH_WSREP
-UNIV_INTERN
 void
 wsrep_innobase_kill_one_trx(
 	THD* bf_thd,
 	trx_t *victim_trx,
-	bool signal);
+	my_bool signal);
 
 ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
                              unsigned char* str, unsigned int str_length,
