@@ -2069,7 +2069,8 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
         ticket->wsrep_report(true);
       }
 
-      wsrep_abort_thd((void *) request_thd, (void *) granted_thd, false);
+      wsrep_abort_thd((void *) request_thd, (void *) granted_thd, true);
+      mysql_mutex_assert_not_owner(&granted_thd->LOCK_thd_data);
       ret= false;
     }
   }

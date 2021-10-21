@@ -5235,6 +5235,7 @@ static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 {
   DBUG_ENTER("innobase_kill_query");
 #ifdef WITH_WSREP
+  WSREP_DEBUG("innobase_kill_query for %ld", thd_get_thread_id(thd));
   if (wsrep_thd_get_conflict_state(thd) != NO_CONFLICT) {
     /* if victim has been signaled by BF thread and/or aborting
     is already progressing, following query aborting is not necessary
@@ -19755,6 +19756,8 @@ wsrep_abort_transaction(
 	my_bool signal)
 {
   DBUG_ENTER("wsrep_abort_transaction");
+  /* Note that victim thd is protected with
+  THD::LOCK_thd_data here. */
   trx_t* victim_trx= thd_to_trx(victim_thd);
   trx_t* bf_trx= thd_to_trx(bf_thd);
 
@@ -19778,11 +19781,19 @@ wsrep_abort_transaction(
 	      wsrep_thd_query(victim_thd),
 	      victim_trx ? victim_trx->id : 0);
 
-  //wsrep_thd_set_conflict_state(victim_thd, MUST_ABORT);
-  thd_mark_transaction_to_rollback(victim_thd, 1);
-  wsrep_thd_awake(victim_thd, signal, 1);
-  wsrep_thd_UNLOCK(victim_thd);
+  if (victim_trx) {
+    lock_mutex_enter();
+    trx_mutex_enter(victim_trx);
+    wsrep_innobase_kill_one_trx(bf_thd, bf_trx, victim_trx, signal);
+    lock_mutex_exit();
+    trx_mutex_exit(victim_trx);
+    wsrep_srv_conc_cancel_wait(victim_trx);
+  } else {
+    wsrep_thd_set_conflict_state(victim_thd, MUST_ABORT);
+    wsrep_thd_awake(victim_thd, signal, false);
+  }
 
+  wsrep_thd_UNLOCK(victim_thd);
   DBUG_VOID_RETURN;
 }
 
