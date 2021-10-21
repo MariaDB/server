@@ -12195,7 +12195,7 @@ index_bad:
 		m_flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
 	}
 
-	ulint level = options->page_compression_level;
+	ulint level = ulint(options->page_compression_level);
 	if (!level) {
 		level = page_zip_level;
 		if (!level && options->page_compressed) {
