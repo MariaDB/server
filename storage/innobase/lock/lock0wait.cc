@@ -184,13 +184,11 @@ lock_wait_table_reserve_slot(
 check if lock timeout was for priority thread,
 as a side effect trigger lock monitor
 @param[in]    trx    transaction owning the lock
-@param[in]    locked true if trx and lock_sys_mutex is ownd
 @return	false for regular lock timeout */
 static
 bool
 wsrep_is_BF_lock_timeout(
-	const trx_t*	trx,
-	bool		locked = true)
+	const trx_t*	trx)
 {
 	bool long_wait= (trx->error_state != DB_DEADLOCK &&
 			 trx->is_wsrep() &&
@@ -203,18 +201,6 @@ wsrep_is_BF_lock_timeout(
 	if (long_wait) {
 		ib::info() << "WSREP: BF lock wait long for trx:" << trx->id
 			   << " query: " << wsrep_thd_query(trx->mysql_thd);
-
-		if (!locked)
-			lock_mutex_enter();
-
-		ut_ad(lock_mutex_own());
-
-		wsrep_trx_print_locking(stderr, trx, 3000);
-		/* Note this will release lock_sys mutex */
-		lock_print_info_all_transactions(stderr);
-
-		if (locked)
-			lock_mutex_enter();
 
 		return was_wait;
 	} else
@@ -407,7 +393,7 @@ lock_wait_suspend_thread(
 	    && wait_time > (double) lock_wait_timeout
 #ifdef WITH_WSREP
 	    && (!trx->is_wsrep()
-		|| (!wsrep_is_BF_lock_timeout(trx, false)
+		|| (!wsrep_is_BF_lock_timeout(trx)
 		    && trx->error_state != DB_DEADLOCK))
 #endif /* WITH_WSREP */
 	    ) {
