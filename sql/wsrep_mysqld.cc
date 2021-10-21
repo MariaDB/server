@@ -2134,6 +2134,11 @@ static int wsrep_TOI_event_buf(THD* thd, uchar** buf, size_t* buf_len)
   case SQLCOM_DROP_TABLE:
     err= wsrep_drop_table_query(thd, buf, buf_len);
     break;
+  case SQLCOM_KILL:
+    WSREP_DEBUG("KILL as TOI: %s", thd->query());
+    err= wsrep_to_buf_helper(thd, thd->query(), thd->query_length(),
+                             buf, buf_len);
+    break;
   case SQLCOM_CREATE_ROLE:
     if (sp_process_definer(thd))
     {
@@ -2547,7 +2552,11 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                   request_thd, granted_thd);
     ticket->wsrep_report(wsrep_debug);
 
-    mysql_mutex_lock(&granted_thd->LOCK_thd_data);
+    /* Here we will call wsrep_abort_transaction so we should hold
+    THD::LOCK_thd_data to protect victim from concurrent usage
+    and THD::LOCK_thd_kill to protect from disconnect or delete. */
+    wsrep_thd_LOCK(granted_thd);
+
     if (wsrep_thd_is_toi(granted_thd) ||
         wsrep_thd_is_applying(granted_thd))
     {
@@ -2555,21 +2564,22 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
       {
         WSREP_DEBUG("BF thread waiting for SR in aborting state");
         ticket->wsrep_report(wsrep_debug);
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+        wsrep_thd_UNLOCK(granted_thd);
       }
       else if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
       {
-        WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR", 
+        WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR",
                       schema, schema_len, request_thd, granted_thd);
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
         wsrep_abort_thd(request_thd, granted_thd, 1);
+        mysql_mutex_assert_not_owner(&granted_thd->LOCK_thd_data);
+        mysql_mutex_assert_not_owner(&granted_thd->LOCK_thd_kill);
       }
       else
       {
         WSREP_MDL_LOG(INFO, "MDL BF-BF conflict", schema, schema_len,
                       request_thd, granted_thd);
         ticket->wsrep_report(true);
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+        wsrep_thd_UNLOCK(granted_thd);
         unireg_abort(1);
       }
     }
@@ -2578,15 +2588,16 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     {
       WSREP_DEBUG("BF thread waiting for FLUSH");
       ticket->wsrep_report(wsrep_debug);
-      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      wsrep_thd_UNLOCK(granted_thd);
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {
       WSREP_DEBUG("DROP caused BF abort, conf %s",
                   wsrep_thd_transaction_state_str(granted_thd));
       ticket->wsrep_report(wsrep_debug);
-      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       wsrep_abort_thd(request_thd, granted_thd, 1);
+      mysql_mutex_assert_not_owner(&granted_thd->LOCK_thd_data);
+      mysql_mutex_assert_not_owner(&granted_thd->LOCK_thd_kill);
     }
     else
     {
@@ -2595,8 +2606,9 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
       ticket->wsrep_report(wsrep_debug);
       if (granted_thd->wsrep_trx().active())
       {
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-        wsrep_abort_thd(request_thd, granted_thd, 1);
+        wsrep_abort_thd(request_thd, granted_thd, true);
+        mysql_mutex_assert_not_owner(&granted_thd->LOCK_thd_data);
+        mysql_mutex_assert_not_owner(&granted_thd->LOCK_thd_kill);
       }
       else
       {
@@ -2604,10 +2616,11 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
           Granted_thd is likely executing with wsrep_on=0. If the requesting
           thd is BF, BF abort and wait.
         */
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
         if (wsrep_thd_is_BF(request_thd, FALSE))
         {
           ha_abort_transaction(request_thd, granted_thd, TRUE);
+          mysql_mutex_assert_not_owner(&granted_thd->LOCK_thd_data);
+          mysql_mutex_assert_not_owner(&granted_thd->LOCK_thd_kill);
         }
         else
         {
@@ -2629,6 +2642,7 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
 static bool abort_replicated(THD *thd)
 {
   bool ret_code= false;
+  wsrep_thd_LOCK(thd);
   if (thd->wsrep_trx().state() == wsrep::transaction::s_committing)
   {
     WSREP_DEBUG("aborting replicated trx: %llu", (ulonglong)(thd->real_id));
@@ -2636,6 +2650,9 @@ static bool abort_replicated(THD *thd)
     (void)wsrep_abort_thd(thd, thd, TRUE);
     ret_code= true;
   }
+  else
+    wsrep_thd_UNLOCK(thd);
+
   return ret_code;
 }
 
@@ -2673,8 +2690,10 @@ static my_bool have_client_connections(THD *thd, void*)
                      (longlong) thd->thread_id));
   if (is_client_connection(thd) && thd->killed == KILL_CONNECTION)
   {
+    WSREP_DEBUG("Informing thread %lld that it's time to die",
+                thd->thread_id);
     (void)abort_replicated(thd);
-    return 1;
+    return true;
   }
   return 0;
 }
@@ -2711,6 +2730,8 @@ static my_bool kill_all_threads(THD *thd, THD *caller_thd)
 {
   DBUG_PRINT("quit", ("Informing thread %lld that it's time to die",
                       (longlong) thd->thread_id));
+  WSREP_DEBUG("Informing thread %lld that it's time to die",
+	      thd->thread_id);
   /* We skip slave threads & scheduler on this first loop through. */
   if (is_client_connection(thd) && thd != caller_thd)
   {
