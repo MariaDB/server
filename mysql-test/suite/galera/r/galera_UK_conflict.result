@@ -68,9 +68,9 @@ f1	f2	f3
 10	10	0
 INSERT INTO t1 VALUES (7,7,7);
 INSERT INTO t1 VALUES (8,8,8);
-DROP TABLE t1;
-test scenario 2
-connection node_1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+7
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 int, f3 int,  unique key keyj (f2));
 INSERT INTO t1 VALUES (1, 1, 0);
 INSERT INTO t1 VALUES (3, 3, 0);
@@ -92,9 +92,9 @@ SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_master_enter_sync';
 connection node_1;
-COMMIT;
-connection node_1a;
-SET SESSION wsrep_on = 0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+7
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_replay_cb";
@@ -125,6 +125,7 @@ f1	f2	f3
 3	3	1
 4	4	2
 5	5	2
+8	8	8
 10	10	0
 INSERT INTO t1 VALUES (7,7,7);
 INSERT INTO t1 VALUES (8,8,8);

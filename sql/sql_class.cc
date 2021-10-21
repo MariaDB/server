@@ -826,6 +826,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   mysql_mutex_init(key_LOCK_wakeup_ready, &LOCK_wakeup_ready, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_thd_kill, &LOCK_thd_kill, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wakeup_ready, &COND_wakeup_ready, 0);
+  mysql_mutex_record_order(&LOCK_thd_kill, &LOCK_thd_data);
 
   /* Variables with default values */
   proc_info="login";
@@ -1883,7 +1884,6 @@ void THD::awake_no_mutex(killed_state state_to_set)
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
-  mysql_mutex_assert_owner(&LOCK_thd_data);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
   print_aborted_warning(3, "KILLED");
@@ -2048,6 +2048,8 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
 
   if (needs_thr_lock_abort)
   {
+    bool mutex_released= false;
+    mysql_mutex_lock(&in_use->LOCK_thd_kill);
     mysql_mutex_lock(&in_use->LOCK_thd_data);
     /* If not already dying */
     if (in_use->killed != KILL_CONNECTION_HARD)
@@ -2064,12 +2066,25 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
           thread can see those instances (e.g. see partitioning code).
         */
         if (!thd_table->needs_reopen())
-        {
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-        }
       }
+#ifdef WITH_WSREP
+      if (WSREP(this) && wsrep_thd_is_BF(this, false))
+      {
+        WSREP_DEBUG("notify_shared_lock: BF thread %llu query %s"
+                    " victim %llu query %s",
+                    this->real_id, wsrep_thd_query(this),
+                    in_use->real_id, wsrep_thd_query(in_use));
+        wsrep_abort_thd(this, in_use, false);
+        mutex_released= true;
+      }
+#endif /* WITH_WSREP */
     }
-    mysql_mutex_unlock(&in_use->LOCK_thd_data);
+    if (!mutex_released)
+    {
+      mysql_mutex_unlock(&in_use->LOCK_thd_data);
+      mysql_mutex_unlock(&in_use->LOCK_thd_kill);
+    }
   }
   DBUG_RETURN(signalled);
 }
@@ -5288,11 +5303,14 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
 #ifdef WITH_WSREP
   /* wsrep applier, replayer and TOI processing threads are ordered
      by replication provider, relaxed GAP locking protocol can be used
-     between high priority wsrep threads
+     between high priority wsrep threads.
+     Note that wsrep_thd_is_BF() doesn't take LOCK_thd_data for either thd,
+     the caller should guarantee that the BF state won't change.
+     (e.g. InnoDB does it by keeping lock_sys.mutex locked)
   */
   if (WSREP_ON &&
       wsrep_thd_is_BF(const_cast<THD *>(thd), false) &&
-      wsrep_thd_is_BF(const_cast<THD *>(other_thd), true))
+      wsrep_thd_is_BF(const_cast<THD *>(other_thd), false))
     return 0;
 #endif /* WITH_WSREP */
   rgi= thd->rgi_slave;

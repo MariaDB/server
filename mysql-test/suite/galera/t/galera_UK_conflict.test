@@ -140,6 +140,14 @@ SELECT * FROM t1;
 # original state in node 1
 INSERT INTO t1 VALUES (7,7,7);
 INSERT INTO t1 VALUES (8,8,8);
+SELECT COUNT(*) FROM t1;
+SELECT * FROM t1;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 7 FROM t1
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
+SELECT * FROM t1;
 
 DROP TABLE t1;
 
@@ -199,9 +207,9 @@ INSERT INTO t1 VALUES (5, 5, 2);
 --source include/galera_set_sync_point.inc
 
 --connection node_1
---send COMMIT
-
---connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 7 FROM t1
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
 # wait for the local commit to enter in commit monitor wait state
 --let $galera_sync_point = apply_monitor_slave_enter_sync commit_monitor_master_enter_sync
 --source include/galera_wait_sync_point.inc
@@ -272,5 +280,14 @@ SELECT * FROM t1;
 # original state in node 1
 INSERT INTO t1 VALUES (7,7,7);
 INSERT INTO t1 VALUES (8,8,8);
+
+SELECT COUNT(*) FROM t1;
+SELECT * FROM t1;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 7 FROM t1
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
+SELECT * FROM t1;
 
 DROP TABLE t1;
