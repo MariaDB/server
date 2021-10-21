@@ -2641,6 +2641,9 @@ fts_optimize_request_sync_table(
 
 	ib_wqueue_add(fts_optimize_wq, msg, msg->heap, true);
 
+	DBUG_EXECUTE_IF("fts_optimize_wq_count_check",
+			DBUG_ASSERT(fts_optimize_wq->length <= 1000););
+
 	mutex_exit(&fts_optimize_wq->mutex);
 }
 
