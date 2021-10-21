@@ -45,8 +45,8 @@ int main(int, char**)
         !memcmp(&fts_info[i].buf, buf, len) &&
         fts_decode_vlc(&fts_buf) == fts_info[i].val &&
         fts_buf == &buf[len])
-      ok(true, "FTS Encoded for %d bytes", fts_info[i].len);
+      ok(true, "FTS Encoded for %zu bytes", fts_info[i].len);
     else
-      ok(false, "FTS Encoded for %d bytes", fts_info[i].len);
+      ok(false, "FTS Encoded for %zu bytes", fts_info[i].len);
   }
 }

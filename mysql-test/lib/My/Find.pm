@@ -159,7 +159,7 @@ sub my_build_path_list {
   # User can select to look in a special build dir
   # which is a subdirectory of any of the paths
   my @extra_dirs;
-  my $build_dir= $::opt_vs_config || $ENV{MTR_VS_CONFIG} || $ENV{MTR_BUILD_DIR};
+  my $build_dir= $::multiconfig || $ENV{MTR_VS_CONFIG} || $ENV{MTR_BUILD_DIR};
   push(@extra_dirs, $build_dir) if defined $build_dir;
 
   if (defined $extension){
