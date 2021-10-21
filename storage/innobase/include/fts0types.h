@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -150,6 +150,9 @@ struct fts_cache_t {
 	size_t		total_size;	/*!< total size consumed by the ilist
 					field of all nodes. SYNC is run
 					whenever this gets too big */
+	/** total_size at the time of the previous SYNC request */
+	size_t		total_size_at_sync;
+
 	fts_sync_t*	sync;		/*!< sync structure to sync data to
 					disk */
 	ib_alloc_t*	sync_heap;	/*!< The heap allocator, for indexes
