@@ -3282,9 +3282,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                         &error_reported, mode))
     {
       error= OPEN_FRM_CORRUPTED;
-      // parse_vcol_defs may fail by semantic reasons, which is ok, but the
-      // real corruption should never be reported during table creation
-      DBUG_ASSERT(!is_create_table || !error_reported);
       goto err;
     }
 
