@@ -24,8 +24,7 @@ SELECT COUNT(*) FROM information_schema.innodb_buffer_page
 WHERE table_name = '`test`.`t`';
 COUNT(*)
 1
-# INSERT lots of data in table 'big': begin
-# INSERT lots of data in table 'big': end
+INSERT INTO big SELECT REPEAT('a', 1024) FROM seq_1_to_10240;
 SELECT COUNT(*) FROM information_schema.innodb_buffer_page
 WHERE table_name = '`test`.`t`';
 COUNT(*)

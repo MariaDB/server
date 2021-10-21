@@ -78,10 +78,8 @@ void log_buffer_extend(ulong len)
 	const size_t new_buf_size = ut_calc_align(len, srv_page_size);
 	byte* new_buf = static_cast<byte*>
 		(ut_malloc_dontdump(new_buf_size, PSI_INSTRUMENT_ME));
-	TRASH_ALLOC(new_buf, new_buf_size);
 	byte* new_flush_buf = static_cast<byte*>
 		(ut_malloc_dontdump(new_buf_size, PSI_INSTRUMENT_ME));
-	TRASH_ALLOC(new_flush_buf, new_buf_size);
 
 	mysql_mutex_lock(&log_sys.mutex);
 

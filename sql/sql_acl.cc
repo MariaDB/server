@@ -3359,21 +3359,22 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
                            const Account_options &options,
                            const privilege_t privileges)
 {
+  ACL_USER_PARAM::AUTH *work_copy= NULL;
   if (nauth)
   {
-    if (acl_user->nauth >= nauth)
-      acl_user->nauth= nauth;
-    else
-      acl_user->alloc_auth(&acl_memroot, nauth);
+    if (!(work_copy= (ACL_USER_PARAM::AUTH*)
+            alloc_root(thd->mem_root, nauth * sizeof(ACL_USER_PARAM::AUTH))))
+      return 1;
 
     USER_AUTH *auth= combo.auth;
     for (uint i= 0; i < nauth; i++, auth= auth->next)
     {
-      acl_user->auth[i].plugin= auth->plugin;
-      acl_user->auth[i].auth_string= safe_lexcstrdup_root(&acl_memroot, auth->auth_str);
-      if (fix_user_plugin_ptr(acl_user->auth + i))
-        acl_user->auth[i].plugin= safe_lexcstrdup_root(&acl_memroot, auth->plugin);
-      if (set_user_auth(thd, acl_user->user, acl_user->auth + i, auth->pwtext))
+      work_copy[i].plugin= auth->plugin;
+      work_copy[i].auth_string= safe_lexcstrdup_root(&acl_memroot,
+                                                     auth->auth_str);
+      if (fix_user_plugin_ptr(work_copy + i))
+        work_copy[i].plugin= safe_lexcstrdup_root(&acl_memroot, auth->plugin);
+      if (set_user_auth(thd, acl_user->user, work_copy + i, auth->pwtext))
         return 1;
     }
   }
@@ -3401,11 +3402,34 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
   if (options.account_locked != ACCOUNTLOCK_UNSPECIFIED)
     acl_user->account_locked= options.account_locked == ACCOUNTLOCK_LOCKED;
 
-  /* Unexpire the user password */
+  if (thd->is_error())
+  {
+    // If something went wrong (including OOM) we will not spoil acl cache
+    return 1;
+  }
+  /* Unexpire the user password and copy AUTH (when no more errors possible)*/
   if (nauth)
   {
     acl_user->password_expired= false;
-    acl_user->password_last_changed= thd->query_start();;
+    acl_user->password_last_changed= thd->query_start();
+
+    if (acl_user->nauth >= nauth)
+    {
+      acl_user->nauth= nauth;
+    }
+    else
+    {
+      if (acl_user->alloc_auth(&acl_memroot, nauth))
+      {
+        /*
+          acl_user is a copy, so NULL assigned in case of an error do not
+          change the acl cache
+        */
+        return 1;
+      }
+    }
+    DBUG_ASSERT(work_copy); // allocated under the same condinition
+    memcpy(acl_user->auth, work_copy,  nauth * sizeof(ACL_USER_PARAM::AUTH));
   }
 
   switch (options.password_expire) {
@@ -10197,8 +10221,8 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
                                LEX_USER *user_from, LEX_USER *user_to)
 {
   int result= 0;
-  int idx;
   int elements;
+  bool restart;
   const char *UNINIT_VAR(user);
   const char *UNINIT_VAR(host);
   ACL_USER *acl_user= NULL;
@@ -10306,82 +10330,98 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     DBUG_RETURN(-1);
   }
 
+
 #ifdef EXTRA_DEBUG
     DBUG_PRINT("loop",("scan struct: %u  search    user: '%s'  host: '%s'",
                        struct_no, user_from->user.str, user_from->host.str));
 #endif
-  /* Loop over all elements *backwards* (see the comment below). */
-  for (idx= elements - 1; idx >= 0; idx--)
-  {
-    /*
-      Get a pointer to the element.
-    */
-    switch (struct_no) {
-    case USER_ACL:
-      acl_user= dynamic_element(&acl_users, idx, ACL_USER*);
-      user= acl_user->user.str;
-      host= acl_user->host.hostname;
-    break;
+  /* Loop over elements backwards as it may reduce the number of mem-moves
+     for dynamic arrays.
 
-    case DB_ACL:
-      acl_db= &acl_dbs.at(idx);
-      user= acl_db->user;
-      host= acl_db->host.hostname;
+     We restart the loop, if we deleted or updated anything in a hash table
+     because calling my_hash_delete or my_hash_update shuffles elements indices
+     and we can miss some if we do only one scan.
+  */
+  do {
+    restart= false;
+    for (int idx= elements - 1; idx >= 0; idx--)
+    {
+      /*
+        Get a pointer to the element.
+      */
+      switch (struct_no) {
+      case USER_ACL:
+        acl_user= dynamic_element(&acl_users, idx, ACL_USER*);
+        user= acl_user->user.str;
+        host= acl_user->host.hostname;
       break;
 
-    case COLUMN_PRIVILEGES_HASH:
-    case PROC_PRIVILEGES_HASH:
-    case FUNC_PRIVILEGES_HASH:
-    case PACKAGE_SPEC_PRIVILEGES_HASH:
-    case PACKAGE_BODY_PRIVILEGES_HASH:
-      grant_name= (GRANT_NAME*) my_hash_element(grant_name_hash, idx);
-      user= grant_name->user;
-      host= grant_name->host.hostname;
-      break;
+      case DB_ACL:
+        acl_db= &acl_dbs.at(idx);
+        user= acl_db->user;
+        host= acl_db->host.hostname;
+        break;
 
-    case PROXY_USERS_ACL:
-      acl_proxy_user= dynamic_element(&acl_proxy_users, idx, ACL_PROXY_USER*);
-      user= acl_proxy_user->get_user();
-      host= acl_proxy_user->get_host();
-      break;
+      case COLUMN_PRIVILEGES_HASH:
+      case PROC_PRIVILEGES_HASH:
+      case FUNC_PRIVILEGES_HASH:
+      case PACKAGE_SPEC_PRIVILEGES_HASH:
+      case PACKAGE_BODY_PRIVILEGES_HASH:
+        grant_name= (GRANT_NAME*) my_hash_element(grant_name_hash, idx);
+        user= grant_name->user;
+        host= grant_name->host.hostname;
+        break;
 
-    case ROLES_MAPPINGS_HASH:
-      role_grant_pair= (ROLE_GRANT_PAIR *) my_hash_element(roles_mappings_hash, idx);
-      user= role_grant_pair->u_uname;
-      host= role_grant_pair->u_hname;
-      break;
+      case PROXY_USERS_ACL:
+        acl_proxy_user= dynamic_element(&acl_proxy_users, idx, ACL_PROXY_USER*);
+        user= acl_proxy_user->get_user();
+        host= acl_proxy_user->get_host();
+        break;
 
-    default:
-      DBUG_ASSERT(0);
-    }
-    if (! host)
-      host= "";
+      case ROLES_MAPPINGS_HASH:
+        role_grant_pair= (ROLE_GRANT_PAIR *) my_hash_element(roles_mappings_hash, idx);
+        user= role_grant_pair->u_uname;
+        host= role_grant_pair->u_hname;
+        break;
+
+      default:
+        DBUG_ASSERT(0);
+      }
+      if (! host)
+        host= "";
 
 #ifdef EXTRA_DEBUG
-    DBUG_PRINT("loop",("scan struct: %u  index: %u  user: '%s'  host: '%s'",
-                       struct_no, idx, user, host));
+      DBUG_PRINT("loop",("scan struct: %u  index: %u  user: '%s'  host: '%s'",
+                         struct_no, idx, user, host));
 #endif
 
-    if (struct_no == ROLES_MAPPINGS_HASH)
-    {
-      const char* role= role_grant_pair->r_uname? role_grant_pair->r_uname: "";
-      if (user_from->is_role())
+      if (struct_no == ROLES_MAPPINGS_HASH)
       {
-        /* When searching for roles within the ROLES_MAPPINGS_HASH, we have
-           to check both the user field as well as the role field for a match.
+        const char* role= role_grant_pair->r_uname? role_grant_pair->r_uname: "";
+        if (user_from->is_role())
+        {
+          /* When searching for roles within the ROLES_MAPPINGS_HASH, we have
+             to check both the user field as well as the role field for a match.
 
-           It is possible to have a role granted to a role. If we are going
-           to modify the mapping entry, it needs to be done on either on the
-           "user" end (here represented by a role) or the "role" end. At least
-           one part must match.
+             It is possible to have a role granted to a role. If we are going
+             to modify the mapping entry, it needs to be done on either on the
+             "user" end (here represented by a role) or the "role" end. At least
+             one part must match.
 
-           If the "user" end has a not-empty host string, it can never match
-           as we are searching for a role here. A role always has an empty host
-           string.
-        */
-        if ((*host || strcmp(user_from->user.str, user)) &&
-            strcmp(user_from->user.str, role))
-          continue;
+             If the "user" end has a not-empty host string, it can never match
+             as we are searching for a role here. A role always has an empty host
+             string.
+          */
+          if ((*host || strcmp(user_from->user.str, user)) &&
+              strcmp(user_from->user.str, role))
+            continue;
+        }
+        else
+        {
+          if (strcmp(user_from->user.str, user) ||
+              my_strcasecmp(system_charset_info, user_from->host.str, host))
+            continue;
+        }
       }
       else
       {
@@ -10389,157 +10429,134 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
             my_strcasecmp(system_charset_info, user_from->host.str, host))
           continue;
       }
-    }
-    else
-    {
-      if (strcmp(user_from->user.str, user) ||
-          my_strcasecmp(system_charset_info, user_from->host.str, host))
-        continue;
-    }
 
-    result= 1; /* At least one element found. */
-    if ( drop )
-    {
-      elements--;
-      switch ( struct_no ) {
-      case USER_ACL:
-        free_acl_user(dynamic_element(&acl_users, idx, ACL_USER*));
-        delete_dynamic_element(&acl_users, idx);
-        break;
+      result= 1; /* At least one element found. */
+      if ( drop )
+      {
+        elements--;
+        switch ( struct_no ) {
+        case USER_ACL:
+          free_acl_user(dynamic_element(&acl_users, idx, ACL_USER*));
+          delete_dynamic_element(&acl_users, idx);
+          break;
 
-      case DB_ACL:
-        acl_dbs.del(idx);
-        break;
+        case DB_ACL:
+          acl_dbs.del(idx);
+          break;
 
-      case COLUMN_PRIVILEGES_HASH:
-      case PROC_PRIVILEGES_HASH:
-      case FUNC_PRIVILEGES_HASH:
-      case PACKAGE_SPEC_PRIVILEGES_HASH:
-      case PACKAGE_BODY_PRIVILEGES_HASH:
-        my_hash_delete(grant_name_hash, (uchar*) grant_name);
-        /*
-          In our HASH implementation on deletion one elements
-          is moved into a place where a deleted element was,
-          and the last element is moved into the empty space.
-          Thus we need to re-examine the current element, but
-          we don't have to restart the search from the beginning.
-        */
-        if (idx != elements)
-          idx++;
-	break;
+        case COLUMN_PRIVILEGES_HASH:
+        case PROC_PRIVILEGES_HASH:
+        case FUNC_PRIVILEGES_HASH:
+        case PACKAGE_SPEC_PRIVILEGES_HASH:
+        case PACKAGE_BODY_PRIVILEGES_HASH:
+          my_hash_delete(grant_name_hash, (uchar*) grant_name);
+          restart= true;
+          break;
 
-      case PROXY_USERS_ACL:
-        delete_dynamic_element(&acl_proxy_users, idx);
-        break;
+        case PROXY_USERS_ACL:
+          delete_dynamic_element(&acl_proxy_users, idx);
+          break;
 
-      case ROLES_MAPPINGS_HASH:
-        my_hash_delete(roles_mappings_hash, (uchar*) role_grant_pair);
-        if (idx != elements)
-          idx++;
-        break;
+        case ROLES_MAPPINGS_HASH:
+          my_hash_delete(roles_mappings_hash, (uchar*) role_grant_pair);
+          restart= true;
+          break;
 
-      default:
-        DBUG_ASSERT(0);
-        break;
+        default:
+          DBUG_ASSERT(0);
+          break;
+        }
       }
-    }
-    else if ( user_to )
-    {
-      switch ( struct_no ) {
-      case USER_ACL:
-        acl_user->user= safe_lexcstrdup_root(&acl_memroot, user_to->user);
-        update_hostname(&acl_user->host, strdup_root(&acl_memroot, user_to->host.str));
-        acl_user->hostname_length= strlen(acl_user->host.hostname);
-        break;
+      else if ( user_to )
+      {
+        switch ( struct_no ) {
+        case USER_ACL:
+          acl_user->user= safe_lexcstrdup_root(&acl_memroot, user_to->user);
+          update_hostname(&acl_user->host, strdup_root(&acl_memroot, user_to->host.str));
+          acl_user->hostname_length= strlen(acl_user->host.hostname);
+          break;
 
-      case DB_ACL:
-        acl_db->user= strdup_root(&acl_memroot, user_to->user.str);
-        update_hostname(&acl_db->host, strdup_root(&acl_memroot, user_to->host.str));
-        break;
+        case DB_ACL:
+          acl_db->user= strdup_root(&acl_memroot, user_to->user.str);
+          update_hostname(&acl_db->host, strdup_root(&acl_memroot, user_to->host.str));
+          break;
 
-      case COLUMN_PRIVILEGES_HASH:
-      case PROC_PRIVILEGES_HASH:
-      case FUNC_PRIVILEGES_HASH:
-      case PACKAGE_SPEC_PRIVILEGES_HASH:
-      case PACKAGE_BODY_PRIVILEGES_HASH:
-        {
-          /*
-            Save old hash key and its length to be able to properly update
-            element position in hash.
-          */
-          char *old_key= grant_name->hash_key;
-          size_t old_key_length= grant_name->key_length;
+        case COLUMN_PRIVILEGES_HASH:
+        case PROC_PRIVILEGES_HASH:
+        case FUNC_PRIVILEGES_HASH:
+        case PACKAGE_SPEC_PRIVILEGES_HASH:
+        case PACKAGE_BODY_PRIVILEGES_HASH:
+          {
+            /*
+              Save old hash key and its length to be able to properly update
+              element position in hash.
+            */
+            char *old_key= grant_name->hash_key;
+            size_t old_key_length= grant_name->key_length;
 
-          /*
-            Update the grant structure with the new user name and host name.
-          */
-          grant_name->set_user_details(user_to->host.str, grant_name->db,
-                                       user_to->user.str, grant_name->tname,
-                                       TRUE);
+            /*
+              Update the grant structure with the new user name and host name.
+            */
+            grant_name->set_user_details(user_to->host.str, grant_name->db,
+                                         user_to->user.str, grant_name->tname,
+                                         TRUE);
 
-          /*
-            Since username is part of the hash key, when the user name
-            is renamed, the hash key is changed. Update the hash to
-            ensure that the position matches the new hash key value
-          */
-          my_hash_update(grant_name_hash, (uchar*) grant_name, (uchar*) old_key,
-                         old_key_length);
-          /*
-            hash_update() operation could have moved element from the tail or
-            the head of the hash to the current position.  But it can never
-            move an element from the head to the tail or from the tail to the
-            head over the current element.
-            So we need to examine the current element once again, but
-            we don't need to restart the search from the beginning.
-          */
-          idx++;
+            /*
+              Since username is part of the hash key, when the user name
+              is renamed, the hash key is changed. Update the hash to
+              ensure that the position matches the new hash key value
+            */
+            my_hash_update(grant_name_hash, (uchar*) grant_name, (uchar*) old_key,
+                           old_key_length);
+            restart= true;
+            break;
+          }
+
+        case PROXY_USERS_ACL:
+          acl_proxy_user->set_user (&acl_memroot, user_to->user.str);
+          acl_proxy_user->set_host (&acl_memroot, user_to->host.str);
+          break;
+
+        case ROLES_MAPPINGS_HASH:
+          {
+            /*
+              Save old hash key and its length to be able to properly update
+              element position in hash.
+            */
+            char *old_key= role_grant_pair->hashkey.str;
+            size_t old_key_length= role_grant_pair->hashkey.length;
+            bool oom;
+
+            if (user_to->is_role())
+              oom= role_grant_pair->init(&acl_memroot, role_grant_pair->u_uname,
+                                         role_grant_pair->u_hname,
+                                         user_to->user.str, false);
+            else
+              oom= role_grant_pair->init(&acl_memroot, user_to->user.str,
+                                         user_to->host.str,
+                                         role_grant_pair->r_uname, false);
+            if (oom)
+              DBUG_RETURN(-1);
+
+            my_hash_update(roles_mappings_hash, (uchar*) role_grant_pair,
+                           (uchar*) old_key, old_key_length);
+            restart= true;
+            break;
+          }
+
+        default:
+          DBUG_ASSERT(0);
           break;
         }
 
-      case PROXY_USERS_ACL:
-        acl_proxy_user->set_user (&acl_memroot, user_to->user.str);
-        acl_proxy_user->set_host (&acl_memroot, user_to->host.str);
-        break;
-
-      case ROLES_MAPPINGS_HASH:
-        {
-          /*
-            Save old hash key and its length to be able to properly update
-            element position in hash.
-          */
-          char *old_key= role_grant_pair->hashkey.str;
-          size_t old_key_length= role_grant_pair->hashkey.length;
-          bool oom;
-
-          if (user_to->is_role())
-            oom= role_grant_pair->init(&acl_memroot, role_grant_pair->u_uname,
-                                       role_grant_pair->u_hname,
-                                       user_to->user.str, false);
-          else
-            oom= role_grant_pair->init(&acl_memroot, user_to->user.str,
-                                       user_to->host.str,
-                                       role_grant_pair->r_uname, false);
-          if (oom)
-            DBUG_RETURN(-1);
-
-          my_hash_update(roles_mappings_hash, (uchar*) role_grant_pair,
-                         (uchar*) old_key, old_key_length);
-          idx++; // see the comment above
-          break;
-        }
-
-      default:
-        DBUG_ASSERT(0);
+      }
+      else
+      {
+        /* If search is requested, we do not need to search further. */
         break;
       }
-
     }
-    else
-    {
-      /* If search is requested, we do not need to search further. */
-      break;
-    }
-  }
+  } while (restart);
 #ifdef EXTRA_DEBUG
   DBUG_PRINT("loop",("scan struct: %u  result %d", struct_no, result));
 #endif

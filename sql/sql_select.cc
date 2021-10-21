@@ -28247,6 +28247,11 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 
   //Item List
   bool first= 1;
+  /*
+    outer_select() can not be used here because it is for name resolution
+    and will return NULL at any end of name resolution chain (view/derived)
+  */
+  bool top_level= (get_master()->get_master() == 0);
   List_iterator_fast<Item> it(item_list);
   Item *item;
   while ((item= it++))
@@ -28256,7 +28261,8 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     else
       str->append(',');
 
-    if (is_subquery_function() && !item->is_explicit_name())
+    if ((is_subquery_function() && !item->is_explicit_name()) ||
+        !item->name.str)
     {
       /*
         Do not print auto-generated aliases in subqueries. It has no purpose
@@ -28265,7 +28271,20 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       item->print(str, query_type);
     }
     else
-      item->print_item_w_name(str, query_type);
+    {
+      /*
+        Do not print illegal names (if it is not top level SELECT).
+        Top level view checked (and correct name are assigned),
+        other cases of top level SELECT are not important, because
+        it is not "table field".
+      */
+      if (top_level ||
+          item->is_explicit_name() ||
+          !check_column_name(item->name.str))
+        item->print_item_w_name(str, query_type);
+      else
+        item->print(str, query_type);
+    }
   }
 
   /*

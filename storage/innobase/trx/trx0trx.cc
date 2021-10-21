@@ -1302,10 +1302,12 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
     }
   }
 
+  /* We already detached from rseg in trx_write_serialisation_history() */
   ut_ad(!rsegs.m_redo.undo);
   ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
 
   if (trx_rseg_t *rseg= rsegs.m_redo.rseg)
+    /* This is safe due to us having detached the persistent undo log. */
     rseg->release();
 
   if (mtr)

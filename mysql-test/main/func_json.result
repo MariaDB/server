@@ -934,6 +934,12 @@ CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
 cf	cd
 0	0
 #
+# MDEV-24585 Assertion `je->s.cs == nice_js->charset()' failed in json_nice.
+#
+SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
+JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' )
+["x"]
+#
 # End of 10.2 tests
 #
 #

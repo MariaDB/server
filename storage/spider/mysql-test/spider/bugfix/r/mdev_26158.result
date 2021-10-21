@@ -1,0 +1,27 @@
+#
+# MDEV-26158 SIGSEGV in spider_free_mem from ha_spider::open on INSERT
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE t (
+c INT
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a"'
+PARTITION BY LIST COLUMNS(`c`) (
+PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
+);
+INSERT INTO t SELECT * FROM t;
+ERROR 42000: Unknown database 'auto_test_remote'
+DROP DATABASE auto_test_local;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3

@@ -3846,8 +3846,48 @@ void Item_string::print(String *str, enum_query_type query_type)
   }
   else
   {
-    // Caller wants a result in the charset of str_value.
-    str_value.print(str);
+    /*
+      We're restoring a parse-able statement from an Item tree.
+      Make sure to revert character set conversions that previously
+      happened in the parser when Item_string was created.
+    */
+    if (print_introducer)
+    {
+      /*
+        Print the string as is, without conversion:
+        Strings with introducers are not converted in the parser.
+      */
+      str_value.print(str);
+    }
+    else
+    {
+      /*
+        Print the string with conversion.
+        Strings without introducers are converted in the parser,
+        from character_set_client to character_set_connection.
+
+        When restoring a CREATE VIEW statement,
+        - str_value.charsets() contains parse time character_set_connection
+        - str->charset() contains parse time character_set_client
+        So we convert the string back from parse-time character_set_connection
+        to parse time character_set_client.
+
+        In some cases, e.g. SHOW PROCEDURE CODE, it's also possible
+        that str->charset() is "utf8mb3" instead of parse time
+        character_set_client. In these cases we convert
+        here from the parse-time character_set_connection to utf8mb3.
+
+        QQ: perhaps the code behind SHOW PROCEDURE CODE should
+        also request the result in the parse-time character_set_client
+        (like the code restoring CREATE VIEW statements does),
+        rather than in utf8mb3:
+        - utf8mb3 does not work well with non-BMP characters (e.g. emoji).
+        - Simply changing utf8mb3 to utf8mb4 will not fully help:
+          some character sets have unassigned characters,
+          they get lost during during cs->utf8mb4->cs round trip.
+      */
+      str_value.print_with_conversion(str, str->charset());
+    }
   }
 
   str->append('\'');

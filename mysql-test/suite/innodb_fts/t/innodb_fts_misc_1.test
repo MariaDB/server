@@ -949,3 +949,21 @@ SET GLOBAL innodb_ft_aux_table='test/t1';
 SELECT * FROM information_schema.innodb_ft_deleted;
 DROP TABLE t1;
 SET GLOBAL innodb_ft_aux_table=DEFAULT;
+
+--echo #
+--echo # MDEV-19522 InnoDB commit fails when FTS_DOC_ID value
+--echo #                is greater than 4294967295
+--echo #
+CREATE TABLE t1(
+        FTS_DOC_ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        f1 TEXT, f2 TEXT, PRIMARY KEY (FTS_DOC_ID),
+        FULLTEXT KEY (f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'txt','bbb');
+UPDATE t1 SET FTS_DOC_ID = 4294967298;
+SELECT * FROM t1 WHERE match(f1) against("txt");
+SET @@session.insert_id = 100000000000;
+INSERT INTO t1(f1, f2) VALUES ('aaa', 'bbb');
+CREATE FULLTEXT INDEX i ON t1 (f2);
+SELECT * FROM t1 WHERE match(f2) against("bbb");
+# Cleanup
+DROP TABLE t1;
