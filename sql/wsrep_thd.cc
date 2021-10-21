@@ -1,4 +1,4 @@
-/* Copyright (C) 2013 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2021 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -803,9 +803,12 @@ my_bool wsrep_thd_is_local(void *thd_ptr, my_bool sync)
 
 int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
 {
-  THD *victim_thd = (THD *) victim_thd_ptr;
-  THD *bf_thd     = (THD *) bf_thd_ptr;
+  THD *victim_thd= (THD *) victim_thd_ptr;
+  THD *bf_thd= (THD *) bf_thd_ptr;
   DBUG_ENTER("wsrep_abort_thd");
+
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
 
   if ( (WSREP(bf_thd) ||
          ( (WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU) &&
@@ -820,6 +823,7 @@ int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
                   "aborted. Ignoring.",
                   (bf_thd) ? (long long)bf_thd->real_id : 0,
                   (long long)victim_thd->real_id);
+      wsrep_thd_UNLOCK(victim_thd);
       DBUG_RETURN(1);
     }
 
@@ -830,6 +834,7 @@ int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
   else
   {
     WSREP_DEBUG("wsrep_abort_thd not effective: %p %p", bf_thd, victim_thd);
+    wsrep_thd_UNLOCK(victim_thd);
   }
 
   DBUG_RETURN(1);
