@@ -153,6 +153,7 @@ INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
 INCLUDE(wsrep)
+INCLUDE(galera_external)
 
 # Add macros
 INCLUDE(character_sets)

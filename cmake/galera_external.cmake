@@ -1,0 +1,62 @@
+# EXT_GALERA_PATH
+# a path to built galera git tree
+# or a path to unpacked binary tarball
+
+IF(NOT EXT_GALERA_PATH)
+  RETURN()
+ENDIF()
+
+IF(NOT EXISTS ${EXT_GALERA_PATH})
+  MESSAGE(FATAL_ERROR "Galera dir ${EXT_GALERA_PATH} does not exist!")
+ENDIF()
+
+SET(GALERA_PATH ${CMAKE_SOURCE_DIR}/GALERASYM)
+IF(EXISTS ${GALERA_PATH})
+  FILE(REMOVE ${GALERA_PATH})
+ENDIF()
+EXECUTE_PROCESS(COMMAND ${CMAKE_COMMAND} -E create_symlink ${EXT_GALERA_PATH} ${GALERA_PATH})
+
+FIND_LIBRARY(GALERA_LIB
+  NAMES galera_smm galera_enterprise_smm
+  PATHS ${GALERA_PATH}
+  NO_DEFAULT_PATH
+  PATH_SUFFIXES lib/galera 
+  )
+
+FIND_PROGRAM(GARBD
+  NAME garbd
+  PATHS ${GALERA_PATH}
+  NO_DEFAULT_PATH
+  PATH_SUFFIXES garb bin
+  )
+
+IF(NOT GALERA_LIB)
+  MESSAGE(FATAL_ERROR "Galera library not found in ${GALERA_PATH}")
+ENDIF()
+
+INSTALL(FILES
+  ${GALERA_LIB}
+  DESTINATION lib/galera
+  COMPONENT Server
+  )
+
+GET_FILENAME_COMPONENT(LIBNAME ${GALERA_LIB} NAME)
+INSTALL(CODE "EXECUTE_PROCESS(COMMAND 
+  ${CMAKE_COMMAND} -E create_symlink
+  galera/${LIBNAME} libgalera_smm.so 
+  )" 
+    COMPONENT Server
+  )
+
+INSTALL(FILES
+  libgalera_smm.so
+  DESTINATION lib
+  COMPONENT Server
+  )
+
+INSTALL(PROGRAMS
+  ${GARBD}
+  DESTINATION bin
+  COMPONENT Server
+  )
+
