@@ -1355,7 +1355,10 @@ public:
     uint        key_parts;
     uint        ranges;
     ha_rows     rows;
+    /* Cost of fetching and comparing the row aginst the WHERE clause */
     double      cost;
+    /* Cost of comparing row with WHERE clause. Included in 'cost' */
+    double      fetch_cost;
     /*
       If there is a range access by i-th index then the cost of
       index only access for it is stored in index_only_costs[i]
