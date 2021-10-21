@@ -5,7 +5,7 @@
 struct fts_encode_info
 {
   const byte buf[10];
-  int32_t len;
+  size_t len;
   doc_id_t val;
 };
 
@@ -40,7 +40,7 @@ int main(int, char**)
   {
     byte buf[10];
     const byte* fts_buf= buf;
-    int32_t len= fts_encode_int(fts_info[i].val, buf) - &buf[0];
+    size_t len= fts_encode_int(fts_info[i].val, buf) - &buf[0];
     if (fts_info[i].len == len &&
         !memcmp(&fts_info[i].buf, buf, len) &&
         fts_decode_vlc(&fts_buf) == fts_info[i].val &&
