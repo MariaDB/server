@@ -1775,12 +1775,7 @@ trx_commit_in_memory(
 
 	ut_ad(!trx->rsegs.m_redo.update_undo);
 
-	if (trx_rseg_t*	rseg = trx->rsegs.m_redo.rseg) {
-		mutex_enter(&rseg->mutex);
-		ut_ad(rseg->trx_ref_count > 0);
-		--rseg->trx_ref_count;
-		mutex_exit(&rseg->mutex);
-
+	if (ut_d(trx_rseg_t* rseg =) trx->rsegs.m_redo.rseg) {
 		if (trx_undo_t*& insert = trx->rsegs.m_redo.insert_undo) {
 			ut_ad(insert->rseg == rseg);
 			trx_undo_commit_cleanup(insert, false);
@@ -1848,6 +1843,15 @@ trx_commit_in_memory(
 	}
 
 	ut_ad(!trx->rsegs.m_noredo.undo);
+
+	/* Only after trx_undo_commit_cleanup() it is safe to release
+	our rseg reference. */
+	if (trx_rseg_t* rseg = trx->rsegs.m_redo.rseg) {
+		mutex_enter(&rseg->mutex);
+		ut_ad(rseg->trx_ref_count > 0);
+		--rseg->trx_ref_count;
+		mutex_exit(&rseg->mutex);
+	}
 
 	/* Free all savepoints, starting from the first. */
 	trx_named_savept_t*	savep = UT_LIST_GET_FIRST(trx->trx_savepoints);
