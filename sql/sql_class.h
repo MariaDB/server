@@ -4838,6 +4838,14 @@ public:
   bool is_binlog_dump_thread();
 #endif
 
+  /*
+    Indicates if this thread is suspended due to awaiting an ACK from a
+    replica. True if suspended, false otherwise.
+
+    Note that this variable is protected by Repl_semi_sync_master::LOCK_binlog
+  */
+  bool is_awaiting_semisync_ack;
+
   inline ulong wsrep_binlog_format() const
   {
     return WSREP_BINLOG_FORMAT(variables.binlog_format);

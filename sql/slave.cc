@@ -4859,6 +4859,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
           not cause the slave IO thread to stop, and the error messages are
           already reported.
         */
+        DBUG_EXECUTE_IF("simulate_delay_semisync_slave_reply", my_sleep(800000););
         (void)repl_semisync_slave.slave_reply(mi);
       }
 

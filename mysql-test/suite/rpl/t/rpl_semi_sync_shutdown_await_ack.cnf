@@ -1,0 +1,14 @@
+!include ../my.cnf
+
+[mysqld.1]
+log_warnings=9
+
+[mysqld.2]
+log_warnings=9
+
+[mysqld.3]
+log_warnings=9
+
+[ENV]
+SERVER_MYPORT_3=		@mysqld.3.port
+SERVER_MYSOCK_3=		@mysqld.3.socket

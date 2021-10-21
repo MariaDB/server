@@ -640,7 +640,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 #ifdef HAVE_REPLICATION
    ,
    current_linfo(0),
-   slave_info(0)
+   slave_info(0),
+   is_awaiting_semisync_ack(0)
 #endif
 #ifdef WITH_WSREP
    ,
