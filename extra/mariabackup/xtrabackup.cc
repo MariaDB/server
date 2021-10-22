@@ -106,7 +106,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "backup_mysql.h"
 #include "backup_copy.h"
 #include "backup_mysql.h"
-#include "encryption_plugin.h"
+#include "xb_plugin.h"
 #include <sql_plugin.h>
 #include <srv0srv.h>
 #include <log.h>
@@ -4391,7 +4391,7 @@ static bool xtrabackup_backup_func()
 		return(false);
 	}
 	msg("cd to %s", mysql_real_data_home);
-	encryption_plugin_backup_init(mysql_connection);
+	xb_plugin_backup_init(mysql_connection);
 	msg("open files limit requested %lu, set to %lu",
 	    xb_open_files_limit,
 	    xb_set_max_open_files(xb_open_files_limit));
@@ -5774,7 +5774,7 @@ static bool xtrabackup_prepare_func(char** argv)
 	}
 
 	int argc; for (argc = 0; argv[argc]; argc++) {}
-	encryption_plugin_prepare_init(argc, argv, xtrabackup_incremental_dir);
+	xb_plugin_prepare_init(argc, argv, xtrabackup_incremental_dir);
 
 	xtrabackup_target_dir= mysql_data_home_buff;
 	xtrabackup_target_dir[0]=FN_CURLIB;		// all paths are relative from here

@@ -17,7 +17,7 @@
 #include <mysqld.h>
 #include <mysql.h>
 #include <xtrabackup.h>
-#include <encryption_plugin.h>
+#include <xb_plugin.h>
 #include <sql_plugin.h>
 #include <sstream>
 #include <vector>
@@ -28,7 +28,7 @@
 
 extern struct st_maria_plugin *mysql_optional_plugins[];
 extern struct st_maria_plugin *mysql_mandatory_plugins[];
-static void encryption_plugin_init(int argc, char **argv);
+static void xb_plugin_init(int argc, char **argv);
 
 extern char *xb_plugin_load;
 extern char *xb_plugin_dir;
@@ -42,7 +42,7 @@ const char *QUERY_PLUGIN =
 " OR (plugin_type = 'DAEMON' AND plugin_name LIKE 'provider\\_%')"
 " AND plugin_status='ACTIVE'";
 
-std::string encryption_plugin_config;
+std::string xb_plugin_config;
 
 static void add_to_plugin_load_list(const char *plugin_def)
 {
@@ -55,7 +55,7 @@ static char XTRABACKUP_EXE[] = "xtrabackup";
   Read "plugin-load" value from backup-my.cnf during prepare phase.
   The value is stored during backup phase.
 */
-static std::string get_encryption_plugin_from_cnf(const char *dir)
+static std::string get_plugin_from_cnf(const char *dir)
 {
   std::string path = dir + std::string("/backup-my.cnf");
   FILE *f = fopen(path.c_str(), "r");
@@ -80,7 +80,7 @@ static std::string get_encryption_plugin_from_cnf(const char *dir)
 }
 
 
-void encryption_plugin_backup_init(MYSQL *mysql)
+void xb_plugin_backup_init(MYSQL *mysql)
 {
   MYSQL_RES *result;
   MYSQL_ROW row;
@@ -163,7 +163,7 @@ void encryption_plugin_backup_init(MYSQL *mysql)
     mysql_free_result(result);
   }
 
-  encryption_plugin_config = oss.str();
+  xb_plugin_config = oss.str();
 
   argc = 0;
   argv[argc++] = XTRABACKUP_EXE;
@@ -175,20 +175,20 @@ void encryption_plugin_backup_init(MYSQL *mysql)
   }
   argv[argc] = 0;
 
-  encryption_plugin_init(argc, argv);
+  xb_plugin_init(argc, argv);
 }
 
-const char *encryption_plugin_get_config()
+const char *xb_plugin_get_config()
 {
-  return encryption_plugin_config.c_str();
+  return xb_plugin_config.c_str();
 }
 
 extern int finalize_encryption_plugin(st_plugin_int *plugin);
 
 
-void encryption_plugin_prepare_init(int argc, char **argv, const char *dir)
+void xb_plugin_prepare_init(int argc, char **argv, const char *dir)
 {
-  std::string plugin_load= get_encryption_plugin_from_cnf(dir ? dir : ".");
+  std::string plugin_load= get_plugin_from_cnf(dir ? dir : ".");
   if (plugin_load.size())
   {
     msg("Loading plugins from %s", plugin_load.c_str());
@@ -211,12 +211,12 @@ void encryption_plugin_prepare_init(int argc, char **argv, const char *dir)
   new_argv[0] = XTRABACKUP_EXE;
   memcpy(&new_argv[1], argv, argc*sizeof(char *));
 
-  encryption_plugin_init(argc+1, new_argv);
+  xb_plugin_init(argc+1, new_argv);
 
   delete[] new_argv;
 }
 
-static void encryption_plugin_init(int argc, char **argv)
+static void xb_plugin_init(int argc, char **argv)
 {
   /* Patch optional and mandatory plugins, we only need to load the one in xb_plugin_load. */
   mysql_optional_plugins[0] = mysql_mandatory_plugins[0] = 0;
