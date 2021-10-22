@@ -2848,6 +2848,7 @@ func_exit:
 /** Reads in pages which have hashed log records, from an area around a given
 page number.
 @param[in]	page_id	page id */
+TRANSACTIONAL_TARGET
 static void recv_read_in_area(page_id_t page_id)
 {
 	uint32_t page_nos[RECV_READ_AHEAD_AREA];

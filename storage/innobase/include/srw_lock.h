@@ -60,10 +60,10 @@ class srw_mutex_impl final
 public:
   /** @return whether the mutex is being held or waited for */
   bool is_locked_or_waiting() const
-  { return lock.load(std::memory_order_relaxed) != 0; }
+  { return lock.load(std::memory_order_acquire) != 0; }
   /** @return whether the mutex is being held by any thread */
   bool is_locked() const
-  { return (lock.load(std::memory_order_relaxed) & HOLDER) != 0; }
+  { return (lock.load(std::memory_order_acquire) & HOLDER) != 0; }
 
   void init() { DBUG_ASSERT(!is_locked_or_waiting()); }
   void destroy() { DBUG_ASSERT(!is_locked_or_waiting()); }
@@ -174,8 +174,7 @@ public:
   { return (readers.load(std::memory_order_relaxed) & WRITER) != 0; }
 # ifndef DBUG_OFF
   /** @return whether the lock is being held or waited for */
-  bool is_vacant() const
-  { return !is_locked() && !writer.is_locked_or_waiting(); }
+  bool is_vacant() const { return !is_locked_or_waiting(); }
 # endif /* !DBUG_OFF */
 
   bool rd_lock_try()
@@ -275,10 +274,18 @@ public:
   }
   /** @return whether an exclusive lock may be held by any thread */
   bool is_write_locked() const noexcept
-  { return readers.load(std::memory_order_relaxed) == WRITER; }
+  { return readers.load(std::memory_order_acquire) == WRITER; }
   /** @return whether any lock may be held by any thread */
   bool is_locked() const noexcept
-  { return readers.load(std::memory_order_relaxed) != 0; }
+  { return readers.load(std::memory_order_acquire) != 0; }
+  /** @return whether any lock may be held by any thread */
+  bool is_locked_or_waiting() const noexcept
+  { return is_locked() || writer.is_locked_or_waiting(); }
+
+  void lock_shared() { rd_lock(); }
+  void unlock_shared() { rd_unlock(); }
+  void lock() { wr_lock(); }
+  void unlock() { wr_unlock(); }
 #endif
 };
 
@@ -291,29 +298,29 @@ class srw_lock_
   friend srw_lock_impl<spinloop>;
 # endif
 # ifdef _WIN32
-  SRWLOCK lock;
+  SRWLOCK lk;
 # else
-  rw_lock_t lock;
+  rw_lock_t lk;
 # endif
 
   void rd_wait();
   void wr_wait();
 public:
-  void init() { IF_WIN(,my_rwlock_init(&lock, nullptr)); }
-  void destroy() { IF_WIN(,rwlock_destroy(&lock)); }
+  void init() { IF_WIN(,my_rwlock_init(&lk, nullptr)); }
+  void destroy() { IF_WIN(,rwlock_destroy(&lk)); }
   inline void rd_lock();
   inline void wr_lock();
   bool rd_lock_try()
-  { return IF_WIN(TryAcquireSRWLockShared(&lock), !rw_tryrdlock(&lock)); }
+  { return IF_WIN(TryAcquireSRWLockShared(&lk), !rw_tryrdlock(&lk)); }
   void rd_unlock()
-  { IF_WIN(ReleaseSRWLockShared(&lock), rw_unlock(&lock)); }
+  { IF_WIN(ReleaseSRWLockShared(&lk), rw_unlock(&lk)); }
   bool wr_lock_try()
-  { return IF_WIN(TryAcquireSRWLockExclusive(&lock), !rw_trywrlock(&lock)); }
+  { return IF_WIN(TryAcquireSRWLockExclusive(&lk), !rw_trywrlock(&lk)); }
   void wr_unlock()
-  { IF_WIN(ReleaseSRWLockExclusive(&lock), rw_unlock(&lock)); }
+  { IF_WIN(ReleaseSRWLockExclusive(&lk), rw_unlock(&lk)); }
 #ifdef _WIN32
   /** @return whether any lock may be held by any thread */
-  bool is_locked_or_waiting() const noexcept { return (size_t&)(lock) != 0; }
+  bool is_locked_or_waiting() const noexcept { return (size_t&)(lk) != 0; }
   /** @return whether any lock may be held by any thread */
   bool is_locked() const noexcept { return is_locked_or_waiting(); }
   /** @return whether an exclusive lock may be held by any thread */
@@ -322,6 +329,11 @@ public:
     // FIXME: this returns false positives for shared locks
     return is_locked();
   }
+
+  void lock_shared() { rd_lock(); }
+  void unlock_shared() { rd_unlock(); }
+  void lock() { wr_lock(); }
+  void unlock() { wr_unlock(); }
 #endif
 };
 
@@ -330,10 +342,10 @@ template<> void srw_lock_<true>::wr_wait();
 
 template<>
 inline void srw_lock_<false>::rd_lock()
-{ IF_WIN(AcquireSRWLockShared(&lock), rw_rdlock(&lock)); }
+{ IF_WIN(AcquireSRWLockShared(&lk), rw_rdlock(&lk)); }
 template<>
 inline void srw_lock_<false>::wr_lock()
-{ IF_WIN(AcquireSRWLockExclusive(&lock), rw_wrlock(&lock)); }
+{ IF_WIN(AcquireSRWLockExclusive(&lk), rw_wrlock(&lk)); }
 
 template<>
 inline void srw_lock_<true>::rd_lock() { if (!rd_lock_try()) rd_wait(); }
@@ -491,6 +503,15 @@ public:
   }
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool wr_lock_try() { return lock.wr_lock_try(); }
+#ifndef SUX_LOCK_GENERIC
+  /** @return whether any lock may be held by any thread */
+  bool is_locked_or_waiting() const noexcept
+  { return lock.is_locked_or_waiting(); }
+  /** @return whether an exclusive lock may be held by any thread */
+  bool is_locked() const noexcept { return lock.is_locked(); }
+  /** @return whether an exclusive lock may be held by any thread */
+  bool is_write_locked() const noexcept { return lock.is_write_locked(); }
+#endif
 };
 
 typedef srw_lock_impl<false> srw_lock;

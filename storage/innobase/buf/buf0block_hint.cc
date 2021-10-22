@@ -28,6 +28,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "buf0block_hint.h"
 namespace buf {
 
+TRANSACTIONAL_TARGET
 void Block_hint::buffer_fix_block_if_still_valid()
 {
   /* To check if m_block belongs to the current buf_pool, we must
@@ -47,14 +48,13 @@ void Block_hint::buffer_fix_block_if_still_valid()
   if (m_block)
   {
     auto &cell= buf_pool.page_hash.cell_get(m_page_id.fold());
-    page_hash_latch &latch= buf_pool.page_hash.lock_get(cell);
-    latch.read_lock();
+    transactional_shared_lock_guard<page_hash_latch> g
+      {buf_pool.page_hash.lock_get(cell)};
     if (buf_pool.is_uncompressed(m_block) && m_page_id == m_block->page.id() &&
         m_block->page.state() == BUF_BLOCK_FILE_PAGE)
-      buf_block_buf_fix_inc(m_block);
+      m_block->fix();
     else
       clear();
-    latch.read_unlock();
   }
 }
 }  // namespace buf

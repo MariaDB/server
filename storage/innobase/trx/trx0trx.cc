@@ -456,7 +456,7 @@ void trx_t::free()
 }
 
 /** Transition to committed state, to release implicit locks. */
-inline void trx_t::commit_state()
+TRANSACTIONAL_INLINE inline void trx_t::commit_state()
 {
   ut_ad(state == TRX_STATE_PREPARED
 	|| state == TRX_STATE_PREPARED_RECOVERED
@@ -473,9 +473,8 @@ inline void trx_t::commit_state()
   makes modifications to the database, will get an lsn larger than the
   committing transaction T. In the case where the log flush fails, and
   T never gets committed, also T2 will never get committed. */
-  mutex.wr_lock();
+  TMTrxGuard tg{*this};
   state= TRX_STATE_COMMITTED_IN_MEMORY;
-  mutex.wr_unlock();
   ut_ad(id || !is_referenced());
 }
 
@@ -498,8 +497,7 @@ inline void trx_t::release_locks()
 }
 
 /** At shutdown, frees a transaction object. */
-void
-trx_free_at_shutdown(trx_t *trx)
+TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 {
 	ut_ad(trx->is_recovered);
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
@@ -1228,7 +1226,7 @@ void trx_t::evict_table(table_id_t table_id, bool reset_only)
 }
 
 /** Mark a transaction committed in the main memory data structures. */
-inline void trx_t::commit_in_memory(const mtr_t *mtr)
+TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
 {
   must_flush_log_later= false;
   read_view.close();
@@ -1395,7 +1393,7 @@ void trx_t::commit_cleanup()
 
 /** Commit the transaction in a mini-transaction.
 @param mtr  mini-transaction (if there are any persistent modifications) */
-void trx_t::commit_low(mtr_t *mtr)
+TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 {
   ut_ad(!mtr || mtr->is_active());
   ut_d(bool aborted = in_rollback && error_state == DB_DEADLOCK);
@@ -1771,6 +1769,7 @@ trx_print_latched(
 /**********************************************************************//**
 Prints info about a transaction.
 Acquires and releases lock_sys.latch. */
+TRANSACTIONAL_TARGET
 void
 trx_print(
 /*======*/
@@ -1781,7 +1780,7 @@ trx_print(
 {
   ulint n_rec_locks, n_trx_locks, heap_size;
   {
-    LockMutexGuard g{SRW_LOCK_CALL};
+    TMLockMutexGuard g{SRW_LOCK_CALL};
     n_rec_locks= trx->lock.n_rec_locks;
     n_trx_locks= UT_LIST_GET_LEN(trx->lock.trx_locks);
     heap_size= mem_heap_get_size(trx->lock.lock_heap);
@@ -1833,6 +1832,7 @@ static lsn_t trx_prepare_low(trx_t *trx)
 
 /****************************************************************//**
 Prepares a transaction. */
+TRANSACTIONAL_TARGET
 static
 void
 trx_prepare(
@@ -1848,9 +1848,10 @@ trx_prepare(
 	DBUG_EXECUTE_IF("ib_trx_crash_during_xa_prepare_step", DBUG_SUICIDE(););
 
 	ut_a(trx->state == TRX_STATE_ACTIVE);
-	trx->mutex_lock();
-	trx->state = TRX_STATE_PREPARED;
-	trx->mutex_unlock();
+	{
+		TMTrxGuard tg{*trx};
+		trx->state = TRX_STATE_PREPARED;
+	}
 
 	if (lsn) {
 		/* Depending on the my.cnf options, we may now write the log

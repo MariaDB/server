@@ -83,6 +83,7 @@ and the lock released later.
 					requested (for ROW_FORMAT=COMPRESSED)
 @return pointer to the block
 @retval	NULL	in case of an error */
+TRANSACTIONAL_TARGET
 static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
                                           ulint zip_size, bool unzip)
 {
@@ -115,7 +116,6 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
   }
 
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
-  page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
 
   mysql_mutex_lock(&buf_pool.mutex);
 
@@ -136,21 +136,23 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     bpage= &block->page;
 
     /* Insert into the hash table of file pages */
-    hash_lock.write_lock();
-
-    if (hash_page)
     {
-      /* Preserve the reference count. */
-      auto buf_fix_count= hash_page->buf_fix_count();
-      ut_a(buf_fix_count > 0);
-      block->page.add_buf_fix_count(buf_fix_count);
-      buf_pool.watch_remove(hash_page, chain);
-    }
+      transactional_lock_guard<page_hash_latch> g
+        {buf_pool.page_hash.lock_get(chain)};
 
-    block->page.set_io_fix(BUF_IO_READ);
-    block->page.set_state(BUF_BLOCK_FILE_PAGE);
-    buf_pool.page_hash.append(chain, &block->page);
-    hash_lock.write_unlock();
+      if (hash_page)
+      {
+        /* Preserve the reference count. */
+        auto buf_fix_count= hash_page->buf_fix_count();
+        ut_a(buf_fix_count > 0);
+        block->page.add_buf_fix_count(buf_fix_count);
+        buf_pool.watch_remove(hash_page, chain);
+      }
+
+      block->page.set_io_fix(BUF_IO_READ);
+      block->page.set_state(BUF_BLOCK_FILE_PAGE);
+      buf_pool.page_hash.append(chain, &block->page);
+    }
 
     /* The block must be put to the LRU list, to the old blocks */
     buf_LRU_add_block(&block->page, true/* to old blocks */);
@@ -204,20 +206,22 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
     bpage->init(BUF_BLOCK_ZIP_PAGE, page_id);
 
-    hash_lock.write_lock();
-
-    if (hash_page)
     {
-      /* Preserve the reference count. It can be 0 if
-      buf_pool_t::watch_unset() is executing concurrently,
-      waiting for buf_pool.mutex, which we are holding. */
-      bpage->add_buf_fix_count(hash_page->buf_fix_count());
-      buf_pool.watch_remove(hash_page, chain);
-    }
+      transactional_lock_guard<page_hash_latch> g
+        {buf_pool.page_hash.lock_get(chain)};
 
-    buf_pool.page_hash.append(chain, bpage);
-    bpage->set_io_fix(BUF_IO_READ);
-    hash_lock.write_unlock();
+      if (hash_page)
+      {
+        /* Preserve the reference count. It can be 0 if
+        buf_pool_t::watch_unset() is executing concurrently,
+        waiting for buf_pool.mutex, which we are holding. */
+        bpage->add_buf_fix_count(hash_page->buf_fix_count());
+        buf_pool.watch_remove(hash_page, chain);
+      }
+
+      buf_pool.page_hash.append(chain, bpage);
+      bpage->set_io_fix(BUF_IO_READ);
+    }
 
     /* The block must be put to the LRU list, to the old blocks.
     The zip size is already set into the page zip */
@@ -370,6 +374,7 @@ wants to access
 @return number of page read requests issued; NOTE that if we read ibuf
 pages, it may happen that the page at the given page number does not
 get read even if we return a positive value! */
+TRANSACTIONAL_TARGET
 ulint
 buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 {
@@ -404,13 +409,11 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
   for (page_id_t i= low; i < high; ++i)
   {
     buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
-    page_hash_latch &latch= buf_pool.page_hash.lock_get(chain);
-    latch.read_lock();
-    const buf_page_t *bpage= buf_pool.page_hash.get(i, chain);
-    bool found= bpage && bpage->is_accessed() && buf_page_peek_if_young(bpage);
-    latch.read_unlock();
-    if (found && !--count)
-      goto read_ahead;
+    transactional_shared_lock_guard<page_hash_latch> g
+      {buf_pool.page_hash.lock_get(chain)};
+    if (const buf_page_t *bpage= buf_pool.page_hash.get(i, chain))
+      if (bpage->is_accessed() && buf_page_peek_if_young(bpage) && !--count)
+        goto read_ahead;
   }
 
 no_read_ahead:
@@ -552,6 +555,7 @@ which could result in a deadlock if the OS does not support asynchronous io.
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	ibuf		whether if we are inside ibuf routine
 @return number of page read requests issued */
+TRANSACTIONAL_TARGET
 ulint
 buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 {
@@ -605,9 +609,18 @@ fail:
   for (page_id_t i= low; i != high_1; ++i)
   {
     buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
-    page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
-    hash_lock.read_lock();
+    transactional_shared_lock_guard<page_hash_latch> g
+      {buf_pool.page_hash.lock_get(chain)};
     const buf_page_t* bpage= buf_pool.page_hash.get(i, chain);
+    if (!bpage)
+    {
+      if (i == page_id)
+        goto fail;
+failed:
+      if (--count)
+        continue;
+      goto fail;
+    }
     if (i == page_id)
     {
       /* Read the natural predecessor and successor page addresses from
@@ -615,12 +628,6 @@ fail:
       on the page, we do not acquire an s-latch on the page, this is to
       prevent deadlocks. The hash_lock is only protecting the
       buf_pool.page_hash for page i, not the bpage contents itself. */
-      if (!bpage)
-      {
-hard_fail:
-        hash_lock.read_unlock();
-	goto fail;
-      }
       const byte *f;
       switch (UNIV_EXPECT(bpage->state(), BUF_BLOCK_FILE_PAGE)) {
       case BUF_BLOCK_FILE_PAGE:
@@ -630,38 +637,31 @@ hard_fail:
         f= bpage->zip.data;
         break;
       default:
-        goto hard_fail;
+        ut_ad("invalid state" == 0);
+        goto fail;
       }
 
       uint32_t prev= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_PREV));
       uint32_t next= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_NEXT));
       if (prev == FIL_NULL || next == FIL_NULL)
-        goto hard_fail;
+        goto fail;
       page_id_t id= page_id;
       if (descending && next - 1 == page_id.page_no())
         id.set_page_no(prev);
       else if (!descending && prev + 1 == page_id.page_no())
         id.set_page_no(next);
       else
-        goto hard_fail; /* Successor or predecessor not in the right order */
+        goto fail; /* Successor or predecessor not in the right order */
 
       new_low= id - (id.page_no() % buf_read_ahead_area);
       new_high_1= new_low + (buf_read_ahead_area - 1);
 
       if (id != new_low && id != new_high_1)
         /* This is not a border page of the area: return */
-        goto hard_fail;
+        goto fail;
       if (new_high_1.page_no() > space->last_page_number())
         /* The area is not whole */
-        goto hard_fail;
-    }
-    else if (!bpage)
-    {
-failed:
-      hash_lock.read_unlock();
-      if (--count)
-        continue;
-      goto fail;
+        goto fail;
     }
 
     const unsigned accessed= bpage->is_accessed();
@@ -678,7 +678,6 @@ failed:
     prev_accessed= accessed;
     if (fail)
       goto failed;
-    hash_lock.read_unlock();
   }
 
   /* If we got this far, read-ahead can be sensible: do it */

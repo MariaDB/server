@@ -1181,6 +1181,7 @@ inline void dict_sys_t::add(dict_table_t* table)
 /** Test whether a table can be evicted from dict_sys.table_LRU.
 @param table   table to be considered for eviction
 @return whether the table can be evicted */
+TRANSACTIONAL_TARGET
 static bool dict_table_can_be_evicted(dict_table_t *table)
 {
 	ut_ad(dict_sys.locked());
@@ -2064,6 +2065,7 @@ dict_index_add_to_cache(
 
 /**********************************************************************//**
 Removes an index from the dictionary cache. */
+TRANSACTIONAL_TARGET
 static
 void
 dict_index_remove_from_cache_low(

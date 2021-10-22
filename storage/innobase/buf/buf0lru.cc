@@ -810,7 +810,9 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	execution of buf_page_get_low(). */
 	buf_pool_t::hash_chain& chain= buf_pool.page_hash.cell_get(id.fold());
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
-	hash_lock.write_lock();
+	/* We cannot use transactional_lock_guard here,
+	because buf_buddy_relocate() in buf_buddy_free() could get stuck. */
+	hash_lock.lock();
 	lsn_t oldest_modification = bpage->oldest_modification_acquire();
 
 	if (UNIV_UNLIKELY(!bpage->can_relocate())) {
@@ -840,7 +842,7 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	} else if (oldest_modification
 		   && bpage->state() != BUF_BLOCK_FILE_PAGE) {
 func_exit:
-		hash_lock.write_unlock();
+		hash_lock.unlock();
 		return(false);
 
 	} else if (bpage->state() == BUF_BLOCK_FILE_PAGE) {
@@ -954,9 +956,10 @@ func_exit:
 		decompressing the block while we release
 		hash_lock. */
 		b->set_io_fix(BUF_IO_PIN);
-		hash_lock.write_unlock();
+		goto release;
 	} else if (!zip) {
-		hash_lock.write_unlock();
+release:
+		hash_lock.unlock();
 	}
 
 	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
@@ -1170,7 +1173,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		ut_a(bpage->zip.ssize);
 		ut_ad(!bpage->oldest_modification());
 
-		hash_lock.write_unlock();
+		hash_lock.unlock();
 		buf_pool_mutex_exit_forbid();
 
 		buf_buddy_free(bpage->zip.data, bpage->zip_size());
@@ -1214,7 +1217,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		and by the time we'll release it in the caller we'd
 		have inserted the compressed only descriptor in the
 		page_hash. */
-		hash_lock.write_unlock();
+		hash_lock.unlock();
 
 		if (bpage->zip.data) {
 			/* Free the compressed page. */
@@ -1254,7 +1257,7 @@ ATTRIBUTE_COLD void buf_pool_t::corrupted_evict(buf_page_t *bpage)
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
 
   mysql_mutex_lock(&mutex);
-  hash_lock.write_lock();
+  hash_lock.lock();
 
   ut_ad(bpage->io_fix() == BUF_IO_READ);
   ut_ad(!bpage->oldest_modification());

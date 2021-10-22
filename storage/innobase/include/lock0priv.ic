@@ -67,7 +67,7 @@ lock_rec_get_n_bits(
 
 /**********************************************************************//**
 Sets the nth bit of a record lock to TRUE. */
-UNIV_INLINE
+inline
 void
 lock_rec_set_nth_bit(
 /*=================*/
@@ -91,7 +91,12 @@ lock_rec_set_nth_bit(
 #if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
 # pragma GCC diagnostic pop
 #endif
+#ifdef SUX_LOCK_GENERIC
 	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner());
+#else
+	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner()
+	      || (xtest() && !lock->trx->mutex_is_locked()));
+#endif
 	lock->trx->lock.n_rec_locks++;
 }
 

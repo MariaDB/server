@@ -69,6 +69,9 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include "trx0types.h"
 #include <list>
+#include "log.h"
+
+#include "transactional_lock_guard.h"
 
 #include <my_service_manager.h>
 /* The following is the maximum allowed duration of a lock wait. */
@@ -693,13 +696,15 @@ srv_free(void)
 
 /*********************************************************************//**
 Boots the InnoDB server. */
-void
-srv_boot(void)
-/*==========*/
+void srv_boot()
 {
-	srv_thread_pool_init();
-	trx_pool_init();
-	srv_init();
+#ifndef NO_ELISION
+  if (transactional_lock_enabled())
+    sql_print_information("InnoDB: Using transactional memory");
+#endif
+  srv_thread_pool_init();
+  trx_pool_init();
+  srv_init();
 }
 
 /******************************************************************//**

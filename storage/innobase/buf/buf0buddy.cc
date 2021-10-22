@@ -548,7 +548,10 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 	}
 
 	page_hash_latch &hash_lock = buf_pool.page_hash.lock_get(cell);
-	hash_lock.write_lock();
+	/* It does not make sense to use transactional_lock_guard here,
+	because the memcpy() of 1024 to 16384 bytes would likely make the
+	memory transaction too large. */
+	hash_lock.lock();
 
 	if (bpage->can_relocate()) {
 		/* Relocate the compressed page. */
@@ -559,7 +562,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		memcpy(dst, src, size);
 		bpage->zip.data = reinterpret_cast<page_zip_t*>(dst);
 
-		hash_lock.write_unlock();
+		hash_lock.unlock();
 
 		buf_buddy_mem_invalid(
 			reinterpret_cast<buf_buddy_free_t*>(src), i);
@@ -570,7 +573,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		return(true);
 	}
 
-	hash_lock.write_unlock();
+	hash_lock.unlock();
 
 	return(false);
 }

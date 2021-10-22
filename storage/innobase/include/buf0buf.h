@@ -40,6 +40,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "page0types.h"
 #include "log0log.h"
 #include "srv0srv.h"
+#include "transactional_lock_guard.h"
 #include <ostream>
 
 // Forward declaration
@@ -1478,25 +1479,29 @@ public:
 
 public:
   /** @return whether the buffer pool contains a page
-  @tparam watch      whether to allow watch_is_sentinel()
-  @param page_id     page identifier
-  @param chain       hash table chain for page_id.fold() */
-  template<bool watch= false>
+  @tparam allow_watch  whether to allow watch_is_sentinel()
+  @param page_id       page identifier
+  @param chain         hash table chain for page_id.fold() */
+  template<bool allow_watch= false>
+  TRANSACTIONAL_INLINE
   bool page_hash_contains(const page_id_t page_id, hash_chain &chain)
   {
-    page_hash_latch &latch= page_hash.lock_get(chain);
-    latch.read_lock();
+    transactional_shared_lock_guard<page_hash_latch> g
+      {page_hash.lock_get(chain)};
     buf_page_t *bpage= page_hash.get(page_id, chain);
-    if (!bpage || watch_is_sentinel(*bpage))
+    if (bpage >= &watch[0] && bpage < &watch[UT_ARR_SIZE(watch)])
     {
-      latch.read_unlock();
-      return watch ? bpage : nullptr;
+      ut_ad(bpage->state() == BUF_BLOCK_ZIP_PAGE);
+      ut_ad(!bpage->in_zip_hash);
+      ut_ad(!bpage->zip.data);
+      if (!allow_watch)
+        bpage= nullptr;
     }
-
-    ut_ad(bpage->in_file());
-    ut_ad(page_id == bpage->id());
-
-    latch.read_unlock();
+    else if (bpage)
+    {
+      ut_ad(page_id == bpage->id());
+      ut_ad(bpage->in_file());
+    }
     return bpage;
   }
 
@@ -1510,11 +1515,11 @@ public:
                 page_hash.lock_get(page_hash.cell_get(bpage.id().fold())).
                 is_locked());
 #endif /* SAFE_MUTEX */
-    ut_ad(bpage.in_file());
-
     if (&bpage < &watch[0] || &bpage >= &watch[UT_ARR_SIZE(watch)])
     {
-      ut_ad(bpage.state() != BUF_BLOCK_ZIP_PAGE || bpage.zip.data);
+      ut_ad(bpage.state() == BUF_BLOCK_ZIP_PAGE
+            ? !!bpage.zip.data
+            : bpage.state() == BUF_BLOCK_FILE_PAGE);
       return false;
     }
 
@@ -1528,16 +1533,14 @@ public:
   This may only be called after !watch_set() and before invoking watch_unset().
   @param id   page identifier
   @return whether the page was read to the buffer pool */
+  TRANSACTIONAL_INLINE
   bool watch_occurred(const page_id_t id)
   {
     hash_chain &chain= page_hash.cell_get(id.fold());
-    page_hash_latch &latch= page_hash.lock_get(chain);
-    latch.read_lock();
+    transactional_shared_lock_guard<page_hash_latch> g
+      {page_hash.lock_get(chain)};
     /* The page must exist because watch_set() increments buf_fix_count. */
-    buf_page_t *bpage= page_hash.get(id, chain);
-    const bool is_sentinel= watch_is_sentinel(*bpage);
-    latch.read_unlock();
-    return !is_sentinel;
+    return !watch_is_sentinel(*page_hash.get(id, chain));
   }
 
   /** Register a watch for a page identifier. The caller must hold an
@@ -2000,14 +2003,14 @@ inline buf_page_t *buf_pool_t::page_hash_table::get(const page_id_t id,
 }
 
 #ifdef SUX_LOCK_GENERIC
-inline void page_hash_latch::read_lock()
+inline void page_hash_latch::lock_shared()
 {
   mysql_mutex_assert_not_owner(&buf_pool.mutex);
   if (!read_trylock())
     read_lock_wait();
 }
 
-inline void page_hash_latch::write_lock()
+inline void page_hash_latch::lock()
 {
   if (!write_trylock())
     write_lock_wait();

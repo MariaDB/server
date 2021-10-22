@@ -3145,7 +3145,7 @@ or clustered
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in,out]	thr		query thread
 @return DB_SUCCESS, DB_STRONG_FAIL or other error */
-static MY_ATTRIBUTE((warn_unused_result))
+static TRANSACTIONAL_TARGET MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 ibuf_insert_low(
 	ulint			mode,
@@ -3470,6 +3470,7 @@ is clustered or unique.
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in,out]	thr		query thread
 @return true if success */
+TRANSACTIONAL_TARGET
 bool
 ibuf_insert(
 	ibuf_op_t		op,

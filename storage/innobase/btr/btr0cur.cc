@@ -1214,6 +1214,7 @@ If mode is PAGE_CUR_LE , cursor is left at the place where an insert of the
 search tuple should be performed in the B-tree. InnoDB does an insert
 immediately after the cursor. Thus, the cursor may end up on a user record,
 or on a page infimum record. */
+TRANSACTIONAL_TARGET
 dberr_t
 btr_cur_search_to_nth_level_func(
 	dict_index_t*	index,	/*!< in: index */
@@ -1994,16 +1995,15 @@ retry_page_get:
 	    && mode != PAGE_CUR_RTREE_INSERT
 	    && mode != PAGE_CUR_RTREE_LOCATE
 	    && mode >= PAGE_CUR_CONTAIN) {
-		trx_t*		trx = thr_get_trx(cursor->thr);
 		lock_prdt_t	prdt;
 
-		lock_sys.rd_lock(SRW_LOCK_CALL);
-		trx->mutex_lock();
-		lock_init_prdt_from_mbr(
-			&prdt, &cursor->rtr_info->mbr, mode,
-			trx->lock.lock_heap);
-		lock_sys.rd_unlock();
-		trx->mutex_unlock();
+		{
+			trx_t* trx = thr_get_trx(cursor->thr);
+			TMLockTrxGuard g{TMLockTrxArgs(*trx)};
+			lock_init_prdt_from_mbr(
+				&prdt, &cursor->rtr_info->mbr, mode,
+				trx->lock.lock_heap);
+		}
 
 		if (rw_latch == RW_NO_LATCH && height != 0) {
 			block->lock.s_lock();

@@ -1979,11 +1979,15 @@ struct dict_table_t {
     ut_ad(lock_mutex_owner.exchange(0) == os_thread_get_curr_id());
     lock_mutex.wr_unlock();
   }
+#ifndef SUX_LOCK_GENERIC
+  /** @return whether the lock mutex is held by some thread */
+  bool lock_mutex_is_locked() const noexcept { return lock_mutex.is_locked(); }
+#endif
 
   /* stats mutex lock currently defaults to lock_mutex but in the future,
   there could be a use-case to have separate mutex for stats.
-  extra indirection (through inline so no performance hit) should
-  help simplify code and increase long-term maintainability */
+  extra indirection (through inline so no performance hit) should
+  help simplify code and increase long-term maintainability */
   void stats_mutex_init() { lock_mutex_init(); }
   void stats_mutex_destroy() { lock_mutex_destroy(); }
   void stats_mutex_lock() { lock_mutex_lock(); }

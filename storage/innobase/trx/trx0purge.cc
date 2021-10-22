@@ -77,7 +77,7 @@ TrxUndoRsegsIterator::TrxUndoRsegsIterator()
 /** Sets the next rseg to purge in purge_sys.
 Executed in the purge coordinator thread.
 @return whether anything is to be purged */
-inline bool TrxUndoRsegsIterator::set_next()
+TRANSACTIONAL_INLINE inline bool TrxUndoRsegsIterator::set_next()
 {
 	mysql_mutex_lock(&purge_sys.pq_mutex);
 
@@ -110,23 +110,38 @@ inline bool TrxUndoRsegsIterator::set_next()
 
 	purge_sys.rseg = *m_iter++;
 	mysql_mutex_unlock(&purge_sys.pq_mutex);
-	purge_sys.rseg->latch.rd_lock();
 
-	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
-	ut_ad(purge_sys.rseg->last_trx_no() == m_rsegs.trx_no);
-
-	/* We assume in purge of externally stored fields that space id is
-	in the range of UNDO tablespace space ids */
+	/* We assume in purge of externally stored fields that space
+	id is in the range of UNDO tablespace space ids */
 	ut_ad(purge_sys.rseg->space->id == TRX_SYS_SPACE
 	      || srv_is_undo_tablespace(purge_sys.rseg->space->id));
 
-	ut_a(purge_sys.tail.trx_no <= purge_sys.rseg->last_trx_no());
+	trx_id_t last_trx_no, tail_trx_no;
+	{
+#ifdef SUX_LOCK_GENERIC
+		purge_sys.rseg->latch.rd_lock();
+#else
+		transactional_shared_lock_guard<srw_spin_lock_low> rg
+			{purge_sys.rseg->latch};
+#endif
+		last_trx_no = purge_sys.rseg->last_trx_no();
+		tail_trx_no = purge_sys.tail.trx_no;
 
-	purge_sys.tail.trx_no = purge_sys.rseg->last_trx_no();
-	purge_sys.hdr_offset = purge_sys.rseg->last_offset();
-	purge_sys.hdr_page_no = purge_sys.rseg->last_page_no;
+		purge_sys.tail.trx_no = last_trx_no;
+		purge_sys.hdr_offset = purge_sys.rseg->last_offset();
+		purge_sys.hdr_page_no = purge_sys.rseg->last_page_no;
 
-	purge_sys.rseg->latch.rd_unlock();
+#ifdef SUX_LOCK_GENERIC
+		purge_sys.rseg->latch.rd_unlock();
+#endif
+	}
+
+	/* Only the purge coordinator task will access
+	purge_sys.rseg_iter or purge_sys.hdr_page_no. */
+	ut_ad(last_trx_no == m_rsegs.trx_no);
+	ut_a(purge_sys.hdr_page_no != FIL_NULL);
+	ut_a(tail_trx_no <= last_trx_no);
+
 	return(true);
 }
 
@@ -550,7 +565,7 @@ __attribute__((optimize(0)))
 Removes unnecessary history data from rollback segments. NOTE that when this
 function is called, the caller must not have any latches on undo log pages!
 */
-static void trx_purge_truncate_history()
+TRANSACTIONAL_TARGET static void trx_purge_truncate_history()
 {
   ut_ad(purge_sys.head <= purge_sys.tail);
   purge_sys_t::iterator &head= purge_sys.head.trx_no
@@ -617,12 +632,18 @@ static void trx_purge_truncate_history()
     {
       if (rseg.space != &space)
         continue;
+#ifdef SUX_LOCK_GENERIC
       rseg.latch.rd_lock();
+#else
+      transactional_shared_lock_guard<srw_spin_lock_low> g{rseg.latch};
+#endif
       ut_ad(rseg.skip_allocation());
       if (rseg.is_referenced())
       {
 not_free:
+#ifdef SUX_LOCK_GENERIC
         rseg.latch.rd_unlock();
+#endif
         return;
       }
 
@@ -645,7 +666,9 @@ not_free:
           goto not_free;
       }
 
+#ifdef SUX_LOCK_GENERIC
       rseg.latch.rd_unlock();
+#endif
     }
 
     ib::info() << "Truncating " << file->name;
@@ -938,10 +961,7 @@ Chooses the next undo log to purge and updates the info in purge_sys. This
 function is used to initialize purge_sys when the next record to purge is
 not known, and also to update the purge system info on the next record when
 purge has handled the whole undo log for a transaction. */
-static
-void
-trx_purge_choose_next_log(void)
-/*===========================*/
+TRANSACTIONAL_TARGET static void trx_purge_choose_next_log()
 {
 	ut_ad(!purge_sys.next_stored);
 
