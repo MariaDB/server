@@ -9144,6 +9144,7 @@ THD *find_thread_by_id(longlong id, bool query_id)
   return arg.thd;
 }
 
+
 /**
   kill one thread.
 
@@ -9267,8 +9268,8 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
         return 1;
       if (!arg->threads_to_kill.push_back(thd, arg->thd->mem_root))
       {
-        mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
         mysql_mutex_lock(&thd->LOCK_thd_data);
+        mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
       }
     }
   }
