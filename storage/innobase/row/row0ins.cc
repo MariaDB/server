@@ -2641,15 +2641,20 @@ commit_exit:
 	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
 		DEBUG_SYNC_C("empty_root_page_insert");
 
+		trx->bulk_insert = true;
+
 		if (!index->table->is_temporary()) {
 			err = lock_table(index->table, LOCK_X, thr);
 
 			if (err != DB_SUCCESS) {
 				trx->error_state = err;
+				trx->bulk_insert = false;
 				goto commit_exit;
 			}
 
 			if (index->table->n_rec_locks) {
+avoid_bulk:
+				trx->bulk_insert = false;
 				goto skip_bulk_insert;
 			}
 
@@ -2664,9 +2669,20 @@ commit_exit:
 #else /* BTR_CUR_HASH_ADAPT */
 			index->table->bulk_trx_id = trx->id;
 #endif /* BTR_CUR_HASH_ADAPT */
-		}
 
-		trx->bulk_insert = true;
+			/* Write TRX_UNDO_EMPTY undo log and
+			start buffering the insert operation */
+			err = trx_undo_report_row_operation(
+				thr, index, entry,
+				nullptr, 0, nullptr, nullptr,
+				nullptr);
+
+			if (err != DB_SUCCESS) {
+				goto avoid_bulk;
+			}
+
+			goto commit_exit;
+		}
 	}
 
 skip_bulk_insert:
@@ -3269,7 +3285,7 @@ row_ins_sec_index_entry(
 	bool		check_foreign) /*!< in: true if check
 				foreign table is needed, false otherwise */
 {
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	mem_heap_t*	offsets_heap;
 	mem_heap_t*	heap;
 	trx_id_t	trx_id  = 0;
@@ -3346,12 +3362,20 @@ row_ins_index_entry(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	ut_ad(thr_get_trx(thr)->id || index->table->no_rollback()
+	trx_t* trx = thr_get_trx(thr);
+
+	ut_ad(trx->id || index->table->no_rollback()
 	      || index->table->is_temporary());
 
 	DBUG_EXECUTE_IF("row_ins_index_entry_timeout", {
 			DBUG_SET("-d,row_ins_index_entry_timeout");
 			return(DB_LOCK_WAIT);});
+
+	if (auto t= trx->check_bulk_buffer(index->table)) {
+		/* MDEV-25036 FIXME: check also foreign key constraints */
+		ut_ad(!trx->check_foreigns);
+		return t->bulk_insert_buffered(*entry, *index, trx);
+	}
 
 	if (index->is_primary()) {
 		return row_ins_clust_index_entry(index, entry, thr, 0);

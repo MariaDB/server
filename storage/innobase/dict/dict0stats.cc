@@ -3820,6 +3820,13 @@ dict_stats_update(
 		return(DB_SUCCESS);
 	}
 
+	if (trx_id_t bulk_trx_id = table->bulk_trx_id) {
+		if (trx_sys.find(nullptr, bulk_trx_id, false)) {
+			dict_stats_empty_table(table, false);
+			return DB_SUCCESS;
+		}
+	}
+
 	switch (stats_upd_option) {
 	case DICT_STATS_RECALC_PERSISTENT:
 

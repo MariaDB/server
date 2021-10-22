@@ -1634,6 +1634,9 @@ trx_mark_sql_stat_end(
 		}
 
 		if (trx->is_bulk_insert()) {
+			/* MDEV-25036 FIXME: we support buffered
+			insert only for the first insert statement */
+			trx->error_state = trx->bulk_insert_apply();
 			/* Allow a subsequent INSERT into an empty table
 			if !unique_checks && !foreign_key_checks. */
 			return;
