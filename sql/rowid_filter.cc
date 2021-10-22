@@ -29,7 +29,8 @@ lookup_cost(Rowid_filter_container_type cont_type)
 {
   switch (cont_type) {
   case SORTED_ARRAY_CONTAINER:
-    return log(est_elements)*0.01;
+    /* The addition is here to take care of arrays with 1 element */
+    return log(est_elements)*0.01+0.001;
   default:
     DBUG_ASSERT(0);
     return 0;
