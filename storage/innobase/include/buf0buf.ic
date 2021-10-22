@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -36,42 +36,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0lru.h"
 #include "buf0rea.h"
 #include "fsp0types.h"
-
-/*********************************************************************//**
-Gets the current size of buffer buf_pool in bytes.
-@return size in bytes */
-UNIV_INLINE
-ulint
-buf_pool_get_curr_size(void)
-/*========================*/
-{
-	return(srv_buf_pool_curr_size);
-}
-
-/********************************************************************//**
-Reads the freed_page_clock of a buffer block.
-@return freed_page_clock */
-UNIV_INLINE
-unsigned
-buf_page_get_freed_page_clock(
-/*==========================*/
-	const buf_page_t*	bpage)	/*!< in: block */
-{
-	/* This is sometimes read without holding buf_pool.mutex. */
-	return(bpage->freed_page_clock);
-}
-
-/********************************************************************//**
-Reads the freed_page_clock of a buffer block.
-@return freed_page_clock */
-UNIV_INLINE
-unsigned
-buf_block_get_freed_page_clock(
-/*===========================*/
-	const buf_block_t*	block)	/*!< in: block */
-{
-	return(buf_page_get_freed_page_clock(&block->page));
-}
 
 /** Determine if a block is still close enough to the MRU end of the LRU list
 meaning that it is not in danger of getting evicted and also implying
@@ -153,35 +117,6 @@ ok:
 	return((buf_frame_t*) block->frame);
 }
 #endif /* UNIV_DEBUG */
-
-/********************************************************************//**
-Allocates a buf_page_t descriptor. This function must succeed. In case
-of failure we assert in this function.
-@return: the allocated descriptor. */
-UNIV_INLINE
-buf_page_t*
-buf_page_alloc_descriptor(void)
-/*===========================*/
-{
-	buf_page_t*	bpage;
-
-	bpage = (buf_page_t*) ut_zalloc_nokey(sizeof *bpage);
-	ut_ad(bpage);
-	MEM_UNDEFINED(bpage, sizeof *bpage);
-
-	return(bpage);
-}
-
-/********************************************************************//**
-Free a buf_page_t descriptor. */
-UNIV_INLINE
-void
-buf_page_free_descriptor(
-/*=====================*/
-	buf_page_t*	bpage)	/*!< in: bpage descriptor to free. */
-{
-	ut_free(bpage);
-}
 
 /** Allocate a buffer block.
 @return own: the allocated block, in state BUF_BLOCK_MEMORY */

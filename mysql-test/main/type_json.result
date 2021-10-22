@@ -121,8 +121,8 @@ js0	js1	js2	js3
 SELECT js0, JSON_COMPACT(js0), JSON_COMPACT('{}') FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def	test	t1	t1	js0	js0	252 (format=json)	4294967295	0	Y	144	0	33
-def					JSON_COMPACT(js0)	251 (format=json)	4294967295	0	Y	128	0	63
-def					JSON_COMPACT('{}')	253 (format=json)	6	0	Y	128	0	63
+def					JSON_COMPACT(js0)	251 (format=json)	4294967295	0	Y	128	0	33
+def					JSON_COMPACT('{}')	253 (format=json)	6	0	Y	0	0	33
 js0	JSON_COMPACT(js0)	JSON_COMPACT('{}')
 DROP TABLE t1;
 #

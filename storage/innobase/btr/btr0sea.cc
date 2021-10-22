@@ -1007,6 +1007,7 @@ both have sensible values.
 				or NULL
 @param[in]	mtr		mini transaction
 @return whether the search succeeded */
+TRANSACTIONAL_TARGET
 bool
 btr_search_guess_on_hash(
 	dict_index_t*	index,
@@ -1090,26 +1091,34 @@ fail:
 	buf_block_t* block = buf_pool.block_from_ahi(rec);
 
 	if (!ahi_latch) {
-		page_hash_latch* hash_lock = buf_pool.hash_lock_get(
-			block->page.id());
-		hash_lock->read_lock();
+		buf_pool_t::hash_chain& chain = buf_pool.page_hash.cell_get(
+			block->page.id().fold());
+		bool fail;
+		{
+			transactional_shared_lock_guard<page_hash_latch> g{
+				buf_pool.page_hash.lock_get(chain)};
 
-		if (block->page.state() == BUF_BLOCK_REMOVE_HASH) {
-			/* Another thread is just freeing the block
-			from the LRU list of the buffer pool: do not
-			try to access this page. */
-			hash_lock->read_unlock();
-			goto fail;
+			switch (block->page.state()) {
+			case BUF_BLOCK_REMOVE_HASH:
+				/* Another thread is just freeing the block
+				from the LRU list of the buffer pool: do not
+				try to access this page. */
+				goto fail;
+			case BUF_BLOCK_FILE_PAGE:
+				break;
+			default:
+#ifndef NO_ELISION
+				xend();
+#endif
+				ut_error;
+			}
+
+			block->fix();
+			fail = index != block->index
+				&& index_id == block->index->id;
 		}
 
-		const bool fail = index != block->index
-			&& index_id == block->index->id;
 		ut_a(!fail || block->index->freed());
-		ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
-		DBUG_ASSERT(fail || block->page.status != buf_page_t::FREED);
-
-		buf_block_buf_fix_inc(block);
-		hash_lock->read_unlock();
 		block->page.set_accessed();
 
 		buf_page_make_young_if_needed(&block->page);
@@ -1136,6 +1145,8 @@ got_no_latch:
 		if (UNIV_UNLIKELY(fail)) {
 			goto fail_and_release_page;
 		}
+
+		DBUG_ASSERT(block->page.status != buf_page_t::FREED);
 	} else if (UNIV_UNLIKELY(index != block->index
 				 && index_id == block->index->id)) {
 		ut_a(block->index->freed());
@@ -2209,8 +2220,9 @@ btr_search_hash_table_validate(ulint hash_table_id)
 				assertion and the comment below) */
 				const page_id_t id(block->page.id());
 				if (const buf_page_t* hash_page
-				    = buf_pool.page_hash_get_low(
-					    id, id.fold())) {
+				    = buf_pool.page_hash.get(
+					    id, buf_pool.page_hash.cell_get(
+						    id.fold()))) {
 					ut_ad(hash_page == &block->page);
 					goto state_ok;
 				}

@@ -10,8 +10,11 @@
 .ninja_*
 *.mri
 *.mri.tpl
+/.cproject
+/.project
 .gdb_history
 .vs/
+/.settings/
 errmsg.sys
 typescript
 _CPack_Packages

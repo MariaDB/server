@@ -347,11 +347,21 @@ struct btr_search_sys_t
 extern btr_search_sys_t btr_search_sys;
 
 /** @return number of leaf pages pointed to by the adaptive hash index */
-inline ulint dict_index_t::n_ahi_pages() const
+TRANSACTIONAL_INLINE inline ulint dict_index_t::n_ahi_pages() const
 {
   if (!btr_search_enabled)
     return 0;
   srw_spin_lock *latch= &btr_search_sys.get_part(*this)->latch;
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+  if (xbegin())
+  {
+    if (latch->is_locked())
+      xabort();
+    ulint ref_count= search_info->ref_count;
+    xend();
+    return ref_count;
+  }
+#endif
   latch->rd_lock(SRW_LOCK_CALL);
   ulint ref_count= search_info->ref_count;
   latch->rd_unlock();

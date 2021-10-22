@@ -1276,6 +1276,21 @@ bool Field::can_be_substituted_to_equal_item(const Context &ctx,
 }
 
 
+bool Field::cmp_is_done_using_type_handler_of_this(const Item_bool_func *cond,
+                                                   const Item *item) const
+{
+  /*
+    We could eventually take comparison_type_handler() from cond,
+    instead of calculating it again. But only some descendants of
+    Item_bool_func has this method. So this needs some hierarchy changes.
+    Another option is to pass "class Context" to this method.
+  */
+  Type_handler_hybrid_field_type cmp(type_handler_for_comparison());
+  return !cmp.aggregate_for_comparison(item->type_handler_for_comparison()) &&
+         cmp.type_handler() == type_handler_for_comparison();
+}
+
+
 /*
   This handles all numeric and BIT data types.
 */ 
@@ -7368,7 +7383,7 @@ bool
 Field_longstr::cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                                  const Item *item) const
 {
-  return item->cmp_type() == STRING_RESULT &&
+  return cmp_is_done_using_type_handler_of_this(cond, item) &&
          charset() == cond->compare_collation();
 }
 
@@ -7377,7 +7392,7 @@ bool
 Field_longstr::cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                                      const Item *item) const
 {
-  return item->cmp_type() == STRING_RESULT &&
+  return cmp_is_done_using_type_handler_of_this(cond, item) &&
          (charset() == cond->compare_collation() ||
           cond->compare_collation()->state & MY_CS_BINSORT);
 }

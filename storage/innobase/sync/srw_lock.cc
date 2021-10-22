@@ -19,6 +19,73 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "srw_lock.h"
 #include "srv0srv.h"
 #include "my_cpu.h"
+#include "transactional_lock_guard.h"
+
+#ifdef NO_ELISION
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
+# include <intrin.h>
+bool have_transactional_memory;
+bool transactional_lock_enabled()
+{
+  int regs[4];
+  __cpuid(regs, 0);
+  if (regs[0] < 7)
+    return false;
+  __cpuidex(regs, 7, 0);
+  /* Restricted Transactional Memory (RTM) */
+  have_transactional_memory= regs[1] & 1U << 11;
+  return have_transactional_memory;
+}
+#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+# include <cpuid.h>
+bool have_transactional_memory;
+bool transactional_lock_enabled()
+{
+  if (__get_cpuid_max(0, nullptr) < 7)
+    return false;
+  unsigned eax, ebx, ecx, edx;
+  __cpuid_count(7, 0, eax, ebx, ecx, edx);
+  /* Restricted Transactional Memory (RTM) */
+  have_transactional_memory= ebx & 1U << 11;
+  return have_transactional_memory;
+}
+
+# ifdef UNIV_DEBUG
+TRANSACTIONAL_TARGET
+bool xtest() { return have_transactional_memory && _xtest(); }
+# endif
+#elif defined __powerpc64__
+# ifdef __linux__
+#  include <sys/auxv.h>
+
+#  ifndef PPC_FEATURE2_HTM_NOSC
+#   define PPC_FEATURE2_HTM_NOSC 0x01000000
+#  endif
+#  ifndef PPC_FEATURE2_HTM_NO_SUSPEND
+#   define PPC_FEATURE2_HTM_NO_SUSPEND 0x00080000
+#  endif
+
+#  ifndef AT_HWCAP2
+#   define AT_HWCAP2 26
+#  endif
+# endif
+bool have_transactional_memory;
+bool transactional_lock_enabled()
+{
+# ifdef __linux__
+  return getauxval(AT_HWCAP2) &
+    (PPC_FEATURE2_HTM_NOSC | PPC_FEATURE2_HTM_NO_SUSPEND);
+# endif
+}
+
+# ifdef UNIV_DEBUG
+TRANSACTIONAL_TARGET bool xtest()
+{
+  return have_transactional_memory &&
+    _HTM_STATE (__builtin_ttest ()) == _HTM_TRANSACTIONAL;
+}
+# endif
+#endif
 
 /** @return the parameter for srw_pause() */
 static inline unsigned srw_pause_delay()
@@ -477,7 +544,7 @@ template<> void srw_lock_<true>::rd_wait()
       return;
   }
 
-  IF_WIN(AcquireSRWLockShared(&lock), rw_rdlock(&lock));
+  IF_WIN(AcquireSRWLockShared(&lk), rw_rdlock(&lk));
 }
 
 template<> void srw_lock_<true>::wr_wait()
@@ -491,7 +558,7 @@ template<> void srw_lock_<true>::wr_wait()
       return;
   }
 
-  IF_WIN(AcquireSRWLockExclusive(&lock), rw_wrlock(&lock));
+  IF_WIN(AcquireSRWLockExclusive(&lk), rw_wrlock(&lk));
 }
 #endif
 

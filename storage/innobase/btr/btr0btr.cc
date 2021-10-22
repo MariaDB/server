@@ -1069,6 +1069,7 @@ top_loop:
 /** Clear the index tree and reinitialize the root page, in the
 rollback of TRX_UNDO_EMPTY. The BTR_SEG_LEAF is freed and reinitialized.
 @param thr query thread */
+TRANSACTIONAL_TARGET
 void dict_index_t::clear(que_thr_t *thr)
 {
   mtr_t mtr;

@@ -7694,6 +7694,8 @@ check_if_ok_to_rename:
 	}
 
 	if (!info.innobase_table_flags()) {
+		my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
+			 table_type(), "PAGE_COMPRESSED");
 		goto err_exit_no_heap;
 	}
 
@@ -10847,11 +10849,23 @@ ha_innobase::commit_inplace_alter_table(
 
 	for (inplace_alter_handler_ctx** pctx = ctx_array; *pctx; pctx++) {
 		auto ctx = static_cast<ha_innobase_inplace_ctx*>(*pctx);
+		dberr_t error = DB_SUCCESS;
 
 		if (new_clustered && ctx->old_table->fts) {
 			ut_ad(!ctx->old_table->fts->add_wq);
 			fts_optimize_remove_table(ctx->old_table);
 		}
+
+		dict_sys.freeze(SRW_LOCK_CALL);
+		for (auto f : ctx->old_table->referenced_set) {
+			if (dict_table_t* child = f->foreign_table) {
+				error = lock_table_for_trx(child, trx, LOCK_X);
+				if (error != DB_SUCCESS) {
+					break;
+				}
+			}
+		}
+		dict_sys.unfreeze();
 
 		if (ctx->new_table->fts) {
 			ut_ad(!ctx->new_table->fts->add_wq);
@@ -10863,9 +10877,12 @@ ha_innobase::commit_inplace_alter_table(
 		transaction is holding locks on the table while we
 		change the table definition. Any recovered incomplete
 		transactions would be holding InnoDB locks only, not MDL. */
+		if (error == DB_SUCCESS) {
+			error = lock_table_for_trx(ctx->new_table, trx,
+						   LOCK_X);
+		}
 
-		if (dberr_t error = lock_table_for_trx(ctx->new_table, trx,
-						       LOCK_X)) {
+		if (error != DB_SUCCESS) {
 lock_fail:
 			my_error_innodb(
 				error, table_share->table_name.str, 0);

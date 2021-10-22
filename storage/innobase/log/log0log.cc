@@ -78,10 +78,8 @@ void log_buffer_extend(ulong len)
 	const size_t new_buf_size = ut_calc_align(len, srv_page_size);
 	byte* new_buf = static_cast<byte*>
 		(ut_malloc_dontdump(new_buf_size, PSI_INSTRUMENT_ME));
-	TRASH_ALLOC(new_buf, new_buf_size);
 	byte* new_flush_buf = static_cast<byte*>
 		(ut_malloc_dontdump(new_buf_size, PSI_INSTRUMENT_ME));
-	TRASH_ALLOC(new_flush_buf, new_buf_size);
 
 	mysql_mutex_lock(&log_sys.mutex);
 
@@ -175,8 +173,14 @@ void log_t::create()
   ut_ad(!is_initialised());
   m_initialised= true;
 
+#if defined(__aarch64__)
+  mysql_mutex_init(log_sys_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(
+    log_flush_order_mutex_key, &flush_order_mutex, MY_MUTEX_INIT_FAST);
+#else
   mysql_mutex_init(log_sys_mutex_key, &mutex, nullptr);
   mysql_mutex_init(log_flush_order_mutex_key, &flush_order_mutex, nullptr);
+#endif
 
   /* Start the lsn from one log block from zero: this way every
   log record has a non-zero start lsn, a fact which we will use */

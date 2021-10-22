@@ -2848,6 +2848,7 @@ func_exit:
 /** Reads in pages which have hashed log records, from an area around a given
 page number.
 @param[in]	page_id	page id */
+TRANSACTIONAL_TARGET
 static void recv_read_in_area(page_id_t page_id)
 {
 	uint32_t page_nos[RECV_READ_AHEAD_AREA];
@@ -2862,7 +2863,9 @@ static void recv_read_in_area(page_id_t page_id)
 	     && i->first.space() == page_id.space()
 	     && i->first.page_no() < up_limit; i++) {
 		if (i->second.state == page_recv_t::RECV_NOT_PROCESSED
-		    && !buf_pool.page_hash_contains(i->first)) {
+		    && !buf_pool.page_hash_contains(
+			    i->first,
+			    buf_pool.page_hash.cell_get(i->first.fold()))) {
 			i->second.state = page_recv_t::RECV_BEING_READ;
 			*p++ = i->first.page_no();
 		}

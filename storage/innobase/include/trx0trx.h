@@ -621,6 +621,9 @@ public:
 	  == os_thread_get_curr_id());
     mutex.wr_unlock();
   }
+#ifndef SUX_LOCK_GENERIC
+  bool mutex_is_locked() const noexcept { return mutex.is_locked(); }
+#endif
 #ifdef UNIV_DEBUG
   /** @return whether the current thread holds the mutex */
   bool mutex_is_owner() const

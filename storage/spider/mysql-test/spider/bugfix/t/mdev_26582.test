@@ -1,0 +1,27 @@
+--echo #
+--echo # MDEV-26582 SIGSEGV in spider_db_bulk_insert and spider_db_connect and spider_db_before_query, and hang in "End of update loop" / "Reset for next command" query states
+--echo #
+
+# NOTE: The bug does not reproduce if we import ../../t/test_init.inc instead.
+--disable_query_log
+--disable_result_log
+--source ../../include/init_spider.inc
+--enable_result_log
+--enable_query_log
+
+CREATE DATABASE IF NOT EXISTS auto_test_local;
+USE auto_test_local;
+
+CREATE TABLE t (i CHAR) ENGINE=SPIDER;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT INTO t VALUES (0);
+--error ER_BAD_FIELD_ERROR
+INSERT t SELECT 1 ON DUPLICATE KEY UPDATE c=1;
+
+DROP DATABASE IF EXISTS auto_test_local;
+
+--disable_query_log
+--disable_result_log
+--source ../../include/deinit_spider.inc
+--enable_result_log
+--enable_query_log
