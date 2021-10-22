@@ -616,7 +616,7 @@ double position_in_interval(Field *field, const  uchar *key, uint key_len,
 
 
 double Histogram_json_hb::point_selectivity(Field *field, key_range *endpoint,
-                                            double avg_sel)
+                                            double avg_sel, double total_rows)
 {
   const uchar *key = endpoint->key;
   if (field->real_maybe_null())
@@ -631,9 +631,11 @@ double Histogram_json_hb::point_selectivity(Field *field, key_range *endpoint,
 
   if (buckets[idx].ndv == 1 && !equal)
   {
-    // The bucket has a single value and it doesn't match! Use the global
-    // average.
-    sel= avg_sel;
+    /*
+      The bucket has a single value and it doesn't match! Return a very
+      small value.
+    */
+    sel= 1.0 / total_rows;
   }
   else
   {

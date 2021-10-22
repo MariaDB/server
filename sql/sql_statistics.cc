@@ -3882,7 +3882,8 @@ double get_column_range_cardinality(Field *field,
         {
           res= col_non_nulls * 
 	       hist->point_selectivity(field, min_endp,
-                                       avg_frequency / col_non_nulls);
+                                       avg_frequency / col_non_nulls,
+                                       tab_records);
         }
       }
       else if (avg_frequency == 0.0)
@@ -3973,7 +3974,8 @@ double get_column_range_cardinality(Field *field,
 */
 
 double Histogram_binary::point_selectivity(Field *field, key_range *endpoint,
-                                           double avg_sel)
+                                           double avg_sel,
+                                           double total_records)
 {
   double sel;
   Column_statistics *col_stats= field->read_stats;

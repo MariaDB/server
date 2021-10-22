@@ -295,3 +295,25 @@ select c from t1 where c > '1';
 
 drop table t1;
 
+--echo #
+--echo # MDEV-26849: JSON Histograms: point selectivity estimates are off for non-existent values
+--echo #
+--echo #
+
+create table t0(a int);
+insert into t0 (a) values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select 100*A.a from t0 A, t0 B, t0 C;
+select a, count(*) from t1 group by a order by a;
+set histogram_type=json_hb, histogram_size=default;
+analyze table t1 persistent for all;
+select * from mysql.column_stats where table_name='t1';
+analyze select * from t1 where a=0;
+analyze select * from t1 where a=50;
+analyze select * from t1 where a=70;
+analyze select * from t1 where a=100;
+analyze select * from t1 where a=150;
+analyze select * from t1 where a=200;
+
+drop table t0,t1;
+

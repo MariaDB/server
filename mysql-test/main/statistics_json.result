@@ -4148,6 +4148,7 @@ t1	id	1	17384	0.0000	4.0000	14.0000	{
 explain select * from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	229376	
+drop table t0;
 drop table t1;
 set analyze_sample_percentage=@save_analyze_sample_percentage;
 set histogram_size=@save_histogram_size;
@@ -7530,3 +7531,104 @@ select c from t1 where c > '1';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	16.00	75.00	75.00	Using where
 drop table t1;
+#
+# MDEV-26849: JSON Histograms: point selectivity estimates are off for non-existent values
+#
+#
+create table t0(a int);
+insert into t0 (a) values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select 100*A.a from t0 A, t0 B, t0 C;
+select a, count(*) from t1 group by a order by a;
+a	count(*)
+0	100
+100	100
+200	100
+300	100
+400	100
+500	100
+600	100
+700	100
+800	100
+900	100
+set histogram_type=json_hb, histogram_size=default;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select * from mysql.column_stats where table_name='t1';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	900	0.0000	4.0000	100.0000	10	JSON_HB	{
+  "histogram_hb_v2": [
+    {
+      "start": "0",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "100",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "200",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "300",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "400",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "500",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "600",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "700",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "800",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "900",
+      "end": "900",
+      "size": 0.1,
+      "ndv": 1
+    }
+  ]
+}
+analyze select * from t1 where a=0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.00	10.00	Using where
+analyze select * from t1 where a=50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	0.10	0.00	Using where
+analyze select * from t1 where a=70;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	0.10	0.00	Using where
+analyze select * from t1 where a=100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.00	10.00	Using where
+analyze select * from t1 where a=150;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	0.10	0.00	Using where
+analyze select * from t1 where a=200;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.00	10.00	Using where
+drop table t0,t1;

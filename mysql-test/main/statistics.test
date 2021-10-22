@@ -1019,7 +1019,7 @@ select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, a
 from mysql.column_stats;
 explain select * from t1;
 
-
+drop table t0;
 drop table t1;
 set analyze_sample_percentage=@save_analyze_sample_percentage;
 set histogram_size=@save_histogram_size;

@@ -109,7 +109,8 @@ public:
                            ulonglong size) override;
 
   double point_selectivity(Field *field, key_range *endpoint,
-                           double avg_selection) override;
+                           double avg_selection,
+                           double total_rows) override;
   double range_selectivity(Field *field, key_range *min_endp,
                            key_range *max_endp) override;
 

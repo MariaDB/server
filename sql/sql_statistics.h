@@ -186,7 +186,8 @@ public:
 
 
   virtual double point_selectivity(Field *field, key_range *endpoint,
-                                   double avg_selection)=0;
+                                   double avg_selectivity,
+                                   double total_rows)=0;
   virtual double range_selectivity(Field *field, key_range *min_endp,
                                    key_range *max_endp)=0;
 
@@ -355,7 +356,8 @@ public:
     Estimate selectivity of "col=const" using a histogram
   */
   double point_selectivity(Field *field, key_range *endpoint,
-                           double avg_sel) override;
+                           double avg_sel,
+                           double total_rows) override;
 };
 
 
