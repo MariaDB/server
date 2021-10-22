@@ -8985,20 +8985,8 @@ err:
 }
 #endif /* MYSQL_CLIENT */
 
+
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-static bool wsrep_must_replay(THD *thd)
-{
-#ifdef WITH_WSREP
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-  bool res= WSREP(thd) && thd->wsrep_trx().state() == wsrep::transaction::s_must_replay;
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
-  return res;
-#else
-  return false;
-#endif
-}
-
-
 int Xid_log_event::do_apply_event(rpl_group_info *rgi)
 {
   bool res;
@@ -9063,8 +9051,14 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   res= trans_commit(thd); /* Automatically rolls back on error. */
   thd->release_transactional_locks();
 
-  if (sub_id && (!res || wsrep_must_replay(thd)))
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+#ifdef WITH_WSREP
+  if (sub_id && (!res || (WSREP(thd) && thd->wsrep_trx().state() == wsrep::transaction::s_must_replay)))
+#else
+  if (sub_id && !res)
+#endif /* WITH_WSREP */
     rpl_global_gtid_slave_state->update_state_hash(sub_id, &gtid, hton, rgi);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
   /*
     Increment the global status commit count variable
   */
