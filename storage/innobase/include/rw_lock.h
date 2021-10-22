@@ -229,12 +229,6 @@ public:
   bool is_update_locked() const
   { return !!(lock.load(std::memory_order_relaxed) & UPDATER); }
 #endif /* SUX_LOCK_GENERIC */
-  /** @return whether a shared lock is being held by any thread */
-  bool is_read_locked() const
-  {
-    auto l= lock.load(std::memory_order_relaxed);
-    return (l & ~WRITER_PENDING) && !(l & WRITER);
-  }
   /** @return whether any lock is being held or waited for by any thread */
   bool is_locked_or_waiting() const
   { return lock.load(std::memory_order_relaxed) != 0; }

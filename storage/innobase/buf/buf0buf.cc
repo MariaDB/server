@@ -277,6 +277,7 @@ the read requests for the whole area.
 */
 
 #ifndef UNIV_INNOCHECKSUM
+# ifdef SUX_LOCK_GENERIC
 void page_hash_latch::read_lock_wait()
 {
   /* First, try busy spinning for a while. */
@@ -309,6 +310,7 @@ void page_hash_latch::write_lock_wait()
     std::this_thread::yield();
   while (!write_lock_poll());
 }
+# endif
 
 constexpr std::chrono::microseconds WAIT_FOR_READ(100);
 constexpr int WAIT_FOR_WRITE= 100;
@@ -2297,7 +2299,7 @@ lookup:
 #endif /* UNIV_DEBUG */
   }
 
-  ut_ad(hash_lock->is_read_locked());
+  ut_ad(hash_lock->is_locked());
 
   if (!bpage->zip.data)
   {

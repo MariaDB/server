@@ -1551,7 +1551,10 @@ private:
     buf_page_t *bpage= page_hash_get_low(page_id, fold);
     if (!bpage || watch_is_sentinel(*bpage))
     {
-      latch->release<exclusive>();
+      if (exclusive)
+        latch->write_unlock();
+      else
+        latch->read_unlock();
       if (hash_lock)
         *hash_lock= nullptr;
       return watch ? bpage : nullptr;
@@ -1562,8 +1565,10 @@ private:
 
     if (hash_lock)
       *hash_lock= latch; /* to be released by the caller */
+    else if (exclusive)
+      latch->write_unlock();
     else
-      latch->release<exclusive>();
+      latch->read_unlock();
     return bpage;
   }
 public:
@@ -1785,7 +1790,10 @@ public:
     template<bool exclusive> page_hash_latch *lock(ulint fold)
     {
       page_hash_latch *latch= lock_get(fold, n_cells);
-      latch->acquire<exclusive>();
+      if (exclusive)
+        latch->write_lock();
+      else
+        latch->read_lock();
       return latch;
     }
 
@@ -2024,6 +2032,7 @@ private:
 /** The InnoDB buffer pool */
 extern buf_pool_t buf_pool;
 
+#ifdef SUX_LOCK_GENERIC
 inline void page_hash_latch::read_lock()
 {
   mysql_mutex_assert_not_owner(&buf_pool.mutex);
@@ -2036,6 +2045,7 @@ inline void page_hash_latch::write_lock()
   if (!write_trylock())
     write_lock_wait();
 }
+#endif /* SUX_LOCK_GENERIC */
 
 inline void buf_page_t::add_buf_fix_count(uint32_t count)
 {

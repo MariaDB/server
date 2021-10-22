@@ -175,10 +175,7 @@ public:
 # ifndef DBUG_OFF
   /** @return whether the lock is being held or waited for */
   bool is_vacant() const
-  {
-    return !readers.load(std::memory_order_relaxed) &&
-      !writer.is_locked_or_waiting();
-  }
+  { return !is_locked() && !writer.is_locked_or_waiting(); }
 # endif /* !DBUG_OFF */
 
   bool rd_lock_try()
@@ -250,7 +247,7 @@ public:
   void wr_u_downgrade()
   {
     DBUG_ASSERT(writer.is_locked());
-    DBUG_ASSERT(readers.load(std::memory_order_relaxed) == WRITER);
+    DBUG_ASSERT(is_write_locked());
     readers.store(1, std::memory_order_release);
     /* Note: Any pending rd_lock() will not be woken up until u_unlock() */
   }
@@ -272,10 +269,16 @@ public:
   }
   void wr_unlock()
   {
-    DBUG_ASSERT(readers.load(std::memory_order_relaxed) == WRITER);
+    DBUG_ASSERT(is_write_locked());
     readers.store(0, std::memory_order_release);
     writer.wr_unlock();
   }
+  /** @return whether an exclusive lock may be held by any thread */
+  bool is_write_locked() const noexcept
+  { return readers.load(std::memory_order_relaxed) == WRITER; }
+  /** @return whether any lock may be held by any thread */
+  bool is_locked() const noexcept
+  { return readers.load(std::memory_order_relaxed) != 0; }
 #endif
 };
 
@@ -308,6 +311,18 @@ public:
   { return IF_WIN(TryAcquireSRWLockExclusive(&lock), !rw_trywrlock(&lock)); }
   void wr_unlock()
   { IF_WIN(ReleaseSRWLockExclusive(&lock), rw_unlock(&lock)); }
+#ifdef _WIN32
+  /** @return whether any lock may be held by any thread */
+  bool is_locked_or_waiting() const noexcept { return (size_t&)(lock) != 0; }
+  /** @return whether any lock may be held by any thread */
+  bool is_locked() const noexcept { return is_locked_or_waiting(); }
+  /** @return whether an exclusive lock may be held by any thread */
+  bool is_write_locked() const noexcept
+  {
+    // FIXME: this returns false positives for shared locks
+    return is_locked();
+  }
+#endif
 };
 
 template<> void srw_lock_<true>::rd_wait();

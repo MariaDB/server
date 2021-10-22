@@ -178,6 +178,7 @@ enum rw_lock_type_t
 
 #include "sux_lock.h"
 
+#ifdef SUX_LOCK_GENERIC
 class page_hash_latch : public rw_lock
 {
 public:
@@ -190,23 +191,31 @@ public:
   inline void read_lock();
   /** Acquire an exclusive lock */
   inline void write_lock();
-
-  /** Acquire a lock */
-  template<bool exclusive> void acquire()
-  {
-    if (exclusive)
-      write_lock();
-    else
-      read_lock();
-  }
-  /** Release a lock */
-  template<bool exclusive> void release()
-  {
-    if (exclusive)
-      write_unlock();
-    else
-      read_unlock();
-  }
 };
+#elif defined _WIN32 || SIZEOF_SIZE_T >= 8
+class page_hash_latch
+{
+  srw_spin_lock_low lock;
+public:
+  void read_lock() { lock.rd_lock(); }
+  void read_unlock() { lock.rd_unlock(); }
+  void write_lock() { lock.wr_lock(); }
+  void write_unlock() { lock.wr_unlock(); }
+  bool is_locked() const { return lock.is_locked(); }
+  bool is_write_locked() const { return lock.is_write_locked(); }
+};
+#else
+class page_hash_latch
+{
+  srw_spin_mutex lock;
+public:
+  void read_lock() { write_lock(); }
+  void read_unlock() { write_unlock(); }
+  void write_lock() { lock.wr_lock(); }
+  void write_unlock() { lock.wr_unlock(); }
+  bool is_locked() const { return lock.is_locked(); }
+  bool is_write_locked() const { return is_locked(); }
+};
+#endif
 
 #endif /* !UNIV_INNOCHECKSUM */
