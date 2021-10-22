@@ -5619,10 +5619,25 @@ dberr_t lock_sys_t::cancel(trx_t *trx, lock_t *lock, bool check_victim)
     {
 resolve_table_lock:
       dict_table_t *table= lock->un_member.tab_lock.table;
-      table->lock_mutex_lock();
+      if (!table->lock_mutex_trylock())
+      {
+        /* The correct latching order is:
+        lock_sys.latch, table->lock_mutex_lock(), lock_sys.wait_mutex.
+        Thus, we must release lock_sys.wait_mutex for a blocking wait. */
+        mysql_mutex_unlock(&lock_sys.wait_mutex);
+        table->lock_mutex_lock();
+        mysql_mutex_lock(&lock_sys.wait_mutex);
+        lock= trx->lock.wait_lock;
+        if (!lock)
+          goto retreat;
+        else if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
+        {
+          err= DB_DEADLOCK;
+          goto retreat;
+        }
+      }
       if (lock->is_waiting())
         lock_cancel_waiting_and_release(lock);
-      table->lock_mutex_unlock();
       /* Even if lock->is_waiting() did not hold above, we must return
       DB_LOCK_WAIT, or otherwise optimistic parallel replication could
       occasionally hang. Potentially affected tests:
@@ -5630,6 +5645,8 @@ resolve_table_lock:
       rpl.rpl_parallel_optimistic_nobinlog
       rpl.rpl_parallel_optimistic_xa_lsu_off */
       err= DB_LOCK_WAIT;
+retreat:
+      table->lock_mutex_unlock();
     }
     lock_sys.rd_unlock();
   }
