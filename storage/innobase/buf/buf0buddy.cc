@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -499,9 +499,10 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 	ut_ad(space != BUF_BUDDY_STAMP_FREE);
 
 	const page_id_t	page_id(space, offset);
-	const ulint fold= page_id.fold();
+	/* FIXME: we are computing this while holding buf_pool.mutex */
+	auto &cell= buf_pool.page_hash.cell_get(page_id.fold());
 
-	bpage = buf_pool.page_hash_get_low(page_id, fold);
+	bpage = buf_pool.page_hash.get(page_id, cell);
 
 	if (!bpage || bpage->zip.data != src) {
 		/* The block has probably been freshly
@@ -546,8 +547,8 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		return false;
 	}
 
-	page_hash_latch *hash_lock = buf_pool.page_hash.lock_get(fold);
-	hash_lock->write_lock();
+	page_hash_latch &hash_lock = buf_pool.page_hash.lock_get(cell);
+	hash_lock.write_lock();
 
 	if (bpage->can_relocate()) {
 		/* Relocate the compressed page. */
@@ -558,7 +559,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		memcpy(dst, src, size);
 		bpage->zip.data = reinterpret_cast<page_zip_t*>(dst);
 
-		hash_lock->write_unlock();
+		hash_lock.write_unlock();
 
 		buf_buddy_mem_invalid(
 			reinterpret_cast<buf_buddy_free_t*>(src), i);
@@ -569,7 +570,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		return(true);
 	}
 
-	hash_lock->write_unlock();
+	hash_lock.write_unlock();
 
 	return(false);
 }

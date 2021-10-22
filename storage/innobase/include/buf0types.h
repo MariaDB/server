@@ -181,12 +181,11 @@ enum rw_lock_type_t
 #ifdef SUX_LOCK_GENERIC
 class page_hash_latch : public rw_lock
 {
-public:
   /** Wait for a shared lock */
   void read_lock_wait();
   /** Wait for an exclusive lock */
   void write_lock_wait();
-
+public:
   /** Acquire a shared lock */
   inline void read_lock();
   /** Acquire an exclusive lock */

@@ -1090,15 +1090,16 @@ fail:
 	buf_block_t* block = buf_pool.block_from_ahi(rec);
 
 	if (!ahi_latch) {
-		page_hash_latch* hash_lock = buf_pool.hash_lock_get(
-			block->page.id());
-		hash_lock->read_lock();
+		buf_pool_t::hash_chain& chain = buf_pool.page_hash.cell_get(
+			block->page.id().fold());
+		page_hash_latch&hash_lock = buf_pool.page_hash.lock_get(chain);
+		hash_lock.read_lock();
 
 		if (block->page.state() == BUF_BLOCK_REMOVE_HASH) {
 			/* Another thread is just freeing the block
 			from the LRU list of the buffer pool: do not
 			try to access this page. */
-			hash_lock->read_unlock();
+			hash_lock.read_unlock();
 			goto fail;
 		}
 
@@ -1109,7 +1110,7 @@ fail:
 		DBUG_ASSERT(fail || block->page.status != buf_page_t::FREED);
 
 		buf_block_buf_fix_inc(block);
-		hash_lock->read_unlock();
+		hash_lock.read_unlock();
 		block->page.set_accessed();
 
 		buf_page_make_young_if_needed(&block->page);
@@ -2209,8 +2210,9 @@ btr_search_hash_table_validate(ulint hash_table_id)
 				assertion and the comment below) */
 				const page_id_t id(block->page.id());
 				if (const buf_page_t* hash_page
-				    = buf_pool.page_hash_get_low(
-					    id, id.fold())) {
+				    = buf_pool.page_hash.get(
+					    id, buf_pool.page_hash.cell_get(
+						    id.fold()))) {
 					ut_ad(hash_page == &block->page);
 					goto state_ok;
 				}

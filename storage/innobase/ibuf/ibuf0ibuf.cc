@@ -3310,7 +3310,8 @@ fail_exit:
 
 	/* We check if the index page is suitable for buffered entries */
 
-	if (buf_pool.page_hash_contains(page_id)) {
+	if (buf_pool.page_hash_contains(
+		    page_id, buf_pool.page_hash.cell_get(page_id.fold()))) {
 commit_exit:
 		ibuf_mtr_commit(&bitmap_mtr);
 		goto fail_exit;
@@ -3556,7 +3557,8 @@ check_watch:
 	that the issuer of IBUF_OP_DELETE has called
 	buf_pool_t::watch_set(). */
 
-	if (buf_pool.page_hash_contains<true>(page_id)) {
+	if (buf_pool.page_hash_contains<true>(
+		    page_id, buf_pool.page_hash.cell_get(page_id.fold()))) {
 		/* A buffer pool watch has been set or the
 		page has been read into the buffer pool.
 		Do not buffer the request.  If a purge operation

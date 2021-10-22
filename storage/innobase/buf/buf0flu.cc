@@ -947,7 +947,9 @@ static bool buf_flush_check_neighbor(const page_id_t id, ulint fold, bool lru)
   mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(fold == id.fold());
 
-  buf_page_t *bpage= buf_pool.page_hash_get_low(id, fold);
+  /* FIXME: cell_get() is being invoked while holding buf_pool.mutex */
+  const buf_page_t *bpage=
+    buf_pool.page_hash.get(id, buf_pool.page_hash.cell_get(fold));
 
   if (!bpage || buf_pool.watch_is_sentinel(*bpage))
     return false;
@@ -1107,9 +1109,10 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
       id_fold= id.fold();
     }
 
+    const buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id_fold);
     mysql_mutex_lock(&buf_pool.mutex);
 
-    if (buf_page_t *bpage= buf_pool.page_hash_get_low(id, id_fold))
+    if (buf_page_t *bpage= buf_pool.page_hash.get(id, chain))
     {
       ut_ad(bpage->in_file());
       /* We avoid flushing 'non-old' blocks in an LRU flush,

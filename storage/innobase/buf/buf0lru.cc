@@ -113,7 +113,7 @@ the object will be freed.
 
 @param bpage      buffer block
 @param id         page identifier
-@param hash_lock  buf_pool.page_hash latch (will be released here)
+@param chain      locked buf_pool.page_hash chain (will be released here)
 @param zip        whether bpage->zip of BUF_BLOCK_FILE_PAGE should be freed
 
 If a compressed page is freed other compressed pages may be relocated.
@@ -122,7 +122,8 @@ caller needs to free the page to the free list
 @retval false if BUF_BLOCK_ZIP_PAGE was removed from page_hash. In
 this case the block is already returned to the buddy allocator. */
 static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
-                                        page_hash_latch *hash_lock, bool zip);
+                                        buf_pool_t::hash_chain &chain,
+                                        bool zip);
 
 /** Free a block to buf_pool */
 static void buf_LRU_block_free_hashed_page(buf_block_t *block)
@@ -807,9 +808,9 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	/* We must hold an exclusive hash_lock to prevent
 	bpage->can_relocate() from changing due to a concurrent
 	execution of buf_page_get_low(). */
-	const ulint fold = id.fold();
-	page_hash_latch* hash_lock = buf_pool.page_hash.lock_get(fold);
-	hash_lock->write_lock();
+	buf_pool_t::hash_chain& chain= buf_pool.page_hash.cell_get(id.fold());
+	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
+	hash_lock.write_lock();
 	lsn_t oldest_modification = bpage->oldest_modification_acquire();
 
 	if (UNIV_UNLIKELY(!bpage->can_relocate())) {
@@ -839,7 +840,7 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	} else if (oldest_modification
 		   && bpage->state() != BUF_BLOCK_FILE_PAGE) {
 func_exit:
-		hash_lock->write_unlock();
+		hash_lock.write_unlock();
 		return(false);
 
 	} else if (bpage->state() == BUF_BLOCK_FILE_PAGE) {
@@ -859,7 +860,7 @@ func_exit:
 
 	ut_ad(bpage->can_relocate());
 
-	if (!buf_LRU_block_remove_hashed(bpage, id, hash_lock, zip)) {
+	if (!buf_LRU_block_remove_hashed(bpage, id, chain, zip)) {
 		ut_ad(!b);
 		mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
 		return(true);
@@ -875,7 +876,7 @@ func_exit:
 	if (UNIV_LIKELY_NULL(b)) {
 		buf_page_t*	prev_b	= UT_LIST_GET_PREV(LRU, b);
 
-		ut_ad(!buf_pool.page_hash_get_low(id, fold));
+		ut_ad(!buf_pool.page_hash.get(id, chain));
 		ut_ad(b->zip_size());
 
 		/* The field in_LRU_list of
@@ -894,8 +895,10 @@ func_exit:
 		ut_ad(!b->in_zip_hash);
 		ut_ad(b->in_LRU_list);
 		ut_ad(b->in_page_hash);
+		ut_d(b->in_page_hash = false);
+		b->hash = nullptr;
 
-		HASH_INSERT(buf_page_t, hash, &buf_pool.page_hash, fold, b);
+		buf_pool.page_hash.append(chain, b);
 
 		/* Insert b where bpage was in the LRU list. */
 		if (prev_b) {
@@ -951,9 +954,9 @@ func_exit:
 		decompressing the block while we release
 		hash_lock. */
 		b->set_io_fix(BUF_IO_PIN);
-		hash_lock->write_unlock();
+		hash_lock.write_unlock();
 	} else if (!zip) {
-		hash_lock->write_unlock();
+		hash_lock.write_unlock();
 	}
 
 	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
@@ -1063,7 +1066,7 @@ the object will be freed.
 
 @param bpage      buffer block
 @param id         page identifier
-@param hash_lock  buf_pool.page_hash latch (will be released here)
+@param chain      locked buf_pool.page_hash chain (will be released here)
 @param zip        whether bpage->zip of BUF_BLOCK_FILE_PAGE should be freed
 
 If a compressed page is freed other compressed pages may be relocated.
@@ -1072,10 +1075,11 @@ caller needs to free the page to the free list
 @retval false if BUF_BLOCK_ZIP_PAGE was removed from page_hash. In
 this case the block is already returned to the buddy allocator. */
 static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
-                                        page_hash_latch *hash_lock, bool zip)
+                                        buf_pool_t::hash_chain &chain,
+                                        bool zip)
 {
 	mysql_mutex_assert_owner(&buf_pool.mutex);
-        ut_ad(hash_lock->is_write_locked());
+	ut_ad(buf_pool.page_hash.lock_get(chain).is_write_locked());
 
 	ut_a(bpage->io_fix() == BUF_IO_NONE);
 	ut_a(!bpage->buf_fix_count());
@@ -1155,7 +1159,8 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 	}
 
 	ut_ad(!bpage->in_zip_hash);
-	HASH_DELETE(buf_page_t, hash, &buf_pool.page_hash, id.fold(), bpage);
+	buf_pool.page_hash.remove(chain, bpage);
+        page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
 
 	switch (bpage->state()) {
 	case BUF_BLOCK_ZIP_PAGE:
@@ -1165,7 +1170,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		ut_a(bpage->zip.ssize);
 		ut_ad(!bpage->oldest_modification());
 
-		hash_lock->write_unlock();
+		hash_lock.write_unlock();
 		buf_pool_mutex_exit_forbid();
 
 		buf_buddy_free(bpage->zip.data, bpage->zip_size());
@@ -1209,7 +1214,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		and by the time we'll release it in the caller we'd
 		have inserted the compressed only descriptor in the
 		page_hash. */
-		hash_lock->write_unlock();
+		hash_lock.write_unlock();
 
 		if (bpage->zip.data) {
 			/* Free the compressed page. */
@@ -1240,20 +1245,38 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 	return(false);
 }
 
-/** Remove one page from LRU list and put it to free list.
-@param bpage     file page to be freed
-@param id        page identifier
-@param hash_lock buf_pool.page_hash latch (will be released here) */
-void buf_LRU_free_one_page(buf_page_t *bpage, const page_id_t id,
-                           page_hash_latch *hash_lock)
+/** Release and evict a corrupted page.
+@param bpage    page that was being read */
+ATTRIBUTE_COLD void buf_pool_t::corrupted_evict(buf_page_t *bpage)
 {
+  const page_id_t id(bpage->id());
+  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
+  page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
+
+  mysql_mutex_lock(&mutex);
+  hash_lock.write_lock();
+
+  ut_ad(bpage->io_fix() == BUF_IO_READ);
+  ut_ad(!bpage->oldest_modification());
+  bpage->set_corrupt_id();
+  bpage->io_unfix();
+
+  if (bpage->state() == BUF_BLOCK_FILE_PAGE)
+    reinterpret_cast<buf_block_t*>(bpage)->lock.x_unlock(true);
+
   while (bpage->buf_fix_count())
     /* Wait for other threads to release the fix count
     before releasing the bpage from LRU list. */
     (void) LF_BACKOFF();
 
-  if (buf_LRU_block_remove_hashed(bpage, id, hash_lock, true))
+  /* remove from LRU and page_hash */
+  if (buf_LRU_block_remove_hashed(bpage, id, chain, true))
     buf_LRU_block_free_hashed_page(reinterpret_cast<buf_block_t*>(bpage));
+
+  mysql_mutex_unlock(&mutex);
+
+  ut_d(auto n=) n_pend_reads--;
+  ut_ad(n > 0);
 }
 
 /** Update buf_pool.LRU_old_ratio.
