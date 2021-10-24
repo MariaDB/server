@@ -181,6 +181,17 @@ private:
 
 class Json_writer
 {
+#ifndef NDEBUG
+
+  std::vector<bool> named_items_expectation;
+
+  bool named_item_expected() const;
+
+  bool got_name;
+  bool is_on_fmt_helper_call;
+
+#endif
+
 public:
   /* Add a member. We must be in an object. */
   Json_writer& add_member(const char *name);
@@ -204,6 +215,11 @@ public:
 private:
   void add_unquoted_str(const char* val);
   void add_unquoted_str(const char* val, size_t len);
+
+  bool on_add_str(const char *str, size_t num_bytes);
+  bool on_start_array();
+  void on_start_object();
+
 public:
   /* Start a child object */
   void start_object();
@@ -221,6 +237,10 @@ public:
   size_t get_truncated_bytes() { return output.get_truncated_bytes(); }
 
   Json_writer() : 
+#ifndef NDEBUG
+    got_name(false),
+    is_on_fmt_helper_call(false),
+#endif
     indent_level(0), document_start(true), element_started(false), 
     first_child(true)
   {
