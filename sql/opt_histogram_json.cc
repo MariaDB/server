@@ -326,7 +326,10 @@ public:
     {
       // This is the final value group.
       if (!bucket_is_empty())
-        finalize_bucket_with_end_value(elem);
+      {
+        if (finalize_bucket_with_end_value(elem))
+          return 1;
+      }
     }
     return 0;
   }

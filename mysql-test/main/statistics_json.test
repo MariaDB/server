@@ -298,7 +298,6 @@ drop table t1;
 --echo #
 --echo # MDEV-26849: JSON Histograms: point selectivity estimates are off for non-existent values
 --echo #
---echo #
 
 create table t0(a int);
 insert into t0 (a) values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -317,3 +316,14 @@ analyze select * from t1 where a=200;
 
 drop table t0,t1;
 
+--echo #
+--echo # MDEV-26892: JSON histograms become invalid with a specific (corrupt) value in t
+--echo #
+create table t1 (a varchar(32)) DEFAULT CHARSET=cp1257;
+set histogram_type= JSON_HB, histogram_size= 1;
+insert into t1 values ('foo'),(unhex('9C'));
+analyze table t1 persistent for all;
+
+select * from t1;
+
+drop table t1;

@@ -7534,7 +7534,6 @@ drop table t1;
 #
 # MDEV-26849: JSON Histograms: point selectivity estimates are off for non-existent values
 #
-#
 create table t0(a int);
 insert into t0 (a) values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1(a int);
@@ -7632,3 +7631,17 @@ analyze select * from t1 where a=200;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.00	10.00	Using where
 drop table t0,t1;
+#
+# MDEV-26892: JSON histograms become invalid with a specific (corrupt) value in t
+#
+create table t1 (a varchar(32)) DEFAULT CHARSET=cp1257;
+set histogram_type= JSON_HB, histogram_size= 1;
+insert into t1 values ('foo'),(unhex('9C'));
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Operation failed
+select * from t1;
+a
+foo
+?
+drop table t1;
