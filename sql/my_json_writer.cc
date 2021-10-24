@@ -18,6 +18,14 @@
 #include "sql_string.h"
 #include "my_json_writer.h"
 
+#ifndef NDEBUG
+bool Json_writer::named_item_expected() const
+{
+  return named_items_expectation.size()
+      && named_items_expectation.back();
+}
+#endif
+
 void Json_writer::append_indent()
 {
   if (!document_start)
@@ -26,9 +34,27 @@ void Json_writer::append_indent()
     output.append(' ');
 }
 
+inline void Json_writer::on_start_object()
+{
+#ifndef NDEBUG
+  if(!is_on_fmt_helper_call)
+  {
+    DBUG_ASSERT(got_name == named_item_expected());
+    named_items_expectation.push_back(true);
+  }
+
+  bool was_on_fmt_helper_call= is_on_fmt_helper_call;
+  is_on_fmt_helper_call= true;
+#endif
+  fmt_helper.on_start_object();
+#ifndef NDEBUG
+  is_on_fmt_helper_call= was_on_fmt_helper_call;
+#endif
+}
+
 void Json_writer::start_object()
 {
-  fmt_helper.on_start_object();
+  on_start_object();
 
   if (!element_started)
     start_element();
@@ -38,11 +64,36 @@ void Json_writer::start_object()
   first_child=true;
   element_started= false;
   document_start= false;
+#ifndef NDEBUG
+  got_name= false;
+#endif
+}
+
+bool Json_writer::on_start_array()
+{
+#ifndef NDEBUG
+  bool was_on_fmt_helper_call= is_on_fmt_helper_call;
+  is_on_fmt_helper_call= true;
+#endif
+  bool helped= fmt_helper.on_start_array();
+#ifndef NDEBUG
+  is_on_fmt_helper_call= was_on_fmt_helper_call;
+#endif
+  return helped;
 }
 
 void Json_writer::start_array()
 {
-  if (fmt_helper.on_start_array())
+#ifndef NDEBUG
+  if(!is_on_fmt_helper_call)
+  {
+    DBUG_ASSERT(got_name == named_item_expected());
+    named_items_expectation.push_back(false);
+    got_name= false;
+  }
+#endif
+
+  if (on_start_array())
     return;
 
   if (!element_started)
@@ -58,6 +109,11 @@ void Json_writer::start_array()
 
 void Json_writer::end_object()
 {
+#ifndef NDEBUG
+  named_items_expectation.pop_back();
+  DBUG_ASSERT(!got_name);
+  got_name= false;
+#endif
   indent_level-=INDENT_SIZE;
   if (!first_child)
     append_indent();
@@ -68,6 +124,10 @@ void Json_writer::end_object()
 
 void Json_writer::end_array()
 {
+#ifndef NDEBUG
+  named_items_expectation.pop_back();
+  got_name= false;
+#endif
   if (fmt_helper.on_end_array())
     return;
   indent_level-=INDENT_SIZE;
@@ -80,31 +140,25 @@ void Json_writer::end_array()
 Json_writer& Json_writer::add_member(const char *name)
 {
   size_t len= strlen(name);
-  if (fmt_helper.on_add_member(name, len))
-    return *this; // handled
-
-  // assert that we are in an object
-  DBUG_ASSERT(!element_started);
-  start_element();
-
-  output.append('"');
-  output.append(name, len);
-  output.append("\": ", 3);
-  return *this;
+  return add_member(name, len);
 }
 
 Json_writer& Json_writer::add_member(const char *name, size_t len)
 {
-  if (fmt_helper.on_add_member(name, len))
-    return *this; // handled
+  if (!fmt_helper.on_add_member(name, len))
+  {
+    // assert that we are in an object
+    DBUG_ASSERT(!element_started);
+    start_element();
 
-  // assert that we are in an object
-  DBUG_ASSERT(!element_started);
-  start_element();
-
-  output.append('"');
-  output.append(name, len);
-  output.append("\": ");
+    output.append('"');
+    output.append(name, len);
+    output.append("\": ", 3);
+  }
+#ifndef NDEBUG
+  if (!is_on_fmt_helper_call)
+    got_name= true;
+#endif
   return *this;
 }
 
@@ -200,7 +254,13 @@ void Json_writer::add_null()
 void Json_writer::add_unquoted_str(const char* str)
 {
   size_t len= strlen(str);
-  if (fmt_helper.on_add_str(str, len))
+  add_unquoted_str(str, len);
+}
+
+void Json_writer::add_unquoted_str(const char* str, size_t len)
+{
+  DBUG_ASSERT(is_on_fmt_helper_call || got_name == named_item_expected());
+  if (on_add_str(str, len))
     return;
 
   if (!element_started)
@@ -210,31 +270,24 @@ void Json_writer::add_unquoted_str(const char* str)
   element_started= false;
 }
 
-void Json_writer::add_unquoted_str(const char* str, size_t len)
+inline bool Json_writer::on_add_str(const char *str, size_t num_bytes)
 {
-  if (fmt_helper.on_add_str(str, len))
-    return;
-
-  if (!element_started)
-    start_element();
-
-  output.append(str, len);
-  element_started= false;
+#ifndef NDEBUG
+  got_name= false;
+  bool was_on_fmt_helper_call= is_on_fmt_helper_call;
+  is_on_fmt_helper_call= true;
+#endif
+  bool helped= fmt_helper.on_add_str(str, num_bytes);
+#ifndef NDEBUG
+  is_on_fmt_helper_call= was_on_fmt_helper_call;
+#endif
+  return helped;
 }
 
 void Json_writer::add_str(const char *str)
 {
   size_t len= strlen(str);
-  if (fmt_helper.on_add_str(str, len))
-    return;
-
-  if (!element_started)
-    start_element();
-
-  output.append('"');
-  output.append(str, len);
-  output.append('"');
-  element_started= false;
+  add_str(str, len);
 }
 
 /*
@@ -243,7 +296,8 @@ void Json_writer::add_str(const char *str)
 
 void Json_writer::add_str(const char* str, size_t num_bytes)
 {
-  if (fmt_helper.on_add_str(str, num_bytes))
+  DBUG_ASSERT(is_on_fmt_helper_call || got_name == named_item_expected());
+  if (on_add_str(str, num_bytes))
     return;
 
   if (!element_started)
