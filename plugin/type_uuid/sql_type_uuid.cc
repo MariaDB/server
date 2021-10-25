@@ -42,28 +42,61 @@ static bool get_digit(char ch, uint *val)
 }
 
 
+static bool get_digit(uint *val, const char *str, const char *end)
+{
+  if (str >= end)
+    return true;
+  return get_digit(*str, val);
+}
+
+
+static size_t skip_hyphens(const char *str, const char *end)
+{
+  const char *str0= str;
+  for ( ; str < end; str++)
+  {
+    if (str[0] != '-')
+      break;
+  }
+  return str - str0;
+}
+
+
+static const char *get_two_digits(char *val, const char *str, const char *end)
+{
+  uint hi, lo;
+  if (get_digit(&hi, str++, end))
+    return NULL;
+  str+= skip_hyphens(str, end);
+  if (get_digit(&lo, str++, end))
+    return NULL;
+  *val= (char) ((hi << 4) + lo);
+  return str;
+}
+
+
 bool UUID::ascii_to_fbt(const char *str, size_t str_length)
 {
-  if (str_length < 32 || str_length > 3 * binary_length() - 1)
-    return true;
+  const char *end= str + str_length;
+  /*
+    The format understood:
+    - Hyphen is not allowed on the first and the last position.
+    - Otherwise, hyphens are allowed on any (odd and even) position,
+      with any amount.
+  */
+  if (str_length < 32)
+    goto err;
 
-  uint oidx= 0;
-  for (const char *s= str; s < str + str_length; )
+  for (uint oidx= 0; oidx < binary_length(); oidx++)
   {
-    if (oidx >= binary_length())
+    if (!(str= get_two_digits(&m_buffer[oidx], str, end)))
       goto err;
-    if (*s == '-')
-    {
-      if (s == str)
-        goto err;
-      s++;
-      continue;
-    }
-    uint hi, lo;
-    if (get_digit(*s++, &hi) || get_digit(*s++, &lo))
-      goto err;
-    m_buffer[oidx++]= (char) ((hi << 4) + lo);
+    // Allow hypheps after two digits, but not after the last digit
+    if (oidx + 1 < binary_length())
+      str+= skip_hyphens(str, end);
   }
+  if (str < end)
+    goto err; // Some input left
   return false;
 err:
   bzero(m_buffer, sizeof(m_buffer));
