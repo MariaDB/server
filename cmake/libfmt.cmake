@@ -8,6 +8,10 @@ MACRO(BUNDLE_LIBFMT)
   SET(dir "${CMAKE_BINARY_DIR}/extra/libfmt")
   SET(LIBFMT_INCLUDE_DIR "${dir}/src/libfmt/include")
 
+  IF(CMAKE_VERSION VERSION_GREATER "3.0")
+    SET(fmt_byproducts BUILD_BYPRODUCTS ${LIBFMT_INCLUDE_DIR}/fmt/format-inl.h)
+  ENDIF()
+
   ExternalProject_Add(
     libfmt
     PREFIX   "${dir}"
@@ -16,7 +20,7 @@ MACRO(BUNDLE_LIBFMT)
     INSTALL_COMMAND ""
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
-    BUILD_BYPRODUCTS ${LIBFMT_INCLUDE_DIR}/fmt/format-inl.h
+    ${fmt_byproducts}
   )
 ENDMACRO()
 
