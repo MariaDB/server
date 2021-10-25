@@ -6322,13 +6322,17 @@ static void loc_on_close_free(MYSQL *mysql)
   mysql->info_buffer= 0;
 }
 
+static MYSQL_RES *loc_use_result(MYSQL *mysql)
+{
+  return mysql_store_result(mysql);
+}
 
 static MYSQL_METHODS local_methods=
 {
   loc_read_query_result,                       /* read_query_result */
   loc_advanced_command,                        /* advanced_command */
   loc_read_rows,                               /* read_rows */
-  mysql_store_result,                          /* use_result */
+  loc_use_result,                              /* use_result */
   loc_fetch_lengths,                           /* fetch_lengths */
   loc_flush_use_result,                        /* flush_use_result */
   NULL,                                        /* read_change_user_result */
