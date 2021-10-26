@@ -21,7 +21,7 @@ if ($engine == "innodb") {
   let $table_params = page_compressed = 1;
   call mtr.add_suppression("Background Page read failed to read, uncompress, or decrypt");
   call mtr.add_suppression("Table is compressed or encrypted but uncompress or decrypt failed");
-  call mtr.add_suppression("InnoDB: Table `test`.`t1` is compressed with (\\w+), which is not currently loaded. Please load the \\1 provider plugin to open the table");
+  call mtr.add_suppression("Table .*t1.* is compressed with (\\w+), which is not currently loaded. Please load the \\1 provider plugin to open the table");
 }
 if ($engine == "mroonga") {
   let $column_params = `select upper('COMMENT \'flags "COLUMN_SCALAR|COMPRESS_$alg"\'')`;
@@ -39,7 +39,7 @@ let $restart_parameters = --disable-provider-$alg;
 source include/restart_mysqld.inc;
 
 if ($engine == "innodb") {
-  error ER_NO_SUCH_TABLE_IN_ENGINE;
+  error ER_PROVIDER_NOT_LOADED;
   select a, left(b, 9), length(b) from t1;
 }
 if ($engine == "mroonga"){

@@ -1041,14 +1041,15 @@ dict_table_open_on_name(
       {
         ulint algo = table->space->get_compression_algo();
         if (algo <= PAGE_ALGORITHM_LAST && !fil_comp_algo_loaded(algo)) {
-          ib::error() << "Table " << table->name << " is compressed with "
-                << page_compression_algorithms[algo]
-                << ", which is not currently loaded. Please load the "
-                << page_compression_algorithms[algo]
-                << " provider plugin to open the table";
+	  my_printf_error(ER_PROVIDER_NOT_LOADED,
+            "Table %s is compressed with %s, which is not currently loaded. "
+            "Please load the %s provider plugin to open the table",
+	    MYF(ME_ERROR_LOG), table->name,
+            page_compression_algorithms[algo], page_compression_algorithms[algo]);
         } else {
-          ib::error() << "Table " << table->name
-                      << " is corrupted. Please drop the table and recreate.";
+	  my_printf_error(ER_TABLE_CORRUPT,
+            "Table %s is corrupted. Please drop the table and recreate.",
+	    MYF(ME_ERROR_LOG), table->name);
 	}
         dict_sys.unfreeze();
         DBUG_RETURN(nullptr);

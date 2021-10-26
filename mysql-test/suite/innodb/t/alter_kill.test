@@ -19,7 +19,7 @@ call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and
 call mtr.add_suppression("InnoDB: Plugin initialization aborted*");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
-call mtr.add_suppression("InnoDB: Table `test`\\.`bug16720368` is corrupted");
+call mtr.add_suppression("Table .*bug16720368.* is corrupted");
 -- enable_query_log
 
 -- echo #
@@ -79,7 +79,7 @@ EOF
 
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT COUNT(*) FROM bug16720368;
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 INSERT INTO bug16720368 VALUES(1);
 INSERT INTO bug16720368_1 VALUES(1);
 
