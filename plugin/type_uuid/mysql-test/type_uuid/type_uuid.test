@@ -1646,3 +1646,9 @@ INSERT INTO t1 VALUES ('00----000000000000000000000000000024');
 INSERT INTO t1 VALUES ('5796dac11a1c11--------------ecab4ef859-713e4be4');
 INSERT INTO t1 VALUES ('5796dac11a1c11---------------ecab4ef859-713e4be4');
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26732 Assertion `0' failed in Item::val_native
+--echo #
+
+SELECT uuid() AS f, var_pop('x') FROM dual HAVING f > '';

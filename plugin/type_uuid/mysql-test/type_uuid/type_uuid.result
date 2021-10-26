@@ -3144,3 +3144,11 @@ INSERT INTO t1 VALUES ('00----000000000000000000000000000024');
 INSERT INTO t1 VALUES ('5796dac11a1c11--------------ecab4ef859-713e4be4');
 INSERT INTO t1 VALUES ('5796dac11a1c11---------------ecab4ef859-713e4be4');
 DROP TABLE t1;
+#
+# MDEV-26732 Assertion `0' failed in Item::val_native
+#
+SELECT uuid() AS f, var_pop('x') FROM dual HAVING f > '';
+f	var_pop('x')
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Incorrect uuid value: ''
