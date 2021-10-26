@@ -369,6 +369,7 @@ create_worker_threads(uint n)
 				   thd)) {
 			msg("compress: pthread_create() failed: "
 			    "errno = %d", errno);
+			pthread_mutex_unlock(&thd->ctrl_mutex);
 			goto err;
 		}
 	}
