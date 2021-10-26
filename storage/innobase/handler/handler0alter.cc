@@ -8678,6 +8678,8 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
     /* If we have not started a transaction yet,
     (almost) nothing has been or needs to be done. */
     dict_sys.lock(SRW_LOCK_CALL);
+  else if (ctx->trx->state == TRX_STATE_NOT_STARTED)
+    goto free_and_exit;
   else if (ctx->new_table)
   {
     ut_ad(ctx->trx->state == TRX_STATE_ACTIVE);

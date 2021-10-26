@@ -177,6 +177,18 @@ disconnect con1;
 connection default;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-26903 Assertion ctx->trx->state == TRX_STATE_ACTIVE on DROP INDEX
+--echo #
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, INDEX(b)) ENGINE=InnoDB;
+SET @save_dbug=@@debug_dbug;
+SET debug_dbug='+d,innodb_table_deadlock';
+--error ER_LOCK_DEADLOCK
+ALTER TABLE t1 DROP INDEX b, ALGORITHM=INPLACE;
+SET debug_dbug=@save_dbug;
+DROP TABLE t1;
+
 --echo # End of 10.6 tests
 
 # Wait till all disconnects are completed

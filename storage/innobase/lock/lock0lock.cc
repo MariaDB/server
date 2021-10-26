@@ -3433,6 +3433,7 @@ lock_table_other_has_incompatible(
 static dberr_t lock_table_low(dict_table_t *table, lock_mode mode,
                               que_thr_t *thr, trx_t *trx)
 {
+  DBUG_EXECUTE_IF("innodb_table_deadlock", return DB_DEADLOCK;);
   lock_t *wait_for=
     lock_table_other_has_incompatible(trx, LOCK_WAIT, table, mode);
   dberr_t err= DB_SUCCESS;
