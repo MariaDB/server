@@ -679,6 +679,15 @@ public:
   { return flags & FSP_FLAGS_FCRC32_MASK_MARKER; }
   /** @return whether innodb_checksum_algorithm=full_crc32 is active */
   bool full_crc32() const { return full_crc32(flags); }
+  /** Determine if full_crc32 is used along with PAGE_COMPRESSED */
+  static bool is_full_crc32_compressed(uint32_t flags)
+  {
+    if (!full_crc32(flags))
+      return false;
+    auto algo= FSP_FLAGS_FCRC32_GET_COMPRESSED_ALGO(flags);
+    DBUG_ASSERT(algo <= PAGE_ALGORITHM_LAST);
+    return algo != 0;
+  }
   /** Determine the logical page size.
   @param flags	tablespace flags (FSP_SPACE_FLAGS)
   @return the logical page size
@@ -727,17 +736,14 @@ public:
   unsigned zip_size() const { return zip_size(flags); }
   /** @return the physical page size */
   unsigned physical_size() const { return physical_size(flags); }
-  /** Check whether the the tablespace is PAGE_COMPRESSED.
-  @param flags	contents of FSP_SPACE_FLAGS */
+
+  /** Check whether PAGE_COMPRESSED is enabled.
+  @param[in]	flags	tablespace flags */
   static bool is_compressed(uint32_t flags)
   {
-    if (!full_crc32(flags))
-      return FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
-    const uint32_t algo= FSP_FLAGS_FCRC32_GET_COMPRESSED_ALGO(flags);
-    DBUG_ASSERT(algo <= PAGE_ALGORITHM_LAST);
-    return algo > 0;
+    return is_full_crc32_compressed(flags) ||
+      FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
   }
-
   /** @return whether the compression enabled for the tablespace. */
   bool is_compressed() const { return is_compressed(flags); }
 

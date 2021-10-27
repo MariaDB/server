@@ -691,6 +691,7 @@ public:
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const override;
 
+  Item_copy *create_item_copy(THD *thd, Item *item) const override;
   int cmp_native(const Native &a, const Native &b) const override
   {
     DBUG_ASSERT(a.length() == Inet6::binary_length());

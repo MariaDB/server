@@ -13345,25 +13345,6 @@ ha_innobase::discard_or_import_tablespace(
 				    err, m_prebuilt->table->flags, NULL));
 	}
 
-	/* Evict and reload the table definition in order to invoke
-	btr_cur_instant_init(). */
-	table_id_t id = m_prebuilt->table->id;
-	ut_ad(id);
-	dict_sys.lock(SRW_LOCK_CALL);
-	m_prebuilt->table->release();
-	dict_sys.remove(m_prebuilt->table);
-	m_prebuilt->table = dict_table_open_on_id(id, TRUE,
-						  DICT_TABLE_OP_NORMAL);
-	dict_sys.unlock();
-	if (!m_prebuilt->table) {
-		err = DB_TABLE_NOT_FOUND;
-	} else {
-		if (const Field* ai = table->found_next_number_field) {
-			initialize_auto_increment(m_prebuilt->table, ai);
-		}
-		dict_stats_init(m_prebuilt->table);
-	}
-
 	if (dict_stats_is_persistent_enabled(m_prebuilt->table)) {
 		dberr_t		ret;
 
