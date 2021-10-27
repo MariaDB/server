@@ -635,5 +635,14 @@ select * from information_schema.optimizer_trace;
 set max_session_mem_used=default;
 
 --echo #
+--echo # MDEV-22380 Assertion `name.length == strlen(name.str)' failed in Item::print_item_w_name on SELECT w/ optimizer_trace enabled
+--echo #
+
+SET optimizer_trace="enabled=on";
+SELECT 'a\0' LIMIT 0;
+SELECT query, trace FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+SET optimizer_trace=DEFAULT;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
