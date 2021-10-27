@@ -1231,6 +1231,57 @@ public:
 };
 
 
+class Item_copy_inet6: public Item_copy
+{
+  NativeBufferInet6 m_value;
+public:
+  Item_copy_inet6(THD *thd, Item *item_arg): Item_copy(thd, item_arg) {}
+
+  bool val_native(THD *thd, Native *to) override
+  {
+    if (null_value)
+      return true;
+    return to->copy(m_value.ptr(), m_value.length());
+  }
+  String *val_str(String *to) override
+  {
+    if (null_value)
+      return NULL;
+    Inet6_null tmp(m_value.ptr(), m_value.length());
+    return tmp.is_null() || tmp.to_string(to) ? NULL : to;
+  }
+  my_decimal *val_decimal(my_decimal *to) override
+  {
+    my_decimal_set_zero(to);
+    return to;
+  }
+  double val_real() override
+  {
+    return 0;
+  }
+  longlong val_int() override
+  {
+    return 0;
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  {
+    set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+    return null_value;
+  }
+  void copy() override
+  {
+    null_value= item->val_native(current_thd, &m_value);
+    DBUG_ASSERT(null_value == item->null_value);
+  }
+  int save_in_field(Field *field, bool no_conversions) override
+  {
+    return Item::save_in_field(field, no_conversions);
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_copy_inet6>(thd, this); }
+};
+
+
 class in_inet6 :public in_vector
 {
   Inet6 m_value;
@@ -1463,6 +1514,12 @@ Item *Type_handler_inet6::create_typecast_item(THD *thd, Item *item,
 Item_cache *Type_handler_inet6::Item_get_cache(THD *thd, const Item *item) const
 {
   return new (thd->mem_root) Item_cache_inet6(thd);
+}
+
+
+Item_copy *Type_handler_inet6::create_item_copy(THD *thd, Item *item) const
+{
+  return new (thd->mem_root) Item_copy_inet6(thd, item);
 }
 
 

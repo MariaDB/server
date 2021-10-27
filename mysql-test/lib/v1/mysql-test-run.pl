@@ -141,7 +141,7 @@ our $opt_tmpdir;                 # A path but set directly on cmd line
 # configuration used to build them.  To make life easier, an environment
 # variable or command-line option may be specified to control which set of
 # executables will be used by the test suite.
-our $opt_vs_config = $ENV{'MTR_VS_CONFIG'};
+our $multiconfig = $ENV{'MTR_VS_CONFIG'};
 
 our $default_vardir;
 
@@ -502,7 +502,7 @@ sub command_line_setup () {
              'compress'                 => \$opt_compress,
              'bench'                    => \$opt_bench,
              'small-bench'              => \$opt_small_bench,
-             'vs-config'            => \$opt_vs_config,
+             'vs-config'            => \$multiconfig,
 
              # Control what test suites or cases to run
              'force'                    => \$opt_force,
@@ -2213,9 +2213,9 @@ sub vs_config_dirs ($$) {
 
   $exe = "" if not defined $exe;
 
-  if ($opt_vs_config)
+  if ($multiconfig)
   {
-    return ("$glob_bindir/$path_part/$opt_vs_config/$exe");
+    return ("$glob_bindir/$path_part/$multiconfig/$exe");
   }
 
   return ("$glob_bindir/$path_part/release/$exe",

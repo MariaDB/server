@@ -67,13 +67,13 @@ select _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%');
 _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%')
 1
 select convert(_latin1'Günter André' using utf8) like CONVERT(_latin1'GÜNTER%' USING utf8);
-convert(_latin1'Günter André' using utf8) like CONVERT(_latin1'GÜNTER%' USING utf8)
+convert(_latin1'G\xFCnter Andr\xE9' using utf8) like CONVERT(_latin1'G\xDCNTER%' USING utf8)
 1
 select CONVERT(_koi8r'×ÁÓÑ' USING utf8) LIKE CONVERT(_koi8r'÷áóñ' USING utf8);
-CONVERT(_koi8r'×ÁÓÑ' USING utf8) LIKE CONVERT(_koi8r'÷áóñ' USING utf8)
+CONVERT(_koi8r'\xD7\xC1\xD3\xD1' USING utf8) LIKE CONVERT(_koi8r'\xF7\xE1\xF3\xF1' USING utf8)
 1
 select CONVERT(_koi8r'÷áóñ' USING utf8) LIKE CONVERT(_koi8r'×ÁÓÑ' USING utf8);
-CONVERT(_koi8r'÷áóñ' USING utf8) LIKE CONVERT(_koi8r'×ÁÓÑ' USING utf8)
+CONVERT(_koi8r'\xF7\xE1\xF3\xF1' USING utf8) LIKE CONVERT(_koi8r'\xD7\xC1\xD3\xD1' USING utf8)
 1
 SELECT 'a' = 'a ';
 'a' = 'a '
@@ -1295,7 +1295,7 @@ concat(concat(_latin1'->',f1),_latin1'<-')
 -><-
 drop table t1;
 select convert(_koi8r'É' using utf8) < convert(_koi8r'Ê' using utf8);
-convert(_koi8r'É' using utf8) < convert(_koi8r'Ê' using utf8)
+convert(_koi8r'\xC9' using utf8) < convert(_koi8r'\xCA' using utf8)
 1
 set names latin1;
 create table t1 (a varchar(10)) character set utf8;
