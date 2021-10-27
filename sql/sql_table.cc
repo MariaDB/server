@@ -708,8 +708,8 @@ uint build_table_shadow_filename(char *buff, size_t bufflen,
 
 
 /*
-  TODO: Partitioning atomic DDL refactoring: WFRM_WRITE_SHADOW and
-  WFRM_WRITE_EXTRACTED should be merged with create_table_impl(frm_only == true).
+  TODO: Partitioning atomic DDL refactoring: WFRM_WRITE_SHADOW
+  should be merged with create_table_impl(frm_only == true).
 */
 bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 {
@@ -872,7 +872,6 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
                                                           CHF_RENAME_FLAG))
       DBUG_RETURN(TRUE);
   }
-  DBUG_ASSERT(!(flags & WFRM_WRITE_EXTRACTED));
 #else /* !WITH_PARTITION_STORAGE_ENGINE */
   DBUG_ASSERT(!(flags & WFRM_BACKUP_ORIGINAL));
 #endif /* !WITH_PARTITION_STORAGE_ENGINE */
