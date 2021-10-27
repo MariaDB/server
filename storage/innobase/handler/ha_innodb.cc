@@ -864,7 +864,7 @@ innodb_encrypt_tables_validate(
 						for update function */
 	struct st_mysql_value*		value);	/*!< in: incoming string */
 
-static const char innobase_hton_name[]= "InnoDB";
+static constexpr LEX_CSTRING innodb_name{"InnoDB",6};
 
 static MYSQL_THDVAR_BOOL(table_locks, PLUGIN_VAR_OPCMDARG,
   "Enable InnoDB locking in LOCK TABLES",
@@ -3744,6 +3744,16 @@ static int innodb_init_params()
 		}
 	}
 
+	if (!srv_read_only_mode
+	    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+	} else if (ddl_log_check_if_engine_is_used(&innodb_name)) {
+		sql_print_error("InnoDB: %s prevents DDL log recovery",
+				srv_read_only_mode
+				? "innodb_read_only"
+				: "innodb_force_recovery");
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
+	}
+
 	/* The buffer pool needs to be able to accommodate enough many
 	pages, even for larger pages */
 	if (srv_page_size > UNIV_PAGE_SIZE_DEF
@@ -5027,12 +5037,7 @@ ha_innobase::table_flags() const
 Returns the table type (storage engine name).
 @return table type */
 
-const char*
-ha_innobase::table_type() const
-/*===========================*/
-{
-	return(innobase_hton_name);
-}
+const char *ha_innobase::table_type() const { return innodb_name.str; }
 
 /****************************************************************//**
 Returns the index type.
@@ -16225,8 +16230,7 @@ innodb_show_status(
 	mysql_mutex_unlock(&srv_monitor_file_mutex);
 
 	ret_val= stat_print(
-		thd, innobase_hton_name,
-		static_cast<uint>(strlen(innobase_hton_name)),
+		thd, innodb_name.str, innodb_name.length,
 		STRING_WITH_LEN(""), str, static_cast<uint>(flen));
 
 	my_free(str);
@@ -19914,7 +19918,7 @@ maria_declare_plugin(innobase)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &innobase_storage_engine,
-  innobase_hton_name,
+  innodb_name.str,
   plugin_author,
   "Supports transactions, row-level locking, foreign keys and encryption for tables",
   PLUGIN_LICENSE_GPL,

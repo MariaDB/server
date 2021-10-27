@@ -11,3 +11,4 @@
 ##############################################################################
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
+alter_copy : MDEV-25683 FIXME: DDL recovery leaks #sql-alter table

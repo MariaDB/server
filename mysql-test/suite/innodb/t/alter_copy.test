@@ -5,6 +5,13 @@
 # Valgrind gives leaks from the first shutdown which confuses mtr
 #--source include/not_valgrind.inc
 
+call mtr.add_suppression("InnoDB: innodb_force_recovery prevents DDL log recovery");
+call mtr.add_suppression("InnoDB: innodb_read_only prevents (DDL log|crash) recovery");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("mariadbd: Storage engine InnoDB is disabled");
+
 --echo #
 --echo # MDEV-11415 AVOID INTERMEDIATE COMMIT WHILE DOING
 --echo #            ALTER TABLE...ALGORITHM=COPY
@@ -63,21 +70,22 @@ let $shutdown_timeout=0;
 disconnect hang;
 let $shutdown_timeout=;
 let $datadir=`select @@datadir`;
---replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
+--replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/ /#sql-alter-[0-9a-f-]*/#sql-alter/
 --list_files $datadir/test
+--error ER_UNKNOWN_STORAGE_ENGINE
 SHOW CREATE TABLE t;
-SELECT COUNT(*) FROM t;
-CHECK TABLE t;
-SELECT * FROM t1 WHERE MATCH(b) AGAINST ('first');
-SELECT * FROM t1 WHERE MATCH(c) AGAINST ('first');
-SELECT * FROM t1 WHERE MATCH(b,c) AGAINST ('column');
-SHOW CREATE TABLE t1;
-CHECK TABLE t1;
 
 --let $restart_parameters= --innodb-read-only
 --source include/restart_mysqld.inc
---replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
+--replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/ /#sql-alter-[0-9a-f-]*/#sql-alter/
+--list_files $datadir/test
 
+--error ER_UNKNOWN_STORAGE_ENGINE
+SHOW CREATE TABLE t;
+
+--let $restart_parameters= --innodb-force-recovery=2
+--source include/restart_mysqld.inc
+--replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/ /#sql-alter-[0-9a-f-]*/#sql-alter/
 --list_files $datadir/test
 SHOW CREATE TABLE t;
 SELECT COUNT(*) FROM t;

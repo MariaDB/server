@@ -257,6 +257,7 @@ bool ddl_log_initialize();
 void ddl_log_release();
 bool ddl_log_close_binlogged_events(HASH *xids);
 int ddl_log_execute_recovery();
+int ddl_log_check_if_engine_is_used(const LEX_CSTRING *name);
 
 /* functions for updating the ddl log */
 bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,

@@ -2299,6 +2299,37 @@ end:
 
 
 /**
+  Check if the action is using a specific engine
+
+  @param ddl_log_entry              Information in action entry to execute
+  @param engine_name                Engine name
+
+  @return Operation status
+    @retval TRUE                    Engine was used
+    @retval FALSE                   Engine was not used
+*/
+
+static bool check_engine_in_log_entry(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
+                                      const LEX_CSTRING *name)
+{
+  DBUG_ENTER("ddl_log_execute_action");
+
+  mysql_mutex_assert_owner(&LOCK_gdl);
+
+  if (ddl_log_entry->entry_type == DDL_LOG_IGNORE_ENTRY_CODE ||
+      ddl_log_entry->phase == DDL_LOG_FINAL_PHASE)
+    DBUG_RETURN(FALSE);
+
+  if (!strcmp(ddl_log_entry->handler_name.str, name->str))
+    DBUG_RETURN(TRUE);
+  if (ddl_log_entry->from_handler_name.length &&
+      !strcmp(ddl_log_entry->from_handler_name.str, name->str))
+    DBUG_RETURN(TRUE);
+  DBUG_RETURN(FALSE);
+}
+
+
+/**
   Get a free entry in the ddl log
 
   @param[out] active_entry     A ddl log memory entry returned
@@ -2426,6 +2457,41 @@ static bool ddl_log_execute_entry_no_lock(THD *thd, uint first_entry)
 
   free_root(&mem_root, MYF(0));
   DBUG_RETURN(FALSE);
+}
+
+
+/**
+  Check if an engine would be used if ddl_log_execute() would be run.
+
+  This code follows the logic of ddl_log_execute_entry_no_lock().
+*/
+
+static bool check_if_engine_is_used(THD *thd, uint first_entry,
+                                    const LEX_CSTRING *name)
+{
+  DDL_LOG_ENTRY ddl_log_entry;
+  uint read_entry= first_entry;
+  bool error= 0;
+  DBUG_ENTER("ddl_log_execute_entry_no_lock");
+
+  mysql_mutex_assert_owner(&LOCK_gdl);
+  do
+  {
+    if (read_ddl_log_entry(read_entry, &ddl_log_entry))
+      break;                                    // Wrong entry, ignore
+
+    DBUG_ASSERT(ddl_log_entry.entry_type == DDL_LOG_ENTRY_CODE ||
+                ddl_log_entry.entry_type == DDL_LOG_IGNORE_ENTRY_CODE);
+
+    if (check_engine_in_log_entry(thd, &ddl_log_entry, name))
+    {
+      error= 1;
+      break;
+    }
+    read_entry= ddl_log_entry.next_entry;
+  } while (read_entry);
+
+  DBUG_RETURN(error);
 }
 
 
@@ -2747,7 +2813,7 @@ int ddl_log_execute_recovery()
     if (ddl_log_entry.entry_type == DDL_LOG_EXECUTE_CODE)
     {
       /*
-        Remeber information about executive ddl log entry,
+        Remember information about executive ddl log entry,
         used for binary logging during recovery
       */
       recovery_state.execute_entry_pos= i;
@@ -2798,6 +2864,72 @@ int ddl_log_execute_recovery()
     sql_print_information("DDL_LOG: Crash recovery executed %u entries",
                           count);
 
+  set_current_thd(original_thd);
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Loops over all ddl log entries and checks if an engine is used
+
+  This code follows the logic in ddl_log_execute_recovery()
+
+  @result 0   Engine is not used
+  @result 1   Engine was used
+  @result -1  Got an error reading some ddl log entry, engine will not be used.
+
+*/
+
+int ddl_log_check_if_engine_is_used(const LEX_CSTRING *name)
+{
+  uint i;
+  int error= 0;
+  THD *thd, *original_thd;
+  DDL_LOG_ENTRY ddl_log_entry;
+  static char recover_query_string[]= "INTERNAL DDL LOG CHECK IN PROGRESS";
+  DBUG_ENTER("ddl_log_check_if_engine_is_used");
+
+  if (global_ddl_log.num_entries == 0)
+    DBUG_RETURN(0);
+
+  /*
+    To be able to run this from boot, we allocate a temporary THD
+  */
+  if (!(thd=new THD(0)))
+  {
+    DBUG_ASSERT(0);                             // Fatal error
+    DBUG_RETURN(1);
+  }
+  original_thd= current_thd;                    // Probably NULL
+  thd->thread_stack= (char*) &thd;
+  thd->store_globals();
+  thd->init();                                  // Needed for error messages
+
+  thd->log_all_errors= (global_system_variables.log_warnings >= 3);
+  thd->set_query(recover_query_string, strlen(recover_query_string));
+
+  mysql_mutex_lock(&LOCK_gdl);
+  for (i= 1; i <= global_ddl_log.num_entries; i++)
+  {
+    if (read_ddl_log_entry(i, &ddl_log_entry))
+    {
+      error= -1;
+      continue;
+    }
+    if (ddl_log_entry.entry_type == DDL_LOG_EXECUTE_CODE)
+    {
+      if (ddl_log_entry.unique_id > DDL_LOG_MAX_RETRY)
+        continue;                               // Skip failed entries
+      if (check_if_engine_is_used(thd, ddl_log_entry.next_entry, name))
+      {
+        error= 1;                               // Engine was used
+        break;
+      }
+    }
+  }
+  mysql_mutex_unlock(&LOCK_gdl);
+  thd->reset_query();
+  delete thd;
   set_current_thd(original_thd);
   DBUG_RETURN(error);
 }
