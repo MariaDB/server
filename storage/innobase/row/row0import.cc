@@ -3184,10 +3184,10 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       return err;
   }
 
-  const auto zip_size= fil_space_t::zip_size(space_flags);
-  const uint64_t physical_size= zip_size ? zip_size : srv_page_size;
+  const unsigned zip_size= fil_space_t::zip_size(space_flags);
+  const unsigned physical_size= zip_size ? zip_size : unsigned(srv_page_size);
   ut_ad(physical_size <= UNIV_PAGE_SIZE_MAX);
-  const auto space_id= page_get_space_id(first_page.get());
+  const uint32_t space_id= page_get_space_id(first_page.get());
 
   auto *space_crypt= fil_space_read_crypt_data(zip_size, first_page.get());
   SCOPE_EXIT([&space_crypt]() {
