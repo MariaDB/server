@@ -722,10 +722,10 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
   char path[FN_REFLEN+1];
   char shadow_path[FN_REFLEN+1];
   char shadow_frm_name[FN_REFLEN+1];
-  char bak_path[FN_REFLEN+1];
-  char bak_frm_name[FN_REFLEN+1];
   char frm_name[FN_REFLEN+1];
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+  char bak_path[FN_REFLEN+1];
+  char bak_frm_name[FN_REFLEN+1];
   char *part_syntax_buf;
   uint syntax_len;
   partition_info *part_info= lpt->part_info;
@@ -872,8 +872,8 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
                                                           CHF_RENAME_FLAG))
       DBUG_RETURN(TRUE);
   }
-#else /* !WITH_PARTITION_STORAGE_ENGINE */
   DBUG_ASSERT(!(flags & WFRM_WRITE_EXTRACTED));
+#else /* !WITH_PARTITION_STORAGE_ENGINE */
   DBUG_ASSERT(!(flags & WFRM_BACKUP_ORIGINAL));
 #endif /* !WITH_PARTITION_STORAGE_ENGINE */
   if (flags & WFRM_INSTALL_SHADOW)
