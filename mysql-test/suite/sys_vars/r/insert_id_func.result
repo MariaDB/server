@@ -69,3 +69,28 @@ id	name
 drop table t1;
 disconnect test_con1;
 disconnect test_con2;
+connection default;
+CREATE TABLE t1(id int primary key auto_increment);
+SET SESSION insert_id=123;
+SET SESSION insert_id=0;
+INSERT INTO t1 VALUES ();
+SET SESSION insert_id=123;
+SET SESSION insert_id=default;
+INSERT INTO t1 VALUES ();
+SET SESSION insert_id=123;
+SET SESSION insert_id=-1;
+Warnings:
+Warning	1292	Truncated incorrect insert_id value: '-1'
+INSERT INTO t1 VALUES ();
+SET SESSION insert_id=123;
+SET SESSION insert_id=-10;
+Warnings:
+Warning	1292	Truncated incorrect insert_id value: '-10'
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+id
+1
+2
+3
+4
+DROP TABLE t1;

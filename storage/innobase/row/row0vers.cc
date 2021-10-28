@@ -474,7 +474,7 @@ row_vers_build_clust_v_col(
 			dfield_t *vfield = innobase_get_computed_value(
 				row, col, clust_index, &vc.heap,
 				heap, NULL, thd, maria_table, record, NULL,
-				NULL, NULL);
+				NULL);
 			if (!vfield) {
 				innobase_report_computed_value_failed(row);
 				ut_ad(0);

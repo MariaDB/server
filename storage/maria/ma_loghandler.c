@@ -3399,10 +3399,9 @@ static uint16 translog_get_chunk_header_length(uchar *chunk)
     DBUG_PRINT("info", ("TRANSLOG_CHUNK_LNGTH = 3"));
     DBUG_RETURN(3);
     break;
-  default:
-    DBUG_ASSERT(0);
-    DBUG_RETURN(0);                               /* Keep compiler happy */
   }
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);                               /* Keep compiler happy */
 }
 
 
