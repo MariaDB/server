@@ -17,7 +17,7 @@ build_script:
   - set BUILD_TYPE=MinSizeRel
   - set GENERATOR=-GNinja
   - call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
-  - cmake -E time cmake %GENERATOR% .. -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DMYSQL_MAINTAINER_MODE=ERR -DFAST_BUILD=1 -DBISON_EXECUTABLE=C:\cygwin64\bin\bison -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_FEEDBACK=NO
+  - cmake -E time cmake %GENERATOR% .. -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DFAST_BUILD=1 -DBISON_EXECUTABLE=C:\cygwin64\bin\bison -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_FEEDBACK=NO
   - set /A jobs=2*%NUMBER_OF_PROCESSORS%
   - cmake -E time cmake --build . -j %jobs% --config %BUILD_TYPE% --target minbuild
 
