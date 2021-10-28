@@ -1,7 +1,7 @@
 /***********************************************************************/
-/*  Name: ODBCONN.CPP  Version 2.3                                     */
+/*  Name: ODBCONN.CPP  Version 2.4                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2021    */
 /*                                                                     */
 /*  This file contains the ODBC connection classes functions.          */
 /***********************************************************************/
@@ -1509,7 +1509,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
       ThrowDBX(MSG(COL_NUM_MISM));
 
     // Now bind the column buffers
-    for (n = 1, colp = tocols; colp; colp = (PODBCCOL)colp->GetNext())
+    for (colp = tocols; colp; colp = (PODBCCOL)colp->GetNext())
       if (!colp->IsSpecial()) {
         buffer = colp->GetBuffer(m_RowsetSize);
         len = colp->GetBuflen();
@@ -1525,12 +1525,11 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
           htrc("Binding col=%u type=%d buf=%p len=%d slen=%p\n",
                   n, tp, buffer, len, colp->GetStrLen());
 
-        rc = SQLBindCol(hstmt, n, tp, buffer, len, colp->GetStrLen());
+        rc = SQLBindCol(hstmt, colp->GetIndex(), tp, buffer, len, colp->GetStrLen());
 
         if (!Check(rc))
           ThrowDBX(rc, "SQLBindCol", hstmt);
 
-        n++;
         } // endif pcol
 
   } catch(DBX *x) {
