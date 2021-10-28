@@ -76,7 +76,7 @@
 /* warning C4102: 'yyexhaustedlab': unreferenced label */
 #pragma warning (disable : 4065 4102)
 #endif
-#ifdef __GNUC__
+#if defined (__GNUC__) || defined (__clang__)
 #pragma GCC diagnostic ignored "-Wunused-label" /* yyexhaustedlab: */
 #endif
 
