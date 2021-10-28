@@ -9051,7 +9051,11 @@ error:
 
 bool Item_default_value::enchant_default_with_arg_processor(void *proc_arg)
 {
-  if (!arg) arg= (Item *)proc_arg;
+  void **arg_arr= (void**)proc_arg;
+  THD *thd= (THD*)arg_arr[0];
+  Item *item= (Item*)arg_arr[1];
+  if (!arg)
+    thd->change_item_tree(&arg, (Item *)item);
   return 0;
 }
 

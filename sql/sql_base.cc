@@ -7203,7 +7203,8 @@ void setup_defaults(THD *thd, List<Item> &fields, List<Item> &values)
 
   for (Item *value= vit++, *f_item= fit++; value; value= vit++, f_item= fit++)
   {
-    value->walk(&Item::enchant_default_with_arg_processor, false, f_item);
+    void *arg[2]= {thd, f_item};
+    value->walk(&Item::enchant_default_with_arg_processor, false, arg);
   }
 }
 
