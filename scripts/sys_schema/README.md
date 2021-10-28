@@ -12,9 +12,7 @@ There are install files available for 5.6 and 5.7 respectively. To load these, y
 
 ##### Description
 
-Holds configuration options for the sys schema. This is a persistent table (using the `InnoDB` storage engine), with the configuration persisting across upgrades (new options are added with `INSERT IGNORE`). 
-
-The table also has two related triggers, which maintain the user that `INSERTs` or `UPDATEs` the configuration - `sys_config_insert_set_user` and `sys_config_update_set_user` respectively.
+Holds configuration options for the sys schema. This is a persistent table, with the configuration persisting across upgrades (new options are added with `INSERT IGNORE`).
 
 Its structure is as follows:
 
