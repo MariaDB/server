@@ -252,7 +252,7 @@ typedef struct st_ddl_log_state
 } DDL_LOG_STATE;
 
 extern TYPELIB ddl_log_missing_engine_typelib;
-extern uint ddl_log_missing_engine;
+extern ulong ddl_log_missing_engine;
 
 /* These functions are for recovery */
 bool ddl_log_initialize();

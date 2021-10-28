@@ -153,7 +153,7 @@ mysql_mutex_t LOCK_gdl;
 #define MISSING_ENGINE_KEEP 1
 #define MISSING_ENGINE_IGNORE 2
 
-uint ddl_log_missing_engine;                    // Startup option
+ulong ddl_log_missing_engine;                    // Startup option
 static const char *missing_engine[]= {"ABORT", "KEEP", "IGNORE", NullS};
 TYPELIB ddl_log_missing_engine_typelib= {array_elements(missing_engine)-1,"",
                                          missing_engine, NULL};
