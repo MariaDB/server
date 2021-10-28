@@ -476,6 +476,12 @@ The following specify which files/extra groups are read (specified before remain
  ALWAYS use row-based binary logging, the security issues
  do not exist and the binary logging cannot break, so you
  can safely set this to TRUE
+ --log-ddl-missing-storage-engine=name 
+ What to do if the storage engine that was logged in the
+ DDL recovery log is not enabled. Options are ABORT
+ (default, abort startup), KEEP (keep entry and try to
+ execute it again on next restart) or SKIP (skip/ignore
+ recovery entry)
  --log-ddl-recovery=name 
  Path to file used for recovery of DDL statements after a
  crash
@@ -1584,6 +1590,7 @@ log-bin-compress FALSE
 log-bin-compress-min-len 256
 log-bin-index (No default value)
 log-bin-trust-function-creators FALSE
+log-ddl-missing-storage-engine ABORT
 log-ddl-recovery ddl_recovery.log
 log-disabled-statements sp
 log-error 

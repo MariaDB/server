@@ -67,7 +67,10 @@
        in ddl_log_execute_entry_no_lock()
 
   The ddl_log.log file is created at startup and deleted when server goes down.
-  After the final recovery phase is done, the file is truncated.
+  After the final recovery phase is done, the file is truncated, except if
+  the server was started with --ddl-log-missing_engine=KEEP, in which case
+  the original log file will be used. In this case all new entries will be
+  written to the end of the log file.
 
   History:
   First version written in 2006 by Mikael Ronstrom
@@ -104,6 +107,12 @@ const uchar ddl_log_entry_phases[DDL_LOG_LAST_ACTION]=
   DDL_ALTER_TABLE_PHASE_END, 1
 };
 
+enum DDL_LOG_EXECUTE {
+  DDL_LOG_EXECUTE_SUCCESS,
+  DDL_LOG_EXECUTE_ABORT,
+  DDL_LOG_EXECUTE_SKIP,
+  DDL_LOG_EXECUTE_KEEP
+};
 
 struct st_global_ddl_log
 {
@@ -115,7 +124,7 @@ struct st_global_ddl_log
   uint name_pos;
   uint io_size;
   bool initialized;
-  bool open, backup_done, created;
+  bool open, backup_done, created, keep_old_log_file;
 };
 
 /*
@@ -139,6 +148,15 @@ static st_global_ddl_log global_ddl_log;
 static st_ddl_recovery   recovery_state;
 
 mysql_mutex_t LOCK_gdl;
+
+#define MISSING_ENGINE_ABORT 0
+#define MISSING_ENGINE_KEEP 1
+#define MISSING_ENGINE_IGNORE 2
+
+uint ddl_log_missing_engine;                    // Startup option
+static const char *missing_engine[]= {"ABORT", "KEEP", "IGNORE", NullS};
+TYPELIB ddl_log_missing_engine_typelib= {array_elements(missing_engine)-1,"",
+                                         missing_engine, NULL};
 
 /* Positions to different data in a ddl log block */
 #define DDL_LOG_ENTRY_TYPE_POS 0
@@ -1271,18 +1289,49 @@ static void rename_in_stat_tables(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
 }
 
 
+/*
+  Create a handler for ddl_log_execute_action.
+
+  @param return_code  Set to return value for ddl_log_execute_action in case
+                      handler could not be created
+
+  @return value of create_handlerton()
+*/
+
+handler *ddl_create_handler(THD *thd, MEM_ROOT *mem_root, LEX_CSTRING *name,
+                            DDL_LOG_EXECUTE *return_code)
+{
+  handler *file= create_handler(thd, mem_root, name);
+ // No error or MISSING_ENGINE_IGNORE used
+  *return_code= DDL_LOG_EXECUTE_SUCCESS;
+
+  if (!file)
+  {
+    if (ddl_log_missing_engine == MISSING_ENGINE_KEEP)
+      *return_code= DDL_LOG_EXECUTE_KEEP;       // Keep log entry
+    else if (ddl_log_missing_engine == MISSING_ENGINE_ABORT)
+    {
+      *return_code= DDL_LOG_EXECUTE_ABORT;
+      my_errno= ER_UNKNOWN_STORAGE_ENGINE;
+    }
+  }
+  return file;
+}
+
+
 /**
   Execute one action in a ddl log entry
 
   @param ddl_log_entry              Information in action entry to execute
 
-  @return Operation status
-    @retval TRUE                       Error
-    @retval FALSE                      Success
+  @retval DDL_LOG_EXECUTE_SUCCESS  Success
+  @retval DDL_LOG_EXECUTE_ABORT    Error, abort server
+  @retval DDL_LOG_EXECUTE_SKIP     Error, skip entry
+  @retval DDL_LOG_EXECUTE_KEEP     Error, keep entry and old log
 */
 
-static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
-                                  DDL_LOG_ENTRY *ddl_log_entry)
+static DDL_LOG_EXECUTE ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
+                                              DDL_LOG_ENTRY *ddl_log_entry)
 {
   LEX_CSTRING handler_name;
   handler *file= NULL;
@@ -1290,7 +1339,8 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
   handlerton *hton= 0;
   ddl_log_error_handler no_such_table_handler;
   uint entry_pos= ddl_log_entry->entry_pos;
-  int error;
+  DDL_LOG_EXECUTE return_code= DDL_LOG_EXECUTE_SUCCESS;
+  int error= 0;
   bool frm_action= FALSE;
   DBUG_ENTER("ddl_log_execute_action");
 
@@ -1310,7 +1360,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
 
   if (ddl_log_entry->entry_type == DDL_LOG_IGNORE_ENTRY_CODE ||
       ddl_log_entry->phase == DDL_LOG_FINAL_PHASE)
-    DBUG_RETURN(FALSE);
+    DBUG_RETURN(DDL_LOG_EXECUTE_SUCCESS);
 
   handler_name=    ddl_log_entry->handler_name;
   thd->push_internal_handler(&no_such_table_handler);
@@ -1319,8 +1369,9 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     frm_action= TRUE;
   else if (ddl_log_entry->handler_name.length)
   {
-    if (!(file= create_handler(thd, mem_root, &handler_name)))
-      goto end;
+    if (!(file= ddl_create_handler(thd, mem_root, &handler_name,
+                                   &return_code)))
+      goto return_with_error;
     hton= file->ht;
   }
 
@@ -1367,7 +1418,6 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
   /* fall through */
   case DDL_LOG_RENAME_ACTION:
   {
-    error= TRUE;
     if (frm_action)
     {
       strxmov(to_path, ddl_log_entry->name.str, reg_ext, NullS);
@@ -1784,7 +1834,6 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       }
     }
     (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
-    error= 0;
     break;
   }
   case DDL_LOG_CREATE_VIEW_ACTION:
@@ -1950,9 +1999,10 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     db=     ddl_log_entry->db;
     table=  ddl_log_entry->name;
 
-    if (!(org_file= create_handler(thd, mem_root,
-                                   &ddl_log_entry->from_handler_name)))
-      goto end;
+    if (!(org_file= ddl_create_handler(thd, mem_root,
+                                       &ddl_log_entry->from_handler_name,
+                                       &return_code)))
+      goto return_with_error;
     /* Handlerton of the final table and any temporary tables */
     org_hton= org_file->ht;
     /*
@@ -2057,9 +2107,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
             during inplace alter table.
           */
           from_path[fr_length - reg_ext_length]= 0;
-          error= org_hton->drop_table(org_hton, from_path);
-          if (non_existing_table_error(error))
-            error= 0;
+          (void) org_hton->drop_table(org_hton, from_path);
           from_path[fr_length - reg_ext_length]= FN_EXTCHAR;
           mysql_file_delete(key_file_frm, from_path,
                             MYF(MY_WME|MY_IGNORE_ENOENT));
@@ -2099,11 +2147,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
                            "", 0);
       from_end= strend(from_path);
       if (likely(org_hton))
-      {
-        error= org_hton->drop_table(org_hton, from_path);
-        if (non_existing_table_error(error))
-          error= 0;
-      }
+        (void) org_hton->drop_table(org_hton, from_path);
       strmov(from_end, reg_ext);
       mysql_file_delete(key_file_frm, from_path,
                         MYF(MY_WME|MY_IGNORE_ENOENT));
@@ -2153,8 +2197,6 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
           }
           else
             error= org_hton->drop_table(org_hton, from_path);
-          if (non_existing_table_error(error))
-            error= 0;
         }
         strmov(from_path + length, reg_ext);
         mysql_file_delete(key_file_frm, from_path,
@@ -2227,11 +2269,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         Temporary table should have been created. Delete it.
       */
       if (likely(hton))
-      {
-        error= hton->drop_table(hton, ddl_log_entry->tmp_name.str);
-        if (non_existing_table_error(error))
-          error= 0;
-      }
+        (void) hton->drop_table(hton, ddl_log_entry->tmp_name.str);
       (void) update_phase(entry_pos, DDL_ALTER_TABLE_PHASE_INIT);
     }
     /* fall through */
@@ -2264,7 +2302,10 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         Query length is stored in unique_id
       */
       if (recovery_state.query.alloc((size_t) (ddl_log_entry->unique_id+1)))
+      {
+        error= ER_OUTOFMEMORY;
         goto end;
+      }
       recovery_state.query.length(0);
       recovery_state.db.copy(ddl_log_entry->db.str, ddl_log_entry->db.length,
                              system_charset_info);
@@ -2275,10 +2316,10 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     {
       /* Impossible length. Ignore query */
       recovery_state.query.length(0);
-      error= 1;
+      return_code= DDL_LOG_EXECUTE_SKIP;
       my_error(ER_INTERNAL_ERROR, MYF(0),
                "DDL log: QUERY event has impossible length");
-      break;
+      goto return_with_error;
     }
     recovery_state.query.qs_append(&ddl_log_entry->extra_name);
     break;
@@ -2289,12 +2330,17 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
   }
 
 end:
-  delete file;
   /* We are only interested in errors that where not ignored */
-  if ((error= (no_such_table_handler.unhandled_errors > 0)))
+  if (no_such_table_handler.unhandled_errors > 0)
+  {
     my_errno= no_such_table_handler.first_error;
+    return_code= DDL_LOG_EXECUTE_SKIP;
+  }
+
+return_with_error:
+  delete file;
   thd->pop_internal_handler();
-  DBUG_RETURN(error);
+  DBUG_RETURN(return_code);
 }
 
 
@@ -2312,7 +2358,7 @@ end:
 static bool check_engine_in_log_entry(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
                                       const LEX_CSTRING *name)
 {
-  DBUG_ENTER("ddl_log_execute_action");
+  DBUG_ENTER("check_engine_in_log_entry");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
 
@@ -2412,18 +2458,21 @@ void ddl_log_release_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry)
 
   Executing an entry means executing a linked list of actions.
 
+  @param thd                   Thread handle
   @param first_entry           Reference to first action in entry
 
-  @return Operation status
-    @retval TRUE               Error
-    @retval FALSE              Success
+  @retval DDL_LOG_EXECUTE_SUCCESS  Success
+  @retval DDL_LOG_EXECUTE_ABORT    Error, abort server
+  @retval DDL_LOG_EXECUTE_SKIP     Error, skip entry
+  @retval DDL_LOG_EXECUTE_KEEP     Error, keep entry and old log
 */
 
-static bool ddl_log_execute_entry_no_lock(THD *thd, uint first_entry)
+DDL_LOG_EXECUTE ddl_log_execute_entry_no_lock(THD *thd, uint first_entry)
 {
   DDL_LOG_ENTRY ddl_log_entry;
   uint read_entry= first_entry;
   MEM_ROOT mem_root;
+  DDL_LOG_EXECUTE return_code= DDL_LOG_EXECUTE_SUCCESS;
   DBUG_ENTER("ddl_log_execute_entry_no_lock");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
@@ -2439,7 +2488,9 @@ static bool ddl_log_execute_entry_no_lock(THD *thd, uint first_entry)
     DBUG_ASSERT(ddl_log_entry.entry_type == DDL_LOG_ENTRY_CODE ||
                 ddl_log_entry.entry_type == DDL_LOG_IGNORE_ENTRY_CODE);
 
-    if (ddl_log_execute_action(thd, &mem_root, &ddl_log_entry))
+    if ((return_code= ddl_log_execute_action(thd, &mem_root,
+                                             &ddl_log_entry)) !=
+        DDL_LOG_EXECUTE_SUCCESS)
     {
       uint action_type= ddl_log_entry.action_type;
       if (action_type >= DDL_LOG_LAST_ACTION)
@@ -2456,7 +2507,7 @@ static bool ddl_log_execute_entry_no_lock(THD *thd, uint first_entry)
   } while (read_entry);
 
   free_root(&mem_root, MYF(0));
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(return_code);
 }
 
 
@@ -2472,7 +2523,7 @@ static bool check_if_engine_is_used(THD *thd, uint first_entry,
   DDL_LOG_ENTRY ddl_log_entry;
   uint read_entry= first_entry;
   bool error= 0;
-  DBUG_ENTER("ddl_log_execute_entry_no_lock");
+  DBUG_ENTER("check_if_engine_is_used");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
   do
@@ -2686,11 +2737,12 @@ bool ddl_log_sync()
 
 bool ddl_log_execute_entry(THD *thd, uint first_entry)
 {
-  bool error;
+  int error;
   DBUG_ENTER("ddl_log_execute_entry");
 
   mysql_mutex_lock(&LOCK_gdl);
-  error= ddl_log_execute_entry_no_lock(thd, first_entry);
+  error= (ddl_log_execute_entry_no_lock(thd, first_entry) !=
+          DDL_LOG_EXECUTE_SUCCESS);
   mysql_mutex_unlock(&LOCK_gdl);
   DBUG_RETURN(error);
 }
@@ -2762,13 +2814,16 @@ bool ddl_log_close_binlogged_events(HASH *xids)
   @return
   @retval 0     Ok.
   @retval > 0   Fatal error. We have to abort (can't create ddl log)
-  @return < -1  Recovery failed, but new log exists and is usable
+  @return < -1  Recovery failed, but log is usable
 
+  @Notes
+  If log is reused, all new entries will be stored at the end of the
+  current log file!
 */
 
 int ddl_log_execute_recovery()
 {
-  uint i, count= 0;
+  uint i, count= 0, total_entries= 0;
   int error= 0;
   THD *thd, *original_thd;
   DDL_LOG_ENTRY ddl_log_entry;
@@ -2812,6 +2867,8 @@ int ddl_log_execute_recovery()
     }
     if (ddl_log_entry.entry_type == DDL_LOG_EXECUTE_CODE)
     {
+      DDL_LOG_EXECUTE tmp;
+      total_entries++;
       /*
         Remember information about executive ddl log entry,
         used for binary logging during recovery
@@ -2835,34 +2892,52 @@ int ddl_log_execute_recovery()
       }
       /* purecov: end tested */
 
-      if (ddl_log_execute_entry_no_lock(thd, ddl_log_entry.next_entry))
+      tmp= ddl_log_execute_entry_no_lock(thd, ddl_log_entry.next_entry);
+      if (tmp != DDL_LOG_EXECUTE_SUCCESS)
       {
         /* Real unpleasant scenario but we have to continue anyway  */
         error= -1;
-        continue;
+        if (tmp == DDL_LOG_EXECUTE_KEEP)
+        {
+          /* Keep entry around for next restart */
+          global_ddl_log.keep_old_log_file= 1;
+          /* restore error counter */
+          update_unique_id(i, --ddl_log_entry.unique_id);
+          continue;
+        }
+        if (tmp == DDL_LOG_EXECUTE_ABORT)
+        {
+          global_ddl_log.keep_old_log_file= 1;
+          error= 1;                             // Abort server
+          break;
+        }
       }
       count++;
+      disable_execute_entry(i);
     }
   }
   recovery_state.drop_table.free();
   recovery_state.drop_view.free();
   recovery_state.query.free();
   recovery_state.db.free();
-  close_ddl_log();
   mysql_mutex_unlock(&LOCK_gdl);
   thd->reset_query();
   delete thd;
   set_current_thd(original_thd);
 
-  /*
-    Create a new ddl_log to get rid of old stuff and ensure that header matches
-    the current source version
+  if (!global_ddl_log.keep_old_log_file)
+  {
+    /*
+      Create a new ddl_log to get rid of old stuff and ensure that
+      header matches the current source version.
    */
-  if (create_ddl_log())
-    error= 1;
+    close_ddl_log();
+    if (create_ddl_log())
+      error= 1;
+  }
   if (count > 0)
-    sql_print_information("DDL_LOG: Crash recovery executed %u entries",
-                          count);
+    sql_print_information("DDL_LOG: Crash recovery executed %u entries of %u",
+                          count, total_entries);
 
   set_current_thd(original_thd);
   DBUG_RETURN(error);
@@ -2969,8 +3044,11 @@ void ddl_log_release()
   global_ddl_log.file_entry_buf= 0;
   close_ddl_log();
 
-  create_ddl_log_file_name(file_name, 0);
-  (void) mysql_file_delete(key_file_global_ddl_log, file_name, MYF(0));
+  if (!global_ddl_log.keep_old_log_file)
+  {
+    create_ddl_log_file_name(file_name, 0);
+    (void) mysql_file_delete(key_file_global_ddl_log, file_name, MYF(0));
+  }
   mysql_mutex_destroy(&LOCK_gdl);
   DBUG_VOID_RETURN;
 }
@@ -3051,7 +3129,8 @@ bool ddl_log_revert(THD *thd, DDL_LOG_STATE *state)
   mysql_mutex_lock(&LOCK_gdl);
   if (likely(state->execute_entry))
   {
-    res= ddl_log_execute_entry_no_lock(thd, state->list->entry_pos);
+    res= (ddl_log_execute_entry_no_lock(thd, state->list->entry_pos) !=
+          DDL_LOG_EXECUTE_SUCCESS);
     ddl_log_disable_execute_entry(&state->execute_entry);
   }
   ddl_log_release_entries(state);

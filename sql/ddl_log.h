@@ -251,6 +251,8 @@ typedef struct st_ddl_log_state
   bool is_active() { return list != 0; }
 } DDL_LOG_STATE;
 
+extern TYPELIB ddl_log_missing_engine_typelib;
+extern uint ddl_log_missing_engine;
 
 /* These functions are for recovery */
 bool ddl_log_initialize();

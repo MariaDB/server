@@ -6476,6 +6476,13 @@ struct my_option my_long_options[]=
    "Path to file used for recovery of DDL statements after a crash",
    &opt_ddl_recovery_file, &opt_ddl_recovery_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"log-ddl-missing-storage-engine", 0,
+   "What to do if the storage engine that was logged in the DDL recovery log "
+   "is not enabled. Options are ABORT (default, abort startup), "
+   "KEEP (keep entry and try to execute it again on next restart) or "
+   "SKIP (skip/ignore recovery entry)",
+   &ddl_log_missing_engine, &ddl_log_missing_engine,
+   &ddl_log_missing_engine_typelib, GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"log-isam", OPT_ISAM_LOG, "Log all MyISAM changes to file.",
    &myisam_log_filename, &myisam_log_filename, 0, GET_STR,
    OPT_ARG, 0, 0, 0, 0, 0, 0},
