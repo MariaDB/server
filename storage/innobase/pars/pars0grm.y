@@ -38,6 +38,10 @@ que_node_t */
 #include "que0que.h"
 #include "row0sel.h"
 
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+#endif
+
 #define YYSTYPE que_node_t*
 
 /* #define __STDC__ */

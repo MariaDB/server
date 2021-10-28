@@ -1766,8 +1766,6 @@ row_fts_merge_insert(
 	}
 
 exit:
-	aux_table->release();
-
 	fts_sql_commit(trx);
 
 	trx->op_info = "";
@@ -1776,6 +1774,8 @@ exit:
 
 	error = ins_ctx.btr_bulk->finish(error);
 	UT_DELETE(ins_ctx.btr_bulk);
+
+	aux_table->release();
 
 	trx->free();
 

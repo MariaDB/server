@@ -649,8 +649,8 @@ error:
 				row_field = innobase_get_computed_value(
 					row, v_col, clust_index,
 					v_heap, NULL, ifield, trx->mysql_thd,
-					my_table, vcol_storage.innobase_record, 
-					old_table, NULL, NULL);
+					my_table, vcol_storage.innobase_record,
+					old_table, NULL);
 
 				if (row_field == NULL) {
 					*err = DB_COMPUTE_VALUE_FAILED;
