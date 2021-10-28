@@ -234,6 +234,12 @@ easy way to get it to work. See http://bugs.mysql.com/bug.php?id=52263. */
 # define UNIV_INTERN
 #endif
 
+#if defined(__GNUC__) && (__GNUC__ >= 11)
+# define ATTRIBUTE_ACCESS(X) __attribute__((access X))
+#else
+# define ATTRIBUTE_ACCESS(X)
+#endif
+
 #ifndef MY_ATTRIBUTE
 #if defined(__GNUC__)
 #  define MY_ATTRIBUTE(A) __attribute__(A)
