@@ -7,10 +7,10 @@
 
 call mtr.add_suppression("InnoDB: innodb_force_recovery prevents DDL log recovery");
 call mtr.add_suppression("InnoDB: innodb_read_only prevents (DDL log|crash) recovery");
-call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 call mtr.add_suppression("mariadbd: Storage engine InnoDB is disabled");
+call mtr.add_suppression("DDL_LOG: Got error .* when trying to execute action for entry 2 of type 'alter table'");
 
 --echo #
 --echo # MDEV-11415 AVOID INTERMEDIATE COMMIT WHILE DOING
@@ -65,7 +65,7 @@ ALTER TABLE t ADD INDEX(b,c,d,a),ADD INDEX(b,c,a,d),ADD INDEX(b,a,c,d),ADD INDEX
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR hung';
 let $shutdown_timeout=0;
---let $restart_parameters= --innodb-force-recovery=3
+--let $restart_parameters= --innodb-force-recovery=3 --log-ddl-missing-storage-engine=keep
 --source include/restart_mysqld.inc
 disconnect hang;
 let $shutdown_timeout=;
@@ -75,7 +75,7 @@ let $datadir=`select @@datadir`;
 --error ER_UNKNOWN_STORAGE_ENGINE
 SHOW CREATE TABLE t;
 
---let $restart_parameters= --innodb-read-only
+--let $restart_parameters= --innodb-read-only --log-ddl-missing-storage-engine=keep
 --source include/restart_mysqld.inc
 --replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/ /#sql-alter-[0-9a-f-]*/#sql-alter/
 --list_files $datadir/test
@@ -85,7 +85,7 @@ SHOW CREATE TABLE t;
 
 --let $restart_parameters= --innodb-force-recovery=2
 --source include/restart_mysqld.inc
---replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/ /#sql-alter-[0-9a-f-]*/#sql-alter/
+--replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
 --list_files $datadir/test
 SHOW CREATE TABLE t;
 SELECT COUNT(*) FROM t;

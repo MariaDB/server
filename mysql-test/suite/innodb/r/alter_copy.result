@@ -1,9 +1,9 @@
 call mtr.add_suppression("InnoDB: innodb_force_recovery prevents DDL log recovery");
 call mtr.add_suppression("InnoDB: innodb_read_only prevents (DDL log|crash) recovery");
-call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 call mtr.add_suppression("mariadbd: Storage engine InnoDB is disabled");
+call mtr.add_suppression("DDL_LOG: Got error .* when trying to execute action for entry 2 of type 'alter table'");
 #
 # MDEV-11415 AVOID INTERMEDIATE COMMIT WHILE DOING
 #            ALTER TABLE...ALGORITHM=COPY
@@ -57,7 +57,7 @@ ADD INDEX(a,b,d), ADD INDEX(a,d,b), ADD INDEX(b,c,d), ADD INDEX(b,d,c),
 ALGORITHM=COPY;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR hung';
-# restart: --innodb-force-recovery=3
+# restart: --innodb-force-recovery=3 --log-ddl-missing-storage-engine=keep
 disconnect hang;
 #sql-alter.frm
 #sql-alter.ibd
@@ -91,7 +91,7 @@ t1.frm
 t1.ibd
 SHOW CREATE TABLE t;
 ERROR 42000: Unknown storage engine 'InnoDB'
-# restart: --innodb-read-only
+# restart: --innodb-read-only --log-ddl-missing-storage-engine=keep
 #sql-alter.frm
 #sql-alter.ibd
 FTS_INDEX_1.ibd
@@ -125,8 +125,6 @@ t1.ibd
 SHOW CREATE TABLE t;
 ERROR 42000: Unknown storage engine 'InnoDB'
 # restart: --innodb-force-recovery=2
-#sql-alter.frm
-#sql-alter.ibd
 FTS_INDEX_1.ibd
 FTS_INDEX_2.ibd
 FTS_INDEX_3.ibd
