@@ -391,7 +391,11 @@ void lock_sys_t::create(ulint n_cells)
   m_initialised= true;
 
   latch.SRW_LOCK_INIT(lock_latch_key);
+#ifdef __aarch64__
+  mysql_mutex_init(lock_wait_mutex_key, &wait_mutex, MY_MUTEX_INIT_FAST);
+#else
   mysql_mutex_init(lock_wait_mutex_key, &wait_mutex, nullptr);
+#endif
 #ifdef SUX_LOCK_GENERIC
   pthread_mutex_init(&hash_mutex, nullptr);
   pthread_cond_init(&hash_cond, nullptr);
