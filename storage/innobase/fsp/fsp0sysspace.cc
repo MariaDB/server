@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -677,13 +677,18 @@ SysTablespace::file_not_found(
 {
 	file.m_exists = false;
 
-	if (srv_read_only_mode && !m_ignore_read_only) {
+	if (m_ignore_read_only) {
+	} else if (srv_read_only_mode) {
 		ib::error() << "Can't create file '" << file.filepath()
 			<< "' when --innodb-read-only is set";
-
 		return(DB_ERROR);
+	} else if (srv_force_recovery && space_id() == TRX_SYS_SPACE) {
+		ib::error() << "Can't create file '" << file.filepath()
+			<< "' when --innodb-force-recovery is set";
+		return DB_ERROR;
+	}
 
-	} else if (&file == &m_files.front()) {
+	if (&file == &m_files.front()) {
 
 		/* First data file. */
 		ut_a(!*create_new_db);

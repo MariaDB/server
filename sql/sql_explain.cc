@@ -1921,7 +1921,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
 
 /*
-  Elements in this array match members of enum Extra_tag, defined in
+  Elements in this array match members of enum explain_extra_tag, defined in
   sql_explain.h
 */
 

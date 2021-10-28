@@ -266,6 +266,32 @@ SET NAMES utf8;
 
 
 --echo #
+--echo # MDEV-25402 Assertion `!str || str != Ptr' failed in String::copy
+--echo #
+
+SET @c:="SET SESSION collation_connection=utf32_spanish_ci";
+PREPARE s FROM @c;
+EXECUTE s;
+CREATE PROCEDURE p (IN i INT) EXECUTE s;
+SET SESSION character_set_connection=latin1;
+SET @c:="SET @b=get_format(DATE,'EUR')";
+PREPARE s FROM @c;
+EXECUTE s;
+CALL p (@a);
+DEALLOCATE PREPARE s;
+DROP PROCEDURE p;
+
+SET NAMES utf8;
+SET @c:="SET @b=get_format(DATE,'EUR')";
+PREPARE s FROM @c;
+EXECUTE s;
+SET collation_connection=utf32_spanish_ci;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+SET NAMES utf8;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
