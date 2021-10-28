@@ -3500,7 +3500,6 @@ bool Item_func_timediff::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
   DBUG_ASSERT(fixed());
   int l_sign= 1;
   MYSQL_TIME l_time1,l_time2,l_time3;
-  ErrConvTime str(&l_time3);
 
   /* the following may be true in, for example, date_add(timediff(...), ... */
   if (fuzzydate & TIME_NO_ZERO_IN_DATE)

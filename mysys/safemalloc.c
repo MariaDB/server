@@ -372,9 +372,9 @@ int sf_sanity()
   if (count || irem)
   {
     warn("Error: Safemalloc link list destroyed");
-    return 1;
+    flag= 1;
   }
-  return 0;
+  return flag;
 }
 
 /**
