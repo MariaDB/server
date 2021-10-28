@@ -376,7 +376,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
       } // endswitch ReadDB
 
     } else
-      jsp = bp->GetArrayValue(bdp, i);
+      jsp = bp->GetNext(jsp);
 
     if (!(row = (jsp) ? bp->GetObject(jsp) : NULL))
       break;
@@ -2185,7 +2185,9 @@ void BSONCOL::WriteColumn(PGLOBAL g)
 TDBBSON::TDBBSON(PGLOBAL g, PBDEF tdp, PTXF txfp) : TDBBSN(g, tdp, txfp)
 {
   Docp = NULL;
+  Docrow = NULL;
   Multiple = tdp->Multiple;
+  Docsize = 0;
   Done = Changed = false;
   Bp->SetPretty(2);
 } // end of TDBBSON standard constructor
@@ -2193,7 +2195,9 @@ TDBBSON::TDBBSON(PGLOBAL g, PBDEF tdp, PTXF txfp) : TDBBSN(g, tdp, txfp)
 TDBBSON::TDBBSON(PBTDB tdbp) : TDBBSN(tdbp)
 {
   Docp = tdbp->Docp;
+  Docrow = tdbp->Docrow;
   Multiple = tdbp->Multiple;
+  Docsize = tdbp->Docsize;
   Done = tdbp->Done;
   Changed = tdbp->Changed;
 } // end of TDBBSON copy constructor
@@ -2374,6 +2378,7 @@ int TDBBSON::MakeDocument(PGLOBAL g)
 
   } // endif jsp
 
+  Docsize = Bp->GetSize(Docp);
   Done = true;
   return RC_OK;
 } // end of MakeDocument
@@ -2388,7 +2393,7 @@ int TDBBSON::Cardinality(PGLOBAL g)
   else if (Cardinal < 0) {
     if (!Multiple) {
       if (MakeDocument(g) == RC_OK)
-        Cardinal = Bp->GetSize(Docp);
+        Cardinal = Docsize;
 
     } else
       return 10;
@@ -2417,6 +2422,7 @@ void TDBBSON::ResetSize(void)
   MaxSize = Cardinal = -1;
   Fpos = -1;
   N = 0;
+  Docrow = NULL;
   Done = false;
 } // end of ResetSize
 
@@ -2475,6 +2481,7 @@ bool TDBBSON::SetRecpos(PGLOBAL, int recpos)
 #endif // 0
 
   Fpos = recpos - 1;
+  Docrow = NULL;
   return false;
 } // end of SetRecpos
 
@@ -2490,6 +2497,7 @@ bool TDBBSON::OpenDB(PGLOBAL g)
     Fpos = -1;
     NextSame = false;
     SameRow = 0;
+    Docrow = NULL;
     return false;
   } // endif use
 
@@ -2530,12 +2538,9 @@ int TDBBSON::ReadDB(PGLOBAL)
     NextSame = false;
     M++;
     rc = RC_OK;
-  } else if (++Fpos < (signed)Bp->GetSize(Docp)) {
-    Row = Bp->GetArrayValue(Docp, Fpos);
-
-  if (Row->Type == TYPE_JVAL)
-      Row = Bp->GetBson(Row);
-
+  } else if (++Fpos < Docsize) {
+    Docrow = (Docrow) ? Bp->GetNext(Docrow) : Bp->GetArrayValue(Docp, Fpos);
+    Row = (Docrow->Type == TYPE_JVAL) ? Bp->GetBson(Docrow) : Docrow;
     SameRow = 0;
     M = 1;
     rc = RC_OK;
