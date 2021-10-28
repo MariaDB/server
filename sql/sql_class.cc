@@ -826,7 +826,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   mysql_mutex_init(key_LOCK_wakeup_ready, &LOCK_wakeup_ready, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_thd_kill, &LOCK_thd_kill, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wakeup_ready, &COND_wakeup_ready, 0);
-  mysql_mutex_record_order(&LOCK_thd_kill, &LOCK_thd_data);
 
   /* Variables with default values */
   proc_info="login";
@@ -5289,13 +5288,11 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
 #ifdef WITH_WSREP
   /* wsrep applier, replayer and TOI processing threads are ordered
      by replication provider, relaxed GAP locking protocol can be used
-     between high priority wsrep threads.
-     Note that wsrep_thd_is_BF() doesn't take LOCK_thd_data for either thd,
-     the caller should guarantee that the BF state won't change.
-     (e.g. InnoDB does it by keeping lock_sys.mutex locked)
+     between high priority wsrep threads
   */
-  if (WSREP_ON && wsrep_thd_is_BF(thd, false) &&
-      wsrep_thd_is_BF(other_thd, false))
+  if (WSREP_ON &&
+      wsrep_thd_is_BF(const_cast<THD *>(thd), false) &&
+      wsrep_thd_is_BF(const_cast<THD *>(other_thd), true))
     return 0;
 #endif /* WITH_WSREP */
   rgi= thd->rgi_slave;
