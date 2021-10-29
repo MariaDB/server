@@ -55,7 +55,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include <toku_pthread.h>
 
 int toku_pthread_yield(void) {
-#if defined(HAVE_PTHREAD_YIELD)
+#if defined(HAVE_SCHED_YIELD)
+    return sched_yield();
+#elif defined(HAVE_PTHREAD_YIELD)
 # if defined(PTHREAD_YIELD_RETURNS_INT)
     return pthread_yield();
 # elif defined(PTHREAD_YIELD_RETURNS_VOID)
