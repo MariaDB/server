@@ -1164,6 +1164,8 @@ int ha_partition::rename_partitions(const char *path)
               error= 1;
             (void) ddl_log_sync();
           }
+          if (error)
+            DBUG_RETURN(error);
           file= m_new_file[i];
           DBUG_PRINT("info", ("Rename partition from %s to %s",
                      part_name_buff, norm_name_buff));

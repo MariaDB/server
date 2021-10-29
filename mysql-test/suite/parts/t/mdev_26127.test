@@ -1,0 +1,12 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+CREATE TABLE t (
+  c INT
+) ENGINE=InnoDB PARTITION BY LINEAR KEY(c) PARTITIONS 4;
+
+LOCK TABLES t WRITE, t AS a READ;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t REBUILD PARTITION p0;
+
+DROP TABLE t;
