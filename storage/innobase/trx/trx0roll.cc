@@ -710,7 +710,7 @@ void trx_rollback_recovered(bool all)
   std::vector<trx_t*> trx_list;
 
   ut_a(srv_force_recovery <
-       (all ? SRV_FORCE_NO_TRX_UNDO : SRV_FORCE_NO_DDL_UNDO));
+       ulong(all ? SRV_FORCE_NO_TRX_UNDO : SRV_FORCE_NO_DDL_UNDO));
 
   /*
     Collect list of recovered ACTIVE transaction ids first. Once collected, no
