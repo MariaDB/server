@@ -8764,6 +8764,7 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
       ut_d(dict_table_check_for_dup_indexes(ctx->old_table, CHECK_ABORTED_OK));
     }
 
+    DEBUG_SYNC(ctx->trx->mysql_thd, "before_commit_rollback_inplace");
     commit_unlock_and_unlink(ctx->trx);
     if (fts_exist)
       purge_sys.resume_FTS();
