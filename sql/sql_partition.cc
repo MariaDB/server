@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -6408,13 +6408,28 @@ static void alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
 
 static int alter_close_table(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
+  TABLE_SHARE *share= lpt->table->s;
+  char key[MAX_DBKEY_LENGTH];
+  size_t key_length= share->table_cache_key.length;
+  memcpy(key, share->table_cache_key.str, key_length);
+  int error= 0;
   DBUG_ENTER("alter_close_table");
 
   if (lpt->table->db_stat)
   {
-    mysql_lock_remove(lpt->thd, lpt->thd->lock, lpt->table);
-    lpt->table->file->ha_close();
-    lpt->table->db_stat= 0;                        // Mark file closed
+    for (TABLE *table= lpt->thd->open_tables; table; (table= table->next))
+    {
+      if (table->s->table_cache_key.length == key_length &&
+          !memcmp(table->s->table_cache_key.str, key, key_length))
+      {
+        mysql_lock_remove(lpt->thd, lpt->thd->lock, table);
+        if ((error= table->file->ha_close()))
+        {
+          DBUG_RETURN(error);
+        }
+        table->db_stat= 0; // Mark file closed
+      }
+    }
   }
   DBUG_RETURN(0);
 }

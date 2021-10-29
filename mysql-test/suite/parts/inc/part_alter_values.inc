@@ -36,12 +36,20 @@ ALTER TABLE t1 REORGANIZE PARTITION p1 INTO
 );
 DROP TABLE t1;
 
-#
-# MDEV-15456 Server crashes upon adding or dropping a partition in ALTER under LOCK TABLE after ER_SAME_NAME_PARTITION
-#
+--echo #
+--echo # MDEV-15456 Server crashes upon adding or dropping a partition in ALTER under LOCK TABLE after ER_SAME_NAME_PARTITION
+--echo #
 --eval create table t1 (i int) engine=$engine partition by range(i) (partition p0 values less than (10))
 lock table t1 write;
 --error ER_SAME_NAME_PARTITION
 alter table t1 add partition (partition p0 values less than (20));
 alter table t1 add partition (partition p1 values less than (20)) /* comment */;
 drop table t1;
+
+--echo #
+--echo # MDEV-26127 Assertion `err != DB_DUPLICATE_KEY' failed or InnoDB: Failing assertion: id != 0 on ALTER ... REBUILD PARTITION
+--echo #
+--eval CREATE TABLE t1 (c INT) ENGINE=$engine PARTITION BY KEY(c) PARTITIONS 4;
+LOCK TABLES t1 WRITE, t1 AS a READ;
+ALTER TABLE t1 REBUILD PARTITION p0;
+DROP TABLE t1;
