@@ -12192,11 +12192,11 @@ SHOW_VAR acl_statistics[] = {
   {"procedure_grants", (char*)&proc_priv_hash.records,     SHOW_ULONG},
   {"package_spec_grants", (char*)&package_spec_priv_hash.records, SHOW_ULONG},
   {"package_body_grants", (char*)&package_body_priv_hash.records, SHOW_ULONG},
-  {"proxy_users",      (char*)&acl_proxy_users.elements,   SHOW_UINT},
+  {"proxy_users",      (char*)&acl_proxy_users.elements,   SHOW_SIZE_T},
   {"role_grants",      (char*)&acl_roles_mappings.records, SHOW_ULONG},
   {"roles",            (char*)&acl_roles.records,          SHOW_ULONG},
   {"table_grants",     (char*)&column_priv_hash.records,   SHOW_ULONG},
-  {"users",            (char*)&acl_users.elements,         SHOW_UINT},
+  {"users",            (char*)&acl_users.elements,         SHOW_SIZE_T},
 #endif
   {NullS, NullS, SHOW_LONG},
 };
