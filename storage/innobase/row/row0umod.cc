@@ -173,6 +173,16 @@ row_undo_mod_clust_low(
 	case DICT_INDEXES_ID:
 		if (node->trx != trx_roll_crash_recv_trx) {
 			break;
+		} else if (node->rec_type == TRX_UNDO_DEL_MARK_REC
+			   && btr_cur_get_rec(btr_cur)
+			   [8 + 8 + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN]
+			   == static_cast<byte>(*TEMP_INDEX_PREFIX_STR)) {
+			/* We are rolling back the DELETE of metadata
+			for a failed ADD INDEX operation. This does
+			not affect any cached table definition,
+			because we are filtering out such indexes in
+			dict_load_indexes(). */
+			break;
 		}
 		/* fall through */
 	case DICT_COLUMNS_ID:
