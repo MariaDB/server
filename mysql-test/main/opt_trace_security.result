@@ -80,7 +80,8 @@ select * from db1.t1	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.005126953
+                  "read_cost": 1.002563477,
+                  "read_and_compare_cost": 1.752563477
                 }
               }
             ]
@@ -91,23 +92,29 @@ select * from db1.t1	{
                 "plan_prefix": [],
                 "table": "t1",
                 "best_access_path": {
+                  "plan_details": {
+                    "record_count": 1
+                  },
                   "considered_access_paths": [
                     {
                       "access_type": "scan",
-                      "resulting_rows": 3,
-                      "cost": 2.605126953,
+                      "rows": 3,
+                      "rows_after_scan": 3,
+                      "rows_after_filter": 3,
+                      "cost": 1.752563477,
+                      "index_only": false,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.605126953,
+                    "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 3.205126953,
+                "cost_for_plan": 1.752563477,
                 "estimated_join_cardinality": 3
               }
             ]
@@ -115,7 +122,8 @@ select * from db1.t1	{
           {
             "best_join_order": ["t1"],
             "best_access_method": {
-              "cost": 3.204126953
+              "rows": 3,
+              "cost": 1.752563477
             }
           },
           {
@@ -205,7 +213,8 @@ select * from db1.v1	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.005126953
+                  "read_cost": 1.002563477,
+                  "read_and_compare_cost": 1.752563477
                 }
               }
             ]
@@ -216,23 +225,29 @@ select * from db1.v1	{
                 "plan_prefix": [],
                 "table": "t1",
                 "best_access_path": {
+                  "plan_details": {
+                    "record_count": 1
+                  },
                   "considered_access_paths": [
                     {
                       "access_type": "scan",
-                      "resulting_rows": 3,
-                      "cost": 2.605126953,
+                      "rows": 3,
+                      "rows_after_scan": 3,
+                      "rows_after_filter": 3,
+                      "cost": 1.752563477,
+                      "index_only": false,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.605126953,
+                    "cost": 1.752563477,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 3.205126953,
+                "cost_for_plan": 1.752563477,
                 "estimated_join_cardinality": 3
               }
             ]
@@ -240,7 +255,8 @@ select * from db1.v1	{
           {
             "best_join_order": ["t1"],
             "best_access_method": {
-              "cost": 3.204126953
+              "rows": 3,
+              "cost": 1.752563477
             }
           },
           {

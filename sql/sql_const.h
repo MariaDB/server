@@ -200,16 +200,89 @@
 #define MIN_ROWS_TO_USE_BULK_INSERT	 100
 
 /**
-  The following is used to decide if MySQL should use table scanning
+  The following is used to decide if MariaDB should use table scanning
   instead of reading with keys.  The number says how many evaluation of the
   WHERE clause is comparable to reading one extra row from a table.
 */
 #define TIME_FOR_COMPARE         5.0	//  5 WHERE compares == one read
 #define TIME_FOR_COMPARE_IDX    20.0
 
-#define IDX_BLOCK_COPY_COST  ((double) 1 / TIME_FOR_COMPARE)
-#define IDX_LOOKUP_COST      ((double) 1 / 8)
-#define MULTI_RANGE_READ_SETUP_COST (IDX_BLOCK_COPY_COST/10)
+/*
+  The table/index cache hit ratio in %. 0 means that a searched for key or row
+  will never be in the cache while 100 means it always in the cache.
+
+  According to folklore, one need at least 80 % hit rate in the cache for
+  MariaDB to run very well. We set CACHE_HIT_RATIO to a bit smaller
+  as there is still a cost involved in finding the row in the B tree, hash
+  or other seek structure.
+
+  Increasing CACHE_HIT_RATIO will make MariaDB prefer key lookups over
+  table scans as the impact of RECORD_COPY_COST and INDEX_COPY cost will
+  have a larger impact when more rows are exmined..
+
+  Note that avg_io_cost() is multipled with this constant!
+*/
+#define CACHE_HIT_RATIO 50
+
+/* Convert ratio to cost */
+
+static inline double cache_hit_cost(uint ratio)
+{
+  return (((double) (100 - ratio)) / 100.0);
+}
+
+/*
+  Cost of finding and copying keys of a total length of 'blocksize'
+  used in handler::keyread_time()
+ */
+#define INDEX_BLOCK_COPY_COST  ((double) 1 / 5.0)
+/* Cost for finding the first key in a key scan */
+#define INDEX_LOOKUP_COST      ((double) 1.0)
+/* Cost of finding a key from a row_ID (not used for clustered keys) */
+#define ROW_LOOKUP_COST      ((double) 1.0)
+/*
+  Cost of finding the next row during table scan and copying it to
+  'table->record'.
+  If this is too small, then table scans will be prefered over 'ref'
+  as with table scans there are no key read (INDEX_LOOKUP_COST), fewer
+  disk reads but more record copying and row comparisions.  If it's
+  too big then MariaDB will used key lookup even when table scan is
+  better.
+*/
+#define RECORD_COPY_COST     ((double) 1.0 / 20.0)
+/*
+  Cost of finding the next key during index scan and copying it to
+  'table->record'
+
+  If this is too small, then index scans will be prefered over 'ref'
+  as with table scans there are no key read (INDEX_LOOKUP_COST) and
+  fewer disk reads.
+*/
+#define INDEX_COPY_COST     ((double) 1.0 / 40.0)
+/*
+  Cost of finding the next index entry and checking it against filter
+  This cost is very low as it's done inside the storage engine.
+  Should be smaller than INDEX_COPY_COST.
+ */
+#define INDEX_NEXT_FIND_COST ((double) 1.0 / 80.0)
+
+/* Extra cost for doing a range scan. Used to prefer 'ref' over range */
+#define MULTI_RANGE_READ_SETUP_COST (double) (1.0 / 50.0)
+
+/*
+  These costs are mainly to handle small tables, like the one we have in the
+  mtr test suite
+*/
+/* Extra cost for full table scan. Used to prefer range over table scans */
+#define TABLE_SCAN_SETUP_COST 1.0
+/* Extra cost for full index scan. Used to prefer range over index scans */
+#define INDEX_SCAN_SETUP_COST 1.0
+
+/*
+  The lower bound of accepted rows when using filter.
+  This is used to ensure that filters are not too agressive.
+*/
+#define MIN_ROWS_AFTER_FILTERING 1.0
 
 /**
   Number of comparisons of table rowids equivalent to reading one row from a 
@@ -217,8 +290,14 @@
 */
 #define TIME_FOR_COMPARE_ROWID  (TIME_FOR_COMPARE*100)
 
-/* cost1 is better that cost2 only if cost1 + COST_EPS < cost2 */
-#define COST_EPS  0.001
+/*
+  cost1 is better that cost2 only if cost1 + COST_EPS < cost2
+  The main purpose of this is to ensure we use the first index or plan
+  when there are identical plans. Without COST_EPS some plans in the
+  test suite would vary depending on floating point calculations done
+  in different paths.
+ */
+#define COST_EPS  0.0001
 
 /*
   For sequential disk seeks the cost formula is:
@@ -244,10 +323,12 @@
 /*
   Subquery materialization-related constants
 */
+/* This should match ha_heap::read_time() */
 #define HEAP_TEMPTABLE_LOOKUP_COST 0.05
+#define HEAP_TEMPTABLE_CREATE_COST 1.0
 #define DISK_TEMPTABLE_LOOKUP_COST 1.0
+#define DISK_TEMPTABLE_CREATE_COST 4.0 /* Creating and deleting 2 temp tables */
 #define SORT_INDEX_CMP_COST 0.02
-
 
 #define COST_MAX (DBL_MAX * (1.0 - DBL_EPSILON))
 

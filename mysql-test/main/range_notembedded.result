@@ -13,19 +13,13 @@ set @tmp_21958=@@optimizer_trace;
 set optimizer_trace=1;
 explain select * from t2 where key1 in (1,2,3) and pk not in (1,2,3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	PRIMARY,key1	key1	5	NULL	3	Using index condition
+1	SIMPLE	t2	ALL	PRIMARY,key1	NULL	NULL	NULL	5	Using where
 # This should show only ranges in form "(1) <= (key1) <= (1)"
 #  ranges over "pk" should not be constructed.
 select json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
 from information_schema.optimizer_trace;
 json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
 [
-    
-    [
-        "(1) <= (key1) <= (1)",
-        "(2) <= (key1) <= (2)",
-        "(3) <= (key1) <= (3)"
-    ],
     
     [
         "(1) <= (key1) <= (1)",
@@ -235,9 +229,10 @@ user_id int(10) unsigned NOT NULL DEFAULT 0,
 PRIMARY KEY (notification_type_id,item_id,item_parent_id,user_id)
 );
 insert into t1 values (1,1,1,1), (2,2,2,2), (3,3,3,3);
+insert into t1 select seq,seq,seq,seq from seq_10_to_30;
 # Run crashing query
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	2	NULL	3	Using where
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	2	NULL	5	Using where
 drop table t1;
 #
 # MDEV-25069: Assertion `root->weight >= ...' failed in SEL_ARG::tree_delete #2

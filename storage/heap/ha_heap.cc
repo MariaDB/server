@@ -73,7 +73,9 @@ static handler *heap_create_handler(handlerton *hton,
 ha_heap::ha_heap(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg), file(0), records_changed(0), key_stat_version(0), 
   internal_table(0)
-{}
+{
+  optimizer_cache_cost= 1.0;
+}
 
 /*
   Hash index statistics is updated (copied from HP_KEYDEF::hash_buckets to 

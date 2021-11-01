@@ -256,9 +256,8 @@ FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1            WHERE 1 IN (SELECT 1 FROM t2 WHERE t2.b < 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; FirstMatch
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where `test`.`t2`.`b` < 3
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
@@ -268,8 +267,8 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Status of "equivalent" SELECT query execution:
 Variable_name	Value
-Handler_read_key	5
-Handler_read_rnd_next	8
+Handler_read_key	4
+Handler_read_rnd_next	5
 # Status of testing query execution:
 Variable_name	Value
 Handler_read_key	4
@@ -791,12 +790,12 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	Using where
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	6	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	100.00	Using where
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	6	100.00	Using where; Using filesort
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	3
@@ -819,8 +818,11 @@ Handler_read_next	3
 # Status of testing query execution:
 Variable_name	Value
 Handler_delete	3
-Handler_read_key	4
-Handler_read_next	3
+Handler_read_key	3
+Handler_read_rnd	3
+Handler_read_rnd_next	7
+Sort_rows	3
+Sort_scan	1
 
 DROP TABLE t1;
 #17
@@ -1494,12 +1496,12 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+1	SIMPLE	t2	index	NULL	a	15	NULL	5	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
+1	SIMPLE	t2	index	NULL	a	15	NULL	5	100.00	Using where
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	8
@@ -1523,11 +1525,9 @@ Handler_read_next	26
 # Status of testing query execution:
 Variable_name	Value
 Handler_delete	1
+Handler_read_first	1
 Handler_read_key	8
-Handler_read_rnd	1
-Handler_read_rnd_next	27
-Sort_rows	1
-Sort_scan	1
+Handler_read_next	26
 
 DROP TABLE t1, t2;
 #32
@@ -2009,12 +2009,12 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+1	SIMPLE	t2	index	NULL	a	15	NULL	5	Using where; Using buffer
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
+1	SIMPLE	t2	index	NULL	a	15	NULL	5	100.00	Using where; Using buffer
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	8
@@ -2037,13 +2037,11 @@ Handler_read_key	8
 Handler_read_next	26
 # Status of testing query execution:
 Variable_name	Value
+Handler_read_first	1
 Handler_read_key	8
+Handler_read_next	26
 Handler_read_rnd	1
-Handler_read_rnd_next	27
 Handler_update	1
-Sort_priority_queue_sorts	1
-Sort_rows	1
-Sort_scan	1
 
 DROP TABLE t1, t2;
 #42

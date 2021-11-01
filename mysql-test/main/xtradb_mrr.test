@@ -151,6 +151,8 @@ INSERT INTO `t1` VALUES (97,7,0,'z','z');
 INSERT INTO `t1` VALUES (98,1,1,'j','j');
 INSERT INTO `t1` VALUES (99,7,8,'c','c');
 INSERT INTO `t1` VALUES (100,2,5,'f','f');
+EXPLAIN SELECT table1 .`col_varchar_key`
+FROM t1 table1 STRAIGHT_JOIN ( t1 table3 JOIN t1 table4 ON table4 .`pk` = table3 .`col_int_nokey` ) ON table4 .`col_varchar_nokey` ;
 SELECT table1 .`col_varchar_key`
 FROM t1 table1 STRAIGHT_JOIN ( t1 table3 JOIN t1 table4 ON table4 .`pk` = table3 .`col_int_nokey` ) ON table4 .`col_varchar_nokey` ;
 DROP TABLE t1;
