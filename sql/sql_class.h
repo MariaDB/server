@@ -661,7 +661,7 @@ typedef struct system_variables
   char* dynamic_variables_ptr;
   uint dynamic_variables_head;    /* largest valid variable offset */
   uint dynamic_variables_size;    /* how many bytes are in use */
-  
+
   ulonglong max_heap_table_size;
   ulonglong tmp_memory_table_size;
   ulonglong tmp_disk_table_size;
@@ -707,7 +707,6 @@ typedef struct system_variables
   ulong saved_lock_wait_timeout;
   ulonglong wsrep_gtid_seq_no;
 #endif /* WITH_WSREP */
-  uint eq_range_index_dive_limit;
   ulong column_compression_zlib_strategy;
   ulong lock_wait_timeout;
   ulong join_cache_level;
@@ -761,7 +760,6 @@ typedef struct system_variables
   ulong tx_isolation;
   ulong updatable_views_with_limit;
   ulong alter_algorithm;
-  int max_user_connections;
   ulong server_id;
   /**
     In slave thread we need to know in behalf of which
@@ -772,10 +770,13 @@ typedef struct system_variables
      When replicating an event group with GTID, keep these values around so
      slave binlog can receive the same GTID as the original.
   */
-  uint32     gtid_domain_id;
   uint64     gtid_seq_no;
+  uint32     gtid_domain_id;
 
   uint group_concat_max_len;
+  uint eq_range_index_dive_limit;
+  uint optimizer_cache_hit_ratio;
+  int max_user_connections;
 
   /**
     Default transaction access mode. READ ONLY (true) or READ WRITE (false).

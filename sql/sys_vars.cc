@@ -6942,20 +6942,6 @@ static Sys_var_mybool Sys_session_track_user_variables(
 
 #endif //EMBEDDED_LIBRARY
 
-static Sys_var_uint Sys_in_subquery_conversion_threshold(
-       "in_predicate_conversion_threshold",
-       "The minimum number of scalar elements in the value list of "
-       "IN predicate that triggers its conversion to IN subquery. Set to "
-       "0 to disable the conversion.",
-       SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(IN_SUBQUERY_CONVERSION_THRESHOLD), BLOCK_SIZE(1));
-
-static Sys_var_ulong Sys_optimizer_max_sel_arg_weight(
-       "optimizer_max_sel_arg_weight",
-       "The maximum weight of the SEL_ARG graph. Set to 0 for no limit",
-       SESSION_VAR(optimizer_max_sel_arg_weight), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, ULONG_MAX), DEFAULT(SEL_ARG::MAX_WEIGHT), BLOCK_SIZE(1));
-
 static Sys_var_enum Sys_secure_timestamp(
        "secure_timestamp", "Restricts direct setting of a session "
        "timestamp. Possible levels are: YES - timestamp cannot deviate from "
@@ -6980,3 +6966,33 @@ static Sys_var_bit Sys_system_versioning_insert_history(
        SESSION_VAR(option_bits), CMD_LINE(OPT_ARG),
        OPTION_INSERT_HISTORY, DEFAULT(FALSE),
        NO_MUTEX_GUARD, IN_BINLOG);
+
+/* Optimizer variables */
+
+static Sys_var_uint Sys_in_subquery_conversion_threshold(
+       "in_predicate_conversion_threshold",
+       "The minimum number of scalar elements in the value list of "
+       "IN predicate that triggers its conversion to IN subquery. Set to "
+       "0 to disable the conversion.",
+       SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(IN_SUBQUERY_CONVERSION_THRESHOLD), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_optimizer_max_sel_arg_weight(
+       "optimizer_max_sel_arg_weight",
+       "The maximum weight of the SEL_ARG graph. Set to 0 for no limit",
+       SESSION_VAR(optimizer_max_sel_arg_weight), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(SEL_ARG::MAX_WEIGHT), BLOCK_SIZE(1));
+
+/*
+  We don't allow 100 for optimizer_cache_cost as there is always a small
+  cost of finding the key, on cached pages, that we have to take into account.
+*/
+
+static Sys_var_uint Sys_optimizer_cache_hit_ratio(
+  "optimizer_cache_hit_ratio",
+  "Expected hit rate of the row and index cache in storage engines. "
+  "The value should be an integer between 0 and 99, where 0 means cache is "
+  "empty and 99 means that value is almost always in the cache",
+  SESSION_VAR(optimizer_cache_hit_ratio), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 99), DEFAULT(CACHE_HIT_RATIO), 1, NO_MUTEX_GUARD,
+  NOT_IN_BINLOG);

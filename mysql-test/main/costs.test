@@ -1,0 +1,75 @@
+#
+# Test of cost calcuations. This test is using the Aria engine as the cost
+# calculations are stable for it.
+#
+--source include/have_sequence.inc
+
+create table t1 (a int primary key, b int, c int, d int, e int, key ba (b,a), key bda (b,d,a), key cba (c,b,a), key cb (c,b), key d (d)) engine=aria;
+insert into t1 select seq,seq,seq,seq,seq from seq_1_to_10;
+insert into t1 values(20,2,2,2,2),(21,3,4,5,6);
+
+--echo #
+--echo # Get different scan costs
+--echo #
+
+explain select sum(e) as "table_scan" from t1;
+--source include/last_query_cost.inc
+explain select sum(a) as "index scan" from t1;
+--source include/last_query_cost.inc
+
+--echo #
+--echo # Range scans should be used if we don't examine all rows in the table
+--echo #
+explain select count(a) from t1;
+--source include/last_query_cost.inc
+explain select count(*) from t1 where a > 0;
+--source include/last_query_cost.inc
+explain select count(*) from t1 where a > 1;
+--source include/last_query_cost.inc
+explain select count(*) from t1 where a > 2;
+--source include/last_query_cost.inc
+
+--echo #
+--echo # Shorter indexes are prefered over longer indexs
+--echo #
+explain select sum(a+b) from t1;
+--source include/last_query_cost.inc
+explain select count(*) from t1 where b between 5 and 10;
+--source include/last_query_cost.inc
+explain select sum(b+c) from t1 where b between 5 and 6 and c between 5 and 6;
+--source include/last_query_cost.inc
+
+--echo # Cost of 'd' should be slightly smaller as key 'ba' is longer than 'd'
+explain select count(*) from t1 where b > 6;
+--source include/last_query_cost.inc
+explain select count(*) from t1 where d > 6;
+--source include/last_query_cost.inc
+
+
+--echo #
+--echo # Check covering index usage
+--echo #
+explain select a,b,c from t1 where a=b;
+--source include/last_query_cost.inc
+
+--echo #
+--echo # Prefer ref keys over ranges
+--echo #
+
+explain select count(*) from t1 where b=2;
+--source include/last_query_cost.inc
+explain select count(*) from t1 where b=2 and c=2;
+--source include/last_query_cost.inc
+explain select count(*) from t1 where b=3 and c between 3 and 4;
+--source include/last_query_cost.inc
+
+--echo #
+--echo # Prefer eq keys over ref keys
+--echo #
+
+explain select a,b,e from t1 where a=10 or a=11;
+--source include/last_query_cost.inc
+explain select a,b,e from t1 where d=10 or d=11;
+--source include/last_query_cost.inc
+
+drop table t1;

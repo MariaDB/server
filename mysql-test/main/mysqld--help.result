@@ -720,6 +720,11 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
+ --optimizer-cache-hit-ratio=# 
+ Expected hit rate of the row and index cache in storage
+ engines. The value should be an integer between 0 and 99,
+ where 0 means cache is empty and 99 means that value is
+ almost always in the cache
  --optimizer-extra-pruning-depth=# 
  If the optimizer needs to enumerate join prefix of this
  size or larger, then it will try agressively prune away
@@ -1698,6 +1703,7 @@ old-alter-table DEFAULT
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
+optimizer-cache-hit-ratio 50
 optimizer-extra-pruning-depth 8
 optimizer-max-sel-arg-weight 32000
 optimizer-prune-level 2
