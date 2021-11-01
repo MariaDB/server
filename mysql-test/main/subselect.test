@@ -7,6 +7,7 @@
 #       as possible.
 #
 # Initialise
+--source include/have_sequence.inc
 --disable_warnings
 drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t11,t12;
 drop view if exists v2;
@@ -999,6 +1000,7 @@ create table t1 (s1 char(5), index s1(s1));
 create table t2 (s1 char(5), index s1(s1));
 insert into t1 values ('a1'),('a2'),('a3');
 insert into t2 values ('a1'),('a2');
+
 select s1, s1 NOT IN (SELECT s1 FROM t2) from t1;
 select s1, s1 = ANY (SELECT s1 FROM t2) from t1;
 select s1, s1 <> ALL (SELECT s1 FROM t2) from t1;
@@ -1423,7 +1425,7 @@ DROP TABLE t1;
 # SELECT(EXISTS * ...)optimisation
 #
 create table t1 (a int, b int);
-insert into t1 values (1,2),(3,4);
+insert into t1 values (1,2),(3,4),(5,6),(7,8);
 select * from t1 up where exists (select * from t1 where t1.a=up.a);
 explain extended select * from t1 up where exists (select * from t1 where t1.a=up.a);
 drop table t1;
@@ -2033,7 +2035,7 @@ drop table t1;
 create table t1(a int, primary key (a));
 insert into t1 values (10);
 
-create table t2 (a int primary key, b varchar(32), c int, unique key b(c, b));
+create table t2 (a int primary key, b varchar(32), c int, unique key cb(c, b));
 insert into t2(a, c, b) values (1,10,'359'), (2,10,'35988'), (3,10,'35989');
 insert into t2(a, c, b) values (4,10,'360'), (5,10,'35998'), (6,10,'35999');
 analyze table t1;
@@ -3326,7 +3328,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
 
-INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t1 VALUES (1),(2),(3),(4);
 INSERT INTO t2 VALUES (1),(2);
 
 SELECT 2 FROM t1 WHERE EXISTS ((SELECT 1 FROM t2 WHERE t1.a=t2.a));

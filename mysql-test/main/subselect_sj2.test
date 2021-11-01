@@ -1305,8 +1305,6 @@ SELECT * FROM t1 WHERE 9 IN ( SELECT b FROM t2 WHERE 1 IN ( SELECT MIN(c) FROM t
 
 DROP TABLE t1,t2,t3;
 
---source include/have_innodb.inc
-
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2,t3,t4;
 --enable_warnings

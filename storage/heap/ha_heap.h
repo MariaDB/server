@@ -68,8 +68,21 @@ public:
   { return (double) (rows +1)/ 20.0; }
   double keyread_time(uint index, uint ranges, ha_rows rows)
   { return (double) (rows + ranges) / 20.0 ; }
+  double rndpos_time(ha_rows rows)
+  {
+    return (double) rows/ 20.0;
+  }
   double avg_io_cost()
   { return 0.05; }                              /* 1/20 */
+
+  /*
+    Heap doesn't need optimizer_cache_cost as everything is in memory and
+    it supports all needed _time() functions
+  */
+  void set_optimizer_cache_cost(double cost)
+  {
+    optimizer_cache_cost= 1.0;
+  }
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   void set_keys_for_scanning(void);

@@ -902,9 +902,8 @@ WHERE EXISTS ( SELECT * FROM t1 AS sq2
 WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-3	DEPENDENT SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch
+3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'sq1.pk' of SELECT #3 was resolved in SELECT #1
 Note	1276	Field or reference 'sq1.f1' of SELECT #3 was resolved in SELECT #1
@@ -922,9 +921,8 @@ WHERE EXISTS ( SELECT * FROM t1 AS sq2
 WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-3	DEPENDENT SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch
+3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'sq1.pk' of SELECT #3 was resolved in SELECT #1
 Note	1276	Field or reference 'sq1.f1' of SELECT #3 was resolved in SELECT #1

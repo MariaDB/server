@@ -451,7 +451,7 @@ def					Extra	253	255	14	N	1	39	8
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using filesort
 SET @arg00=1 ;
-prepare stmt1 from ' explain select a from t1 where a > ? order by b ';
+prepare stmt1 from ' explain select a from t1 force index (primary) where a > ? order by b ';
 execute stmt1 using @arg00;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					id	8	3	1	Y	32928	0	63

@@ -905,10 +905,18 @@ ha_federated::ha_federated(handlerton *hton,
   :handler(hton, table_arg),
   mysql(0), stored_result(0)
 {
+  optimizer_cache_cost= 1;
   trx_next= 0;
   bzero(&bulk_insert, sizeof(bulk_insert));
 }
 
+/*
+  Federated doesn't need optimizer_cache_cost as everything is one a
+  remote server and nothing is cached locally
+*/
+
+void ha_federated::set_optimizer_cache_cost(double cost)
+{}
 
 /*
   Convert MySQL result set row to handler internal format
@@ -2879,11 +2887,11 @@ int ha_federated::info(uint flag)
                                                       &error);
 
     /*
-      size of IO operations (This is based on a good guess, no high science
-      involved)
+      Size of IO operations. This is used to calculate time to scan a table.
+      See handler.cc::keyread_time
     */
     if (flag & HA_STATUS_CONST)
-      stats.block_size= 4096;
+      stats.block_size= 1500;                   // Typical size of an TCP packet
 
   }
 

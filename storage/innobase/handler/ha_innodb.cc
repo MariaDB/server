@@ -14481,6 +14481,28 @@ ha_innobase::read_time(
 	return(ranges + (double) rows / (double) total_rows * time_for_scan);
 }
 
+/******************************************************************//**
+Calculate the time it takes to read a set of rows with primary key.
+*/
+
+double
+ha_innobase::rndpos_time(ha_rows rows)
+{
+	ha_rows total_rows;
+
+	/* Assume that the read time is proportional to the scan time for all
+	rows + at most one seek per range. */
+
+	double	time_for_scan = scan_time();
+
+	if ((total_rows = estimate_rows_upper_bound()) < rows) {
+
+		return(time_for_scan);
+	}
+
+	return((double) rows + (double) rows / (double) total_rows * time_for_scan);
+}
+
 /*********************************************************************//**
 Calculates the key number used inside MySQL for an Innobase index.
 @return the key number used inside MySQL */

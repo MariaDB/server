@@ -1,17 +1,20 @@
---- innodb_ext_key.result
-+++ innodb_ext_key,off.result
+--- main/innodb_ext_key.result
++++ main/innodb_ext_key,off.reject
 @@ -9,7 +9,7 @@
  explain
  select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 -1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	8	const,const	1	Using index
-+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	4	const	6	Using where; Using index
++1	SIMPLE	lineitem	index_merge	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey,i_l_shipdate	4,4	NULL	1	Using intersect(i_l_orderkey,i_l_shipdate); Using where; Using index
  flush status;
  select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
  count(*)
-@@ -19,7 +19,7 @@
+@@ -17,9 +17,9 @@
+ show status like 'handler_read%';
+ Variable_name	Value
  Handler_read_first	0
- Handler_read_key	1
+-Handler_read_key	1
++Handler_read_key	2
  Handler_read_last	0
 -Handler_read_next	1
 +Handler_read_next	6
@@ -95,13 +98,16 @@
  where l_shipdate='1992-07-01' and l_orderkey=130;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 -1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
-+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	4	const	6	Using where; Using index
++1	SIMPLE	lineitem	index_merge	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey,i_l_shipdate	4,4	NULL	1	Using intersect(i_l_orderkey,i_l_shipdate); Using where; Using index
  flush status;
  select max(l_linenumber) from lineitem 
  where l_shipdate='1992-07-01' and l_orderkey=130;
-@@ -145,7 +145,7 @@
+@@ -143,9 +143,9 @@
+ show status like 'handler_read%';
+ Variable_name	Value
  Handler_read_first	0
- Handler_read_key	1
+-Handler_read_key	1
++Handler_read_key	2
  Handler_read_last	0
 -Handler_read_next	0
 +Handler_read_next	6
@@ -249,7 +255,7 @@
  drop table t1,t2,t3;
  #
  # Bug mdev-4340: performance regression with extended_keys=on   
-@@ -714,13 +714,13 @@
+@@ -725,13 +725,13 @@
  select * from t1 force index(index_date_updated) 
  where index_date_updated= 10 and index_id < 800;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -265,7 +271,7 @@
  drop table t0,t1,t2;
  #
  # MDEV-11196: Error:Run-Time Check Failure #2 - Stack around the variable 'key_buff'
-@@ -755,11 +755,12 @@
+@@ -766,13 +766,14 @@
      "select_id": 1,
      "table": {
        "table_name": "t1",
@@ -279,9 +285,12 @@
 +      "used_key_parts": ["f2"],
 +      "ref": ["const"],
        "rows": 1,
-       "filtered": 100,
+-      "filtered": 50,
++      "filtered": 100,
        "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
-@@ -788,8 +789,8 @@
+       "attached_condition": "t1.f1 <= '3'"
+     }
+@@ -799,8 +800,8 @@
        "access_type": "range",
        "possible_keys": ["k1"],
        "key": "k1",
@@ -290,5 +299,5 @@
 +      "key_length": "3007",
 +      "used_key_parts": ["pk1", "f2"],
        "rows": 1,
-       "filtered": 100,
+       "filtered": 50,
        "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",

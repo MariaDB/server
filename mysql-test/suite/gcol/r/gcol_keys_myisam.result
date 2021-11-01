@@ -192,11 +192,7 @@ INSERT INTO c ( col_time_nokey,col_datetime_nokey,col_varchar_nokey) values
 ('01:46:09.016386','2007-10-09 19:53:04.008332', NULL),
 ('16:21:18.052408','2001-11-08 21:02:12.009395', 'x'),
 ('18:56:33.027423','2003-04-01 00:00:00', 'i');
-Warnings:
-Note	1265	Data truncated for column 'col_time_key' at row 1
-Note	1265	Data truncated for column 'col_time_key' at row 2
-Note	1265	Data truncated for column 'col_time_key' at row 3
-Note	1265	Data truncated for column 'col_time_key' at row 4
+insert into c (col_time_nokey,col_datetime_nokey,col_varchar_nokey) select '10:10:10', '2021-12-24 01:50:27', 'z' from seq_1_to_10;
 EXPLAIN SELECT
 outr.col_time_key AS x
 FROM c as outr

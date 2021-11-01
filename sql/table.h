@@ -1355,16 +1355,38 @@ public:
     uint        key_parts;
     uint        ranges;
     ha_rows     rows;
-    /* Cost of fetching and comparing the row aginst the WHERE clause */
+    /*
+      The full cost of using 'range'. Includes fetching the rows
+      through keys, copying them and comparing the rows aginst the
+      WHERE clause.
+    */
     double      cost;
-    /* Cost of comparing row with WHERE clause. Included in 'cost' */
+    /*
+      Cost of finding the key and fetching the row with row id.
+      In case of clustered keys or covering keys the fetch of the row is
+      not counted for.
+     */
+    double      find_cost;
+    /* find_cost + cost of copying the rows to record */
     double      fetch_cost;
     /*
-      If there is a range access by i-th index then the cost of
-      index only access for it is stored in index_only_costs[i]
+      Cost of fetching the keys, not including copying the keys to
+      record or comparing them with the WHERE clause. Used only when
+      working with filters.
     */
     double      index_only_cost;
+    /* Selectivity, in case of filters */
+    double      selectivity;
     bool        first_key_part_has_only_one_value;
+
+    /*
+      Cost of fetching keys with index only read and returning them to the
+      sql level.
+    */
+    double index_only_fetch_cost()
+    {
+      return index_only_cost + (double) rows * INDEX_COPY_COST;
+    }
   } *opt_range;
   /* 
      Bitmaps of key parts that =const for the duration of join execution. If
@@ -1740,8 +1762,9 @@ public:
   Range_rowid_filter_cost_info *
   best_range_rowid_filter_for_partial_join(uint access_key_no,
                                            double records,
-                                           double access_cost_factor);
-
+                                           double fetch_cost,
+                                           double index_only_cost,
+                                           double prev_records);
   /**
     System Versioning support
    */
@@ -1794,17 +1817,22 @@ public:
     DBUG_ASSERT(s->period.name);
     return field[s->period.end_fieldno];
   }
-  void set_cond_selectivity(double selectivity)
+  inline void set_cond_selectivity(double selectivity)
   {
     DBUG_ASSERT(selectivity >= 0.0 and selectivity <= 1.0);
     cond_selectivity= selectivity;
     DBUG_PRINT("info", ("cond_selectivity: %g", cond_selectivity));
   }
-  void multiply_cond_selectivity(double selectivity)
+  inline void multiply_cond_selectivity(double selectivity)
   {
     DBUG_ASSERT(selectivity >= 0.0 and selectivity <= 1.0);
     cond_selectivity*= selectivity;
     DBUG_PRINT("info", ("cond_selectivity: %g", cond_selectivity));
+  }
+  inline void set_opt_range_condition_rows(ha_rows rows)
+  {
+    if (opt_range_condition_rows > rows)
+      opt_range_condition_rows= rows;
   }
 
   ulonglong vers_start_id() const;

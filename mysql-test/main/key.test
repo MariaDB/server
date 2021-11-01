@@ -230,9 +230,12 @@ drop table t1;
 CREATE TABLE t1 (numeropost mediumint(8) unsigned NOT NULL default '0', numreponse int(10) unsigned NOT NULL auto_increment, PRIMARY KEY (numeropost,numreponse), UNIQUE KEY numreponse (numreponse));
 INSERT INTO t1 (numeropost,numreponse) VALUES ('1','1'),('1','2'),('2','3'),('2','4');
 SELECT numeropost FROM t1 WHERE numreponse='1';
+# No 'Using index'
 EXPLAIN SELECT numeropost FROM t1 WHERE numreponse='1';
 FLUSH TABLES;
 SELECT numeropost FROM t1 WHERE numreponse='1';
+# This one will have 'Using index'
+EXPLAIN SELECT numreponse+0 FROM t1 WHERE numreponse='1';
 drop table t1;
 
 #

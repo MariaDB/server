@@ -30,7 +30,7 @@ CREATE TABLE t1 (
   PRIMARY KEY (id)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 INSERT INTO t1 VALUES(1,'Un'),(3,'Trois'),(5,'Cinq');
-INSERT INTO t1 VALUES(2,'Two'),(4,'Four'),(6,'Six');
+INSERT INTO t1 VALUES(2,'Two'),(4,'Four'),(6,'Six'), (7,'seven');
 SELECT * FROM t1;
 
 --echo #
@@ -54,6 +54,7 @@ SELECT * FROM t2 WHERE id > 4;
 SELECT * FROM t2 WHERE id >= 3;
 SELECT * FROM t2 WHERE id < 3;
 SELECT * FROM t2 WHERE id < 2 OR id > 4;
+explain SELECT * FROM t2 WHERE id <= 3;
 SELECT * FROM t2 WHERE id <= 3;
 SELECT * FROM t2 WHERE id BETWEEN 3 AND 5;
 SELECT * FROM t2 WHERE id > 2 AND id < 6;
