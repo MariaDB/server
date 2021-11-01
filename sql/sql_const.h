@@ -210,6 +210,11 @@
 #define IDX_BLOCK_COPY_COST  ((double) 1 / TIME_FOR_COMPARE)
 #define IDX_LOOKUP_COST      ((double) 1 / 8)
 #define MULTI_RANGE_READ_SETUP_COST (IDX_BLOCK_COPY_COST/10)
+/*
+  The lower bound of accepted rows when using filter.
+  This is used to ensure that filters are not too agressive.
+*/
+#define MIN_ROWS_AFTER_FILTERING 1.0
 
 /**
   Number of comparisons of table rowids equivalent to reading one row from a 

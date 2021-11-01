@@ -962,7 +962,7 @@ WHERE ((Population > 101000 AND Population < 11000) OR
 ID BETWEEN 3500 AND 3800) AND Country='USA'
         AND (Name LIKE 'Pho%' OR ID BETWEEN 4000 AND 4300);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	range	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	Name	35	NULL	1	Using index condition; Using where
+1	SIMPLE	City	ref|filter	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	Country|Name	3|35	const	274 (0%)	Using index condition; Using where; Using rowid filter
 SELECT * FROM City USE INDEX ()
 WHERE ((Population > 101000 AND Population < 11000) OR
 ID BETWEEN 3500 AND 3800) AND Country='USA'
