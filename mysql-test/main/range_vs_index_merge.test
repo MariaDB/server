@@ -658,7 +658,7 @@ let $cond =
 (Name='Lugansk' AND Country='UKR') OR          
 (Name='Caracas' AND Country='VEN') OR  
 (Name='Samara' AND Country='RUS') OR  
-(Name='Seattle' AND Country='USA'); 
+(Name='Seattle' AND Country='USA');
 
 eval
 EXPLAIN SELECT Name, Country, Population FROM City WHERE

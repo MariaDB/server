@@ -54,9 +54,9 @@ a	b
 19	14
 explain select * from t2 where b in (select a from t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	b	NULL	NULL	NULL	20	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
+1	PRIMARY	t2	ref	b	b	5	test.t1.a	2	
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
 select * from t2 where b in (select a from t1);
 a	b
 1	1
@@ -82,9 +82,9 @@ test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 explain select * from t3 where b in (select a from t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	b	NULL	NULL	NULL	20	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
+1	PRIMARY	t3	ref	b	b	5	test.t1.a	2	
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
 select * from t3 where b in (select a from t1);
 a	b	pk1	pk2	pk3
 1	1	1	1	1
@@ -108,9 +108,9 @@ A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a
 from t0 A, t0 B where B.a <5;
 explain select * from t3 where b in (select a from t0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	b	NULL	NULL	NULL	#	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	#	
-2	MATERIALIZED	t0	ALL	NULL	NULL	NULL	NULL	#	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	#	
+1	PRIMARY	t3	ref	b	b	5	test.t0.a	#	
+2	MATERIALIZED	t0	ALL	NULL	NULL	NULL	NULL	#	Using where
 select * from t3 where b in (select A.a+B.a from t0 A, t0 B where B.a<5);
 a	b	pk1	pk2
 0	0	0	0
@@ -303,7 +303,7 @@ from t0 where a in
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	10	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func	1	Using where
-2	MATERIALIZED	t1	range	a	a	5	NULL	10	Using where; Using index
+2	MATERIALIZED	t1	index	a	a	5	NULL	10	Using where; Using index
 2	MATERIALIZED	t2	ref	a	a	5	test.t1.a	1	Using index
 2	MATERIALIZED	t3	ref	a	a	5	test.t1.a	1	Using index
 drop table t0, t1,t2,t3;
@@ -730,9 +730,8 @@ alter table t3 add primary key(id), add key(a);
 The following must use loose index scan over t3, key a:
 explain select count(a) from t2 where a in ( SELECT  a FROM t3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	index	a	a	5	NULL	1000	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t3	index	a	a	5	NULL	30000	Using index
+1	PRIMARY	t2	index	a	a	5	NULL	1000	Using where; Using index
+1	PRIMARY	t3	ref	a	a	5	test.t2.a	30	Using index; FirstMatch(t2)
 select count(a) from t2 where a in ( SELECT  a FROM t3);
 count(a)
 1000
@@ -758,10 +757,9 @@ c2 in (select 1 from t3, t2) and
 c1 in (select convert(c6,char(1)) from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; FirstMatch(t2)
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	FirstMatch((sj-nest))
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	FirstMatch(t2)
 drop table t2, t3;
 #
 # BUG#761598: InnoDB: Error: row_search_for_mysql() is called without ha_innobase::external_lock() in maria-5.3
@@ -826,9 +824,9 @@ SELECT * FROM t3
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	alias1	const	PRIMARY	PRIMARY	4	const	#	Using index
-1	PRIMARY	alias2	index	f12	f12	7	NULL	#	Using index; Start temporary
-1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using index
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	#	Using where; End temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	alias2	index	f12	f12	7	NULL	#	Using index; LooseScan
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using index; FirstMatch(alias2)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
 SELECT * FROM t3 
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
 f12
@@ -1211,9 +1209,9 @@ explain
 SELECT * FROM t1, t3 WHERE t3_c IN ( SELECT t1_pk2 FROM t4, t2 WHERE t2_c = t1_pk2 AND t2_i >= t3_i ) AND ( t1_pk1 = 'POL' );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ref	PRIMARY	PRIMARY	5	const	1	Using where; Using index
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Start temporary
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	t4	index	NULL	PRIMARY	59	NULL	2	Using where; Using index; End temporary
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	PRIMARY	t4	index	NULL	PRIMARY	59	NULL	2	Using where; Using index; FirstMatch(t3)
 DROP TABLE t1,t2,t3,t4;
 #
 # MDEV-6263: Wrong result when using IN subquery with order by
@@ -1333,8 +1331,8 @@ T3_0_.t3idref= 1
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	T3_0_	ref	PRIMARY,FK_T3_T2Id	PRIMARY	8	const	3	Using index; Start temporary
 1	PRIMARY	T2_1_	eq_ref	PRIMARY,FK_T2_T1Id	PRIMARY	8	test.T3_0_.t2idref	1	
-1	PRIMARY	T1_1_	eq_ref	PRIMARY	PRIMARY	8	test.T2_1_.t1idref	1	Using index
-1	PRIMARY	T2_0_	ref	FK_T2_T1Id	FK_T2_T1Id	8	test.T2_1_.t1idref	1	Using index; End temporary
+1	PRIMARY	T2_0_	ref	FK_T2_T1Id	FK_T2_T1Id	8	test.T2_1_.t1idref	1	Using index
+1	PRIMARY	T1_1_	eq_ref	PRIMARY	PRIMARY	8	test.T2_1_.t1idref	1	Using index; End temporary
 drop table t3,t2,t1;
 set optimizer_search_depth=@tmp7474;
 #

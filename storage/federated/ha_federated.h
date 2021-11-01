@@ -180,22 +180,20 @@ public:
     The reason for "records * 1000" is that such a large number forces 
     this to use indexes "
   */
-  double scan_time()
+  virtual double scan_time()
   {
     DBUG_PRINT("info", ("records %lu", (ulong) stats.records));
     return (double)(stats.records*1000); 
   }
-  /*
-    The next method will never be called if you do not implement indexes.
-  */
-  double read_time(uint index, uint ranges, ha_rows rows) 
+  virtual double read_time(uint index, uint ranges, ha_rows rows)
   {
-    /*
-      Per Brian, this number is bugus, but this method must be implemented,
-      and at a later date, he intends to document this issue for handler code
-    */
-    return (double) rows /  20.0+1;
+    return rows2double(rows) + rows2double(ranges);
   }
+  virtual double rndpos_time(ha_rows rows)
+  {
+    return rows2double(rows);
+  }
+  virtual void set_optimizer_cache_cost(double cost);
 
   const key_map *keys_to_use_for_scanning() { return &key_map_full; }
   /*

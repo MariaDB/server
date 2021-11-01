@@ -69,6 +69,7 @@ insert into t1 select * from t1;
 
 set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='firstmatch=off';
+--sorted_result
 select * from 
   json_table('[{"color": "blue", "price": 50},
                      {"color": "red", "price": 100}]',

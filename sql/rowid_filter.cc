@@ -22,14 +22,17 @@
 #include "sql_select.h"
 #include "opt_trace.h"
 
+/*
+  INDEX_NEXT_FIND_COST below is the cost of finding the next possible key
+  and calling handler_rowid_filter_check() to check it against the filter
+*/
 
 double Range_rowid_filter_cost_info::
 lookup_cost(Rowid_filter_container_type cont_type)
 {
   switch (cont_type) {
   case SORTED_ARRAY_CONTAINER:
-    /* The addition is here to take care of arrays with 1 element */
-    return log(est_elements)*0.01+0.001;
+    return log(est_elements)*0.01+INDEX_NEXT_FIND_COST;
   default:
     DBUG_ASSERT(0);
     return 0;
@@ -45,9 +48,10 @@ lookup_cost(Rowid_filter_container_type cont_type)
 
 inline
 double Range_rowid_filter_cost_info::
-avg_access_and_eval_gain_per_row(Rowid_filter_container_type cont_type)
+avg_access_and_eval_gain_per_row(Rowid_filter_container_type cont_type,
+                                 double cost_of_row_fetch)
 {
-  return (1+1.0/TIME_FOR_COMPARE) * (1 - selectivity) -
+  return (cost_of_row_fetch+1.0/TIME_FOR_COMPARE) * (1 - selectivity) -
          lookup_cost(cont_type);
 }
 
@@ -122,7 +126,8 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
   est_elements= (ulonglong) table->opt_range[key_no].rows;
   cost_of_building_range_filter= build_cost(container_type);
   selectivity= est_elements/((double) table->stat_records());
-  gain= avg_access_and_eval_gain_per_row(container_type);
+  gain= avg_access_and_eval_gain_per_row(container_type,
+                                         tab->file->optimizer_cache_cost);
   if (gain > 0)
     cross_x= cost_of_building_range_filter/gain;
   else
@@ -139,10 +144,10 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
 double
 Range_rowid_filter_cost_info::build_cost(Rowid_filter_container_type cont_type)
 {
-  double cost= 0;
+  double cost;
   DBUG_ASSERT(table->opt_range_keys.is_set(key_no));
 
-  cost+= table->opt_range[key_no].index_only_cost;
+  cost= table->opt_range[key_no].index_only_fetch_cost();
 
   switch (cont_type) {
 
@@ -461,14 +466,6 @@ void Range_rowid_filter_cost_info::trace_info(THD *thd)
     The function looks through the array of cost info for range filters
     and chooses the element for the range filter that promise the greatest
     gain with the the ref or range access of the table by access_key_no.
-    As the array is sorted by cross_x in ascending order the function stops
-    the look through as soon as it reaches the first element with
-    cross_x_adj > records because the range filter for this element and the
-    range filters for all remaining elements do not promise positive gains.
-
-  @note
-    It is easy to see that if cross_x[i] > cross_x[j] then
-    cross_x_adj[i] > cross_x_adj[j]
 
   @retval  Pointer to the cost info for the range filter that promises
            the greatest gain, NULL if there is no such range filter
@@ -477,20 +474,13 @@ void Range_rowid_filter_cost_info::trace_info(THD *thd)
 Range_rowid_filter_cost_info *
 TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
                                                 double records,
-                                                double access_cost_factor)
+                                                double fetch_cost,
+                                                double index_only_cost,
+                                                double prev_records)
 {
   if (range_rowid_filter_cost_info_elems == 0 ||
       covering_keys.is_set(access_key_no))
     return 0;
-
-  // Disallow use of range filter if the key contains partially-covered
-  // columns.
-  for (uint i= 0; i < key_info[access_key_no].usable_key_parts; i++)
-  {
-    if (key_info[access_key_no].key_part[i].field->type() == MYSQL_TYPE_BLOB)
-      return 0;
-  }
-
   /*
     Currently we do not support usage of range filters if the table
     is accessed by the clustered primary key. It does not make sense
@@ -501,36 +491,44 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
   if (file->is_clustering_key(access_key_no))
     return 0;
 
+  // Disallow use of range filter if the key contains partially-covered
+  // columns.
+  for (uint i= 0; i < key_info[access_key_no].usable_key_parts; i++)
+  {
+    if (key_info[access_key_no].key_part[i].field->type() == MYSQL_TYPE_BLOB)
+      return 0;
+  }
+
   Range_rowid_filter_cost_info *best_filter= 0;
-  double best_filter_gain= 0;
+  double best_filter_gain= DBL_MAX;
 
   key_map no_filter_usage= key_info[access_key_no].overlapped;
   no_filter_usage.merge(key_info[access_key_no].constraint_correlated);
+  no_filter_usage.set_bit(access_key_no);
   for (uint i= 0; i < range_rowid_filter_cost_info_elems ;  i++)
   {
-    double curr_gain = 0;
+    double new_cost, new_total_cost, new_records;
+    double cost_of_accepted_rows, cost_of_rejected_rows;
     Range_rowid_filter_cost_info *filter= range_rowid_filter_cost_info_ptr[i];
 
     /*
       Do not use a range filter that uses an in index correlated with
       the index by which the table is accessed
     */
-    if ((filter->key_no == access_key_no) ||
-        no_filter_usage.is_set(filter->key_no))
+    if (no_filter_usage.is_set(filter->key_no))
       continue;
 
-    filter->set_adjusted_gain_param(access_cost_factor);
+    new_records= records * filter->selectivity;
+    cost_of_accepted_rows= fetch_cost * filter->selectivity;
+    cost_of_rejected_rows= index_only_cost * (1 - filter->selectivity);
+    new_cost= (cost_of_accepted_rows + cost_of_rejected_rows +
+               records * filter->lookup_cost());
+    new_total_cost= ((new_cost + new_records/TIME_FOR_COMPARE) * prev_records +
+                     filter->get_setup_cost());
 
-    if (records < filter->cross_x_adj)
+    if (best_filter_gain > new_total_cost)
     {
-      /* Does not make sense to look through the remaining filters */
-      break;
-    }
-
-    curr_gain= filter->get_adjusted_gain(records);
-    if (best_filter_gain < curr_gain)
-    {
-      best_filter_gain= curr_gain;
+      best_filter_gain= new_total_cost;
       best_filter= filter;
     }
   }
