@@ -82,8 +82,12 @@ enum dict_err_ignore_t {
 					incomplete index definitions. */
 	/** ignore all errors above */
 	DICT_ERR_IGNORE_ALL = 15,
-	/** prepare to drop the table; do not attempt to load tablespace */
-	DICT_ERR_IGNORE_DROP = 31
+	/** prepare some DDL operation;
+	do not attempt to load tablespace */
+	DICT_ERR_IGNORE_TABLESPACE = 31,
+	/** prepare to drop the table; do not attempt to load tablespace
+	or the metadata */
+	DICT_ERR_IGNORE_DROP = 63
 };
 
 /** Quiescing states for flushing tables to disk. */

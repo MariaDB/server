@@ -2225,7 +2225,7 @@ dict_load_tablespace(
 		return;
 	}
 
-	if (ignore_err == DICT_ERR_IGNORE_DROP) {
+	if (ignore_err >= DICT_ERR_IGNORE_TABLESPACE) {
 		table->file_unreadable = true;
 		return;
 	}
@@ -2412,6 +2412,11 @@ corrupted:
 			table->corrupted = true;
 			table->file_unreadable = true;
 			err = DB_CORRUPTION;
+		} else if (table->space->id
+			   && ignore_err == DICT_ERR_IGNORE_DROP) {
+			/* Do not bother to load data from .ibd files
+			only to delete the .ibd files. */
+			goto corrupted;
 		} else {
 			const page_id_t page_id(table->space->id, root);
 			mtr.start();
