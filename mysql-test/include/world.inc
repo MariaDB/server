@@ -4,6 +4,7 @@
 
 # Table Country
 
+BEGIN;
 INSERT IGNORE INTO Country VALUES
 ('AFG','Afghanistan',652090.00,22720000,1),
 ('NLD','Netherlands',41526.00,15864000,5),
@@ -5339,5 +5340,6 @@ INSERT INTO CountryLanguage VALUES
 ('CHN','Dong',0.2),
 ('RUS','Belorussian',0.3),
 ('USA','Portuguese',0.2);
+COMMIT;
 
 ANALYZE TABLE Country, City, CountryLanguage;

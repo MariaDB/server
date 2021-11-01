@@ -115,6 +115,13 @@ eval $without_filter ANALYZE FORMAT=JSON $q3;
 --sorted_result
 eval $without_filter $q3;
 
+# Check different optimization
+eval $with_filter EXPLAIN SELECT STRAIGHT_JOIN o_orderkey, l_linenumber, l_shipdate, l_quantity, o_totalprice
+  FROM lineitem JOIN orders ON o_orderkey=l_orderkey
+  WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
+         l_quantity > 45 AND
+         o_totalprice between 180000 and 230000;
+
 let $q4=
 SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
   FROM orders JOIN lineitem ON o_orderkey=l_orderkey

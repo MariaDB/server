@@ -47,6 +47,7 @@ select sum(created_tmp_tables) from performance_schema.events_statements_history
 show status like '%Created_tmp%';
 drop table t3;
 
+set @@optimizer_switch="firstmatch=off";
 EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a);
 truncate table performance_schema.events_statements_history_long;
 flush status;
@@ -54,6 +55,7 @@ CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a);
 --echo # Performance schema should be the same as "Created_tmp_tables" variable below
 select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
 show status like '%Created_tmp%';
+set @@optimizer_switch=default;
 
 drop table t1,t2,t3;
 
