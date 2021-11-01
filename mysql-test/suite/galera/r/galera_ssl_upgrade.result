@@ -1,9 +1,9 @@
 connection node_2;
 connection node_1;
 connection node_1;
-call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
+call mtr.add_suppression("WSREP: write_handler().*");
 connection node_2;
-call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
+call mtr.add_suppression("WSREP: write_handler():.*");
 connection node_1;
 connection node_2;
 connection node_1;
@@ -27,5 +27,7 @@ SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_N
 VARIABLE_VALUE = 2
 1
 connection node_2;
-disconnect node_2;
-disconnect node_1;
+connection node_1;
+call mtr.add_suppression("WSREP: write_handler().*");
+connection node_2;
+call mtr.add_suppression("WSREP: write_handler():.*");
