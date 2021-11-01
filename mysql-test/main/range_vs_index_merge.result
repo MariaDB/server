@@ -333,7 +333,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN
 SELECT * FROM City WHERE (ID < 600) OR (ID BETWEEN 900 AND 1500);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	ALL	PRIMARY	NULL	NULL	NULL	4079	Using where
+1	SIMPLE	City	range	PRIMARY	PRIMARY	4	NULL	1200	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE Country > 'A' AND Country < 'ARG';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1077,7 +1077,7 @@ EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	Country,CountryPopulation,CountryName,CityName	CountryName,CityName	38,35	NULL	28	Using sort_union(CountryName,CityName); Using where
+1	SIMPLE	City	range	Country,CountryPopulation,CountryName,CityName	CountryName	38	NULL	28	Using index condition
 SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
 (Name='Addis Abeba' AND Country='ETH') OR          

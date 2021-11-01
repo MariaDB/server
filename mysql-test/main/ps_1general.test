@@ -437,8 +437,10 @@ prepare stmt3 from ' unlock tables ' ;
 ## Load/Unload table contents
 
 --let $datafile = $MYSQLTEST_VARDIR/tmp/data.txt
+--disable_warnings
 --error 0,1
 --remove_file $datafile
+--enable_warnings
 
 --replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
 eval prepare stmt1 from ' load data infile ''$datafile''
@@ -497,7 +499,7 @@ prepare stmt1 from ' explain select a from t1 order by b ';
 execute stmt1;
 --disable_metadata
 SET @arg00=1 ;
-prepare stmt1 from ' explain select a from t1 where a > ? order by b ';
+prepare stmt1 from ' explain select a from t1 force index (primary) where a > ? order by b ';
 --enable_metadata
 --replace_result 4096 4_OR_8_K 8192 4_OR_8_K
 execute stmt1 using @arg00;
