@@ -252,7 +252,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	x	x	5	const	1	Using index
 explain select count(*) from t1 where x in (1,2,3,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	x	x	5	NULL	4	Using where; Using index
+1	SIMPLE	t1	index	x	x	5	NULL	9	Using where; Using index
 drop table t1;
 CREATE TABLE t1 (key1 int(11) NOT NULL default '0', KEY i1 (key1));
 INSERT INTO t1 VALUES (0),(0),(0),(0),(0),(1),(1);
@@ -261,12 +261,12 @@ INSERT INTO t2 VALUES (0),(0),(1),(1),(2),(2);
 explain select * from t1, t2 where (t1.key1 <t2.keya + 1) and t2.keya=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ref	j1	j1	4	const	1	Using index
-1	SIMPLE	t1	range	i1	i1	4	NULL	7	Using where; Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	index	i1	i1	4	NULL	7	Using where; Using index; Using join buffer (flat, BNL join)
 explain select * from t1 force index(i1), t2 force index(j1) where 
 (t1.key1 <t2.keya + 1) and t2.keya=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ref	j1	j1	4	const	1	Using index
-1	SIMPLE	t1	range	i1	i1	4	NULL	7	Using where; Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	index	i1	i1	4	NULL	7	Using where; Using index; Using join buffer (flat, BNL join)
 DROP TABLE t1,t2;
 CREATE TABLE t1 (
 a int(11) default NULL,
@@ -281,7 +281,7 @@ INSERT INTO t1 VALUES
 (33,5),(33,5),(33,5),(33,5),(34,5),(35,5);
 EXPLAIN SELECT * FROM t1 WHERE a IN(1,2) AND b=5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range|filter	a,b	a|b	5|5	NULL	2 (41%)	Using index condition; Using where; Using rowid filter
+1	SIMPLE	t1	ref|filter	a,b	b|a	5|5	const	15 (5%)	Using where; Using rowid filter
 SELECT * FROM t1 WHERE a IN(1,2) AND b=5;
 a	b
 DROP TABLE t1;
@@ -676,7 +676,7 @@ create table t1(a char(2), key(a(1)));
 insert into t1 values ('x'), ('xx');
 explain select a from t1 where a > 'x';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	2	NULL	2	Using where
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	2	Using where
 select a from t1 where a > 'x';
 a
 xx
@@ -1138,7 +1138,7 @@ INSERT INTO t1 VALUES
 ('A2','2005-12-01 08:00:00',1000);
 EXPLAIN SELECT * FROM t1 WHERE item='A1' AND started<='2005-12-01 24:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	PRIMARY	PRIMARY	20	const	3	Using index condition
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	4	Using where
 SELECT * FROM t1 WHERE item='A1' AND started<='2005-12-01 24:00:00';
 item	started	price
 Warnings:
@@ -1236,14 +1236,13 @@ insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2 (a int, b int, filler char(100));
 insert into t2 select A.a + 10 * (B.a + 10 * C.a), 10, 'filler' from t1 A,
 t1 B, t1 C where A.a < 5;
-insert into t2 select 1000, b, 'filler' from t2;
+insert into t2 select 1000, b, 'filler' from t2 limit 250;
 alter table t2 add index (a,b);
-select 'In following EXPLAIN the access method should be ref, #rows~=500 (and not 2)' Z;
-Z
-In following EXPLAIN the access method should be ref, #rows~=500 (and not 2)
+# In following EXPLAIN the access method should be ref, #rows~=250
+# (and not 2) when we are not using rowid-ordered scans
 explain select * from t2 where a=1000 and b<11;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	a	a	5	const	503	Using index condition
+1	SIMPLE	t2	range	a	a	10	NULL	253	Using index condition
 drop table t1, t2;
 CREATE TABLE t1( a INT, b INT, KEY( a, b ) );
 CREATE TABLE t2( a INT, b INT, KEY( a, b ) );
@@ -2530,7 +2529,7 @@ insert into t2 values
 explain select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(2,2));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	3 (60%)	Using index condition; Using where; Using rowid filter
+1	SIMPLE	t2	range	idx1,idx2	idx1	5	NULL	3	Using index condition; Using where
 1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	8	
 explain format=json select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(2,2));
@@ -2545,16 +2544,8 @@ EXPLAIN
       "key": "idx1",
       "key_length": "5",
       "used_key_parts": ["d"],
-      "rowid_filter": {
-        "range": {
-          "key": "idx2",
-          "used_key_parts": ["e"]
-        },
-        "rows": 12,
-        "selectivity_pct": 60
-      },
       "rows": 3,
-      "filtered": 60,
+      "filtered": 100,
       "index_condition": "t2.d is not null",
       "attached_condition": "(t2.d,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((2,2)))"
     },
@@ -2610,8 +2601,8 @@ insert into t2 values
 explain select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	8 (14%)	Using index condition; Using where; Using rowid filter
-1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	8	
+1	SIMPLE	t1	range	idx	idx	5	NULL	6	Using index condition
+1	SIMPLE	t2	ref|filter	idx1,idx2	idx1|idx2	5|5	test.t1.a	12 (14%)	Using where; Using rowid filter
 explain format=json select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
 EXPLAIN
@@ -2619,12 +2610,24 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t2",
+      "table_name": "t1",
       "access_type": "range",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "rows": 6,
+      "filtered": 100,
+      "index_condition": "t1.a is not null"
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
       "possible_keys": ["idx1", "idx2"],
       "key": "idx1",
       "key_length": "5",
       "used_key_parts": ["d"],
+      "ref": ["test.t1.a"],
       "rowid_filter": {
         "range": {
           "key": "idx2",
@@ -2633,58 +2636,46 @@ EXPLAIN
         "rows": 15,
         "selectivity_pct": 14.42307692
       },
-      "rows": 8,
+      "rows": 12,
       "filtered": 14.42307663,
-      "index_condition": "t2.d is not null",
-      "attached_condition": "(t2.d,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["idx"],
-      "key": "idx",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t2.d"],
-      "rows": 8,
-      "filtered": 100
+      "attached_condition": "(t1.a,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
     }
   }
 }
 select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
 a	b	c	d	e	f
-3	2	uuuw	3	3	i
 3	2	uuua	3	3	i
-3	3	zzzz	3	3	i
+3	2	uuua	3	3	i
+3	2	uuuw	3	3	i
+3	2	uuuw	3	3	i
+3	3	zyxa	3	3	i
+3	3	zyxa	3	3	i
+3	3	zyxw	3	3	i
 3	3	zyxw	3	3	i
 3	3	zzza	3	3	i
-3	3	zyxa	3	3	i
-3	2	uuuw	3	3	i
-3	2	uuua	3	3	i
-3	3	zzzz	3	3	i
-3	3	zyxw	3	3	i
 3	3	zzza	3	3	i
-3	3	zyxa	3	3	i
-7	7	xxxyy	7	7	h
+3	3	zzzz	3	3	i
+3	3	zzzz	3	3	i
 7	7	xxxya	7	7	h
-7	8	xxxxx	7	7	h
+7	7	xxxyy	7	7	h
 7	8	xxxxa	7	7	h
+7	8	xxxxx	7	7	h
 prepare stmt from "select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1";
 execute stmt;
 a	b	c	d	e	f
 3	2	uuuw	3	3	i
-3	2	uuua	3	3	i
-3	3	zzzz	3	3	i
-3	3	zyxw	3	3	i
-3	3	zzza	3	3	i
-3	3	zyxa	3	3	i
 3	2	uuuw	3	3	i
 3	2	uuua	3	3	i
+3	2	uuua	3	3	i
+3	3	zzzz	3	3	i
 3	3	zzzz	3	3	i
 3	3	zyxw	3	3	i
+3	3	zyxw	3	3	i
 3	3	zzza	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
 3	3	zyxa	3	3	i
 7	7	xxxyy	7	7	h
 7	7	xxxya	7	7	h
@@ -2693,16 +2684,16 @@ a	b	c	d	e	f
 execute stmt;
 a	b	c	d	e	f
 3	2	uuuw	3	3	i
-3	2	uuua	3	3	i
-3	3	zzzz	3	3	i
-3	3	zyxw	3	3	i
-3	3	zzza	3	3	i
-3	3	zyxa	3	3	i
 3	2	uuuw	3	3	i
 3	2	uuua	3	3	i
+3	2	uuua	3	3	i
+3	3	zzzz	3	3	i
 3	3	zzzz	3	3	i
 3	3	zyxw	3	3	i
+3	3	zyxw	3	3	i
 3	3	zzza	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
 3	3	zyxa	3	3	i
 7	7	xxxyy	7	7	h
 7	7	xxxya	7	7	h
@@ -2715,8 +2706,8 @@ insert into t1 select * from t1;
 explain select * from t1,t2 
 where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	7 (7%)	Using index condition; Using where; Using rowid filter
-1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	11	
+1	SIMPLE	t1	range	idx	idx	5	NULL	15	Using index condition
+1	SIMPLE	t2	ref|filter	idx1,idx2	idx1|idx2	5|5	test.t1.a	12 (7%)	Using where; Using rowid filter
 explain format=json select * from t1,t2 
 where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
 EXPLAIN
@@ -2724,12 +2715,24 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t2",
+      "table_name": "t1",
       "access_type": "range",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "rows": 15,
+      "filtered": 100,
+      "index_condition": "t1.a is not null"
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
       "possible_keys": ["idx1", "idx2"],
       "key": "idx1",
       "key_length": "5",
       "used_key_parts": ["d"],
+      "ref": ["test.t1.a"],
       "rowid_filter": {
         "range": {
           "key": "idx2",
@@ -2738,35 +2741,23 @@ EXPLAIN
         "rows": 7,
         "selectivity_pct": 6.730769231
       },
-      "rows": 7,
-      "filtered": 14.28571415,
-      "index_condition": "t2.d is not null",
-      "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["idx"],
-      "key": "idx",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t2.d"],
-      "rows": 11,
-      "filtered": 100
+      "rows": 12,
+      "filtered": 6.730769157,
+      "attached_condition": "(t1.a,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
     }
   }
 }
 select * from t1,t2 
 where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
 a	b	c	d	e	f
-7	7	xxxyy	7	7	h
+7	7	xxxya	7	7	h
 7	7	xxxya	7	7	h
 7	7	xxxyy	7	7	h
-7	7	xxxya	7	7	h
-7	8	xxxxx	7	7	h
+7	7	xxxyy	7	7	h
+7	8	xxxxa	7	7	h
 7	8	xxxxa	7	7	h
 7	8	xxxxx	7	7	h
-7	8	xxxxa	7	7	h
+7	8	xxxxx	7	7	h
 alter table t2 drop index idx1, drop index idx2, add index idx3(d,e);
 # join order: (t2,t1) with ref access of t1
 # range access to t2 by 2-component keys for index idx3
@@ -2858,22 +2849,22 @@ EXPLAIN
 select * from t1,t2
 where a = d and (a,e) in ((4,d+1),(7,d+1),(8,d+1)) and length(f) = 1;
 a	b	c	d	e	f
-4	3	zyx	4	5	a
+4	3	zya	4	5	a
 4	3	zya	4	5	a
 4	3	zyx	4	5	a
-4	3	zya	4	5	a
-4	5	ww	4	5	a
+4	3	zyx	4	5	a
+4	5	wa	4	5	a
 4	5	wa	4	5	a
 4	5	ww	4	5	a
-4	5	wa	4	5	a
-7	7	xxxyy	7	8	b
+4	5	ww	4	5	a
+7	7	xxxya	7	8	b
 7	7	xxxya	7	8	b
 7	7	xxxyy	7	8	b
-7	7	xxxya	7	8	b
-7	8	xxxxx	7	8	b
+7	7	xxxyy	7	8	b
+7	8	xxxxa	7	8	b
 7	8	xxxxa	7	8	b
 7	8	xxxxx	7	8	b
-7	8	xxxxa	7	8	b
+7	8	xxxxx	7	8	b
 # join order: (t1,t2) with ref access of t2
 # no range access
 explain select * from t1,t2
@@ -2912,14 +2903,14 @@ EXPLAIN
 select * from t1,t2
 where a = d and (a,e) in ((e,d+1),(7,7),(8,8)) and length(f) = 1;
 a	b	c	d	e	f
-7	8	xxxxx	7	7	h
+7	7	xxxya	7	7	h
+7	7	xxxya	7	7	h
+7	7	xxxyy	7	7	h
 7	7	xxxyy	7	7	h
 7	8	xxxxa	7	7	h
-7	7	xxxya	7	7	h
-7	8	xxxxx	7	7	h
-7	7	xxxyy	7	7	h
 7	8	xxxxa	7	7	h
-7	7	xxxya	7	7	h
+7	8	xxxxx	7	7	h
+7	8	xxxxx	7	7	h
 # join order: (t1,t2) with ref access of t2
 # range access to t1 by 1-component keys for index idx
 explain select * from t1,t2

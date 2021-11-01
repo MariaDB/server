@@ -9684,11 +9684,22 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "<derived2>",
+      "table_name": "t1",
       "access_type": "ALL",
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "1 in (0,dt1.a)",
+      "attached_condition": "1 in (0,t1.a) and t1.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t1.a"],
+      "rows": 2,
+      "filtered": 100,
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -9706,18 +9717,6 @@ EXPLAIN
           }
         }
       }
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "rows": 2,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "65",
-      "join_type": "BNL",
-      "attached_condition": "t1.a = dt1.a"
     }
   }
 }
@@ -9743,11 +9742,22 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "<derived2>",
+      "table_name": "t1",
       "access_type": "ALL",
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "dt.a in (1,dt.a)",
+      "attached_condition": "t1.a in (1,t1.a) and t1.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t1.a"],
+      "rows": 2,
+      "filtered": 100,
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -9765,18 +9775,6 @@ EXPLAIN
           }
         }
       }
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "rows": 2,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "119",
-      "join_type": "BNL",
-      "attached_condition": "t1.a = dt.a"
     }
   }
 }
@@ -10376,11 +10374,22 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "<derived3>",
+      "table_name": "t1",
       "access_type": "ALL",
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "t.f2 < 2",
+      "attached_condition": "t1.f2 < 2 and t1.f2 is not null"
+    },
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["f2"],
+      "ref": ["test.t1.f2"],
+      "rows": 2,
+      "filtered": 100,
       "materialized": {
         "query_block": {
           "select_id": 3,
@@ -10393,13 +10402,6 @@ EXPLAIN
           }
         }
       }
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "t1.f2 = t.f2"
     }
   }
 }
@@ -10417,11 +10419,22 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "<derived3>",
+      "table_name": "t1",
       "access_type": "ALL",
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "t.f2 < 2",
+      "attached_condition": "t1.f2 < 2 and t1.f2 is not null"
+    },
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["f2"],
+      "ref": ["test.t1.f2"],
+      "rows": 1,
+      "filtered": 100,
       "materialized": {
         "query_block": {
           "select_id": 3,
@@ -10436,18 +10449,6 @@ EXPLAIN
           }
         }
       }
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "rows": 2,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "65",
-      "join_type": "BNL",
-      "attached_condition": "t1.f2 = t.f2"
     }
   }
 }
@@ -14390,8 +14391,8 @@ a	b	c	a	b	c
 3	21	500	3	21	231
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
 2	DERIVED	t3	range	i1	i1	5	NULL	2	Using index condition
 3	UNION	t3	range	i1	i1	5	NULL	1	Using index condition
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14401,9 +14402,21 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "<derived2>",
+      "table_name": "t2",
       "access_type": "ALL",
-      "rows": 3,
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.b is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["b"],
+      "ref": ["test.t2.b"],
+      "rows": 2,
       "filtered": 100,
       "attached_condition": "v1.a < 4",
       "materialized": {
@@ -14449,18 +14462,6 @@ EXPLAIN
           }
         }
       }
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 9,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "173",
-      "join_type": "BNL",
-      "attached_condition": "t2.b = v1.b"
     }
   }
 }
@@ -16839,7 +16840,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (pk1 INT PRIMARY KEY, f INT) ENGINE=Aria;
 INSERT INTO t1 VALUES (1,0),(2,0);
 CREATE TABLE t2 (pk2 INT PRIMARY KEY) ENGINE=Aria;
-INSERT INTO t2 VALUES (1),(2),(3);
+INSERT INTO t2 VALUES (1),(2),(3),(11),(12),(13);
 CREATE VIEW v2 AS SELECT pk2, COUNT(*) AS cnt FROM t2 GROUP BY pk2;
 SELECT * FROM t1 INNER JOIN v2 ON pk1 = pk2 WHERE f <> 5;
 pk1	f	pk2	cnt
@@ -17147,8 +17148,8 @@ explain extended select id, a from t1 where  id in (select id from v1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	
 1	PRIMARY	<derived3>	ref	key0	key0	4	test.t1.id	2	100.00	FirstMatch(t1)
-3	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	4	test.t1.id	1	100.00	
-3	LATERAL DERIVED	t2	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
+3	DERIVED	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	Using temporary; Using filesort
+3	DERIVED	t2	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`v1`) where `v1`.`id` = `test`.`t1`.`id`
 select id, a from t1
@@ -17185,10 +17186,10 @@ group by t1.id) dt);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	
 1	PRIMARY	<derived3>	ref	key0	key0	4	test.t1.id	2	100.00	FirstMatch(t1)
-3	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	4	test.t1.id	1	100.00	
-3	LATERAL DERIVED	t2	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
+3	DERIVED	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	Using temporary; Using filesort
+3	DERIVED	t2	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` semi join ((/* select#3 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`ro_id` = `test`.`t1`.`id` and `test`.`t2`.`flag` = 1) where `test`.`t1`.`id` = `test`.`t1`.`id` group by `test`.`t1`.`id`) `dt`) where `dt`.`id` = `test`.`t1`.`id`
+Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` semi join ((/* select#3 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`ro_id` = `test`.`t1`.`id` and `test`.`t2`.`flag` = 1) where 1 group by `test`.`t1`.`id`) `dt`) where `dt`.`id` = `test`.`t1`.`id`
 drop view v1;
 drop table t1,t2;
 #

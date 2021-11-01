@@ -1584,6 +1584,10 @@ static bool check_if_pq_applicable(Sort_param *param,
     // Can we fit all the keys in memory?
     if (param->max_keys_per_buffer < num_available_keys)
     {
+      /*
+        Get cost of merge sort. Note that this does not include
+        scanning the table and comparing the rows with the where clause!
+      */
       const double sort_merge_cost=
         get_merge_many_buffs_cost_fast(num_rows,
                                        num_available_keys,
@@ -1591,17 +1595,12 @@ static bool check_if_pq_applicable(Sort_param *param,
       /*
         PQ has cost:
         (insert + qsort) * log(queue size) / TIME_FOR_COMPARE_ROWID +
-        cost of file lookup afterwards.
-        The lookup cost is a bit pessimistic: we take scan_time and assume
-        that on average we find the row after scanning half of the file.
-        A better estimate would be lookup cost, but note that we are doing
-        random lookups here, rather than sequential scan.
+        cost of rowid lookup of the original row to find the addon fields.
       */
       const double pq_cpu_cost= 
         (PQ_slowness * num_rows + param->max_keys_per_buffer) *
         log((double) param->max_keys_per_buffer) / TIME_FOR_COMPARE_ROWID;
-      const double pq_io_cost=
-        param->max_rows * table->file->scan_time() / 2.0;
+      const double pq_io_cost= table->file->ha_read_with_rowid(param->max_rows);
       const double pq_cost= pq_cpu_cost + pq_io_cost;
 
       if (sort_merge_cost < pq_cost)

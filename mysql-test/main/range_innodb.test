@@ -64,6 +64,8 @@ insert into t3 values (3),(-1),(4);
 set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
 
+# InnoDB sometimes returns 4 other times 5 records for t1
+--replace_column 9 #
 explain
 select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
 select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
@@ -94,6 +96,8 @@ drop table t1,t2;
 --echo # MDEV-14440: Server crash in in handler::ha_external_lock or Assertion `inited==RND'
 --echo # failed in handler::ha_rnd_end upon SELECT from partitioned table
 --echo #
+
+call mtr.add_suppression("Got error .* when reading table");
 
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='index_merge_sort_intersection=off';

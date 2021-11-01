@@ -276,7 +276,7 @@ eval $query;
 eval explain extended $query;
 set @@in_predicate_conversion_threshold= 2;
 
---echo # trasformation works for the one IN predicate and doesn't work for the other
+--echo # transformation works for the one IN predicate and doesn't work for the other
 
 set @@in_predicate_conversion_threshold= 5;
 

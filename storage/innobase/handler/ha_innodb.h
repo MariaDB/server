@@ -109,6 +109,8 @@ public:
 
 	double read_time(uint index, uint ranges, ha_rows rows) override;
 
+        double read_with_rowid(ha_rows rows) override;
+
 	int delete_all_rows() override;
 
 	int write_row(const uchar * buf) override;

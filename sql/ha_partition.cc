@@ -9636,6 +9636,15 @@ double ha_partition::scan_time()
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
     scan_time+= m_file[i]->scan_time();
+  if (m_tot_parts)
+  {
+    /*
+      Add TABLE_SCAN_SETUP_COST for partitions to make cost similar to
+      in ha_scan_time()
+    */
+    scan_time+= (TABLE_SCAN_SETUP_COST * avg_io_cost() * (m_tot_parts - 1) /
+                 optimizer_cache_cost);
+  }
   DBUG_RETURN(scan_time);
 }
 

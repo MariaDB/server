@@ -61,17 +61,29 @@ KEY a_c (a,c),
 KEY a_b (a,b)
 ) ENGINE=InnoDB;
 insert into t1 select A.a , B.a, C.a from t0 A, t0 B, t0 C;
+select count(*) from t1;
+count(*)
+1000
+select count(*) from t1 where a=1;
+count(*)
+200
+select count(*) from t1 where a=1 and c=2;
+count(*)
+20
 # should use ref access
 explain select a,b,c from t1 where a=1 and c=2 order by b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	a_c,a_b	a_c	10	const,const	20	Using where; Using filesort
-# both should use range access
+# all should use range access
+explain select a,b,c from t1 where a=1 and c=2 order by b limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a_c,a_b	a_c	10	const,const	20	Using where; Using filesort
+explain select a,b,c from t1 where a=1 and c=2 order by b limit 300;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a_c,a_b	a_c	10	const,const	20	Using where; Using filesort
 explain select a,b,c from t1 where a=1 and c=2 order by b limit 1000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_c,a_b	a_b	5	NULL	200	Using where
-explain select a,b,c from t1 where a=1 and c=2 order by b limit 2000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_c,a_b	a_b	5	NULL	200	Using where
+1	SIMPLE	t1	ref	a_c,a_b	a_c	10	const,const	20	Using where; Using filesort
 drop table t1,t0;
 # Start of 10.2 tests
 #

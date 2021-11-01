@@ -1548,4 +1548,3 @@ ulonglong get_system_variable_hash_version(void)
 {
   return system_variable_hash_version;
 }
-

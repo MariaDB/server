@@ -5554,6 +5554,12 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   opt_range_condition_rows=0;
   no_cache= false;
   initialize_opt_range_structures();
+  /*
+    Update optimizer_cache_cost to ensure that a SET STATEMENT of
+    the variable it will work.
+  */
+  file->set_optimizer_cache_cost((100 - thd->variables.
+                                  optimizer_cache_hit_ratio)/100.0);
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;

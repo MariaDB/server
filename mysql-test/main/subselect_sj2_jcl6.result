@@ -65,9 +65,9 @@ a	b
 19	14
 explain select * from t2 where b in (select a from t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	b	NULL	NULL	NULL	20	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
+1	PRIMARY	t2	ref	b	b	5	test.t1.a	2	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
 select * from t2 where b in (select a from t1);
 a	b
 1	1
@@ -93,9 +93,9 @@ test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 explain select * from t3 where b in (select a from t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	b	NULL	NULL	NULL	20	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
+1	PRIMARY	t3	ref	b	b	5	test.t1.a	2	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
 select * from t3 where b in (select a from t1);
 a	b	pk1	pk2	pk3
 1	1	1	1	1
@@ -119,9 +119,9 @@ A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a
 from t0 A, t0 B where B.a <5;
 explain select * from t3 where b in (select a from t0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	b	NULL	NULL	NULL	#	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	#	
-2	MATERIALIZED	t0	ALL	NULL	NULL	NULL	NULL	#	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	#	
+1	PRIMARY	t3	ref	b	b	5	test.t0.a	#	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+2	MATERIALIZED	t0	ALL	NULL	NULL	NULL	NULL	#	Using where
 select * from t3 where b in (select A.a+B.a from t0 A, t0 B where B.a<5);
 a	b	pk1	pk2
 0	0	0	0
@@ -314,7 +314,7 @@ from t0 where a in
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	10	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func	1	Using where
-2	MATERIALIZED	t1	range	a	a	5	NULL	10	Using where; Using index
+2	MATERIALIZED	t1	index	a	a	5	NULL	10	Using where; Using index
 2	MATERIALIZED	t2	ref	a	a	5	test.t1.a	1	Using index
 2	MATERIALIZED	t3	ref	a	a	5	test.t1.a	1	Using index
 drop table t0, t1,t2,t3;
@@ -743,9 +743,8 @@ alter table t3 add primary key(id), add key(a);
 The following must use loose index scan over t3, key a:
 explain select count(a) from t2 where a in ( SELECT  a FROM t3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	index	a	a	5	NULL	1000	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t3	index	a	a	5	NULL	30000	Using index
+1	PRIMARY	t2	index	a	a	5	NULL	1000	Using where; Using index
+1	PRIMARY	t3	ref	a	a	5	test.t2.a	30	Using index; FirstMatch(t2)
 select count(a) from t2 where a in ( SELECT  a FROM t3);
 count(a)
 1000
@@ -771,10 +770,9 @@ c2 in (select 1 from t3, t2) and
 c1 in (select convert(c6,char(1)) from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	FirstMatch((sj-nest)); Using join buffer (incremental, BNL join)
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; FirstMatch(t2); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (incremental, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	FirstMatch(t2); Using join buffer (incremental, BNL join)
 drop table t2, t3;
 #
 # BUG#761598: InnoDB: Error: row_search_for_mysql() is called without ha_innobase::external_lock() in maria-5.3
@@ -1346,8 +1344,8 @@ T3_0_.t3idref= 1
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	T3_0_	ref	PRIMARY,FK_T3_T2Id	PRIMARY	8	const	3	Using index; Start temporary
 1	PRIMARY	T2_1_	eq_ref	PRIMARY,FK_T2_T1Id	PRIMARY	8	test.T3_0_.t2idref	1	Using join buffer (flat, BKA join); Key-ordered scan
-1	PRIMARY	T1_1_	eq_ref	PRIMARY	PRIMARY	8	test.T2_1_.t1idref	1	Using index
-1	PRIMARY	T2_0_	ref	FK_T2_T1Id	FK_T2_T1Id	8	test.T2_1_.t1idref	1	Using index; End temporary
+1	PRIMARY	T2_0_	ref	FK_T2_T1Id	FK_T2_T1Id	8	test.T2_1_.t1idref	1	Using index
+1	PRIMARY	T1_1_	eq_ref	PRIMARY	PRIMARY	8	test.T2_1_.t1idref	1	Using index; End temporary
 drop table t3,t2,t1;
 set optimizer_search_depth=@tmp7474;
 #
@@ -1425,10 +1423,9 @@ SELECT t3.* FROM t1 JOIN t3 ON t3.b = t1.b
 WHERE c IN (SELECT t4.b FROM t4 JOIN t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	1	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t3); Using join buffer (incremental, BNL join)
 1	PRIMARY	t1	ref	b	b	4	test.t3.b	1	Using index
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
 SELECT t3.* FROM t1 JOIN t3 ON t3.b = t1.b
 WHERE c IN (SELECT t4.b FROM t4 JOIN t2);
 b	c
@@ -1446,7 +1443,7 @@ INSERT INTO t2 VALUES (8);
 CREATE TABLE t3 (pk int PRIMARY KEY, a int);
 INSERT INTO t3 VALUES (1, 6), (2, 8);
 CREATE TABLE t4 (b int) ENGINE=InnoDB;
-INSERT INTO t4 VALUES (2);
+INSERT INTO t4 VALUES (2),(88),(99);
 set @tmp_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch = 'semijoin_with_cache=on';
 SET join_cache_level = 2;
@@ -1454,10 +1451,9 @@ EXPLAIN
 SELECT * FROM t1, t2 WHERE b IN (SELECT a FROM t3, t4 WHERE b = pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t3	eq_ref	PRIMARY	PRIMARY	4	test.t4.b	1	Using where; FirstMatch(t2)
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	1	Using where
-2	MATERIALIZED	t3	eq_ref	PRIMARY	PRIMARY	4	test.t4.b	1	
 SELECT * FROM t1, t2 WHERE b IN (SELECT a FROM t3, t4 WHERE b = pk);
 pk	a	b
 1	6	8
@@ -1479,8 +1475,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE b IN (SELECT a FROM t2 GROUP BY a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE b IN (SELECT a FROM t2 GROUP BY a);
 a	b
 v	v

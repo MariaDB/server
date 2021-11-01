@@ -1,0 +1,91 @@
+create table t1 (a int primary key, b int, c int, d int, e int, key ba (b,a), key bda (b,d,a), key cba (c,b,a), key cb (c,b), key d (d)) engine=aria;
+insert into t1 select seq,seq,seq,seq,seq from seq_1_to_10;
+insert into t1 values(20,2,2,2,2),(21,3,4,5,6);
+#
+# Get different scan costs
+#
+explain select sum(e) as "table_scan" from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	12	
+Last_query_cost	6.100000
+explain select sum(a) as "index scan" from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	12	Using index
+Last_query_cost	3.202929
+#
+# Range scans should be used if we don't examine all rows in the table
+#
+explain select count(a) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+Last_query_cost	0.000000
+explain select count(*) from t1 where a > 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	12	Using where; Using index
+Last_query_cost	3.202929
+explain select count(*) from t1 where a > 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	12	Using where; Using index
+Last_query_cost	3.202929
+explain select count(*) from t1 where a > 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	11	Using where; Using index
+Last_query_cost	2.997685
+#
+# Shorter indexes are prefered over longer indexs
+#
+explain select sum(a+b) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	ba	9	NULL	12	Using index
+Last_query_cost	3.204394
+explain select count(*) from t1 where b between 5 and 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	ba,bda	ba	5	NULL	6	Using where; Using index
+Last_query_cost	1.872197
+explain select sum(b+c) from t1 where b between 5 and 6 and c between 5 and 6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	ba,bda,cba,cb	cb	10	NULL	2	Using where; Using index
+Last_query_cost	0.970781
+# Cost of 'd' should be slightly smaller as key 'ba' is longer than 'd'
+explain select count(*) from t1 where b > 6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	ba,bda	ba	5	NULL	5	Using where; Using index
+Last_query_cost	1.646831
+explain select count(*) from t1 where d > 6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	d	d	5	NULL	5	Using where; Using index
+Last_query_cost	1.646343
+#
+# Check covering index usage
+#
+explain select a,b,c from t1 where a=b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	cba	14	NULL	12	Using where; Using index
+Last_query_cost	3.205859
+#
+# Prefer ref keys over ranges
+#
+explain select count(*) from t1 where b=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	ba,bda	ba	5	const	2	Using index
+Last_query_cost	0.950732
+explain select count(*) from t1 where b=2 and c=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	ba,bda,cba,cb	cb	10	const,const	2	Using index
+Last_query_cost	0.950781
+explain select count(*) from t1 where b=3 and c between 3 and 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	ba,bda,cba,cb	cb	10	NULL	2	Using where; Using index
+Last_query_cost	0.970781
+#
+# Prefer eq keys over ref keys
+#
+explain select a,b,e from t1 where a=10 or a=11;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition
+Last_query_cost	2.520488
+explain select a,b,e from t1 where d=10 or d=11;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	d	d	5	NULL	2	Using index condition
+Last_query_cost	2.520537
+drop table t1;

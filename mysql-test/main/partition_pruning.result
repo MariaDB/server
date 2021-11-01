@@ -15,13 +15,13 @@ PARTITION max VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (-1),(0),(1),(2),(3),(4),(5),(6),(7),(8);
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE a <= 1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-#	#	#	#	#	#	#	#	#	3	#
+#	#	#	#	range	#	#	#	#	3	#
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE a < 7;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-#	#	#	#	#	#	#	#	#	8	#
+#	#	#	#	range	#	#	#	#	8	#
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE a <= 1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-#	#	#	#	#	#	#	#	#	3	#
+#	#	#	#	range	#	#	#	#	3	#
 DROP TABLE t1;
 #
 # Bug#49742: Partition Pruning not working correctly for RANGE
@@ -2888,12 +2888,12 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	b	NULL	NULL	NULL	910	Using where
 explain extended select * from t2 where b in (2,4,6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	910	25.38	Using where
+1	SIMPLE	t2	range	b	b	5	NULL	231	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`b` in (2,4,6)
 explain partitions select * from t2 where b in (2,4,6);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	b	NULL	NULL	NULL	910	Using where
+1	SIMPLE	t2	p0,p1,p2,p3,p4	range	b	b	5	NULL	231	Using where
 explain extended select * from t2 where b in (7,8,9);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	910	36.81	Using where
@@ -2912,12 +2912,12 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	b	NULL	NULL	NULL	910	Using where
 explain extended select * from t2 where b > 5 and b < 8;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	910	22.20	Using where
+1	SIMPLE	t2	range	b	b	5	NULL	202	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`b` > 5 and `test`.`t2`.`b` < 8
 explain partitions select * from t2 where b > 5 and b < 8;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	b	NULL	NULL	NULL	910	Using where
+1	SIMPLE	t2	p0,p1,p2,p3,p4	range	b	b	5	NULL	202	Using where
 explain extended select * from t2 where b > 5 and b < 7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	range	b	b	5	NULL	77	100.00	Using where
@@ -2946,10 +2946,10 @@ flush status;
 update t2 set a = 111 where b in (5,6);
 show status like 'Handler_read_rnd_next';
 Variable_name	Value
-Handler_read_rnd_next	915
+Handler_read_rnd_next	0
 show status like 'Handler_read_key';
 Variable_name	Value
-Handler_read_key	0
+Handler_read_key	10
 flush status;
 update t2 set a = 222 where b = 7;
 show status like 'Handler_read_rnd_next';
@@ -3378,7 +3378,7 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p1	const	PRIMARY	PRIMARY	8	const,const	1	
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 1 AND c2 >= 1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	3	Using where
+1	SIMPLE	t1	p1,p2	ref	PRIMARY	PRIMARY	4	const	1	Using where
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 1 AND c2 > 1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	2	Using where
@@ -3387,7 +3387,7 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p1	range	PRIMARY	PRIMARY	8	NULL	2	Using where
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 1 AND c2 <= 3;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	3	Using where
+1	SIMPLE	t1	p1,p2	ref	PRIMARY	PRIMARY	4	const	1	Using where
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 <= 3;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	2	Using where
@@ -3405,7 +3405,7 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	2	Using where
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 <= 4;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2	range	PRIMARY	PRIMARY	8	NULL	3	Using where
+1	SIMPLE	t1	p1,p2	ref	PRIMARY	PRIMARY	4	const	1	Using where
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE c1 = 2 AND c2 = 4;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p2	const	PRIMARY	PRIMARY	8	const,const	1	
@@ -3465,8 +3465,8 @@ select * from t1
 where company_id = 1000
 and dept_id in (select dept_id from t2 where COMPANY_ID = 1000);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	p_1000	ref	PRIMARY	PRIMARY	8	const	3	Using index
-1	PRIMARY	t1	p_1000	ALL	PRIMARY	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	p_1000	ref	PRIMARY	PRIMARY	8	const	6	Using where
+1	PRIMARY	t2	p_1000	eq_ref	PRIMARY	PRIMARY	16	const,test.t1.dept_id	1	Using index
 drop table t1,t2;
 #
 # MDEV-9505: Valgrind failure in SEL_ARG::store_min,find_used_partitions,...
