@@ -693,6 +693,11 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
+ --optimizer-cache-hit-ratio=# 
+ Expected hit rate of the row and index cache in storage
+ engines. The value should be an integer between 0 and 99,
+ where 0 means cache is empty and 99 means that value is
+ almost always in the cache
  --optimizer-max-sel-arg-weight=# 
  The maximum weight of the SEL_ARG graph. Set to 0 for no
  limit
@@ -1654,6 +1659,7 @@ old-alter-table DEFAULT
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
+optimizer-cache-hit-ratio 50
 optimizer-max-sel-arg-weight 32000
 optimizer-prune-level 1
 optimizer-search-depth 62

@@ -1530,7 +1530,6 @@ INSERT INTO t4 (companynr, companyname) VALUES (68,'company 10');
 INSERT INTO t4 (companynr, companyname) VALUES (50,'company 11');
 INSERT INTO t4 (companynr, companyname) VALUES (00,'Unknown');
 --enable_query_log
-
 #
 # Test of stright join to force a full join.
 #
@@ -3121,7 +3120,7 @@ CREATE TABLE t2(i int, a int, INDEX si(i), INDEX ai(a));
 CREATE TABLE t3(a int PRIMARY KEY, c char(4), INDEX ci(c));
 
 INSERT INTO t1 VALUES 
-  (1,10,19), (2,20,22), (4,41,42), (9,93,95), (7, 77,79),
+  (1,10,19), (2,20,22), (4,41,42), (9,39,95), (7, 77,79),
   (6,63,67), (5,55,58), (3,38,39), (8,81,89);
 INSERT INTO t2 VALUES
   (21,210), (41,410), (82,820), (83,830), (84,840),
@@ -3142,6 +3141,11 @@ EXPLAIN
 SELECT t3.a FROM t1,t2,t3
   WHERE t1.id = 8 AND t2.i BETWEEN t1.b AND t1.e AND
         t3.a=t2.a AND t3.c IN ('bb','ee') ;
+
+EXPLAIN
+SELECT t3.a FROM t1,t2 FORCE INDEX (si),t3
+  WHERE t1.id = 9 AND t2.i BETWEEN t1.b AND t1.e AND 
+        t3.a=t2.a AND t3.c IN ('bb','ee');
 
 EXPLAIN 
 SELECT t3.a FROM t1,t2 FORCE INDEX (si),t3

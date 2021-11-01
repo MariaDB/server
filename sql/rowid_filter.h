@@ -143,12 +143,19 @@ class SQL_SELECT;
 class Rowid_filter_container;
 class Range_rowid_filter_cost_info;
 
-/* Cost to write rowid into array */
-#define ARRAY_WRITE_COST      0.005
-/* Factor used to calculate cost of sorting rowids in array */
-#define ARRAY_SORT_C          0.01
-/* Cost to evaluate condition */
-#define COST_COND_EVAL  0.2
+/*
+  Cost to write rowid into array. Assume inserting 1000 row id's into the
+  array has same cost as a 'disk io' or key fetch
+*/
+#define ARRAY_WRITE_COST      0.001
+/*
+  Factor used to calculate cost of sorting rowids in array
+  This is multiplied by 'elements * log(elements)', so this factor
+  has a very high cost weight!
+  A value of 0.001 will have 200 rows have a cost of 1.05 and
+  1000 rows a cost of 6.90.
+*/
+#define ARRAY_SORT_C          0.001
 
 typedef enum
 {
@@ -423,7 +430,8 @@ public:
   inline double lookup_cost() { return lookup_cost(container_type); }
 
   inline double
-  avg_access_and_eval_gain_per_row(Rowid_filter_container_type cont_type);
+   avg_access_and_eval_gain_per_row(Rowid_filter_container_type cont_type,
+                                    double cost_of_row_fetch);
 
   inline double avg_adjusted_gain_per_row(double access_cost_factor);
 
@@ -469,7 +477,13 @@ public:
   Range_rowid_filter_cost_info *
   TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
                                                   double records,
-                                                  double access_cost_factor);
+                                                  double fetch_cost,
+                                                  double index_only_cost,
+                                                  double prev_records);
+  Range_rowid_filter_cost_info *
+    apply_filter(THD *thd, TABLE *table, double *cost, double *records_arg,
+                 double *startup_cost, double fetch_cost,
+                 double index_only_cost, uint ranges, double record_count);
 };
 
 #endif /* ROWID_FILTER_INCLUDED */

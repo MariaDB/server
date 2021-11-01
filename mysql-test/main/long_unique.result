@@ -1195,20 +1195,20 @@ ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'IN/ALL/ANY subquery'
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
 DB_ROW_HASH_1	DB_ROW_HASH_2
 11	1
-22	2
-33	3
-44	4
+11	1
+11	1
 11	1
 22	2
-33	3
-44	4
-11	1
+22	2
+22	2
 22	2
 33	3
-44	4
-11	1
-22	2
 33	3
+33	3
+33	3
+44	4
+44	4
+44	4
 44	4
 select * from t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t1);
 DB_ROW_HASH_1	DB_ROW_HASH_2

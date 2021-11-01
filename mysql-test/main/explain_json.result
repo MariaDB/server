@@ -776,9 +776,9 @@ drop table t0;
 # MDEV-7265: "Full scan on NULL key", the join case
 #
 CREATE TABLE t1 (a INT, KEY(a));
-INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t1 VALUES (1),(2),(5),(6),(7);
 CREATE TABLE t2 (b INT);
-INSERT INTO t2 VALUES (3),(4);
+INSERT INTO t2 VALUES (3),(4),(9),(10),(11);
 EXPLAIN FORMAT=JSON SELECT * FROM t1 AS outer_t1 WHERE a <> ALL ( SELECT a FROM t1, t2 WHERE b <> outer_t1.a );
 EXPLAIN
 {
@@ -790,7 +790,7 @@ EXPLAIN
       "key": "a",
       "key_length": "5",
       "used_key_parts": ["a"],
-      "rows": 2,
+      "rows": 5,
       "filtered": 100,
       "attached_condition": "!<in_optimizer>(outer_t1.a,<exists>(subquery#2))",
       "using_index": true
@@ -809,7 +809,7 @@ EXPLAIN
               "key_length": "5",
               "used_key_parts": ["a"],
               "ref": ["func"],
-              "rows": 2,
+              "rows": 3,
               "filtered": 100,
               "attached_condition": "trigcond(<cache>(outer_t1.a) = t1.a or t1.a is null)",
               "using_index": true
@@ -819,7 +819,7 @@ EXPLAIN
             "table": {
               "table_name": "t2",
               "access_type": "ALL",
-              "rows": 2,
+              "rows": 5,
               "filtered": 100
             },
             "buffer_type": "flat",

@@ -309,11 +309,6 @@ typedef struct st_join_table {
   Table_access_tracker *tracker;
 
   Table_access_tracker *jbuf_tracker;
-  /* 
-    Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
-    column, or 0 if there is no info.
-  */
-  uint          packed_info;
 
   //  READ_RECORD::Setup_func materialize_table;
   READ_RECORD::Setup_func read_first_record;
@@ -357,7 +352,16 @@ typedef struct st_join_table {
     
   double        partial_join_cardinality;
 
+  /* set by estimate_scan_time() */
+  double        cached_scan_time;
+  double        cached_scan_and_compare_time;
+
   table_map	dependent,key_dependent;
+  /*
+    Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
+    column, or 0 if there is no info.
+  */
+  uint          packed_info;
   /*
      1 - use quick select
      2 - use "Range checked for each record"
@@ -370,6 +374,7 @@ typedef struct st_join_table {
   uint          index;
   uint		status;				///< Save status for cache
   uint		used_fields;
+  uint          cached_covering_key;            /* Set by estimate_scan_time() */
   ulong         used_fieldlength;
   ulong         max_used_fieldlength;
   uint          used_blobs;
@@ -639,7 +644,7 @@ typedef struct st_join_table {
   {
     return (is_hash_join_key_no(key) ? hj_key : table->key_info+key);
   }
-  double scan_time();
+  void estimate_scan_time();
   ha_rows get_examined_rows();
   bool preread_init();
 
@@ -939,7 +944,7 @@ public:
   /* 
     Cost accessing the table in course of the entire complete join execution,
     i.e. cost of one access method use (e.g. 'range' or 'ref' scan ) times 
-    number the access method will be invoked.
+    number the access method will be invoked and checking the WHERE clause.
   */
   double read_time;
 
@@ -2418,11 +2423,19 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
 bool open_tmp_table(TABLE *table);
 double prev_record_reads(const POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
-double get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size);
-double get_tmp_table_write_cost(THD *thd, double row_count, uint row_size);
 void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
                             bool skip_unprefixed_keyparts);
+
+struct TMPTABLE_COSTS
+{
+  double create;
+  double lookup;
+  double write;
+};
+
+TMPTABLE_COSTS get_tmp_table_costs(THD *thd, double row_count, uint row_size,
+                                   bool blobs_used);
 
 struct st_cond_statistic
 {

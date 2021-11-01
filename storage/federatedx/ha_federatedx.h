@@ -222,7 +222,6 @@ public:
   virtual int seek_position(FEDERATEDX_IO_RESULT **io_result,
                             const void *ref)=0;
   virtual void set_thd(void *thd) { }
-
 };
 
 
@@ -374,21 +373,19 @@ public:
     DBUG_PRINT("info", ("records %lu", (ulong) stats.records));
     return (double)(stats.records*1000);
   }
-  /*
-    The next method will never be called if you do not implement indexes.
-  */
   double read_time(uint index, uint ranges, ha_rows rows)
   {
-    /*
-      Per Brian, this number is bugus, but this method must be implemented,
-      and at a later date, he intends to document this issue for handler code
-    */
-    return (double) rows /  20.0+1;
+    return rows2double(rows) + rows2double(ranges);
   }
+  virtual double rnd_pos_time(ha_rows rows)
+  {
+    return rows2double(rows);
+  }
+  virtual void set_optimizer_cache_cost(double cost);
 
   const key_map *keys_to_use_for_scanning() { return &key_map_full; }
   /*
-    Everything below are methods that we implment in ha_federatedx.cc.
+    Everything below are methods that we implement in ha_federatedx.cc.
 
     Most of these methods are not obligatory, skip them and
     MySQL will treat them as not implemented

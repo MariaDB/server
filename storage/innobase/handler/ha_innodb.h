@@ -109,6 +109,8 @@ public:
 
 	double read_time(uint index, uint ranges, ha_rows rows) override;
 
+        double rnd_pos_time(ha_rows rows) override;
+
 	int write_row(const uchar * buf) override;
 
 	int update_row(const uchar * old_data, const uchar * new_data) override;

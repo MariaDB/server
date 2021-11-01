@@ -163,10 +163,10 @@ drop table t0;
 --echo #
 
 CREATE TABLE t1 (a INT, KEY(a));
-INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t1 VALUES (1),(2),(5),(6),(7);
 
 CREATE TABLE t2 (b INT);
-INSERT INTO t2 VALUES (3),(4);
+INSERT INTO t2 VALUES (3),(4),(9),(10),(11);
 
 EXPLAIN FORMAT=JSON SELECT * FROM t1 AS outer_t1 WHERE a <> ALL ( SELECT a FROM t1, t2 WHERE b <> outer_t1.a );
 

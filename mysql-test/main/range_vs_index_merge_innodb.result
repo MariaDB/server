@@ -365,7 +365,7 @@ WHERE ((ID < 800) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
 OR ((ID BETWEEN 900 AND 1500) AND 
 (Name LIKE 'Pa%' OR (Population > 103000 AND Population < 105000)));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Name,Country,PRIMARY	39,3,4	NULL	683	Using sort_union(Name,Country,PRIMARY); Using where
+1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Name,Country,Population	39,3,4	NULL	212	Using sort_union(Name,Country,Population); Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((ID < 200) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
@@ -620,7 +620,7 @@ WHERE ((Population > 101000 AND Population < 102000) AND
 ((ID BETWEEN 3400 AND 3800) AND 
 (Country < 'AGO' OR Name LIKE 'Pa%'));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Population,PRIMARY	4,4	NULL	440	Using sort_union(Population,PRIMARY); Using where
+1	SIMPLE	City	index_merge	PRIMARY,Population,Country,Name	Country,Name,Population	3,39,4	NULL	115	Using sort_union(Country,Name,Population); Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((Population > 101000 AND Population < 110000) AND
@@ -1804,7 +1804,7 @@ SELECT * FROM t1
 WHERE t1.a>300 AND t1.c!=0 AND t1.b>=350 AND t1.b<=400 AND
 (t1.c=0 OR t1.a=500);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY,idx	idx	5	NULL	2	Using where; Using index
+1	SIMPLE	t1	range	PRIMARY,idx	PRIMARY	4	NULL	1	Using where
 SELECT * FROM t1
 WHERE t1.a>300 AND t1.c!=0 AND t1.b>=350 AND t1.b<=400 AND
 (t1.c=0 OR t1.a=500);

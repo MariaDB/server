@@ -63,14 +63,26 @@ public:
   uint max_supported_keys() const override { return MAX_KEY; }
   uint max_supported_key_part_length() const override
   { return MAX_KEY_LENGTH; }
-  double scan_time()
+  double scan_time() override
   { return (double) (stats.records+stats.deleted) / 20.0+10; }
-  double read_time(uint index, uint ranges, ha_rows rows)
+  double read_time(uint index, uint ranges, ha_rows rows) override
   { return (double) (rows +1)/ 20.0; }
-  double keyread_time(uint index, uint ranges, ha_rows rows)
+  double keyread_time(uint index, uint ranges, ha_rows rows) override
   { return (double) (rows + ranges) / 20.0 ; }
   double avg_io_cost() override { return 0.05; }
-  int open(const char *name, int mode, uint test_if_locked) override ;
+  double rnd_pos_time(ha_rows rows) override
+  {
+    return (double) rows/ 20.0;
+  }
+  /*
+    Heap doesn't need optimizer_cache_cost as everything is in memory and
+    it supports all needed _time() functions
+  */
+  void set_optimizer_cache_cost(double cost) override
+  {
+    optimizer_cache_cost= 1.0;
+  }
+  int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override;
   int write_row(const uchar * buf) override;
   int update_row(const uchar * old_data, const uchar * new_data) override;

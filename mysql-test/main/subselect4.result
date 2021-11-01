@@ -714,8 +714,7 @@ WHERE ( t1.f10 ) IN ( SELECT f11 FROM t2 GROUP BY f11 ));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 SELECT * FROM t1
 WHERE f3 = (
 SELECT t1.f3 FROM t1
@@ -729,8 +728,7 @@ WHERE ( f10, f10 ) IN ( SELECT f11, f11 FROM t2 GROUP BY f11 ));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	<subquery3>	eq_ref	distinct_key	distinct_key	8	func,func	1	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 SELECT * FROM t1
 WHERE f3 = (
 SELECT f3 FROM t1
@@ -1371,7 +1369,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 3	SUBQUERY	SQ1_t1	index	NULL	f4	5	NULL	2	Using index; Using temporary
-3	SUBQUERY	SQ1_t3	range	f4	f4	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
+3	SUBQUERY	SQ1_t3	index	f4	f4	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE
 (SELECT f2 FROM t2
 WHERE f4 <= ALL
@@ -1391,8 +1389,8 @@ INSERT INTO t2 VALUES (1), (2);
 EXPLAIN  
 SELECT i FROM t1 WHERE (1) NOT IN (SELECT i FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t2	index_subquery	k	k	5	const	2	Using index
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	t2	index	k	k	5	NULL	2	Using where; Using index
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1788,7 +1786,7 @@ SELECT * FROM t1 WHERE ( 6 ) NOT IN ( SELECT t2.f3 FROM t2 JOIN t3 ON t3.f10 = t
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 2	SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t2	ref_or_null	f10	f10	10	const,const	2	Using where; Using index
+2	SUBQUERY	t2	index	f10	f10	10	NULL	2	Using where; Using index
 SELECT * FROM t1 WHERE ( 6 ) NOT IN ( SELECT t2.f3 FROM t2 JOIN t3 ON t3.f10 = t2.f10);
 f4
 drop table t1,t2,t3;
@@ -2902,8 +2900,8 @@ WHERE tn.key1 IN ('1','2','3','4','5','6','7','8','9','10')
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	hist	ALL	NULL	NULL	NULL	NULL	100	Using where
-2	DEPENDENT SUBQUERY	tms	range	PRIMARY	PRIMARY	32	NULL	10	Using where; Using index
-2	DEPENDENT SUBQUERY	tn	eq_ref	PRIMARY	PRIMARY	32	test.tms.key1	1	Using where
+2	DEPENDENT SUBQUERY	tn	range	PRIMARY	PRIMARY	32	NULL	10	Using index condition; Using where
+2	DEPENDENT SUBQUERY	tms	eq_ref	PRIMARY	PRIMARY	32	test.tn.key1	1	Using index
 set optimizer_switch=@tmp_os;
 drop table t1, t10, t11;
 #
