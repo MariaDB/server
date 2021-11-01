@@ -4547,6 +4547,10 @@ innobase_commit(
 		SQL statement */
 
 		trx_mark_sql_stat_end(trx);
+		if (UNIV_UNLIKELY(trx->error_state != DB_SUCCESS)) {
+			trx_rollback_for_mysql(trx);
+			DBUG_RETURN(1);
+		}
 	}
 
 	/* Reset the number AUTO-INC rows required */

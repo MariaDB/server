@@ -182,3 +182,32 @@ CREATE TABLE t (i INT) ENGINE=InnoDB PARTITION BY HASH (i) PARTITIONS 2;
 INSERT INTO t VALUES (0);
 INSERT INTO t VALUES (1),(0),(1);
 DROP TABLE t;
+#
+# MDEV-26947 UNIQUE column checks fail in InnoDB resulting
+#	in table corruption
+#
+CREATE TABLE t (c1 INT KEY,c2 INT UNIQUE) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t VALUES (1,0),(2,0);
+ERROR HY000: Got error 1 "Operation not permitted" during COMMIT
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+COMMIT;
+DROP TABLE t;
+CREATE TABLE t (i INT UNIQUE)ENGINE=InnoDB;
+INSERT INTO t VALUES (0),(0);
+ERROR HY000: Got error 1 "Operation not permitted" during COMMIT
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY,c2 CHAR(1) UNIQUE)ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t VALUES(1, ''),(2, '');
+ERROR HY000: Got error 1 "Operation not permitted" during COMMIT
+SELECT * FROM t;
+c	c2
+DELETE FROM t;
+COMMIT;
+DROP TABLE t;
