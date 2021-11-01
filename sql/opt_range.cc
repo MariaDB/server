@@ -11693,7 +11693,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
       /* Same as total cost */
       range->cost= range->fetch_cost + cost->compare_cost();
       if (param->table->file->is_clustering_key(keynr))
-	range->index_only_cost= 0;
+	range->index_only_cost= range->fetch_cost;
       else
         range->index_only_cost= cost->index_only_cost();
       range->first_key_part_has_only_one_value=
