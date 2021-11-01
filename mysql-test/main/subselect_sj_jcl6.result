@@ -216,10 +216,10 @@ a	b	a	b
 insert into t1 select (A.a + 10 * B.a),1 from t0 A, t0 B;
 explain extended select * from t1 where a in (select pk from t10 where pk<3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t10	range	PRIMARY	PRIMARY	4	NULL	3	100.00	Using where; Using index
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	103	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	103	100.00	Using where
+1	PRIMARY	t10	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	100.00	Using index
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t10` join `test`.`t1` where `test`.`t1`.`a` = `test`.`t10`.`pk` and `test`.`t10`.`pk` < 3
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t10` join `test`.`t1` where `test`.`t10`.`pk` = `test`.`t1`.`a` and `test`.`t1`.`a` < 3
 drop table t0, t1, t2;
 drop table t10, t11, t12;
 
@@ -355,8 +355,8 @@ WHERE PNUM IN
 (SELECT PNUM  FROM PROJ));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	STAFF	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	PROJ	ALL	NULL	NULL	NULL	NULL	6	Start temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	WORKS	ALL	NULL	NULL	NULL	NULL	12	Using where; End temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	PROJ	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
+1	PRIMARY	WORKS	ALL	NULL	NULL	NULL	NULL	12	Using where; FirstMatch(STAFF); Using join buffer (incremental, BNL join)
 SELECT EMPNUM, EMPNAME
 FROM STAFF
 WHERE EMPNUM IN
@@ -813,6 +813,7 @@ PRIMARY KEY (pk)
 INSERT INTO t1 VALUES (1,'o','ffff','ffff','ffoo','ffff','ffff','ffff','ffff','ffff','ffff',GeomFromText('POLYGON((0 0, 0 2, 2 2, 2 0, 0 0))')), (2,'f','ffff','ffff','ffff', 'ffff','ffff','ffff','ffff','ffff','ffff',GeomFromText('POLYGON((0 0, 0 2, 2 2, 2 0, 0 0))'));
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 VALUES (1,'i','iiii','iiii','iiii','iiii','ffff','ffff','ffff','ffff','ffff',GeomFromText('POLYGON((0 0, 0 2, 2 2, 2 0, 0 0))')), (2,'f','ffff','ffff','ffff','ffff','ffff','ffff','ffff','ffff','ffff',GeomFromText('POLYGON((0 0, 0 2, 2 2, 2 0, 0 0))'));
+insert into t2 (pk) values (-1),(0);
 EXPLAIN EXTENDED SELECT pk FROM t1 WHERE (a, b) IN (SELECT a, b FROM t2 WHERE pk > 0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
@@ -1260,8 +1261,8 @@ INSERT INTO t2 VALUES (1, 0), (1, 1), (2, 0), (2, 1);
 EXPLAIN
 SELECT * FROM t1 WHERE (i) IN (SELECT i FROM t2 where j > 0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	t2	index	k	k	10	NULL	4	Using where; Using index; Start temporary; End temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t2	ref	k	k	5	test.t1.i	1	Using where; Using index; Start temporary; End temporary
 SELECT * FROM t1 WHERE (i) IN (SELECT i FROM t2 where j > 0);
 i
 1
@@ -1650,8 +1651,8 @@ select * from t1 A, t1 B
 where A.a = B.a and A.a in (select a from t2 C) and B.a in (select a from t2 D);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	B	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	C	ALL	NULL	NULL	NULL	NULL	3	
 3	MATERIALIZED	D	ALL	NULL	NULL	NULL	NULL	3	
@@ -1991,7 +1992,7 @@ f1	f3	f4	f2	f4
 DROP TABLE t1,t2,t3;
 #
 # BUG#803457: Wrong result with semijoin + view + outer join in maria-5.3-subqueries-mwl90
-#   (Original testcase)
+#   (Original, slightly modified testcase)
 #
 CREATE TABLE t1 (f1 int, f2 int );
 INSERT INTO t1 VALUES (2,0),(4,0),(0,NULL);
@@ -2001,24 +2002,23 @@ CREATE TABLE t3 ( f1 int, f3 int );
 INSERT INTO t3 VALUES (2,0),(4,0),(0,NULL),(4,0),(8,0);
 CREATE TABLE t4 ( f2 int, KEY (f2) );
 INSERT INTO t4 VALUES (0),(NULL);
-CREATE VIEW v4 AS SELECT DISTINCT f2 FROM t4 ;
+INSERT INTO t4 VALUES (0),(NULL),(-1),(-2),(-3);
 # The following must not have outer joins:
 explain extended
-SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4);
+SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4 where f2 = 0 or f2 IS NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (incremental, BNL join)
-2	MATERIALIZED	t4	index	f2	f2	5	NULL	2	100.00	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t4	ref_or_null	f2	f2	5	const	4	100.00	Using where; Using index
 Warnings:
-Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3`,`test`.`t3`.`f3` AS `f3` from `test`.`t1` semi join (`test`.`t4`) join `test`.`t2` join `test`.`t3` where `test`.`t3`.`f1` = `test`.`t1`.`f1` and `test`.`t1`.`f2` = `test`.`t2`.`f2`
-SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4);
+Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3`,`test`.`t3`.`f3` AS `f3` from `test`.`t1` semi join (`test`.`t4`) join `test`.`t2` join `test`.`t3` where `test`.`t3`.`f1` = `test`.`t1`.`f1` and `test`.`t1`.`f2` = `test`.`t2`.`f2` and (`test`.`t4`.`f2` = 0 or `test`.`t4`.`f2` is null)
+SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4 where f2 = 0 or f2 IS NULL);
 f1	f2	f3	f3
 2	0	0	0
 4	0	0	0
 4	0	0	0
-drop view v4;
 drop table t1, t2, t3, t4;
 #
 # BUG#803303: Wrong result with semijoin=on, outer join in maria-5.3-subqueries-mwl90
@@ -2101,9 +2101,9 @@ explain
 SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE IFNULL(t2.f3,'foo') IN (SELECT * FROM t4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	Using where; Start temporary; End temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	Using where; End temporary; Using join buffer (incremental, BNL join)
 SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3 ) WHERE IFNULL(t2.f3,'foo') IN (SELECT * FROM t4);
 f1	f2	f3	f3
 2	0	0	0
@@ -2164,8 +2164,8 @@ INSERT INTO t3 VALUES (6,5),(6,2),(8,0),(9,1),(6,5);
 explain 
 SELECT * FROM t1, t2 WHERE (t2.a , t1.b) IN (SELECT a, b FROM t3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t3	ALL	b	NULL	NULL	NULL	5	Using where; Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t3	ref	b	b	5	test.t1.b	2	Start temporary; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 1	PRIMARY	t2	index	PRIMARY	PRIMARY	4	NULL	2	Using where; Using index; End temporary; Using join buffer (incremental, BNL join)
 SELECT * FROM t1, t2 WHERE (t2.a , t1.b) IN (SELECT a, b FROM t3);
 b	a
@@ -2189,10 +2189,10 @@ INSERT INTO t5 VALUES (7,0),(9,0);
 explain
 SELECT * FROM t3 WHERE t3.a IN (SELECT t5.a FROM t2, t4, t5 WHERE t2.c = t5.a AND t2.b = t5.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t5	index	a	a	10	NULL	2	Using where; Using index; Start temporary
-1	PRIMARY	t2	ref	b	b	5	test.t5.b	2	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (incremental, BNL join)
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	15	Using where; End temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	t5	index	a	a	10	NULL	2	Using where; Using index; LooseScan
+1	PRIMARY	t2	ref	b	b	5	test.t5.b	2	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	FirstMatch(t5)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	15	Using where; Using join buffer (flat, BNL join)
 SELECT * FROM t3 WHERE t3.a IN (SELECT t5.a FROM t2, t4, t5 WHERE t2.c = t5.a AND t2.b = t5.b);
 a
 0
@@ -2361,8 +2361,8 @@ SELECT * FROM t1 WHERE (a) IN (SELECT a FROM t2 JOIN t3 ON b = a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	9	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	13	
-2	MATERIALIZED	t2	index	b	b	8	NULL	7	Using where; Using index; Using join buffer (flat, BNL join)
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	13	Using where
+2	MATERIALIZED	t2	ref	b	b	4	test.t3.a	1	Using index
 SELECT * FROM t1 WHERE (a) IN (SELECT a FROM t2 JOIN t3 ON b = a);
 a
 19
@@ -2510,10 +2510,9 @@ SELECT * FROM t1, t2
 WHERE t1.a = t2.a AND t2.a IN (SELECT b FROM t3 STRAIGHT_JOIN t4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	1	
-1	PRIMARY	t1	ref	a	a	5	const	1	Using index
-1	PRIMARY	t2	ref	a	a	5	func	1	Using index
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	0	
+1	PRIMARY	t2	ref	a	a	5	const	1	Using index
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	0	FirstMatch(t2); Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ref	a	a	5	func	1	Using index
 SELECT * FROM t1, t2
 WHERE t1.a = t2.a AND t2.a IN (SELECT b FROM t3 STRAIGHT_JOIN t4);
 a	a
@@ -2585,16 +2584,18 @@ SELECT a, b, d FROM t1, t2
 WHERE ( b, d ) IN
 ( SELECT b, d FROM t1, t2 WHERE b = c );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	
-1	PRIMARY	t1	index	b	b	5	NULL	10	Using where; Using index; LooseScan
-1	PRIMARY	t2	ref	c	c	5	test.t1.b	1	Using where; FirstMatch(t1)
-1	PRIMARY	t1	ref	b	b	5	test.t1.b	2	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	PRIMARY	t1	index	b	b	5	NULL	10	Using where; Using index; Start temporary
+1	PRIMARY	t2	ref	c	c	5	test.t1.b	1	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	PRIMARY	t1	ref	b	b	5	test.t1.b	2	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	Using where; End temporary; Using join buffer (incremental, BNL join)
 SELECT a, b, d FROM t1, t2
 WHERE ( b, d ) IN
 ( SELECT b, d FROM t1, t2 WHERE b = c );
 a	b	d
 1	2	1
 1	2	1
+10	2	1
+10	2	1
 2	1	2
 2	1	2
 3	3	3
@@ -2610,8 +2611,6 @@ a	b	d
 8	4	2
 9	3	3
 9	3	3
-10	2	1
-10	2	1
 DROP TABLE t1, t2;
 # Another testcase for the above that still uses LooseScan:
 create table t0(a int primary key);
@@ -2779,22 +2778,22 @@ SELECT * FROM t1 AS t1_1, t1 AS t1_2
 WHERE (t1_1.a, t1_2.a) IN ( SELECT a, b FROM v1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1_1	ALL	NULL	NULL	NULL	NULL	11	Using where
-1	PRIMARY	t1_2	ALL	NULL	NULL	NULL	NULL	11	
-1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1_1.a	2	Using where; FirstMatch(t1_2)
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1_1.a	2	Start temporary
+1	PRIMARY	t1_2	ALL	NULL	NULL	NULL	NULL	11	Using where; End temporary
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	
 SELECT * FROM t1 AS t1_1, t1 AS t1_2
 WHERE (t1_1.a, t1_2.a) IN ( SELECT a, b FROM v1 );
 a	b	a	b
-3	1	9	1
-5	8	4	0
-3	9	9	1
 2	4	4	0
 2	4	6	8
 2	6	4	0
 2	6	6	8
+3	1	9	1
+3	9	9	1
 5	4	4	0
+5	4	4	0
+5	8	4	0
 7	7	7	7
-5	4	4	0
 DROP VIEW v1;
 DROP TABLE t1;
 set @@join_cache_level= @tmp_jcl_978479;
@@ -2938,9 +2937,9 @@ alias2.col_int_key = alias1.col_int_key
 WHERE alias1.pk = 58 OR alias1.col_varchar_key = 'o'
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias1	index_merge	PRIMARY,col_int_key,col_varchar_key	PRIMARY,col_varchar_key	4,4	NULL	2	Using sort_union(PRIMARY,col_varchar_key); Using where; Start temporary
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	alias2	ALL	col_int_key	NULL	NULL	NULL	12	Range checked for each record (index map: 0x2); End temporary
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	alias1	index_merge	PRIMARY,col_int_key,col_varchar_key	PRIMARY,col_varchar_key	4,4	NULL	2	Using sort_union(PRIMARY,col_varchar_key); Using where
+1	PRIMARY	alias2	ALL	col_int_key	NULL	NULL	NULL	12	Range checked for each record (index map: 0x2); FirstMatch(t2)
 SELECT *
 FROM t2
 WHERE (field1) IN (SELECT alias1.col_varchar_nokey AS field1
@@ -3300,8 +3299,7 @@ explain extended
 SELECT Id FROM t1 WHERE Id in (SELECT t1_Id  FROM t2 WHERE t2.col1 IS NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	system	PRIMARY	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	t2	ref	col1	col1	5	const	2	100.00	Using index condition; Using where
+1	PRIMARY	t2	ALL	col1	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(t1)
 Warnings:
 Note	1003	select 1 AS `Id` from (`test`.`t2`) where `test`.`t2`.`t1_Id` = 1 and `test`.`t2`.`col1` is null
 DROP TABLE t1, t2;

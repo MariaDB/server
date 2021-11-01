@@ -19,7 +19,9 @@ select count(*) from t1 where c=5 and b=5;
 
 set optimizer_trace="enabled=on";
 select count(*) from t1 where a=2 and b=5 and c=10;
+
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 select count(*) from t1 where a=2 and b=5 and c=5;

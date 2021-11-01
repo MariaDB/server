@@ -3175,6 +3175,7 @@ id INT(11) DEFAULT NULL,
 date_column DATE DEFAULT NULL,
 KEY(date_column));
 INSERT INTO t1 VALUES (1,'2010-09-01'),(2,'2010-10-01');
+INSERT INTO t1 VALUES (3,'2012-09-01'),(4,'2012-10-01'),(5,'2012-10-01');
 EXPLAIN SELECT * FROM t1 WHERE date_column BETWEEN '2010-09-01' AND '2010-10-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	date_column	date_column	4	NULL	2	Using index condition

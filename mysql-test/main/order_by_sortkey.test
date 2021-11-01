@@ -50,6 +50,7 @@ INSERT INTO tmp SELECT f1,f2 FROM t1;
 INSERT INTO t1(f1,f2) SELECT * FROM tmp; 
 INSERT INTO tmp SELECT f1,f2 FROM t1;
 INSERT INTO t1(f1,f2) SELECT * FROM tmp; 
+select count(*) from t1;
 
 # Test when only sortkeys fits to memory
 set sort_buffer_size= 32768; 
@@ -57,8 +58,12 @@ set sort_buffer_size= 32768;
 FLUSH STATUS;
 SHOW SESSION STATUS LIKE 'Sort%';
 
+explain SELECT * FROM t1 ORDER BY f2 LIMIT 100;
 SELECT * FROM t1 ORDER BY f2 LIMIT 100;
 
+# Check that Sort_priority_queue_sorts is used
 SHOW SESSION STATUS LIKE 'Sort%';
+# Check that we did scan the whole table and did LIMIT lookups
+SHOW STATUS LIKE 'Handler_read_rnd%';
 
 DROP TABLE t1, tmp;

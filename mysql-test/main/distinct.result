@@ -175,7 +175,7 @@ explain SELECT distinct t3.a FROM t3,t2,t1 WHERE t3.a=t1.b AND t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	4	Using where; Using temporary
 1	SIMPLE	t3	ref	a	a	5	test.t1.b	2	Using index
-1	SIMPLE	t2	index	a	a	4	NULL	5	Using where; Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ref	a	a	4	test.t1.a	2	Using index; Distinct
 SELECT distinct t3.a FROM t3,t2,t1 WHERE t3.a=t1.b AND t1.a=t2.a;
 a
 1
