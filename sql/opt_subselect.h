@@ -233,8 +233,8 @@ public:
         double records= rows2double(s->table->file->stats.records);
 
         /* The cost is entire index scan cost (divided by 2) */
-        double read_time= s->table->file->keyread_time(key, 1,
-                                                       (ha_rows) records);
+        double read_time= s->table->file->ha_keyread_and_copy_time(key, 1,
+                                                          (ha_rows) records);
 
         /*
           Now find out how many different keys we will get (for now we
