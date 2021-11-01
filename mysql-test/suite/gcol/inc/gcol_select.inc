@@ -545,11 +545,11 @@ CREATE TABLE cc (
 );
 INSERT INTO cc (col_int_nokey) VALUES (0),(1),(7),(0),(4),(5);
 --replace_column 9 # 10 #
-EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3;
-SELECT pk FROM cc WHERE col_int_key > 3;
+EXPLAIN SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3;
+SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3;
 --replace_column 9 # 10 #
-EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
-SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
+EXPLAIN SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3 ORDER BY 1;
+SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3 ORDER BY 1;
 DROP TABLE cc;
 
 --echo #

@@ -132,7 +132,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3_b	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3_a.PARENTID	1	Using where
 1	PRIMARY	t3_c	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3_b.PARENTID	1	Using where
 1	PRIMARY	t3_d	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3_c.PARENTID	1	Using where
-1	PRIMARY	t3_e	ref|filter	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	FFOLDERID_IDX|CMFLDRPARNT_IDX	34|35	test.t3_d.PARENTID	1 (29%)	Using where; Using rowid filter
+1	PRIMARY	t3_e	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3_d.PARENTID	1	Using where
 drop table t1, t2, t3, t4;
 CREATE TABLE t1 (a int(10) , PRIMARY KEY (a)) Engine=InnoDB;
 INSERT INTO t1 VALUES (1),(2);
@@ -163,7 +163,7 @@ SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM t1) OR a = b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	index	a	a	5	NULL	2	Using where; Using index
 1	PRIMARY	t3	ref	b	b	5	test.t2.a	2	Using index
-2	SUBQUERY	t1	const	PRIMARY,a	PRIMARY	4	const	1	Using where
+2	SUBQUERY	t1	const	PRIMARY,a	a	9	const,const	1	Using where; Using index
 SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM t1) OR a = b;
 pk	a	b
 0	4	4
@@ -172,7 +172,7 @@ SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM v1) OR a = b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	index	a	a	5	NULL	2	Using where; Using index
 1	PRIMARY	t3	ref	b	b	5	test.t2.a	2	Using index
-2	SUBQUERY	t1	const	PRIMARY,a	PRIMARY	4	const	1	Using where
+2	SUBQUERY	t1	const	PRIMARY,a	a	9	const,const	1	Using where; Using index
 SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM v1) OR a = b;
 pk	a	b
 0	4	4
@@ -287,7 +287,7 @@ ORDER BY mirror_date ASC
 ) AS calculated_result;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t1	range	date	date	6	NULL	3	Using index condition; Using where; Rowid-ordered scan; Using filesort
+2	DERIVED	t1	ALL	date	NULL	NULL	NULL	3	Using where; Using filesort
 SELECT * FROM (
 SELECT node_uid, date, mirror_date, @result := 0 AS result
 FROM t1
@@ -310,7 +310,7 @@ ORDER BY mirror_date ASC
 ) AS calculated_result;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t1	range	date	date	6	NULL	3	Using index condition; Using where; Using filesort
+2	DERIVED	t1	ALL	date	NULL	NULL	NULL	3	Using where; Using filesort
 SELECT * FROM (
 SELECT node_uid, date, mirror_date, @result := 0 AS result
 FROM t1

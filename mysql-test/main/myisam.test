@@ -593,6 +593,8 @@ create table t1 ( a tinytext, b char(1), index idx (a(1),b) );
 insert into t1 values (null,''), (null,'');
 explain select count(*) from t1 where a is null;
 select count(*) from t1 where a is null;
+insert into t1 values (1,''), (2,'');
+explain select count(*) from t1 where a is null;
 drop table t1;
 
 #
@@ -1676,6 +1678,9 @@ DROP TABLE t1, t2, t3;
 --echo #
 --echo # BUG#51307 - widespread corruption with partitions and insert...select
 --echo #
+
+call mtr.add_suppression("Enabling keys got errno 12 on test.t1, retrying");
+
 CREATE TABLE t1(a CHAR(255), KEY(a));
 SELECT * FROM t1, t1 AS a1;
 SET myisam_sort_buffer_size=4;

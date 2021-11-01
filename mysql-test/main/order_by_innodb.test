@@ -66,13 +66,17 @@ KEY a_c (a,c),
 KEY a_b (a,b)
 ) ENGINE=InnoDB;
 insert into t1 select A.a , B.a, C.a from t0 A, t0 B, t0 C;
+select count(*) from t1;
+select count(*) from t1 where a=1;
+select count(*) from t1 where a=1 and c=2;
 
 --echo # should use ref access
 explain select a,b,c from t1 where a=1 and c=2 order by b;
 
---echo # both should use range access
+--echo # all should use range access
+explain select a,b,c from t1 where a=1 and c=2 order by b limit 10;
+explain select a,b,c from t1 where a=1 and c=2 order by b limit 300;
 explain select a,b,c from t1 where a=1 and c=2 order by b limit 1000;
-explain select a,b,c from t1 where a=1 and c=2 order by b limit 2000;
 drop table t1,t0;
 
 --echo # Start of 10.2 tests

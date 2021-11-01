@@ -739,6 +739,7 @@ INSERT INTO t1 VALUES (1,'o','ffff','ffff','ffoo','ffff','ffff','ffff','ffff','f
 
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 VALUES (1,'i','iiii','iiii','iiii','iiii','ffff','ffff','ffff','ffff','ffff',GeomFromText('POLYGON((0 0, 0 2, 2 2, 2 0, 0 0))')), (2,'f','ffff','ffff','ffff','ffff','ffff','ffff','ffff','ffff','ffff',GeomFromText('POLYGON((0 0, 0 2, 2 2, 2 0, 0 0))'));
+insert into t2 (pk) values (-1),(0);
 
 # Test that materialization is skipped for semijoins where materialized
 # table would contain GEOMETRY or different kinds of BLOB/TEXT columns
@@ -1739,7 +1740,7 @@ DROP TABLE t1,t2,t3;
 
 --echo #
 --echo # BUG#803457: Wrong result with semijoin + view + outer join in maria-5.3-subqueries-mwl90
---echo #   (Original testcase)
+--echo #   (Original, slightly modified testcase)
 --echo #
 
 CREATE TABLE t1 (f1 int, f2 int );
@@ -1753,15 +1754,13 @@ INSERT INTO t3 VALUES (2,0),(4,0),(0,NULL),(4,0),(8,0);
 
 CREATE TABLE t4 ( f2 int, KEY (f2) );
 INSERT INTO t4 VALUES (0),(NULL);
-
-CREATE VIEW v4 AS SELECT DISTINCT f2 FROM t4 ;
+INSERT INTO t4 VALUES (0),(NULL),(-1),(-2),(-3);
 
 --echo # The following must not have outer joins:
 explain extended
-SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4); 
-SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4); 
+SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4 where f2 = 0 or f2 IS NULL); 
+SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4 where f2 = 0 or f2 IS NULL);
 
-drop view v4;
 drop table t1, t2, t3, t4;
 
 --echo #
@@ -2249,6 +2248,7 @@ INSERT INTO t1 VALUES
 CREATE TABLE t2 ( a INT, b INT, KEY(a)) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (3,20),(2,21),(3,22);
 
+--sorted_result
 SELECT *
 FROM t1 AS alias1, t1 AS alias2
 WHERE ( alias1.c, alias2.c )
@@ -2299,6 +2299,7 @@ explain
 SELECT a, b, d FROM t1, t2
 WHERE ( b, d ) IN
   ( SELECT b, d FROM t1, t2 WHERE b = c );
+--sorted_result
 SELECT a, b, d FROM t1, t2
 WHERE ( b, d ) IN
   ( SELECT b, d FROM t1, t2 WHERE b = c );
@@ -2449,6 +2450,7 @@ EXPLAIN
 SELECT * FROM t1 AS t1_1, t1 AS t1_2
   WHERE (t1_1.a, t1_2.a) IN ( SELECT a, b FROM v1 );
 
+--sorted_result
 SELECT * FROM t1 AS t1_1, t1 AS t1_2
   WHERE (t1_1.a, t1_2.a) IN ( SELECT a, b FROM v1 );
 

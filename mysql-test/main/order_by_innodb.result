@@ -53,17 +53,29 @@ KEY a_c (a,c),
 KEY a_b (a,b)
 ) ENGINE=InnoDB;
 insert into t1 select A.a , B.a, C.a from t0 A, t0 B, t0 C;
+select count(*) from t1;
+count(*)
+1000
+select count(*) from t1 where a=1;
+count(*)
+200
+select count(*) from t1 where a=1 and c=2;
+count(*)
+20
 # should use ref access
 explain select a,b,c from t1 where a=1 and c=2 order by b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	a_c,a_b	a_c	10	const,const	20	Using where; Using filesort
-# both should use range access
+# all should use range access
+explain select a,b,c from t1 where a=1 and c=2 order by b limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a_c,a_b	a_c	10	const,const	20	Using where; Using filesort
+explain select a,b,c from t1 where a=1 and c=2 order by b limit 300;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a_c,a_b	a_c	10	const,const	20	Using where; Using filesort
 explain select a,b,c from t1 where a=1 and c=2 order by b limit 1000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_c,a_b	a_b	5	NULL	200	Using where
-explain select a,b,c from t1 where a=1 and c=2 order by b limit 2000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_c,a_b	a_b	5	NULL	200	Using where
+1	SIMPLE	t1	ref	a_c,a_b	a_c	10	const,const	20	Using where; Using filesort
 drop table t1,t0;
 # Start of 10.2 tests
 #
@@ -245,8 +257,8 @@ dd.d1, dd.d2, dd.id limit 1
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using index
-1	PRIMARY	t2	eq_ref	PRIMARY,id2	PRIMARY	4	func	#	Using where
-2	DEPENDENT SUBQUERY	dd	range	id2,for_latest_sort	for_latest_sort	6	NULL	#	Using where
+1	PRIMARY	t2	eq_ref	PRIMARY,id2	id2	8	test.t1.id,func	#	Using where; Using index
+2	DEPENDENT SUBQUERY	dd	ref	id2,for_latest_sort	id2	4	test.t1.id	#	Using where; Using filesort
 drop table t1,t2,t3;
 # End of 10.2 tests
 #

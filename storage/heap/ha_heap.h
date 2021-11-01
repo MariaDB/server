@@ -62,14 +62,22 @@ public:
   const key_map *keys_to_use_for_scanning() { return &btree_keys; }
   uint max_supported_keys()          const { return MAX_KEY; }
   uint max_supported_key_part_length() const { return MAX_KEY_LENGTH; }
-  double scan_time()
+  double scan_time() override
   { return (double) (stats.records+stats.deleted) / 20.0+10; }
-  double read_time(uint index, uint ranges, ha_rows rows)
+  double read_time(uint index, uint ranges, ha_rows rows) override
   { return (double) (rows +1)/ 20.0; }
-  double keyread_time(uint index, uint ranges, ha_rows rows)
+  double keyread_time(uint index, uint ranges, ha_rows rows) override
   { return (double) (rows + ranges) / 20.0 ; }
   double avg_io_cost()
   { return 0.05; }                              /* 1/20 */
+  double rnd_pos_time(ha_rows rows) override
+  {
+    return (double) rows/ 20.0;
+  }
+  /*
+    Heap doesn't need optimizer_cache_cost as everything is in memory and
+    it supports all needed _time() functions
+  */
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   void set_keys_for_scanning(void);
@@ -80,6 +88,10 @@ public:
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,
                                   ulonglong *nb_reserved_values);
+  void set_optimizer_cache_cost(double cost) override
+  {
+    optimizer_cache_cost= 1.0;
+  }
   int index_read_map(uchar * buf, const uchar * key, key_part_map keypart_map,
                      enum ha_rkey_function find_flag);
   int index_read_last_map(uchar *buf, const uchar *key, key_part_map keypart_map);
