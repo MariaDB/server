@@ -15,10 +15,10 @@ Killing server ...
 connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1c;
 CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
-ERROR 40001: WSREP replication failed. Check your wsrep connection state and retry the query.
-ERROR 40001: WSREP replication failed. Check your wsrep connection state and retry the query.
+Got one of the listed errors
+Got one of the listed errors
 CREATE UNIQUE INDEX b2 ON t2(b);
-ERROR 08S01: WSREP has not yet prepared node for application use
+Got one of the listed errors
 connection node_1;
 disconnect node_1a;
 disconnect node_1b;

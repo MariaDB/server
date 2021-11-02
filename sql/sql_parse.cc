@@ -9093,7 +9093,9 @@ void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
 #ifdef WITH_WSREP
   return;
  wsrep_error_label:
-  my_error(ER_CANNOT_USER, MYF(0), " ");
+  error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
+                                    ER_KILL_DENIED_ERROR);
+  my_error(error, MYF(0), id);
 #endif /* WITH_WSREP */
 }
 
@@ -9128,7 +9130,7 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 #ifdef WITH_WSREP
   return;
  wsrep_error_label:
-  my_error(ER_CANNOT_USER, MYF(0), " ");
+  my_error(ER_CANNOT_USER, MYF(0), user ? user->user.str : "NULL");
 #endif /* WITH_WSREP */
 }
 

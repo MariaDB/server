@@ -34,16 +34,16 @@ BEGIN;
 
 --connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1c
---error ER_LOCK_DEADLOCK
+--error ER_LOCK_DEADLOCK,ER_UNKNOWN_COM_ERROR
 CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 
 --disable_query_log
---error ER_LOCK_DEADLOCK
+--error ER_LOCK_DEADLOCK, ER_CANNOT_USER,ER_KILL_QUERY_DENIED_ERROR
 --eval KILL QUERY $k_thread;
 --enable_query_log
 
 # Reset the master and restart the slave so that post-test checks can run
---error 1047
+--error ER_LOCK_DEADLOCK,ER_UNKNOWN_COM_ERROR
 CREATE UNIQUE INDEX b2 ON t2(b);
 
 --connection node_1
