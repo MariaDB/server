@@ -2993,5 +2993,28 @@ explain select * from t3 where a in (select a from t4);
 
 drop table t1, t2, t3, t4;
 
+--echo # 
+--echo # MDEV-20770: Server crashes in JOIN::transform_in_predicates_into_in_subq
+--echo #   upon 2nd execution of PS/SP comparing GEOMETRY with other types
+--echo # 
+
+CREATE TABLE t1 (a GEOMETRY);
+CREATE TABLE t2 (b INT);
+ 
+INSERT INTO t1 VALUES (GeomFromText('POINT(0 0)')),(GeomFromText('POINT(1 1)'));
+INSERT INTO t2 VALUES (1),(2);
+
+PREPARE stmt FROM "SELECT * from t1 WHERE a IN (SELECT b FROM t2)";
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+EXECUTE stmt;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+EXECUTE stmt;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+EXECUTE stmt;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+EXECUTE stmt;
+ 
+DROP TABLE t1, t2;
+
 # The following command must be the last one the file 
 set optimizer_switch=@subselect_sj_tmp;
