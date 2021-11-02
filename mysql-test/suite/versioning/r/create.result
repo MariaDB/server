@@ -599,3 +599,28 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`id`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 drop table t1;
+#
+# MDEV-26928 Column-inclusive WITH SYSTEM VERSIONING doesn't work with explicit system fields
+#
+create or replace table t1 (x int, y int with system versioning);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `y` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+x int, y int with system versioning,
+row_start timestamp(6) as row start,
+row_end timestamp(6) as row end,
+period for system_time(row_start, row_end));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `y` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START WITHOUT SYSTEM VERSIONING,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END WITHOUT SYSTEM VERSIONING,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+drop table t1;
