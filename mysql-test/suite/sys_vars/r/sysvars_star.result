@@ -60,7 +60,7 @@ VARIABLE_NAME	PLUGIN_MATURITY
 SESSION_VALUE	NULL
 GLOBAL_VALUE	alpha
 GLOBAL_VALUE_ORIGIN	CONFIG
-DEFAULT_VALUE	beta
+DEFAULT_VALUE	experimental
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
 VARIABLE_COMMENT	The lowest desirable plugin maturity. Plugins less mature than that will not be installed or loaded

@@ -16,15 +16,15 @@ usr/lib/*/libdbbc.a # ColumnStore header file
 usr/lib/*/libidbboot.a # ColumnStore header file
 usr/lib/*/libprocessor.a # ColumnStore header file
 usr/lib/*/libwe_xml.a # ColumnStore header file
-usr/share/doc/mariadb-server-10.7/COPYING
-usr/share/doc/mariadb-server-10.7/COPYING.AGPLv3
-usr/share/doc/mariadb-server-10.7/COPYING.GPLv2
-usr/share/doc/mariadb-server-10.7/COPYING.thirdparty
-usr/share/doc/mariadb-server-10.7/CREDITS
-usr/share/doc/mariadb-server-10.7/EXCEPTIONS-CLIENT
-usr/share/doc/mariadb-server-10.7/INSTALL-BINARY
-usr/share/doc/mariadb-server-10.7/PATENTS
-usr/share/doc/mariadb-server-10.7/README-wsrep
+usr/share/doc/mariadb-server-10.8/COPYING
+usr/share/doc/mariadb-server-10.8/COPYING.AGPLv3
+usr/share/doc/mariadb-server-10.8/COPYING.GPLv2
+usr/share/doc/mariadb-server-10.8/COPYING.thirdparty
+usr/share/doc/mariadb-server-10.8/CREDITS
+usr/share/doc/mariadb-server-10.8/EXCEPTIONS-CLIENT
+usr/share/doc/mariadb-server-10.8/INSTALL-BINARY
+usr/share/doc/mariadb-server-10.8/PATENTS
+usr/share/doc/mariadb-server-10.8/README-wsrep
 usr/share/groonga/COPYING
 usr/share/groonga-normalizer-mysql/lgpl-2.0.txt
 usr/share/groonga-normalizer-mysql/README.md
