@@ -10797,11 +10797,8 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
       read_part_id != m_part_info->vers_info->now_part->id &&
       !m_part_info->vers_info->interval.is_set())
   {
-    print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, "note",
-                    table_share->db.str, table->alias,
-                    opt_op_name[CHECK_PARTS],
-                    "Not supported for non-INTERVAL history partitions");
-    DBUG_RETURN(HA_ADMIN_NOT_IMPLEMENTED);
+    /* Skip this check as it is not supported for non-INTERVAL history partitions. */
+    DBUG_RETURN(HA_ADMIN_OK);
   }
 
   if (do_repair)
