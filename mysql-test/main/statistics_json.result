@@ -7645,3 +7645,16 @@ a
 foo
 ?
 drop table t1;
+#
+# MDEV-26911: Unexpected ER_DUP_KEY, ASAN errors, double free detected in tcache with JSON_HB histogram
+#
+SET histogram_type= JSON_HB;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT, f VARCHAR(8), PRIMARY KEY (pk));
+INSERT INTO t1 (f) VALUES ('foo');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ALTER TABLE t1 MODIFY f TEXT, ORDER BY pk;
+INSERT INTO t1 (f) VALUES ('bar');
+DROP TABLE t1;

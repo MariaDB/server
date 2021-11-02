@@ -1232,7 +1232,8 @@ public:
       Histogram_base *hist;
       if (!(hist= create_histogram(mem_root, hist_type, NULL)))
         return NULL;
-      if (!hist->parse(mem_root, table_field, hist_type,
+      Field *field= table->field[table_field->field_index];
+      if (!hist->parse(mem_root, field, hist_type,
                        val.ptr(), val.length()))
       {
         table_field->read_stats->histogram= hist;
@@ -3178,6 +3179,14 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   if (stats_cb->start_histograms_load())
   {
     Column_stat column_stat(stat_tables[COLUMN_STAT].table, table);
+
+    /*
+      The process of histogram loading makes use of the field it is for. Mark
+      all fields as readable/writable in order to allow that.
+    */
+    MY_BITMAP *old_sets[2];
+    dbug_tmp_use_all_columns(table, old_sets, &table->read_set, &table->write_set);
+
     for (Field **field_ptr= table->s->field; *field_ptr; field_ptr++)
     {
       Field *table_field= *field_ptr;
@@ -3189,6 +3198,8 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
       }
     }
     stats_cb->end_histograms_load();
+
+    dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
   }
   table->histograms_are_read= true;
   DBUG_RETURN(0);

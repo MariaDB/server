@@ -5,6 +5,7 @@
 let $histogram_type_override='JSON_HB';
 --source statistics.test
 
+--source include/have_innodb.inc
 --source include/have_stat_tables.inc
 --source include/have_sequence.inc
 --source include/analyze-format.inc
@@ -325,5 +326,17 @@ insert into t1 values ('foo'),(unhex('9C'));
 analyze table t1 persistent for all;
 
 select * from t1;
-
 drop table t1;
+
+--echo #
+--echo # MDEV-26911: Unexpected ER_DUP_KEY, ASAN errors, double free detected in tcache with JSON_HB histogram
+--echo #
+
+SET histogram_type= JSON_HB;
+ 
+CREATE TABLE t1 (pk INT AUTO_INCREMENT, f VARCHAR(8), PRIMARY KEY (pk));
+INSERT INTO t1 (f) VALUES ('foo');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ALTER TABLE t1 MODIFY f TEXT, ORDER BY pk;
+INSERT INTO t1 (f) VALUES ('bar');
+DROP TABLE t1;
