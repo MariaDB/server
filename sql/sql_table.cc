@@ -4202,9 +4202,31 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     my_message(ER_WRONG_AUTO_KEY, ER_THD(thd, ER_WRONG_AUTO_KEY), MYF(0));
     DBUG_RETURN(TRUE);
   }
-  /* Sort keys in optimized order */
-  my_qsort((uchar*) *key_info_buffer, *key_count, sizeof(KEY),
-	   (qsort_cmp) sort_keys);
+  /*
+    We cannot do qsort of key info if MyISAM/Aria does inplace. These engines
+    do not synchronise key info on inplace alter and that qsort is
+    indeterministic (MDEV-25803).
+
+    Yet we do not know whether we do inplace or not. That detection is done
+    after this create_table_impl() and that cannot be changed because of chicken
+    and egg problem (inplace processing requires key info made by
+    create_table_impl()).
+
+    MyISAM/Aria cannot add index inplace so we are safe to qsort key info in
+    that case. And if we don't add index then we do not need qsort at all.
+  */
+  if (!(create_info->options & HA_CREATE_TMP_ALTER) ||
+      alter_info->flags & ALTER_ADD_INDEX)
+  {
+    /*
+      Sort keys in optimized order.
+
+      Note: PK must be always first key, otherwise init_from_binary_frm_image()
+      can not understand it.
+    */
+    my_qsort((uchar*) *key_info_buffer, *key_count, sizeof(KEY),
+             (qsort_cmp) sort_keys);
+  }
   create_info->null_bits= null_fields;
 
   /* Check fields. */

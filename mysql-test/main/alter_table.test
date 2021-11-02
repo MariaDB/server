@@ -2100,5 +2100,46 @@ drop table t1;
 drop view v1;
 
 --echo #
+--echo # MDEV-25803 Inplace ALTER breaks MyISAM/Aria tables when order of keys is changed
+--echo #
+set @save_default_engine= @@default_storage_engine;
+--disable_query_log
+if ($MTR_COMBINATION_INNODB)
+{
+  set default_storage_engine= innodb;
+}
+if ($MTR_COMBINATION_ARIA)
+{
+  set default_storage_engine= aria;
+}
+--enable_query_log
+
+if (!$MTR_COMBINATION_INNODB)
+{
+  --disable_query_log
+  --disable_result_log
+  # There is no inplace ADD INDEX for MyISAM/Aria:
+  create or replace table t1 (x int);
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
+  alter table t1 add unique (x), algorithm=inplace;
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
+  alter table t1 add primary key(x), algorithm=inplace;
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
+  alter table t1 add index(x), algorithm=inplace;
+  --enable_query_log
+  --enable_result_log
+}
+
+create or replace table t1 (x int, y int, unique (y), unique (x), primary key(x)) engine myisam;
+alter table t1 change x xx int, algorithm=inplace;
+check table t1;
+create or replace table t1 (x int, y int, unique (y), unique (x), primary key(x));
+alter table t1 change x xx int, algorithm=inplace;
+check table t1;
+# cleanup
+drop table t1;
+set @@default_storage_engine= @save_default_engine;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

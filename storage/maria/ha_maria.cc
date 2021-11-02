@@ -707,6 +707,11 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
     - compare SPATIAL keys;
     - compare FIELD_SKIP_ZERO which is converted to FIELD_NORMAL correctly
       (should be correctly detected in table2maria).
+
+  FIXME:
+    maria_check_definition() is never used! CHECK TABLE does not detect the
+    corruption! Do maria_check_definition() like check_definition() is done
+    by MyISAM (related to MDEV-25803).
 */
 
 int maria_check_definition(MARIA_KEYDEF *t1_keyinfo,
