@@ -371,7 +371,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                                                    double read_time);
 static
 TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time);
+                                         double read_time, bool named_trace= false);
 static
 TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
                                         TRP_INDEX_MERGE *imerge_trp,
@@ -5052,7 +5052,7 @@ double get_sweep_read_cost(const PARAM *param, ha_rows records)
 
 static
 TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time)
+                                         double read_time, bool named_trace)
 {
   SEL_TREE **ptree;
   TRP_INDEX_MERGE *imerge_trp= NULL;
@@ -5101,7 +5101,9 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                              n_child_scans)))
     DBUG_RETURN(NULL);
 
-  Json_writer_object trace_best_disjunct(thd);
+  Json_writer_object trace_best_disjunct = named_trace
+      ? Json_writer_object(thd, "best_disjunct_quick")
+      : Json_writer_object(thd);
   Json_writer_array to_merge(thd, "indexes_to_merge");
   /*
     Collect best 'range' scan for each of disjuncts, and, while doing so,
@@ -5459,7 +5461,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
   DBUG_ASSERT(imerge->trees_next>imerge->trees);
 
   if (imerge->trees_next-imerge->trees > 1)
-    trp= get_best_disjunct_quick(param, imerge, read_time);
+    trp= get_best_disjunct_quick(param, imerge, read_time, true);
   else
   {
     /*
