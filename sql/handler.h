@@ -426,6 +426,7 @@ enum enum_alter_inplace_result {
 #define HA_CREATE_TMP_ALTER     8U
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
+#define HA_SKIP_KEY_SORT        64U
 
 #define HA_MAX_REC_LENGTH	65535
 
