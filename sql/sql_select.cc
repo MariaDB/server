@@ -7659,6 +7659,90 @@ INDEX_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
 
 
 /**
+   Apply filter if the filter is better than the current cost
+
+   @param thd             Thread handler
+   @param cost            Pointer to cost for *records_arg rows, not including
+                          TIME_FOR_COMPARE cost
+                          Will be updated to new cost if filter is used
+   @param records_arg     Pointer to records
+                          Will be updated to records after filter if filter is
+                          used
+   @param startup_cost    Startup cost. Will be updated if filter is used
+   @param fetch_cost      Cost of fetching '*records_arg' rows
+   @param index_only_cost Cost if fetching '*records_arg' key values
+   @param record_count    Number of record combinations in previous tables
+
+   @return 'this          Filter is used
+   @return 0              Filter is worse than old plan
+*/
+
+Range_rowid_filter_cost_info* Range_rowid_filter_cost_info::
+apply_filter(THD *thd, double *cost, double *records_arg, double *startup_cost,
+             double fetch_cost, double index_only_cost, double record_count)
+{
+  bool use_filter;
+  double new_cost, records= *records_arg, new_records;
+  double cost_of_accepted_rows, cost_of_rejected_rows;
+  double filter_startup_cost= get_setup_cost();
+  double filter_lookup_cost= records * lookup_cost();
+
+  /*
+    Calculate number of resulting rows after filtering
+    Protect against too agressive filter, however allow it to
+    be as low as records if records < MIN_ROWS_AFTER_FILTERING.
+  */
+  new_records= records * selectivity;
+  new_records= MY_MAX(new_records, MY_MIN(records,
+                                          MIN_ROWS_AFTER_FILTERING));
+
+  /*
+    Calculate the cost of the filter based on that we had originally
+    'records' rows and after the filter only 'new_records' accepted
+    rows.
+    Note that the rejected rows, we have only done a key read. We only
+    fetch the row and compare the where if the filter accepts the
+    row id.
+    In case of index only read, fetch_cost == index_only_cost. Even in this
+    the filter can give a better plan as we have to do less comparisons
+    with the WHERE clause.
+  */
+  cost_of_accepted_rows= (*cost/records * new_records);
+  cost_of_rejected_rows= index_only_cost/records*(records-new_records);
+  new_cost= (cost_of_accepted_rows + cost_of_rejected_rows +
+             filter_lookup_cost);
+
+  DBUG_ASSERT(new_cost >= 0 && new_records >= 0);
+  use_filter= ((*cost + records/TIME_FOR_COMPARE) * record_count >
+               (new_cost + new_records/TIME_FOR_COMPARE)*record_count +
+               filter_startup_cost);
+
+  if (thd->trace_started())
+  {
+    Json_writer_object trace_filter(thd, "filter");
+    trace_filter.add("rowid_filter_key",
+                     table->key_info[get_key_no()].name).
+      add("original_found_rows_cost", *cost).
+      add("new_found_rows_cost", new_cost).
+      add("orginal_rows", records).
+      add("new_rows", new_records).
+      add("filter_startup_cost", filter_startup_cost).
+      add("filter_lookup_cost", filter_lookup_cost).
+      add("filter_selectivity", selectivity).
+      add("filter_used", use_filter);
+  }
+  if (use_filter)
+  {
+    *cost= new_cost;
+    *records_arg= new_records;
+    (*startup_cost)+= filter_startup_cost;
+    return this;
+  }
+  return 0;
+}
+
+
+/**
   Find the best access path for an extension of a partial execution
   plan and add this path to the plan.
 
@@ -7705,7 +7789,6 @@ best_access_path(JOIN      *join,
   my_bool found_constraint= 0;
   double best_cost=         DBL_MAX;
   double records=           DBL_MAX;
-  double best_filter_cmp_gain;
   table_map best_ref_depends_map= 0;
   Range_rowid_filter_cost_info *best_filter= 0;
   double tmp;
@@ -7863,7 +7946,7 @@ best_access_path(JOIN      *join,
           This will be later multipled by record_count.
         */
         tmp= (prev_record_reads(join_positions, idx, found_ref) / record_count);
-        set_if_bigger(tmp, 1.0);
+        set_if_smaller(tmp, 1.0);
         index_only_cost= tmp;
         /*
           Really, there should be records=0.0 (yes!)
@@ -7914,7 +7997,7 @@ best_access_path(JOIN      *join,
             */
             adjusted_cost= (prev_record_reads(join_positions, idx, found_ref) /
                             record_count);
-            set_if_bigger(adjusted_cost, 1.0);
+            set_if_smaller(adjusted_cost, 1.0);
             tmp*= adjusted_cost;
             index_only_cost*= adjusted_cost;
             records= 1.0;
@@ -8238,67 +8321,11 @@ best_access_path(JOIN      *join,
           table->best_range_rowid_filter_for_partial_join(start_key->key, rows,
                                                           access_cost_factor);
         if (filter)
-	{
-          bool use_filter;
-          double new_cost, new_records;
-          double cost_of_accepted_rows, cost_of_rejected_rows;
-          double filter_startup_cost= filter->get_setup_cost();
-          double filter_lookup_cost= records * filter->lookup_cost();
-
-          /*
-            Calculate number of resulting rows after filtering
-            Protect against too agressive filter, however allow it to
-            be as low as records if records < MIN_ROWS_AFTER_FILTERING.
-          */
-          new_records= records * filter->selectivity;
-          new_records= MY_MAX(new_records, MY_MIN(records,
-                                                  MIN_ROWS_AFTER_FILTERING));
-
-          /*
-            Calculate the cost of the filter based on that we had originally
-            'records' rows and after the filter only 'new_records' accepted
-            rows.
-            Note that the rejected rows, we have only done a key read. We only
-            fetch the row and compare the where if the filter accepts the
-            row id.
-            In case of index only read, tmp == index_only_cost. Even in this
-            the filter can give a better plan as we have to do less comparisons
-            with the WHERE clause.
-          */
-          cost_of_accepted_rows= (tmp/records*new_records);
-          cost_of_rejected_rows= index_only_cost/records*(records-new_records);
-          new_cost= (cost_of_accepted_rows + cost_of_rejected_rows +
-                     filter_lookup_cost);
-
-          DBUG_ASSERT(new_cost >= 0 && new_records >= 0);
-          use_filter= ((tmp + records/TIME_FOR_COMPARE) * record_count >=
-                       (new_cost + new_records/TIME_FOR_COMPARE)*record_count +
-                       filter_startup_cost);
-
-          if (thd->trace_started())
-          {
-            Json_writer_object trace_filter(thd, "filter");
-            trace_filter.add("rowid_filter_key",
-                             table->key_info[filter->get_key_no()].name).
-              add("original_found_rows_cost", tmp).
-              add("new_found_rows_cost", new_cost).
-              add("orginal_rows", records).
-              add("new_rows", new_records).
-              add("filter_startup_cost", filter_startup_cost).
-              add("filter_lookup_cost", filter_lookup_cost).
-              add("filter_selectivity", filter->selectivity).
-              add("filter_used", use_filter);
-          }
-          if (use_filter)
-          {
-            tmp= new_cost;
-            records_after_filter= new_records;
-            startup_cost+= filter_startup_cost;
-          }
-          else
-            filter= 0;
-        }
+          filter= filter->apply_filter(thd, &tmp, &records_after_filter,
+                                       &startup_cost, tmp, index_only_cost,
+                                       record_count);
       }
+
       tmp= COST_ADD(tmp, records_after_filter/TIME_FOR_COMPARE);
       trace_access_idx.add("rows", records_after_filter).
         add("found_matching_rows_cost",tmp).
@@ -8447,10 +8474,9 @@ best_access_path(JOIN      *join,
       !(s->table->force_index && best_key && !s->quick) &&               // (4)
       !(best_key && s->table->pos_in_table_list->jtbm_subselect))        // (5)
   {                                             // Check full join
-    double rnd_records= matching_candidates_in_table(s, found_constraint,
-                                                      use_cond_selectivity);
+    double rnd_records;
     Range_rowid_filter_cost_info *filter= 0;
-    DBUG_ASSERT(rnd_records <= s->records);
+    double startup_cost= s->startup_cost;
 
     /*
       Range optimizer never proposes a RANGE if it isn't better
@@ -8475,11 +8501,22 @@ best_access_path(JOIN      *join,
       */
       tmp= COST_MULT(s->quick->read_time, record_count);
 
+      /*
+        Use record count from range optimizer.
+        This is done to make records found comparable to what we get with
+        'ref' access.
+      */
+      rnd_records= s->found_records;
+
       if (s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
       {
         uint key_no= s->quick->index;
-        double rows= record_count * s->found_records;
         TABLE::OPT_RANGE *range= &s->table->opt_range[key_no];
+        double rows= record_count * range->rows;
+
+        DBUG_ASSERT(range->rows == s->found_records);
+        DBUG_ASSERT(s->quick->read_time == range->cost);
+
         /*
           The difference in cost between doing a fetch of the index entry
           and doing a full row fetch.
@@ -8496,24 +8533,33 @@ best_access_path(JOIN      *join,
         s->table->best_range_rowid_filter_for_partial_join(key_no, rows,
                                                            access_cost_factor);
         if (filter)
-        {
-          tmp-= filter->get_adjusted_gain(rows);
-          DBUG_ASSERT(tmp >= 0);
-        }
+          filter= filter->apply_filter(thd, &tmp, &rnd_records,
+                                       &startup_cost,
+                                       range->fetch_cost,
+                                       range->index_only_cost,
+                                       record_count);
         type= JT_RANGE;
       }
       else
       {
         type= JT_INDEX_MERGE;
-        best_filter= 0;
       }
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
     else
     {
+      /* We will now calcualte cost of scan, with or without join buffer */
+      rnd_records= matching_candidates_in_table(s, found_constraint,
+                                                use_cond_selectivity);
+      DBUG_ASSERT(rnd_records <= s->records);
+
       /* Estimate cost of reading table. */
-      if (s->table->force_index && !best_key) // index scan
+      if (s->table->force_index && !best_key)
       {
+        /*
+          The query is using 'force_index' and we did not find a usable key.
+          Caclulcate cost of a table scan with the forced index.
+        */
         type= JT_NEXT;
         tmp= s->table->file->read_time(s->ref.key, 1, s->records);
       }
@@ -8578,22 +8624,14 @@ best_access_path(JOIN      *join,
                                          join_type_str[type]);
     /* Splitting technique cannot be used with join cache */
     if (s->table->is_splittable())
-      tmp+= s->table->get_materialization_cost();
+      tmp+= startup_cost= s->table->get_materialization_cost();
     else
-      tmp+= s->startup_cost;
+      tmp+= startup_cost;
 
-    /* Calculate the filter gain that is part of 'best_cost' */
-    best_filter_cmp_gain= (best_filter ?
-                           best_filter->get_cmp_gain(record_count * records) :
-                           0);
-    trace_access_scan.add("resulting_rows", rnd_records);
-    trace_access_scan.add("cost", tmp);
+    trace_access_scan.add("rows", rnd_records).add("cost", tmp).
+      add("startup_cost", startup_cost);
 
-    /* TODO: Document the following if */
-    if (best_cost == DBL_MAX ||
-        tmp <
-        (best_key->is_for_hash_join() ? best_cost :
-         COST_ADD(best_cost,-best_filter_cmp_gain)))
+    if (tmp < best_cost)
     {
       /*
         If the table has a range (s->quick is set) make_join_select()
