@@ -10623,6 +10623,8 @@ do_continue:;
   create_info->options|=HA_CREATE_TMP_ALTER;
   if (!(alter_info->flags & ALTER_ADD_INDEX) && !alter_ctx.modified_primary_key)
     create_info->options|= HA_SKIP_KEY_SORT;
+  else
+    alter_info->flags|= ALTER_INDEX_ORDER;
   create_info->alias= alter_ctx.table_name;
   error= create_table_impl(thd, alter_ctx.db, alter_ctx.table_name,
                            alter_ctx.new_db, alter_ctx.tmp_name,
@@ -10659,7 +10661,7 @@ do_continue:;
     */
 
     if (!(ha_alter_info.handler_flags &
-          ~(ALTER_COLUMN_ORDER | ALTER_RENAME_COLUMN)))
+          ~(ALTER_COLUMN_ORDER | ALTER_RENAME_COLUMN | ALTER_INDEX_ORDER)))
     {
       /*
         No-op ALTER, no need to call handler API functions.
@@ -10674,6 +10676,9 @@ do_continue:;
         Also note that we ignore the LOCK clause here.
 
         TODO don't create partitioning metadata in the first place
+
+        TODO: Now case-change index name is treated as noop which is not quite
+              correct.
       */
       table->file->ha_create_partitioning_metadata(alter_ctx.get_tmp_path(),
                                                    NULL, CHF_DELETE_FLAG);

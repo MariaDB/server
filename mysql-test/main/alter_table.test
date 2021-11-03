@@ -2609,5 +2609,17 @@ drop table t1;
 set @@default_storage_engine= @save_default_engine;
 
 --echo #
+--echo # MDEV-25555 Server crashes in tree_record_pos after INPLACE-recreating index on HEAP table
+--echo #
+create table t1 (a int, key idx1(a), key idx2 using btree(a)) engine=memory;
+alter table t1 rename index idx1 to idx3, algorithm=inplace;
+delete from t1 where a = 10;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 drop key idx3, add key idx1(a), algorithm=inplace;
+delete from t1 where a = 11;
+# cleanup
+drop table t1;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
