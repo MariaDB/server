@@ -470,6 +470,11 @@ public:
   TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
                                                   double records,
                                                   double access_cost_factor);
+  Range_rowid_filter_cost_info *
+    apply_filter(THD *thd, double *cost, double *records_arg,
+                 double *startup_cost,
+                 double fetch_cost, double index_only_cost,
+                 double record_count);
 };
 
 #endif /* ROWID_FILTER_INCLUDED */
