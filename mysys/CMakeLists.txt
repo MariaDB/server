@@ -18,7 +18,7 @@ INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOUR
 
 SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
                 get_password.c
-				errors.c hash.c list.c
+				errors.c hash.cc list.c
                                 mf_cache.c mf_dirname.c mf_fn_ext.c
 				mf_format.c mf_getdate.c mf_iocache.c mf_iocache2.c mf_keycache.c 
 				mf_keycaches.c mf_loadpath.c mf_pack.c mf_path.c mf_qsort.c mf_qsort2.c
@@ -104,6 +104,6 @@ ADD_EXECUTABLE(thr_timer thr_timer.c)
 TARGET_LINK_LIBRARIES(thr_timer mysys)
 SET_TARGET_PROPERTIES(thr_timer PROPERTIES COMPILE_FLAGS "-DMAIN")
 
-ADD_EXECUTABLE(test_hash hash.c)
+ADD_EXECUTABLE(test_hash hash.cc)
 TARGET_LINK_LIBRARIES(test_hash mysys)
 SET_TARGET_PROPERTIES(test_hash PROPERTIES COMPILE_FLAGS "-DMAIN")
