@@ -4435,9 +4435,30 @@ without_overlaps_err:
     my_message(ER_WRONG_AUTO_KEY, ER_THD(thd, ER_WRONG_AUTO_KEY), MYF(0));
     DBUG_RETURN(TRUE);
   }
-  /* Sort keys in optimized order */
-  my_qsort((uchar*) *key_info_buffer, *key_count, sizeof(KEY),
-	   (qsort_cmp) sort_keys);
+  /*
+    We cannot do qsort of key info if MyISAM/Aria does inplace. These engines
+    do not synchronise key info on inplace alter and that qsort is
+    indeterministic (MDEV-25803).
+
+    Yet we do not know whether we do inplace or not. That detection is done
+    after this create_table_impl() and that cannot be changed because of chicken
+    and egg problem (inplace processing requires key info made by
+    create_table_impl()).
+
+    MyISAM/Aria cannot add index inplace so we are safe to qsort key info in
+    that case. And if we don't add index then we do not need qsort at all.
+  */
+  if (!(create_info->options & HA_SKIP_KEY_SORT))
+  {
+    /*
+      Sort keys in optimized order.
+
+      Note: PK must be always first key, otherwise init_from_binary_frm_image()
+      can not understand it.
+    */
+    my_qsort((uchar*) *key_info_buffer, *key_count, sizeof(KEY),
+             (qsort_cmp) sort_keys);
+  }
   create_info->null_bits= null_fields;
 
   /* Check fields. */
@@ -8380,7 +8401,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   uint used_fields, dropped_sys_vers_fields= 0;
   KEY *key_info=table->key_info;
   bool rc= TRUE;
-  bool modified_primary_key= FALSE;
   bool vers_system_invisible= false;
   Create_field *def;
   Field **f_ptr,*field;
@@ -8804,6 +8824,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (key_info->flags & HA_INVISIBLE_KEY)
       continue;
     const char *key_name= key_info->name.str;
+    const bool primary_key= table->s->primary_key == i;
+    const bool explicit_pk= primary_key &&
+                            !my_strcasecmp(system_charset_info, key_name,
+                                           primary_key_name);
+    const bool implicit_pk= primary_key && !explicit_pk;
+
     Alter_drop *drop;
     drop_it.rewind();
     while ((drop=drop_it++))
@@ -8817,7 +8843,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (table->s->tmp_table == NO_TMP_TABLE)
       {
         (void) delete_statistics_for_index(thd, table, key_info, FALSE);
-        if (i == table->s->primary_key)
+        if (primary_key)
 	{
           KEY *tab_key_info= table->key_info;
 	  for (uint j=0; j < table->s->keys; j++, tab_key_info++)
@@ -8904,13 +8930,19 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (!cfield)
       {
-        if (table->s->primary_key == i)
-          modified_primary_key= TRUE;
+        if (primary_key)
+          alter_ctx->modified_primary_key= true;
         delete_index_stat= TRUE;
         if (!(kfield->flags & VERS_SYSTEM_FIELD))
           dropped_key_part= key_part_name;
 	continue;				// Field is removed
       }
+
+      DBUG_ASSERT(!primary_key || kfield->flags & NOT_NULL_FLAG);
+      if (implicit_pk && !alter_ctx->modified_primary_key &&
+          !(cfield->flags & NOT_NULL_FLAG))
+        alter_ctx->modified_primary_key= true;
+
       key_part_length= key_part->length;
       if (cfield->field)			// Not new field
       {
@@ -8959,7 +8991,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       if (delete_index_stat) 
         (void) delete_statistics_for_index(thd, table, key_info, FALSE);
-      else if (modified_primary_key &&
+      else if (alter_ctx->modified_primary_key &&
                key_info->user_defined_key_parts != key_info->ext_key_parts)
         (void) delete_statistics_for_index(thd, table, key_info, TRUE);
     }
@@ -9003,7 +9035,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         key_type= Key::SPATIAL;
       else if (key_info->flags & HA_NOSAME)
       {
-        if (! my_strcasecmp(system_charset_info, key_name, primary_key_name))
+        if (explicit_pk)
           key_type= Key::PRIMARY;
         else
           key_type= Key::UNIQUE;
@@ -10589,6 +10621,8 @@ do_continue:;
 
   tmp_disable_binlog(thd);
   create_info->options|=HA_CREATE_TMP_ALTER;
+  if (!(alter_info->flags & ALTER_ADD_INDEX) && !alter_ctx.modified_primary_key)
+    create_info->options|= HA_SKIP_KEY_SORT;
   create_info->alias= alter_ctx.table_name;
   error= create_table_impl(thd, alter_ctx.db, alter_ctx.table_name,
                            alter_ctx.new_db, alter_ctx.tmp_name,
