@@ -158,7 +158,7 @@ void close_thread_tables(THD* thd);
 
 #ifdef HAVE_URING
 /** The Linux kernel version if io_uring() is considered unsafe */
-static const char *io_uring_may_be_unsafe;
+const char *io_uring_may_be_unsafe;
 #endif
 
 #define INSIDE_HA_INNOBASE_CC
@@ -19393,9 +19393,10 @@ static MYSQL_SYSVAR_STR(version, innodb_version_str,
 #ifdef HAVE_URING
 # include <sys/utsname.h>
 static utsname uname_for_io_uring;
+#else
+static
 #endif
-
-static bool innodb_use_native_aio_default()
+bool innodb_use_native_aio_default()
 {
 #ifdef HAVE_URING
   utsname &u= uname_for_io_uring;
