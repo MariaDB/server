@@ -41,12 +41,21 @@ extern "C" {
 #define HASH_UNIQUE     1       /* hash_insert fails on duplicate key */
 #define HASH_THREAD_SPECIFIC 2  /* Mark allocated memory THREAD_SPECIFIC */
 
+
 typedef uint32 my_hash_value_type;
 typedef uchar *(*my_hash_get_key)(const uchar *,size_t*,my_bool);
 typedef my_hash_value_type (*my_hash_function)(CHARSET_INFO *,
                                                const uchar *, size_t);
+/**
+ * @param ci - not used, for my_hash_function signature compatibility
+ * @param p  - data
+ * @param sz - bytes count
+ */
+my_hash_value_type generic_hash_fnv1a(CHARSET_INFO *ci, const uchar *p, size_t sz);
+
 typedef void (*my_hash_free_key)(void *);
 typedef my_bool (*my_hash_walk_action)(void *,void *);
+
 
 typedef struct st_hash {
   size_t key_offset,key_length;		/* Length of key if const length */
