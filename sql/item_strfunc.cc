@@ -3552,10 +3552,12 @@ String *Item_func_set_collation::val_str(String *str)
 
 bool Item_func_set_collation::fix_length_and_dec()
 {
-  if (!my_charset_same(args[0]->collation.collation, m_set_collation))
+  if (agg_arg_charsets_for_string_result(collation, args, 1))
+    return true;
+  if (!my_charset_same(collation.collation, m_set_collation))
   {
     my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-             m_set_collation->name, args[0]->collation.collation->csname);
+             m_set_collation->name, collation.collation->csname);
     return TRUE;
   }
   collation.set(m_set_collation, DERIVATION_EXPLICIT,

@@ -4149,3 +4149,21 @@ c
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
+#
+SET NAMES utf8mb4;
+SELECT 1 COLLATE utf8mb4_general_ci;
+1 COLLATE utf8mb4_general_ci
+1
+SELECT 1 COLLATE utf8mb4_bin;
+1 COLLATE utf8mb4_bin
+1
+SELECT 1 COLLATE latin1_swedish_ci;
+ERROR 42000: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+#
+# End of 10.5 tests
+#
