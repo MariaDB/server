@@ -1161,7 +1161,7 @@ page_find_rec_with_heap_no(
 @return the last record, not delete-marked
 @retval infimum record if all records are delete-marked */
 const rec_t*
-page_find_rec_max_not_deleted(
+page_find_rec_last_not_deleted(
 	const page_t*	page);
 
 #endif /* !UNIV_INNOCHECKSUM */

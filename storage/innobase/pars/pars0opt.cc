@@ -356,6 +356,11 @@ opt_calc_index_goodness(
 	n_fields = dict_index_get_n_unique_in_tree(index);
 
 	for (j = 0; j < n_fields; j++) {
+		if (UNIV_UNLIKELY(index->fields[j].descending)) {
+			/* The internal InnoDB SQL parser does not
+			work with indexes that use DESC order. */
+			return 0;
+		}
 
 		col_no = dict_index_get_nth_col_no(index, j);
 
@@ -575,8 +580,7 @@ opt_search_plan_for_table(
 	best_index = index; /* Eliminate compiler warning */
 	best_goodness = 0;
 
-	/* should be do ... until ? comment by Jani */
-	while (index) {
+	do {
 		goodness = opt_calc_index_goodness(index, sel_node, i,
 						   index_plan, &last_op);
 		if (goodness > best_goodness) {
@@ -591,7 +595,7 @@ opt_search_plan_for_table(
 		}
 
 		dict_table_next_uncorrupted_index(index);
-	}
+	} while (index);
 
 	plan->index = best_index;
 

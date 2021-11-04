@@ -1411,7 +1411,7 @@ btr_cur_search_to_nth_level_func(
 # endif /* PAGE_CUR_LE_OR_EXTENDS */
 	    && info->last_hash_succ
 	    && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG)
-	    && !index->is_spatial() && !index->table->is_temporary()
+	    && index->is_btree() && !index->table->is_temporary()
 	    && btr_search_guess_on_hash(index, info, tuple, mode,
 					latch_mode, cursor,
 					ahi_latch, mtr)) {
@@ -1636,7 +1636,6 @@ retry_page_get:
 		case BTR_INSERT_OP:
 		case BTR_INSERT_IGNORE_UNIQUE_OP:
 			ut_ad(buf_mode == BUF_GET_IF_IN_POOL);
-			ut_ad(!dict_index_is_spatial(index));
 
 			if (ibuf_insert(IBUF_OP_INSERT, tuple, index,
 					page_id, zip_size, cursor->thr)) {
@@ -1649,7 +1648,6 @@ retry_page_get:
 
 		case BTR_DELMARK_OP:
 			ut_ad(buf_mode == BUF_GET_IF_IN_POOL);
-			ut_ad(!dict_index_is_spatial(index));
 
 			if (ibuf_insert(IBUF_OP_DELETE_MARK, tuple,
 					index, page_id, zip_size,
@@ -1664,7 +1662,7 @@ retry_page_get:
 
 		case BTR_DELETE_OP:
 			ut_ad(buf_mode == BUF_GET_IF_IN_POOL_OR_WATCH);
-			ut_ad(!dict_index_is_spatial(index));
+			ut_ad(index->is_btree());
 			auto& chain = buf_pool.page_hash.cell_get(
 				page_id.fold());
 
@@ -1959,9 +1957,8 @@ retry_page_get:
 				DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
 		}
 #ifdef BTR_CUR_HASH_ADAPT
-	} else if (height == 0 && btr_search_enabled
-		   && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG)
-		   && !dict_index_is_spatial(index)) {
+	} else if (height == 0 && index->is_btree() && btr_search_enabled
+		   && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG)) {
 		/* The adaptive hash index is only used when searching
 		for leaf pages (height==0), but not in r-trees.
 		We only need the byte prefix comparison for the purpose

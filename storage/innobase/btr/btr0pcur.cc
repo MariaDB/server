@@ -430,7 +430,7 @@ btr_pcur_restore_position(
 	rec_offs_init(offsets);
 	if (cursor->rel_pos == BTR_PCUR_ON
 	    && btr_pcur_is_on_user_rec(cursor)
-	    && !cmp_dtuple_rec(tuple, btr_pcur_get_rec(cursor),
+	    && !cmp_dtuple_rec(tuple, btr_pcur_get_rec(cursor), index,
 			       rec_get_offsets(btr_pcur_get_rec(cursor),
 					       index, offsets,
 					       index->n_core_fields,
