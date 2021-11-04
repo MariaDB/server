@@ -3260,7 +3260,7 @@ loop:
       free_block->page.set_state(BUF_BLOCK_FILE_PAGE);
       buf_unzip_LRU_add_block(free_block, FALSE);
       hash_lock.unlock();
-      buf_page_free_descriptor(&block->page);
+      buf_page_free_descriptor(reinterpret_cast<buf_page_t*>(block));
       block= free_block;
       buf_block_buf_fix_inc(block);
       mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);

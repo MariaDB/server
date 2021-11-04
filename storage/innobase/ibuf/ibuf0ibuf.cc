@@ -341,8 +341,6 @@ static buf_block_t *ibuf_tree_root_get(mtr_t *mtr)
 		page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO),
 		0, RW_SX_LATCH, mtr);
 
-	ut_ad(page_get_space_id(block->frame) == IBUF_SPACE_ID);
-	ut_ad(page_get_page_no(block->frame) == FSP_IBUF_TREE_ROOT_PAGE_NO);
 	ut_ad(ibuf.empty == page_is_empty(block->frame));
 
 	return block;

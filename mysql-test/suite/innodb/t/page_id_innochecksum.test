@@ -61,5 +61,9 @@ let SEARCH_PATTERN=page id mismatch;
 --source include/search_pattern_in_file.inc
 
 --remove_file $resultlog
+# prevent purge from crashing on page ID mismatch
+let $restart_parameters=--innodb-force-recovery=2;
 --source include/start_mysqld.inc
 drop table t1;
+let $restart_parameters=;
+--source include/restart_mysqld.inc
