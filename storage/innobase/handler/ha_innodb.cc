@@ -18880,11 +18880,6 @@ static MYSQL_SYSVAR_ENUM(flush_method, srv_file_flush_method,
   NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT),
   &innodb_flush_method_typelib);
 
-static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Force InnoDB to load metadata of corrupted table.",
-  NULL, NULL, FALSE);
-
 static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Path to InnoDB log files.", NULL, NULL, NULL);
@@ -19781,7 +19776,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_min_token_size),
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
-  MYSQL_SYSVAR(force_load_corrupted),
   MYSQL_SYSVAR(lock_wait_timeout),
   MYSQL_SYSVAR(deadlock_detect),
   MYSQL_SYSVAR(deadlock_report),
