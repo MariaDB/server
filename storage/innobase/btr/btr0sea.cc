@@ -796,7 +796,8 @@ btr_search_check_guess(
 	offsets = rec_get_offsets(rec, cursor->index, offsets,
 				  cursor->index->n_core_fields,
 				  n_unique, &heap);
-	cmp = cmp_dtuple_rec_with_match(tuple, rec, offsets, &match);
+	cmp = cmp_dtuple_rec_with_match(tuple, rec, cursor->index, offsets,
+					&match);
 
 	if (mode == PAGE_CUR_GE) {
 		if (cmp > 0) {
@@ -848,7 +849,7 @@ btr_search_check_guess(
 					  cursor->index->n_core_fields,
 					  n_unique, &heap);
 		cmp = cmp_dtuple_rec_with_match(
-			tuple, prev_rec, offsets, &match);
+			tuple, prev_rec, cursor->index, offsets, &match);
 		if (mode == PAGE_CUR_GE) {
 			success = cmp > 0;
 		} else {
@@ -872,7 +873,7 @@ btr_search_check_guess(
 					  cursor->index->n_core_fields,
 					  n_unique, &heap);
 		cmp = cmp_dtuple_rec_with_match(
-			tuple, next_rec, offsets, &match);
+			tuple, next_rec, cursor->index, offsets, &match);
 		if (mode == PAGE_CUR_LE) {
 			success = cmp < 0;
 			cursor->up_match = match;

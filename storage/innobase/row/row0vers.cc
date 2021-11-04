@@ -325,7 +325,7 @@ not_locked:
 
 		/* We check if entry and rec are identified in the alphabetical
 		ordering */
-		if (0 == cmp_dtuple_rec(entry, rec, offsets)) {
+		if (0 == cmp_dtuple_rec(entry, rec, index, offsets)) {
 			/* The delete marks of rec and prev_version should be
 			equal for rec to be in the state required by
 			prev_version */
@@ -343,7 +343,7 @@ not_locked:
 			dtuple_set_types_binary(
 				entry, dtuple_get_n_fields(entry));
 
-			if (0 != cmp_dtuple_rec(entry, rec, offsets)) {
+			if (cmp_dtuple_rec(entry, rec, index, offsets)) {
 
 				break;
 			}
@@ -730,7 +730,7 @@ row_vers_vc_matches_cluster(
 
 				/* The index field mismatch */
 				if (v_heap
-				    || cmp_dfield_dfield(field2, field1) != 0) {
+				    || cmp_dfield_dfield(field2, field1)) {
 					if (v_heap) {
 						dtuple_dup_v_fld(*vrow, v_heap);
 					}
@@ -833,6 +833,21 @@ row_vers_build_cur_vrow(
 	return(cur_vrow);
 }
 
+/** @return whether two data tuples are equal */
+static bool dtuple_coll_eq(const dtuple_t &tuple1, const dtuple_t &tuple2)
+{
+  ut_ad(tuple1.magic_n == DATA_TUPLE_MAGIC_N);
+  ut_ad(tuple2.magic_n == DATA_TUPLE_MAGIC_N);
+  ut_ad(dtuple_check_typed(&tuple1));
+  ut_ad(dtuple_check_typed(&tuple2));
+  ut_ad(tuple1.n_fields == tuple2.n_fields);
+
+  for (ulint i= 0; i < tuple1.n_fields; i++)
+    if (cmp_dfield_dfield(&tuple1.fields[i], &tuple2.fields[i]))
+      return false;
+  return true;
+}
+
 /** Finds out if a version of the record, where the version >= the current
 purge view, should have ientry as its secondary index entry. We check
 if there is any not delete marked version of the record where the trx
@@ -933,7 +948,7 @@ row_vers_old_has_index_entry(
 
 				entry = row_build_index_entry(
 					row, ext, index, heap);
-				if (entry && !dtuple_coll_cmp(ientry, entry)) {
+				if (entry && dtuple_coll_eq(*ientry, *entry)) {
 					goto unsafe_to_purge;
 				}
 			} else {
@@ -988,7 +1003,7 @@ row_vers_old_has_index_entry(
 			the clustered index record has already been updated to
 			a different binary value in a char field, but the
 			collation identifies the old and new value anyway! */
-			if (entry && !dtuple_coll_cmp(ientry, entry)) {
+			if (entry && dtuple_coll_eq(*ientry, *entry)) {
 unsafe_to_purge:
 				mem_heap_free(heap);
 
@@ -1086,7 +1101,7 @@ unsafe_to_purge:
 			a char field, but the collation identifies the old
 			and new value anyway! */
 
-			if (entry && !dtuple_coll_cmp(ientry, entry)) {
+			if (entry && dtuple_coll_eq(*ientry, *entry)) {
 				goto unsafe_to_purge;
 			}
 		}

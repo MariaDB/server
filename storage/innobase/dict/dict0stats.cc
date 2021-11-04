@@ -1123,7 +1123,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 
 	std::vector<index_field_stats_t> result;
 
-	ut_ad(!index->is_spatial());
+	ut_ad(index->is_btree());
 
 	n_cols = dict_index_get_n_unique(index);
 
@@ -1515,7 +1515,7 @@ dict_stats_update_transient(
 
 		ut_ad(!dict_index_is_ibuf(index));
 
-		if (index->type & (DICT_FTS | DICT_SPATIAL)) {
+		if (!index->is_btree()) {
 			continue;
 		}
 
@@ -2510,8 +2510,7 @@ static index_stats_t dict_stats_analyze_index(dict_index_t* index)
 	ut_ad(!index->table->stats_mutex_is_owner());
 	ut_ad(index->table->get_ref_count());
 
-	/* Disable update statistic for Rtree */
-	if (dict_index_is_spatial(index)) {
+	if (!index->is_btree()) {
 		DBUG_RETURN(result);
 	}
 
@@ -2869,9 +2868,7 @@ dict_stats_update_persistent(
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
 
-		ut_ad(!dict_index_is_ibuf(index));
-
-		if (index->type & (DICT_FTS | DICT_SPATIAL)) {
+		if (!index->is_btree()) {
 			continue;
 		}
 

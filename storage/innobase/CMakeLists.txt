@@ -204,7 +204,6 @@ SET(INNOBASE_SOURCES
 	include/que0types.h
 	include/read0types.h
 	include/rem0cmp.h
-	include/rem0cmp.ic
 	include/rem0rec.h
 	include/rem0rec.ic
 	include/rem0types.h
