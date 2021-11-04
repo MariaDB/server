@@ -1066,7 +1066,7 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	high_level_read_only = srv_read_only_mode
-		|| srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE
+		|| srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN
 		|| srv_sys_space.created_new_raw();
 
 	srv_started_redo = false;
@@ -1706,7 +1706,7 @@ file_checked:
 
 	if (!create_new_db) {
 		ut_ad(high_level_read_only
-		      || srv_force_recovery <= SRV_FORCE_NO_IBUF_MERGE);
+		      || srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
 
 		/* Validate a few system page types that were left
 		uninitialized before MySQL or MariaDB 5.5. */
@@ -1747,7 +1747,7 @@ file_checked:
 		should guarantee that there is at most one data
 		dictionary transaction active at a time. */
 		if (!high_level_read_only
-		    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+		    && srv_force_recovery <= SRV_FORCE_NO_TRX_UNDO) {
 			/* If the following call is ever removed, the
 			first-time ha_innobase::open() must hold (or
 			acquire and release) a table lock that
@@ -1761,7 +1761,7 @@ file_checked:
 			trx_rollback_recovered(false);
 		}
 
-		if (srv_force_recovery <= SRV_FORCE_NO_IBUF_MERGE) {
+		if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
 			/* The following call is necessary for the insert
 			buffer to work with multiple tablespaces. We must
 			know the mapping between space id's and .ibd file

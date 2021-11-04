@@ -1195,6 +1195,8 @@ void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
 #endif /* BTR_CUR_HASH_ADAPT */
 
 done:
+  ut_ad(page_id_t(page_get_space_id(block->frame),
+                  page_get_page_no(block->frame)) == block->page.id());
   memo_push(block, fix_type);
 }
 
