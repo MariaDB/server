@@ -92,9 +92,18 @@ public:
   bool on_end_array();
   void on_start_object();
   // on_end_object() is not needed.
-   
+
   bool on_add_str(const char *str, size_t num_bytes);
 
+  /*
+    Returns true if the helper is flushing its buffer and is probably
+    making calls back to its Json_writer. (The Json_writer uses this
+    function to avoid re-doing the processing that it has already done
+    before making a call to fmt_helper)
+  */
+  bool is_making_writer_calls() const { return state == DISABLED; }
+
+private:
   void flush_on_one_line();
   void disable_and_flush();
 };
@@ -188,8 +197,6 @@ class Json_writer
   bool named_item_expected() const;
 
   bool got_name;
-  bool is_on_fmt_helper_call;
-
 #endif
 
 public:
@@ -239,7 +246,6 @@ public:
   Json_writer() : 
 #ifndef NDEBUG
     got_name(false),
-    is_on_fmt_helper_call(false),
 #endif
     indent_level(0), document_start(true), element_started(false), 
     first_child(true)

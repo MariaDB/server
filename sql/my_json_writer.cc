@@ -37,19 +37,13 @@ void Json_writer::append_indent()
 inline void Json_writer::on_start_object()
 {
 #ifndef NDEBUG
-  if(!is_on_fmt_helper_call)
+  if(!fmt_helper.is_making_writer_calls())
   {
     DBUG_ASSERT(got_name == named_item_expected());
     named_items_expectation.push_back(true);
   }
-
-  bool was_on_fmt_helper_call= is_on_fmt_helper_call;
-  is_on_fmt_helper_call= true;
 #endif
   fmt_helper.on_start_object();
-#ifndef NDEBUG
-  is_on_fmt_helper_call= was_on_fmt_helper_call;
-#endif
 }
 
 void Json_writer::start_object()
@@ -71,21 +65,14 @@ void Json_writer::start_object()
 
 bool Json_writer::on_start_array()
 {
-#ifndef NDEBUG
-  bool was_on_fmt_helper_call= is_on_fmt_helper_call;
-  is_on_fmt_helper_call= true;
-#endif
   bool helped= fmt_helper.on_start_array();
-#ifndef NDEBUG
-  is_on_fmt_helper_call= was_on_fmt_helper_call;
-#endif
   return helped;
 }
 
 void Json_writer::start_array()
 {
 #ifndef NDEBUG
-  if(!is_on_fmt_helper_call)
+  if(!fmt_helper.is_making_writer_calls())
   {
     DBUG_ASSERT(got_name == named_item_expected());
     named_items_expectation.push_back(false);
@@ -156,7 +143,7 @@ Json_writer& Json_writer::add_member(const char *name, size_t len)
     output.append("\": ", 3);
   }
 #ifndef NDEBUG
-  if (!is_on_fmt_helper_call)
+  if (!fmt_helper.is_making_writer_calls())
     got_name= true;
 #endif
   return *this;
@@ -259,7 +246,8 @@ void Json_writer::add_unquoted_str(const char* str)
 
 void Json_writer::add_unquoted_str(const char* str, size_t len)
 {
-  DBUG_ASSERT(is_on_fmt_helper_call || got_name == named_item_expected());
+  DBUG_ASSERT(fmt_helper.is_making_writer_calls() ||
+              got_name == named_item_expected());
   if (on_add_str(str, len))
     return;
 
@@ -274,13 +262,8 @@ inline bool Json_writer::on_add_str(const char *str, size_t num_bytes)
 {
 #ifndef NDEBUG
   got_name= false;
-  bool was_on_fmt_helper_call= is_on_fmt_helper_call;
-  is_on_fmt_helper_call= true;
 #endif
   bool helped= fmt_helper.on_add_str(str, num_bytes);
-#ifndef NDEBUG
-  is_on_fmt_helper_call= was_on_fmt_helper_call;
-#endif
   return helped;
 }
 
@@ -296,7 +279,8 @@ void Json_writer::add_str(const char *str)
 
 void Json_writer::add_str(const char* str, size_t num_bytes)
 {
-  DBUG_ASSERT(is_on_fmt_helper_call || got_name == named_item_expected());
+  DBUG_ASSERT(fmt_helper.is_making_writer_calls() ||
+              got_name == named_item_expected());
   if (on_add_str(str, num_bytes))
     return;
 
