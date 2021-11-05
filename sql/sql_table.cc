@@ -7863,8 +7863,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
          thd->calloc(sizeof(void*) * table->s->keys)) == NULL)
     DBUG_RETURN(1);
 
-  create_info->option_list= merge_engine_table_options(table->s->option_list,
-                                        create_info->option_list, thd->mem_root);
+  if (merge_engine_options(table->s->option_list, create_info->option_list,
+                           &create_info->option_list, thd->mem_root))
+    DBUG_RETURN(1);
 
   /*
     First collect all fields from table which isn't in drop_list

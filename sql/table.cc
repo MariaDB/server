@@ -4244,6 +4244,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       thd->restore_active_arena(&part_func_arena, &backup_arena);
       goto partititon_err;
     }
+    if (parse_engine_part_options(thd, outparam))
+      goto err;
     outparam->part_info->is_auto_partitioned= share->auto_partitioned;
     DBUG_PRINT("info", ("autopartitioned: %u", share->auto_partitioned));
     /* 

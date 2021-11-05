@@ -2716,6 +2716,7 @@ register_query_cache_dependant_tables(THD *thd,
     2) MAX_ROWS, MIN_ROWS on partition
     3) Index file name on partition
     4) Data file name on partition
+    5) Engine-defined attributes on partition
 */
 
 int ha_partition::set_up_table_before_create(TABLE *tbl,
@@ -2753,6 +2754,10 @@ int ha_partition::set_up_table_before_create(TABLE *tbl,
   if (info->connect_string.length)
     info->used_fields|= HA_CREATE_USED_CONNECTION;
   tbl->s->connect_string= part_elem->connect_string;
+  if (part_elem->option_list)
+    tbl->s->option_list= part_elem->option_list;
+  if (part_elem->option_struct)
+    tbl->s->option_struct= part_elem->option_struct;
   DBUG_RETURN(0);
 }
 
