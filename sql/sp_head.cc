@@ -3357,8 +3357,13 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     It's reset further in the common code part.
     It's merged with the saved parent's value at the exit of this func.
   */
-  bool parent_modified_non_trans_table= thd->transaction.stmt.modified_non_trans_table;
+  bool parent_modified_non_trans_table=
+    thd->transaction.stmt.modified_non_trans_table;
+  unsigned int parent_unsafe_rollback_flags=
+    thd->transaction.stmt.m_unsafe_rollback_flags;
   thd->transaction.stmt.modified_non_trans_table= FALSE;
+  thd->transaction.stmt.m_unsafe_rollback_flags= 0;
+
   DBUG_ASSERT(!thd->derived_tables);
   DBUG_ASSERT(thd->Item_change_list::is_empty());
   /*
@@ -3481,6 +3486,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     what is needed from the substatement gained
   */
   thd->transaction.stmt.modified_non_trans_table |= parent_modified_non_trans_table;
+  thd->transaction.stmt.m_unsafe_rollback_flags |= parent_unsafe_rollback_flags;
 
   TRANSACT_TRACKER(add_trx_state_from_thd(thd));
 
