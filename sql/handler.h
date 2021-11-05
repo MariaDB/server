@@ -3644,6 +3644,10 @@ public:
     table_share= share;
     reset_statistics();
   }
+
+  /*
+    Time for a full table scan of data file
+  */
   virtual double scan_time()
   {
     return ((ulonglong2double(stats.data_file_length) / stats.block_size + 2) *
@@ -4870,7 +4874,13 @@ protected:
     However, engines that implement read_range_XXX() (like MariaRocks)
     or embed other engines (like ha_partition) may need to call these also
   */
+  /*
+    Increment statistics. As a side effect increase accessed_rows_and_keys
+    and checks if lex->limit_rows_examined_cnt is reached
+  */
   inline void increment_statistics(ulong SSV::*offset) const;
+  /* Same as increment_statistics but doesn't increase accessed_rows_and_keys */
+  inline void fast_increment_statistics(ulong SSV::*offset) const;
   inline void decrement_statistics(ulong SSV::*offset) const;
 
 private:

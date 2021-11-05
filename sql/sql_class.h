@@ -3387,7 +3387,7 @@ public:
     Check if the number of rows accessed by a statement exceeded
     LIMIT ROWS EXAMINED. If so, signal the query engine to stop execution.
   */
-  void check_limit_rows_examined()
+  inline void check_limit_rows_examined()
   {
     if (++accessed_rows_and_keys > lex->limit_rows_examined_cnt)
       set_killed(ABORT_QUERY);
@@ -7360,6 +7360,11 @@ inline void handler::increment_statistics(ulong SSV::*offset) const
 {
   status_var_increment(table->in_use->status_var.*offset);
   table->in_use->check_limit_rows_examined();
+}
+
+inline void handler::fast_increment_statistics(ulong SSV::*offset) const
+{
+  status_var_increment(table->in_use->status_var.*offset);
 }
 
 inline void handler::decrement_statistics(ulong SSV::*offset) const
