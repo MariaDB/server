@@ -19,7 +19,15 @@
 #include "my_base.h"
 #include "sql_select.h"
 
+#ifdef JSON_WRITER_UNIT_TEST
+#include "sql_string.h"
 #include <vector>
+// Also, mock objects are defined in my_json_writer-t.cc
+#define VALIDITY_ASSERT(x) if ((!x)) this->invalid_json= true;
+#else
+#include "sql_select.h"
+#define VALIDITY_ASSERT(x) DBUG_ASSERT(x)
+#endif
 
 class Opt_trace_stmt;
 class Opt_trace_context;
@@ -96,9 +104,18 @@ public:
   bool on_end_array();
   void on_start_object();
   // on_end_object() is not needed.
-   
+
   bool on_add_str(const char *str, size_t num_bytes);
 
+  /*
+    Returns true if the helper is flushing its buffer and is probably
+    making calls back to its Json_writer. (The Json_writer uses this
+    function to avoid re-doing the processing that it has already done
+    before making a call to fmt_helper)
+  */
+  bool is_making_writer_calls() const { return state == DISABLED; }
+
+private:
   void flush_on_one_line();
   void disable_and_flush();
 };
@@ -186,14 +203,22 @@ private:
 class Json_writer
 {
 #ifndef NDEBUG
-
+  /*
+    In debug mode, Json_writer will fail and assertion if one attempts to
+    produce an invalid JSON document (e.g. JSON array having named elements).
+  */
   std::vector<bool> named_items_expectation;
 
   bool named_item_expected() const;
 
   bool got_name;
-  bool is_on_fmt_helper_call;
 
+#ifdef JSON_WRITER_UNIT_TEST
+public:
+  // When compiled for unit test, creating invalid JSON will set this to true
+  // instead of an assertion.
+  bool invalid_json= false;
+#endif
 #endif
 
 public:
@@ -243,7 +268,6 @@ public:
   Json_writer() : 
 #ifndef NDEBUG
     got_name(false),
-    is_on_fmt_helper_call(false),
 #endif
     indent_level(0), document_start(true), element_started(false), 
     first_child(true)
