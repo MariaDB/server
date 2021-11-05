@@ -39,7 +39,7 @@ inline void Json_writer::on_start_object()
 #ifndef NDEBUG
   if(!fmt_helper.is_making_writer_calls())
   {
-    DBUG_ASSERT(got_name == named_item_expected());
+    VALIDITY_ASSERT(got_name == named_item_expected());
     named_items_expectation.push_back(true);
   }
 #endif
@@ -74,7 +74,7 @@ void Json_writer::start_array()
 #ifndef NDEBUG
   if(!fmt_helper.is_making_writer_calls())
   {
-    DBUG_ASSERT(got_name == named_item_expected());
+    VALIDITY_ASSERT(got_name == named_item_expected());
     named_items_expectation.push_back(false);
     got_name= false;
   }
@@ -98,7 +98,7 @@ void Json_writer::end_object()
 {
 #ifndef NDEBUG
   named_items_expectation.pop_back();
-  DBUG_ASSERT(!got_name);
+  VALIDITY_ASSERT(!got_name);
   got_name= false;
 #endif
   indent_level-=INDENT_SIZE;
@@ -246,8 +246,8 @@ void Json_writer::add_unquoted_str(const char* str)
 
 void Json_writer::add_unquoted_str(const char* str, size_t len)
 {
-  DBUG_ASSERT(fmt_helper.is_making_writer_calls() ||
-              got_name == named_item_expected());
+  VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
+                  got_name == named_item_expected());
   if (on_add_str(str, len))
     return;
 
@@ -279,8 +279,8 @@ void Json_writer::add_str(const char *str)
 
 void Json_writer::add_str(const char* str, size_t num_bytes)
 {
-  DBUG_ASSERT(fmt_helper.is_making_writer_calls() ||
-              got_name == named_item_expected());
+  VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
+                  got_name == named_item_expected());
   if (on_add_str(str, num_bytes))
     return;
 

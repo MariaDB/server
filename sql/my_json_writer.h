@@ -16,7 +16,17 @@
 #ifndef JSON_WRITER_INCLUDED
 #define JSON_WRITER_INCLUDED
 #include "my_base.h"
+
+#ifdef JSON_WRITER_UNIT_TEST
+#include "sql_string.h"
+#include <vector>
+// Also, mock objects are defined in my_json_writer-t.cc
+#define VALIDITY_ASSERT(x) if ((!x)) this->invalid_json= true;
+#else
 #include "sql_select.h"
+#define VALIDITY_ASSERT(x) DBUG_ASSERT(x)
+#endif
+
 class Opt_trace_stmt;
 class Opt_trace_context;
 class Json_writer;
@@ -191,12 +201,22 @@ private:
 class Json_writer
 {
 #ifndef NDEBUG
-
+  /*
+    In debug mode, Json_writer will fail and assertion if one attempts to
+    produce an invalid JSON document (e.g. JSON array having named elements).
+  */
   std::vector<bool> named_items_expectation;
 
   bool named_item_expected() const;
 
   bool got_name;
+
+#ifdef JSON_WRITER_UNIT_TEST
+public:
+  // When compiled for unit test, creating invalid JSON will set this to true
+  // instead of an assertion.
+  bool invalid_json= false;
+#endif
 #endif
 
 public:
