@@ -6746,17 +6746,25 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
   check_result_t res;
 
   DEBUG_SYNC(thd, "handler_index_cond_check");
-  enum thd_kill_levels abort_at= h->has_rollback() ?
-    THD_ABORT_SOFTLY : THD_ABORT_ASAP;
-  if (thd_kill_level(thd) > abort_at)
-    return CHECK_ABORTED_BY_USER;
 
-  if (h->end_range && h->compare_key2(h->end_range) > 0)
+  enum thd_kill_levels killed= thd_kill_level(thd);
+  if (unlikely(killed != THD_IS_NOT_KILLED))
+  {
+    enum thd_kill_levels abort_at= (h->has_transactions() ?
+                                    THD_ABORT_SOFTLY :
+                                    THD_ABORT_ASAP);
+    if (killed > abort_at)
+      return CHECK_ABORTED_BY_USER;
+  }
+  if (unlikely(h->end_range) && h->compare_key2(h->end_range) > 0)
     return CHECK_OUT_OF_RANGE;
   h->increment_statistics(&SSV::ha_icp_attempts);
-  if ((res= h->pushed_idx_cond->val_int()? CHECK_POS : CHECK_NEG) ==
-      CHECK_POS)
-    h->increment_statistics(&SSV::ha_icp_match);
+  res= CHECK_NEG;
+  if  (h->pushed_idx_cond->val_int())
+  {
+    res= CHECK_POS;
+    h->fast_increment_statistics(&SSV::ha_icp_match);
+  }
   return res;
 }
 
@@ -6780,17 +6788,23 @@ check_result_t handler_rowid_filter_check(void *h_arg)
   {
     THD *thd= h->table->in_use;
     DEBUG_SYNC(thd, "handler_rowid_filter_check");
-    enum thd_kill_levels abort_at= h->has_transactions() ?
-      THD_ABORT_SOFTLY : THD_ABORT_ASAP;
-    if (thd_kill_level(thd) > abort_at)
-      return CHECK_ABORTED_BY_USER;
+
+    enum thd_kill_levels killed= thd_kill_level(thd);
+    if (unlikely(killed != THD_IS_NOT_KILLED))
+    {
+      enum thd_kill_levels abort_at= (h->has_transactions() ?
+                                      THD_ABORT_SOFTLY :
+                                      THD_ABORT_ASAP);
+      if (killed > abort_at)
+        return CHECK_ABORTED_BY_USER;
+    }
 
     if (h->end_range && h->compare_key2(h->end_range) > 0)
       return CHECK_OUT_OF_RANGE;
   }
 
   h->position(tab->record[0]);
-  return h->pushed_rowid_filter->check((char*)h->ref)? CHECK_POS: CHECK_NEG;
+  return h->pushed_rowid_filter->check((char*)h->ref) ? CHECK_POS: CHECK_NEG;
 }
 
 
