@@ -2,6 +2,7 @@
 #define PARTITION_ELEMENT_INCLUDED
 
 /* Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -126,6 +127,9 @@ public:
   bool empty;
   elem_type_enum type;
 
+  engine_option_value *option_list;      // create options for partition
+  ha_table_option_struct *option_struct; // structure with parsed options
+
   partition_element()
   : part_max_rows(0), part_min_rows(0), range_value(0),
     partition_name(NULL),
@@ -136,7 +140,8 @@ public:
     signed_flag(FALSE), max_value(FALSE),
     id(UINT_MAX32),
     empty(true),
-    type(CONVENTIONAL)
+    type(CONVENTIONAL),
+    option_list(NULL), option_struct(NULL)
   {}
   partition_element(partition_element *part_elem)
   : part_max_rows(part_elem->part_max_rows),
@@ -155,7 +160,9 @@ public:
     max_value(part_elem->max_value),
     id(part_elem->id),
     empty(part_elem->empty),
-    type(CONVENTIONAL)
+    type(CONVENTIONAL),
+    option_list(part_elem->option_list),
+    option_struct(part_elem->option_struct)
   {}
   ~partition_element() {}
 

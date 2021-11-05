@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -69,6 +69,7 @@
 #include "sql_select.h"
 #include "ddl_log.h"
 #include "tztime.h"                     // my_tz_OFFSET0
+#include "create_options.h"             // engine_option_value
 
 #include <algorithm>
 using std::max;
@@ -2205,7 +2206,7 @@ static int add_keyword_int(String *str, const char *keyword, longlong num)
   return err + str->append_longlong(num);
 }
 
-static int add_partition_options(String *str, partition_element *p_elem)
+static int add_server_part_options(String *str, partition_element *p_elem)
 {
   int err= 0;
 
@@ -2232,6 +2233,20 @@ static int add_partition_options(String *str, partition_element *p_elem)
   return err;
 }
 
+static int add_engine_part_options(String *str, partition_element *p_elem)
+{
+  engine_option_value *opt= p_elem->option_list;
+
+  for (; opt; opt= opt->next)
+  {
+    if (!opt->value.str)
+      continue;
+    if ((add_keyword_string(str, opt->name.str, opt->quoted_value,
+                                 opt->value.str)))
+      return 1;
+  }
+  return 0;
+}
 
 /*
   Find the given field's Create_field object using name of field
@@ -2655,7 +2670,10 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
             part_info->use_default_subpartitions)
         {
           if (show_partition_options)
-            err+= add_partition_options(&str, part_elem);
+          {
+            err+= add_server_part_options(&str, part_elem);
+            err+= add_engine_part_options(&str, part_elem);
+          }
         }
         else
         {
@@ -2669,7 +2687,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
             err+= append_identifier(thd, &str, part_elem->partition_name,
                                                strlen(part_elem->partition_name));
             if (show_partition_options)
-              err+= add_partition_options(&str, part_elem);
+              err+= add_server_part_options(&str, part_elem);
             if (j != (num_subparts-1))
               err+= str.append(STRING_WITH_LEN(",\n  "));
             else
