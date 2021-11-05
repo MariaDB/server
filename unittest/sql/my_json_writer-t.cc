@@ -105,7 +105,6 @@ int main(int args, char **argv)
     ok(w.invalid_json, "Named array in an array");
   }
 
-  // BAD:
   {
     Json_writer w;
     w.start_array();
@@ -113,7 +112,6 @@ int main(int args, char **argv)
     ok(w.invalid_json, "JSON object end of array");
   }
 
-  // BAD:
   {
     Json_writer w;
     w.start_object();
