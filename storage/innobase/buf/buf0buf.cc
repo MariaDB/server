@@ -219,7 +219,7 @@ buf_pool.LRU.
 
 The chains of free memory blocks (buf_pool.zip_free[]) are used by
 the buddy allocator (buf0buddy.cc) to keep track of currently unused
-memory blocks of size sizeof(buf_page_t)..srv_page_size / 2.  These
+memory blocks of size UNIV_PAGE_SIZE_MIN..srv_page_size / 2.  These
 blocks are inside the srv_page_size-sized memory blocks of type
 BUF_BLOCK_MEMORY that the buddy allocator requests from the buffer
 pool.  The buddy allocator is solely used for allocating control

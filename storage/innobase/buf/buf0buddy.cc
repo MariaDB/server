@@ -362,6 +362,7 @@ buf_buddy_block_free(void* buf)
 	ut_ad(bpage->in_zip_hash);
 	ut_d(bpage->in_zip_hash = false);
 	HASH_DELETE(buf_page_t, hash, &buf_pool.zip_hash, fold, bpage);
+	bpage->hash = nullptr;
 
 	ut_d(memset(buf, 0, srv_page_size));
 	MEM_UNDEFINED(buf, srv_page_size);
