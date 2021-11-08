@@ -110,7 +110,7 @@ int main(int args, char **argv)
     Json_writer w;
     w.start_array();
     w.end_object();
-    ok(!w.invalid_json, "BAD: not checked!");
+    ok(w.invalid_json, "JSON object end of array");
   }
 
   // BAD:
@@ -118,7 +118,7 @@ int main(int args, char **argv)
     Json_writer w;
     w.start_object();
     w.end_array();
-    ok(!w.invalid_json, "BAD: not checked!");
+    ok(w.invalid_json, "JSON array end of object");
   }
 
 
