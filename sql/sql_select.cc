@@ -17556,7 +17556,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 
   // Make empty record so random data is not written to disk
   empty_record(table);
-
+  table->status= STATUS_NO_RECORD;
   thd->mem_root= mem_root_save;
 
   DBUG_RETURN(table);
@@ -18557,6 +18557,7 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
       return TRUE;
     // Make empty record so random data is not written to disk
     empty_record(table);
+    table->status= STATUS_NO_RECORD;
   }
   if (open_tmp_table(table))
     return TRUE;
