@@ -1065,6 +1065,8 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
   }
 }
 
+static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
+                                    Virtual_column_info *vcol);
 
 /** Parse TABLE_SHARE::vcol_defs
 
@@ -1256,6 +1258,9 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       Virtual_column_info *v= new (mem_root) Virtual_column_info();
       field->vcol_info= v;
       field->vcol_info->expr= hash_item;
+      field->vcol_info->set_vcol_type(VCOL_USING_HASH);
+      if (fix_and_check_vcol_expr(thd, table, v))
+        goto end;
       key->user_defined_key_parts= key->ext_key_parts= key->usable_key_parts= 1;
       key->key_part+= parts;
 
