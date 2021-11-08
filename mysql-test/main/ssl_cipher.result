@@ -58,11 +58,8 @@ Ssl_cipher	AES256-SHA
 drop user mysqltest_1@localhost;
 # restart: --ssl-cipher=AES128-SHA
 connect  ssl_con,localhost,root,,,,,SSL;
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	AES128-SHA
-SHOW STATUS LIKE 'Ssl_cipher_list';
-Variable_name	Value
-Ssl_cipher_list	AES128-SHA
+SELECT VARIABLE_VALUE like '%AES128-SHA%' FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher_list';
+VARIABLE_VALUE like '%AES128-SHA%'
+1
 disconnect ssl_con;
 connection default;

@@ -139,9 +139,20 @@ MACRO (MYSQL_CHECK_SSL)
       SET(SSL_INTERNAL_INCLUDE_DIRS "")
       SET(SSL_DEFINES "-DHAVE_OPENSSL")
 
+      FOREACH(x INCLUDES LIBRARIES DEFINITIONS)
+        SET(SAVE_CMAKE_REQUIRED_${x} ${CMAKE_REQUIRED_${x}})
+      ENDFOREACH()
+
+      # Silence "deprecated in OpenSSL 3.0"
+      IF((NOT OPENSSL_VERSION) # 3.0 not determined by older cmake
+         OR NOT(OPENSSL_VERSION VERSION_LESS "3.0.0"))
+        SET(SSL_DEFINES "${SSL_DEFINES} -DOPENSSL_API_COMPAT=0x10100000L")
+        SET(CMAKE_REQUIRED_DEFINITIONS -DOPENSSL_API_COMPAT=0x10100000L)
+      ENDIF()
+
       SET(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
       SET(CMAKE_REQUIRED_LIBRARIES ${SSL_LIBRARIES})
-      SET(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
+
       CHECK_SYMBOL_EXISTS(ERR_remove_thread_state "openssl/err.h"
                           HAVE_ERR_remove_thread_state)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_ctr "openssl/evp.h"
@@ -150,8 +161,10 @@ MACRO (MYSQL_CHECK_SSL)
                           HAVE_EncryptAes128Gcm)
       CHECK_SYMBOL_EXISTS(X509_check_host "openssl/x509v3.h"
                           HAVE_X509_check_host)
-      SET(CMAKE_REQUIRED_INCLUDES)
-      SET(CMAKE_REQUIRED_LIBRARIES)
+
+      FOREACH(x INCLUDES LIBRARIES DEFINITIONS)
+        SET(CMAKE_REQUIRED_${x} ${SAVE_CMAKE_REQUIRED_${x}})
+      ENDFOREACH()
     ELSE()
       IF(WITH_SSL STREQUAL "system")
         MESSAGE(FATAL_ERROR "Cannot find appropriate system libraries for SSL. Use WITH_SSL=bundled to enable SSL support")
