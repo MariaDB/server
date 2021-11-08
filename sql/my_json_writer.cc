@@ -18,7 +18,7 @@
 #include "sql_string.h"
 #include "my_json_writer.h"
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
 bool Json_writer::named_item_expected() const
 {
   return named_items_expectation.size()
@@ -36,7 +36,7 @@ void Json_writer::append_indent()
 
 inline void Json_writer::on_start_object()
 {
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   if(!fmt_helper.is_making_writer_calls())
   {
     VALIDITY_ASSERT(got_name == named_item_expected());
@@ -58,20 +58,14 @@ void Json_writer::start_object()
   first_child=true;
   element_started= false;
   document_start= false;
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   got_name= false;
 #endif
 }
 
-bool Json_writer::on_start_array()
-{
-  bool helped= fmt_helper.on_start_array();
-  return helped;
-}
-
 void Json_writer::start_array()
 {
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   if(!fmt_helper.is_making_writer_calls())
   {
     VALIDITY_ASSERT(got_name == named_item_expected());
@@ -80,7 +74,7 @@ void Json_writer::start_array()
   }
 #endif
 
-  if (on_start_array())
+  if (fmt_helper.on_start_array())
     return;
 
   if (!element_started)
@@ -96,7 +90,8 @@ void Json_writer::start_array()
 
 void Json_writer::end_object()
 {
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  VALIDITY_ASSERT(named_item_expected());
   named_items_expectation.pop_back();
   VALIDITY_ASSERT(!got_name);
   got_name= false;
@@ -111,7 +106,8 @@ void Json_writer::end_object()
 
 void Json_writer::end_array()
 {
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  VALIDITY_ASSERT(!named_item_expected());
   named_items_expectation.pop_back();
   got_name= false;
 #endif
@@ -142,7 +138,7 @@ Json_writer& Json_writer::add_member(const char *name, size_t len)
     output.append(name, len);
     output.append("\": ", 3);
   }
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   if (!fmt_helper.is_making_writer_calls())
     got_name= true;
 #endif
@@ -260,7 +256,7 @@ void Json_writer::add_unquoted_str(const char* str, size_t len)
 
 inline bool Json_writer::on_add_str(const char *str, size_t num_bytes)
 {
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   got_name= false;
 #endif
   bool helped= fmt_helper.on_add_str(str, num_bytes);

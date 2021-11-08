@@ -17,9 +17,12 @@
 #define JSON_WRITER_INCLUDED
 #include "my_base.h"
 
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+#include <vector>
+#endif
+
 #ifdef JSON_WRITER_UNIT_TEST
 #include "sql_string.h"
-#include <vector>
 // Also, mock objects are defined in my_json_writer-t.cc
 #define VALIDITY_ASSERT(x) if ((!x)) this->invalid_json= true;
 #else
@@ -200,7 +203,7 @@ private:
 
 class Json_writer
 {
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   /*
     In debug mode, Json_writer will fail and assertion if one attempts to
     produce an invalid JSON document (e.g. JSON array having named elements).
@@ -244,7 +247,6 @@ private:
   void add_unquoted_str(const char* val, size_t len);
 
   bool on_add_str(const char *str, size_t num_bytes);
-  bool on_start_array();
   void on_start_object();
 
 public:
@@ -264,7 +266,7 @@ public:
   size_t get_truncated_bytes() { return output.get_truncated_bytes(); }
 
   Json_writer() : 
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
     got_name(false),
 #endif
     indent_level(0), document_start(true), element_started(false), 
