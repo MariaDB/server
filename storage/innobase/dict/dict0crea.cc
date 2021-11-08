@@ -654,7 +654,7 @@ dict_build_index_def_step(
 	index = node->index;
 
 	table = dict_table_open_on_name(
-		node->table_name, true, DICT_ERR_IGNORE_DROP);
+		node->table_name, true, DICT_ERR_IGNORE_TABLESPACE);
 
 	if (!table) {
 		return DB_TABLE_NOT_FOUND;

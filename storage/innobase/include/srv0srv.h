@@ -307,11 +307,6 @@ void innodb_wait_allow_writes();
 # define innodb_wait_allow_writes() do {} while (0)
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
-/* If this flag is TRUE, then we will load the indexes' (and tables') metadata
-even if they are marked as "corrupted". Mostly it is for DBA to process
-corrupted index and table */
-extern my_bool	srv_load_corrupted;
-
 /** Requested size in bytes */
 extern ulint		srv_buf_pool_size;
 /** Minimum pool size in bytes */

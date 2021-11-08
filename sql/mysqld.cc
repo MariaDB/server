@@ -5142,6 +5142,9 @@ static int init_server_components()
       MYSQL_COMPATIBILITY_OPTION("new"),
       MYSQL_COMPATIBILITY_OPTION("show_compatibility_56"),
 
+      /* The following options were removed in 10.6 */
+      MARIADB_REMOVED_OPTION("innodb-force-load-corrupted"),
+
       /* The following options were removed in 10.5 */
 #if defined(__linux__)
       MARIADB_REMOVED_OPTION("super-large-pages"),
