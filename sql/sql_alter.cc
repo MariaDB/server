@@ -259,7 +259,7 @@ Alter_table_ctx::Alter_table_ctx()
     db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
     new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str),
     fk_error_if_delete_row(false), fk_error_id(NULL),
-    fk_error_table(NULL)
+    fk_error_table(NULL), modified_primary_key(false)
 #ifdef DBUG_ASSERT_EXISTS
     , tmp_table(false)
 #endif
@@ -279,7 +279,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
     tables_opened(tables_opened_arg),
     new_db(*new_db_arg), new_name(*new_name_arg),
     fk_error_if_delete_row(false), fk_error_id(NULL),
-    fk_error_table(NULL)
+    fk_error_table(NULL), modified_primary_key(false)
 #ifdef DBUG_ASSERT_EXISTS
     , tmp_table(false)
 #endif

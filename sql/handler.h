@@ -479,6 +479,7 @@ enum chf_create_flags {
 #define HA_CREATE_TMP_ALTER     8U
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
+#define HA_SKIP_KEY_SORT        64U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -784,6 +785,13 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
    Change in index length such that it doesn't require index rebuild.
 */
 #define ALTER_COLUMN_INDEX_LENGTH            (1ULL << 60)
+
+/**
+  Indicate that index order might have been changed. Disables inplace algorithm
+  by default (not for InnoDB).
+*/
+#define ALTER_INDEX_ORDER                    (1ULL << 61)
+
 
 /*
   Flags set in partition_flags when altering partitions

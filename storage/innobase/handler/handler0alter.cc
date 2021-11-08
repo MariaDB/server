@@ -114,6 +114,7 @@ static const alter_table_operations INNOBASE_INPLACE_IGNORE
 	| ALTER_VIRTUAL_GCOL_EXPR
 	| ALTER_DROP_CHECK_CONSTRAINT
 	| ALTER_RENAME
+	| ALTER_INDEX_ORDER
 	| ALTER_COLUMN_INDEX_LENGTH
 	| ALTER_CHANGE_INDEX_COMMENT;
 
@@ -2454,7 +2455,8 @@ next_column:
 			   | ALTER_ADD_UNIQUE_INDEX
 		*/
 			   | ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX
-			   | ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX);
+			   | ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX
+			   | ALTER_INDEX_ORDER);
 		if (supports_instant) {
 			flags &= ~(ALTER_DROP_STORED_COLUMN
 #if 0 /* MDEV-17468: remove check_v_col_in_order() and fix the code */

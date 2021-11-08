@@ -12427,6 +12427,7 @@ my_core::enum_alter_inplace_result ha_rocksdb::check_if_supported_inplace_alter(
         ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
         ALTER_PARTITIONED |
         ALTER_ADD_UNIQUE_INDEX |
+        ALTER_INDEX_ORDER |
         ALTER_CHANGE_CREATE_OPTION)) {
     DBUG_RETURN(my_core::HA_ALTER_INPLACE_NOT_SUPPORTED);
   }
