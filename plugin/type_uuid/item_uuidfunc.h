@@ -27,25 +27,25 @@ protected:
   { return MY_UUID_BARE_STRING_LENGTH + with_dashes*MY_UUID_SEPARATORS; }
 public:
   Item_func_sys_guid(THD *thd): Item_str_func(thd), with_dashes(false) {}
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     collation.set(DTCollation_numeric());
     fix_char_length(uuid_len());
     return FALSE;
   }
-  bool const_item() const { return false; }
-  table_map used_tables() const { return RAND_TABLE_BIT; }
+  bool const_item() const override { return false; }
+  table_map used_tables() const override { return RAND_TABLE_BIT; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("sys_guid") };
     return name;
   }
   String *val_str(String *) override;
-  bool check_vcol_func_processor(void *arg)
+  bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_sys_guid>(thd, this); }
 };
 
@@ -60,7 +60,7 @@ public:
     return name;
   }
   bool val_native(THD *thd, Native *to) override;
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_uuid>(thd, this); }
 };
 
