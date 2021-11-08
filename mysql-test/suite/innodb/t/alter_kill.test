@@ -43,7 +43,7 @@ connection default;
 
 disconnect con1;
 
--- echo # Corrupt FIL_PAGE_OFFSET in bug16720368.ibd,
+-- echo # Corrupt FIL_PAGE_TYPE in bug16720368.ibd,
 -- echo # and recompute innodb_checksum_algorithm=crc32
 perl;
 do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
@@ -56,7 +56,7 @@ die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
 my $full_crc32 = unpack("N",substr($page,54,4)) & 0x10; # FIL_SPACE_FLAGS
 sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
 die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
-substr($page,4,4)=pack("N",0xc001cafe);
+substr($page,24,2)='42';
 my $polynomial = 0x82f63b78; # CRC-32C
 if ($full_crc32)
 {
@@ -86,7 +86,7 @@ INSERT INTO bug16720368_1 VALUES(1);
 -- echo # Shut down the server to uncorrupt the data.
 -- source include/shutdown_mysqld.inc
 
-# Uncorrupt the FIL_PAGE_OFFSET.
+# Uncorrupt the FIL_PAGE_TYPE.
 perl;
 do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 my $file = "$ENV{MYSQLD_DATADIR}/test/bug16720368.ibd";
@@ -98,7 +98,7 @@ die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
 my $full_crc32 = unpack("N",substr($page,54,4)) & 0x10; # FIL_SPACE_FLAGS
 sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
 die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
-substr($page,4,4)=pack("N",3);
+substr($page,24,2)=pack("H*","45BF");
 my $polynomial = 0x82f63b78; # CRC-32C
 if ($full_crc32)
 {

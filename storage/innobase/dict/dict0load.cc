@@ -145,10 +145,6 @@ dict_load_field_low(
 					for temporary storage */
 	const rec_t*	rec);		/*!< in: SYS_FIELDS record */
 
-/* If this flag is TRUE, then we will load the cluster index's (and tables')
-metadata even if it is marked as "corrupted". */
-my_bool     srv_load_corrupted;
-
 #ifdef UNIV_DEBUG
 /****************************************************************//**
 Compare the name of an index column.
@@ -1833,31 +1829,11 @@ dict_load_indexes(
 
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
 				  BTR_SEARCH_LEAF, &pcur, &mtr);
-	for (;;) {
+	while (btr_pcur_is_on_user_rec(&pcur)) {
 		dict_index_t*	index = NULL;
 		const char*	err_msg;
 
-		if (!btr_pcur_is_on_user_rec(&pcur)) {
-
-			/* We should allow the table to open even
-			without index when DICT_ERR_IGNORE_CORRUPT is set.
-			DICT_ERR_IGNORE_CORRUPT is currently only set
-			for drop table */
-			if (dict_table_get_first_index(table) == NULL
-			    && !(ignore_err & DICT_ERR_IGNORE_CORRUPT)) {
-				ib::warn() << "Cannot load table "
-					<< table->name
-					<< " because it has no indexes in"
-					" InnoDB internal data dictionary.";
-				error = DB_CORRUPTION;
-				goto func_exit;
-			}
-
-			break;
-		}
-
 		rec = btr_pcur_get_rec(&pcur);
-
 		if ((ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)
 		    && (rec_get_n_fields_old(rec)
 			== DICT_NUM_FIELDS__SYS_INDEXES
@@ -1882,27 +1858,11 @@ dict_load_indexes(
 		}
 
 		err_msg = dict_load_index_low(buf, heap, rec, TRUE, &index);
-		ut_ad((index == NULL && err_msg != NULL)
-		      || (index != NULL && err_msg == NULL));
+		ut_ad(!index == !!err_msg);
 
 		if (err_msg == dict_load_index_id_err) {
-			/* TABLE_ID mismatch means that we have
-			run out of index definitions for the table. */
-
-			if (dict_table_get_first_index(table) == NULL
-			    && !(ignore_err & DICT_ERR_IGNORE_CORRUPT)) {
-
-				ib::warn() << "Failed to load the"
-					" clustered index for table "
-					<< table->name
-					<< " because of TABLE_ID mismatch."
-					" Refusing to load the rest of the"
-					" indexes (if any) and the whole table"
-					" altogether.";
-				error = DB_CORRUPTION;
-				goto func_exit;
-			}
-
+			/* We have ran out of index definitions for
+			the table. */
 			break;
 		}
 
@@ -1914,7 +1874,7 @@ dict_load_indexes(
 			goto next_rec;
 		} else if (err_msg) {
 			ib::error() << err_msg;
-			if (ignore_err & DICT_ERR_IGNORE_CORRUPT) {
+			if (ignore_err & DICT_ERR_IGNORE_INDEX) {
 				goto next_rec;
 			}
 			error = DB_CORRUPTION;
@@ -1933,29 +1893,11 @@ dict_load_indexes(
 		ut_ad(!dict_index_is_online_ddl(index));
 
 		/* Check whether the index is corrupted */
-		if (index->is_corrupted()) {
-			ib::error() << "Index " << index->name
-				<< " of table " << table->name
-				<< " is corrupted";
-
-			if (!srv_load_corrupted
-			    && !(ignore_err & DICT_ERR_IGNORE_CORRUPT)
-			    && dict_index_is_clust(index)) {
-				dict_mem_index_free(index);
-
-				error = DB_INDEX_CORRUPT;
-				goto func_exit;
-			} else {
-				/* We will load the index if
-				1) srv_load_corrupted is TRUE
-				2) ignore_err is set with
-				DICT_ERR_IGNORE_CORRUPT
-				3) if the index corrupted is a secondary
-				index */
-				ib::info() << "Load corrupted index "
-					<< index->name
-					<< " of table " << table->name;
-			}
+		if (ignore_err != DICT_ERR_IGNORE_DROP
+		    && index->is_corrupted() && index->is_clust()) {
+			dict_mem_index_free(index);
+			error = DB_INDEX_CORRUPT;
+			goto func_exit;
 		}
 
 		if (index->type & DICT_FTS
@@ -1981,31 +1923,30 @@ dict_load_indexes(
 		} else if (index->page == FIL_NULL
 			   && table->is_readable()
 			   && (!(index->type & DICT_FTS))) {
+			if (ignore_err != DICT_ERR_IGNORE_DROP) {
+				ib::error_or_warn(!(ignore_err
+						    & DICT_ERR_IGNORE_INDEX))
+					<< "Index " << index->name
+					<< " for table " << table->name
+					<< " has been freed!";
+			}
 
-			ib::error() << "Trying to load index " << index->name
-				<< " for table " << table->name
-				<< ", but the index tree has been freed!";
-
-			if (ignore_err & DICT_ERR_IGNORE_INDEX_ROOT) {
-				/* If caller can tolerate this error,
-				we will continue to load the index and
-				let caller deal with this error. However
-				mark the index and table corrupted. We
-				only need to mark such in the index
-				dictionary cache for such metadata corruption,
-				since we would always be able to set it
-				when loading the dictionary cache */
-				index->table = table;
-				dict_set_corrupted_index_cache_only(index);
-
-				ib::info() << "Index is corrupt but forcing"
-					" load into data dictionary";
-			} else {
+			if (!(ignore_err & DICT_ERR_IGNORE_INDEX)) {
 corrupted:
 				dict_mem_index_free(index);
 				error = DB_CORRUPTION;
 				goto func_exit;
 			}
+			/* If caller can tolerate this error,
+			we will continue to load the index and
+			let caller deal with this error. However
+			mark the index and table corrupted. We
+			only need to mark such in the index
+			dictionary cache for such metadata corruption,
+			since we would always be able to set it
+			when loading the dictionary cache */
+			index->table = table;
+			dict_set_corrupted_index_cache_only(index);
 		} else if (!dict_index_is_clust(index)
 			   && NULL == dict_table_get_first_index(table)) {
 
@@ -2052,6 +1993,13 @@ corrupted:
 		}
 next_rec:
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
+	}
+
+	if (!dict_table_get_first_index(table)
+	    && !(ignore_err & DICT_ERR_IGNORE_INDEX)) {
+		ib::warn() << "No indexes found for table " << table->name;
+		error = DB_CORRUPTION;
+		goto func_exit;
 	}
 
 	ut_ad(table->fts_doc_id_index == NULL);
@@ -2225,7 +2173,7 @@ dict_load_tablespace(
 		return;
 	}
 
-	if (ignore_err == DICT_ERR_IGNORE_DROP) {
+	if (ignore_err >= DICT_ERR_IGNORE_TABLESPACE) {
 		table->file_unreadable = true;
 		return;
 	}
@@ -2388,32 +2336,31 @@ err_exit:
 	if (err == DB_INDEX_CORRUPT) {
 		/* Refuse to load the table if the table has a corrupted
 		cluster index */
-		if (!srv_load_corrupted) {
-
-			ib::error() << "Load table " << table->name
-				<< " failed, the table has"
-				" corrupted clustered indexes. Turn on"
-				" 'innodb_force_load_corrupted' to drop it";
-			dict_sys.remove(table);
-			table = NULL;
-			goto func_exit;
-		} else {
-			if (table->indexes.start->is_corrupted()) {
-				table->corrupted = true;
-			}
-		}
+		ut_ad(index_load_err != DICT_ERR_IGNORE_DROP);
+		ib::error() << "Refusing to load corrupted table "
+			    << table->name;
+evict:
+		dict_sys.remove(table);
+		table = NULL;
+		goto func_exit;
 	}
 
-	if (err == DB_SUCCESS && table->is_readable()) {
-		const auto root = dict_table_get_first_index(table)->page;
-
-		if (root >= table->space->get_size()) {
+	if (err != DB_SUCCESS || !table->is_readable()) {
+	} else if (dict_index_t* pk = dict_table_get_first_index(table)) {
+		ut_ad(pk->is_primary());
+		if (pk->is_corrupted()
+		    || pk->page >= table->space->get_size()) {
 corrupted:
 			table->corrupted = true;
 			table->file_unreadable = true;
 			err = DB_CORRUPTION;
+		} else if (table->space->id
+			   && ignore_err == DICT_ERR_IGNORE_DROP) {
+			/* Do not bother to load data from .ibd files
+			only to delete the .ibd files. */
+			goto corrupted;
 		} else {
-			const page_id_t page_id(table->space->id, root);
+			const page_id_t page_id{table->space->id, pk->page};
 			mtr.start();
 			buf_block_t* block = buf_page_get(
 				page_id, table->space->zip_size(),
@@ -2438,6 +2385,12 @@ corrupted:
 				err = btr_cur_instant_init(table);
 			}
 		}
+	} else {
+		ut_ad(ignore_err & DICT_ERR_IGNORE_INDEX);
+		if (ignore_err != DICT_ERR_IGNORE_DROP) {
+			err = DB_CORRUPTION;
+			goto evict;
+		}
 	}
 
 	/* Initialize table foreign_child value. Its value could be
@@ -2460,32 +2413,10 @@ corrupted:
 				<< " failed, the table has missing"
 				" foreign key indexes. Turn off"
 				" 'foreign_key_checks' and try again.";
-evict:
-			dict_sys.remove(table);
-			table = NULL;
+			goto evict;
 		} else {
 			dict_mem_table_fill_foreign_vcol_set(table);
 			table->fk_max_recusive_level = 0;
-		}
-	} else {
-		dict_index_t*   index;
-
-		/* Make sure that at least the clustered index was loaded.
-		Otherwise refuse to load the table */
-		index = dict_table_get_first_index(table);
-
-		if (!srv_force_recovery
-		    || !index
-		    || !index->is_primary()) {
-			ib::warn() << "Failed to load table " << table->name
-				   << ":" << err;
-			goto evict;
-		} else if (index->is_corrupted()
-			   && table->is_readable()) {
-			/* It is possible we force to load a corrupted
-			clustered index if srv_load_corrupted is set.
-			Mark the table as corrupted in this case */
-			table->corrupted = true;
 		}
 	}
 
