@@ -2257,8 +2257,7 @@ struct Table_scope_and_contents_source_st:
   bool fix_period_fields(THD *thd, Alter_info *alter_info);
   bool check_fields(THD *thd, Alter_info *alter_info,
                     const Lex_table_name &table_name,
-                    const Lex_table_name &db,
-                    int select_count= 0);
+                    const Lex_table_name &db);
   bool check_period_fields(THD *thd, Alter_info *alter_info);
 
   bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
@@ -2266,8 +2265,7 @@ struct Table_scope_and_contents_source_st:
 
   bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
                                 const Lex_table_name &table_name,
-                                const Lex_table_name &db,
-                                int select_count= 0);
+                                const Lex_table_name &db);
 
 };
 
