@@ -36,10 +36,9 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_plugin.cc
     service_wsrep.cc
   )
-  MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY EXPORT_SYMBOLS LINK_LIBRARIES wsrep-lib wsrep_api_v26)
+  SET(WSREP_LIB wsrep-lib wsrep_api_v26)
 ELSE()
-  ADD_LIBRARY(wsrep STATIC wsrep_dummy.cc)
-  ADD_DEPENDENCIES(wsrep GenError)
+  SET(WSREP_SOURCES wsrep_dummy.cc)
 ENDIF()
 
 INCLUDE_DIRECTORIES(
@@ -143,6 +142,7 @@ SET (SQL_SOURCE
                opt_split.cc
                rowid_filter.cc rowid_filter.h
                opt_trace.cc
+	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc backup.cc xa.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
@@ -180,10 +180,11 @@ DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql
   mysys mysys_ssl dbug strings vio pcre
   ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
+  ${WSREP_LIB}
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})
 
-FOREACH(se aria partition perfschema sql_sequence wsrep)
+FOREACH(se aria partition perfschema sql_sequence)
   # These engines are used directly in sql sources.
   IF(TARGET ${se})
     TARGET_LINK_LIBRARIES(sql ${se})
