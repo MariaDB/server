@@ -7208,7 +7208,8 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     ALTER_ADD_UNIQUE_INDEX |
     ALTER_DROP_UNIQUE_INDEX |
     ALTER_ADD_PK_INDEX |
-    ALTER_DROP_PK_INDEX;
+    ALTER_DROP_PK_INDEX |
+    ALTER_INDEX_ORDER;
 
   alter_table_operations inplace_offline_operations=
     ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE |

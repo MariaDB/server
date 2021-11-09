@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3579,11 +3579,13 @@ String *Item_func_set_collation::val_str(String *str)
 
 bool Item_func_set_collation::fix_length_and_dec()
 {
-  if (!my_charset_same(args[0]->collation.collation, m_set_collation))
+  if (agg_arg_charsets_for_string_result(collation, args, 1))
+    return true;
+  if (!my_charset_same(collation.collation, m_set_collation))
   {
     my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
              m_set_collation->coll_name.str,
-             args[0]->collation.collation->cs_name.str);
+             collation.collation->cs_name.str);
     return TRUE;
   }
   collation.set(m_set_collation, DERIVATION_EXPLICIT,

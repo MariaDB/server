@@ -1151,5 +1151,18 @@ SELECT CAST(_ucs2 0x0061D7000062 AS INT);
 SELECT CAST(_ucs2 0x0061E0030062 AS INT);
 
 --echo #
+--echo # MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
+--echo #
+
+SET NAMES utf8, collation_connection=ucs2_general_ci;
+SELECT 1 COLLATE ucs2_general_ci;
+SELECT 1 COLLATE ucs2_bin;
+SELECT HEX(1 COLLATE ucs2_general_ci);
+SELECT HEX(1 COLLATE ucs2_bin);
+--error ER_COLLATION_CHARSET_MISMATCH
+SELECT 1 COLLATE latin1_swedish_ci;
+SET NAMES utf8;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

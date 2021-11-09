@@ -5607,7 +5607,7 @@ void Item_func_like::print(String *str, enum_query_type query_type)
 longlong Item_func_like::val_int()
 {
   DBUG_ASSERT(fixed());
-  DBUG_ASSERT(escape != -1);
+  DBUG_ASSERT(escape != ESCAPE_NOT_INITIALIZED);
   String* res= args[0]->val_str(&cmp_value1);
   if (args[0]->null_value)
   {
@@ -5711,7 +5711,7 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
     return TRUE;
   }
 
-  IF_DBUG(*escape= -1,);
+  IF_DBUG(*escape= ESCAPE_NOT_INITIALIZED,);
 
   if (escape_item->const_item())
   {
