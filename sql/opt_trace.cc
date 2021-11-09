@@ -676,7 +676,7 @@ void print_final_join_order(JOIN *join)
 
   /* Write information about the resulting join */
   Json_writer_object obj(join->thd, "best_access_method");
-  obj.add("cost", join->best_read);
+  obj.add("rows", join->join_record_count).add("cost", join->best_read);
 }
 
 

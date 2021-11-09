@@ -3208,6 +3208,9 @@ LEX_CSTRING *handler::engine_name()
   by index 'keyno' of one range containing 'rows' key entries.
   If ranges == 0 then the function returns only the cost of copying
   those key entries into the engine buffers.
+
+ This function doesn't take in account into copying the key to record
+ (INDEX_COPY_COST) or comparing the key to the where clause (TIME_FOR_COMPARE)
 */
 
 double handler::keyread_time(uint index, uint ranges, ha_rows rows)
@@ -3220,8 +3223,19 @@ double handler::keyread_time(uint index, uint ranges, ha_rows rows)
   if (ranges)
   {
     uint keys_per_block= (uint) (stats.block_size*3/4/len+1);
-    ulonglong blocks= (rows+ keys_per_block- 1)/keys_per_block;
-    cost+= blocks;
+    /*
+      We let the cost grow slowly in proportion to number of rows to
+      promote indexes with less rows.
+      We do not calculate exact number of block reads as then index
+      only reads will be more costly than normal reads, especially
+      compared to InnoDB clustered keys.
+
+      KEYREAD_TIME_SETUP_COST is the cost of finding the first key in
+      the reange.  Finding the next one is usually a fast operation so we
+      don't count it here, it is taken into account in
+      ha_keyread_time()
+    */
+    cost+= (double) (rows / keys_per_block)*avg_io_cost() + IDX_LOOKUP_COST;
   }
   return cost;
 }

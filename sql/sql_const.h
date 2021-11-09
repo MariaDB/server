@@ -208,8 +208,21 @@
 #define TIME_FOR_COMPARE_IDX    20.0
 
 #define IDX_BLOCK_COPY_COST  ((double) 1 / TIME_FOR_COMPARE)
+/* Time for finding the first key in a key scan */
 #define IDX_LOOKUP_COST      ((double) 1 / 8)
 #define MULTI_RANGE_READ_SETUP_COST (IDX_BLOCK_COPY_COST/10)
+/* Extra cost for full table scan. Used to prefer range scans over table scans */
+#define TABLE_SCAN_SETUP_COST 2.0
+/* cost of finding the next row and copying it to record for table scans */
+#define RECORD_COPY_COST     ((double) 1.0 / 40.0)
+/* cost of finding the next key and copying it to record for index scans */
+#define INDEX_COPY_COST     ((double) 1.0 / 80.0)
+/*
+  Cost of finding the next index entry and checking it against filter
+  This cost is very low as it's done inside the storage engine.
+ */
+#define INDEX_NEXT_FIND_COST ((double) 1.0 / 100.0)
+
 /*
   The lower bound of accepted rows when using filter.
   This is used to ensure that filters are not too agressive.

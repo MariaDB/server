@@ -22,14 +22,17 @@
 #include "sql_select.h"
 #include "opt_trace.h"
 
+/*
+  INDEX_NEXT_FIND_COST below is the cost of finding the next possible key
+  and calling handler_rowid_filter_check() to check it against the filter
+*/
 
 double Range_rowid_filter_cost_info::
 lookup_cost(Rowid_filter_container_type cont_type)
 {
   switch (cont_type) {
   case SORTED_ARRAY_CONTAINER:
-    /* The addition is here to take care of arrays with 1 element */
-    return log(est_elements)*0.01+0.001;
+    return log(est_elements)*0.01+INDEX_NEXT_FIND_COST;
   default:
     DBUG_ASSERT(0);
     return 0;
@@ -139,10 +142,10 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
 double
 Range_rowid_filter_cost_info::build_cost(Rowid_filter_container_type cont_type)
 {
-  double cost= 0;
+  double cost;
   DBUG_ASSERT(table->opt_range_keys.is_set(key_no));
 
-  cost+= table->opt_range[key_no].index_only_cost;
+  cost= table->opt_range[key_no].index_only_fetch_cost();
 
   switch (cont_type) {
 

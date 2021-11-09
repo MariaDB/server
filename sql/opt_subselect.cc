@@ -1444,9 +1444,9 @@ void get_delayed_table_estimates(TABLE *table,
   /* Calculate cost of scanning the temptable */
   double data_size= COST_MULT(item->jtbm_record_count,
                               hash_sj_engine->tmp_table->s->reclength);
-  /* Do like in handler::scan_time() */
+  /* Do like in handler::ha_scan_time() */
   *scan_time= ((data_size/table->file->stats.block_size+2) *
-               table->file->avg_io_cost());
+               table->file->avg_io_cost()) + *out_rows * RECORD_COPY_COST;
 }
 
 
