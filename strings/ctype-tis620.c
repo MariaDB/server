@@ -605,8 +605,8 @@ my_strnxfrm_tis620(CHARSET_INFO *cs,
                    const uchar *src, size_t srclen, uint flags)
 {
   size_t len, dstlen0= dstlen;
-  len= (uint) (strmake((char*) dst, (char*) src, MY_MIN(dstlen, srclen)) -
-	               (char*) dst);
+  len= MY_MIN(dstlen, srclen);
+  memcpy(dst, src, len);
   len= thai2sortable(dst, len);
   set_if_smaller(dstlen, nweights);
   set_if_smaller(len, dstlen); 
@@ -628,8 +628,8 @@ my_strnxfrm_tis620_nopad(CHARSET_INFO *cs,
                          const uchar *src, size_t srclen, uint flags)
 {
   size_t len, dstlen0= dstlen;
-  len= (uint) (strmake((char*) dst, (char*) src, MY_MIN(dstlen, srclen)) -
-	               (char*) dst);
+  len= MY_MIN(dstlen, srclen);
+  memcpy(dst, src, len);
   len= thai2sortable(dst, len);
   set_if_smaller(dstlen, nweights);
   set_if_smaller(len, dstlen);

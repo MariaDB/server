@@ -6843,6 +6843,19 @@ public:
 
 
 /*
+  fix_escape_item() sets the out "escape" parameter to:
+  - native code in case of an 8bit character set
+  - Unicode code point in case of a multi-byte character set
+
+  The value meaning a not-initialized ESCAPE character must not be equal to
+  any valid value, so must be outside of these ranges:
+  - -128..+127, not to conflict with a valid 8bit charcter
+  - 0..0x10FFFF, not to conflict with a valid Unicode code point
+  The exact value does not matter.
+*/
+#define ESCAPE_NOT_INITIALIZED -1000
+
+/*
   It's used in ::fix_fields() methods of LIKE and JSON_SEARCH
   functions to handle the ESCAPE parameter.
   This parameter is quite non-standard so the specific function.
