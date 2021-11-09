@@ -1977,7 +1977,9 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
 
   if (needs_thr_lock_abort)
   {
+    bool mutex_released= false;
     mysql_mutex_lock(&in_use->LOCK_thd_data);
+    mysql_mutex_lock(&in_use->LOCK_thd_kill);
     /* If not already dying */
     if (in_use->killed != KILL_CONNECTION_HARD)
     {
@@ -1993,18 +1995,25 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
           thread can see those instances (e.g. see partitioning code).
         */
         if (!thd_table->needs_reopen())
-        {
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-          if (WSREP(this) && wsrep_thd_is_BF(this, FALSE))
-          {
-            WSREP_DEBUG("remove_table_from_cache: %llu",
-                        (unsigned long long) this->real_id);
-            wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
-          }
-        }
       }
+#ifdef WITH_WSREP
+      if (WSREP(this) && wsrep_thd_is_BF(this, false))
+      {
+        WSREP_DEBUG("notify_shared_lock: BF thread %llu query %s"
+                    " victim %llu query %s",
+                    this->real_id, wsrep_thd_query(this),
+                    in_use->real_id, wsrep_thd_query(in_use));
+        wsrep_abort_thd((void *)this, (void *)in_use, false);
+        mutex_released= true;
+      }
+#endif /* WITH_WSREP */
     }
-    mysql_mutex_unlock(&in_use->LOCK_thd_data);
+    if (!mutex_released)
+    {
+      mysql_mutex_unlock(&in_use->LOCK_thd_kill);
+      mysql_mutex_unlock(&in_use->LOCK_thd_data);
+    }
   }
   DBUG_RETURN(signalled);
 }

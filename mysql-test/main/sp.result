@@ -8893,23 +8893,4 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 BEGIN
 RETURN '';
 END' at line 2
-SELECT VARIABLE_VALUE into @global_mem_used FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='MEMORY_USED';
-SELECT VARIABLE_VALUE into @local_mem_used FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='MEMORY_USED';
-CREATE PROCEDURE sp0() SELECT 1;
-SHOW CREATE PROCEDURE sp0;
-Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-sp0	STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` PROCEDURE `sp0`()
-SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
-DROP PROCEDURE sp0;
-SELECT VARIABLE_VALUE into @global_mem_used FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='MEMORY_USED';
-SELECT VARIABLE_VALUE into @local_mem_used FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='MEMORY_USED';
-CREATE PROCEDURE sp1() SELECT 1;
-SHOW CREATE PROCEDURE sp1;
-Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-sp1	STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` PROCEDURE `sp1`()
-SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
-SELECT VARIABLE_VALUE-@local_mem_used FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='MEMORY_USED';
-VARIABLE_VALUE-@local_mem_used
-0
-DROP PROCEDURE sp1;
 # End of 10.3 tests

@@ -1,0 +1,30 @@
+connection node_1;
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: TO isolation failed for: ");
+CREATE TABLE t2(a int not null auto_increment primary key, b int, key(b)) engine=innodb;
+INSERT INTO t2 values (NULL,1),(NULL,2),(NULL,3),(NULL,4),(NULL,5),(NULL,6);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+BEGIN;
+UPDATE t2 set b = b + 20 where b BETWEEN 2 and 5;;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1b;
+connection node_2;
+Killing server ...
+connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1c;
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+Got one of the listed errors
+Got one of the listed errors
+CREATE UNIQUE INDEX b2 ON t2(b);
+Got one of the listed errors
+connection node_1;
+disconnect node_1a;
+disconnect node_1b;
+disconnect node_1c;
+connection node_2;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+DROP TABLE t2;
+disconnect node_2;
+disconnect node_1;
