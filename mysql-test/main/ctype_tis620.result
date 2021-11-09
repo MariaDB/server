@@ -3057,6 +3057,7 @@ c1	tis620_thai_ci
 name	tis620_thai_ci
 SELECT GROUP_CONCAT(name ORDER BY binary c1 SEPARATOR ''), GROUP_CONCAT(hex(c1) ORDER BY BINARY c1) FROM v1 GROUP BY c1;
 GROUP_CONCAT(name ORDER BY binary c1 SEPARATOR '')	GROUP_CONCAT(hex(c1) ORDER BY BINARY c1)
+<00>	00
 <01>	01
 <02>	02
 <03>	03
@@ -3089,7 +3090,6 @@ GROUP_CONCAT(name ORDER BY binary c1 SEPARATOR '')	GROUP_CONCAT(hex(c1) ORDER BY
 <1E>	1E
 <1F>	1F
  	20
-<00>	00
 !	21
 "	22
 #	23
@@ -4460,6 +4460,15 @@ DROP TABLE t1;
 # End of ctype_pad.inc
 #
 SET DEFAULT_STORAGE_ENGINE=Default;
+#
+# MDEV-24901 SIGSEGV in fts_get_table_name, SIGSEGV in ib_vector_size, SIGSEGV in row_merge_fts_doc_tokenize, stack smashing
+#
+SELECT HEX(WEIGHT_STRING(_tis620 'a\0b'));
+HEX(WEIGHT_STRING(_tis620 'a\0b'))
+610062
+SELECT HEX(WEIGHT_STRING(_tis620 'a\0b' COLLATE tis620_thai_nopad_ci));
+HEX(WEIGHT_STRING(_tis620 'a\0b' COLLATE tis620_thai_nopad_ci))
+610062
 #
 # End of 10.2 tests
 #

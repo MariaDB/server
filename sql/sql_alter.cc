@@ -254,16 +254,8 @@ Alter_info::algorithm(const THD *thd) const
 
 
 Alter_table_ctx::Alter_table_ctx()
-  : implicit_default_value_error_field(NULL),
-    error_if_not_empty(false),
-    tables_opened(0),
-    db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
-    new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str),
-    storage_engine_partitioned(false),
-    tmp_storage_engine_name_partitioned(false),
-    fk_error_if_delete_row(false), fk_error_id(NULL),
-    fk_error_table(NULL),
-    tmp_table(false)
+  : db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
+    new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str)
 {
 }
 
@@ -276,13 +268,8 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
                                  uint tables_opened_arg,
                                  const LEX_CSTRING *new_db_arg,
                                  const LEX_CSTRING *new_name_arg)
-  : implicit_default_value_error_field(NULL), error_if_not_empty(false),
-    tables_opened(tables_opened_arg),
-    new_db(*new_db_arg), new_name(*new_name_arg),
-    tmp_storage_engine_name_partitioned(false),
-    fk_error_if_delete_row(false), fk_error_id(NULL),
-    fk_error_table(NULL),
-    tmp_table(false)
+  : tables_opened(tables_opened_arg),
+    new_db(*new_db_arg), new_name(*new_name_arg)
 {
   /*
     Assign members db, table_name, new_db and new_name
