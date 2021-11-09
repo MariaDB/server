@@ -4436,7 +4436,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   TABLE tmp_table;		// Used during 'Create_field()'
   TABLE_SHARE share;
   TABLE *table= 0;
-  uint select_field_count= items->elements;
+  alter_info->select_field_count= items->elements;
   /* Add selected items to field list */
   List_iterator_fast<Item> it(*items);
   Item *item;
@@ -4496,8 +4496,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
 
   if (create_info->check_fields(thd, alter_info,
                                 create_table->table_name,
-                                create_table->db,
-                                select_field_count))
+                                create_table->db))
     DBUG_RETURN(NULL);
 
   DEBUG_SYNC(thd,"create_table_select_before_create");
@@ -4533,7 +4532,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
                                   &create_table->db,
                                   &create_table->table_name,
                                   create_info, alter_info, NULL,
-                                  select_field_count, create_table))
+                                  C_ORDINARY_CREATE, create_table))
   {
     DEBUG_SYNC(thd,"create_table_select_before_open");
 

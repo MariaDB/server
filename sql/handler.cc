@@ -8167,7 +8167,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
         THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
-        const Lex_table_name &db, int select_count)
+        const Lex_table_name &db)
 {
   if (!(options & HA_VERSIONED_TABLE))
     return false;
@@ -8188,7 +8188,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
          SELECT go last there.
        */
       bool is_dup= false;
-      if (fieldnr >= alter_info->create_list.elements - select_count)
+      if (fieldnr >= alter_info->field_count())
       {
         List_iterator<Create_field> dup_it(alter_info->create_list);
         for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)
@@ -8596,10 +8596,9 @@ bool Table_period_info::check_field(const Create_field* f,
 
 bool Table_scope_and_contents_source_st::check_fields(
   THD *thd, Alter_info *alter_info,
-  const Lex_table_name &table_name, const Lex_table_name &db, int select_count)
+  const Lex_table_name &table_name, const Lex_table_name &db)
 {
-  return vers_check_system_fields(thd, alter_info,
-                                  table_name, db, select_count) ||
+  return vers_check_system_fields(thd, alter_info, table_name, db) ||
     check_period_fields(thd, alter_info);
 }
 
