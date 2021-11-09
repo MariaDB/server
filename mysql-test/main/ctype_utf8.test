@@ -2185,6 +2185,15 @@ DROP VIEW v1;
 SET NAMES utf8;
 
 --echo #
+--echo # MDEV-24335 Unexpected question mark in the end of a TINYTEXT column
+--echo #
+
+CREATE TABLE t1 (a TINYTEXT character set utf8);
+INSERT IGNORE INTO t1 VALUES (REPEAT(_utf8 0xD184, 250));
+SELECT LENGTH(a), CHAR_LENGTH(a), RIGHT(a,3) FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

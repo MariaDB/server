@@ -4,14 +4,14 @@ OPTIMIZER_TRACE	QUERY
 OPTIMIZER_TRACE	TRACE
 OPTIMIZER_TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE
 OPTIMIZER_TRACE	INSUFFICIENT_PRIVILEGES
-show variables like 'optimizer_trace';
-Variable_name	Value
-optimizer_trace	enabled=off
 set optimizer_trace="enabled=on";
 show variables like 'optimizer_trace';
 Variable_name	Value
 optimizer_trace	enabled=on
 set optimizer_trace="enabled=off";
+show variables like 'optimizer_trace';
+Variable_name	Value
+optimizer_trace	enabled=off
 create table t1 (a int, b int);
 insert into t1 values (1,2),(2,3);
 create table t2 (b int);

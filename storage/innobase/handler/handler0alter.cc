@@ -113,6 +113,7 @@ static const alter_table_operations INNOBASE_INPLACE_IGNORE
 	| ALTER_VIRTUAL_GCOL_EXPR
 	| ALTER_DROP_CHECK_CONSTRAINT
 	| ALTER_RENAME
+	| ALTER_INDEX_ORDER
 	| ALTER_COLUMN_INDEX_LENGTH
 	| ALTER_CHANGE_INDEX_COMMENT
 	| ALTER_INDEX_IGNORABILITY;
@@ -2461,7 +2462,8 @@ next_column:
 			   | ALTER_ADD_UNIQUE_INDEX
 		*/
 			   | ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX
-			   | ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX);
+			   | ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX
+			   | ALTER_INDEX_ORDER);
 		if (supports_instant) {
 			flags &= ~(ALTER_DROP_STORED_COLUMN
 #if 0 /* MDEV-17468: remove check_v_col_in_order() and fix the code */
@@ -8764,6 +8766,7 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
       ut_d(dict_table_check_for_dup_indexes(ctx->old_table, CHECK_ABORTED_OK));
     }
 
+    DEBUG_SYNC(ctx->trx->mysql_thd, "before_commit_rollback_inplace");
     commit_unlock_and_unlink(ctx->trx);
     if (fts_exist)
       purge_sys.resume_FTS();

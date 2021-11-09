@@ -1010,6 +1010,7 @@ buf_LRU_block_free_non_file_page(
 	ut_ad(!block->page.in_free_list);
 	ut_ad(!block->page.oldest_modification());
 	ut_ad(!block->page.in_LRU_list);
+	ut_ad(!block->page.hash);
 
 	block->page.set_state(BUF_BLOCK_NOT_USED);
 

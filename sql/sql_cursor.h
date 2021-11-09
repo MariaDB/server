@@ -39,7 +39,7 @@ class JOIN;
   its base class.
 */
 
-class Server_side_cursor: protected Query_arena, public Sql_alloc
+class Server_side_cursor: protected Query_arena
 {
 protected:
   /** Row destination used for fetch */
@@ -61,6 +61,8 @@ public:
   }
   virtual ~Server_side_cursor();
 
+  static void *operator new(size_t size, MEM_ROOT *mem_root)
+  { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr, size_t size);
   static void operator delete(void *, MEM_ROOT *){}
 };

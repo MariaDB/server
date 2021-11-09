@@ -2099,3 +2099,16 @@ aria_page_checksum=$default_checksum,
 aria_log_file_size=$default_log_file_size;
 --enable_result_log
 --enable_query_log
+
+--echo #
+--echo # MDEV-22284 Aria table key read crash because wrong index used
+--echo #
+create table t1 (
+    a int auto_increment,
+    b int, c int,
+    key(c, a), unique(b)
+) engine aria
+partition by hash (b);
+replace into t1 values (1, 0, 0), (2, 0, 0), (0, 0, 0);
+# cleanup
+drop table t1;
