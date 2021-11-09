@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -9069,6 +9069,18 @@ static
 void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
 {
   uint error;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    WSREP_DEBUG("sql_kill called");
+    if (thd->wsrep_applier)
+    {
+      WSREP_DEBUG("KILL in applying, bailing out here");
+      return;
+    }
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  }
+#endif /* WITH_WSREP */
   if (!(error= kill_one_thread(thd, id, state, type)))
   {
     if (!thd->killed)
@@ -9078,6 +9090,13 @@ void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
   }
   else
     my_error(error, MYF(0), id);
+#ifdef WITH_WSREP
+  return;
+ wsrep_error_label:
+  error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
+                                    ER_KILL_DENIED_ERROR);
+  my_error(error, MYF(0), id);
+#endif /* WITH_WSREP */
 }
 
 
@@ -9086,6 +9105,18 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    WSREP_DEBUG("sql_kill_user called");
+    if (thd->wsrep_applier)
+    {
+      WSREP_DEBUG("KILL in applying, bailing out here");
+      return;
+    }
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  }
+#endif /* WITH_WSREP */
   if (!(error= kill_threads_for_user(thd, user, state, &rows)))
     my_ok(thd, rows);
   else
@@ -9096,6 +9127,11 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     */
     my_error(error, MYF(0), user->host.str, user->user.str);
   }
+#ifdef WITH_WSREP
+  return;
+ wsrep_error_label:
+  my_error(ER_CANNOT_USER, MYF(0), user ? user->user.str : "NULL");
+#endif /* WITH_WSREP */
 }
 
 
