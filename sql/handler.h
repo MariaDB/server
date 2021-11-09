@@ -2890,17 +2890,6 @@ public:
            CPU_COEFF*idx_cpu_cost;
   }
 
-  /**
-    Whether or not all costs in the object are zero
-
-    @return true if all costs are zero, false otherwise
-  */
-  bool is_zero() const
-  {
-    return io_count == 0.0 && idx_io_count == 0.0 && cpu_cost == 0.0 &&
-      import_cost == 0.0 && mem_cost == 0.0 && comp_cost;
-  }
-
   void reset()
   {
     avg_io_cost= 1.0;
@@ -3634,17 +3623,8 @@ public:
   }
 
   /*
-     Time for a full table scan + fetching the rows from the table
-     The +1 here is to ensure that we prefer unique keys over table scans
-     for small tables
-  */
-  double ha_scan_time()
-  {
-    return scan_time() + (double) stats.records * RECORD_COPY_COST + 1;
-  }
-
-  /*
-    Time for a full table scan of data file
+    Time for a full table data scan. To be overrided by engines, should not
+    be used by the sql level.
   */
   virtual double scan_time()
   {
@@ -3652,10 +3632,24 @@ public:
             avg_io_cost());
   }
 
-  virtual double key_scan_time(uint index)
+  /*
+     Time for a full table scan + fetching the rows from the table
+  */
+  inline double ha_scan_time(ha_rows records)
   {
-    return keyread_time(index, 1, records());
+    return scan_time() + (double) records * RECORD_COPY_COST;
   }
+
+  /*
+     Time for a full table scan, fetching the rows from the table and comparing
+     the row with the where clause
+  */
+  inline double ha_scan_and_compare_time(ha_rows records)
+  {
+    return (scan_time() +
+            (double) records * (RECORD_COPY_COST + 1/TIME_FOR_COMPARE));
+  }
+
 
   virtual double avg_io_cost()
   {
@@ -3677,6 +3671,7 @@ public:
   virtual double read_time(uint index, uint ranges, ha_rows rows)
   { return rows2double(ranges+rows); }
 
+
   /**
     Calculate cost of 'keyread' scan for given index and number of records.
 
@@ -3685,6 +3680,31 @@ public:
      @param rows     #of records to read
   */
   virtual double keyread_time(uint index, uint ranges, ha_rows rows);
+
+  /*
+    Calculate cost of 'keyread' scan for given index and number of records
+    including fetching the key to the 'record' buffer.
+  */
+
+  inline double ha_keyread_time(uint index, uint ranges, ha_rows rows)
+  {
+    return keyread_time(index, ranges, rows) + (double) rows * INDEX_COPY_COST;
+  }
+
+  /* Cost of doing a full index scan */
+  inline double ha_key_scan_time(uint index)
+  {
+    return ha_keyread_time(index, 1, records());
+  }
+
+  /*
+    Time for a full table index scan (without copy or compare cost).
+    To be overrided by engines, sql level should use ha_key_scan_time().
+  */
+  virtual double key_scan_time(uint index)
+  {
+    return keyread_time(index, 1, records());
+  }
 
   virtual const key_map *keys_to_use_for_scanning() { return &key_map_empty; }
 

@@ -1356,16 +1356,31 @@ public:
     uint        key_parts;
     uint        ranges;
     ha_rows     rows;
-    /* Cost of fetching and comparing the row aginst the WHERE clause */
+    /*
+      The full cost of a using 'range'. Includes fetching the rows
+      trough keys and comparing the rows aginst the WHERE clause
+    */
     double      cost;
-    /* Cost of comparing row with WHERE clause. Included in 'cost' */
+    /*
+      Cost of feching the rows based on a rowids and comparing the rows with
+      WHERE clause. Included in 'cost'
+    */
     double      fetch_cost;
     /*
-      If there is a range access by i-th index then the cost of
-      index only access for it is stored in index_only_costs[i]
+      Cost of fetching the keys, not including copying the key to
+      record. Included in 'cost'. This is used with filtering.
     */
     double      index_only_cost;
     bool        first_key_part_has_only_one_value;
+
+    /*
+      Cost of fetching a keys with index only read and returning them to the
+      sql level.
+    */
+    double index_only_fetch_cost()
+    {
+      return index_only_cost + (double) rows * INDEX_COPY_COST;
+    }
   } *opt_range;
   /* 
      Bitmaps of key parts that =const for the duration of join execution. If

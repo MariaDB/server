@@ -309,11 +309,6 @@ typedef struct st_join_table {
   Table_access_tracker *tracker;
 
   Table_access_tracker *jbuf_tracker;
-  /* 
-    Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
-    column, or 0 if there is no info.
-  */
-  uint          packed_info;
 
   //  READ_RECORD::Setup_func materialize_table;
   READ_RECORD::Setup_func read_first_record;
@@ -357,7 +352,16 @@ typedef struct st_join_table {
     
   double        partial_join_cardinality;
 
+  /* set by estimate_scan_time() */
+  double        cached_scan_time;
+  double        cached_scan_and_compare_time;
+
   table_map	dependent,key_dependent;
+  /*
+    Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
+    column, or 0 if there is no info.
+  */
+  uint          packed_info;
   /*
      1 - use quick select
      2 - use "Range checked for each record"
@@ -370,6 +374,7 @@ typedef struct st_join_table {
   uint          index;
   uint		status;				///< Save status for cache
   uint		used_fields;
+  uint          cached_covering_key;            /* Set by estimate_scan_time() */
   ulong         used_fieldlength;
   ulong         max_used_fieldlength;
   uint          used_blobs;
@@ -637,7 +642,7 @@ typedef struct st_join_table {
   {
     return (is_hash_join_key_no(key) ? hj_key : table->key_info+key);
   }
-  double scan_time();
+  void estimate_scan_time();
   ha_rows get_examined_rows();
   bool preread_init();
 

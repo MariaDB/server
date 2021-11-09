@@ -310,10 +310,18 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     if (!is_clustering_key(keyno))
     {
       cost->idx_io_count= (double) io_blocks;
-      cost->idx_cpu_cost= (keyread_time(keyno, 0, total_rows) +
-                           n_ranges * IDX_LOOKUP_COST);
       if (!(*flags & HA_MRR_INDEX_ONLY))
+      {
+        cost->idx_cpu_cost= (keyread_time(keyno, 1, total_rows) +
+                             (n_ranges-1) * IDX_LOOKUP_COST);
         cost->cpu_cost= read_time(keyno, 0, total_rows);
+      }
+      else
+      {
+        /* Index only read */
+        cost->idx_cpu_cost= (ha_keyread_time(keyno, 1, total_rows) +
+                             (n_ranges-1) * IDX_LOOKUP_COST);
+      }
     }
     else
     {
@@ -399,11 +407,19 @@ ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
       index leaf blocks we have to read for finding n_rows.
     */
     cost->idx_io_count=  n_ranges;
-    cost->idx_cpu_cost= (keyread_time(keyno, 0, n_rows) +
-                         n_ranges * IDX_LOOKUP_COST);
     if (!(*flags & HA_MRR_INDEX_ONLY))
     {
+      cost->idx_cpu_cost= (keyread_time(keyno, 1, n_rows) +
+                           (n_ranges-1) * IDX_LOOKUP_COST);
       cost->cpu_cost= read_time(keyno, 0, n_rows);
+    }
+    else
+    {
+      /*
+        Same as above, but take into account copying the key to the upper level.
+      */
+      cost->idx_cpu_cost= (ha_keyread_time(keyno, 1, n_rows) +
+                           (n_ranges-1) * IDX_LOOKUP_COST);
     }
   }
   else
@@ -2012,7 +2028,7 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
     cost->mem_cost= (double)rows_in_last_step * elem_size;
   
   /* Total cost of all index accesses */
-  index_read_cost= primary_file->keyread_time(keynr, 1, rows);
+  index_read_cost= primary_file->ha_keyread_time(keynr, 1, rows);
   cost->add_io(index_read_cost, 1 /* Random seeks */);
   return FALSE;
 }

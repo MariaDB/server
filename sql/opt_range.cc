@@ -2675,7 +2675,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
                                   bool only_single_index_range_scan)
 {
   uint idx;
-  double scan_time;
   Item *notnull_cond= NULL;
   TABLE_READ_PLAN *best_trp= NULL;
   SEL_ARG **backup_keys= 0;
@@ -2701,20 +2700,25 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   notnull_cond= head->notnull_cond;
 
   if (head->force_index || force_quick_range)
-    scan_time= read_time= DBL_MAX;
+    read_time= DBL_MAX;
   else
   {
-    scan_time= rows2double(records) / TIME_FOR_COMPARE;
+    double cmp_time= rows2double(records) / TIME_FOR_COMPARE;
     /*
-      The 2 is there to prefer range scans to full table scans.
-      This is mainly to make the test suite happy as many tests has
-      very few rows. In real life tables has more than a few rows and the
-      +2 has no practical effect.
+      The TABLE_SCAN_SETUP_COST is there to prefer range scans to full
+      table scans.  This is mainly to make the test suite happy as
+      many tests has very few rows. In real life tables has more than
+      a few rows and the extra cost has no practical effect.
     */
-    read_time= (double) head->file->scan_time() + scan_time + 2;
-    if (limit < records && read_time < (double) records + scan_time + 1 )
+    read_time= ((double) head->file->ha_scan_time(records) + cmp_time +
+                TABLE_SCAN_SETUP_COST);
+    /*
+      The test for read_time is there only to not modify read_time if
+      ha_scan_time() returned a really big value
+    */
+    if (limit < records && read_time < (double) records + cmp_time + 1)
     {
-      read_time= (double) records + scan_time + 1; // Force to use index
+      read_time= (double) records + cmp_time + 1; // Force to use index
       notnull_cond= NULL;
     }
   }
@@ -2854,7 +2858,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     if (!force_quick_range && !head->covering_keys.is_clear_all())
     {
       int key_for_use= find_shortest_key(head, &head->covering_keys);
-      double key_read_time= (head->file->key_scan_time(key_for_use) +
+      double key_read_time= (head->file->ha_key_scan_time(key_for_use) +
                              rows2double(records) / TIME_FOR_COMPARE);
       DBUG_PRINT("info",  ("'all'+'using index' scan will be using key %d, "
                            "read time %g", key_for_use, key_read_time));
@@ -5878,7 +5882,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
       continue;
     }
 
-    cost= table->opt_range[(*index_scan)->keynr].index_only_cost;
+    cost= table->opt_range[(*index_scan)->keynr].index_only_fetch_cost();
 
     idx_scan.add("cost", cost);
 
@@ -6625,7 +6629,7 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
       bitmap_set_bit(&ror_scan->covered_fields, key_part->fieldnr-1);
   }
   ror_scan->index_read_cost=
-    param->table->file->keyread_time(ror_scan->keynr, 1, ror_scan->records);
+    param->table->file->ha_keyread_time(ror_scan->keynr, 1, ror_scan->records);
   DBUG_RETURN(ror_scan);
 }
 
@@ -6986,8 +6990,8 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
       each record of every scan. Assuming 1/TIME_FOR_COMPARE_ROWID
       per check this gives us:
     */
-    const double idx_cost= rows2double(info->index_records) /
-                              TIME_FOR_COMPARE_ROWID;
+    const double idx_cost= (rows2double(info->index_records) /
+                            TIME_FOR_COMPARE_ROWID);
     info->index_scan_costs+= idx_cost;
     trace_costs->add("index_scan_cost", idx_cost);
   }
@@ -7098,6 +7102,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
   uint idx;
   double min_cost= DBL_MAX;
   THD *thd= param->thd;
+  ha_rows best_rows;
   DBUG_ENTER("get_best_ror_intersect");
   DBUG_PRINT("enter", ("opt_range_condition_rows: %llu  cond_selectivity: %g",
                        (ulonglong) param->table->opt_range_condition_rows,
@@ -7215,7 +7220,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
       /* Local minimum found, save it */
       ror_intersect_cpy(intersect_best, intersect);
       intersect_scans_best= intersect_scans_end;
-      min_cost = intersect->total_cost;
+      min_cost= intersect->total_cost;
       trace_idx.add("chosen", true);
     }
     else
@@ -7254,6 +7259,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     if (ror_intersect_add(intersect, cpk_scan, &trace_cpk, TRUE) &&
         (intersect->total_cost < min_cost))
     {
+      min_cost= intersect->total_cost;
       trace_cpk.add("clustered_pk_scan_added_to_intersect", true)
                .add("cumulated_cost", intersect->total_cost);
       intersect_best= intersect; //just set pointer here
@@ -7274,6 +7280,14 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
   }
   trace_cpk.end();
 
+  /*
+    Adjust row count and add the cost of comparing the final rows to the
+    WHERE clause
+  */
+  best_rows= double2rows(intersect_best->out_rows);
+  set_if_bigger(best_rows, 1);
+  min_cost+= best_rows/TIME_FOR_COMPARE;
+
   /* Ok, return ROR-intersect plan if we have found one */
   TRP_ROR_INTERSECT *trp= NULL;
   if (min_cost < read_time && (cpk_scan || best_num > 1))
@@ -7287,11 +7301,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     memcpy(trp->first_scan, intersect_scans, best_num*sizeof(ROR_SCAN_INFO*));
     trp->last_scan=  trp->first_scan + best_num;
     trp->is_covering= intersect_best->is_covering;
-    trp->read_cost= intersect_best->total_cost;
-    /* Prevent divisons by zero */
-    ha_rows best_rows = double2rows(intersect_best->out_rows);
-    if (!best_rows)
-      best_rows= 1;
+    trp->read_cost= min_cost;
     set_if_smaller(param->table->opt_range_condition_rows, best_rows);
     trp->records= best_rows;
     trp->index_scan_costs= intersect_best->index_scan_costs;
@@ -7548,19 +7558,19 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                         for_range_access, &mrr_flags,
                                         &buf_size, &cost, &is_ror_scan);
 
-      if (!for_range_access && !is_ror_scan &&
-          !optimizer_flag(param->thd,OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
+      if (found_records == HA_POS_ERROR ||
+          (!for_range_access && !is_ror_scan &&
+           !optimizer_flag(param->thd,OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION)))
       {
         /* The scan is not a ROR-scan, just skip it */
         continue;
       }
-
-      if (found_records != HA_POS_ERROR && tree->index_scans &&
+      found_read_time= cost.total_cost();
+      if (tree->index_scans &&
           (index_scan= (INDEX_SCAN_INFO *)alloc_root(param->mem_root,
 						     sizeof(INDEX_SCAN_INFO))))
       {
         Json_writer_array trace_range(thd, "ranges");
-
         const KEY &cur_key= param->table->key_info[keynr];
         const KEY_PART_INFO *key_part= cur_key.key_part;
 
@@ -7581,15 +7591,14 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                  .add("using_mrr", !(mrr_flags & HA_MRR_USE_DEFAULT_IMPL))
                  .add("index_only", read_index_only)
                  .add("rows", found_records)
-                 .add("cost", cost.total_cost());
+                 .add("cost", found_read_time);
       }
-      if ((found_records != HA_POS_ERROR) && is_ror_scan)
+      if (is_ror_scan)
       {
         tree->n_ror_scans++;
         tree->ror_scans_map.set_bit(idx);
       }
-      if (found_records != HA_POS_ERROR &&
-          read_time > (found_read_time= cost.total_cost()))
+      if (read_time > found_read_time)
       {
         read_time=    found_read_time;
         best_records= found_records;
