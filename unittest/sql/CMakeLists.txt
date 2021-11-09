@@ -21,12 +21,10 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
                     ${CMAKE_SOURCE_DIR}/extra/yassl/include)
 
 IF(WIN32)
-  ADD_EXECUTABLE(explain_filename-t
-  explain_filename-t.cc
-  dummy_builtins.cc
-  ../../sql/nt_servc.cc)
+  ADD_EXECUTABLE(explain_filename-t explain_filename-t.cc
+                                    ../../sql/nt_servc.cc)
 ELSE()
-  ADD_EXECUTABLE(explain_filename-t explain_filename-t.cc  dummy_builtins.cc)
+  ADD_EXECUTABLE(explain_filename-t explain_filename-t.cc)
 ENDIF()
 
 TARGET_LINK_LIBRARIES(explain_filename-t sql mytap)
