@@ -24,7 +24,7 @@
 #ifdef JSON_WRITER_UNIT_TEST
 #include "sql_string.h"
 // Also, mock objects are defined in my_json_writer-t.cc
-#define VALIDITY_ASSERT(x) if ((!x)) this->invalid_json= true;
+#define VALIDITY_ASSERT(x) if (!(x)) this->invalid_json= true;
 #else
 #include "sql_select.h"
 #define VALIDITY_ASSERT(x) DBUG_ASSERT(x)
@@ -356,6 +356,9 @@ public:
 /* A common base for Json_writer_object and Json_writer_array */
 class Json_writer_struct
 {
+  Json_writer_struct(const Json_writer_struct&)= delete;
+  Json_writer_struct& operator=(const Json_writer_struct&)= delete;
+
 protected:
   Json_writer* my_writer;
   Json_value_helper context;
@@ -394,18 +397,15 @@ private:
     my_writer->add_member(name);
   }
 public:
-  explicit Json_writer_object(THD *thd)
-  : Json_writer_struct(thd)
-  {
-    if (unlikely(my_writer))
-      my_writer->start_object();
-  }
-
-  explicit Json_writer_object(THD* thd, const char *str)
+  explicit Json_writer_object(THD* thd, const char *str= nullptr)
     : Json_writer_struct(thd)
   {
     if (unlikely(my_writer))
-      my_writer->add_member(str).start_object();
+    {
+      if (str)
+        my_writer->add_member(str);
+      my_writer->start_object();
+    }
   }
 
   ~Json_writer_object()
