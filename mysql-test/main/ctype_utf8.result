@@ -11258,6 +11258,17 @@ DROP TABLE kv;
 DROP VIEW v1;
 SET NAMES utf8;
 #
+# MDEV-24335 Unexpected question mark in the end of a TINYTEXT column
+#
+CREATE TABLE t1 (a TINYTEXT character set utf8);
+INSERT IGNORE INTO t1 VALUES (REPEAT(_utf8 0xD184, 250));
+Warnings:
+Warning	1366	Incorrect string value: '\xD1\x84\xD1\x84\xD1\x84...' for column `test`.`t1`.`a` at row 1
+SELECT LENGTH(a), CHAR_LENGTH(a), RIGHT(a,3) FROM t1;
+LENGTH(a)	CHAR_LENGTH(a)	RIGHT(a,3)
+254	127	ффф
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #

@@ -384,3 +384,5 @@ SELECT * FROM t;
 DELETE FROM t;
 
 DROP TABLE t;
+
+--echo # End of 10.4 tests

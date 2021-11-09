@@ -596,17 +596,17 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `db_row_hash_2` (`db_row_hash_2`),
+  UNIQUE KEY `d` (`d`) USING HASH,
   UNIQUE KEY `e` (`e`),
-  UNIQUE KEY `a` (`a`),
-  UNIQUE KEY `d` (`d`) USING HASH
+  UNIQUE KEY `a` (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
 t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
 alter table t1 add column clm1 blob unique,add column clm2 blob unique;
 #try changing the name; 
 alter table t1 change column clm1 clm_changed1 blob, change column clm2 clm_changed2 blob;
@@ -1478,3 +1478,4 @@ SELECT t2.b FROM t1 JOIN t2 ON t1.d = t2.f WHERE t2.pk >= 20;
 b
 drop table t1,t2;
 set @@GLOBAL.max_allowed_packet= @allowed_packet;
+# End of 10.4 tests

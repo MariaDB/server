@@ -302,3 +302,4 @@ c
 1
 DELETE FROM t;
 DROP TABLE t;
+# End of 10.4 tests
