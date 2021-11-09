@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -91,10 +91,14 @@ extern "C" {
 #if defined(__WIN__)
 #include <conio.h>
 #else
-#include <readline.h>
-#if !defined(USE_LIBEDIT_INTERFACE)
-#include <history.h>
-#endif
+# ifdef __APPLE__
+#  include <editline/readline.h>
+# else
+#  include <readline.h>
+#  if !defined(USE_LIBEDIT_INTERFACE)
+#   include <history.h>
+#  endif
+# endif
 #define HAVE_READLINE
 #define USE_POPEN
 #endif

@@ -517,6 +517,7 @@ enum enum_vcol_info_type
 {
   VCOL_GENERATED_VIRTUAL, VCOL_GENERATED_STORED,
   VCOL_DEFAULT, VCOL_CHECK_FIELD, VCOL_CHECK_TABLE,
+  VCOL_USING_HASH,
   /* Additional types should be added here */
   /* Following is the highest value last   */
   VCOL_TYPE_NONE = 127 // Since the 0 value is already in use
@@ -534,6 +535,8 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
   case VCOL_CHECK_FIELD:
   case VCOL_CHECK_TABLE:
     return "CHECK";
+  case VCOL_USING_HASH:
+    return "USING HASH";
   case VCOL_TYPE_NONE:
     return "UNTYPED";
   }

@@ -1,0 +1,8 @@
+# Verify that compile-time default for optimizer trace is OFF (enabled=off).
+select
+global_value_origin,
+default_value
+from
+INFORMATION_SCHEMA.SYSTEM_VARIABLES where variable_name='optimizer_trace';
+global_value_origin	default_value
+COMPILE-TIME	enabled=off

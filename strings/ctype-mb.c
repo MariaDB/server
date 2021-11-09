@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -401,9 +401,9 @@ my_copy_fix_mb(CHARSET_INFO *cs,
   size_t well_formed_nchars;
   size_t well_formed_length;
   size_t fixed_length;
+  size_t min_length= MY_MIN(src_length, dst_length);
 
-  set_if_smaller(src_length, dst_length);
-  well_formed_nchars= my_ci_well_formed_char_length(cs, src, src + src_length,
+  well_formed_nchars= my_ci_well_formed_char_length(cs, src, src + min_length,
                                                         nchars, status);
   DBUG_ASSERT(well_formed_nchars <= nchars);
   well_formed_length= status->m_source_end_pos - src;
