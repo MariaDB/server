@@ -19,14 +19,14 @@
 #include "my_base.h"
 #include "sql_select.h"
 
-#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST) || defined(ENABLED_JSON_WRITER_CONSISTENCY_CHECKS)
 #include <vector>
 #endif
 
 #ifdef JSON_WRITER_UNIT_TEST
 #include "sql_string.h"
 // Also, mock objects are defined in my_json_writer-t.cc
-#define VALIDITY_ASSERT(x) if ((!x)) this->invalid_json= true;
+#define VALIDITY_ASSERT(x) if (!(x)) this->invalid_json= true;
 #else
 #include "sql_select.h"
 #define VALIDITY_ASSERT(x) DBUG_ASSERT(x)
@@ -358,6 +358,9 @@ public:
 /* A common base for Json_writer_object and Json_writer_array */
 class Json_writer_struct
 {
+  Json_writer_struct(const Json_writer_struct&)= delete;
+  Json_writer_struct& operator=(const Json_writer_struct&)= delete;
+
 #ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
   static thread_local std::vector<bool> named_items_expectation;
 #endif
@@ -418,24 +421,18 @@ private:
     my_writer->add_member(name);
   }
 public:
-  explicit Json_writer_object(THD *thd)
-  : Json_writer_struct(thd, true)
+  explicit Json_writer_object(THD* thd, const char *str= nullptr)
+    : Json_writer_struct(thd, true)
   {
 #ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
     DBUG_ASSERT(!named_item_expected());
 #endif
     if (unlikely(my_writer))
+    {
+      if (str)
+        my_writer->add_member(str);
       my_writer->start_object();
-  }
-
-  explicit Json_writer_object(THD* thd, const char *str)
-  : Json_writer_struct(thd, true)
-  {
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    DBUG_ASSERT(named_item_expected());
-#endif
-    if (unlikely(my_writer))
-      my_writer->add_member(str).start_object();
+    }
   }
 
   ~Json_writer_object()

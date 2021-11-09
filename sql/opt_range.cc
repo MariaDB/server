@@ -5132,9 +5132,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                              n_child_scans)))
     DBUG_RETURN(NULL);
 
-  Json_writer_object trace_best_disjunct = named_trace
-      ? Json_writer_object(thd, "best_disjunct_quick")
-      : Json_writer_object(thd);
+  const char* trace_best_disjunct_obj_name= named_trace ? "best_disjunct_quick" : nullptr;
+  Json_writer_object trace_best_disjunct(thd, trace_best_disjunct_obj_name);
   Json_writer_array to_merge(thd, "indexes_to_merge");
   /*
     Collect best 'range' scan for each of disjuncts, and, while doing so,
@@ -5678,7 +5677,7 @@ void print_keyparts(THD *thd, KEY *key, uint key_parts)
   DBUG_ASSERT(thd->trace_started());
 
   KEY_PART_INFO *part= key->key_part;
-  Json_writer_array keyparts= Json_writer_array(thd, "keyparts");
+  Json_writer_array keyparts(thd, "keyparts");
   for(uint i= 0; i < key_parts; i++, part++)
     keyparts.add(part->field->field_name);
 }
