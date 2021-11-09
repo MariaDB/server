@@ -1149,7 +1149,7 @@ row_upd_build_difference_binary(
 			dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
 				&vc.heap, heap, NULL, thd, mysql_table, record,
-				NULL, NULL, NULL);
+				NULL, NULL);
 			if (vfield == NULL) {
 				*error = DB_COMPUTE_VALUE_FAILED;
 				return(NULL);
@@ -2175,8 +2175,7 @@ row_upd_store_v_row(
 							node->row, col, index,
 							&vc.heap, node->heap,
 							NULL, thd, mysql_table,
-							record, NULL, NULL,
-							NULL);
+							record, NULL, NULL);
 					if (vfield == NULL) {
 						return false;
 					}

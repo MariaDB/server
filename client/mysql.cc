@@ -90,7 +90,11 @@ extern "C" {
 #if defined(__WIN__)
 #include <conio.h>
 #else
-#include <readline.h>
+# ifdef __APPLE__
+#  include <editline/readline.h>
+# else
+#  include <readline.h>
+# endif
 #define HAVE_READLINE
 #define USE_POPEN
 #endif
