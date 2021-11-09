@@ -993,6 +993,8 @@ buf_block_init(buf_block_t* block, byte* frame)
 
 	page_zip_des_init(&block->page.zip);
 
+	MEM_MAKE_DEFINED(&block->page.hash, sizeof block->page.hash);
+	ut_ad(!block->page.hash);
 	MEM_MAKE_DEFINED(&block->lock, sizeof block->lock);
 	block->lock.init();
 }
