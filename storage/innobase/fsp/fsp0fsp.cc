@@ -1709,18 +1709,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 	mtr->x_lock_space(space);
 	ut_d(space->modify_check(*mtr));
 
-	if (block) {
-		ut_ad(block->page.id().space() == space->id);
-
-		if (!space->full_crc32()) {
-			fil_block_check_type(*block, block->page.id()
-					     == page_id_t(TRX_SYS_SPACE,
-							  TRX_SYS_PAGE_NO)
-					     ? FIL_PAGE_TYPE_TRX_SYS
-					     : FIL_PAGE_TYPE_SYS,
-					     mtr);
-		}
-	}
+	ut_ad(!block || block->page.id().space() == space->id);
 
 	if (!has_done_reservation
 	    && !fsp_reserve_free_extents(&n_reserved, space, 2,
