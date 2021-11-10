@@ -62,34 +62,40 @@
 
 char *get_tty_password(const char *opt_message)
 {
-  char to[80];
-  char *pos=to,*end=to+sizeof(to)-1;
+  wchar_t wbuf[80];
+  char to[80*3]; /* there is at most 3 bytes per wchar, in any codepage */
+  wchar_t *pos=wbuf,*end=wbuf + array_elements(wbuf)-1;
   DBUG_ENTER("get_tty_password");
   _cputs(opt_message ? opt_message : "Enter password: ");
   for (;;)
   {
-    char tmp;
-    tmp=_getch();
-    if (tmp == '\b' || (int) tmp == 127)
+    int wc;
+    wc=_getwch();
+    if (wc == '\b' || wc == 127)
     {
-      if (pos != to)
+      if (pos != wbuf)
       {
-	_cputs("\b \b");
-	pos--;
-	continue;
+        _cputs("\b \b");
+        pos--;
+        continue;
       }
     }
-    if (tmp == '\n' || tmp == '\r' || tmp == 3)
+    if (wc == '\n' || wc == '\r' || wc == 3 || pos == end)
       break;
-    if (iscntrl(tmp) || pos == end)
+    if (iswcntrl(wc))
       continue;
-    _cputs("*");
-    *(pos++) = tmp;
+
+    /* Do not print '*' for half-unicode char(high surrogate)*/
+    if (wc < 0xD800 || wc > 0xDBFF)
+    {
+      _cputs("*");
+    }
+    *(pos++)= (wchar_t)wc;
   }
-  while (pos != to && isspace(pos[-1]) == ' ')
-    pos--;					/* Allow dummy space at end */
   *pos=0;
   _cputs("\n");
+  if (!WideCharToMultiByte(GetConsoleCP(), 0 , wbuf , -1 , to, sizeof(to), NULL, NULL))
+    to[0]=0;
   DBUG_RETURN(my_strdup(PSI_INSTRUMENT_ME, to,MYF(MY_FAE)));
 }
 
