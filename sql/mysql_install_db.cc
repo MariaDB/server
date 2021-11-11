@@ -21,6 +21,7 @@
 #include "mariadb.h"
 #include <my_getopt.h>
 #include <m_string.h>
+#include <password.h>
 
 #include <windows.h>
 #include <shellapi.h>
@@ -442,16 +443,14 @@ static int create_myini()
 }
 
 
-static const char update_root_passwd_part1[]=
+static constexpr const char* update_root_passwd=
   "UPDATE mysql.global_priv SET priv=json_set(priv,"
   "'$.password_last_changed', UNIX_TIMESTAMP(),"
   "'$.plugin','mysql_native_password',"
-  "'$.authentication_string',PASSWORD(";
-static const char update_root_passwd_part2[]=
-  ")) where User='root';\n";
-static const char remove_default_user_cmd[]=
+  "'$.authentication_string','%s') where User='root';\n";
+static constexpr char remove_default_user_cmd[]=
   "DELETE FROM mysql.user where User='';\n";
-static const char allow_remote_root_access_cmd[]=
+static constexpr char allow_remote_root_access_cmd[]=
   "CREATE TEMPORARY TABLE tmp_user LIKE global_priv;\n"
   "INSERT INTO tmp_user SELECT * from global_priv where user='root' "
     " AND host='localhost';\n"
@@ -532,9 +531,11 @@ static int handle_user_privileges(const char *account_name, const wchar_t *privi
 
 /* Register service. Assume my.ini is in datadir */
 
-static int register_service(const char *datadir, const char *user, const char *passwd)
+static int register_service(const char *datadir, const char *user)
 {
-  char buf[3*MAX_PATH +32]; /* path to mysqld.exe, to my.ini, service name */
+#define MAX_SERVICE_STRING_LEN 3 * MAX_PATH + 32
+  char buf[MAX_SERVICE_STRING_LEN]; /* path to mysqld.exe, to my.ini, service name */
+
   SC_HANDLE sc_manager, sc_service;
 
   size_t datadir_len= strlen(datadir);
@@ -555,10 +556,17 @@ static int register_service(const char *datadir, const char *user, const char *p
     die("OpenSCManager failed (%u)\n", GetLastError());
   }
 
+  /* Windows bug with utf8 ANSI codepage - CreateServiceA is not really UTF8. */
+  wchar_t wbuf[MAX_SERVICE_STRING_LEN];
+  MultiByteToWideChar(CP_ACP, 0, buf, -1, wbuf, MAX_SERVICE_STRING_LEN);
+  wchar_t wservice[2 * MAX_PATH];
+  MultiByteToWideChar(CP_ACP, 0, opt_service, -1, wservice, MAX_PATH);
+  wchar_t wuser[MAX_PATH];
+  MultiByteToWideChar(CP_ACP, 0, user, -1, wuser, MAX_PATH);
   /* Create the service. */
-  sc_service= CreateService(sc_manager, opt_service,  opt_service,
+  sc_service= CreateServiceW(sc_manager, wservice,  wservice,
     SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, 
-    SERVICE_ERROR_NORMAL, buf, NULL, NULL, NULL, user, passwd);
+    SERVICE_ERROR_NORMAL, wbuf, NULL, NULL, NULL, wuser, NULL);
 
   if (!sc_service) 
   {
@@ -771,7 +779,7 @@ static int create_db_instance(const char *datadir)
   {
     /* Run service under virtual account NT SERVICE\service_name.*/
     service_user.append("NT SERVICE\\").append(opt_service);
-    ret = register_service(datadir, service_user.c_str(), NULL);
+    ret = register_service(datadir, service_user.c_str());
     if (ret)
       goto end;
     service_created = true;
@@ -870,18 +878,10 @@ static int create_db_instance(const char *datadir)
   /* Change root password if requested. */
   if (opt_password && opt_password[0])
   {
-    verbose("Setting root password",remove_default_user_cmd);
-    fputs(update_root_passwd_part1, in);
-
-    /* Use hex encoding for password, to avoid escaping problems.*/
-    fputc('0', in);
-    fputc('x', in);
-    for(int i= 0; opt_password[i]; i++)
-    {
-      fprintf(in,"%02x",opt_password[i]);
-    }
-
-    fputs(update_root_passwd_part2, in);
+    verbose("Setting root password");
+    char buf[2 * MY_SHA1_HASH_SIZE + 2];
+    my_make_scrambled_password(buf, opt_password, strlen(opt_password));
+    fprintf(in, update_root_passwd, buf);
     fflush(in);
   }
 
