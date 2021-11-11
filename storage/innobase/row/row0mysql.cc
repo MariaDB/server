@@ -2495,6 +2495,7 @@ rollback:
         fts_optimize_add_table(table);
       }
       trx->rollback();
+      row_mysql_unlock_data_dictionary(trx);
       return err;
     }
   }
@@ -2508,10 +2509,7 @@ rollback:
 
   err= row_discard_tablespace_foreign_key_checks(trx, table);
   if (err != DB_SUCCESS)
-  {
-    row_mysql_unlock_data_dictionary(trx);
     goto rollback;
-  }
 
   /* Note: The following cannot be rolled back. Rollback would see the
   UPDATE of SYS_INDEXES.TABLE_ID as two operations: DELETE and INSERT.
