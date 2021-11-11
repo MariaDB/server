@@ -2616,6 +2616,32 @@ buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
   return block;
 }
 
+/** Thread-safe function which sorts flush_list by oldest_modification */
+static void log_sort_flush_list()
+{
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+
+  const size_t size= UT_LIST_GET_LEN(buf_pool.flush_list);
+  std::unique_ptr<buf_page_t *[]> list(new buf_page_t *[size]);
+
+  size_t idx= 0;
+  for (buf_page_t *p= UT_LIST_GET_FIRST(buf_pool.flush_list); p;
+       p= UT_LIST_GET_NEXT(list, p))
+    list.get()[idx++]= p;
+
+  std::sort(list.get(), list.get() + size,
+            [](const buf_page_t *lhs, const buf_page_t *rhs) {
+              return rhs->oldest_modification() < lhs->oldest_modification();
+            });
+
+  UT_LIST_INIT(buf_pool.flush_list, &buf_page_t::list);
+
+  for (size_t i= 0; i < size; i++)
+    UT_LIST_ADD_LAST(buf_pool.flush_list, list[i]);
+
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+}
+
 /** Apply buffered log to persistent data pages.
 @param last_batch     whether it is possible to write more redo log */
 void recv_sys_t::apply(bool last_batch)
@@ -2750,9 +2776,15 @@ next_page:
   mysql_mutex_assert_not_owner(&log_sys.mutex);
   mutex_exit(&mutex);
 
-  /* Instead of flushing, last_batch could sort the buf_pool.flush_list
-  in ascending order of buf_page_t::oldest_modification. */
-  buf_flush_sync_batch(recovered_lsn);
+  if (last_batch && srv_operation != SRV_OPERATION_RESTORE &&
+      srv_operation != SRV_OPERATION_RESTORE_EXPORT)
+    log_sort_flush_list();
+  else
+  {
+    /* Instead of flushing, last_batch could sort the buf_pool.flush_list
+    in ascending order of buf_page_t::oldest_modification. */
+    buf_flush_sync_batch(recovered_lsn);
+  }
 
   if (!last_batch)
   {
