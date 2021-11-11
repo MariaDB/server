@@ -114,9 +114,9 @@ SELECT COUNT(*)=8 from tb;
 --echo # Note: We only look for 00 because the 5c only served as an escape
 --echo #       in parsing.
 --echo #
---echo # MYSQL_DUMP test tb --hex-blob | grep INSERT > MYSQL_TMP_DIR/dump.sql
---exec $MYSQL_DUMP test tb --hex-blob | grep INSERT > $MYSQL_TMP_DIR/dump.sql
---let SEARCH_PATTERN= 00
+--echo # MYSQL_DUMP test tb --hex-blob > MYSQL_TMP_DIR/dump.sql
+--exec $MYSQL_DUMP test tb --hex-blob > $MYSQL_TMP_DIR/dump.sql
+--let SEARCH_PATTERN= \([0-9]+,0x([1-9][0-9])*00([1-9][0-9])*\)
 --let SEARCH_FILE= $MYSQL_TMP_DIR/dump.sql
 --source include/search_pattern_in_file.inc
 
