@@ -96,6 +96,7 @@ drop table t1;
 # Log file creation failure.
 create table t1(k1 int auto_increment primary key,
 k2 char(200),k3 char(200))engine=innodb;
+INSERT INTO t1 VALUES(1, "test", "test");
 SET DEBUG_SYNC= 'row_merge_after_scan
 SIGNAL opened WAIT_FOR flushed';
 send ALTER TABLE t1 FORCE, ADD COLUMN k4 int;
@@ -122,6 +123,7 @@ drop table t480;
 --echo #
 
 CREATE TABLE t1 (j INT UNIQUE, i INT UNIQUE) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(2, 2);
 --connect (con1,localhost,root,,test)
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built WAIT_FOR log';
 --send

@@ -509,6 +509,7 @@ DROP TABLE t1;
 # MDEV-13205 assertion !dict_index_is_online_ddl(index) upon ALTER TABLE
 #
 CREATE TABLE t1 (c VARCHAR(64)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES('foo');
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL t1u_created WAIT_FOR dup_done';
 ALTER TABLE t1 ADD UNIQUE(c);
 connection con1;
