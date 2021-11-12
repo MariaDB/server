@@ -19,6 +19,8 @@
 #include "my_json_writer.h"
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+#include <iostream>
+
 bool Json_writer::named_item_expected() const
 {
   return named_items_expectation.size()
@@ -60,6 +62,7 @@ void Json_writer::start_object()
   document_start= false;
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   got_name= false;
+  named_items.emplace();
 #endif
 }
 
@@ -95,6 +98,8 @@ void Json_writer::end_object()
   named_items_expectation.pop_back();
   VALIDITY_ASSERT(!got_name);
   got_name= false;
+  VALIDITY_ASSERT(named_items.size());
+  named_items.pop();
 #endif
   indent_level-=INDENT_SIZE;
   if (!first_child)
@@ -140,7 +145,18 @@ Json_writer& Json_writer::add_member(const char *name, size_t len)
   }
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   if (!fmt_helper.is_making_writer_calls())
+  {
+    VALIDITY_ASSERT(!got_name);
     got_name= true;
+    auto& named_items_keys= named_items.top();
+    auto emplaced= named_items_keys.emplace(name, len);
+    auto is_uniq_key= emplaced.second;
+    if(!is_uniq_key)
+    {
+      std::cerr << "Duplicated key: " << *emplaced.first << std::endl;
+      VALIDITY_ASSERT(is_uniq_key);
+    }
+  }
 #endif
   return *this;
 }

@@ -18,6 +18,9 @@
 #include "my_base.h"
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+#include <set>
+#include <stack>
+#include <string>
 #include <vector>
 #endif
 
@@ -209,6 +212,7 @@ class Json_writer
     produce an invalid JSON document (e.g. JSON array having named elements).
   */
   std::vector<bool> named_items_expectation;
+  std::stack<std::set<std::string> > named_items;
 
   bool named_item_expected() const;
 
