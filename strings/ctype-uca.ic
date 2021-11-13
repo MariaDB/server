@@ -52,28 +52,31 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
   do
   {
     const uint16 *wpage;
-    my_wc_t wc[MY_UCA_MAX_CONTRACTION];
     int mblen;
+    my_wc_t currwc;
 
     /* Get next character */
 #if MY_UCA_ASCII_OPTIMIZE
     /* Get next ASCII character */
     if (scanner->sbeg < scanner->send && scanner->sbeg[0] < 0x80)
     {
-      wc[0]= scanner->sbeg[0];
+      currwc= scanner->sbeg[0];
       scanner->sbeg+= 1;
 
 #if MY_UCA_COMPILE_CONTRACTIONS
-      if (my_uca_needs_context_handling(scanner->level, wc[0]))
+      if (my_uca_needs_context_handling(scanner->level, currwc))
       {
-        uint16 *cweight= my_uca_context_weight_find(scanner, wc);
+        const uint16 *cweight= my_uca_context_weight_find(scanner, currwc);
         if (cweight)
+        {
+          scanner->wbeg= cweight + 1;
           return *cweight;
+        }
       }
 #endif
 
       scanner->page= 0;
-      scanner->code= (int) wc[0];
+      scanner->code= (int) currwc;
       scanner->wbeg= scanner->level->weights[0] + scanner->code * scanner->level->lengths[0];
       if (scanner->wbeg[0])
         return *scanner->wbeg++;
@@ -82,8 +85,8 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
     else
 #endif
     /* Get next MB character */
-    if (((mblen= MY_MB_WC(scanner, wc, scanner->sbeg,
-                                       scanner->send)) <= 0))
+    if (((mblen= MY_MB_WC(scanner, &currwc, scanner->sbeg,
+                                            scanner->send)) <= 0))
     {
       if (scanner->sbeg >= scanner->send)
         return -1; /* No more bytes, end of line reached */
@@ -105,7 +108,7 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
     }
 
     scanner->sbeg+= mblen;
-    if (wc[0] > scanner->level->maxchar)
+    if (currwc > scanner->level->maxchar)
     {
       /* Return 0xFFFD as weight for all characters outside BMP */
       scanner->wbeg= nochar;
@@ -113,17 +116,20 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
     }
 
 #if MY_UCA_COMPILE_CONTRACTIONS
-    if (my_uca_needs_context_handling(scanner->level, wc[0]))
+    if (my_uca_needs_context_handling(scanner->level, currwc))
     {
-      uint16 *cweight= my_uca_context_weight_find(scanner, wc);
+      const uint16 *cweight= my_uca_context_weight_find(scanner, currwc);
       if (cweight)
+      {
+        scanner->wbeg= cweight + 1;
         return *cweight;
+      }
     }
 #endif
 
     /* Process single character */
-    scanner->page= wc[0] >> 8;
-    scanner->code= wc[0] & 0xFF;
+    scanner->page= currwc >> 8;
+    scanner->code= currwc & 0xFF;
 
     /* If weight page for w[0] does not exist, then calculate algoritmically */
     if (!(wpage= scanner->level->weights[scanner->page]))
