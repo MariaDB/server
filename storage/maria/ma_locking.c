@@ -488,9 +488,9 @@ err:
     Used mainly to detect rows with wrong extent information
 */
 
-my_bool _ma_check_if_zero(uchar *pos, size_t length)
+my_bool _ma_check_if_zero(const uchar *pos, size_t length)
 {
-  uchar *end;
+  const uchar *end;
   for (end= pos+ length; pos != end ; pos++)
     if (pos[0] != 0)
       return 1;

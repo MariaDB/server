@@ -1411,7 +1411,7 @@ extern int _ma_mark_file_changed_now(MARIA_SHARE *info);
 extern void _ma_mark_file_crashed(MARIA_SHARE *share);
 void _ma_set_fatal_error(MARIA_SHARE *share, int error);
 extern my_bool _ma_set_uuid(MARIA_SHARE *info, my_bool reset_uuid);
-extern my_bool _ma_check_if_zero(uchar *pos, size_t size);
+extern my_bool _ma_check_if_zero(const uchar *pos, size_t size);
 extern int _ma_decrement_open_count(MARIA_HA *info, my_bool lock_table);
 extern int _ma_check_index(MARIA_HA *info, int inx);
 extern int _ma_search(MARIA_HA *info, MARIA_KEY *key, uint32 nextflag,

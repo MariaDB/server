@@ -212,7 +212,16 @@ static my_bool ma_crypt_data_post_read_hook(int res,
   const uint32 key_version_offset= (page_type <= TAIL_PAGE) ?
       KEY_VERSION_OFFSET : FULL_PAGE_KEY_VERSION_OFFSET;
 
-  if (res == 0)
+  if (res == 0 && 0 == _ma_check_if_zero(args->page, share->block_size))
+  {
+      /*
+        Happens when the page was never written to disk (because server
+        crashed before they were flushed). In this case, the correct way
+        to "decrypt" is to return all zeroes.
+      */
+      memset(args->crypt_buf, 0, share->block_size);
+  }
+  else if (res == 0)
   {
     const uchar *src= args->page;
     uchar* dst= args->crypt_buf;
@@ -344,8 +353,19 @@ static my_bool ma_crypt_index_post_read_hook(int res,
   MARIA_SHARE *share= (MARIA_SHARE*) args->data;
   const uint block_size= share->block_size;
   const uint page_used= _ma_get_page_used(share, args->page);
+  const int good_size = (page_used >= share->keypage_header) &&
+                        (page_used <= block_size - CRC_SIZE);
 
-  if (res == 0 && page_used <= block_size - CRC_SIZE)
+  if (res == 0 && 0 == _ma_check_if_zero(args->page, share->block_size))
+  {
+      /*
+        Happens when the page was never written to disk (because server
+        crashed before they were flushed). In this case, the correct way
+        to "decrypt" is to return all zeroes.
+      */
+      memset(args->crypt_buf, 0, share->block_size);
+  }
+  else if (res == 0 && good_size)
   {
     const uchar *src= args->page;
     uchar* dst= args->crypt_buf;
