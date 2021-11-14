@@ -379,7 +379,7 @@ bool String::copy(const char *str, uint32 arg_length,
 {
   uint32 offset;
 
-  DBUG_ASSERT(!str || str != Ptr);
+  DBUG_ASSERT(!str || str != Ptr || !alloced);
   
   if (!needs_conversion(arg_length, from_cs, to_cs, &offset))
   {

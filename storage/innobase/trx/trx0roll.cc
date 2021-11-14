@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -81,12 +81,19 @@ trx_rollback_to_savepoint_low(
 	heap = mem_heap_create(512);
 
 	roll_node = roll_node_create(heap);
+	ut_ad(!trx->in_rollback);
 
 	if (savept != NULL) {
 		roll_node->savept = savept;
-		check_trx_state(trx);
+		ut_ad(trx->mysql_thd);
+		ut_ad(trx->in_mysql_trx_list);
+		ut_ad(!trx->is_recovered);
+		ut_ad(trx->state == TRX_STATE_ACTIVE);
 	} else {
-		assert_trx_nonlocking_or_in_list(trx);
+		ut_d(trx_state_t state = trx->state);
+		ut_ad(state == TRX_STATE_ACTIVE
+		      || state == TRX_STATE_PREPARED
+		      || state == TRX_STATE_PREPARED_RECOVERED);
 	}
 
 	trx->error_state = DB_SUCCESS;
@@ -187,7 +194,8 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:
-		trx->will_lock = 0;
+		trx->will_lock = false;
+		ut_ad(trx->mysql_thd);
 		ut_ad(trx->in_mysql_trx_list);
 #ifdef WITH_WSREP
 		trx->wsrep = false;
@@ -196,12 +204,14 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 
 	case TRX_STATE_ACTIVE:
 		ut_ad(trx->in_mysql_trx_list);
-		assert_trx_nonlocking_or_in_list(trx);
+		ut_ad(trx->mysql_thd);
+		ut_ad(!trx->is_recovered);
+		ut_ad(!trx->is_autocommit_non_locking() || trx->read_only);
 		return(trx_rollback_for_mysql_low(trx));
 
 	case TRX_STATE_PREPARED:
 	case TRX_STATE_PREPARED_RECOVERED:
-		ut_ad(!trx_is_autocommit_non_locking(trx));
+		ut_ad(!trx->is_autocommit_non_locking());
 		if (trx->has_logged_persistent()) {
 			/* The XA ROLLBACK of a XA PREPARE transaction
 			will consist of multiple mini-transactions.
@@ -245,7 +255,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 		return(trx_rollback_for_mysql_low(trx));
 
 	case TRX_STATE_COMMITTED_IN_MEMORY:
-		check_trx_state(trx);
+		ut_ad(!trx->is_autocommit_non_locking());
 		break;
 	}
 
@@ -274,7 +284,9 @@ trx_rollback_last_sql_stat_for_mysql(
 		return(DB_SUCCESS);
 
 	case TRX_STATE_ACTIVE:
-		assert_trx_nonlocking_or_in_list(trx);
+		ut_ad(trx->mysql_thd);
+		ut_ad(!trx->is_recovered);
+		ut_ad(!trx->is_autocommit_non_locking() || trx->read_only);
 
 		trx->op_info = "rollback of SQL statement";
 
@@ -768,7 +780,11 @@ trx_roll_must_shutdown()
 		     t != NULL;
 		     t = UT_LIST_GET_NEXT(trx_list, t)) {
 
-			assert_trx_in_rw_list(t);
+			ut_ad(!t->read_only);
+			ut_ad(t->in_rw_trx_list);
+			ut_ad(!t->is_autocommit_non_locking());
+			ut_ad(t->state != TRX_STATE_NOT_STARTED);
+
 			if (t->is_recovered
 			    && trx_state_eq(t, TRX_STATE_ACTIVE)) {
 				n_trx++;
@@ -831,7 +847,10 @@ trx_rollback_or_clean_recovered(
 		     trx != NULL;
 		     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
 
-			assert_trx_in_rw_list(trx);
+			ut_ad(!trx->read_only);
+			ut_ad(trx->in_rw_trx_list);
+			ut_ad(!trx->is_autocommit_non_locking());
+			ut_ad(trx->state != TRX_STATE_NOT_STARTED);
 
 			/* If this function does a cleanup or rollback
 			then it will release the trx_sys->mutex, therefore

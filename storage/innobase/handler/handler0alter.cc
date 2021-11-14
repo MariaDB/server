@@ -967,7 +967,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		}
 	}
 
-	m_prebuilt->trx->will_lock++;
+	m_prebuilt->trx->will_lock = true;
 
 	if (!online) {
 		/* We already determined that only a non-locking
@@ -5355,6 +5355,10 @@ alter_fill_stored_column(
 	}
 }
 
+static bool alter_templ_needs_rebuild(const TABLE* altered_table,
+                                      const Alter_inplace_info* ha_alter_info,
+                                      const dict_table_t* table);
+
 
 /** Allows InnoDB to update internal structures with concurrent
 writes blocked (provided that check_if_supported_inplace_alter()
@@ -5387,7 +5391,6 @@ ha_innobase::prepare_inplace_alter_table(
 	mem_heap_t*	heap;
 	const char**	col_names;
 	int		error;
-	ulint		max_col_len;
 	ulint		add_autoinc_col_no	= ULINT_UNDEFINED;
 	ulonglong	autoinc_col_max_value	= 0;
 	ulint		fts_doc_col_no		= ULINT_UNDEFINED;
@@ -5425,12 +5428,6 @@ ha_innobase::prepare_inplace_alter_table(
 	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
 		/* Nothing to do */
 		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
-		if (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
-
-			online_retry_drop_indexes(
-				m_prebuilt->table, m_user_thd);
-
-		}
 		DBUG_RETURN(false);
 	}
 
@@ -5513,11 +5510,7 @@ ha_innobase::prepare_inplace_alter_table(
 		    ha_alter_info->key_count)) {
 err_exit_no_heap:
 		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
-		if (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
-
-			online_retry_drop_indexes(
-				m_prebuilt->table, m_user_thd);
-		}
+		online_retry_drop_indexes(m_prebuilt->table, m_user_thd);
 		DBUG_RETURN(true);
 	}
 
@@ -5591,6 +5584,8 @@ check_if_ok_to_rename:
 	}
 
 	if (!info.innobase_table_flags()) {
+		my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
+			 table_type(), "PAGE_COMPRESSED");
 		goto err_exit_no_heap;
 	}
 
@@ -5601,7 +5596,13 @@ check_if_ok_to_rename:
 			       & 1U << DICT_TF_POS_DATA_DIR);
 	}
 
-	max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(info.flags());
+
+	/* ALGORITHM=INPLACE without rebuild (10.3+ ALGORITHM=NOCOPY)
+	must use the current ROW_FORMAT of the table. */
+	const ulint max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(
+		innobase_need_rebuild(ha_alter_info, this->table)
+		? info.flags()
+		: m_prebuilt->table->flags);
 
 	/* Check each index's column length to make sure they do not
 	exceed limit */
@@ -5956,9 +5957,9 @@ err_exit:
 		== Alter_inplace_info::CHANGE_CREATE_OPTION
 		&& !innobase_need_rebuild(ha_alter_info, table))) {
 
+		ha_innobase_inplace_ctx *ctx = NULL;
 		if (heap) {
-			ha_alter_info->handler_ctx
-				= new ha_innobase_inplace_ctx(
+			ctx = new ha_innobase_inplace_ctx(
 					m_prebuilt,
 					drop_index, n_drop_index,
 					rename_index, n_rename_index,
@@ -5967,15 +5968,11 @@ err_exit:
 					ha_alter_info->online,
 					heap, indexed_table,
 					col_names, ULINT_UNDEFINED, 0, 0, 0);
+			ha_alter_info->handler_ctx = ctx;
 		}
 
 		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
-		if (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
-
-			online_retry_drop_indexes(
-				m_prebuilt->table, m_user_thd);
-
-		}
+		online_retry_drop_indexes(m_prebuilt->table, m_user_thd);
 
 		if ((ha_alter_info->handler_flags
 		     & Alter_inplace_info::DROP_VIRTUAL_COLUMN)
@@ -5989,6 +5986,24 @@ err_exit:
 		    && prepare_inplace_add_virtual(
 			    ha_alter_info, altered_table, table)) {
 			DBUG_RETURN(true);
+		}
+
+		if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
+		    && alter_templ_needs_rebuild(altered_table, ha_alter_info,
+						 ctx->new_table)
+		    && ctx->new_table->n_v_cols > 0) {
+			/* Changing maria record structure may end up here only
+			if virtual columns were altered. In this case, however,
+			vc_templ should be rebuilt. Since we don't actually
+			change any stored data, we can just dispose vc_templ;
+			it will be recreated on next ha_innobase::open(). */
+
+			DBUG_ASSERT(ctx->new_table == ctx->old_table);
+
+			dict_free_vc_templ(ctx->new_table->vc_templ);
+			UT_DELETE(ctx->new_table->vc_templ);
+
+			ctx->new_table->vc_templ = NULL;
 		}
 
 		DBUG_RETURN(false);
@@ -6108,35 +6123,6 @@ found_col:
 			    add_fts_doc_id_idx));
 }
 
-/** Check that the column is part of a virtual index(index contains
-virtual column) in the table
-@param[in]	table		Table containing column
-@param[in]	col		column to be checked
-@return true if this column is indexed with other virtual columns */
-static
-bool
-dict_col_in_v_indexes(
-	dict_table_t*	table,
-	dict_col_t*	col)
-{
-	for (dict_index_t* index = dict_table_get_next_index(
-		dict_table_get_first_index(table)); index != NULL;
-		index = dict_table_get_next_index(index)) {
-		if (!dict_index_has_virtual(index)) {
-			continue;
-		}
-		for (ulint k = 0; k < index->n_fields; k++) {
-			dict_field_t*   field
-				= dict_index_get_nth_field(index, k);
-			if (field->col->ind == col->ind) {
-				return(true);
-			}
-		}
-	}
-
-	return(false);
-}
-
 /* Check whether a columnn length change alter operation requires
 to rebuild the template.
 @param[in]	altered_table	TABLE object for new version of table.
@@ -6148,9 +6134,9 @@ to rebuild the template.
 static
 bool
 alter_templ_needs_rebuild(
-	TABLE*                  altered_table,
-	Alter_inplace_info*     ha_alter_info,
-	dict_table_t*		table)
+	const TABLE*            altered_table,
+	const Alter_inplace_info*     ha_alter_info,
+	const dict_table_t*		table)
 {
         ulint	i = 0;
         List_iterator_fast<Create_field>  cf_it(
@@ -6162,8 +6148,7 @@ alter_templ_needs_rebuild(
 			for (ulint j=0; j < table->n_cols; j++) {
 				dict_col_t* cols
                                    = dict_table_get_nth_col(table, j);
-				if (cf->length > cols->len
-				    && dict_col_in_v_indexes(table, cols)) {
+				if (cf->length > cols->len) {
 					return(true);
 				}
 			}
@@ -8949,7 +8934,6 @@ foreign_fail:
 				m_prebuilt = ctx->prebuilt;
 			}
 			trx_start_if_not_started(user_trx, true);
-			user_trx->will_lock++;
 			m_prebuilt->trx = user_trx;
 		}
 		DBUG_INJECT_CRASH("ib_commit_inplace_crash",

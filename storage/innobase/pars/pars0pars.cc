@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2352,7 +2352,6 @@ void
 pars_info_bind_id(
 /*==============*/
 	pars_info_t*	info,		/*!< in: info struct */
-	ibool		copy_name,	/* in: copy name if TRUE */
 	const char*	name,		/*!< in: name */
 	const char*	id)		/*!< in: id */
 {
@@ -2375,8 +2374,7 @@ pars_info_bind_id(
 		bid = static_cast<pars_bound_id_t*>(
 			ib_vector_push(info->bound_ids, NULL));
 
-		bid->name = (copy_name)
-		    ? mem_heap_strdup(info->heap, name) : name;
+		bid->name = name;
 	}
 
 	bid->id = id;

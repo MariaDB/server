@@ -980,11 +980,16 @@ fil_space_extend_must_retry(
 	const page_size_t	pageSize(space->flags);
 	const ulint		page_size = pageSize.physical();
 
-	/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
-	fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.*/
+	/* fil_read_first_page() expects innodb_page_size bytes.
+	fil_node_open_file() expects at least 4 * innodb_page_size bytes.
+	os_file_set_size() expects multiples of 4096 bytes.
+	For ROW_FORMAT=COMPRESSED tables using 1024-byte or 2048-byte
+	pages, we will preallocate up to an integer multiple of 4096 bytes,
+	and let normal writes append 1024, 2048, or 3072 bytes to the file. */
 	os_offset_t new_size = std::max(
-		os_offset_t(size - file_start_page_no) * page_size,
-		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE));
+		(os_offset_t(size - file_start_page_no) * page_size)
+		& ~os_offset_t(4095),
+		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
 
 	*success = os_file_set_size(node->name, node->handle, new_size,
 		FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
@@ -4794,27 +4799,30 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 	}
 }
 
-/** Report information about an invalid page access. */
-static
-void
-fil_report_invalid_page_access(
-	ulint		block_offset,	/*!< in: block offset */
-	ulint		space_id,	/*!< in: space id */
-	const char*	space_name,	/*!< in: space name */
-	ulint		byte_offset,	/*!< in: byte offset */
-	ulint		len,		/*!< in: I/O length */
-	bool		is_read)	/*!< in: I/O type */
+/** Compose error message about an invalid page access.
+@param[in]	block_offset	block offset
+@param[in]	space_id	space id
+@param[in]	space_name	space name
+@param[in]	byte_offset	byte offset
+@param[in]	len		I/O length
+@param[in]	is_read		I/O type
+@return	std::string with error message */
+static std::string fil_invalid_page_access_msg(size_t block_offset,
+                                               size_t space_id,
+                                               const char *space_name,
+                                               size_t byte_offset, size_t len,
+                                               bool is_read)
 {
-	ib::fatal()
-		<< "Trying to " << (is_read ? "read" : "write")
-		<< " page number " << block_offset << " in"
-		" space " << space_id << ", space name " << space_name << ","
-		" which is outside the tablespace bounds. Byte offset "
-		<< byte_offset << ", len " << len <<
-		(space_id == 0 && !srv_was_started
-		? "Please check that the configuration matches"
-		" the InnoDB system tablespace location (ibdata files)"
-		: "");
+  std::stringstream ss;
+  ss << "Trying to " << (is_read ? "read" : "write") << " page number "
+     << block_offset << " in space " << space_id << ", space name "
+     << space_name << ", which is outside the tablespace bounds. Byte offset "
+     << byte_offset << ", len " << len
+     << (space_id == 0 && !srv_was_started
+             ? "Please check that the configuration matches"
+               " the InnoDB system tablespace location (ibdata files)"
+             : "");
+  return ss.str();
 }
 
 /** Reads or writes data. This operation could be asynchronous (aio).
@@ -4951,7 +4959,17 @@ fil_io(
 				return(DB_ERROR);
 			}
 
-			fil_report_invalid_page_access(
+			if (space->purpose == FIL_TYPE_IMPORT) {
+				mutex_exit(&fil_system->mutex);
+				ib::error() << fil_invalid_page_access_msg(
+					page_id.page_no(), page_id.space(),
+					space->name, byte_offset, len,
+					req_type.is_read());
+
+				return DB_IO_ERROR;
+			}
+
+			ib::fatal() << fil_invalid_page_access_msg(
 				page_id.page_no(), page_id.space(),
 				space->name, byte_offset, len,
 				req_type.is_read());
@@ -5032,7 +5050,7 @@ fil_io(
 			return(DB_ERROR);
 		}
 
-		fil_report_invalid_page_access(
+		ib::fatal() << fil_invalid_page_access_msg(
 			page_id.page_no(), page_id.space(),
 			space->name, byte_offset, len, req_type.is_read());
 	}

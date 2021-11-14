@@ -1,175 +1,137 @@
-DROP TABLE if exists t1;
-select @@global.innodb_stats_persistent;
-@@global.innodb_stats_persistent
-0
-set global innodb_defragment_stats_accuracy = 20;
+SET GLOBAL innodb_defragment_stats_accuracy = 20;
+DELETE FROM mysql.innodb_index_stats;
 # Create table.
-CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), KEY SECOND(a, b)) ENGINE=INNODB;
-# Populate data
-INSERT INTO t1 VALUES(1, REPEAT('A', 256));
-INSERT INTO t1 (b) SELECT b from t1;
-INSERT INTO t1 (b) SELECT b from t1;
-INSERT INTO t1 (b) SELECT b from t1;
-INSERT INTO t1 (b) SELECT b from t1;
-INSERT INTO t1 (b) SELECT b from t1;
-INSERT INTO t1 (b) SELECT b from t1;
-INSERT INTO t1 (b) SELECT b from t1;
-INSERT INTO t1 (b) SELECT b from t1;
-INSERT INTO t1 (b) SELECT b from t1;
-INSERT INTO t1 (b) SELECT b from t1;
+CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256),
+KEY SECOND(a, b)) ENGINE=INNODB STATS_PERSISTENT=0;
+INSERT INTO t1 SELECT 100*FLOOR(seq/70)+seq%70, REPEAT('A', 256)
+FROM seq_1_to_1024;
 # Not enough page splits to trigger persistent stats write yet.
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_page_split');
-count(stat_value) = 0
+SELECT * FROM mysql.innodb_index_stats;
+database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size	stat_description
+INSERT INTO t1 SELECT 100*FLOOR(seq/70)+seq%70, REPEAT('A', 256)
+FROM seq_1025_to_1433;
+BEGIN;
+INSERT INTO t1 SELECT 100*20+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*19+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*18+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*17+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*16+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*15+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*14+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*13+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*12+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*11+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*10+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*9+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*8+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*7+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*6+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*5+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*4+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*3+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*2+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+INSERT INTO t1 SELECT 100*1+seq, REPEAT('A', 256)
+FROM seq_70_to_99;
+ROLLBACK;
+SELECT @@GLOBAL.innodb_force_recovery<2 "have background defragmentation";
+have background defragmentation
 1
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_pages_freed');
-count(stat_value) = 0
-1
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_leaf_pages_defrag');
-count(stat_value) = 0
-1
-INSERT INTO t1 (b) SELECT b from t1;
-# Persistent stats recorded.
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_page_split');
-count(stat_value) > 0
-1
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_pages_freed');
-count(stat_value) = 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_leaf_pages_defrag');
-count(stat_value) > 0
-1
-# Delete some rows.
-delete from t1 where a between 100 * 20 and 100 * 20 + 30;
-delete from t1 where a between 100 * 19 and 100 * 19 + 30;
-delete from t1 where a between 100 * 18 and 100 * 18 + 30;
-delete from t1 where a between 100 * 17 and 100 * 17 + 30;
-delete from t1 where a between 100 * 16 and 100 * 16 + 30;
-delete from t1 where a between 100 * 15 and 100 * 15 + 30;
-delete from t1 where a between 100 * 14 and 100 * 14 + 30;
-delete from t1 where a between 100 * 13 and 100 * 13 + 30;
-delete from t1 where a between 100 * 12 and 100 * 12 + 30;
-delete from t1 where a between 100 * 11 and 100 * 11 + 30;
-delete from t1 where a between 100 * 10 and 100 * 10 + 30;
-delete from t1 where a between 100 * 9 and 100 * 9 + 30;
-delete from t1 where a between 100 * 8 and 100 * 8 + 30;
-delete from t1 where a between 100 * 7 and 100 * 7 + 30;
-delete from t1 where a between 100 * 6 and 100 * 6 + 30;
-delete from t1 where a between 100 * 5 and 100 * 5 + 30;
-delete from t1 where a between 100 * 4 and 100 * 4 + 30;
-delete from t1 where a between 100 * 3 and 100 * 3 + 30;
-delete from t1 where a between 100 * 2 and 100 * 2 + 30;
-delete from t1 where a between 100 * 1 and 100 * 1 + 30;
-# Server Restarted
-# Confirm persistent stats still there after restart.
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_page_split');
-count(stat_value) > 0
-1
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_pages_freed');
-count(stat_value) = 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_leaf_pages_defrag');
-count(stat_value) > 0
-1
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+table_name	index_name	stat_name
+t1	PRIMARY	n_leaf_pages_defrag
+t1	PRIMARY	n_leaf_pages_reserved
+t1	PRIMARY	n_page_split
+t1	SECOND	n_leaf_pages_defrag
+t1	SECOND	n_leaf_pages_reserved
+t1	SECOND	n_page_split
 optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
-select sleep(2);
-sleep(2)
-0
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_page_split');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_pages_freed');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_leaf_pages_defrag');
-count(stat_value) > 0
-1
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+table_name	index_name	stat_name
+t1	PRIMARY	n_leaf_pages_defrag
+t1	PRIMARY	n_leaf_pages_reserved
+t1	PRIMARY	n_page_split
+t1	PRIMARY	n_pages_freed
+t1	SECOND	n_leaf_pages_defrag
+t1	SECOND	n_leaf_pages_reserved
+t1	SECOND	n_page_split
+t1	SECOND	n_pages_freed
 set global innodb_defragment_stats_accuracy = 40;
 INSERT INTO t1 (b) SELECT b from t1;
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_page_split');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_pages_freed');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_leaf_pages_defrag');
-count(stat_value) > 0
-1
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+table_name	index_name	stat_name
+t1	PRIMARY	n_leaf_pages_defrag
+t1	PRIMARY	n_leaf_pages_reserved
+t1	PRIMARY	n_page_split
+t1	PRIMARY	n_pages_freed
+t1	SECOND	n_leaf_pages_defrag
+t1	SECOND	n_leaf_pages_reserved
+t1	SECOND	n_page_split
+t1	SECOND	n_pages_freed
 INSERT INTO t1 (b) SELECT b from t1;
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_page_split');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_pages_freed');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_leaf_pages_defrag');
-count(stat_value) > 0
-1
+SELECT stat_name FROM mysql.innodb_index_stats WHERE table_name='t1';
+stat_name
+n_leaf_pages_defrag
+n_leaf_pages_defrag
+n_leaf_pages_reserved
+n_leaf_pages_reserved
+n_page_split
+n_page_split
+n_pages_freed
+n_pages_freed
 # Table rename should cause stats rename.
 rename table t1 to t2;
-select sleep(1);
-sleep(1)
-0
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_page_split');
-count(stat_value) = 0
-1
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_pages_freed');
-count(stat_value) = 0
-1
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_leaf_pages_defrag');
-count(stat_value) = 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name in ('n_page_split');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name in ('n_pages_freed');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name in ('n_leaf_pages_defrag');
-count(stat_value) > 0
-1
-# Drop index should cause stats drop.
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+table_name	index_name	stat_name
+t2	PRIMARY	n_leaf_pages_defrag
+t2	PRIMARY	n_leaf_pages_reserved
+t2	PRIMARY	n_page_split
+t2	PRIMARY	n_pages_freed
+t2	SECOND	n_leaf_pages_defrag
+t2	SECOND	n_leaf_pages_reserved
+t2	SECOND	n_page_split
+t2	SECOND	n_pages_freed
+# Drop index should cause stats drop, but will not.
 drop index SECOND on t2;
-select sleep(3);
-sleep(3)
-0
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and index_name = 'SECOND' and  stat_name in ('n_page_split');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and index_name = 'SECOND' and  stat_name in ('n_pages_freed');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and index_name = 'SECOND' and stat_name in ('n_leaf_pages_defrag');
-count(stat_value) > 0
-1
-Server Restarted
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_page_split');
-count(stat_value) = 0
-1
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_pages_freed');
-count(stat_value) = 0
-1
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_leaf_pages_defrag');
-count(stat_value) = 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name in ('n_page_split');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name in ('n_pages_freed');
-count(stat_value) > 0
-1
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name in ('n_leaf_pages_defrag');
-count(stat_value) > 0
-1
+#
+# MDEV-26636: Statistics must not be written for temporary tables
+#
+SET GLOBAL innodb_defragment_stats_accuracy = 1;
+CREATE TEMPORARY TABLE t (a INT PRIMARY KEY, c CHAR(255) NOT NULL)
+ENGINE=InnoDB;
+INSERT INTO t SELECT seq, '' FROM seq_1_to_100;
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+table_name	index_name	stat_name
+t2	PRIMARY	n_leaf_pages_defrag
+t2	PRIMARY	n_leaf_pages_reserved
+t2	PRIMARY	n_page_split
+t2	PRIMARY	n_pages_freed
+t2	SECOND	n_leaf_pages_defrag
+t2	SECOND	n_leaf_pages_reserved
+t2	SECOND	n_page_split
+t2	SECOND	n_pages_freed
 # Clean up
+ALTER TABLE t2 STATS_PERSISTENT=1;
 DROP TABLE t2;
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name in ('n_page_split');
-count(stat_value) = 0
-1
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name in ('n_pages_freed');
-count(stat_value) = 0
-1
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name in ('n_leaf_pages_defrag');
-count(stat_value) = 0
-1
+SELECT * FROM mysql.innodb_index_stats;
+database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size	stat_description

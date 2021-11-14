@@ -77,7 +77,6 @@ main.lock_tables_lost_commit          : MDEV-24624 - Timeout
 main.lock_view                        : Modified in 10.2.37
 main.log_slow                         : MDEV-13263 - Wrong result
 main.log_tables-big                   : MDEV-13408 - wrong result
-main.mdev-504                         : MDEV-15171 - warning
 main.mdev375                          : MDEV-10607 - sporadic "can't connect"
 main.merge                            : MDEV-10607 - sporadic "can't connect"
 main.myisam                           : Modified in 10.2.37

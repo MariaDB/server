@@ -24,11 +24,11 @@ grant select on m_.* to r2;
 grant r2 to r1;
 show grants for u1@localhost;
 Grants for u1@localhost
-GRANT r1 TO 'u1'@'localhost'
+GRANT 'r1' TO 'u1'@'localhost'
 GRANT USAGE ON *.* TO 'u1'@'localhost'
 show grants for r1;
 Grants for r1
-GRANT r2 TO 'r1'
+GRANT 'r2' TO 'r1'
 GRANT USAGE ON *.* TO 'r1'
 GRANT USAGE ON *.* TO 'r2'
 GRANT SELECT ON `test`.* TO 'r2'

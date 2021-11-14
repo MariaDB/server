@@ -1674,7 +1674,12 @@ static int mysql_test_select(Prepared_statement *stmt,
   if (!lex->describe && !thd->lex->analyze_stmt && !stmt->is_sql_prepare())
   {
     /* Make copy of item list, as change_columns may change it */
-    List<Item> fields(lex->select_lex.item_list);
+    SELECT_LEX_UNIT* master_unit= unit->first_select()->master_unit();
+    bool is_union_op=
+      master_unit->is_union() || master_unit->fake_select_lex;
+
+    List<Item> fields(is_union_op ? unit->item_list :
+                                    lex->select_lex.item_list);
 
     /* Change columns if a procedure like analyse() */
     if (unit->last_procedure && unit->last_procedure->change_columns(thd, fields))
@@ -3055,6 +3060,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
   }
   for (; sl; sl= sl->next_select_in_list())
   {
+    sl->parent_lex->in_sum_func= NULL;
     if (sl->changed_elements & TOUCHED_SEL_COND)
     {
       /* remove option which was put by mysql_explain_union() */
@@ -3185,7 +3191,6 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
     lex->result->set_thd(thd);
   }
   lex->allow_sum_func= 0;
-  lex->in_sum_func= NULL;
   DBUG_VOID_RETURN;
 }
 

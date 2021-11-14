@@ -9666,7 +9666,9 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if (global_system_variables.low_priority_updates)
     thr_upgraded_concurrent_insert_lock= TL_WRITE_LOW_PRIORITY;
 
-  if (ft_boolean_check_syntax_string((uchar*) ft_boolean_syntax))
+  if (ft_boolean_check_syntax_string((uchar*) ft_boolean_syntax,
+                                     strlen(ft_boolean_syntax),
+                                     system_charset_info))
   {
     sql_print_error("Invalid ft-boolean-syntax string: %s\n",
                     ft_boolean_syntax);
@@ -9738,7 +9740,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   {
     /* Allow break with SIGINT, no core or stack trace */
     test_flags|= TEST_SIGINT;
-    opt_stack_trace= 1;
     test_flags&= ~TEST_CORE_ON_SIGNAL;
   }
   /* Set global MyISAM variables from delay_key_write_options */

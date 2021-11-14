@@ -20,3 +20,12 @@
  SET @save_format = @@GLOBAL.innodb_default_row_format;
  SET GLOBAL innodb_default_row_format = redundant;
  CREATE TABLE t1 (c1 INT) ENGINE=InnoDB;
+@@ -49,7 +49,7 @@
+ ERROR HY000: Can't create table `test`.`t` (errno: 140 "Wrong create options")
+ SHOW WARNINGS;
+ Level	Code	Message
+-Warning	1478	InnoDB: PAGE_COMPRESSED requires PAGE_COMPRESSION_LEVEL or innodb_compression_level > 0
++Warning	140	InnoDB: PAGE_COMPRESSED table can't have ROW_TYPE=REDUNDANT
+ Error	1005	Can't create table `test`.`t` (errno: 140 "Wrong create options")
+ Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+ CREATE TABLE t(c INT) ENGINE=InnoDB page_compressed=1 page_compression_level=1;

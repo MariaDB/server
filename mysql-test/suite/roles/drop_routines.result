@@ -7,15 +7,15 @@ grant r3 to r2;
 grant r1 to u1;
 show grants for u1;
 Grants for u1@%
+GRANT 'r1' TO 'u1'@'%'
 GRANT USAGE ON *.* TO 'u1'@'%'
-GRANT r1 TO 'u1'@'%'
 show grants for r1;
 Grants for r1
+GRANT 'r2' TO 'r1'
+GRANT 'r3' TO 'r2'
 GRANT USAGE ON *.* TO 'r1'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
-GRANT r2 TO 'r1'
-GRANT r3 TO 'r2'
 grant SELECT on *.* to u1;
 grant INSERT on mysql.* to r1;
 grant DELETE on mysql.roles_mapping to r2;
@@ -33,6 +33,8 @@ revoke execute on procedure mysql.test_proc from r2;
 ERROR 42000: There is no such grant defined for user 'r2' on host '' on routine 'test_proc'
 show grants for r1;
 Grants for r1
+GRANT 'r2' TO 'r1'
+GRANT 'r3' TO 'r2'
 GRANT DELETE ON `mysql`.`roles_mapping` TO 'r2'
 GRANT EXECUTE ON FUNCTION `mysql`.`test_func` TO 'r2'
 GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO 'r3'
@@ -41,17 +43,15 @@ GRANT UPDATE ON `mysql`.`user` TO 'r3'
 GRANT USAGE ON *.* TO 'r1'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
-GRANT r2 TO 'r1'
-GRANT r3 TO 'r2'
 show grants for r2;
 Grants for r2
+GRANT 'r3' TO 'r2'
 GRANT DELETE ON `mysql`.`roles_mapping` TO 'r2'
 GRANT EXECUTE ON FUNCTION `mysql`.`test_func` TO 'r2'
 GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO 'r3'
 GRANT UPDATE ON `mysql`.`user` TO 'r3'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
-GRANT r3 TO 'r2'
 show grants for r3;
 Grants for r3
 GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO 'r3'
@@ -64,11 +64,11 @@ returns CHAR(50) DETERMINISTIC
 return concat('Test string: ',s);
 show grants for r2;
 Grants for r2
+GRANT 'r3' TO 'r2'
 GRANT DELETE ON `mysql`.`roles_mapping` TO 'r2'
 GRANT UPDATE ON `mysql`.`user` TO 'r3'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
-GRANT r3 TO 'r2'
 connect  u1,localhost,u1,,;
 select mysql.test_func("none");
 ERROR 42000: execute command denied to user 'u1'@'%' for routine 'mysql.test_func'

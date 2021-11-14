@@ -4003,10 +4003,8 @@ public:
         for any CTE references.
       */
       if (!lex->with_cte_resolution)
-      {
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-        return TRUE;
-      }
+      return TRUE;
     }
     else
     {
@@ -4526,7 +4524,8 @@ public:
       transaction.all.modified_non_trans_table= TRUE;
     transaction.all.m_unsafe_rollback_flags|=
       (transaction.stmt.m_unsafe_rollback_flags &
-       (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
+       (THD_TRANS::MODIFIED_NON_TRANS_TABLE |
+        THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
         THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL |
         THD_TRANS::EXECUTED_TABLE_ADMIN_CMD));
   }

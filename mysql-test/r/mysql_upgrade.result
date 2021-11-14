@@ -840,15 +840,15 @@ CREATE ROLE `aRole`;
 SET DEFAULT ROLE aRole;
 SHOW GRANTS;
 Grants for root@localhost
-GRANT aRole TO 'root'@'localhost' WITH ADMIN OPTION
+GRANT 'aRole' TO 'root'@'localhost' WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO 'aRole'
-SET DEFAULT ROLE aRole FOR 'root'@'localhost'
+SET DEFAULT ROLE 'aRole' FOR 'root'@'localhost'
 SET DEFAULT ROLE NONE;
 SHOW GRANTS;
 Grants for root@localhost
-GRANT aRole TO 'root'@'localhost' WITH ADMIN OPTION
+GRANT 'aRole' TO 'root'@'localhost' WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO 'aRole'

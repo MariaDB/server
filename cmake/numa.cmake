@@ -31,6 +31,7 @@ MACRO (MYSQL_CHECK_NUMA)
       ENDIF()
     ENDIF()
 
+    ADD_FEATURE_INFO(NUMA HAVE_LIBNUMA "NUMA memory allocation policy")
     IF(WITH_NUMA AND NOT HAVE_LIBNUMA)
       # Forget it in cache, abort the build.
       UNSET(WITH_NUMA CACHE)

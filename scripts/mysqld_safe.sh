@@ -73,12 +73,14 @@ usage () {
         cat <<EOF
 Usage: $0 [OPTIONS]
   --no-defaults              Don't read the system defaults file
-  --core-file-size=LIMIT     Limit core files to the specified size
   --defaults-file=FILE       Use the specified defaults file
   --defaults-extra-file=FILE Also use defaults from the specified file
+  --defaults-group-suffix=X  Additionally read default groups with X appended
+                             as a suffix
   --ledir=DIRECTORY          Look for mysqld in the specified directory
   --open-files-limit=LIMIT   Limit the number of open files
   --crash-script=FILE        Script to call when mysqld crashes
+  --core-file-size=LIMIT     Limit core files to the specified size
   --timezone=TZ              Set the system timezone
   --malloc-lib=LIB           Preload shared library LIB if available
   --mysqld=FILE              Use the specified file as mysqld

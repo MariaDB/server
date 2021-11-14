@@ -369,6 +369,7 @@ create_worker_threads(uint n)
 				   thd)) {
 			msg("compress: pthread_create() failed: "
 			    "errno = %d", errno);
+			pthread_mutex_unlock(&thd->ctrl_mutex);
 			goto err;
 		}
 	}
@@ -385,6 +386,13 @@ create_worker_threads(uint n)
 	return threads;
 
 err:
+	while (i > 0) {
+		comp_thread_ctxt_t *thd;
+		i--;
+		thd = threads + i;
+		pthread_mutex_unlock(&thd->ctrl_mutex);
+	}
+
 	my_free(threads);
 	return NULL;
 }

@@ -367,14 +367,6 @@ DECLARE_THREAD(mtflush_io_thread)(void* arg)
 	mutex_exit(&(mtflush_io->thread_global_mtx));
 
 	while (TRUE) {
-
-#ifdef UNIV_MTFLUSH_DEBUG
- 		fprintf(stderr, "InnoDB: Note. Thread %lu work queue len %lu return queue len %lu\n",
- 					os_thread_get_curr_id(),
- 					ib_wqueue_len(mtflush_io->wq),
- 					ib_wqueue_len(mtflush_io->wr_cq));
-#endif /* UNIV_MTFLUSH_DEBUG */
-
 		mtflush_service_io(mtflush_io, this_thread_data);
 
 

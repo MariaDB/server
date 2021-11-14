@@ -44,7 +44,7 @@ GRANT USAGE ON *.* TO 'r1'
 set role r1;
 show grants;
 Grants for root@localhost
-GRANT r1 TO 'root'@'localhost' WITH ADMIN OPTION
+GRANT 'r1' TO 'root'@'localhost' WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO 'r1'

@@ -1,0 +1,30 @@
+call mtr.add_suppression("Table `test`.`t2` should have 2 indexes but the tablespace has 1 indexes");
+call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
+call mtr.add_suppression("Trying to read page number 23 in space .*, space name test/t2, which is outside the tablespace bounds. Byte offset 0, len 16384");
+CREATE TABLE t1 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+not_id INT,
+data CHAR(255),
+data2 BLOB
+) ENGINE=INNODB;
+ALTER TABLE t1 MODIFY not_id INT UNIQUE KEY;
+connect  purge_control,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE FROM t1 WHERE id % 2 = 1;
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+connection purge_control;
+COMMIT;
+connection default;
+DROP TABLE t1;
+CREATE TABLE t2 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+not_id INT UNIQUE KEY,
+data CHAR(255),
+data2 BLOB
+) ENGINE=INNODB;
+ALTER TABLE t2 DISCARD TABLESPACE;
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Index for table 't2' is corrupt; try to repair it
+DROP TABLE t2;

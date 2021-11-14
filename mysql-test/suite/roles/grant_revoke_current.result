@@ -27,14 +27,14 @@ GRANT USAGE ON *.* TO 'r1'
 set password=password('foobar');
 show grants;
 Grants for root@localhost
-GRANT r1 TO 'root'@'localhost' WITH ADMIN OPTION
+GRANT 'r1' TO 'root'@'localhost' WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY PASSWORD '*9B500343BC52E2911172EB52AE5CF4847604C6E5' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO 'r1'
 grant r1 to current_user() identified by 'barfoo';
 show grants;
 Grants for root@localhost
-GRANT r1 TO 'root'@'localhost' WITH ADMIN OPTION
+GRANT 'r1' TO 'root'@'localhost' WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY PASSWORD '*343915A8181B5728EADBDC73E1F7E6B0C3998483' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO 'r1'

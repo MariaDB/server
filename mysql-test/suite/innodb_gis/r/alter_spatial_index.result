@@ -252,6 +252,16 @@ UNLOCK TABLES;
 ALTER TABLE tab DISCARD TABLESPACE;
 SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM tab;
 ERROR HY000: Tablespace has been discarded for table `tab`
+ERROR HY000: Internal error: Drop all secondary indexes before importing table test/tab when .cfg file is missing.
+Table	Create Table
+tab	CREATE TABLE `tab` (
+  `c1` int(11) NOT NULL,
+  `c2` point NOT NULL,
+  `c3` linestring NOT NULL,
+  `c4` polygon NOT NULL,
+  `c5` geometry NOT NULL,
+  PRIMARY KEY (`c2`(25))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 CHECK TABLE tab;
 Table	Op	Msg_type	Msg_text
 test.tab	check	status	OK
@@ -282,9 +292,6 @@ INSERT INTO tab SELECT * FROM tab1;
 ALTER TABLE tab DROP PRIMARY KEY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
-ALTER TABLE tab DROP INDEX idx2;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TEMPORARY TABLE temp_tab AS SELECT * FROM tab where c1 = c2;
 INSERT INTO temp_tab SELECT * FROM tab;
@@ -322,18 +329,10 @@ tab	CREATE TABLE `tab` (
   `c2` point NOT NULL,
   `c3` linestring NOT NULL,
   `c4` polygon NOT NULL,
-  `c5` geometry NOT NULL,
-  SPATIAL KEY `idx3` (`c3`),
-  SPATIAL KEY `idx4` (`c4`) COMMENT 'testing spatial index on Polygon',
-  SPATIAL KEY `idx5` (`c5`) COMMENT 'testing spatial index on Geometry',
-  KEY `idx6` (`c4`(10)) USING BTREE
+  `c5` geometry NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
 DELETE FROM tab;
 ALTER TABLE tab ADD PRIMARY KEY(c2);
 affected rows: 0
@@ -354,20 +353,12 @@ tab	CREATE TABLE `tab` (
   `c5` geometry NOT NULL,
   PRIMARY KEY (`c2`(25)),
   UNIQUE KEY `const_1` (`c2`(25)),
-  SPATIAL KEY `idx3` (`c3`),
-  SPATIAL KEY `idx4` (`c4`) COMMENT 'testing spatial index on Polygon',
-  SPATIAL KEY `idx5` (`c5`) COMMENT 'testing spatial index on Geometry',
-  KEY `idx6` (`c4`(10)) USING BTREE,
   SPATIAL KEY `idx2` (`c2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 tab	0	PRIMARY	1	c2	A	#	25	NULL		BTREE		
 tab	0	const_1	1	c2	A	#	25	NULL		BTREE		
-tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
 tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL		
 INSERT INTO tab(c1,c2,c3,c4,c5)
 VALUES(1,ST_GeomFromText('POINT(10 10)'),ST_GeomFromText('LINESTRING(5 5,20 20,30 30)'),
@@ -396,20 +387,12 @@ tab	CREATE TABLE `tab` (
   `c5` geometry NOT NULL,
   PRIMARY KEY (`c5`(10)),
   UNIQUE KEY `const_1` (`c5`(10)),
-  SPATIAL KEY `idx3` (`c3`),
-  SPATIAL KEY `idx4` (`c4`) COMMENT 'testing spatial index on Polygon',
-  SPATIAL KEY `idx5` (`c5`) COMMENT 'testing spatial index on Geometry',
-  KEY `idx6` (`c4`(10)) USING BTREE,
   SPATIAL KEY `idx2` (`c2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 tab	0	PRIMARY	1	c5	A	#	10	NULL		BTREE		
 tab	0	const_1	1	c5	A	#	10	NULL		BTREE		
-tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
 tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL		
 INSERT INTO tab(c1,c2,c3,c4,c5)
 VALUES(1,ST_GeomFromText('POINT(10 10)'),ST_GeomFromText('LINESTRING(5 5,20 20,30 30)'),

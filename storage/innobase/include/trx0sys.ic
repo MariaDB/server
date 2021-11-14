@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -251,7 +251,9 @@ trx_rw_min_trx_id_low(void)
 	if (trx == NULL) {
 		id = trx_sys->max_trx_id;
 	} else {
-		assert_trx_in_rw_list(trx);
+		ut_ad(!trx->read_only);
+		ut_ad(trx->in_rw_trx_list);
+		ut_ad(!trx->is_autocommit_non_locking());
 		id = trx->id;
 	}
 

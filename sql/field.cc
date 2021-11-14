@@ -6373,6 +6373,7 @@ bool Field_timef::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 int Field_year::store(const char *from, uint len,CHARSET_INFO *cs)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  THD *thd= get_thd();
   char *end;
   int error;
   longlong nr= cs->cset->strntoull10rnd(cs, from, len, 0, &end, &error);
@@ -6384,7 +6385,14 @@ int Field_year::store(const char *from, uint len,CHARSET_INFO *cs)
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     return 1;
   }
-  if (get_thd()->count_cuted_fields && 
+
+  if (!thd->count_cuted_fields && error == MY_ERRNO_EDOM)
+  {
+    *ptr= 0;
+    return 1;
+  }
+
+  if (thd->count_cuted_fields && 
       (error= check_int(cs, from, len, end, error)))
   {
     if (error == 1)  /* empty or incorrect string */
@@ -8310,6 +8318,7 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
   copy_length= copier.well_formed_copy(field_charset,
                                        (char*) value.ptr(), new_length,
                                        cs, from, length);
+  value.length(copy_length);
   Field_blob::store_length(copy_length);
   bmove(ptr+packlength,(uchar*) &tmp,sizeof(char*));
 

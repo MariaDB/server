@@ -5839,7 +5839,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
         {
           TABLE *table= field_to_set->table;
           if (thd->mark_used_columns == MARK_COLUMNS_READ)
-            bitmap_set_bit(table->read_set, field_to_set->field_index);
+            field_to_set->register_field_in_read_map();
           else
             bitmap_set_bit(table->write_set, field_to_set->field_index);
         }
@@ -6440,6 +6440,7 @@ set_new_item_local_context(THD *thd, Item_ident *item, TABLE_LIST *table_ref)
   if (!(context= new (thd->mem_root) Name_resolution_context))
     return TRUE;
   context->init();
+  context->select_lex= table_ref->select_lex;
   context->first_name_resolution_table=
     context->last_name_resolution_table= table_ref;
   item->context= context;
@@ -7191,6 +7192,18 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
     thd->restore_active_arena(arena, &backup);
   }
   DBUG_RETURN(0);
+}
+
+/** Transforms b= F(DEFAULT) -> b= F(DEFAULT(b)) */
+void setup_defaults(THD *thd, List<Item> &fields, List<Item> &values)
+{
+  List_iterator<Item> fit(fields);
+  List_iterator<Item> vit(values);
+
+  for (Item *value= vit++, *f_item= fit++; value; value= vit++, f_item= fit++)
+  {
+    value->walk(&Item::enchant_default_with_arg_processor, false, f_item);
+  }
 }
 
 /****************************************************************************

@@ -1,9 +1,6 @@
 #
 # Test of truncate
 #
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
 
 create table t1 (a integer, b integer,c1 CHAR(10));
 insert into t1 (a) values (1),(2);
@@ -161,5 +158,6 @@ HANDLER t1 READ FIRST;
 # Cleanup
 DROP TABLE t1;
 
---echo # End of 6.0 tests
-
+--echo #
+--echo # End of 5.5 tests
+--echo #

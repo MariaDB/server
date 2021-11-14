@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -898,7 +898,6 @@ row_ins_invalidate_query_cache(
 	innobase_invalidate_query_cache(thr_get_trx(thr), name, len);
 }
 
-
 /** Fill virtual column information in cascade node for the child table.
 @param[out]	cascade		child update node
 @param[in]	rec		clustered rec of child table
@@ -945,6 +944,11 @@ row_ins_foreign_fill_virtual(
 	if (!record) {
 		return DB_OUT_OF_MEMORY;
 	}
+	ut_ad(!node->is_delete
+	      || (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL));
+	ut_ad(foreign->type & (DICT_FOREIGN_ON_DELETE_SET_NULL
+			       | DICT_FOREIGN_ON_UPDATE_SET_NULL
+			       | DICT_FOREIGN_ON_UPDATE_CASCADE));
 
 	for (ulint i = 0; i < n_v_fld; i++) {
 
@@ -960,7 +964,7 @@ row_ins_foreign_fill_virtual(
 		dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
 				&vc.heap, update->heap, NULL, thd, mysql_table,
-                                record, NULL, NULL, NULL);
+				record, NULL, NULL);
 
 		if (vfield == NULL) {
 			return DB_COMPUTE_VALUE_FAILED;
@@ -969,23 +973,18 @@ row_ins_foreign_fill_virtual(
 		upd_field = update->fields + n_diff;
 
 		upd_field->old_v_val = static_cast<dfield_t*>(
-				mem_heap_alloc(cascade->heap,
-					sizeof *upd_field->old_v_val));
+			mem_heap_alloc(update->heap,
+				       sizeof *upd_field->old_v_val));
 
 		dfield_copy(upd_field->old_v_val, vfield);
 
 		upd_field_set_v_field_no(upd_field, i, index);
 
-		bool set_null =
-			node->is_delete
-			? (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL)
-			: (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL);
-
 		dfield_t* new_vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
 				&vc.heap, update->heap, NULL, thd,
 				mysql_table, record, NULL,
-				set_null ? update : node->update, foreign);
+				update);
 
 		if (new_vfield == NULL) {
 			return DB_COMPUTE_VALUE_FAILED;

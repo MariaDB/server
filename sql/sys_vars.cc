@@ -1022,7 +1022,9 @@ static Sys_var_ulong Sys_flush_time(
 static bool check_ftb_syntax(sys_var *self, THD *thd, set_var *var)
 {
   return ft_boolean_check_syntax_string((uchar*)
-                      (var->save_result.string_value.str));
+                      (var->save_result.string_value.str),
+                      var->save_result.string_value.length,
+                      self->charset(thd));
 }
 static bool query_cache_flush(sys_var *self, THD *thd, enum_var_type type)
 {
@@ -4062,12 +4064,16 @@ static Sys_var_session_special Sys_identity(
 */
 static bool update_insert_id(THD *thd, set_var *var)
 {
-  if (!var->value)
-  {
-    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
-    return true;
-  }
-  thd->force_one_auto_inc_interval(var->save_result.ulonglong_value);
+  /*
+    If we set the insert_id to the DEFAULT or 0
+    it means we 'reset' it so it's value doesn't
+    affect the INSERT.
+  */
+  if (!var->value ||
+      var->save_result.ulonglong_value == 0)
+    thd->auto_inc_intervals_forced.empty();
+  else
+    thd->force_one_auto_inc_interval(var->save_result.ulonglong_value);
   return false;
 }
 
@@ -4075,6 +4081,8 @@ static ulonglong read_insert_id(THD *thd)
 {
   return thd->auto_inc_intervals_forced.minimum();
 }
+
+
 static Sys_var_session_special Sys_insert_id(
        "insert_id", "The value to be used by the following INSERT "
        "or ALTER TABLE statement when inserting an AUTO_INCREMENT value",

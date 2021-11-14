@@ -1713,6 +1713,7 @@ public:
   virtual bool limit_index_condition_pushdown_processor(void *arg) { return 0; }
   virtual bool exists2in_processor(void *arg) { return 0; }
   virtual bool find_selective_predicates_list_processor(void *arg) { return 0; }
+  virtual bool enchant_default_with_arg_processor(void *arg) { return 0; }
   bool cleanup_is_expensive_cache_processor(void *arg)
   {
     is_expensive_cache= (int8)(-1);
@@ -2629,6 +2630,7 @@ public:
     Collect outer references
   */
   virtual bool collect_outer_ref_processor(void *arg);
+  Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   friend bool insert_fields(THD *thd, Name_resolution_context *context,
                             const char *db_name,
                             const char *table_name, List_iterator<Item> *it,
@@ -5449,6 +5451,11 @@ public:
 class Item_default_value : public Item_field
 {
   void calculate();
+protected:
+  Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a)
+          :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
+                      (const char *)NULL),
+           arg(a), cached_field(NULL) {}
 public:
   Item *arg;
   Field *cached_field;
@@ -5456,16 +5463,12 @@ public:
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                (const char *)NULL),
     arg(NULL), cached_field(NULL) {}
-  Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a)
-    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
-                (const char *)NULL),
-    arg(a), cached_field(NULL) {}
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Field *a)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 (const char *)NULL),
     arg(NULL),cached_field(NULL) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
-  bool vcol_assignment_allowed_value() const { return arg == NULL; }
+  bool vcol_assignment_allowed_value() const { return true; }
   bool eq(const Item *item, bool binary_cmp) const;
   bool fix_fields(THD *, Item **);
   void cleanup();
@@ -5495,6 +5498,7 @@ public:
   Item_field *field_for_view_update() { return 0; }
   bool update_vcol_processor(void *arg) { return 0; }
   bool check_func_default_processor(void *arg) { return true; }
+  bool enchant_default_with_arg_processor(void *arg);
 
   bool walk(Item_processor processor, bool walk_subquery, void *args)
   {
@@ -5503,6 +5507,15 @@ public:
   }
 
   Item *transform(THD *thd, Item_transformer transformer, uchar *args);
+};
+
+class Item_default_value_arg: public Item_default_value
+{
+public:
+  Item_default_value_arg(THD *thd, Name_resolution_context *context, Item *a)
+    :Item_default_value(thd, context, a) {}
+
+  bool vcol_assignment_allowed_value() const { return arg == NULL; }
 };
 
 /**
@@ -6222,6 +6235,19 @@ public:
   void close() {}
 };
 
+
+/*
+  fix_escape_item() sets the out "escape" parameter to:
+  - native code in case of an 8bit character set
+  - Unicode code point in case of a multi-byte character set
+
+  The value meaning a not-initialized ESCAPE character must not be equal to
+  any valid value, so must be outside of these ranges:
+  - -128..+127, not to conflict with a valid 8bit charcter
+  - 0..0x10FFFF, not to conflict with a valid Unicode code point
+  The exact value does not matter.
+*/
+#define ESCAPE_NOT_INITIALIZED -1000
 
 /*
   It's used in ::fix_fields() methods of LIKE and JSON_SEARCH

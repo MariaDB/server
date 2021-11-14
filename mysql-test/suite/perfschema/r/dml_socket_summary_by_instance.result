@@ -24,3 +24,34 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.socket_summary_by_instance WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'socket_summary_by_instance'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='socket_summary_by_instance';
+column_name	column_comment
+EVENT_NAME	Socket instrument.
+OBJECT_INSTANCE_BEGIN	Address in memory.
+COUNT_STAR	Number of summarized events
+SUM_TIMER_WAIT	Total wait time of the summarized events that are timed.
+MIN_TIMER_WAIT	Minimum wait time of the summarized events that are timed.
+AVG_TIMER_WAIT	Average wait time of the summarized events that are timed.
+MAX_TIMER_WAIT	Maximum wait time of the summarized events that are timed.
+COUNT_READ	Number of all read operations, including RECV, RECVFROM, and RECVMSG.
+SUM_TIMER_READ	Total wait time of all read operations that are timed.
+MIN_TIMER_READ	Minimum wait time of all read operations that are timed.
+AVG_TIMER_READ	Average wait time of all read operations that are timed.
+MAX_TIMER_READ	Maximum wait time of all read operations that are timed.
+SUM_NUMBER_OF_BYTES_READ	Bytes read by read operations.
+COUNT_WRITE	Number of all write operations, including SEND, SENDTO, and SENDMSG.
+SUM_TIMER_WRITE	Total wait time of all write operations that are timed.
+MIN_TIMER_WRITE	Minimum wait time of all write operations that are timed.
+AVG_TIMER_WRITE	Average wait time of all write operations that are timed.
+MAX_TIMER_WRITE	Maximum wait time of all write operations that are timed.
+SUM_NUMBER_OF_BYTES_WRITE	Bytes written by write operations.
+COUNT_MISC	Number of all miscellaneous operations not counted above, including CONNECT, LISTEN, ACCEPT, CLOSE, and SHUTDOWN.
+SUM_TIMER_MISC	Total wait time of all miscellaneous operations that are timed.
+MIN_TIMER_MISC	Minimum wait time of all miscellaneous operations that are timed.
+AVG_TIMER_MISC	Average wait time of all miscellaneous operations that are timed.
+MAX_TIMER_MISC	Maximum wait time of all miscellaneous operations that are timed.

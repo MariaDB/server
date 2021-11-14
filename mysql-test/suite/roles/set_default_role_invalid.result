@@ -5,7 +5,7 @@ grant select on *.* to test_role;
 grant test_role to test_user@localhost;
 show grants;
 Grants for test_user@localhost
-GRANT test_role TO 'test_user'@'localhost'
+GRANT 'test_role' TO 'test_user'@'localhost'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
 select user, host, default_role from mysql.user;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
@@ -21,10 +21,10 @@ user	host	default_role
 test_user	localhost	test_role
 show grants;
 Grants for test_user@localhost
-GRANT test_role TO 'test_user'@'localhost'
+GRANT 'test_role' TO 'test_user'@'localhost'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
 GRANT SELECT ON *.* TO 'test_role'
-SET DEFAULT ROLE test_role FOR 'test_user'@'localhost'
+SET DEFAULT ROLE 'test_role' FOR 'test_user'@'localhost'
 select user, host, default_role from mysql.user where user='test_user';
 user	host	default_role
 test_user	localhost	test_role
@@ -68,11 +68,11 @@ GRANT SELECT ON mysql.* TO b;
 # Change user b (session 1: select_priv)
 SHOW GRANTS FOR b;
 Grants for b@%
-GRANT r1 TO 'b'@'%'
-GRANT r2 TO 'b'@'%'
+GRANT 'r1' TO 'b'@'%'
+GRANT 'r2' TO 'b'@'%'
 GRANT USAGE ON *.* TO 'b'@'%'
 GRANT SELECT ON `mysql`.* TO 'b'@'%'
-SET DEFAULT ROLE r2 FOR 'b'@'%'
+SET DEFAULT ROLE 'r2' FOR 'b'@'%'
 SET DEFAULT ROLE r1 FOR a;
 ERROR 42000: Access denied for user 'b'@'%' to database 'mysql'
 SELECT CURRENT_ROLE;
@@ -94,11 +94,11 @@ GRANT UPDATE ON mysql.* TO b;
 # Change user b
 SHOW GRANTS FOR b;
 Grants for b@%
-GRANT r1 TO 'b'@'%'
-GRANT r2 TO 'b'@'%'
+GRANT 'r1' TO 'b'@'%'
+GRANT 'r2' TO 'b'@'%'
 GRANT USAGE ON *.* TO 'b'@'%'
 GRANT SELECT, UPDATE ON `mysql`.* TO 'b'@'%'
-SET DEFAULT ROLE r2 FOR 'b'@'%'
+SET DEFAULT ROLE 'r2' FOR 'b'@'%'
 SET DEFAULT ROLE r1 FOR a;
 ERROR OP000: User `b`@`%` has not been granted role `r1`
 SET DEFAULT ROLE invalid_role;

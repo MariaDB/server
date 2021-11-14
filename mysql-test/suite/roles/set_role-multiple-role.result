@@ -25,14 +25,14 @@ select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 show grants;
 Grants for test_user@localhost
+GRANT 'r_crt' TO 'test_user'@'localhost'
+GRANT 'r_del' TO 'test_user'@'localhost'
+GRANT 'r_drp' TO 'test_user'@'localhost'
+GRANT 'r_ins' TO 'test_user'@'localhost'
+GRANT 'r_rld' TO 'test_user'@'localhost'
+GRANT 'r_sel' TO 'test_user'@'localhost'
+GRANT 'r_upd' TO 'test_user'@'localhost'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
-GRANT r_crt TO 'test_user'@'localhost'
-GRANT r_del TO 'test_user'@'localhost'
-GRANT r_drp TO 'test_user'@'localhost'
-GRANT r_ins TO 'test_user'@'localhost'
-GRANT r_rld TO 'test_user'@'localhost'
-GRANT r_sel TO 'test_user'@'localhost'
-GRANT r_upd TO 'test_user'@'localhost'
 select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	NULL
@@ -42,15 +42,15 @@ current_user()	current_role()
 test_user@localhost	r_sel
 show grants;
 Grants for test_user@localhost
+GRANT 'r_crt' TO 'test_user'@'localhost'
+GRANT 'r_del' TO 'test_user'@'localhost'
+GRANT 'r_drp' TO 'test_user'@'localhost'
+GRANT 'r_ins' TO 'test_user'@'localhost'
+GRANT 'r_rld' TO 'test_user'@'localhost'
+GRANT 'r_sel' TO 'test_user'@'localhost'
+GRANT 'r_upd' TO 'test_user'@'localhost'
 GRANT SELECT ON *.* TO 'r_sel'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
-GRANT r_crt TO 'test_user'@'localhost'
-GRANT r_del TO 'test_user'@'localhost'
-GRANT r_drp TO 'test_user'@'localhost'
-GRANT r_ins TO 'test_user'@'localhost'
-GRANT r_rld TO 'test_user'@'localhost'
-GRANT r_sel TO 'test_user'@'localhost'
-GRANT r_upd TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
 Host	User	Role	Admin_option
 localhost	root	r_crt	Y
@@ -73,15 +73,15 @@ current_user()	current_role()
 test_user@localhost	r_ins
 show grants;
 Grants for test_user@localhost
+GRANT 'r_crt' TO 'test_user'@'localhost'
+GRANT 'r_del' TO 'test_user'@'localhost'
+GRANT 'r_drp' TO 'test_user'@'localhost'
+GRANT 'r_ins' TO 'test_user'@'localhost'
+GRANT 'r_rld' TO 'test_user'@'localhost'
+GRANT 'r_sel' TO 'test_user'@'localhost'
+GRANT 'r_upd' TO 'test_user'@'localhost'
 GRANT INSERT ON *.* TO 'r_ins'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
-GRANT r_crt TO 'test_user'@'localhost'
-GRANT r_del TO 'test_user'@'localhost'
-GRANT r_drp TO 'test_user'@'localhost'
-GRANT r_ins TO 'test_user'@'localhost'
-GRANT r_rld TO 'test_user'@'localhost'
-GRANT r_sel TO 'test_user'@'localhost'
-GRANT r_upd TO 'test_user'@'localhost'
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 insert into mysql.roles_mapping values ('', 'r_sel', 'r_rld', 'N');

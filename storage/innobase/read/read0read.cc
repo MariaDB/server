@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -574,7 +574,7 @@ MVCC::view_open(ReadView*& view, trx_t* trx)
 		Therefore we must set the low limit id after we reset the
 		closed status after the check. */
 
-		if (trx_is_autocommit_non_locking(trx) && view->empty()) {
+		if (trx->is_autocommit_non_locking() && view->empty()) {
 
 			view->m_closed = false;
 

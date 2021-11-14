@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -50,17 +50,18 @@ trx_state_eq(
 	switch (trx->state) {
 	case TRX_STATE_PREPARED:
 	case TRX_STATE_PREPARED_RECOVERED:
-		ut_ad(!trx_is_autocommit_non_locking(trx));
+	case TRX_STATE_COMMITTED_IN_MEMORY:
+		ut_ad(!trx->is_autocommit_non_locking());
 		return(trx->state == state);
 
 	case TRX_STATE_ACTIVE:
-
-		assert_trx_nonlocking_or_in_list(trx);
-		return(state == trx->state);
-
-	case TRX_STATE_COMMITTED_IN_MEMORY:
-
-		check_trx_state(trx);
+		if (trx->is_autocommit_non_locking()) {
+			ut_ad(!trx->is_recovered);
+			ut_ad(trx->read_only);
+			ut_ad(trx->mysql_thd);
+			ut_ad(!trx->in_rw_trx_list);
+			ut_ad(trx->in_mysql_trx_list);
+		}
 		return(state == trx->state);
 
 	case TRX_STATE_NOT_STARTED:

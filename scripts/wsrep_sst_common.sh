@@ -1010,7 +1010,13 @@ check_port()
         lsof -Pnl -i ":$port" 2>/dev/null | \
         grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*\\(LISTEN\\)" && rc=0
     elif [ $sockstat_available -ne 0 ]; then
-        sockstat -p "$port" 2>/dev/null | \
+        local opts='-p'
+        if [ "$OS" = 'FreeBSD' ]; then
+            # sockstat on FreeBSD requires the "-s" option
+            # to display the connection state:
+            opts='-sp'
+        fi
+        sockstat "$opts" "$port" 2>/dev/null | \
         grep -q -E "[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*[[:space:]]LISTEN" && rc=0
     elif [ $ss_available -ne 0 ]; then
         ss -nlpH "( sport = :$port )" 2>/dev/null | \
@@ -1059,8 +1065,9 @@ check_for_dhparams()
 #
 verify_ca_matches_cert()
 {
-    local ca_path="$1"
-    local cert_path="$2"
+    local ca="$1"
+    local cert="$2"
+    local path=${3:-0}
 
     # If the openssl utility is not installed, then
     # we will not do this certificate check:
@@ -1069,8 +1076,15 @@ verify_ca_matches_cert()
         return
     fi
 
-    if ! "$OPENSSL_BINARY" verify -verbose -CAfile "$ca_path" "$cert_path" >/dev/null 2>&1
-    then
+    local not_match=0
+
+    if [ $path -eq 0 ]; then
+        "$OPENSSL_BINARY" verify -verbose -CAfile "$ca" "$cert" >/dev/null 2>&1 || not_match=1
+    else
+        "$OPENSSL_BINARY" verify -verbose -CApath "$ca" "$cert" >/dev/null 2>&1 || not_match=1
+    fi
+
+    if [ $not_match -eq 1 ]; then
         wsrep_log_error "******** FATAL ERROR ********************************************"
         wsrep_log_error "* The certifcate and CA (certificate authority) do not match.   *"
         wsrep_log_error "* It does not appear that the certificate was issued by the CA. *"

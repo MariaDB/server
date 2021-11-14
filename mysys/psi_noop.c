@@ -86,7 +86,7 @@ static void register_socket_noop(const char *category NNN,
 }
 
 static PSI_mutex*
-init_mutex_noop(PSI_mutex_key key NNN, const void *identity NNN)
+init_mutex_noop(PSI_mutex_key key NNN, void *identity NNN)
 {
   return NULL;
 }
@@ -97,7 +97,7 @@ static void destroy_mutex_noop(PSI_mutex* mutex NNN)
 }
 
 static PSI_rwlock*
-init_rwlock_noop(PSI_rwlock_key key NNN, const void *identity NNN)
+init_rwlock_noop(PSI_rwlock_key key NNN, void *identity NNN)
 {
   return NULL;
 }
@@ -108,7 +108,7 @@ static void destroy_rwlock_noop(PSI_rwlock* rwlock NNN)
 }
 
 static PSI_cond*
-init_cond_noop(PSI_cond_key key NNN, const void *identity NNN)
+init_cond_noop(PSI_cond_key key NNN, void *identity NNN)
 {
   return NULL;
 }

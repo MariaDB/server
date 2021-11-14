@@ -555,5 +555,11 @@ SELECT
 
 
 --echo #
+--echo # MDEV-24585 Assertion `je->s.cs == nice_js->charset()' failed in json_nice.
+--echo #
+
+SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

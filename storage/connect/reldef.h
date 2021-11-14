@@ -146,11 +146,11 @@ class DllExport OEMDEF : public TABDEF {                  /* OEM table */
   PTABDEF GetXdef(PGLOBAL g);
 
   // Members
-#if defined(__WIN__)
+#if defined(_WIN32)
   HANDLE  Hdll;               /* Handle to the external DLL            */
-#else   // !__WIN__
+#else   // !_WIN32
   void   *Hdll;               /* Handle for the loaded shared library  */
-#endif  // !__WIN__
+#endif  // !_WIN32
   PTABDEF Pxdef;              /* Pointer to the external TABDEF class  */
   char   *Module;             /* Path/Name of the DLL implenting it    */
   char   *Subtype;            /* The name of the OEM table sub type    */

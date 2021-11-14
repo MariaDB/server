@@ -26,13 +26,13 @@ INCLUDE(CMakeParseArguments)
 # [STATIC_OUTPUT_NAME static_name]
 # [RECOMPILE_FOR_EMBEDDED]
 # [LINK_LIBRARIES lib1...libN]
-# [DEPENDENCIES target1...targetN]
+# [DEPENDS target1...targetN]
 
 MACRO(MYSQL_ADD_PLUGIN)
   CMAKE_PARSE_ARGUMENTS(ARG
     "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;RECOMPILE_FOR_EMBEDDED;CLIENT"
     "MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT;CONFIG"
-    "LINK_LIBRARIES;DEPENDENCIES"
+    "LINK_LIBRARIES;DEPENDS"
     ${ARGN}
   )
   IF(NOT WITHOUT_SERVER OR ARG_CLIENT)
@@ -49,7 +49,7 @@ MACRO(MYSQL_ADD_PLUGIN)
   LIST(REMOVE_AT SOURCES 0)
   STRING(TOUPPER ${plugin} plugin)
   STRING(TOLOWER ${plugin} target)
-  
+
   IF (ARG_MANDATORY)
     UNSET(PLUGIN_${plugin} CACHE)
     SET(PLUGIN_${plugin} "YES")
@@ -110,11 +110,11 @@ MACRO(MYSQL_ADD_PLUGIN)
     SET(with_var "WITH_${plugin}")
   ENDIF()
   UNSET(${with_var} CACHE)
-  
-  IF(NOT ARG_DEPENDENCIES)
-    SET(ARG_DEPENDENCIES)
+
+  IF(NOT ARG_DEPENDS)
+    SET(ARG_DEPENDS)
   ENDIF()
-  
+
   IF(NOT ARG_MODULE_OUTPUT_NAME)
     IF(ARG_STORAGE_ENGINE)
       SET(ARG_MODULE_OUTPUT_NAME "ha_${target}")
@@ -138,7 +138,7 @@ MACRO(MYSQL_ADD_PLUGIN)
 
     ADD_LIBRARY(${target} STATIC ${SOURCES})
     DTRACE_INSTRUMENT(${target})
-    ADD_DEPENDENCIES(${target} GenError ${ARG_DEPENDENCIES})
+    ADD_DEPENDENCIES(${target} GenError ${ARG_DEPENDS})
     RESTRICT_SYMBOL_EXPORTS(${target})
     IF(WITH_EMBEDDED_SERVER)
       # Embedded library should contain PIC code and be linkable
@@ -152,7 +152,7 @@ MACRO(MYSQL_ADD_PLUGIN)
           SET_TARGET_PROPERTIES(${target}_embedded 
             PROPERTIES COMPILE_DEFINITIONS "EMBEDDED_LIBRARY")
         ENDIF()
-        ADD_DEPENDENCIES(${target}_embedded GenError)
+        ADD_DEPENDENCIES(${target}_embedded GenError ${ARG_DEPENDS})
       ENDIF()
     ENDIF()
 
@@ -213,7 +213,7 @@ MACRO(MYSQL_ADD_PLUGIN)
       TARGET_LINK_LIBRARIES (${target} "-Wl,--no-undefined")
     ENDIF()
 
-    ADD_DEPENDENCIES(${target} GenError ${ARG_DEPENDENCIES})
+    ADD_DEPENDENCIES(${target} GenError ${ARG_DEPENDS})
 
     SET_TARGET_PROPERTIES(${target} PROPERTIES 
       OUTPUT_NAME "${ARG_MODULE_OUTPUT_NAME}")  
@@ -257,6 +257,21 @@ MACRO(MYSQL_ADD_PLUGIN)
     INSTALL_MYSQL_TEST("${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/" "plugin/${subpath}")
   ENDIF()
 
+  IF(TARGET ${target})
+    GET_TARGET_PROPERTY(plugin_type ${target} TYPE)
+    STRING(REPLACE "_LIBRARY" "" plugin_type ${plugin_type})
+    SET(have_target 1)
+  ELSE()
+    SET(plugin_type)
+    SET(have_target 0)
+  ENDIF()
+  IF(ARG_STORAGE_ENGINE)
+    ADD_FEATURE_INFO(${plugin} ${have_target} "Storage Engine ${plugin_type}")
+  ELSEIF(ARG_CLIENT)
+    ADD_FEATURE_INFO(${plugin} ${have_target} "Client plugin ${plugin_type}")
+  ELSE()
+    ADD_FEATURE_INFO(${plugin} ${have_target} "Server plugin ${plugin_type}")
+  ENDIF()
   ENDIF(NOT WITHOUT_SERVER OR ARG_CLIENT)
 ENDMACRO()
 

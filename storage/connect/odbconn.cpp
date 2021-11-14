@@ -1,7 +1,7 @@
 /***********************************************************************/
-/*  Name: ODBCONN.CPP  Version 2.3                                     */
+/*  Name: ODBCONN.CPP  Version 2.4                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2021    */
 /*                                                                     */
 /*  This file contains the ODBC connection classes functions.          */
 /***********************************************************************/
@@ -11,7 +11,7 @@
 /***********************************************************************/
 #include <my_global.h>
 #include <m_string.h>
-#if defined(__WIN__)
+#if defined(_WIN32)
 //nclude <io.h>
 //nclude <fcntl.h>
 #include <direct.h>                      // for getcwd
@@ -45,13 +45,13 @@
 #include "osutil.h"
 
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 /***********************************************************************/
 /*  For dynamic load of ODBC32.DLL                                     */
 /***********************************************************************/
 #pragma comment(lib, "odbc32.lib")
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#endif // __WIN__
+#endif // _WIN32
 
 TYPCONV GetTypeConv();
 int GetConvSize();
@@ -1280,15 +1280,15 @@ bool ODBConn::DriverConnect(DWORD Options)
   SWORD   nResult;
   PUCHAR  ConnOut = (PUCHAR)PlugSubAlloc(m_G, NULL, MAX_CONNECT_LEN);
   UWORD   wConnectOption = SQL_DRIVER_COMPLETE;
-#if defined(__WIN__)
+#if defined(_WIN32)
   HWND    hWndTop = GetForegroundWindow();
   HWND    hWnd = GetParent(hWndTop);
 
   if (hWnd == NULL)
     hWnd = GetDesktopWindow();
-#else   // !__WIN__
+#else   // !_WIN32
   HWND    hWnd = (HWND)1;
-#endif  // !__WIN__
+#endif  // !_WIN32
   PGLOBAL& g = m_G;
   PDBUSER dup = PlgGetUser(g);
 
@@ -1301,10 +1301,10 @@ bool ODBConn::DriverConnect(DWORD Options)
                         SQL_NTS, ConnOut, MAX_CONNECT_LEN,
                         &nResult, wConnectOption);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (hWndTop)
     EnableWindow(hWndTop, true);
-#endif   // __WIN__
+#endif   // _WIN32
 
   // If user hit 'Cancel'
   if (rc == SQL_NO_DATA_FOUND) {
@@ -1509,7 +1509,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
       ThrowDBX(MSG(COL_NUM_MISM));
 
     // Now bind the column buffers
-    for (n = 1, colp = tocols; colp; colp = (PODBCCOL)colp->GetNext())
+    for (colp = tocols; colp; colp = (PODBCCOL)colp->GetNext())
       if (!colp->IsSpecial()) {
         buffer = colp->GetBuffer(m_RowsetSize);
         len = colp->GetBuflen();
@@ -1525,12 +1525,11 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
           htrc("Binding col=%u type=%d buf=%p len=%d slen=%p\n",
                   n, tp, buffer, len, colp->GetStrLen());
 
-        rc = SQLBindCol(hstmt, n, tp, buffer, len, colp->GetStrLen());
+        rc = SQLBindCol(hstmt, colp->GetIndex(), tp, buffer, len, colp->GetStrLen());
 
         if (!Check(rc))
           ThrowDBX(rc, "SQLBindCol", hstmt);
 
-        n++;
         } // endif pcol
 
   } catch(DBX *x) {

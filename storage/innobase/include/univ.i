@@ -41,7 +41,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	7
-#define INNODB_VERSION_BUGFIX	34
+#define INNODB_VERSION_BUGFIX	36
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -238,6 +238,12 @@ easy way to get it to work. See http://bugs.mysql.com/bug.php?id=52263. */
 # define UNIV_INTERN __attribute__((visibility ("hidden")))
 #else
 # define UNIV_INTERN
+#endif
+
+#if defined(__GNUC__) && (__GNUC__ >= 11)
+# define ATTRIBUTE_ACCESS(X) __attribute__((access X))
+#else
+# define ATTRIBUTE_ACCESS(X)
 #endif
 
 #ifndef MY_ATTRIBUTE
@@ -458,7 +464,7 @@ in both 32-bit and 64-bit environments. */
 #ifdef UNIV_INNOCHECKSUM
 extern bool 			strict_verify;
 extern FILE* 			log_file;
-extern unsigned long long	cur_page_num;
+extern uint32_t			cur_page_num;
 #endif /* UNIV_INNOCHECKSUM */
 
 typedef int64_t ib_int64_t;

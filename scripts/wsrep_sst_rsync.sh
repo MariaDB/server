@@ -93,7 +93,15 @@ check_pid_and_port()
         else
             local filter='([^[:space:]]+[[:space:]]+){4}[^[:space:]]+'
             if [ $sockstat_available -eq 1 ]; then
-                port_info=$(sockstat -p "$port" 2>/dev/null | \
+                local opts='-p'
+                if [ "$OS" = 'FreeBSD' ]; then
+                    # sockstat on FreeBSD requires the "-s" option
+                    # to display the connection state:
+                    opts='-sp'
+                    # in addition, sockstat produces an additional column:
+                    filter='([^[:space:]]+[[:space:]]+){5}[^[:space:]]+'
+                fi
+                port_info=$(sockstat "$opts" "$port" 2>/dev/null | \
                     grep -E '[[:space:]]LISTEN' | grep -o -E "$filter")
             else
                 port_info=$(ss -nlpH "( sport = :$port )" 2>/dev/null | \
@@ -228,9 +236,16 @@ check_server_ssl_config()
 SSLMODE=$(parse_cnf "$SST_SECTIONS" 'ssl-mode' | tr [:lower:] [:upper:])
 
 # no old-style SSL config in [sst], check for new one:
-if [ -z "$SSTKEY" -a -z "$SSTCERT" -a -z "$SSTCA" ]
-then
+if [ -z "$SSTKEY" -a -z "$SSTCERT" -a -z "$SSTCA" ]; then
     check_server_ssl_config
+fi
+
+SSTPATH=0
+if [ -n "$SSTCA" ]; then
+   SSTCA=$(trim_string "$SSTCA")
+   if [ "${SSTCA%/}" != "$SSTCA" ]; then
+       SSTPATH=1
+   fi
 fi
 
 if [ -z "$SSLMODE" ]; then
@@ -246,9 +261,19 @@ if [ -z "$SSLMODE" ]; then
     fi
 fi
 
-if [ -n "$SSTCA" ]
-then
-    CAFILE_OPT="CAfile = $SSTCA"
+if [ -n "$SSTCERT" -a -n "$SSTKEY" ]; then
+    verify_cert_matches_key "$SSTCERT" "$SSTKEY"
+fi
+
+if [ -n "$SSTCA" ]; then
+    if [ $SSTPATH -eq 0 ]; then
+        CAFILE_OPT="CAfile = $SSTCA"
+    else
+        CAFILE_OPT="CApath = $SSTCA"
+    fi
+    if [ -n "$SSTCERT" ]; then
+        verify_ca_matches_cert "$SSTCA" "$SSTCERT" $SSTPATH
+    fi
 else
     CAFILE_OPT=""
 fi
@@ -264,30 +289,30 @@ then
         ;;
     'VERIFY_CA')
         VERIFY_OPT='verifyChain = yes'
-        if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
-            CHECK_OPT="checkHost = $WSREP_SST_OPT_REMOTE_USER"
-        else
-            # check if the address is an ip-address (v4 or v6):
-            if echo "$WSREP_SST_OPT_HOST_UNESCAPED" | \
-               grep -q -E '^([0-9]+(\.[0-9]+){3}|[0-9a-fA-F]*(\:[0-9a-fA-F]*)+)$'
-            then
-                CHECK_OPT="checkIP = $WSREP_SST_OPT_HOST_UNESCAPED"
-            else
-                CHECK_OPT="checkHost = $WSREP_SST_OPT_HOST"
-            fi
-            if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
-                CHECK_OPT_LOCAL="checkHost = localhost"
-            fi
-        fi
         ;;
     *)
         wsrep_log_error "Unrecognized ssl-mode option: '$SSLMODE'"
         exit 22 # EINVAL
         ;;
     esac
-    if [ -z "$CAFILE_OPT" ]; then
-        wsrep_log_error "Can't have ssl-mode='$SSLMODE' without CA file"
+    if [ -z "$SSTCA" ]; then
+        wsrep_log_error "Can't have ssl-mode='$SSLMODE' without CA file or path"
         exit 22 # EINVAL
+    fi
+    if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+        CHECK_OPT="checkHost = $WSREP_SST_OPT_REMOTE_USER"
+    elif [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
+        # check if the address is an ip-address (v4 or v6):
+        if echo "$WSREP_SST_OPT_HOST_UNESCAPED" | \
+           grep -q -E '^([0-9]+(\.[0-9]+){3}|[0-9a-fA-F]*(\:[0-9a-fA-F]*)+)$'
+        then
+            CHECK_OPT="checkIP = $WSREP_SST_OPT_HOST_UNESCAPED"
+        else
+            CHECK_OPT="checkHost = $WSREP_SST_OPT_HOST"
+        fi
+        if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
+            CHECK_OPT_LOCAL="checkHost = localhost"
+        fi
     fi
 fi
 
@@ -295,7 +320,7 @@ STUNNEL=""
 if [ -n "$SSLMODE" -a "$SSLMODE" != 'DISABLED' ]; then
     STUNNEL_BIN="$(command -v stunnel)"
     if [ -n "$STUNNEL_BIN" ]; then
-        wsrep_log_info "Using stunnel for SSL encryption: CAfile: '$SSTCA', ssl-mode='$SSLMODE'"
+        wsrep_log_info "Using stunnel for SSL encryption: CA: '$SSTCA', ssl-mode='$SSLMODE'"
         STUNNEL="$STUNNEL_BIN $STUNNEL_CONF"
     fi
 fi
@@ -388,7 +413,7 @@ EOF
         # Use deltaxfer only for WAN
         inv=$(basename "$0")
         WHOLE_FILE_OPT=""
-        if [ "${inv%wsrep_sst_rsync_wan*}" != "$inv" ]; then
+        if [ "${inv%wsrep_sst_rsync_wan*}" = "$inv" ]; then
             WHOLE_FILE_OPT="--whole-file"
         fi
 
@@ -717,8 +742,10 @@ EOF
             tmpdir=$(parse_cnf '--mysqld|sst' 'tmpdir')
             if [ -z "$tmpdir" ]; then
                tmpfile="$(mktemp)"
-            else
+            elif [ "$OS" = 'Linux' ]; then
                tmpfile=$(mktemp "--tmpdir=$tmpdir")
+            else
+               tmpfile=$(TMPDIR="$tmpdir"; mktemp '-d')
             fi
 
             wsrep_log_info "Extracting binlog files:"

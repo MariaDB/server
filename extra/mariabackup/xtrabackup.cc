@@ -1281,7 +1281,7 @@ struct my_option xb_client_options[]= {
      "This "
      "option, when specified, makes --copy-back or --move-back transfer "
      "files to non-empty directories. Note that no existing files will be "
-     "overwritten. If --copy-back or --nove-back has to copy a file from "
+     "overwritten. If --copy-back or --move-back has to copy a file from "
      "the backup directory which already exists in the destination "
      "directory, it will still fail with an error.",
      (uchar *) &opt_force_non_empty_dirs, (uchar *) &opt_force_non_empty_dirs,
@@ -3405,7 +3405,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 	delete file;
 
 	if (err != DB_SUCCESS && xtrabackup_backup && !is_empty_file) {
-		die("Failed to not validate first page of the file %s, error %d",name, (int)err);
+		die("Failed to validate first page of the file %s, error %d",name, (int)err);
 	}
 
 	ut_free(name);

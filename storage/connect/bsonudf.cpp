@@ -12,6 +12,7 @@
 #include <mysql.h>
 #include <sql_error.h>
 #include <stdio.h>
+#include <cassert>
 
 #include "bsonudf.h"
 
@@ -621,7 +622,7 @@ PVAL BJNX::GetCalcValue(PGLOBAL g, PBVAL bap, int n)
 {
 	// For calculated arrays, a local Value must be used
 	int     lng = 0;
-	short   type, prec = 0;
+	short   type = 0, prec = 0;
 	bool    b = n < Nod - 1;
 	PVAL    valp;
 	PBVAL   vlp, vp;
@@ -690,7 +691,7 @@ PVAL BJNX::GetCalcValue(PGLOBAL g, PBVAL bap, int n)
 
 			break;
 		default:
-			break;
+			DBUG_ASSERT(!"Implement new op type support.");
 	} // endswitch Op
 
 	return valp = AllocateValue(g, type, lng, prec);
@@ -1889,24 +1890,31 @@ static int *GetIntArgPtr(PGLOBAL g, UDF_ARGS *args, uint& n)
 /*********************************************************************************/
 int IsArgJson(UDF_ARGS *args, uint i)
 {
-	int n = 0;
+	char *pat = args->attributes[i];
+	int   n = 0;
+
+	if (*pat == '@') {
+		pat++;
+
+		if (*pat == '\'' || *pat == '"')
+			pat++;
+
+	} // endif pat
 
 	if (i >= args->arg_count || args->arg_type[i] != STRING_RESULT) {
-	} else if (!strnicmp(args->attributes[i], "Bson_", 5) ||
-		         !strnicmp(args->attributes[i], "Json_", 5)) {
+	} else if (!strnicmp(pat, "Bson_", 5) || !strnicmp(pat, "Json_", 5)) {
 		if (!args->args[i] || strchr("[{ \t\r\n", *args->args[i]))
 			n = 1;					 // arg should be is a json item
 //	else
 //		n = 2;           // A file name may have been returned
 
-	} else if (!strnicmp(args->attributes[i], "Bbin_", 5)) {
+	} else if (!strnicmp(pat, "Bbin_", 5)) {
 		if (args->lengths[i] == sizeof(BSON))
 			n = 3;					 //	arg is a binary json item
 //	else
 //		n = 2;           // A file name may have been returned
 
-	} else if (!strnicmp(args->attributes[i], "Bfile_", 6) ||
-		         !strnicmp(args->attributes[i], "Jfile_", 6)) {
+	} else if (!strnicmp(pat, "Bfile_", 6) || !strnicmp(pat, "Jfile_", 6)) {
 		n = 2;					   //	arg is a json file name
 #if 0
 	} else if (args->lengths[i]) {
@@ -4682,7 +4690,7 @@ char *bfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		PUSH_WARNING(g->Message ? g->Message : "Unexpected error");
+		PUSH_WARNING(*g->Message ? g->Message : "Unexpected error");
 		*is_null = 1;
 		*error = 1;
 		*res_length = 0;
@@ -4742,7 +4750,7 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	if (!g->Xchk) {
 		int 	msgid = MSGID_OPEN_MODE_STRERROR;
-		FILE *fout;
+		FILE *fout = NULL;
 		FILE *fin;
 
 		if (!(fin = global_fopen(g, msgid, fn, "rt")))
@@ -4805,7 +4813,7 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		if (g->Message)
+		if (*g->Message)
 			str = strcpy(result, g->Message);
 		else
 			str = strcpy(result, "Unexpected error");
@@ -4971,7 +4979,7 @@ char *bbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		uint	n = 2;
 		int* x = GetIntArgPtr(g, args, n);
 		BJNX  bnx(g, NULL, TYPE_STRING);
-		PBVAL jarp, top, jvp = NULL;
+		PBVAL jarp = NULL, top = NULL, jvp = NULL;
 		PBVAL jsp = bnx.MakeValue(args, 0, true, &top);
 
 		if (bnx.CheckPath(g, args, jsp, jvp, 2))
@@ -5604,7 +5612,7 @@ char *bbin_object_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!bsp) {
 		if (!CheckMemory(g, initid, args, 1, true, true)) {
 			BJNX  bnx(g);
-			PBVAL top, jarp;
+			PBVAL top, jarp = NULL;
 			PBVAL jvp = bnx.MakeValue(args, 0, true, &top);
 
 			if (jvp->Type == TYPE_JOB) {

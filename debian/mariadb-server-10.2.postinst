@@ -117,7 +117,7 @@ EOF
     if [ ! -d "$mysql_datadir"  -a ! -L "$mysql_datadir" ]; then mkdir "$mysql_datadir" ; fi
     if [ ! -d "$mysql_logdir"   -a ! -L "$mysql_logdir"  ]; then mkdir "$mysql_logdir"  ; fi
     # When creating an ext3 jounal on an already mounted filesystem like e.g.
-    # /var/lib/mysql, you get a .journal file that is not modifyable by chown.
+    # /var/lib/mysql, you get a .journal file that is not modifiable by chown.
     # The mysql_statedir must not be writable by the mysql user under any
     # circumstances as it contains scripts that are executed by root.
     set +e
@@ -146,10 +146,6 @@ EOF
     set +e
     bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql --disable-log-bin 2>&1 | $ERR_LOGGER
     set -e
-
-
-    # To avoid downgrades.
-    touch $mysql_statedir/debian-$MAJOR_VER.flag
 
     ## On every reconfiguration the maintenance user is recreated.
     #
@@ -259,7 +255,7 @@ EOF
   ;;
 esac
 
-db_stop # in case invoke failes
+db_stop # in case invoke fails
 
 # dh_systemd_start doesn't emit anything since we still ship /etc/init.d/mysql.
 # Thus MariaDB server is started via init.d script, which in turn redirects to

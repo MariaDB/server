@@ -69,14 +69,18 @@
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
 /* warning C4065: switch statement contains 'default' but no 'case' labels */
-#pragma warning (disable : 4065)
+/* warning C4102: 'yyexhaustedlab': unreferenced label */
+#pragma warning (disable : 4065 4102)
+#endif
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wunused-label" /* yyexhaustedlab: */
 #endif
 
 int yylex(void *yylval, void *yythd);
 
 #define yyoverflow(A,B,C,D,E,F)               \
   {                                           \
-    ulong val= *(F);                          \
+    size_t val= *(F);                         \
     if (my_yyoverflow((B), (D), &val))        \
     {                                         \
       yyerror(thd, (char*) (A));              \
@@ -1024,7 +1028,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 }
 
 %{
-bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
+bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %}
 
 %pure-parser                                    /* We have threads */
@@ -9466,8 +9470,8 @@ column_default_non_parenthesized_expr:
             Item_splocal *il= $3->get_item_splocal();
             if (il)
               my_yyabort_error((ER_WRONG_COLUMN_NAME, MYF(0), il->my_name()->str));
-            $$= new (thd->mem_root) Item_default_value(thd, Lex->current_context(),
-                                                         $3);
+            $$= new (thd->mem_root) Item_default_value_arg(thd, Lex->current_context(),
+                                                           $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }

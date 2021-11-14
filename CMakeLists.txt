@@ -147,6 +147,7 @@ IF (NOT CPACK_GENERATOR)
   ENDIF(WIN32) 
 ENDIF(NOT CPACK_GENERATOR)
 
+INCLUDE(FeatureSummary)
 INCLUDE(misc)
 INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
@@ -418,11 +419,14 @@ ADD_SUBDIRECTORY(sql/share)
 IF(NOT WITHOUT_SERVER)
   ADD_SUBDIRECTORY(tests)
   ADD_SUBDIRECTORY(sql)
-  OPTION (WITH_EMBEDDED_SERVER "Compile MySQL with embedded server" OFF)
+  OPTION (WITH_EMBEDDED_SERVER "Compile MariaDB with embedded server" OFF)
   IF(WITH_EMBEDDED_SERVER) 
-   ADD_SUBDIRECTORY(libmysqld)
-   ADD_SUBDIRECTORY(libmysqld/examples)
+    ADD_SUBDIRECTORY(libmysqld)
+    ADD_SUBDIRECTORY(libmysqld/examples)
   ENDIF(WITH_EMBEDDED_SERVER)
+  IF(NOT WIN32)
+    ADD_FEATURE_INFO(EMBEDDED_SERVER WITH_EMBEDDED_SERVER "Embedded MariaDB Server Library")
+  ENDIF()
 
   IF(WITH_WSREP)
     ADD_SUBDIRECTORY(wsrep)
@@ -507,7 +511,52 @@ IF(WIN32 AND SIGNCODE)
   INSTALL(SCRIPT ${PROJECT_BINARY_DIR}/sign.cmake)
 ENDIF()
 
+FEATURE_SUMMARY(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES VAR MARIADB_FEATURE_SUMMARY)
+
+OPTION(FEATURE_SUMMARY "Print feature summary at the end of configure step" ON)
+IF (FEATURE_SUMMARY)
+  MESSAGE("${MARIADB_FEATURE_SUMMARY}")
+  SET(FEATURE_SUMMARY OFF CACHE BOOL "" FORCE)
+ENDIF()
+
 IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
 You have linked MariaDB with ${NON_DISTRIBUTABLE_WARNING} libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with the Free Software Foundation.")
+ENDIF()
+
+IF(NOT WITHOUT_SERVER)
+  # Define target for minimal mtr-testable build
+  ADD_CUSTOM_TARGET(minbuild)
+  ADD_DEPENDENCIES(minbuild
+   aria_chk
+   aria_pack
+   mysql
+   mysqladmin
+   mysqlbinlog
+   mysqlcheck
+   mysql_client_test
+   mysqldump
+   mysqlimport
+   mysql_plugin
+   mysqlshow
+   mysqlslap
+   mysqltest
+   mysql_tzinfo_to_sql
+   mysql_upgrade
+   mysqld
+   my_print_defaults
+   my_safe_process
+   myisam_ftdump
+   myisamchk
+   myisamlog
+   myisampack
+   perror
+   replace)
+  IF(WIN32)
+    ADD_DEPENDENCIES(minbuild echo my_safe_kill)
+  ENDIF()
+  ADD_CUSTOM_TARGET(smoketest
+    COMMAND perl ./mysql-test-run.pl main.1st
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/mysql-test)
+  ADD_DEPENDENCIES(smoketest minbuild)
 ENDIF()

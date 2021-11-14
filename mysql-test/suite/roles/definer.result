@@ -38,7 +38,7 @@ connect  c1, localhost, foo,,mysqltest1;
 connection c1;
 show grants;
 Grants for foo@localhost
-GRANT role4 TO 'foo'@'localhost'
+GRANT 'role4' TO 'foo'@'localhost'
 GRANT USAGE ON *.* TO 'foo'@'localhost'
 GRANT CREATE VIEW ON `mysqltest1`.* TO 'foo'@'localhost'
 select * from test.v1;

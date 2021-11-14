@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1062,25 +1062,10 @@ trx_purge_initiate_truncate(
 		rseg->last_del_marks = FALSE;
 	}
 
-	mtr.commit();
-	/* Write-ahead the redo log record. */
-	log_write_up_to(mtr.commit_lsn(), true);
+	mtr.commit_shrink(*space);
 
-	/* Trim the file size. */
-	os_file_truncate(file->name, file->handle,
-			 os_offset_t(size) << srv_page_size_shift, true);
-
-	/* This is only executed by the srv_purge_coordinator_thread. */
+	/* No mutex; this is only updated by the purge coordinator. */
 	export_vars.innodb_undo_truncations++;
-
-	/* TODO: PUNCH_HOLE the garbage (with write-ahead logging) */
-
-	mutex_enter(&fil_system->mutex);
-	ut_ad(space->stop_new_ops);
-	ut_ad(space->is_being_truncated);
-	space->stop_new_ops = false;
-	space->is_being_truncated = false;
-	mutex_exit(&fil_system->mutex);
 
 	if (purge_sys->rseg != NULL
 	    && purge_sys->rseg->last_page_no == FIL_NULL) {

@@ -1179,7 +1179,7 @@ int JOIN::init_join_caches()
     if (table->file->keyread_enabled())
     {
       if (!(table->file->index_flags(table->file->keyread, 0, 1) & HA_CLUSTERED_INDEX))
-        table->mark_columns_used_by_index(table->file->keyread, table->read_set);
+        table->mark_index_columns(table->file->keyread, table->read_set);
     }
     else if ((tab->read_first_record == join_read_first ||
               tab->read_first_record == join_read_last) &&
@@ -19045,26 +19045,33 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
           will be re-evaluated again. It could be fixed, but, probably,
           it's not worth doing now.
         */
-        if (tab->select_cond && !tab->select_cond->val_int())
+        if (tab->select_cond)
         {
-          /* The condition attached to table tab is false */
-          if (tab == join_tab)
+          const longlong res= tab->select_cond->val_int();
+          if (join->thd->is_error())
+            DBUG_RETURN(NESTED_LOOP_ERROR);
+
+          if (!res)
           {
-            found= 0;
-            if (not_exists_opt_is_applicable)
-              DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
-          }            
-          else
-          {
-            /*
-              Set a return point if rejected predicate is attached
-              not to the last table of the current nest level.
-            */
-            join->return_tab= tab;
-            if (not_exists_opt_is_applicable)
-              DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
+            /* The condition attached to table tab is false */
+            if (tab == join_tab)
+            {
+              found= 0;
+              if (not_exists_opt_is_applicable)
+                DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
+            }
             else
-              DBUG_RETURN(NESTED_LOOP_OK);
+            {
+              /*
+                Set a return point if rejected predicate is attached
+                not to the last table of the current nest level.
+              */
+              join->return_tab= tab;
+              if (not_exists_opt_is_applicable)
+                DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
+              else
+                DBUG_RETURN(NESTED_LOOP_OK);
+            }
           }
         }
       }
@@ -21938,6 +21945,12 @@ check_reverse_order:
         if (select->quick == save_quick)
           save_quick= 0;                // make_reverse() consumed it
         select->set_quick(tmp);
+        /* Cancel "Range checked for each record" */
+        if (tab->use_quick == 2)
+        {
+          tab->use_quick= 1;
+          tab->read_first_record= join_init_read_record;
+        }
       }
       else if (tab->type != JT_NEXT && tab->type != JT_REF_OR_NULL &&
                tab->ref.key >= 0 && tab->ref.key_parts <= used_key_parts)
@@ -21950,6 +21963,12 @@ check_reverse_order:
         */
         tab->read_first_record= join_read_last_key;
         tab->read_record.read_record= join_read_prev_same;
+        /* Cancel "Range checked for each record" */
+        if (tab->use_quick == 2)
+        {
+          tab->use_quick= 1;
+          tab->read_first_record= join_init_read_record;
+        }
         /*
           Cancel Pushed Index Condition, as it doesn't work for reverse scans.
         */
@@ -25264,8 +25283,10 @@ int JOIN::save_explain_data_intern(Explain_query *output,
     if (!(tmp_unit->item && tmp_unit->item->eliminated) &&    // (1)
         (!tmp_unit->derived ||
          tmp_unit->derived->is_materialized_derived()) &&     // (2)
-        !(tmp_unit->with_element &&
-          (!tmp_unit->derived || !tmp_unit->derived->derived_result))) // (3)
+        (!tmp_unit->with_element  ||
+         (tmp_unit->derived &&
+          tmp_unit->derived->derived_result &&
+          !tmp_unit->with_element->is_hanging_recursive())))  // (3)
    {
       explain->add_child(tmp_unit->first_select()->select_number);
     }
@@ -25330,8 +25351,10 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
     */
     if (!(unit->item && unit->item->eliminated) &&                     // (1)
         !(unit->derived && unit->derived->merged_for_insert) &&        // (2)
-        !(unit->with_element &&
-          (!unit->derived || !unit->derived->derived_result)))         // (3)
+        (!unit->with_element ||
+          (unit->derived &&
+           unit->derived->derived_result &&
+           !unit->with_element->is_hanging_recursive())))              // (3)
     {
       if (mysql_explain_union(thd, unit, result))
         DBUG_VOID_RETURN;
@@ -25781,6 +25804,11 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 
   //Item List
   bool first= 1;
+  /*
+    outer_select() can not be used here because it is for name resolution
+    and will return NULL at any end of name resolution chain (view/derived)
+  */
+  bool top_level= (get_master()->get_master() == 0);
   List_iterator_fast<Item> it(item_list);
   Item *item;
   while ((item= it++))
@@ -25790,7 +25818,8 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     else
       str->append(',');
 
-    if (is_subquery_function() && item->is_autogenerated_name)
+    if ((is_subquery_function() && item->is_autogenerated_name) ||
+        !item->name)
     {
       /*
         Do not print auto-generated aliases in subqueries. It has no purpose
@@ -25799,7 +25828,20 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       item->print(str, query_type);
     }
     else
-      item->print_item_w_name(str, query_type);
+    {
+      /*
+        Do not print illegal names (if it is not top level SELECT).
+        Top level view checked (and correct name are assigned),
+        other cases of top level SELECT are not important, because
+        it is not "table field".
+      */
+      if (top_level ||
+          !item->is_autogenerated_name ||
+          !check_column_name(item->name))
+        item->print_item_w_name(str, query_type);
+      else
+        item->print(str, query_type);
+    }
   }
 
   /*

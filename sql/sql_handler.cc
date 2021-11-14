@@ -697,6 +697,9 @@ retry:
   if (!(handler= mysql_ha_find_handler(thd, tables->alias)))
     goto err0;
 
+  if (thd->transaction.xid_state.check_has_uncommitted_xa())
+    goto err0;
+
   table= handler->table;
   tables->table= table;                         // This is used by fix_fields
   table->pos_in_table_list= tables;
