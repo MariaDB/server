@@ -7922,16 +7922,14 @@ best_access_path(JOIN      *join,
               }
               else
               {
+                trace_access_idx.add("used_range_estimates", false);
                 if (table->opt_range_keys.is_set(key))
                 {
-                  trace_access_idx.add("used_range_estimates",false)
-                                  .add("cause",
-                                       "not better than ref estimates");
+                  trace_access_idx.add("reason", "not better than ref estimates");
                 }
                 else
                 {
-                  trace_access_idx.add("used_range_estimates", false)
-                                  .add("cause", "not available");
+                  trace_access_idx.add("reason", "not available");
                 }
               }
             }
@@ -8169,7 +8167,7 @@ best_access_path(JOIN      *join,
         trace_access_idx.add("chosen", false)
                         .add("cause", cause ? cause : "cost");
       }
-      cause= NULL;
+      cause= nullptr;
     } /* for each key */
     records= best_records;
   }
@@ -8191,7 +8189,6 @@ best_access_path(JOIN      *join,
       (!(s->table->map & join->outer_join) ||
        join->allowed_outer_join_with_cache))    // (2)
   {
-    Json_writer_object trace_access_hash(thd);
     double join_sel= 0.1;
     /* Estimate the cost of  the hash join access to the table */
     double rnd_records= matching_candidates_in_table(s, found_constraint,
@@ -8217,9 +8214,10 @@ best_access_path(JOIN      *join,
     best_uses_jbuf= TRUE;
     best_filter= 0;
     best_type= JT_HASH;
+    Json_writer_object trace_access_hash(thd);
     trace_access_hash.add("type", "hash");
     trace_access_hash.add("index", "hj-key");
-    trace_access_hash.add("cost", rnd_records);
+    trace_access_hash.add("rnd_records", rnd_records);
     trace_access_hash.add("cost", best);
     trace_access_hash.add("chosen", true);
   }

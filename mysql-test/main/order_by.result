@@ -3401,30 +3401,34 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 5,
-      "filesort": {
-        "sort_key": "t1.a",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_limit": 5,
-        "r_used_priority_queue": false,
-        "r_output_rows": 100,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "sort_key,packed_addon_fields",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 100,
-          "r_rows": 100,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 5,
+          "filesort": {
+            "sort_key": "t1.a",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_limit": 5,
+            "r_used_priority_queue": false,
+            "r_output_rows": 100,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 100,
+              "r_rows": 100,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 SELECT * FROM t1 ORDER BY a LIMIT 5;
@@ -3708,29 +3712,33 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 100,
-      "filesort": {
-        "sort_key": "t1.a, t1.b, t1.c",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 100,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "sort_key,packed_addon_fields",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 100,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 100,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t1.a, t1.b, t1.c",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 100,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 100,
+              "r_rows": 100,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 select * from t1 order by a,b,c;
@@ -3867,29 +3875,33 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 5,
-      "filesort": {
-        "sort_key": "t1.b desc",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 5,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "packed_sort_key,rowid",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 5,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 5,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t1.b desc",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 5,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "packed_sort_key,rowid",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 5,
+              "r_rows": 5,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 drop table t1;
@@ -3909,29 +3921,33 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 6,
-      "filesort": {
-        "sort_key": "t1.a, t1.b",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 6,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "packed_sort_key,rowid",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 6,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 6,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t1.a, t1.b",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 6,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "packed_sort_key,rowid",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 6,
+              "r_rows": 6,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 select a, b, c from t1 order by a, b;
@@ -3957,29 +3973,33 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 6,
-      "filesort": {
-        "sort_key": "t1.a, t1.b",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 6,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "sort_key,packed_addon_fields",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 6,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 6,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t1.a, t1.b",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 6,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 6,
+              "r_rows": 6,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 select a, b, c from t1 order by a, b;
@@ -4019,29 +4039,33 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 10,
-      "filesort": {
-        "sort_key": "t1.a",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 10,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "packed_sort_key,packed_addon_fields",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 10,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 10,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t1.a",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 10,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "packed_sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 10,
+              "r_rows": 10,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 drop table t1;
@@ -4194,17 +4218,21 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 50,
-      "r_rows": 50,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 50,
+          "r_rows": 50,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "expression_cache": {
@@ -4223,18 +4251,22 @@ ANALYZE
               "r_buffer_size": "REPLACED" across executions)",
               "r_sort_mode": "sort_key,rowid",
               "temporary_table": {
-                "table": {
-                  "table_name": "t2",
-                  "access_type": "ALL",
-                  "r_loops": 50,
-                  "rows": 50,
-                  "r_rows": 50,
-                  "r_table_time_ms": "REPLACED",
-                  "r_other_time_ms": "REPLACED",
-                  "filtered": 100,
-                  "r_filtered": 2,
-                  "attached_condition": "t1.b = t2.b"
-                }
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t2",
+                      "access_type": "ALL",
+                      "r_loops": 50,
+                      "rows": 50,
+                      "r_rows": 50,
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
+                      "filtered": 100,
+                      "r_filtered": 2,
+                      "attached_condition": "t1.b = t2.b"
+                    }
+                  }
+                ]
               }
             }
           }
@@ -4324,43 +4356,53 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "t1.a desc",
-        "table": {
-          "table_name": "<subquery2>",
-          "access_type": "ALL",
-          "possible_keys": ["distinct_key"],
-          "rows": 3,
-          "filtered": 100,
-          "materialized": {
-            "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 3,
-                "filtered": 100,
-                "attached_condition": "t2.b = 3 and t2.a is not null"
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a desc",
+            "table": {
+              "table_name": "<subquery2>",
+              "access_type": "ALL",
+              "possible_keys": ["distinct_key"],
+              "rows": 3,
+              "filtered": 100,
+              "materialized": {
+                "unique": 1,
+                "query_block": {
+                  "select_id": 2,
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 3,
+                        "filtered": 100,
+                        "attached_condition": "t2.b = 3 and t2.a is not null"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["test.t2.a"],
+          "rows": 1,
+          "filtered": 100,
+          "using_index": true
+        }
       }
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["a"],
-      "ref": ["test.t2.a"],
-      "rows": 1,
-      "filtered": 100,
-      "using_index": true
-    }
+    ]
   }
 }
 SELECT t1.a
@@ -4387,42 +4429,52 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "t1.a desc",
-        "table": {
-          "table_name": "<subquery2>",
-          "access_type": "ALL",
-          "possible_keys": ["distinct_key"],
-          "rows": 3,
-          "filtered": 100,
-          "materialized": {
-            "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 3,
-                "filtered": 100,
-                "attached_condition": "t2.b = 3 and t2.a is not null"
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a desc",
+            "table": {
+              "table_name": "<subquery2>",
+              "access_type": "ALL",
+              "possible_keys": ["distinct_key"],
+              "rows": 3,
+              "filtered": 100,
+              "materialized": {
+                "unique": 1,
+                "query_block": {
+                  "select_id": 2,
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 3,
+                        "filtered": 100,
+                        "attached_condition": "t2.b = 3 and t2.a is not null"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["test.t2.a"],
+          "rows": 1,
+          "filtered": 100
+        }
       }
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["a"],
-      "ref": ["test.t2.a"],
-      "rows": 1,
-      "filtered": 100
-    }
+    ]
   }
 }
 SELECT t1.a, group_concat(t1.b)

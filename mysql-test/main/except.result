@@ -37,24 +37,32 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 2,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 2,
             "operation": "EXCEPT",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "rows": 2,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         }
       ]
@@ -76,17 +84,21 @@ ANALYZE
             "select_id": 1,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         },
         {
@@ -95,17 +107,21 @@ ANALYZE
             "operation": "EXCEPT",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       ]
@@ -119,66 +135,78 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 2,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 100,
-      "materialized": {
-        "query_block": {
-          "union_result": {
-            "table_name": "<except2,3>",
-            "access_type": "ALL",
-            "r_loops": 1,
-            "r_rows": 1,
-            "query_specifications": [
-              {
-                "query_block": {
-                  "select_id": 2,
-                  "r_loops": 1,
-                  "r_total_time_ms": "REPLACED",
-                  "table": {
-                    "table_name": "t1",
-                    "access_type": "ALL",
-                    "r_loops": 1,
-                    "rows": 2,
-                    "r_rows": 2,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
-                    "filtered": 100,
-                    "r_filtered": 100
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<except2,3>",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "r_rows": 1,
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "r_loops": 1,
+                      "r_total_time_ms": "REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "r_loops": 1,
+                            "rows": 2,
+                            "r_rows": 2,
+                            "r_table_time_ms": "REPLACED",
+                            "r_other_time_ms": "REPLACED",
+                            "filtered": 100,
+                            "r_filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "EXCEPT",
+                      "r_loops": 1,
+                      "r_total_time_ms": "REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "r_loops": 1,
+                            "rows": 2,
+                            "r_rows": 2,
+                            "r_table_time_ms": "REPLACED",
+                            "r_other_time_ms": "REPLACED",
+                            "filtered": 100,
+                            "r_filtered": 100
+                          }
+                        }
+                      ]
+                    }
                   }
-                }
-              },
-              {
-                "query_block": {
-                  "select_id": 3,
-                  "operation": "EXCEPT",
-                  "r_loops": 1,
-                  "r_total_time_ms": "REPLACED",
-                  "table": {
-                    "table_name": "t2",
-                    "access_type": "ALL",
-                    "r_loops": 1,
-                    "rows": 2,
-                    "r_rows": 2,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
-                    "filtered": 100,
-                    "r_filtered": 100
-                  }
-                }
+                ]
               }
-            ]
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 select * from ((select a,b from t1) except (select c,d from t2)) a;
@@ -247,46 +275,58 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 2,
-              "filtered": 100
-            },
-            "block-nl-join": {
-              "table": {
-                "table_name": "t3",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100
+                }
               },
-              "buffer_type": "flat",
-              "buffer_size": "119",
-              "join_type": "BNL"
-            }
+              {
+                "block-nl-join": {
+                  "table": {
+                    "table_name": "t3",
+                    "access_type": "ALL",
+                    "rows": 2,
+                    "filtered": 100
+                  },
+                  "buffer_type": "flat",
+                  "buffer_size": "119",
+                  "join_type": "BNL"
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 2,
             "operation": "EXCEPT",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "rows": 2,
-              "filtered": 100
-            },
-            "block-nl-join": {
-              "table": {
-                "table_name": "t4",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100
+                }
               },
-              "buffer_type": "flat",
-              "buffer_size": "119",
-              "join_type": "BNL"
-            }
+              {
+                "block-nl-join": {
+                  "table": {
+                    "table_name": "t4",
+                    "access_type": "ALL",
+                    "rows": 2,
+                    "filtered": 100
+                  },
+                  "buffer_type": "flat",
+                  "buffer_size": "119",
+                  "join_type": "BNL"
+                }
+              }
+            ]
           }
         }
       ]
@@ -308,34 +348,40 @@ ANALYZE
             "select_id": 1,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "filtered": 100,
-              "r_filtered": 100
-            },
-            "block-nl-join": {
-              "table": {
-                "table_name": "t3",
-                "access_type": "ALL",
-                "r_loops": 1,
-                "rows": 2,
-                "r_rows": 2,
-                "r_table_time_ms": "REPLACED",
-                "r_other_time_ms": "REPLACED",
-                "filtered": 100,
-                "r_filtered": 100
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
               },
-              "buffer_type": "flat",
-              "buffer_size": "119",
-              "join_type": "BNL",
-              "r_filtered": 100
-            }
+              {
+                "block-nl-join": {
+                  "table": {
+                    "table_name": "t3",
+                    "access_type": "ALL",
+                    "r_loops": 1,
+                    "rows": 2,
+                    "r_rows": 2,
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
+                    "filtered": 100,
+                    "r_filtered": 100
+                  },
+                  "buffer_type": "flat",
+                  "buffer_size": "119",
+                  "join_type": "BNL",
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         },
         {
@@ -344,34 +390,40 @@ ANALYZE
             "operation": "EXCEPT",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "filtered": 100,
-              "r_filtered": 100
-            },
-            "block-nl-join": {
-              "table": {
-                "table_name": "t4",
-                "access_type": "ALL",
-                "r_loops": 1,
-                "rows": 2,
-                "r_rows": 2,
-                "r_table_time_ms": "REPLACED",
-                "r_other_time_ms": "REPLACED",
-                "filtered": 100,
-                "r_filtered": 100
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
               },
-              "buffer_type": "flat",
-              "buffer_size": "119",
-              "join_type": "BNL",
-              "r_filtered": 100
-            }
+              {
+                "block-nl-join": {
+                  "table": {
+                    "table_name": "t4",
+                    "access_type": "ALL",
+                    "r_loops": 1,
+                    "rows": 2,
+                    "r_rows": 2,
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
+                    "filtered": 100,
+                    "r_filtered": 100
+                  },
+                  "buffer_type": "flat",
+                  "buffer_size": "119",
+                  "join_type": "BNL",
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       ]
@@ -386,100 +438,116 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 3,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 100,
-      "materialized": {
-        "query_block": {
-          "union_result": {
-            "table_name": "<except2,3>",
-            "access_type": "ALL",
-            "r_loops": 1,
-            "r_rows": 3,
-            "query_specifications": [
-              {
-                "query_block": {
-                  "select_id": 2,
-                  "r_loops": 1,
-                  "r_total_time_ms": "REPLACED",
-                  "table": {
-                    "table_name": "t1",
-                    "access_type": "ALL",
-                    "r_loops": 1,
-                    "rows": 2,
-                    "r_rows": 2,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
-                    "filtered": 100,
-                    "r_filtered": 100
-                  },
-                  "block-nl-join": {
-                    "table": {
-                      "table_name": "t3",
-                      "access_type": "ALL",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 3,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<except2,3>",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "r_rows": 3,
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
                       "r_loops": 1,
-                      "rows": 2,
-                      "r_rows": 2,
-                      "r_table_time_ms": "REPLACED",
-                      "r_other_time_ms": "REPLACED",
-                      "filtered": 100,
-                      "r_filtered": 100
-                    },
-                    "buffer_type": "flat",
-                    "buffer_size": "119",
-                    "join_type": "BNL",
-                    "r_filtered": 100
-                  }
-                }
-              },
-              {
-                "query_block": {
-                  "select_id": 3,
-                  "operation": "EXCEPT",
-                  "r_loops": 1,
-                  "r_total_time_ms": "REPLACED",
-                  "table": {
-                    "table_name": "t2",
-                    "access_type": "ALL",
-                    "r_loops": 1,
-                    "rows": 2,
-                    "r_rows": 2,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
-                    "filtered": 100,
-                    "r_filtered": 100
+                      "r_total_time_ms": "REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "r_loops": 1,
+                            "rows": 2,
+                            "r_rows": 2,
+                            "r_table_time_ms": "REPLACED",
+                            "r_other_time_ms": "REPLACED",
+                            "filtered": 100,
+                            "r_filtered": 100
+                          }
+                        },
+                        {
+                          "block-nl-join": {
+                            "table": {
+                              "table_name": "t3",
+                              "access_type": "ALL",
+                              "r_loops": 1,
+                              "rows": 2,
+                              "r_rows": 2,
+                              "r_table_time_ms": "REPLACED",
+                              "r_other_time_ms": "REPLACED",
+                              "filtered": 100,
+                              "r_filtered": 100
+                            },
+                            "buffer_type": "flat",
+                            "buffer_size": "119",
+                            "join_type": "BNL",
+                            "r_filtered": 100
+                          }
+                        }
+                      ]
+                    }
                   },
-                  "block-nl-join": {
-                    "table": {
-                      "table_name": "t4",
-                      "access_type": "ALL",
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "EXCEPT",
                       "r_loops": 1,
-                      "rows": 2,
-                      "r_rows": 2,
-                      "r_table_time_ms": "REPLACED",
-                      "r_other_time_ms": "REPLACED",
-                      "filtered": 100,
-                      "r_filtered": 100
-                    },
-                    "buffer_type": "flat",
-                    "buffer_size": "119",
-                    "join_type": "BNL",
-                    "r_filtered": 100
+                      "r_total_time_ms": "REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "r_loops": 1,
+                            "rows": 2,
+                            "r_rows": 2,
+                            "r_table_time_ms": "REPLACED",
+                            "r_other_time_ms": "REPLACED",
+                            "filtered": 100,
+                            "r_filtered": 100
+                          }
+                        },
+                        {
+                          "block-nl-join": {
+                            "table": {
+                              "table_name": "t4",
+                              "access_type": "ALL",
+                              "r_loops": 1,
+                              "rows": 2,
+                              "r_rows": 2,
+                              "r_table_time_ms": "REPLACED",
+                              "r_other_time_ms": "REPLACED",
+                              "filtered": 100,
+                              "r_filtered": 100
+                            },
+                            "buffer_type": "flat",
+                            "buffer_size": "119",
+                            "join_type": "BNL",
+                            "r_filtered": 100
+                          }
+                        }
+                      ]
+                    }
                   }
-                }
+                ]
               }
-            ]
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 select * from ((select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4)) a;

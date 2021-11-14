@@ -1028,7 +1028,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                           "access_type": "ref",
                           "index": "a",
                           "used_range_estimates": false,
-                          "cause": "not available",
+                          "reason": "not available",
                           "rows": 1,
                           "cost": 200.0585794,
                           "chosen": true
@@ -1084,7 +1084,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                           "access_type": "ref",
                           "index": "a",
                           "used_range_estimates": false,
-                          "cause": "not available",
+                          "reason": "not available",
                           "rows": 1,
                           "cost": 200.0585794,
                           "chosen": true
@@ -4042,7 +4042,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           "access_type": "ref",
                           "index": "a",
                           "used_range_estimates": false,
-                          "cause": "not better than ref estimates",
+                          "reason": "not better than ref estimates",
                           "rows": 1,
                           "cost": 3.001757383,
                           "chosen": true
@@ -4098,7 +4098,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           "index": "a",
                           "rec_per_key_stats_missing": true,
                           "used_range_estimates": false,
-                          "cause": "not better than ref estimates",
+                          "reason": "not better than ref estimates",
                           "rows": 2,
                           "cost": 3.003514767,
                           "chosen": true
@@ -7980,17 +7980,21 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["start_date"],
-      "key": "start_date",
-      "key_length": "8",
-      "used_key_parts": ["start_date", "end_date"],
-      "rows": 1000,
-      "filtered": 100,
-      "index_condition": "t1.start_date >= '2019-02-10' and t1.end_date < '2019-04-01'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["start_date"],
+          "key": "start_date",
+          "key_length": "8",
+          "used_key_parts": ["start_date", "end_date"],
+          "rows": 1000,
+          "filtered": 100,
+          "index_condition": "t1.start_date >= '2019-02-10' and t1.end_date < '2019-04-01'"
+        }
+      }
+    ]
   }
 }
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
@@ -8214,7 +8218,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                 "access_type": "ref",
                                 "index": "b",
                                 "used_range_estimates": false,
-                                "cause": "not available",
+                                "reason": "not available",
                                 "rows": 1,
                                 "cost": 20.00585794,
                                 "chosen": true
@@ -8438,7 +8442,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                 "access_type": "ref",
                                 "index": "a",
                                 "used_range_estimates": false,
-                                "cause": "not available",
+                                "reason": "not available",
                                 "rows": 1,
                                 "cost": 20.00585794,
                                 "chosen": true
@@ -8513,7 +8517,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                 "access_type": "ref",
                                 "index": "a",
                                 "used_range_estimates": false,
-                                "cause": "not available",
+                                "reason": "not available",
                                 "rows": 1,
                                 "cost": 200.0585794,
                                 "chosen": true
@@ -9167,7 +9171,7 @@ json_detailed(json_extract(trace, '$**.choose_best_splitting'))
                                 "access_type": "ref",
                                 "index": "idx_a",
                                 "used_range_estimates": false,
-                                "cause": "not available",
+                                "reason": "not available",
                                 "rows": 1.8367,
                                 "cost": 2.000585794,
                                 "chosen": true
