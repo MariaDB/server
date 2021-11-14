@@ -367,13 +367,18 @@ protected:
   */
   bool closed;
 
-public:
-  explicit Json_writer_struct(THD *thd)
+  explicit Json_writer_struct(Json_writer *writer)
+  : my_writer(writer)
   {
-    my_writer= thd->opt_trace.get_current_json();
     context.init(my_writer);
     closed= false;
   }
+  explicit Json_writer_struct(THD *thd)
+  : Json_writer_struct(thd->opt_trace.get_current_json())
+  {
+  }
+
+public:
   bool trace_started()
   {
     return my_writer != 0;
@@ -397,8 +402,8 @@ private:
     my_writer->add_member(name);
   }
 public:
-  explicit Json_writer_object(THD* thd, const char *str= nullptr)
-    : Json_writer_struct(thd)
+  explicit Json_writer_object(Json_writer* writer, const char *str= nullptr)
+  : Json_writer_struct(writer)
   {
     if (unlikely(my_writer))
     {
@@ -406,6 +411,11 @@ public:
         my_writer->add_member(str);
       my_writer->start_object();
     }
+  }
+
+  explicit Json_writer_object(THD* thd, const char *str= nullptr)
+  : Json_writer_object(thd->opt_trace.get_current_json(), str)
+  {
   }
 
   ~Json_writer_object()
@@ -567,17 +577,22 @@ public:
 class Json_writer_array : public Json_writer_struct
 {
 public:
-  Json_writer_array(THD *thd): Json_writer_struct(thd)
+  explicit Json_writer_array(Json_writer *writer, const char *str= nullptr)
+    : Json_writer_struct(writer)
   {
     if (unlikely(my_writer))
+    {
+      if (str)
+        my_writer->add_member(str);
       my_writer->start_array();
+    }
   }
 
-  Json_writer_array(THD *thd, const char *str) : Json_writer_struct(thd)
+  explicit Json_writer_array(THD *thd, const char *str= nullptr)
+    : Json_writer_array(thd->opt_trace.get_current_json(), str)
   {
-    if (unlikely(my_writer))
-      my_writer->add_member(str).start_array();
   }
+
   ~Json_writer_array()
   {
     if (unlikely(my_writer && !closed))
@@ -586,6 +601,7 @@ public:
       closed= TRUE;
     }
   }
+
   void end()
   {
     DBUG_ASSERT(!closed);
