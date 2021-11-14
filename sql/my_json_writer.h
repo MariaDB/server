@@ -372,15 +372,21 @@ protected:
   bool closed;
 
 public:
-  explicit Json_writer_struct(THD *thd, bool expect_named_children)
+  explicit Json_writer_struct(Json_writer *writer)
+  : my_writer(writer)
   {
-    my_writer= thd->opt_trace.get_current_json();
     context.init(my_writer);
     closed= false;
 #ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
     named_items_expectation.push_back(expect_named_children);
 #endif
   }
+  explicit Json_writer_struct(THD *thd)
+  : Json_writer_struct(thd->opt_trace.get_current_json())
+  {
+  }
+
+public:
 
   virtual ~Json_writer_struct()
   {
@@ -420,8 +426,8 @@ private:
     my_writer->add_member(name);
   }
 public:
-  explicit Json_writer_object(THD* thd, const char *str= nullptr)
-  : Json_writer_struct(thd, true)
+  explicit Json_writer_object(Json_writer* writer, const char *str= nullptr)
+  : Json_writer_struct(writer)
   {
 #ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
     DBUG_ASSERT(named_item_expected());
@@ -432,6 +438,11 @@ public:
         my_writer->add_member(str);
       my_writer->start_object();
     }
+  }
+
+  explicit Json_writer_object(THD* thd, const char *str= nullptr)
+  : Json_writer_object(thd->opt_trace.get_current_json(), str)
+  {
   }
 
   ~Json_writer_object()
@@ -593,25 +604,25 @@ public:
 class Json_writer_array : public Json_writer_struct
 {
 public:
-  Json_writer_array(THD *thd)
-  : Json_writer_struct(thd, false)
+  explicit Json_writer_array(Json_writer *writer, const char *str= nullptr)
+    : Json_writer_struct(writer)
   {
 #ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
     DBUG_ASSERT(!named_item_expected());
 #endif
     if (unlikely(my_writer))
+    {
+      if (str)
+        my_writer->add_member(str);
       my_writer->start_array();
+    }
   }
 
-  Json_writer_array(THD *thd, const char *str)
-  : Json_writer_struct(thd, false)
+  explicit Json_writer_array(THD *thd, const char *str= nullptr)
+    : Json_writer_array(thd->opt_trace.get_current_json(), str)
   {
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    DBUG_ASSERT(named_item_expected());
-#endif
-    if (unlikely(my_writer))
-      my_writer->add_member(str).start_array();
   }
+
   ~Json_writer_array()
   {
     if (unlikely(my_writer && !closed))
@@ -620,6 +631,7 @@ public:
       closed= TRUE;
     }
   }
+
   void end()
   {
     DBUG_ASSERT(!closed);
