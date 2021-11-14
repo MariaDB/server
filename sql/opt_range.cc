@@ -6939,7 +6939,7 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
     DBUG_PRINT("info", ("info->total_cost= %g", info->total_cost));
   }
   else
-    trace_costs->add("disk_sweep_cost", static_cast<longlong>(0));
+    trace_costs->add("disk_sweep_cost", 0);
 
   DBUG_PRINT("info", ("New out_rows: %g", info->out_rows));
   DBUG_PRINT("info", ("New cost: %g, %scovering", info->total_cost,
