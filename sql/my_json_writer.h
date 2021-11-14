@@ -17,6 +17,7 @@
 #define JSON_WRITER_INCLUDED
 
 #include "my_base.h"
+#include "sql_select.h"
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST) || defined ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
 #include <set>
@@ -31,7 +32,6 @@ constexpr uint FAKE_SELECT_LEX_ID= UINT_MAX;
 // Also, mock objects are defined in my_json_writer-t.cc
 #define VALIDITY_ASSERT(x) if (!(x)) this->invalid_json= true;
 #else
-#include "sql_select.h"
 #define VALIDITY_ASSERT(x) DBUG_ASSERT(x)
 #endif
 
