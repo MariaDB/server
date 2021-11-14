@@ -40,20 +40,16 @@
 static inline int
 MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
 {
-  /*
-    Check if the weights for the previous character have been
-    already fully scanned. If yes, then get the next character and
-    initialize wbeg and wlength to its weight string.
-  */
+  uint16 weight= my_uca_scanner_next_expansion_weight(scanner);
+  if (weight)
+    return weight; /* Next expansion weight found */
 
-  if (scanner->wbeg[0])      /* More weights left from the previous step: */
-    return *scanner->wbeg++; /* return the next weight from expansion     */
-
-  do
+  for ( ; ; )
   {
     const uint16 *wpage;
     int mblen;
     my_wc_t currwc;
+    const uint16 *cweight;
 
     /* Get next character */
 #if MY_UCA_ASCII_OPTIMIZE
@@ -64,23 +60,21 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
       scanner->sbeg+= 1;
 
 #if MY_UCA_COMPILE_CONTRACTIONS
-      if (my_uca_needs_context_handling(scanner->level, currwc))
+      if (my_uca_needs_context_handling(scanner->level, currwc) &&
+          (cweight= my_uca_context_weight_find(scanner, currwc)))
       {
-        const uint16 *cweight= my_uca_context_weight_find(scanner, currwc);
-        if (cweight)
-        {
-          scanner->wbeg= cweight + 1;
-          return *cweight;
-        }
+        if ((weight= my_uca_scanner_set_weight(scanner, cweight)))
+          return weight;
+        continue; /* Ignorable contraction */
       }
 #endif
 
       scanner->page= 0;
       scanner->code= (int) currwc;
-      scanner->wbeg= scanner->level->weights[0] + scanner->code * scanner->level->lengths[0];
-      if (scanner->wbeg[0])
-        return *scanner->wbeg++;
-      continue;
+      cweight= scanner->level->weights[0] + scanner->code * scanner->level->lengths[0];
+      if ((weight= my_uca_scanner_set_weight(scanner, cweight)))
+        return weight;
+      continue; /* Ignorable character */
     }
     else
 #endif
@@ -109,21 +103,15 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
 
     scanner->sbeg+= mblen;
     if (currwc > scanner->level->maxchar)
-    {
-      /* Return 0xFFFD as weight for all characters outside BMP */
-      scanner->wbeg= nochar;
-      return 0xFFFD;
-    }
+      return my_uca_scanner_set_weight_outside_maxchar(scanner);
 
 #if MY_UCA_COMPILE_CONTRACTIONS
-    if (my_uca_needs_context_handling(scanner->level, currwc))
+    if (my_uca_needs_context_handling(scanner->level, currwc) &&
+        (cweight= my_uca_context_weight_find(scanner, currwc)))
     {
-      const uint16 *cweight= my_uca_context_weight_find(scanner, currwc);
-      if (cweight)
-      {
-        scanner->wbeg= cweight + 1;
-        return *cweight;
-      }
+      if ((weight= my_uca_scanner_set_weight(scanner, cweight)))
+        return weight;
+      continue; /* Ignorable contraction */
     }
 #endif
 
@@ -136,11 +124,13 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
       return my_uca_scanner_next_implicit(scanner);
 
     /* Calculate pointer to w[0]'s weight, using page and offset */
-    scanner->wbeg= wpage +
-                   scanner->code * scanner->level->lengths[scanner->page];
-  } while (!scanner->wbeg[0]); /* Skip ignorable characters */
+    cweight= wpage + scanner->code * scanner->level->lengths[scanner->page];
+    if ((weight= my_uca_scanner_set_weight(scanner, cweight)))
+      return weight;
+    continue; /* Ignorable character */
+  }
 
-  return *scanner->wbeg++;
+  return 0;
 }
 
 

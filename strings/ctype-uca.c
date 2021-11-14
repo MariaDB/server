@@ -31175,6 +31175,33 @@ static const uint16 nochar[]= {0,0};
 #define MY_UCA_PREVIOUS_CONTEXT_HEAD 64
 #define MY_UCA_PREVIOUS_CONTEXT_TAIL 128
 
+
+static inline uint16
+my_uca_scanner_next_expansion_weight(my_uca_scanner *scanner)
+{
+  if (scanner->wbeg[0])
+    return *scanner->wbeg++;
+  return 0;
+}
+
+
+static inline uint16
+my_uca_scanner_set_weight(my_uca_scanner *scanner, const uint16 *weight)
+{
+  scanner->wbeg= weight + 1;
+  return *weight;
+}
+
+
+static inline uint16
+my_uca_scanner_set_weight_outside_maxchar(my_uca_scanner *scanner)
+{
+  /* Return 0xFFFD as weight for all characters outside BMP */
+  scanner->wbeg= nochar;
+  return 0xFFFD;
+}
+
+
 /********** Helper functions to handle contraction ************/
 
 
