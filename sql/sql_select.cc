@@ -396,7 +396,7 @@ static void trace_table_dependencies(THD *thd,
     {
       if (map & (1ULL << j))
       {
-        trace_one_table.add("map_bit", static_cast<longlong>(j));
+        trace_one_table.add("map_bit", j);
         break;
       }
     }

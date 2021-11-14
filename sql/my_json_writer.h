@@ -18,6 +18,9 @@
 #include "my_base.h"
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+#include <set>
+#include <stack>
+#include <string>
 #include <vector>
 #endif
 
@@ -29,6 +32,8 @@
 #include "sql_select.h"
 #define VALIDITY_ASSERT(x) DBUG_ASSERT(x)
 #endif
+
+#include <type_traits>
 
 class Opt_trace_stmt;
 class Opt_trace_context;
@@ -440,17 +445,22 @@ public:
     }
     return *this;
   }
+
   Json_writer_object& add(const char *name, ulonglong value)
   {
     DBUG_ASSERT(!closed);
     if (my_writer)
     {
       add_member(name);
-      context.add_ll(static_cast<longlong>(value));
+      my_writer->add_ull(value);
     }
     return *this;
   }
-  Json_writer_object& add(const char *name, longlong value)
+
+  template<class IntT,
+    typename= typename ::std::enable_if<std::is_integral<IntT>::value>::type
+  >
+  Json_writer_object& add(const char *name, IntT value)
   {
     DBUG_ASSERT(!closed);
     if (my_writer)
@@ -460,6 +470,7 @@ public:
     }
     return *this;
   }
+
   Json_writer_object& add(const char *name, double value)
   {
     DBUG_ASSERT(!closed);
@@ -470,18 +481,7 @@ public:
     }
     return *this;
   }
-  #ifndef _WIN64
-  Json_writer_object& add(const char *name, size_t value)
-  {
-    DBUG_ASSERT(!closed);
-    if (my_writer)
-    {
-      add_member(name);
-      context.add_ll(static_cast<longlong>(value));
-    }
-    return *this;
-  }
-  #endif
+
   Json_writer_object& add(const char *name, const char *value)
   {
     DBUG_ASSERT(!closed);
