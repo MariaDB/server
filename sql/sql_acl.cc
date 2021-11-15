@@ -5592,8 +5592,8 @@ end:
 */
 
 static int replace_db_table(TABLE *table, const char *db,
-			    const LEX_USER &combo,
-			    privilege_t rights, const bool revoke_grant)
+                            const LEX_USER &combo,
+                            privilege_t rights, const bool revoke_grant)
 {
   uint i;
   ulonglong priv;
@@ -8526,14 +8526,14 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
       privilege_t db_rights(rights & DB_ACLS);
       if (db_rights  == rights)
       {
-	if (replace_db_table(tables.db_table().table(), db, *Str, db_rights,
-			     revoke_grant))
-	  result= true;
+        if (replace_db_table(tables.db_table().table(), db, *Str, db_rights,
+                             revoke_grant))
+          result= true;
       }
       else
       {
-	my_error(ER_WRONG_USAGE, MYF(0), "DB GRANT", "GLOBAL PRIVILEGES");
-	result= true;
+        my_error(ER_WRONG_USAGE, MYF(0), "DB GRANT", "GLOBAL PRIVILEGES");
+        result= true;
       }
     }
     else if (is_proxy)
