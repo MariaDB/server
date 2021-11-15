@@ -17809,11 +17809,11 @@ revoke_command:
         ;
 
 admin_option_for_role:
-        ADMIN_SYM OPTION FOR_SYM grant_role
-        { Lex->with_admin_option= true; $$= $4; }
-      | grant_role
-        { Lex->with_admin_option= false; $$= $1; }
-      ;
+          ADMIN_SYM OPTION FOR_SYM grant_role
+          { Lex->with_admin_option= true; $$= $4; }
+        | grant_role
+          { Lex->with_admin_option= false; $$= $1; }
+        ;
 
 grant:
           GRANT clear_privileges grant_command
