@@ -447,7 +447,7 @@ void CUpgradeDlg::UpgradeOneService(const string& servicename)
        output_line.push_back(pipeReadBuf[0]);
     }
   }
-  CloseHandle(hPipeWrite);
+  CloseHandle(hPipeRead);
 
   if(WaitForSingleObject(pi.hProcess, INFINITE) != WAIT_OBJECT_0)
     ErrorExit("WaitForSingleObject failed");
