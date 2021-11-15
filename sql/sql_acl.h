@@ -108,15 +108,70 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
                                      const char *name, size_t length, Field *fld);
 bool check_grant_all_columns(THD *thd, privilege_t want_access,
                              Field_iterator_table_ref *fields);
-bool check_grant_routine(THD *thd, privilege_t want_access,
-                         TABLE_LIST *procs, const Sp_handler *sph,
-                         bool no_error);
 bool check_grant_db(THD *thd,const char *db);
-bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors= false);
+bool check_fk_parent_table_access(THD *thd,
+                                  HA_CREATE_INFO *create_info,
+                                  Alter_info *alter_info,
+                                  const char* create_db);
+bool check_global_access(THD *thd, privilege_t want_access,
+                         bool no_errors= false);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool check_access(THD *thd, privilege_t want_access,
                   const char *db, privilege_t *save_priv,
                   GRANT_INTERNAL_INFO *grant_internal_info,
                   bool dont_check_global_grants, bool no_errors);
+bool check_one_table_access(THD *thd, privilege_t privilege, TABLE_LIST *tables);
+bool check_single_table_access(THD *thd, privilege_t privilege,
+                               TABLE_LIST *tables, bool no_errors);
+bool check_routine_access(THD *thd, privilege_t want_access,
+                          const LEX_CSTRING *db,
+                          const LEX_CSTRING *name,
+                          const Sp_handler *sph, bool no_errors);
+bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table);
+bool check_some_routine_access(THD *thd, const char *db, const char *name,
+                               const Sp_handler *sph);
+bool check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
+                        bool any_combination_of_privileges_will_do,
+                        uint number,
+                        bool no_errors);
+#else
+
+inline bool check_access(THD *thd, privilege_t want_access,
+                         const char *db, privilege_t *save_priv,
+                         GRANT_INTERNAL_INFO *grant_internal_info,
+                         bool dont_check_global_grants, bool no_errors)
+{
+  if (save_priv)
+    *save_priv= GLOBAL_ACLS;
+  return false;
+}
+inline bool check_one_table_access(THD *thd, privilege_t privilege, TABLE_LIST *tables)
+{ return false; }
+inline bool check_single_table_access(THD *thd, privilege_t privilege,
+                                      TABLE_LIST *tables, bool no_errors)
+{ return false; }
+inline bool check_routine_access(THD *thd, privilege_t want_access,
+                                 const LEX_CSTRING *db,
+                                 const LEX_CSTRING *name,
+                                 const Sp_handler *sph, bool no_errors)
+{ return false; }
+inline bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table)
+{
+  table->grant.privilege= want_access;
+  return false;
+}
+inline bool check_some_routine_access(THD *thd, const char *db,
+                                      const char *name,
+                                      const Sp_handler *sph)
+{ return false; }
+inline bool
+check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
+                   bool any_combination_of_privileges_will_do,
+                   uint number,
+                   bool no_errors)
+{ return false; }
+#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
+
 privilege_t get_table_grant(THD *thd, TABLE_LIST *table);
 privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
                              const char *db_name, const char *table_name,
