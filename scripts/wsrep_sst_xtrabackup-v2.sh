@@ -973,7 +973,11 @@ fi
 
 setup_commands()
 {
-    INNOAPPLY="$BACKUP_BIN $disver $iapts $INNOEXTRA --apply-log $rebuildcmd '$DATA' $INNOAPPLY"
+    if [ -z "$INNODB_FORCE_RECOVERY" ]; then
+        INNOAPPLY="$BACKUP_BIN $disver $iapts $INNOEXTRA --apply-log $rebuildcmd '$DATA' $INNOAPPLY"
+    else
+        INNOAPPLY="$BACKUP_BIN $disver $iapts $INNOEXTRA --innodb-force-recovery=$INNODB_FORCE_RECOVERY --apply-log $rebuildcmd '$DATA' $INNOAPPLY"
+    fi
     INNOMOVE="$BACKUP_BIN $WSREP_SST_OPT_CONF --move-back $disver $impts --force-non-empty-directories '$DATA' $INNOMOVE"
     sfmt_work="$sfmt"
     if [ "$sfmt" = 'mbstream' ]; then
