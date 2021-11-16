@@ -951,7 +951,11 @@ setup_commands()
     if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
         mysqld_args="--mysqld-args $WSREP_SST_OPT_MYSQLD"
     fi
-    INNOAPPLY="$BACKUP_BIN --prepare $disver $iapts $INNOEXTRA --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
+    if [ -z "$INNODB_FORCE_RECOVERY" ]; then
+        INNOAPPLY="$BACKUP_BIN --prepare $disver $iapts $INNOEXTRA --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
+    else
+        INNOAPPLY="$BACKUP_BIN --prepare $disver $iapts $INNOEXTRA --innodb-force-recovery=$INNODB_FORCE_RECOVERY --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
+    fi
     INNOMOVE="$BACKUP_BIN $WSREP_SST_OPT_CONF --move-back $disver $impts --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
     INNOBACKUP="$BACKUP_BIN $WSREP_SST_OPT_CONF --backup $disver $iopts $tmpopts $INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA' $mysqld_args $INNOBACKUP"
 }
