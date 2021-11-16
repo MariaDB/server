@@ -271,6 +271,11 @@ public:
 
   /** @return whether any writer is waiting */
   bool is_waiting() const { return lock.is_waiting(); }
+
+  bool is_write_locked() const { return lock.is_write_locked(); }
+
+  inline void lock_shared();
+  inline void unlock_shared();
 };
 
 typedef sux_lock<ssux_lock_impl<true>> block_lock;
@@ -350,6 +355,11 @@ template<typename ssux> inline void sux_lock<ssux>::s_lock()
   lock.rd_lock();
   ut_d(s_lock_register());
 }
+
+template<typename ssux>
+inline void sux_lock<ssux>::lock_shared() { s_lock(); }
+template<typename ssux>
+inline void sux_lock<ssux>::unlock_shared() { s_unlock(); }
 
 template<typename ssux> inline void sux_lock<ssux>::u_lock()
 {
