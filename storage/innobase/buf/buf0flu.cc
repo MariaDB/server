@@ -997,7 +997,9 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
                                            page_id_t &id, bool contiguous,
                                            bool lru)
 {
-  ut_ad(id.page_no() < space.size);
+  ut_ad(id.page_no() < space.size +
+        (space.physical_size() == 2048 ? 1
+         : space.physical_size() == 1024 ? 3 : 0));
   /* When flushed, dirty blocks are searched in neighborhoods of this
   size, and flushed along with the original page. */
   const ulint s= buf_pool.curr_size / 16;
