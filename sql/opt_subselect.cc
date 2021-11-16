@@ -3839,9 +3839,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (i= first + sjm->tables; i <= tablenr; i++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[i].table);
         }
         best_access_path(join, join->best_positions[i].table, rem_tables,
@@ -3878,9 +3878,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[idx].table);
         }
         if (join->best_positions[idx].use_join_buffer)
@@ -3917,9 +3917,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[idx].table);
         }
         if (join->best_positions[idx].use_join_buffer || (idx == first))

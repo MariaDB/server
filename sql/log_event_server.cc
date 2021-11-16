@@ -5622,14 +5622,16 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       }
     }
 
-#if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
+#ifdef HAVE_QUERY_CACHE
     /*
       Moved invalidation right before the call to rows_event_stmt_cleanup(),
       to avoid query cache being polluted with stale entries,
     */
-    if (WSREP(thd) && wsrep_thd_is_applying(thd))
+# ifdef WITH_WSREP
+    if (!WSREP(thd) && !wsrep_thd_is_applying(thd))
+# endif /* WITH_WSREP */
       query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-#endif /* WITH_WSREP && HAVE_QUERY_CACHE */
+#endif /* HAVE_QUERY_CACHE */
   }
 
   table= m_table= rgi->m_table_map.get_table(m_table_id);
