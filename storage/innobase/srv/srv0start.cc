@@ -1517,13 +1517,13 @@ file_checked:
 					RW_SX_LATCH, &mtr);
 				ulint size = mach_read_from_4(
 					FSP_HEADER_OFFSET + FSP_SIZE
-					+ block->frame);
+					+ block->page.frame);
 				ut_ad(size == fil_system.sys_space
 				      ->size_in_header);
 				size += sum_of_new_sizes;
 				mtr.write<4>(*block,
 					     FSP_HEADER_OFFSET + FSP_SIZE
-					     + block->frame, size);
+					     + block->page.frame, size);
 				fil_system.sys_space->size_in_header
 					= uint32_t(size);
 				mtr.commit();
@@ -1537,7 +1537,7 @@ file_checked:
 			buf_block_t* block = buf_page_get(page_id_t(0, 0), 0,
 							  RW_S_LATCH, &mtr);
 			ut_ad(mach_read_from_4(FSP_SIZE + FSP_HEADER_OFFSET
-					       + block->frame)
+					       + block->page.frame)
 			      == fil_system.sys_space->size_in_header);
 			mtr.commit();
 		}

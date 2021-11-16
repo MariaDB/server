@@ -349,7 +349,7 @@ static bool row_undo_rec_get(undo_node_t* node)
 		ut_ad(undo->empty());
 	}
 
-	node->undo_rec = trx_undo_rec_copy(undo_page->frame + offset,
+	node->undo_rec = trx_undo_rec_copy(undo_page->page.frame + offset,
 					   node->heap);
 	mtr.commit();
 

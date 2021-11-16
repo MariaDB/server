@@ -302,7 +302,7 @@ inline uint32_t trx_rsegf_get_nth_undo(const buf_block_t *rseg_header, ulint n)
 {
   ut_ad(n < TRX_RSEG_N_SLOTS);
   return mach_read_from_4(TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
-                          n * TRX_RSEG_SLOT_SIZE + rseg_header->frame);
+                          n * TRX_RSEG_SLOT_SIZE + rseg_header->page.frame);
 }
 
 #ifdef WITH_WSREP

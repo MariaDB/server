@@ -164,10 +164,10 @@ trx_sysf_create(
 
 	ut_a(block->page.id() == page_id_t(0, TRX_SYS_PAGE_NO));
 
-	mtr->write<2>(*block, FIL_PAGE_TYPE + block->frame,
+	mtr->write<2>(*block, FIL_PAGE_TYPE + block->page.frame,
 		      FIL_PAGE_TYPE_TRX_SYS);
 
-	ut_ad(!mach_read_from_4(block->frame
+	ut_ad(!mach_read_from_4(block->page.frame
 				+ TRX_SYS_DOUBLEWRITE
 				+ TRX_SYS_DOUBLEWRITE_MAGIC));
 

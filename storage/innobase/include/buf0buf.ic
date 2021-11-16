@@ -86,38 +86,6 @@ inline bool buf_page_peek_if_too_old(const buf_page_t *bpage)
 	}
 }
 
-#ifdef UNIV_DEBUG
-/*********************************************************************//**
-Gets a pointer to the memory frame of a block.
-@return pointer to the frame */
-UNIV_INLINE
-buf_frame_t*
-buf_block_get_frame(
-/*================*/
-	const buf_block_t*	block)	/*!< in: pointer to the control block */
-{
-	if (!block) {
-		return NULL;
-	}
-
-	switch (block->page.state()) {
-	case BUF_BLOCK_ZIP_PAGE:
-	case BUF_BLOCK_NOT_USED:
-		ut_error;
-		break;
-	case BUF_BLOCK_FILE_PAGE:
-		ut_a(block->page.buf_fix_count());
-		/* fall through */
-	case BUF_BLOCK_MEMORY:
-	case BUF_BLOCK_REMOVE_HASH:
-		goto ok;
-	}
-	ut_error;
-ok:
-	return((buf_frame_t*) block->frame);
-}
-#endif /* UNIV_DEBUG */
-
 /** Allocate a buffer block.
 @return own: the allocated block, in state BUF_BLOCK_MEMORY */
 inline buf_block_t *buf_block_alloc()
@@ -149,16 +117,11 @@ buf_block_modify_clock_inc(
 	buf_block_t*	block)	/*!< in: block */
 {
 #ifdef SAFE_MUTEX
-	/* No latch is acquired for the shared temporary tablespace. */
-	ut_ad(fsp_is_system_temporary(block->page.id().space())
-	      || (mysql_mutex_is_owner(&buf_pool.mutex)
-		  && !block->page.buf_fix_count())
-	      || block->lock.have_u_or_x());
+	ut_ad((mysql_mutex_is_owner(&buf_pool.mutex)
+	       && !block->page.buf_fix_count())
+	      || block->page.lock.have_u_or_x());
 #else /* SAFE_MUTEX */
-	/* No latch is acquired for the shared temporary tablespace. */
-	ut_ad(fsp_is_system_temporary(block->page.id().space())
-	      || !block->page.buf_fix_count()
-	      || block->lock.have_u_or_x());
+	ut_ad(!block->page.buf_fix_count() || block->page.lock.have_u_or_x());
 #endif /* SAFE_MUTEX */
 	assert_block_ahi_valid(block);
 
@@ -175,56 +138,8 @@ buf_block_get_modify_clock(
 /*=======================*/
 	buf_block_t*	block)	/*!< in: block */
 {
-	/* No latch is acquired for the shared temporary tablespace. */
-	ut_ad(fsp_is_system_temporary(block->page.id().space())
-	      || block->lock.have_any());
+	ut_ad(block->page.lock.have_any());
 	return(block->modify_clock);
-}
-
-/********************************************************************//**
-Releases a compressed-only page acquired with buf_page_get_zip(). */
-UNIV_INLINE
-void
-buf_page_release_zip(
-/*=================*/
-	buf_page_t*	bpage)		/*!< in: buffer block */
-{
-	ut_ad(bpage);
-	ut_ad(bpage->buf_fix_count());
-
-	switch (bpage->state()) {
-	case BUF_BLOCK_FILE_PAGE:
-	case BUF_BLOCK_ZIP_PAGE:
-		bpage->unfix();
-		return;
-
-	case BUF_BLOCK_NOT_USED:
-	case BUF_BLOCK_MEMORY:
-	case BUF_BLOCK_REMOVE_HASH:
-		break;
-	}
-
-	ut_error;
-}
-
-/********************************************************************//**
-Releases a latch, if specified. */
-UNIV_INLINE
-void
-buf_page_release_latch(
-/*===================*/
-	buf_block_t*	block,		/*!< in: buffer block */
-	ulint		rw_latch)	/*!< in: RW_S_LATCH, RW_X_LATCH,
-					RW_NO_LATCH */
-{
-  switch (rw_latch) {
-  case RW_S_LATCH:
-    block->lock.s_unlock();
-    break;
-  case RW_SX_LATCH:
-  case RW_X_LATCH:
-    block->lock.u_or_x_unlock(rw_latch == RW_SX_LATCH);
-  }
 }
 
 /** Calculate aligned buffer pool size based on srv_buf_pool_chunk_unit,

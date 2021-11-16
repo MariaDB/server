@@ -418,8 +418,8 @@ template<bool compressed>
 inline void page_rec_set_n_owned(buf_block_t *block, rec_t *rec, ulint n_owned,
                                  bool comp, mtr_t *mtr)
 {
-  ut_ad(block->frame == page_align(rec));
-  ut_ad(comp == (page_is_comp(block->frame) != 0));
+  ut_ad(block->page.frame == page_align(rec));
+  ut_ad(comp == (page_is_comp(block->page.frame) != 0));
 
   if (page_zip_des_t *page_zip= compressed
       ? buf_block_get_page_zip(block) : nullptr)

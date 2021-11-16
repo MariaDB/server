@@ -379,7 +379,7 @@ void fil_space_crypt_t::write_page0(buf_block_t* block, mtr_t* mtr)
 {
 	const ulint offset = FSP_HEADER_OFFSET
 		+ fsp_header_get_encryption_offset(block->zip_size());
-	byte* b = block->frame + offset;
+	byte* b = block->page.frame + offset;
 
 	mtr->memcpy<mtr_t::MAYBE_NOP>(*block, b, CRYPT_MAGIC, MAGIC_SZ);
 
@@ -938,13 +938,13 @@ fil_crypt_read_crypt_data(fil_space_t* space)
 						  nullptr,
 						  BUF_GET_POSSIBLY_FREED,
 						  &mtr)) {
-		if (block->page.status == buf_page_t::FREED) {
+		if (block->page.is_freed()) {
 			goto func_exit;
 		}
 		mysql_mutex_lock(&fil_system.mutex);
 		if (!space->crypt_data && !space->is_stopping()) {
 			space->crypt_data = fil_space_read_crypt_data(
-				zip_size, block->frame);
+				zip_size, block->page.frame);
 		}
 		mysql_mutex_unlock(&fil_system.mutex);
 	}
@@ -1001,7 +1001,7 @@ func_exit:
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED,
 		    &mtr, &err)) {
-		if (block->page.status == buf_page_t::FREED) {
+		if (block->page.is_freed()) {
 			goto abort;
 		}
 
@@ -1793,7 +1793,7 @@ fil_crypt_rotate_page(
 		const lsn_t block_lsn = mach_read_from_8(FIL_PAGE_LSN + frame);
 		uint kv = buf_page_get_key_version(frame, space->flags);
 
-		if (block->page.status == buf_page_t::FREED) {
+		if (block->page.is_freed()) {
 			/* Do not modify freed pages to avoid an assertion
 			failure on recovery.*/
 		} else if (block->page.oldest_modification() > 1) {
@@ -1973,7 +1973,7 @@ fil_crypt_flush_space(
 	if (buf_block_t* block = buf_page_get_gen(
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED, &mtr)) {
-		if (block->page.status != buf_page_t::FREED) {
+		if (block->page.is_freed()) {
 			mtr.set_named_space(space);
 			crypt_data->write_page0(block, &mtr);
 		}
@@ -2422,7 +2422,7 @@ bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 
 	/* Compressed and encrypted pages do not have checksum. Assume not
 	corrupted. Page verification happens after decompression in
-	buf_page_read_complete() using buf_page_is_corrupted(). */
+	buf_page_t::read_complete() using buf_page_is_corrupted(). */
 	if (fil_page_get_type(page) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		return true;
 	}

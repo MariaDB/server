@@ -162,7 +162,7 @@ public:
   {
     ut_ad(len > 2);
     byte *free_p= my_assume_aligned<2>
-      (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + block.frame);
+      (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + block.page.frame);
     const uint16_t free= mach_read_from_2(free_p);
     if (UNIV_UNLIKELY(free < TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE ||
                       free + len + 6 >= srv_page_size - FIL_PAGE_DATA_END))
@@ -172,7 +172,7 @@ public:
       return true;
     }
 
-    byte *p= block.frame + free;
+    byte *p= block.page.frame + free;
     mach_write_to_2(free_p, free + 4 + len);
     memcpy(p, free_p, 2);
     p+= 2;
@@ -201,8 +201,8 @@ public:
   apply_status apply(const buf_block_t &block, uint16_t &last_offset) const
   {
     const byte * const recs= begin();
-    byte *const frame= block.page.zip.ssize
-      ? block.page.zip.data : block.frame;
+    byte *const frame= block.page.zip.data
+      ? block.page.zip.data : block.page.frame;
     const size_t size= block.physical_size();
     apply_status applied= APPLIED_NO;
 
@@ -815,7 +815,7 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
 
     const byte *page= UNIV_LIKELY_NULL(block->page.zip.data)
       ? block->page.zip.data
-      : block->frame;
+      : block->page.frame;
     const uint32_t space_id= mach_read_from_4(page + FIL_PAGE_SPACE_ID);
     const uint32_t flags= fsp_header_get_flags(page);
     const uint32_t page_no= mach_read_from_4(page + FIL_PAGE_OFFSET);
@@ -834,7 +834,7 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
                                                   page), size);
       space->free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
       space->free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
-      block->unfix();
+      block->page.lock.x_unlock();
       fil_node_t *node= UT_LIST_GET_FIRST(space->chain);
       node->deferred= true;
       if (!space->acquire())
@@ -861,7 +861,7 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
       return false;
     }
 
-    block->unfix();
+    block->page.lock.x_unlock();
   }
 
 fail:
@@ -981,7 +981,7 @@ public:
 					case FIL_PAGE_RTREE:
 						if (page_zip_decompress(
 							    &block->page.zip,
-							    block->frame,
+							    block->page.frame,
 							    true)) {
 							break;
 						}
@@ -995,8 +995,10 @@ public:
 					continue;
 				}
 				mysql_mutex_unlock(&recv_sys.mutex);
-				block->page.ibuf_exist = ibuf_page_exists(
-					block->page.id(), block->zip_size());
+				if (ibuf_page_exists(block->page.id(),
+						     block->zip_size())) {
+					block->page.set_ibuf_exist();
+				}
 				mtr.commit();
 				mtr.start();
 				mysql_mutex_lock(&recv_sys.mutex);
@@ -1296,9 +1298,9 @@ inline void recv_sys_t::clear()
   for (buf_block_t *block= UT_LIST_GET_LAST(blocks); block; )
   {
     buf_block_t *prev_block= UT_LIST_GET_PREV(unzip_LRU, block);
-    ut_ad(block->page.state() == BUF_BLOCK_MEMORY);
+    ut_ad(block->page.state() == buf_page_t::MEMORY);
     UT_LIST_REMOVE(blocks, block);
-    MEM_MAKE_ADDRESSABLE(block->frame, srv_page_size);
+    MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
     buf_block_free(block);
     block= prev_block;
   }
@@ -1337,9 +1339,9 @@ create_block:
       ut_calc_align<uint16_t>(static_cast<uint16_t>(len), ALIGNMENT);
     static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
     UT_LIST_ADD_FIRST(blocks, block);
-    MEM_MAKE_ADDRESSABLE(block->frame, len);
-    MEM_NOACCESS(block->frame + len, srv_page_size - len);
-    return my_assume_aligned<ALIGNMENT>(block->frame);
+    MEM_MAKE_ADDRESSABLE(block->page.frame, len);
+    MEM_NOACCESS(block->page.frame + len, srv_page_size - len);
+    return my_assume_aligned<ALIGNMENT>(block->page.frame);
   }
 
   size_t free_offset= static_cast<uint16_t>(block->page.access_time);
@@ -1357,8 +1359,8 @@ create_block:
 
   block->page.access_time= ((block->page.access_time >> 16) + 1) << 16 |
     ut_calc_align<uint16_t>(static_cast<uint16_t>(free_offset), ALIGNMENT);
-  MEM_MAKE_ADDRESSABLE(block->frame + free_offset - len, len);
-  return my_assume_aligned<ALIGNMENT>(block->frame + free_offset - len);
+  MEM_MAKE_ADDRESSABLE(block->page.frame + free_offset - len, len);
+  return my_assume_aligned<ALIGNMENT>(block->page.frame + free_offset - len);
 }
 
 
@@ -1377,22 +1379,22 @@ inline void recv_sys_t::free(const void *data)
   auto *chunk= buf_pool.chunks;
   for (auto i= buf_pool.n_chunks; i--; chunk++)
   {
-    if (data < chunk->blocks->frame)
+    if (data < chunk->blocks->page.frame)
       continue;
     const size_t offs= (reinterpret_cast<const byte*>(data) -
-                        chunk->blocks->frame) >> srv_page_size_shift;
+                        chunk->blocks->page.frame) >> srv_page_size_shift;
     if (offs >= chunk->size)
       continue;
     buf_block_t *block= &chunk->blocks[offs];
-    ut_ad(block->frame == data);
-    ut_ad(block->page.state() == BUF_BLOCK_MEMORY);
+    ut_ad(block->page.frame == data);
+    ut_ad(block->page.state() == buf_page_t::MEMORY);
     ut_ad(static_cast<uint16_t>(block->page.access_time - 1) <
           srv_page_size);
     ut_ad(block->page.access_time >= 1U << 16);
     if (!((block->page.access_time -= 1U << 16) >> 16))
     {
       UT_LIST_REMOVE(blocks, block);
-      MEM_MAKE_ADDRESSABLE(block->frame, srv_page_size);
+      MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
       buf_block_free(block);
     }
     return;
@@ -2011,9 +2013,11 @@ append:
       tail->append(l, len);
       return;
     }
-    if (end <= &block->frame[used - ALIGNMENT] || &block->frame[used] >= end)
+    if (end <= &block->page.frame[used - ALIGNMENT] ||
+        &block->page.frame[used] >= end)
       break; /* Not the last allocated record in the page */
-    const size_t new_used= static_cast<size_t>(end - block->frame + len + 1);
+    const size_t new_used= static_cast<size_t>
+      (end - block->page.frame + len + 1);
     ut_ad(new_used > used);
     if (new_used > srv_page_size)
       break;
@@ -2574,7 +2578,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 
 	byte *frame = UNIV_LIKELY_NULL(block->page.zip.data)
 		? block->page.zip.data
-		: block->frame;
+		: block->page.frame;
 	const lsn_t page_lsn = init
 		? 0
 		: mach_read_from_8(frame + FIL_PAGE_LSN);
@@ -2717,7 +2721,7 @@ set_start_lsn:
 	if (start_lsn) {
 		ut_ad(end_lsn >= start_lsn);
 		mach_write_to_8(FIL_PAGE_LSN + frame, end_lsn);
-		if (UNIV_LIKELY(frame == block->frame)) {
+		if (UNIV_LIKELY(frame == block->page.frame)) {
 			mach_write_to_8(srv_page_size
 					- FIL_PAGE_END_LSN_OLD_CHKSUM
 					+ frame, end_lsn);
@@ -2736,7 +2740,7 @@ set_start_lsn:
 		any buffered changes. */
 		init->created = false;
 		ut_ad(!mtr.has_modifications());
-		block->page.status = buf_page_t::FREED;
+		block->page.set_freed(block->page.state());
 	}
 
 	/* Make sure that committing mtr does not change the modification
@@ -2814,24 +2818,25 @@ void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 	mtr.start();
 	mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-	ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
-	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
-
+	ut_ad(bpage->frame);
 	/* Move the ownership of the x-latch on the page to
 	this OS thread, so that we can acquire a second
 	x-latch on it.  This is needed for the operations to
 	the page to pass the debug checks. */
-	block->lock.claim_ownership();
-	block->lock.x_lock_recursive();
-	buf_block_buf_fix_inc(block);
-	mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
+	bpage->lock.claim_ownership();
+	bpage->lock.x_lock_recursive();
+	bpage->fix_on_recovery();
+	mtr.memo_push(reinterpret_cast<buf_block_t*>(bpage),
+		      MTR_MEMO_PAGE_X_FIX);
 
 	mysql_mutex_lock(&recv_sys.mutex);
 	if (recv_sys.apply_log_recs) {
 		recv_sys_t::map::iterator p = recv_sys.pages.find(bpage->id());
 		if (p != recv_sys.pages.end()
 		    && !p->second.is_being_processed()) {
-			recv_recover_page(block, mtr, p, space);
+			recv_recover_page(
+				reinterpret_cast<buf_block_t*>(bpage), mtr, p,
+				space);
 			p->second.log.clear();
 			recv_sys.pages.erase(p);
 			recv_sys.maybe_finish_batch();
@@ -2936,7 +2941,7 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
     /* Buffer fix the first page while deferring the tablespace
     and unfix it after creating defer tablespace */
     if (first_page && !space)
-      block->fix();
+      block->page.lock.x_lock();
     ut_ad(&recs == &pages.find(page_id)->second);
     i.created= true;
     recv_recover_page(block, mtr, p, space, &i);

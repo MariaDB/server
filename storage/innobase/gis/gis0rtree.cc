@@ -231,7 +231,7 @@ rtr_update_mbr_field(
 	ut_ad(page == buf_block_get_frame(block));
 
 	child = btr_node_ptr_get_child_page_no(rec, offsets);
-	const ulint n_core = page_is_leaf(block->frame)
+	const ulint n_core = page_is_leaf(block->page.frame)
 		? index->n_core_fields : 0;
 
 	if (new_rec) {
@@ -590,8 +590,8 @@ rtr_adjust_upper_level(
 
 	page_cursor = btr_cur_get_page_cur(&cursor);
 
-	rtr_update_mbr_field(&cursor, offsets, NULL, block->frame, mbr, NULL,
-			     mtr);
+	rtr_update_mbr_field(&cursor, offsets, nullptr, block->page.frame, mbr,
+			     nullptr, mtr);
 
 	/* Already updated parent MBR, reset in our path */
 	if (sea_cur->rtr_info) {
@@ -605,7 +605,7 @@ rtr_adjust_upper_level(
 	/* Insert the node for the new page. */
 	node_ptr_upper = rtr_index_build_node_ptr(
 		index, new_mbr,
-		page_rec_get_next(page_get_infimum_rec(new_block->frame)),
+		page_rec_get_next(page_get_infimum_rec(new_block->page.frame)),
 		new_page_no, heap);
 
 	ulint	up_match = 0;
@@ -660,15 +660,15 @@ rtr_adjust_upper_level(
 
 	ut_ad(block->zip_size() == index->table->space->zip_size());
 
-	const uint32_t next_page_no = btr_page_get_next(block->frame);
+	const uint32_t next_page_no = btr_page_get_next(block->page.frame);
 
 	if (next_page_no != FIL_NULL) {
 		buf_block_t*	next_block = btr_block_get(
 			*index, next_page_no, RW_X_LATCH, false, mtr);
 #ifdef UNIV_BTR_DEBUG
-		ut_a(page_is_comp(next_block->frame)
-		     == page_is_comp(block->frame));
-		ut_a(btr_page_get_prev(next_block->frame)
+		ut_a(page_is_comp(next_block->page.frame)
+		     == page_is_comp(block->page.frame));
+		ut_a(btr_page_get_prev(next_block->page.frame)
 		     == block->page.id().page_no());
 #endif /* UNIV_BTR_DEBUG */
 
@@ -744,8 +744,7 @@ rtr_split_page_move_rec_list(
 		log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 	}
 
-	max_to_move = page_get_n_recs(
-				buf_block_get_frame(block));
+	max_to_move = page_get_n_recs(buf_block_get_frame(block));
 	rec_move = static_cast<rtr_rec_move_t*>(mem_heap_alloc(
 			heap,
 			sizeof (*rec_move) * max_to_move));
@@ -979,7 +978,7 @@ func_start:
 	if (page_level && UNIV_LIKELY_NULL(new_page_zip)) {
 		/* ROW_FORMAT=COMPRESSED non-leaf pages are not expected
 		to contain FIL_NULL in FIL_PAGE_PREV at this stage. */
-		memset_aligned<4>(new_block->frame + FIL_PAGE_PREV, 0, 4);
+		memset_aligned<4>(new_block->page.frame + FIL_PAGE_PREV, 0, 4);
 	}
 	btr_page_create(new_block, new_page_zip, cursor->index,
 			page_level, mtr);
@@ -1879,7 +1878,7 @@ err_exit:
 	/* Scan records in root page and calculate area. */
 	double	area = 0;
 	for (const rec_t* rec = page_rec_get_next(
-		     page_get_infimum_rec(block->frame));
+		     page_get_infimum_rec(block->page.frame));
 	     !page_rec_is_supremum(rec);
 	     rec = page_rec_get_next_const(rec)) {
 		rtr_mbr_t	mbr;

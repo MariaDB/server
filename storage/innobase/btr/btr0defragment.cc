@@ -476,7 +476,7 @@ btr_defragment_n_pages(
 	/* It doesn't make sense to call this function with n_pages = 1. */
 	ut_ad(n_pages > 1);
 
-	if (!page_is_leaf(block->frame)) {
+	if (!page_is_leaf(block->page.frame)) {
 		return NULL;
 	}
 

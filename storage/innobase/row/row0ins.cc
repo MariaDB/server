@@ -2629,7 +2629,7 @@ commit_exit:
 	DBUG_EXECUTE_IF("row_ins_row_level", goto skip_bulk_insert;);
 
 	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
-	    && page_is_empty(block->frame)
+	    && page_is_empty(block->page.frame)
 	    && !entry->is_metadata() && !trx->duplicates
 	    && !trx->check_unique_secondary && !trx->check_foreigns
 	    && !trx->dict_operation

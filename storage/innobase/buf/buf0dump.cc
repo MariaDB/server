@@ -328,16 +328,15 @@ buf_dump(
 	for (bpage = UT_LIST_GET_FIRST(buf_pool.LRU), j = 0;
 	     bpage != NULL && j < n_pages;
 	     bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
-
-		ut_a(bpage->in_file());
-		const page_id_t id(bpage->id());
+		const auto status = bpage->state();
+		if (status < buf_page_t::UNFIXED) {
+			ut_a(status >= buf_page_t::FREED);
+			continue;
+		}
+		const page_id_t id{bpage->id()};
 
 		if (id.space() == SRV_TMP_SPACE_ID) {
 			/* Ignore the innodb_temporary tablespace. */
-			continue;
-		}
-
-		if (bpage->status == buf_page_t::FREED) {
 			continue;
 		}
 

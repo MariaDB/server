@@ -59,12 +59,9 @@ inline void buf_pool_t::watch_remove(buf_page_t *watch,
   ut_ad(page_hash.lock_get(chain).is_write_locked());
   ut_a(watch_is_sentinel(*watch));
   if (watch->buf_fix_count())
-  {
     page_hash.remove(chain, watch);
-    watch->set_buf_fix_count(0);
-  }
   ut_ad(!watch->in_page_hash);
-  watch->set_state(BUF_BLOCK_NOT_USED);
+  watch->set_state(buf_page_t::NOT_USED);
   watch->id_= page_id_t(~0ULL);
 }
 
@@ -109,10 +106,10 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
   if (!zip_size || unzip || recv_recovery_is_on())
   {
     block= buf_LRU_get_free_block(false);
-    block->initialise(page_id, zip_size);
+    block->initialise(page_id, zip_size, buf_page_t::READ_FIX);
     /* x_unlock() will be invoked
-    in buf_page_read_complete() by the io-handler thread. */
-    block->lock.x_lock(true);
+    in buf_page_t::read_complete() by the io-handler thread. */
+    block->page.lock.x_lock(true);
   }
 
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
@@ -125,7 +122,8 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     /* The page is already in the buffer pool. */
     if (block)
     {
-      block->lock.x_unlock(true);
+      block->page.lock.x_unlock(true);
+      ut_d(block->page.set_state(buf_page_t::MEMORY));
       buf_LRU_block_free_non_file_page(block);
     }
     goto func_exit;
@@ -143,14 +141,13 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
       if (hash_page)
       {
         /* Preserve the reference count. */
-        auto buf_fix_count= hash_page->buf_fix_count();
-        ut_a(buf_fix_count > 0);
-        block->page.add_buf_fix_count(buf_fix_count);
+        uint32_t buf_fix_count= hash_page->state();
+        ut_a(buf_fix_count >= buf_page_t::UNFIXED);
+        ut_a(buf_fix_count < buf_page_t::READ_FIX);
         buf_pool.watch_remove(hash_page, chain);
+        block->page.fix(buf_fix_count - buf_page_t::UNFIXED);
       }
 
-      block->page.set_io_fix(BUF_IO_READ);
-      block->page.set_state(BUF_BLOCK_FILE_PAGE);
       buf_pool.page_hash.append(chain, &block->page);
     }
 
@@ -198,13 +195,14 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
       }
     }
 
-    bpage= buf_page_alloc_descriptor();
+    bpage= static_cast<buf_page_t*>(ut_zalloc_nokey(sizeof *bpage));
 
     page_zip_des_init(&bpage->zip);
     page_zip_set_size(&bpage->zip, zip_size);
     bpage->zip.data = (page_zip_t*) data;
 
-    bpage->init(BUF_BLOCK_ZIP_PAGE, page_id);
+    bpage->init(buf_page_t::READ_FIX, page_id);
+    bpage->lock.x_lock(true);
 
     {
       transactional_lock_guard<page_hash_latch> g
@@ -215,12 +213,14 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
         /* Preserve the reference count. It can be 0 if
         buf_pool_t::watch_unset() is executing concurrently,
         waiting for buf_pool.mutex, which we are holding. */
-        bpage->add_buf_fix_count(hash_page->buf_fix_count());
+        uint32_t buf_fix_count= hash_page->state();
+        ut_a(buf_fix_count >= buf_page_t::UNFIXED);
+        ut_a(buf_fix_count < buf_page_t::READ_FIX);
+        bpage->fix(buf_fix_count - buf_page_t::UNFIXED);
         buf_pool.watch_remove(hash_page, chain);
       }
 
       buf_pool.page_hash.append(chain, bpage);
-      bpage->set_io_fix(BUF_IO_READ);
     }
 
     /* The block must be put to the LRU list, to the old blocks.
@@ -315,16 +315,7 @@ nothing_read:
 		 "read page " << page_id << " zip_size=" << zip_size
 		 << " unzip=" << unzip << ',' << (sync ? "sync" : "async"));
 
-	void*	dst;
-
-	if (zip_size) {
-		dst = bpage->zip.data;
-	} else {
-		ut_a(bpage->state() == BUF_BLOCK_FILE_PAGE);
-
-		dst = ((buf_block_t*) bpage)->frame;
-	}
-
+	void* dst = zip_size ? bpage->zip.data : bpage->frame;
 	const ulint len = zip_size ? zip_size : srv_page_size;
 
 	auto fio = space->io(IORequest(sync
@@ -347,7 +338,7 @@ nothing_read:
 		thd_wait_end(NULL);
 
 		/* The i/o was already completed in space->io() */
-		*err = buf_page_read_complete(bpage, *fio.node);
+		*err = bpage->read_complete(*fio.node);
 		space->release();
 
 		if (*err != DB_SUCCESS) {
@@ -628,19 +619,7 @@ failed:
       on the page, we do not acquire an s-latch on the page, this is to
       prevent deadlocks. The hash_lock is only protecting the
       buf_pool.page_hash for page i, not the bpage contents itself. */
-      const byte *f;
-      switch (UNIV_EXPECT(bpage->state(), BUF_BLOCK_FILE_PAGE)) {
-      case BUF_BLOCK_FILE_PAGE:
-        f= reinterpret_cast<const buf_block_t*>(bpage)->frame;
-        break;
-      case BUF_BLOCK_ZIP_PAGE:
-        f= bpage->zip.data;
-        break;
-      default:
-        ut_ad("invalid state" == 0);
-        goto fail;
-      }
-
+      const byte *f= bpage->frame ? bpage->frame : bpage->zip.data;
       uint32_t prev= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_PREV));
       uint32_t next= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_NEXT));
       if (prev == FIL_NULL || next == FIL_NULL)

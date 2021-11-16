@@ -936,7 +936,8 @@ void dict_check_tablespaces_and_store_max_id()
 	mtr.start();
 	ulint max_space_id = mach_read_from_4(DICT_HDR_MAX_SPACE_ID
 					      + DICT_HDR
-					      + dict_hdr_get(&mtr)->frame);
+					      + dict_hdr_get(&mtr)
+					      ->page.frame);
 	mtr.commit();
 
 	fil_set_max_space_id_if_bigger(max_space_id);
@@ -2373,15 +2374,15 @@ corrupted:
 				page_id, table->space->zip_size(),
 				RW_S_LATCH, &mtr);
 			const bool corrupted = !block
-				|| page_get_space_id(block->frame)
+				|| page_get_space_id(block->page.frame)
 				!= page_id.space()
-				|| page_get_page_no(block->frame)
+				|| page_get_page_no(block->page.frame)
 				!= page_id.page_no()
 				|| (mach_read_from_2(FIL_PAGE_TYPE
-						    + block->frame)
+						    + block->page.frame)
 				    != FIL_PAGE_INDEX
 				    && mach_read_from_2(FIL_PAGE_TYPE
-							+ block->frame)
+							+ block->page.frame)
 				    != FIL_PAGE_TYPE_INSTANT);
 			mtr.commit();
 			if (corrupted) {

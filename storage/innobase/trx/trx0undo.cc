@@ -119,7 +119,7 @@ uint16_t trx_undo_page_get_start(const buf_block_t *block, uint32_t page_no,
                                  uint16_t offset)
 {
   return page_no == block->page.id().page_no()
-    ? mach_read_from_2(offset + TRX_UNDO_LOG_START + block->frame)
+    ? mach_read_from_2(offset + TRX_UNDO_LOG_START + block->page.frame)
     : TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE;
 }
 
@@ -135,7 +135,7 @@ trx_undo_page_get_first_rec(const buf_block_t *block, uint32_t page_no,
 {
   uint16_t start= trx_undo_page_get_start(block, page_no, offset);
   return start == trx_undo_page_get_end(block, page_no, offset)
-    ? nullptr : block->frame + start;
+    ? nullptr : block->page.frame + start;
 }
 
 /** Get the last undo log record on a page.
@@ -151,7 +151,8 @@ trx_undo_page_get_last_rec(const buf_block_t *block, uint32_t page_no,
 {
   uint16_t end= trx_undo_page_get_end(block, page_no, offset);
   return trx_undo_page_get_start(block, page_no, offset) == end
-    ? nullptr : block->frame + mach_read_from_2(block->frame + end - 2);
+    ? nullptr
+    : block->page.frame + mach_read_from_2(block->page.frame + end - 2);
 }
 
 /** Get the previous record in an undo log from the previous page.
@@ -169,7 +170,7 @@ trx_undo_get_prev_rec_from_prev_page(buf_block_t *&block, uint16_t rec,
 {
   uint32_t prev_page_no= flst_get_prev_addr(TRX_UNDO_PAGE_HDR +
                                             TRX_UNDO_PAGE_NODE +
-                                            block->frame).page;
+                                            block->page.frame).page;
 
   if (prev_page_no == FIL_NULL)
     return nullptr;
@@ -192,10 +193,11 @@ trx_undo_rec_t*
 trx_undo_page_get_prev_rec(const buf_block_t *block, trx_undo_rec_t *rec,
                            uint32_t page_no, uint16_t offset)
 {
-  ut_ad(block->frame == page_align(rec));
-  return rec == block->frame + trx_undo_page_get_start(block, page_no, offset)
+  ut_ad(block->page.frame == page_align(rec));
+  return
+    rec == block->page.frame + trx_undo_page_get_start(block, page_no, offset)
     ? nullptr
-    : block->frame + mach_read_from_2(rec - 2);
+    : block->page.frame + mach_read_from_2(rec - 2);
 }
 
 /** Get the previous record in an undo log.
@@ -211,7 +213,7 @@ trx_undo_get_prev_rec(buf_block_t *&block, uint16_t rec, uint32_t page_no,
                       uint16_t offset, bool shared, mtr_t *mtr)
 {
   if (trx_undo_rec_t *prev= trx_undo_page_get_prev_rec(block,
-                                                       block->frame + rec,
+                                                       block->page.frame + rec,
                                                        page_no, offset))
     return prev;
 
@@ -234,11 +236,11 @@ trx_undo_get_next_rec_from_next_page(buf_block_t *&block, uint32_t page_no,
                                      uint16_t offset, ulint mode, mtr_t *mtr)
 {
   if (page_no == block->page.id().page_no() &&
-      mach_read_from_2(block->frame + offset + TRX_UNDO_NEXT_LOG))
+      mach_read_from_2(block->page.frame + offset + TRX_UNDO_NEXT_LOG))
     return NULL;
 
   uint32_t next= flst_get_next_addr(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE +
-				    block->frame).page;
+				    block->page.frame).page;
   if (next == FIL_NULL)
     return NULL;
 
@@ -293,32 +295,34 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
 /** Initialize an undo log page.
 NOTE: This corresponds to a redo log record and must not be changed!
 @see mtr_t::undo_create()
-@param[in,out]	block	undo log page */
+@param block   undo log page */
 void trx_undo_page_init(const buf_block_t &block)
 {
-  mach_write_to_2(my_assume_aligned<2>(FIL_PAGE_TYPE + block.frame),
+  mach_write_to_2(my_assume_aligned<2>(FIL_PAGE_TYPE + block.page.frame),
                   FIL_PAGE_UNDO_LOG);
   static_assert(TRX_UNDO_PAGE_HDR == FIL_PAGE_DATA, "compatibility");
-  memset_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE + block.frame,
+  memset_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE + block.page.frame,
                     0, 2);
   mach_write_to_2(my_assume_aligned<2>
-                  (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START + block.frame),
+                  (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START + block.page.frame),
                   TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-  memcpy_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + block.frame,
-                    TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START + block.frame, 2);
+  memcpy_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + block.page.frame,
+                    TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START + block.page.frame,
+                    2);
   /* The following corresponds to flst_zero_both(), but without writing log. */
   memset_aligned<4>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE + FLST_PREV +
-                    FIL_ADDR_PAGE + block.frame, 0xff, 4);
+                    FIL_ADDR_PAGE + block.page.frame, 0xff, 4);
   memset_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE + FLST_PREV +
-                    FIL_ADDR_BYTE + block.frame, 0, 2);
+                    FIL_ADDR_BYTE + block.page.frame, 0, 2);
   memset_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE + FLST_NEXT +
-                    FIL_ADDR_PAGE + block.frame, 0xff, 4);
+                    FIL_ADDR_PAGE + block.page.frame, 0xff, 4);
   memset_aligned<2>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE + FLST_NEXT +
-                    FIL_ADDR_BYTE + block.frame, 0, 2);
+                    FIL_ADDR_BYTE + block.page.frame, 0, 2);
   static_assert(TRX_UNDO_PAGE_NODE + FLST_NEXT + FIL_ADDR_BYTE + 2 ==
                 TRX_UNDO_PAGE_HDR_SIZE, "compatibility");
   /* Preserve TRX_UNDO_SEG_HDR, but clear the rest of the page. */
-  memset_aligned<2>(TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE + block.frame, 0,
+  memset_aligned<2>(TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE +
+                    block.page.frame, 0,
                     srv_page_size - (TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE +
                                      FIL_PAGE_DATA_END));
 }
@@ -395,21 +399,21 @@ trx_undo_seg_create(fil_space_t *space, buf_block_t *rseg_hdr, ulint *id,
 	trx_undo_page_init(*block);
 
 	mtr->write<2>(*block, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
-		      + block->frame,
+		      + block->page.frame,
 		      TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE);
 	mtr->write<2,mtr_t::MAYBE_NOP>(*block,
 				       TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG
-				       + block->frame, 0U);
+				       + block->page.frame, 0U);
 
-	flst_init(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + block->frame,
-		  mtr);
+	flst_init(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST
+		  + block->page.frame, mtr);
 
 	flst_add_last(block, TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST,
 		      block, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE, mtr);
 
 	*id = slot_no;
 	mtr->write<4>(*rseg_hdr, TRX_RSEG + TRX_RSEG_UNDO_SLOTS
-		      + slot_no * TRX_RSEG_SLOT_SIZE + rseg_hdr->frame,
+		      + slot_no * TRX_RSEG_SLOT_SIZE + rseg_hdr->page.frame,
 		      block->page.id().page_no());
 
 	MONITOR_INC(MONITOR_NUM_UNDO_SLOT_USED);
@@ -429,11 +433,11 @@ static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
   /* Reset the TRX_UNDO_PAGE_TYPE in case this page is being
   repurposed after upgrading to MariaDB 10.3. */
   byte *undo_type= my_assume_aligned<2>
-    (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE + undo_page->frame);
+    (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE + undo_page->page.frame);
   ut_ad(mach_read_from_2(undo_type) <= 2);
   mtr->write<2,mtr_t::MAYBE_NOP>(*undo_page, undo_type, 0U);
   byte *start= my_assume_aligned<4>(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START +
-                                    undo_page->frame);
+                                    undo_page->page.frame);
   const uint16_t free= mach_read_from_2(start + 2);
   static_assert(TRX_UNDO_PAGE_START + 2 == TRX_UNDO_PAGE_FREE,
                 "compatibility");
@@ -447,34 +451,34 @@ static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
   mtr->memset(*undo_page, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START, 4,
               start, 2);
   uint16_t prev_log= mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG +
-                                      undo_page->frame);
+                                      undo_page->page.frame);
   alignas(4) byte buf[4];
   mach_write_to_2(buf, TRX_UNDO_ACTIVE);
   mach_write_to_2(buf + 2, free);
   static_assert(TRX_UNDO_STATE + 2 == TRX_UNDO_LAST_LOG, "compatibility");
   static_assert(!((TRX_UNDO_SEG_HDR + TRX_UNDO_STATE) % 4), "alignment");
   mtr->memcpy(*undo_page, my_assume_aligned<4>
-              (TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + undo_page->frame),
+              (TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + undo_page->page.frame),
               buf, 4);
   if (prev_log)
-    mtr->write<2>(*undo_page, prev_log + TRX_UNDO_NEXT_LOG + undo_page->frame,
-                  free);
+    mtr->write<2>(*undo_page, prev_log + TRX_UNDO_NEXT_LOG +
+                  undo_page->page.frame, free);
   mtr->write<8,mtr_t::MAYBE_NOP>(*undo_page, free + TRX_UNDO_TRX_ID +
-                                 undo_page->frame, trx_id);
+                                 undo_page->page.frame, trx_id);
   /* Write TRX_UNDO_NEEDS_PURGE=1 and TRX_UNDO_LOG_START. */
   mach_write_to_2(buf, 1);
   memcpy_aligned<2>(buf + 2, start, 2);
   static_assert(TRX_UNDO_NEEDS_PURGE + 2 == TRX_UNDO_LOG_START,
                 "compatibility");
   mtr->memcpy<mtr_t::MAYBE_NOP>(*undo_page, free + TRX_UNDO_NEEDS_PURGE +
-                                undo_page->frame, buf, 4);
+                                undo_page->page.frame, buf, 4);
   /* Initialize all fields TRX_UNDO_XID_EXISTS to TRX_UNDO_HISTORY_NODE. */
   if (prev_log)
   {
     mtr->memset(undo_page, free + TRX_UNDO_XID_EXISTS,
                 TRX_UNDO_PREV_LOG - TRX_UNDO_XID_EXISTS, 0);
     mtr->write<2,mtr_t::MAYBE_NOP>(*undo_page, free + TRX_UNDO_PREV_LOG +
-                                   undo_page->frame, prev_log);
+                                   undo_page->page.frame, prev_log);
     static_assert(TRX_UNDO_PREV_LOG + 2 == TRX_UNDO_HISTORY_NODE,
                   "compatibility");
     mtr->memset(undo_page, free + TRX_UNDO_HISTORY_NODE, FLST_NODE_SIZE, 0);
@@ -502,9 +506,9 @@ static void trx_undo_write_xid(buf_block_t *block, uint16_t offset,
   static_assert(MAXGTRIDSIZE + MAXBQUALSIZE == XIDDATASIZE,
                 "gtrid and bqual don't fit xid data");
   DBUG_ASSERT(mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG +
-                               block->frame) == offset);
+                               block->page.frame) == offset);
 
-  trx_ulogf_t* log_hdr= block->frame + offset;
+  trx_ulogf_t* log_hdr= block->page.frame + offset;
 
   mtr->write<4,mtr_t::MAYBE_NOP>(*block, log_hdr + TRX_UNDO_XA_FORMAT,
                                  static_cast<uint32_t>(xid.formatID));
@@ -514,7 +518,7 @@ static void trx_undo_write_xid(buf_block_t *block, uint16_t offset,
                                  static_cast<uint32_t>(xid.bqual_length));
   const ulint xid_length= static_cast<ulint>(xid.gtrid_length
                                              + xid.bqual_length);
-  mtr->memcpy(*block, &block->frame[offset + TRX_UNDO_XA_XID],
+  mtr->memcpy(*block, &block->page.frame[offset + TRX_UNDO_XA_XID],
               xid.data, xid_length);
   if (UNIV_LIKELY(xid_length < XIDDATASIZE))
     mtr->memset(block, offset + TRX_UNDO_XA_XID + xid_length,
@@ -566,7 +570,7 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 
 	new_block = fseg_alloc_free_page_general(
 		TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
-		+ header_block->frame,
+		+ header_block->page.frame,
 		undo->top_page_no + 1, FSP_UP, true, mtr, mtr);
 
 	rseg->space->release_free_extents(n_reserved);
@@ -621,19 +625,20 @@ trx_undo_free_page(
 		    undo_block, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE, mtr);
 
 	fseg_free_page(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
-		       + header_block->frame,
+		       + header_block->page.frame,
 		       rseg->space, page_no, mtr);
 	buf_page_free(rseg->space, page_no, mtr);
 
 	const fil_addr_t last_addr = flst_get_last(
-		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + header_block->frame);
+		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST
+		+ header_block->page.frame);
 	rseg->curr_size--;
 
 	if (in_history) {
 		buf_block_t* rseg_header = trx_rsegf_get(
 			rseg->space, rseg->page_no, mtr);
 		byte* rseg_hist_size = TRX_RSEG + TRX_RSEG_HISTORY_SIZE
-			+ rseg_header->frame;
+			+ rseg_header->page.frame;
 		uint32_t hist_size = mach_read_from_4(rseg_hist_size);
 		ut_ad(hist_size > 0);
 		mtr->write<4>(*rseg_header, rseg_hist_size, hist_size - 1);
@@ -705,8 +710,9 @@ func_exit:
 		if (trunc_here) {
 			mtr.write<2>(*undo_block,
 				     TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
-				     + undo_block->frame,
-				     ulint(trunc_here - undo_block->frame));
+				     + undo_block->page.frame,
+				     ulint(trunc_here
+					   - undo_block->page.frame));
 		}
 
 		mtr.commit();
@@ -761,14 +767,14 @@ done:
 
 	if (undo_page->page.id().page_no() == hdr_page_no) {
 		uint16_t end = mach_read_from_2(hdr_offset + TRX_UNDO_NEXT_LOG
-						+ undo_page->frame);
+						+ undo_page->page.frame);
 		if (end == 0) {
 			end = mach_read_from_2(TRX_UNDO_PAGE_HDR
 					       + TRX_UNDO_PAGE_FREE
-					       + undo_page->frame);
+					       + undo_page->page.frame);
 		}
 
-		mtr.write<2>(*undo_page, undo_page->frame + hdr_offset
+		mtr.write<2>(*undo_page, undo_page->page.frame + hdr_offset
 			     + TRX_UNDO_LOG_START, end);
 	} else {
 		trx_undo_free_page(rseg, true, hdr_page_no,
@@ -799,7 +805,7 @@ static void trx_undo_seg_free(const trx_undo_t *undo)
 			page_id_t(SRV_TMP_SPACE_ID, undo->hdr_page_no), &mtr);
 
 		fseg_header_t* file_seg = TRX_UNDO_SEG_HDR
-			+ TRX_UNDO_FSEG_HEADER + block->frame;
+			+ TRX_UNDO_FSEG_HEADER + block->page.frame;
 
 		finished = fseg_free_step(file_seg, &mtr);
 
@@ -810,7 +816,7 @@ static void trx_undo_seg_free(const trx_undo_t *undo)
 			compile_time_assert(FIL_NULL == 0xffffffff);
 			memset(TRX_RSEG + TRX_RSEG_UNDO_SLOTS
 			       + undo->id * TRX_RSEG_SLOT_SIZE +
-			       rseg_header->frame, 0xff, 4);
+			       rseg_header->page.frame, 0xff, 4);
 			MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_USED);
 		}
 
@@ -841,7 +847,7 @@ trx_undo_mem_create_at_db_start(trx_rseg_t *rseg, ulint id, uint32_t page_no,
 		page_id_t(rseg->space->id, page_no), &mtr);
 	const uint16_t type = mach_read_from_2(TRX_UNDO_PAGE_HDR
 					       + TRX_UNDO_PAGE_TYPE
-					       + block->frame);
+					       + block->page.frame);
 	if (UNIV_UNLIKELY(type > 2)) {
 corrupted_type:
 		sql_print_error("InnoDB: unsupported undo header type %u",
@@ -852,7 +858,7 @@ corrupted:
 	}
 
 	uint16_t offset = mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG
-					   + block->frame);
+					   + block->page.frame);
 	if (offset < TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE ||
 	    offset >= srv_page_size - TRX_UNDO_LOG_OLD_HDR_SIZE) {
 		sql_print_error("InnoDB: invalid undo header offset %u",
@@ -860,9 +866,9 @@ corrupted:
 		goto corrupted;
 	}
 
-	const trx_ulogf_t* const undo_header = block->frame + offset;
+	const trx_ulogf_t* const undo_header = block->page.frame + offset;
 	uint16_t state = mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_STATE
-					  + block->frame);
+					  + block->page.frame);
 	switch (state) {
 	case TRX_UNDO_ACTIVE:
 	case TRX_UNDO_PREPARED:
@@ -918,10 +924,10 @@ corrupted:
 
 	undo->dict_operation = undo_header[TRX_UNDO_DICT_TRANS];
 	undo->size = flst_get_len(TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST
-				  + block->frame);
+				  + block->page.frame);
 
 	fil_addr_t	last_addr = flst_get_last(
-		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + block->frame);
+		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + block->page.frame);
 
 	undo->last_page_no = last_addr.page;
 	undo->top_page_no = last_addr.page;
@@ -931,7 +937,8 @@ corrupted:
 
 	if (const trx_undo_rec_t* rec = trx_undo_page_get_last_rec(
 		    last, page_no, offset)) {
-		undo->top_offset = static_cast<uint16_t>(rec - last->frame);
+		undo->top_offset = static_cast<uint16_t>(
+			rec - last->page.frame);
 		undo->top_undo_no = trx_undo_rec_get_undo_no(rec);
 		ut_ad(!undo->empty());
 	} else {
@@ -1063,9 +1070,11 @@ trx_undo_create(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 
 	if (trx->dict_operation) {
 		(*undo)->dict_operation = true;
-		mtr->write<1,mtr_t::MAYBE_NOP>(*block, block->frame + offset
+		mtr->write<1,mtr_t::MAYBE_NOP>(*block,
+					       block->page.frame + offset
 					       + TRX_UNDO_DICT_TRANS, 1U);
-		mtr->write<8,mtr_t::MAYBE_NOP>(*block, block->frame + offset
+		mtr->write<8,mtr_t::MAYBE_NOP>(*block,
+					       block->page.frame + offset
 					       + TRX_UNDO_TABLE_ID, 0U);
 	}
 
@@ -1117,9 +1126,11 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 
 	if (trx->dict_operation) {
 		undo->dict_operation = TRUE;
-		mtr->write<1,mtr_t::MAYBE_NOP>(*block, block->frame + offset
+		mtr->write<1,mtr_t::MAYBE_NOP>(*block,
+					       block->page.frame + offset
 					       + TRX_UNDO_DICT_TRANS, 1U);
-		mtr->write<8,mtr_t::MAYBE_NOP>(*block, block->frame + offset
+		mtr->write<8,mtr_t::MAYBE_NOP>(*block,
+					       block->page.frame + offset
 					       + TRX_UNDO_TABLE_ID, 0U);
 	}
 
@@ -1243,13 +1254,13 @@ trx_undo_set_state_at_finish(
 	const uint16_t state = undo->size == 1
 		&& TRX_UNDO_PAGE_REUSE_LIMIT
 		> mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
-				   + block->frame)
+				   + block->page.frame)
 		? TRX_UNDO_CACHED
 		: TRX_UNDO_TO_PURGE;
 
 	undo->state = state;
 	mtr->write<2>(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE
-		      + block->frame, state);
+		      + block->page.frame, state);
 	return block;
 }
 
@@ -1270,7 +1281,7 @@ void trx_undo_set_state_at_prepare(trx_t *trx, trx_undo_t *undo, bool rollback,
 	if (rollback) {
 		ut_ad(undo->state == TRX_UNDO_PREPARED);
 		mtr->write<2>(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE
-			      + block->frame, TRX_UNDO_ACTIVE);
+			      + block->page.frame, TRX_UNDO_ACTIVE);
 		return;
 	}
 
@@ -1280,11 +1291,12 @@ void trx_undo_set_state_at_prepare(trx_t *trx, trx_undo_t *undo, bool rollback,
 	undo->xid   = trx->xid;
 	/*------------------------------*/
 
-	mtr->write<2>(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + block->frame,
-		      undo->state);
+	mtr->write<2>(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE
+		      + block->page.frame, undo->state);
 	uint16_t offset = mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG
-					   + block->frame);
-	mtr->write<1>(*block, block->frame + offset + TRX_UNDO_XID_EXISTS, 1U);
+					   + block->page.frame);
+	mtr->write<1>(*block, block->page.frame + offset + TRX_UNDO_XID_EXISTS,
+		      1U);
 
 	trx_undo_write_xid(block, offset, undo->xid, mtr);
 }

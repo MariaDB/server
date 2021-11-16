@@ -335,54 +335,11 @@ btr_pcur_move_to_next_page(
 	btr_pcur_t*	cursor,	/*!< in: persistent cursor; must be on the
 				last record of the current page */
 	mtr_t*		mtr);	/*!< in: mtr */
-#ifdef UNIV_DEBUG
-/*********************************************************//**
-Returns the btr cursor component of a persistent cursor.
-@return pointer to btr cursor component */
-UNIV_INLINE
-btr_cur_t*
-btr_pcur_get_btr_cur(
-/*=================*/
-	const btr_pcur_t*	cursor);	/*!< in: persistent cursor */
-/*********************************************************//**
-Returns the page cursor component of a persistent cursor.
-@return pointer to page cursor component */
-UNIV_INLINE
-page_cur_t*
-btr_pcur_get_page_cur(
-/*==================*/
-	const btr_pcur_t*	cursor);	/*!< in: persistent cursor */
-/*********************************************************//**
-Returns the page of a persistent cursor.
-@return pointer to the page */
-UNIV_INLINE
-page_t*
-btr_pcur_get_page(
-/*==============*/
-	const btr_pcur_t*	cursor);/*!< in: persistent cursor */
-/*********************************************************//**
-Returns the buffer block of a persistent cursor.
-@return pointer to the block */
-UNIV_INLINE
-buf_block_t*
-btr_pcur_get_block(
-/*===============*/
-	const btr_pcur_t*	cursor);/*!< in: persistent cursor */
-/*********************************************************//**
-Returns the record of a persistent cursor.
-@return pointer to the record */
-UNIV_INLINE
-rec_t*
-btr_pcur_get_rec(
-/*=============*/
-	const btr_pcur_t*	cursor);/*!< in: persistent cursor */
-#else /* UNIV_DEBUG */
-# define btr_pcur_get_btr_cur(cursor) (&(cursor)->btr_cur)
-# define btr_pcur_get_page_cur(cursor) (&(cursor)->btr_cur.page_cur)
-# define btr_pcur_get_page(cursor) ((cursor)->btr_cur.page_cur.block->frame)
-# define btr_pcur_get_block(cursor) ((cursor)->btr_cur.page_cur.block)
-# define btr_pcur_get_rec(cursor) ((cursor)->btr_cur.page_cur.rec)
-#endif /* UNIV_DEBUG */
+
+#define btr_pcur_get_btr_cur(cursor) (&(cursor)->btr_cur)
+#define btr_pcur_get_page_cur(cursor) (&(cursor)->btr_cur.page_cur)
+#define btr_pcur_get_page(cursor) btr_pcur_get_block(cursor)->page.frame
+
 /*********************************************************//**
 Checks if the persistent cursor is on a user record. */
 UNIV_INLINE
@@ -520,6 +477,25 @@ struct btr_pcur_t{
 	/** Return the index of this persistent cursor */
 	dict_index_t*	index() const { return(btr_cur.index); }
 };
+
+inline buf_block_t *btr_pcur_get_block(btr_pcur_t *cursor)
+{
+  ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
+  return cursor->btr_cur.page_cur.block;
+}
+
+inline const buf_block_t *btr_pcur_get_block(const btr_pcur_t *cursor)
+{
+  ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
+  return cursor->btr_cur.page_cur.block;
+}
+
+inline rec_t *btr_pcur_get_rec(const btr_pcur_t *cursor)
+{
+  ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
+  ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
+  return cursor->btr_cur.page_cur.rec;
+}
 
 #include "btr0pcur.ic"
 

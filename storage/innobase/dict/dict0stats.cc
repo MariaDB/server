@@ -1442,10 +1442,12 @@ invalid:
 		index->stat_index_size
 			= fseg_n_reserved_pages(*root, PAGE_HEADER
 						+ PAGE_BTR_SEG_LEAF
-						+ root->frame, &size, &mtr)
+						+ root->page.frame, &size,
+						&mtr)
 			+ fseg_n_reserved_pages(*root, PAGE_HEADER
 						+ PAGE_BTR_SEG_TOP
-						+ root->frame, &dummy, &mtr);
+						+ root->page.frame, &dummy,
+						&mtr);
 
 		mtr.commit();
 
@@ -2529,17 +2531,19 @@ empty_index:
 			DBUG_RETURN(result);
 		}
 
-		root_level = btr_page_get_level(root->frame);
+		root_level = btr_page_get_level(root->page.frame);
 
 		mtr.x_lock_space(index->table->space);
 		ulint dummy, size;
 		result.index_size
 			= fseg_n_reserved_pages(*root, PAGE_HEADER
 						+ PAGE_BTR_SEG_LEAF
-						+ root->frame, &size, &mtr)
+						+ root->page.frame,
+						&size, &mtr)
 			+ fseg_n_reserved_pages(*root, PAGE_HEADER
 						+ PAGE_BTR_SEG_TOP
-						+ root->frame, &dummy, &mtr);
+						+ root->page.frame,
+						&dummy, &mtr);
 		result.n_leaf_pages = size ? size : 1;
 	}
 
@@ -2647,7 +2651,7 @@ empty_index:
 		mtr_sx_lock_index(index, &mtr);
 		buf_block_t *root = btr_root_block_get(index, RW_S_LATCH,
 						       &mtr);
-		if (!root || root_level != btr_page_get_level(root->frame)
+		if (!root || root_level != btr_page_get_level(root->page.frame)
 		    || index->table->bulk_trx_id != bulk_trx_id) {
 			/* Just quit if the tree has changed beyond
 			recognition here. The old stats from previous

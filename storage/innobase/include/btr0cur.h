@@ -73,36 +73,10 @@ struct btr_latch_leaves_t {
 #include "que0types.h"
 #include "row0types.h"
 
-#ifdef UNIV_DEBUG
-/*********************************************************//**
-Returns the page cursor component of a tree cursor.
-@return pointer to page cursor component */
-UNIV_INLINE
-page_cur_t*
-btr_cur_get_page_cur(
-/*=================*/
-	const btr_cur_t*	cursor);/*!< in: tree cursor */
-/*********************************************************//**
-Returns the buffer block on which the tree cursor is positioned.
-@return pointer to buffer block */
-UNIV_INLINE
-buf_block_t*
-btr_cur_get_block(
-/*==============*/
-	const btr_cur_t*	cursor);/*!< in: tree cursor */
-/*********************************************************//**
-Returns the record pointer of a tree cursor.
-@return pointer to record */
-UNIV_INLINE
-rec_t*
-btr_cur_get_rec(
-/*============*/
-	const btr_cur_t*	cursor);/*!< in: tree cursor */
-#else /* UNIV_DEBUG */
-# define btr_cur_get_page_cur(cursor)	(&(cursor)->page_cur)
-# define btr_cur_get_block(cursor)	((cursor)->page_cur.block)
-# define btr_cur_get_rec(cursor)	((cursor)->page_cur.rec)
-#endif /* UNIV_DEBUG */
+#define btr_cur_get_page_cur(cursor)	(&(cursor)->page_cur)
+#define btr_cur_get_block(cursor)	((cursor)->page_cur.block)
+#define btr_cur_get_rec(cursor)	((cursor)->page_cur.rec)
+
 /*********************************************************//**
 Returns the compressed page on which the tree cursor is positioned.
 @return pointer to compressed page, or NULL if the page is not compressed */

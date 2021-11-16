@@ -545,9 +545,8 @@ fil_block_check_type(
 	ulint			type,
 	mtr_t*			mtr)
 {
-	if (UNIV_UNLIKELY(type != fil_page_get_type(block.frame))) {
-		fil_block_reset_type(block, type, mtr);
-	}
+  if (UNIV_UNLIKELY(type != fil_page_get_type(block.page.frame)))
+    fil_block_reset_type(block, type, mtr);
 }
 
 /** Checks if a page address is an extent descriptor page address.

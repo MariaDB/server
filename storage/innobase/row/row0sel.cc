@@ -1161,14 +1161,15 @@ sel_set_rtr_rec_lock(
 		return(DB_SUCCESS_LOCKED_REC);
 	}
 
-	ut_ad(page_align(first_rec) == cur_block->frame);
+	ut_ad(page_align(first_rec) == cur_block->page.frame);
 	ut_ad(match->valid);
 
-	match->block.lock.x_lock();
+	match->block.page.lock.x_lock();
 retry:
 	cur_block = btr_pcur_get_block(pcur);
-	ut_ad(match->block.lock.have_x() || match->block.lock.have_s());
-	ut_ad(page_is_leaf(buf_block_get_frame(cur_block)));
+	ut_ad(match->block.page.lock.have_x()
+	      || match->block.page.lock.have_s());
+	ut_ad(page_is_leaf(cur_block->page.frame));
 
 	err = lock_sec_rec_read_check_and_lock(
 		0, cur_block, rec, index, my_offsets,
@@ -1281,7 +1282,7 @@ re_scan:
 	match->locked = true;
 
 func_end:
-	match->block.lock.x_unlock();
+	match->block.page.lock.x_unlock();
 	if (heap != NULL) {
 		mem_heap_free(heap);
 	}
@@ -3360,7 +3361,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 		if  (dict_index_is_spatial(sec_index)
 		     && btr_cur->rtr_info->matches
 		     && (page_align(rec)
-			== btr_cur->rtr_info->matches->block.frame
+			== btr_cur->rtr_info->matches->block.page.frame
 			|| rec != btr_pcur_get_rec(prebuilt->pcur))) {
 #ifdef UNIV_DEBUG
 			rtr_info_t*	rtr_info = btr_cur->rtr_info;
