@@ -2867,7 +2867,7 @@ fail:
 		goto release_sync_write;
 	} else {
 		/* Queue the aio request */
-		err = os_aio(IORequest(bpage, node, type.type),
+		err = os_aio(IORequest{bpage, type.slot, node, type.type},
 			     buf, offset, len);
 	}
 

@@ -663,10 +663,6 @@ public:
 					state == BUF_BLOCK_ZIP_PAGE and
 					zip.data == NULL means an active
 					buf_pool.watch */
-
-	buf_tmp_buffer_t* slot;		/*!< Slot for temporary memory
-					used for encryption/compression
-					or NULL */
 #ifdef UNIV_DEBUG
   /** whether this->list is in buf_pool.zip_hash; protected by buf_pool.mutex */
   bool in_zip_hash;
@@ -755,7 +751,6 @@ public:
     freed_page_clock= 0;
     access_time= 0;
     oldest_modification_= 0;
-    slot= nullptr;
     ibuf_exist= false;
     status= NORMAL;
     ut_d(in_zip_hash= false);

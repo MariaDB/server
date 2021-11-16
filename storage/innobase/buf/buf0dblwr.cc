@@ -594,8 +594,8 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
     ut_d(buf_dblwr_check_page_lsn(*bpage, write_buf + len2));
   }
 #endif /* UNIV_DEBUG */
-  const IORequest request(nullptr, fil_system.sys_space->chain.start,
-                          IORequest::DBLWR_BATCH);
+  const IORequest request{nullptr, nullptr, fil_system.sys_space->chain.start,
+                          IORequest::DBLWR_BATCH};
   ut_a(fil_system.sys_space->acquire());
   if (multi_batch)
   {
@@ -612,6 +612,16 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
            os_offset_t{block1.page_no()} << srv_page_size_shift,
            old_first_free << srv_page_size_shift);
   return true;
+}
+
+static void *get_frame(const IORequest &request)
+{
+  if (request.slot)
+    return request.slot->out_buf;
+  const buf_page_t *bpage= request.bpage;
+  return bpage->zip.data
+    ? bpage->zip.data
+    : reinterpret_cast<const buf_block_t*>(bpage)->frame;
 }
 
 void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
@@ -651,9 +661,8 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
     buf_page_t* bpage= e.request.bpage;
     ut_ad(bpage->in_file());
 
-    /* We request frame here to get correct buffer in case of
-    encryption and/or page compression */
-    void *frame= buf_page_get_frame(bpage);
+    void *frame= get_frame(e.request);
+    ut_ad(frame);
 
     auto e_size= e.size;
 
@@ -732,13 +741,9 @@ void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
 
   byte *p= active_slot->write_buf + srv_page_size * active_slot->first_free;
 
-  /* We request frame here to get correct buffer in case of
-  encryption and/or page compression */
-  void *frame= buf_page_get_frame(request.bpage);
-
   /* "frame" is at least 1024-byte aligned for ROW_FORMAT=COMPRESSED pages,
   and at least srv_page_size (4096-byte) for everything else. */
-  memcpy_aligned<UNIV_ZIP_SIZE_MIN>(p, frame, size);
+  memcpy_aligned<UNIV_ZIP_SIZE_MIN>(p, get_frame(request), size);
   /* fil_page_compress() for page_compressed guarantees 256-byte alignment */
   memset_aligned<256>(p + size, 0, srv_page_size - size);
   /* FIXME: Inform the compiler that "size" and "srv_page_size - size"

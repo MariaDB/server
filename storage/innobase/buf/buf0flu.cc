@@ -353,11 +353,8 @@ void buf_page_write_complete(const IORequest &request)
     }
   }
 
-  if (bpage->slot)
-  {
-    bpage->slot->release();
-    bpage->slot= nullptr;
-  }
+  if (request.slot)
+    request.slot->release();
 
   if (UNIV_UNLIKELY(MONITOR_IS_ON(MONITOR_MODULE_BUF_PAGE)))
     buf_page_monitor(bpage, BUF_IO_WRITE);
@@ -622,10 +619,11 @@ a page is written to disk.
 @return page frame to be written to file
 (may be src_frame or an encrypted/compressed copy of it) */
 static byte *buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s,
-                              size_t *size)
+                              buf_tmp_buffer_t **slot, size_t *size)
 {
   ut_ad(bpage->status != buf_page_t::FREED);
   ut_ad(space->id == bpage->id().space());
+  ut_ad(!*slot);
 
   ut_d(fil_page_type_validate(space, s));
   const uint32_t page_no= bpage->id().page_no();
@@ -681,31 +679,25 @@ static byte *buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s,
 
   ut_ad(!bpage->zip_size() || !page_compressed);
   /* Find free slot from temporary memory array */
-  buf_tmp_buffer_t *slot= buf_pool.io_buf_reserve();
-  ut_a(slot);
-  slot->allocate();
-  slot->out_buf= NULL;
-  bpage->slot= slot;
+  *slot= buf_pool.io_buf_reserve();
+  ut_a(*slot);
+  (*slot)->allocate();
 
-  byte *d= slot->crypt_buf;
+  byte *d= (*slot)->crypt_buf;
 
   if (!page_compressed)
   {
 not_compressed:
-    byte *tmp= space->purpose == FIL_TYPE_TEMPORARY
+    d= space->purpose == FIL_TYPE_TEMPORARY
       ? buf_tmp_page_encrypt(page_no, s, d)
       : fil_space_encrypt(space, page_no, s, d);
-
-    slot->out_buf= d= tmp;
-
-    ut_d(fil_page_type_validate(space, tmp));
   }
   else
   {
     ut_ad(space->purpose != FIL_TYPE_TEMPORARY);
     /* First we compress the page content */
-    buf_tmp_reserve_compression_buf(slot);
-    byte *tmp= slot->comp_buf;
+    buf_tmp_reserve_compression_buf(*slot);
+    byte *tmp= (*slot)->comp_buf;
     ulint len= fil_page_compress(s, tmp, space->flags,
                                  fil_space_get_block_size(space, page_no),
                                  encrypted);
@@ -733,7 +725,7 @@ not_compressed:
     ut_d(fil_page_type_validate(space, tmp));
 
     if (encrypted)
-      tmp = fil_space_encrypt(space, page_no, tmp, d);
+      tmp= fil_space_encrypt(space, page_no, tmp, d);
 
     if (full_crc32)
     {
@@ -742,10 +734,11 @@ not_compressed:
       ut_ad(!buf_page_is_corrupted(true, tmp, space->flags));
     }
 
-    slot->out_buf= d= tmp;
+    d= tmp;
   }
 
   ut_d(fil_page_type_validate(space, d));
+  (*slot)->out_buf= d;
   return d;
 }
 
@@ -860,6 +853,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
     size_t orig_size;
 #endif
     IORequest::Type type= lru ? IORequest::WRITE_LRU : IORequest::WRITE_ASYNC;
+    buf_tmp_buffer_t *slot= nullptr;
 
     if (UNIV_UNLIKELY(!rw_lock)) /* ROW_FORMAT=COMPRESSED */
     {
@@ -870,7 +864,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
       orig_size= size;
 #endif
       buf_flush_update_zip_checksum(frame, size);
-      frame= buf_page_encrypt(space, bpage, frame, &size);
+      frame= buf_page_encrypt(space, bpage, frame, &slot, &size);
       ut_ad(size == bpage->zip_size());
     }
     else
@@ -886,14 +880,15 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
         /* innodb_checksum_algorithm=full_crc32 is not implemented for
         ROW_FORMAT=COMPRESSED pages. */
         ut_ad(!frame);
-        page= buf_page_encrypt(space, bpage, page, &size);
+        page= buf_page_encrypt(space, bpage, page, &slot, &size);
         buf_flush_init_for_writing(block, page, nullptr, true);
       }
       else
       {
         buf_flush_init_for_writing(block, page, frame ? &bpage->zip : nullptr,
                                    false);
-        page= buf_page_encrypt(space, bpage, frame ? frame : page, &size);
+        page= buf_page_encrypt(space, bpage, frame ? frame : page,
+                               &slot, &size);
       }
 
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
@@ -908,7 +903,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
         }
       }
 #endif
-      frame=page;
+      frame= page;
     }
 
     ut_ad(status == bpage->status);
@@ -925,11 +920,12 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
         if (lsn > log_sys.get_flushed_lsn())
           log_write_up_to(lsn, true);
       }
-      space->io(IORequest(type, bpage),
+      space->io(IORequest{type, bpage, slot},
                 bpage->physical_offset(), size, frame, bpage);
     }
     else
-      buf_dblwr.add_to_batch(IORequest(bpage, space->chain.start, type), size);
+      buf_dblwr.add_to_batch(IORequest{bpage, slot, space->chain.start, type},
+                             size);
   }
 
   /* Increment the I/O operation count used for selecting LRU policy. */
