@@ -17,7 +17,7 @@
 # MA  02110-1335  USA.
 
 # Documentation:
-# https://mariadb.com/kb/en/mariabackup-overview/
+# http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
 # Make sure to read that before proceeding!
 
 . $(dirname "$0")/wsrep_sst_common
@@ -57,6 +57,8 @@ sfmt=""
 strmcmd=""
 tfmt=""
 tcmd=""
+rebuild=0
+rebuildcmd=""
 payload=0
 pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p'"
 pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE"
@@ -84,9 +86,7 @@ encrypt_chunk=""
 
 readonly SECRET_TAG="secret"
 
-# Required for backup locks
-# For backup locks it is 1 sent by joiner
-sst_ver=1
+sst_ver=-1
 
 if [ -n "$(command -v pv)" ] && pv --help | grep -qw -- '-F'; then
     pvopts="$pvopts $pvformat"
@@ -94,9 +94,9 @@ fi
 pcmd="pv $pvopts"
 declare -a RC
 
-BACKUP_BIN="$(command -v mariabackup)"
+BACKUP_BIN="$(command -v innobackupex)"
 if [ ! -x "$BACKUP_BIN" ]; then
-    wsrep_log_error 'mariabackup binary not found in path'
+    wsrep_log_error 'innobackupex binary not found in path'
     exit 42
 fi
 
@@ -105,9 +105,9 @@ INFO_FILE="xtrabackup_galera_info"
 IST_FILE="xtrabackup_ist"
 MAGIC_FILE="$DATA/$INFO_FILE"
 
-INNOAPPLYLOG="$DATA/mariabackup.prepare.log"
-INNOMOVELOG="$DATA/mariabackup.move.log"
-INNOBACKUPLOG="$DATA/mariabackup.backup.log"
+INNOAPPLYLOG="$DATA/innobackupex.prepare.log"
+INNOMOVELOG="$DATA/innobackupex.move.log"
+INNOBACKUPLOG="$DATA/innobackupex.backup.log"
 
 # Setting the path for ss and ip
 export PATH="/usr/sbin:/sbin:$PATH"
@@ -158,7 +158,7 @@ get_keys()
         return
     fi
 
-    wsrep_log_info "Key based encryption enabled in my.cnf"
+    wsrep_log_info "Key based encryption enabled in my.cnf - supported only from Xtrabackup 2.1.4"
 
     if [ -z "$ealgo" ]; then
         wsrep_log_error "FATAL: Encryption algorithm empty from my.cnf, bailing out"
@@ -202,6 +202,10 @@ get_keys()
         if [ -z "$ekey" ]; then
             ecmd="xbcrypt --encrypt-algo='$ealgo' --encrypt-key-file='$ekeyfile'"
         else
+            wsrep_log_warning \
+                "Using the 'encrypt-key' option causes the encryption key " \
+                "to be set via the command-line and is considered insecure. " \
+                "It is recommended to use the 'encrypt-key-file' option instead."
             ecmd="xbcrypt --encrypt-algo='$ealgo' --encrypt-key='$ekey'"
         fi
         if [ -n "$encrypt_threads" ]; then
@@ -502,7 +506,7 @@ check_server_ssl_config()
 
 read_cnf()
 {
-    sfmt=$(parse_cnf sst streamfmt 'mbstream')
+    sfmt=$(parse_cnf sst streamfmt 'xbstream')
     tfmt=$(parse_cnf sst transferfmt 'socat')
 
     encrypt=$(parse_cnf "$encgroups" 'encrypt' 0)
@@ -526,7 +530,7 @@ read_cnf()
         fi
     elif [ $encrypt -eq 1 ]; then
         ealgo=$(parse_cnf "$encgroups" 'encrypt-algo')
-        eformat=$(parse_cnf "$encgroups" 'encrypt-format' 'openssl')
+        eformat=$(parse_cnf "$encgroups" 'encrypt-format' 'xbcrypt')
         ekey=$(parse_cnf "$encgroups" 'encrypt-key')
         # The keyfile should be read only when the key
         # is not specified or empty:
@@ -540,8 +544,9 @@ read_cnf()
 
     sockopt=$(parse_cnf sst sockopt "")
     progress=$(parse_cnf sst progress "")
+    rebuild=$(parse_cnf sst rebuild 0)
     ttime=$(parse_cnf sst time 0)
-    cpat='.*\.pem$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$'
+    cpat='.*\.pem$\|.*init\.ok$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$'
     [ "$OS" = 'FreeBSD' ] && cpat=$(echo "$cpat" | sed 's/\\|/|/g')
     cpat=$(parse_cnf sst cpat "$cpat")
     scomp=$(parse_cnf sst compressor "")
@@ -588,8 +593,14 @@ read_cnf()
 get_stream()
 {
     if [ "$sfmt" = 'mbstream' -o "$sfmt" = 'xbstream' ]; then
-        sfmt='mbstream'
-        STREAM_BIN="$(command -v mbstream)"
+        STREAM_BIN=$(command -v "$sfmt")
+        if [ -z "$STREAM_BIN" ]; then
+            if [ "$sfmt" = 'xbstream' ]; then
+                STREAM_BIN="$(command -v mbstream)"
+            else
+                STREAM_BIN="$(command -v xbstream)"
+            fi
+        fi
         if [ -z "$STREAM_BIN" ]; then
             wsrep_log_error "Streaming with $sfmt, but $sfmt not found in path"
             exit 42
@@ -630,7 +641,7 @@ cleanup_at_exit()
     else
         if [ -n "$BACKUP_PID" ]; then
             if check_pid "$BACKUP_PID" 1; then
-                wsrep_log_error "mariabackup process is still running. Killing..."
+                wsrep_log_error "xtrabackup process is still running. Killing..."
                 cleanup_pid $CHECK_PID "$BACKUP_PID"
             fi
         fi
@@ -705,7 +716,7 @@ check_extra()
         if [ "$thread_handling" = 'pool-of-threads' ]; then
             local eport=$(parse_cnf '--mysqld' 'extra-port')
             if [ -n "$eport" ]; then
-                # mariabackup works only locally.
+                # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally:
                 wsrep_log_info "SST through extra_port $eport"
                 INNOEXTRA="$INNOEXTRA --host=127.0.0.1 --port=$eport"
@@ -834,6 +845,21 @@ monitor_process()
     done
 }
 
+# check the version, we require XB-2.4 to ensure that we can pass the
+# datadir via the command-line option
+XB_REQUIRED_VERSION="2.3.5"
+
+XB_VERSION=`$BACKUP_BIN --version 2>&1 | grep -oe '[0-9]\.[0-9][\.0-9]*' | head -n1`
+if [[ -z "$XB_VERSION" ]]; then
+    wsrep_log_error "FATAL: Cannot determine the $BACKUP_BIN version. Needs xtrabackup-$XB_REQUIRED_VERSION or higher to perform SST"
+    exit 2
+fi
+
+if ! check_for_version "$XB_VERSION" "$XB_REQUIRED_VERSION"; then
+    wsrep_log_error "FATAL: The $BACKUP_BIN version is $XB_VERSION. Needs xtrabackup-$XB_REQUIRED_VERSION or higher to perform SST"
+    exit 2
+fi
+
 [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
 
 if [ "$WSREP_SST_OPT_ROLE" != 'joiner' -a "$WSREP_SST_OPT_ROLE" != 'donor' ]; then
@@ -868,18 +894,18 @@ cd "$OLD_PWD"
 
 if [ $ssyslog -eq 1 ]; then
     if [ -n "$(command -v logger)" ]; then
-        wsrep_log_info "Logging all stderr of SST/mariabackup to syslog"
+        wsrep_log_info "Logging all stderr of SST/xtrabackup to syslog"
 
         exec 2> >(logger -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE)
 
         wsrep_log_error()
         {
-            logger -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
+            logger  -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
         }
 
         wsrep_log_info()
         {
-            logger -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
+            logger  -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
         }
     else
         wsrep_log_error "logger not in path: $PATH. Ignoring"
@@ -947,17 +973,17 @@ fi
 
 setup_commands()
 {
-    local mysqld_args=""
-    if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
-        mysqld_args="--mysqld-args $WSREP_SST_OPT_MYSQLD"
-    fi
     if [ -z "$INNODB_FORCE_RECOVERY" ]; then
-        INNOAPPLY="$BACKUP_BIN --prepare $disver $iapts $INNOEXTRA --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
+        INNOAPPLY="$BACKUP_BIN $disver $iapts $INNOEXTRA --apply-log $rebuildcmd '$DATA' $INNOAPPLY"
     else
-        INNOAPPLY="$BACKUP_BIN --prepare $disver $iapts $INNOEXTRA --innodb-force-recovery=$INNODB_FORCE_RECOVERY --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
+        INNOAPPLY="$BACKUP_BIN $disver $iapts $INNOEXTRA --innodb-force-recovery=$INNODB_FORCE_RECOVERY --apply-log $rebuildcmd '$DATA' $INNOAPPLY"
     fi
-    INNOMOVE="$BACKUP_BIN $WSREP_SST_OPT_CONF --move-back $disver $impts --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
-    INNOBACKUP="$BACKUP_BIN $WSREP_SST_OPT_CONF --backup $disver $iopts $tmpopts $INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA' $mysqld_args $INNOBACKUP"
+    INNOMOVE="$BACKUP_BIN $WSREP_SST_OPT_CONF --move-back $disver $impts --force-non-empty-directories '$DATA' $INNOMOVE"
+    sfmt_work="$sfmt"
+    if [ "$sfmt" = 'mbstream' ]; then
+        sfmt_work='xbstream'
+    fi
+    INNOBACKUP="$BACKUP_BIN $WSREP_SST_OPT_CONF $disver $iopts $tmpopts $INNOEXTRA --galera-info --stream=$sfmt_work '$itmpdir' $INNOBACKUP"
 }
 
 get_stream
@@ -984,11 +1010,11 @@ then
             xtmpdir=$(TMPDIR="$tmpdir"; mktemp '-d')
         fi
 
-        wsrep_log_info "Using '$xtmpdir' as mariabackup temporary directory"
+        wsrep_log_info "Using '$xtmpdir' as xtrabackup temporary directory"
         tmpopts="--tmpdir='$xtmpdir'"
 
         itmpdir="$(mktemp -d)"
-        wsrep_log_info "Using '$itmpdir' as mariabackup working directory"
+        wsrep_log_info "Using '$itmpdir' as xtrabackup working directory"
 
         usrst=0
         if [ -n "$WSREP_SST_OPT_USER" ]; then
@@ -997,10 +1023,10 @@ then
         fi
 
         if [ -n "$WSREP_SST_OPT_PSWD" ]; then
-            export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
+            INNOEXTRA="$INNOEXTRA --password='$WSREP_SST_OPT_PSWD'"
         elif [ $usrst -eq 1 ]; then
             # Empty password, used for testing, debugging etc.
-            unset MYSQL_PWD
+            INNOEXTRA="$INNOEXTRA --password="
         fi
 
         check_extra
@@ -1063,7 +1089,7 @@ then
         fi
 
         # if compression is enabled for backup files, then add the
-        # appropriate options to the mariabackup command line:
+        # appropriate options to the innobackupex command line:
         if [ "$compress" != 'none' ]; then
             iopts="--compress${compress:+=$compress} $iopts"
             if [ -n "$compress_threads" ]; then
@@ -1084,7 +1110,7 @@ then
         set -e
 
         if [ ${RC[0]} -ne 0 ]; then
-            wsrep_log_error "mariabackup finished with error: ${RC[0]}. " \
+            wsrep_log_error "innobackupex finished with error: ${RC[0]}. " \
                             "Check syslog or '$INNOBACKUPLOG' for details"
             exit 22
         elif [ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]; then
@@ -1092,7 +1118,7 @@ then
             exit 22
         fi
 
-        # mariabackup implicitly writes PID to fixed location in $xtmpdir
+        # innobackupex implicitly writes PID to fixed location in $xtmpdir
         BACKUP_PID="$xtmpdir/xtrabackup_pid"
 
     else # BYPASS FOR IST
@@ -1262,15 +1288,17 @@ then
         monitor_process $jpid
 
         if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then
-            wsrep_log_error "xtrabackup_checkpoints missing, failed mariabackup/SST on donor"
+            wsrep_log_error "xtrabackup_checkpoints missing, failed xtrabackup/SST on donor"
             exit 2
         fi
 
-        # Compact backups are not supported by mariabackup
+        # Rebuild indexes for compact backups
         if grep -q -F 'compact = 1' "$DATA/xtrabackup_checkpoints"; then
             wsrep_log_info "Index compaction detected"
-            wsrel_log_error "Compact backups are not supported by mariabackup"
-            exit 2
+            get_proc
+            nthreads=$(parse_cnf "$encgroups" 'rebuild-threads' $nproc)
+            wsrep_log_info "Rebuilding during prepare with $nthreads threads"
+            rebuildcmd="--rebuild-indexes --rebuild-threads=$nthreads"
         fi
 
         qpfiles=$(find "$DATA" -maxdepth 1 -type f -name '*.qp' -print -quit)
@@ -1333,17 +1361,19 @@ then
 
         wsrep_log_info "Preparing the backup at $DATA"
         setup_commands
-        timeit "mariabackup prepare stage" "$INNOAPPLY"
+        timeit "Xtrabackup prepare stage" "$INNOAPPLY"
 
         if [ $? -ne 0 ]; then
-            wsrep_log_error "mariabackup apply finished with errors. Check syslog or '$INNOAPPLYLOG' for details"
+            wsrep_log_error "xtrabackup apply finished with errors. Check '$INNOAPPLYLOG' for details"
             exit 22
         fi
+
+        # [ -f "$INNOAPPLYLOG" ] && rm "$INNOAPPLYLOG"
 
         MAGIC_FILE="$TDATA/$INFO_FILE"
 
         wsrep_log_info "Moving the backup to $TDATA"
-        timeit "mariabackup move stage" "$INNOMOVE"
+        timeit "Xtrabackup move stage" "$INNOMOVE"
         if [ $? -eq 0 ]; then
             wsrep_log_info "Move successful, removing $DATA"
             rm -rf "$DATA"

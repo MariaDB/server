@@ -392,7 +392,7 @@ EOF
             # Prepare binlog files
             cd "$BINLOG_DIRNAME"
 
-            binlog_files_full=$(tail -n $BINLOG_N_FILES "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index")
+            binlog_files_full=$(tail -n $BINLOG_N_FILES "$WSREP_SST_OPT_BINLOG_INDEX")
 
             binlog_files=""
             for ii in $binlog_files_full
@@ -732,7 +732,7 @@ EOF
         if [ -f "$BINLOG_TAR_FILE" ]; then
             cd "$BINLOG_DIRNAME"
 
-            binlog_index="${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
+            binlog_index="$WSREP_SST_OPT_BINLOG_INDEX"
 
             # Clean up old binlog files first
             rm -f "$BINLOG_FILENAME".[0-9]*
