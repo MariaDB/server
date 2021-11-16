@@ -132,6 +132,23 @@ static bool compare_hostname(const acl_host_and_ip *, const char *, const char *
 #define compare_hostname(X,Y,Z) 0
 #endif
 
+
+/*
+  This class represents a set of privilege bits and how they should be applied
+  to an ACL_xxx entity.
+*/
+class Priv_spec
+{
+public:
+  const bool revoke; // Whether the privilege bits are to be cleared.
+  const privilege_t access; // Privilege bits that need to be applied / removed.
+
+  Priv_spec(privilege_t access, bool revoke):
+    revoke{revoke}, access{access}
+  {}
+};
+
+
 class ACL_ACCESS {
 public:
   ulonglong sort;
@@ -5342,8 +5359,7 @@ static USER_AUTH auth_no_password;
 
 static int replace_user_table(THD *thd, const User_table &user_table,
                               LEX_USER * const combo,
-                              privilege_t rights,
-                              const bool revoke,
+                              const Priv_spec &priv_spec,
                               const bool can_create_user,
                               const bool no_auto_create)
 {
@@ -5369,7 +5385,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   if (table->file->ha_index_read_idx_map(table->record[0], 0, user_key,
                                          HA_WHOLE_KEY, HA_READ_KEY_EXACT))
   {
-    if (revoke)
+    if (priv_spec.revoke)
     {
       if (combo->host.length)
         my_error(ER_NONEXISTING_GRANT, MYF(0), combo->user.str,
@@ -5433,10 +5449,10 @@ static int replace_user_table(THD *thd, const User_table &user_table,
 
   /* Update table columns with new privileges */
   access= user_table.get_access();
-  if (revoke)
-    access&= ~rights;
+  if (priv_spec.revoke)
+    access&= ~priv_spec.access;
   else
-    access|= rights;
+    access|= priv_spec.access;
   user_table.set_access(access);
   access= user_table.get_access();
 
@@ -7908,7 +7924,7 @@ static int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     /* Create user if needed */
     error= copy_and_check_auth(Str, tmp_Str, thd) ||
            replace_user_table(thd, tables.user_table(), Str,
-                              NO_ACL, revoke_grant,
+                              {NO_ACL, revoke_grant},
                               create_new_users,
                               MY_TEST(thd->variables.sql_mode &
                                         MODE_NO_AUTO_CREATE_USER));
@@ -8089,7 +8105,7 @@ static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
     /* Create user if needed */
     if (copy_and_check_auth(Str, tmp_Str, thd) ||
         replace_user_table(thd, tables.user_table(), Str,
-                           NO_ACL, revoke_grant,
+                           {NO_ACL, revoke_grant},
                            create_new_users,
                            MY_TEST(thd->variables.sql_mode &
                                      MODE_NO_AUTO_CREATE_USER)))
@@ -8362,7 +8378,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 
       if (copy_and_check_auth(&user_combo, &user_combo, thd) ||
           replace_user_table(thd, tables.user_table(), &user_combo,
-                             NO_ACL, false,
+                             {NO_ACL, false},
                              create_new_user, no_auto_create_user))
       {
         append_user(thd, &wrong_users, &username, &hostname);
@@ -8474,7 +8490,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 
 
 static bool mysql_grant(THD *thd, const char *db, List<LEX_USER> &list,
-                        privilege_t rights, bool revoke_grant, bool is_proxy)
+                        const Priv_spec &priv_spec, bool is_proxy)
 {
   List_iterator <LEX_USER> str_list (list);
   LEX_USER *Str, *tmp_Str, *proxied_user= NULL;
@@ -8508,7 +8524,7 @@ static bool mysql_grant(THD *thd, const char *db, List<LEX_USER> &list,
 
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
 
-  if (!revoke_grant)
+  if (!priv_spec.revoke)
     create_new_users= test_if_create_new_users(thd);
 
   /* go through users in user_list */
@@ -8533,18 +8549,18 @@ static bool mysql_grant(THD *thd, const char *db, List<LEX_USER> &list,
 
     if (copy_and_check_auth(Str, tmp_Str, thd) ||
         replace_user_table(thd, tables.user_table(), Str,
-                           (!db ? rights : NO_ACL), revoke_grant,
+                           { !db ? priv_spec.access : NO_ACL, priv_spec.revoke},
                            create_new_users,
                            MY_TEST(thd->variables.sql_mode &
                                    MODE_NO_AUTO_CREATE_USER)))
       result= true;
     else if (db)
     {
-      privilege_t db_rights(rights & DB_ACLS);
-      if (db_rights  == rights)
+      privilege_t db_rights(priv_spec.access & DB_ACLS);
+      if (db_rights == priv_spec.access)
       {
         if (replace_db_table(tables.db_table().table(), db, *Str, db_rights,
-                             revoke_grant))
+                             priv_spec.revoke))
           result= true;
       }
       else
@@ -8556,7 +8572,7 @@ static bool mysql_grant(THD *thd, const char *db, List<LEX_USER> &list,
     else if (is_proxy)
     {
       if (replace_proxies_priv_table(thd, tables.proxies_priv_table().table(),
-            Str, proxied_user, rights & GRANT_ACL ? TRUE : FALSE, revoke_grant))
+            Str, proxied_user, priv_spec.access & GRANT_ACL ? TRUE : FALSE, priv_spec.revoke))
         result= true;
     }
     if (Str->is_role())
@@ -11707,7 +11723,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
 
     if (replace_user_table(thd, tables.user_table(), user_name,
-                           NO_ACL, false,
+                           {NO_ACL, false},
                            true, false))
     {
       append_user(thd, &wrong_users, user_name);
@@ -12012,7 +12028,7 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
     LEX_USER* lex_user= get_current_user(thd, tmp_lex_user, false);
     if (!lex_user ||
         replace_user_table(thd, tables.user_table(), lex_user,
-                           NO_ACL, false,
+                           {NO_ACL, false},
                            false, true))
     {
       thd->clear_error();
@@ -12141,7 +12157,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
     }
 
     if (replace_user_table(thd, tables.user_table(), lex_user,
-                           ALL_KNOWN_ACL, true,
+                           {ALL_KNOWN_ACL, true},
                            false, false))
     {
       result= -1;
@@ -12865,8 +12881,8 @@ bool Sql_cmd_grant_proxy::execute(THD *thd)
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   /* Conditionally writes to binlog */
-  if (mysql_grant(thd, NULL/*db*/, lex->users_list, m_grant_option,
-                  is_revoke(), true/*proxy*/))
+  if (mysql_grant(thd, NULL/*db*/, lex->users_list, {m_grant_option, is_revoke()},
+                  true/*proxy*/))
     return true;
 
   return !is_revoke() && user_list_reset_mqh(thd, lex->users_list);
@@ -12974,8 +12990,9 @@ bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   /* Conditionally writes to binlog */
-  if (mysql_grant(thd, m_gp.db().str, lex->users_list, m_gp.object_privilege(),
-                  is_revoke(), false/*not proxy*/))
+  if (mysql_grant(thd, m_gp.db().str, lex->users_list,
+                  {m_gp.object_privilege(), is_revoke()},
+                  false/*not proxy*/))
     return true;
 
   return !is_revoke() && user_list_reset_mqh(thd, lex->users_list);
