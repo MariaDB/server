@@ -2086,4 +2086,54 @@ a	b	a	b
 1	3	1	3
 drop procedure sp;
 drop table t1;
+#
+# MDEV-26825: query with two usage of CTE that refers to another CTE
+#             with stored function using a base table.
+#
+create table t1 (id int primary key);
+insert into t1 values
+(1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+create  function f(in_id int) returns integer
+return (select id from t1 where t1.id = in_id);
+with c1 as (select id from t1 where f(id)=id group by id),
+c2 as (select id from c1 as pt group by id)
+select id from c2 as s1 union select id from c2 as s2;
+id
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+with c1 as (select id from t1 as r where f(id)=id group by id),
+c2 as (select id from c1 as pt group by id)
+select id from c2 as s1 union select id from c2 as s2;
+id
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+create function g() returns int return (select count(*) from t1);
+create  procedure sp1()
+with c1 as (select id from t1 a where g() > 10),
+c2 as (select id from c1)
+select id from c2 as s1 union select id from c2 as s2;
+call sp1();
+id
+call sp1();
+id
+drop procedure sp1;
+drop function g;
+drop function f;
+drop table t1;
 # End of 10.2 tests
