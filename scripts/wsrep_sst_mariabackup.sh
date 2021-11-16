@@ -1249,8 +1249,8 @@ then
             cd "$binlog_dir"
             wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
             rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || true
-            binlog_index="${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
-            [ -f "$binlog_index" ] && rm -fv "$binlog_index" 1>&2 \+ || true
+            [ -f "$WSREP_SST_OPT_BINLOG_INDEX" ] && \
+                rm -fv "$WSREP_SST_OPT_BINLOG_INDEX" 1>&2 \+ || true
             cd "$OLD_PWD"
         fi
 
@@ -1325,7 +1325,7 @@ then
 
             cd "$BINLOG_DIRNAME"
             for bfile in $(ls -1 "$BINLOG_FILENAME".[0-9]*); do
-                echo "$BINLOG_DIRNAME/$bfile" >> "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
+                echo "$BINLOG_DIRNAME/$bfile" >> "$WSREP_SST_OPT_BINLOG_INDEX"
             done
             cd "$OLD_PWD"
 

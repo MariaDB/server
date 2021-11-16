@@ -230,7 +230,7 @@ case "$1" in
         shift
         ;;
     '--binlog-index'|'--log-bin-index')
-        readonly WSREP_SST_OPT_BINLOG_INDEX="$2"
+        WSREP_SST_OPT_BINLOG_INDEX="$2"
         shift
         ;;
     '--log-basename')
@@ -453,7 +453,7 @@ if [ -n "${MYSQLD_OPT_LOG_BIN:-}" -a \
 fi
 if [ -n "${MYSQLD_OPT_LOG_BIN_INDEX:-}" -a \
      -z "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
-    readonly WSREP_SST_OPT_BINLOG_INDEX="$MYSQLD_OPT_LOG_BIN_INDEX"
+    WSREP_SST_OPT_BINLOG_INDEX="$MYSQLD_OPT_LOG_BIN_INDEX"
 fi
 if [ -n "${MYSQLD_OPT_DATADIR:-}" -a \
      -z "$WSREP_SST_OPT_DATA" ]; then
@@ -562,6 +562,16 @@ get_binlog()
                 # the default name (note that base of this name
                 # is already defined above):
                 readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_BINLOG.index"
+            fi
+        else
+            # Remove all directories from the index file path:
+            local filename="${WSREP_SST_OPT_BINLOG_INDEX##*/}"
+            # Check if the index file name contains the extension:
+            if [ "${filename%.*}" = "$filename" ]; then
+                # Let's add the default extension (".index"):
+                readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_BINLOG_INDEX.index"
+            else
+                readonly WSREP_SST_OPT_BINLOG_INDEX
             fi
         fi
     fi
