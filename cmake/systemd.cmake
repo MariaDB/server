@@ -49,6 +49,12 @@ MACRO(CHECK_SYSTEMD)
           SET(SYSTEMD_EXECSTARTPRE "ExecStartPre=/usr/bin/install -m 755 -o mysql -g root -d /var/run/mysqld")
           SET(SYSTEMD_EXECSTARTPOST "ExecStartPost=/etc/mysql/debian-start")
         ENDIF()
+        IF(NOT DEB AND NOT RPM)
+          SET(SYSTEMD_READWRITEPATH "# Database dir: '${MYSQL_DATADIR}' should be writable even
+# ProtectSystem=full prevents it
+ReadWritePaths=-${MYSQL_DATADIR}\n")
+        ENDIF()
+
         MESSAGE_ONCE(systemd "Systemd features enabled")
       ELSE()
         UNSET(LIBSYSTEMD)
