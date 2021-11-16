@@ -3676,6 +3676,7 @@ void page_zip_write_rec(buf_block_t *block, const byte *rec,
 
 	slot = page_zip_dir_find(page_zip, page_offset(rec));
 	ut_a(slot);
+	byte s = *slot;
 	/* Copy the delete mark. */
 	if (rec_get_deleted_flag(rec, TRUE)) {
 		/* In delete-marked records, DB_TRX_ID must
@@ -3683,9 +3684,14 @@ void page_zip_write_rec(buf_block_t *block, const byte *rec,
 		On non-leaf pages, the delete-mark flag is garbage. */
 		ut_ad(!index->is_primary() || !page_is_leaf(page)
 		      || row_get_rec_trx_id(rec, index, offsets));
-		*slot |= PAGE_ZIP_DIR_SLOT_DEL >> 8;
+		s |= PAGE_ZIP_DIR_SLOT_DEL >> 8;
 	} else {
-		*slot &= byte(~(PAGE_ZIP_DIR_SLOT_DEL >> 8));
+		s &= byte(~(PAGE_ZIP_DIR_SLOT_DEL >> 8));
+	}
+
+	if (s != *slot) {
+		*slot = s;
+		mtr->zmemcpy(*block, slot - page_zip->data, 1);
 	}
 
 	ut_ad(rec_get_start((rec_t*) rec, offsets) >= page + PAGE_ZIP_START);
@@ -4249,8 +4255,13 @@ page_zip_dir_insert(
 	}
 
 	/* Write the entry for the inserted record.
-	The "owned" and "deleted" flags must be zero. */
-	mach_write_to_2(slot_rec - PAGE_ZIP_DIR_SLOT_SIZE, page_offset(rec));
+	The "owned" flag must be zero. */
+	uint16_t offs = page_offset(rec);
+	if (rec_get_deleted_flag(rec, true)) {
+		offs |= PAGE_ZIP_DIR_SLOT_DEL;
+	}
+
+	mach_write_to_2(slot_rec - PAGE_ZIP_DIR_SLOT_SIZE, offs);
 	mtr->zmemcpy(*cursor->block, slot_rec - page_zip->data
 		     - PAGE_ZIP_DIR_SLOT_SIZE, PAGE_ZIP_DIR_SLOT_SIZE);
 }
