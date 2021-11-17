@@ -1,0 +1,44 @@
+--source include/have_innodb.inc
+--source include/have_example_key_management_plugin.inc
+
+call mtr.add_suppression("InnoDB: .*: Page 0 at offset 0 looks corrupted");
+call mtr.add_suppression("Index for table 'dst' is corrupt; try to repair it");
+call mtr.add_suppression("Page for tablespace .* is index page with id .* but that index is not found from configuration file");
+
+let MYSQLD_DATADIR = `SELECT @@datadir`;
+
+
+CREATE TABLE src (pk INT PRIMARY KEY, value INT) ENGINE=INNODB;
+INSERT INTO src VALUES (1, 1), (2, 2), (3, 3);
+
+FLUSH TABLES src FOR EXPORT;
+
+--copy_file $MYSQLD_DATADIR/test/src.ibd $MYSQLD_DATADIR/test/tmp.ibd
+--copy_file $MYSQLD_DATADIR/test/src.cfg $MYSQLD_DATADIR/test/tmp.cfg
+
+perl;
+use strict;
+die unless open(FILE, "+<$ENV{MYSQLD_DATADIR}/test/tmp.ibd");
+binmode FILE;
+die unless seek(FILE, 3 * 16384 + 26, 0);
+print FILE pack("N", 0x00000000);
+close(FILE);
+EOF
+
+UNLOCK TABLES;
+
+DROP TABLE src;
+
+CREATE TABLE dst (pk INT PRIMARY KEY, value INT) ENGINE=INNODB;
+ALTER TABLE dst DISCARD TABLESPACE;
+
+--copy_file $MYSQLD_DATADIR/test/tmp.ibd $MYSQLD_DATADIR/test/dst.ibd
+--copy_file $MYSQLD_DATADIR/test/tmp.cfg $MYSQLD_DATADIR/test/dst.cfg
+
+--error ER_NOT_KEYFILE
+ALTER TABLE dst IMPORT TABLESPACE;
+
+DROP TABLE dst;
+
+--remove_file $MYSQLD_DATADIR/test/tmp.ibd
+--remove_file $MYSQLD_DATADIR/test/tmp.cfg
