@@ -357,16 +357,14 @@ Decrypt a page.
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	page_size		Page size
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or error
-@return true if page decrypted, false if not.*/
+@return DB_SUCCESS or error */
 UNIV_INTERN
-bool
+dberr_t
 fil_space_decrypt(
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	const page_size_t&	page_size,
-	byte*			src_frame,
-	dberr_t*		err);
+	byte*			src_frame);
 
 /******************************************************************
 Decrypt a page
