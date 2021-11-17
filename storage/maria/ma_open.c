@@ -1025,7 +1025,8 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       MARIA_STATE_HISTORY_CLOSED *history;
       if ((history= (MARIA_STATE_HISTORY_CLOSED *)
            my_hash_search(&maria_stored_state,
-                       (uchar*) &share->state.create_rename_lsn, 0)))
+                       (uchar*) &share->state.create_rename_lsn,
+                       sizeof(share->state.create_rename_lsn))))
       {
         /*
           Move history from hash to share. This is safe to do as we

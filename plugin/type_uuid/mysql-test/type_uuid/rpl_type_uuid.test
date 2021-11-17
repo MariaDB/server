@@ -1,0 +1,18 @@
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-4958 Adding datatype UUID
+--echo #
+
+connection master;
+CREATE TABLE t1 (a UUID);
+INSERT INTO t1 VALUES
+('00000000-0000-0000-0000-000000000000'),
+('ffffffff-ffff-ffff-ffff-ffffffffffff');
+sync_slave_with_master;
+SELECT HEX(a), a FROM t1;
+connection master;
+DROP TABLE t1;
+sync_slave_with_master;
+
+--source include/rpl_end.inc

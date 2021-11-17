@@ -1712,14 +1712,14 @@ static MYSQL_METHODS client_methods=
   cli_use_result,                              /* use_result */
   cli_fetch_lengths,                           /* fetch_lengths */
   cli_flush_use_result,                        /* flush_use_result */
-  cli_read_change_user_result                  /* read_change_user_result */
+  cli_read_change_user_result,                 /* read_change_user_result */
+  NULL                                         /* on_close_free */
 #ifndef MYSQL_SERVER
   ,cli_list_fields,                            /* list_fields */
   cli_read_prepare_result,                     /* read_prepare_result */
   cli_stmt_execute,                            /* stmt_execute */
   cli_read_binary_rows,                        /* read_binary_rows */
   cli_unbuffered_fetch,                        /* unbuffered_fetch */
-  NULL,                                        /* free_embedded_thd */
   cli_read_statistics,                         /* read_statistics */
   cli_read_query_result,                       /* next_result */
   cli_read_binary_rows                         /* read_rows_from_cursor */
@@ -3319,10 +3319,8 @@ static void mysql_close_free(MYSQL *mysql)
   my_free(mysql->user);
   my_free(mysql->passwd);
   my_free(mysql->db);
-#if defined(EMBEDDED_LIBRARY) || MYSQL_VERSION_ID >= 50100
-  my_free(mysql->info_buffer);
-  mysql->info_buffer= 0;
-#endif
+  if (mysql->methods && mysql->methods->on_close_free)
+    (*mysql->methods->on_close_free)(mysql);
   /* Clear pointers for better safety */
   mysql->host_info= mysql->user= mysql->passwd= mysql->db= 0;
 }
@@ -3441,13 +3439,6 @@ void STDCALL mysql_close(MYSQL *mysql)
     mysql_close_free_options(mysql);
     mysql_close_free(mysql);
     mysql_detach_stmt_list(&mysql->stmts, "mysql_close");
-#ifndef MYSQL_SERVER
-    if (mysql->thd)
-    {
-      (*mysql->methods->free_embedded_thd)(mysql);
-      mysql->thd= 0;
-    }
-#endif
     if (mysql->free_me)
       my_free(mysql);
   }

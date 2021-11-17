@@ -4914,7 +4914,8 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   bool free_join= 1;
   DBUG_ENTER("mysql_select");
 
-  select_lex->context.resolve_in_select_list= TRUE;
+  if (!fields.is_empty())
+    select_lex->context.resolve_in_select_list= true;
   JOIN *join;
   if (select_lex->join != 0)
   {
@@ -4971,6 +4972,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
     }
   }
 
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
   /* Look for a table owned by an engine with the select_handler interface */
   select_lex->pushdown_select= find_select_handler(thd, select_lex);
 
@@ -12452,9 +12454,9 @@ static
 bool generate_derived_keys(DYNAMIC_ARRAY *keyuse_array)
 {
   KEYUSE *keyuse= dynamic_element(keyuse_array, 0, KEYUSE*);
-  uint elements= keyuse_array->elements;
+  size_t elements= keyuse_array->elements;
   TABLE *prev_table= 0;
-  for (uint i= 0; i < elements; i++, keyuse++)
+  for (size_t i= 0; i < elements; i++, keyuse++)
   {
     if (!keyuse->table)
       break;
@@ -21042,7 +21044,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     if (join_tab->on_precond && !join_tab->on_precond->val_int())
       rc= NESTED_LOOP_NO_MORE_ROWS;
   }
-  join->thd->get_stmt_da()->reset_current_row_for_warning();
+  join->thd->get_stmt_da()->reset_current_row_for_warning(1);
 
   if (rc != NESTED_LOOP_NO_MORE_ROWS &&
       (rc= join_tab_execution_startup(join_tab)) < 0)
@@ -21216,26 +21218,33 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
           will be re-evaluated again. It could be fixed, but, probably,
           it's not worth doing now.
         */
-        if (tab->select_cond && !tab->select_cond->val_int())
+        if (tab->select_cond)
         {
-          /* The condition attached to table tab is false */
-          if (tab == join_tab)
+          const longlong res= tab->select_cond->val_int();
+          if (join->thd->is_error())
+            DBUG_RETURN(NESTED_LOOP_ERROR);
+
+          if (!res)
           {
-            found= 0;
-            if (not_exists_opt_is_applicable)
-              DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
-          }            
-          else
-          {
-            /*
-              Set a return point if rejected predicate is attached
-              not to the last table of the current nest level.
-            */
-            join->return_tab= tab;
-            if (not_exists_opt_is_applicable)
-              DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
+            /* The condition attached to table tab is false */
+            if (tab == join_tab)
+            {
+              found= 0;
+              if (not_exists_opt_is_applicable)
+                DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
+            }
             else
-              DBUG_RETURN(NESTED_LOOP_OK);
+            {
+              /*
+                Set a return point if rejected predicate is attached
+                not to the last table of the current nest level.
+              */
+              join->return_tab= tab;
+              if (not_exists_opt_is_applicable)
+                DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
+              else
+                DBUG_RETURN(NESTED_LOOP_OK);
+            }
           }
         }
       }
@@ -28236,6 +28245,11 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 
   //Item List
   bool first= 1;
+  /*
+    outer_select() can not be used here because it is for name resolution
+    and will return NULL at any end of name resolution chain (view/derived)
+  */
+  bool top_level= (get_master()->get_master() == 0);
   List_iterator_fast<Item> it(item_list);
   Item *item;
   while ((item= it++))
@@ -28245,7 +28259,8 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     else
       str->append(',');
 
-    if (is_subquery_function() && !item->is_explicit_name())
+    if ((is_subquery_function() && !item->is_explicit_name()) ||
+        !item->name.str)
     {
       /*
         Do not print auto-generated aliases in subqueries. It has no purpose
@@ -28254,7 +28269,20 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       item->print(str, query_type);
     }
     else
-      item->print_item_w_name(str, query_type);
+    {
+      /*
+        Do not print illegal names (if it is not top level SELECT).
+        Top level view checked (and correct name are assigned),
+        other cases of top level SELECT are not important, because
+        it is not "table field".
+      */
+      if (top_level ||
+          item->is_explicit_name() ||
+          !check_column_name(item->name.str))
+        item->print_item_w_name(str, query_type);
+      else
+        item->print(str, query_type);
+    }
   }
 
   /*
@@ -28521,7 +28549,7 @@ JOIN::reoptimize(Item *added_where, table_map join_tables,
 {
   DYNAMIC_ARRAY added_keyuse;
   SARGABLE_PARAM *sargables= 0; /* Used only as a dummy parameter. */
-  uint org_keyuse_elements;
+  size_t org_keyuse_elements;
 
   /* Re-run the REF optimizer to take into account the new conditions. */
   if (update_ref_and_keys(thd, &added_keyuse, join_tab, table_count, added_where,

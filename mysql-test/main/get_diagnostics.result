@@ -628,7 +628,7 @@ v
 NULL
 Warnings:
 Note	1050	Table 't1' already exists
-Error	1406	Data too long for column 'v' at row 1
+Error	1406	Data too long for column 'v' at row 0
 DROP TABLE t1;
 DROP PROCEDURE p1;
 
@@ -829,27 +829,29 @@ Error	1758	Invalid condition number
 SELECT @var5, @var6;
 @var5	@var6
 3	NULL
-INSERT INTO t1 VALUES (9,CAST(123 AS CHAR(1)),1.00109);
-ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+INSERT INTO t1 VALUES (8,8,8),(9,CAST(123 AS CHAR(1)),1.00109);
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
 GET DIAGNOSTICS CONDITION 1 @var7= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var8= ROW_NUMBER;
 Warnings:
-Error	1292	Truncated incorrect CHAR(1) value: '123'
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
 Error	1758	Invalid condition number
 SELECT @var7, @var8;
 @var7	@var8
-1	NULL
-INSERT INTO t1 VALUES ('x','foo',1.0203);
-ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+2	NULL
+INSERT INTO t1 VALUES (10,10,10),('x','foo',1.0203);
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 GET DIAGNOSTICS CONDITION 1 @var9= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var10= ROW_NUMBER;
 Warnings:
-Error	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 Error	1758	Invalid condition number
 SELECT @var9, @var10;
 @var9	@var10
-1	NULL
-INSERT INTO t1 VALUES ((13,'m',1.0113));
+2	NULL
+INSERT INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113));
 ERROR 21000: Operand should contain 1 column(s)
 GET DIAGNOSTICS CONDITION 1 @var11= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var12= ROW_NUMBER;
@@ -858,7 +860,8 @@ Error	1241	Operand should contain 1 column(s)
 Error	1758	Invalid condition number
 SELECT @var11, @var12;
 @var11	@var12
-1	NULL
+2	NULL
+delete from t1 where id1=0;
 INSERT INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115), (16/0,'p',1.0116);
 Warnings:
 Warning	1365	Division by 0
@@ -910,7 +913,7 @@ Error	1758	Invalid condition number
 SELECT @var21, @var22;
 @var21	@var22
 3	NULL
-INSERT IGNORE INTO t1 VALUES (9,CAST(123 AS CHAR(1)),1.00109);
+INSERT IGNORE INTO t1 VALUES (8,8,8),(9,CAST(123 AS CHAR(1)),1.00109);
 Warnings:
 Warning	1292	Truncated incorrect CHAR(1) value: '123'
 GET DIAGNOSTICS CONDITION 1 @var23= ROW_NUMBER;
@@ -920,19 +923,19 @@ Warning	1292	Truncated incorrect CHAR(1) value: '123'
 Error	1758	Invalid condition number
 SELECT @var23, @var24;
 @var23	@var24
-1	NULL
-INSERT IGNORE INTO t1 VALUES ('x','foo',1.0203);
+2	NULL
+INSERT IGNORE INTO t1 VALUES (10,10,10),('x','foo',1.0203);
 Warnings:
-Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 GET DIAGNOSTICS CONDITION 1 @var25= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var26= ROW_NUMBER;
 Warnings:
-Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 Error	1758	Invalid condition number
 SELECT @var25, @var26;
 @var25	@var26
-1	NULL
-INSERT IGNORE INTO t1 VALUES ((13,'m',1.0113));
+2	NULL
+INSERT IGNORE INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113));
 ERROR 21000: Operand should contain 1 column(s)
 GET DIAGNOSTICS CONDITION 1 @var27= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var28= ROW_NUMBER;
@@ -941,7 +944,7 @@ Error	1241	Operand should contain 1 column(s)
 Error	1758	Invalid condition number
 SELECT @var27, @var28;
 @var27	@var28
-1	NULL
+2	NULL
 INSERT IGNORE INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115),
 (16/0,'p',1.0116);
 Warnings:
@@ -1067,18 +1070,19 @@ Error	1758	Invalid condition number
 SELECT @var51, @var52;
 @var51	@var52
 1	NULL
-INSERT INTO t1 VALUES ('x','foo',1.0203)
+INSERT INTO t1 VALUES (10,10,10),('x','foo',1.0203)
 ON DUPLICATE KEY UPDATE val1='c';
-ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 GET DIAGNOSTICS CONDITION 1 @var53= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var54= ROW_NUMBER;
 Warnings:
-Error	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 Error	1758	Invalid condition number
 SELECT @var53, @var54;
 @var53	@var54
-1	NULL
-INSERT INTO t1 VALUES ((13,'m',1.0113)) ON DUPLICATE KEY UPDATE val1='c';
+2	NULL
+INSERT INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113)) ON DUPLICATE KEY UPDATE val1='c';
 ERROR 21000: Operand should contain 1 column(s)
 GET DIAGNOSTICS CONDITION 1 @var55= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var56= ROW_NUMBER;
@@ -1087,7 +1091,7 @@ Error	1241	Operand should contain 1 column(s)
 Error	1758	Invalid condition number
 SELECT @var55, @var56;
 @var55	@var56
-1	NULL
+2	NULL
 INSERT INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115), (2/0,'p',1.00102)
 ON DUPLICATE KEY UPDATE val1='b';
 Warnings:
@@ -1256,27 +1260,29 @@ Error	1758	Invalid condition number
 SELECT @var81, @var82;
 @var81	@var82
 3	NULL
-REPLACE INTO t1 VALUES (9,CAST(123 AS CHAR(1)),1.00109);
-ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+REPLACE INTO t1 VALUES (8,8,8),(9,CAST(123 AS CHAR(1)),1.00109);
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
 GET DIAGNOSTICS CONDITION 1 @var83= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var84= ROW_NUMBER;
 Warnings:
-Error	1292	Truncated incorrect CHAR(1) value: '123'
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
 Error	1758	Invalid condition number
 SELECT @var83, @var84;
 @var83	@var84
-1	NULL
-REPLACE INTO t1 VALUES ('x','foo',1.0203);
-ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+2	NULL
+REPLACE INTO t1 VALUES (10,10,10),('x','foo',1.0203);
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 GET DIAGNOSTICS CONDITION 1 @var85= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var86= ROW_NUMBER;
 Warnings:
-Error	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
 Error	1758	Invalid condition number
 SELECT @var85, @var86;
 @var85	@var86
-1	NULL
-REPLACE INTO t1 VALUES ((13,'m',1.0113));
+2	NULL
+REPLACE INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113));
 ERROR 21000: Operand should contain 1 column(s)
 GET DIAGNOSTICS CONDITION 1 @var87= ROW_NUMBER;
 GET DIAGNOSTICS CONDITION 2 @var88= ROW_NUMBER;
@@ -1285,7 +1291,7 @@ Error	1241	Operand should contain 1 column(s)
 Error	1758	Invalid condition number
 SELECT @var87, @var88;
 @var87	@var88
-1	NULL
+2	NULL
 REPLACE INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115), (16/0,'p',1.0116);
 Warnings:
 Warning	1365	Division by 0
@@ -1470,7 +1476,7 @@ ERROR 42000: Column 'id1' specified twice
 GET DIAGNOSTICS CONDITION 1 @var118= ROW_NUMBER;
 SELECT @var118;
 @var118
-1
+0
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
 INSERT INTO t1 VALUES (1);
@@ -1481,38 +1487,38 @@ ERROR HY000: Can't update table 't1' in stored function/trigger because it is al
 GET DIAGNOSTICS CONDITION 1 @var119= ROW_NUMBER;
 SELECT @var119;
 @var119
-1
+0
 INSERT INTO t1 VALUES (1) RETURNING id2;
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var120= ROW_NUMBER;
 SELECT @var120;
 @var120
-1
+0
 INSERT INTO t1(id2) VALUES(1);
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var121= ROW_NUMBER;
 SELECT @var121;
 @var121
-1
+0
 INSERT INTO v VALUES(1,2);
 ERROR HY000: Can not insert into join view 'test.v' without fields list
 GET DIAGNOSTICS CONDITION 1 @var122= ROW_NUMBER;
 SELECT @var122;
 @var122
-1
+0
 INSERT INTO v(a,b) VALUES (1,2);
 ERROR HY000: Can not modify more than one base table through a join view 'test.v'
 GET DIAGNOSTICS CONDITION 1 @var123= ROW_NUMBER;
 SELECT @var123;
 @var123
-1
+0
 # REPLACE STATEMENT
 REPLACE INTO t1(id1, id1) VALUES (1,1);
 ERROR 42000: Column 'id1' specified twice
 GET DIAGNOSTICS CONDITION 1 @var124= ROW_NUMBER;
 SELECT @var124;
 @var124
-1
+0
 CREATE FUNCTION f2() RETURNS INT
 BEGIN
 REPLACE INTO t1 VALUES (1);
@@ -1523,31 +1529,31 @@ ERROR HY000: Can't update table 't1' in stored function/trigger because it is al
 GET DIAGNOSTICS CONDITION 1 @var125= ROW_NUMBER;
 SELECT @var125;
 @var125
-1
+0
 REPLACE INTO t1 VALUES (1) RETURNING id2;
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var126= ROW_NUMBER;
 SELECT @var126;
 @var126
-1
+0
 REPLACE INTO t1(id2) VALUES(1);
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var127= ROW_NUMBER;
 SELECT @var127;
 @var127
-1
+0
 REPLACE INTO v VALUES(1,2);
 ERROR HY000: Can not insert into join view 'test.v' without fields list
 GET DIAGNOSTICS CONDITION 1 @var128= ROW_NUMBER;
 SELECT @var128;
 @var128
-1
+0
 REPLACE INTO v(a,b) VALUES (1,2);
 ERROR HY000: Can not modify more than one base table through a join view 'test.v'
 GET DIAGNOSTICS CONDITION 1 @var129= ROW_NUMBER;
 SELECT @var129;
 @var129
-1
+0
 DROP TABLE t1,t2;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
@@ -1671,3 +1677,137 @@ SELECT @rnum, @msg, @err;
 @rnum	@msg	@err
 3	Data truncated for column 'a' at row 3	1265
 DROP TABLE t1;
+#
+# ROW_NUMBER differs from the number in the error message upon
+# ER_WARN_DATA_OUT_OF_RANGE
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+SELECT CAST(a AS DECIMAL(2,2)) AS f FROM t;
+f
+0.99
+0.99
+Warnings:
+Warning	1264	Out of range value for column 'f' at row 1
+Warning	1264	Out of range value for column 'f' at row 2
+GET DIAGNOSTICS CONDITION 2 @n= ROW_NUMBER, @m = MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+2	Out of range value for column 'f' at row 2
+DROP TABLE t;
+#
+# MDEV-26832: ROW_NUMBER in SIGNAL/RESIGNAL causes a syntax error
+#
+# using signal
+CREATE PROCEDURE signal_syntax()
+BEGIN
+DECLARE errno INT DEFAULT 0;
+DECLARE msg TEXT DEFAULT "foo";
+DECLARE row_num INT DEFAULT 0;
+DECLARE cond CONDITION FOR SQLSTATE "01234";
+DECLARE CONTINUE HANDLER for 1012
+BEGIN
+GET DIAGNOSTICS CONDITION 1 errno = MYSQL_ERRNO, msg = MESSAGE_TEXT, row_num= ROW_NUMBER;
+END;
+SIGNAL cond SET MESSAGE_TEXT = "Signal message", MYSQL_ERRNO = 1012, ROW_NUMBER= 5;
+SELECT errno, msg, row_num;
+END|
+CALL signal_syntax();
+errno	msg	row_num
+1012	Signal message	5
+DROP PROCEDURE signal_syntax;
+# using resignal
+CREATE PROCEDURE resignal_syntax()
+BEGIN
+DECLARE CONTINUE HANDLER
+FOR 1146
+BEGIN
+RESIGNAL SET
+MESSAGE_TEXT = '`temptab` does not exist', ROW_NUMBER= 105;
+END;
+SELECT `c` FROM `temptab`;
+END|
+CALL resignal_syntax();
+ERROR 42S02: `temptab` does not exist
+GET DIAGNOSTICS CONDITION 1 @row_num= ROW_NUMBER;
+SELECT @row_num;
+@row_num
+105
+DROP PROCEDURE resignal_syntax;
+#
+# MDEV-26842: ROW_NUMBER is not set and differs from the message upon
+# WARN_DATA_TRUNCATED produced by inplace ALTER
+#
+CREATE TABLE t1 (a VARCHAR(64)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('foo'),(null);
+ALTER TABLE t1 ADD PRIMARY KEY(a), ALGORITHM=INPLACE;
+ERROR 01000: Data truncated for column 'a' at row 2
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER, @m= MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+2	Data truncated for column 'a' at row 2
+DROP TABLE t1;
+#
+# MDEV-26841: ROW_NUMBER is not set and differs from the message upon
+# ER_WRONG_VALUE_COUNT_ON_ROW for the 1st row
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1,2),(3);
+ERROR 21S01: Column count doesn't match value count at row 1
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER, @m= MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+1	Column count doesn't match value count at row 1
+INSERT INTO t1(a) VALUES(1,2), (3);
+ERROR 21S01: Column count doesn't match value count at row 1
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER, @m= MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+1	Column count doesn't match value count at row 1
+DROP TABLE t1;
+#
+# MDEV-26830: Wrong ROW_NUMBER in diagnostics upon INSERT IGNORE with
+# CHECK violation
+#
+CREATE TABLE t1 (a INT, CHECK(a>0));
+INSERT IGNORE INTO t1 VALUES (1),(0),(2),(0);
+Warnings:
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+@n
+2
+GET DIAGNOSTICS CONDITION 2 @n= ROW_NUMBER;
+SELECT @n;
+@n
+4
+DROP TABLE t1;
+#
+# MDEV-26844: DELETE returns ROW_NUMBER=1 for every row upon
+# ER_TRUNCATED_WRONG_VALUE
+#
+# without ORDER BY
+CREATE TABLE t (a VARCHAR(8));
+INSERT INTO t VALUES ('val1'),('val2'),('100'),('val4');
+SELECT * FROM t;
+a
+val1
+val2
+100
+val4
+DELETE FROM t WHERE a = 100;
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'val1'
+Warning	1292	Truncated incorrect DOUBLE value: 'val2'
+Warning	1292	Truncated incorrect DOUBLE value: 'val4'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect DOUBLE value: 'val1'
+Warning	1292	Truncated incorrect DOUBLE value: 'val2'
+Warning	1292	Truncated incorrect DOUBLE value: 'val4'
+GET DIAGNOSTICS CONDITION 3 @n = ROW_NUMBER;
+SELECT @n;
+@n
+4
+DROP TABLE t;

@@ -560,7 +560,8 @@ typedef enum enum_diag_condition_item_name
   DIAG_CURSOR_NAME= 9,
   DIAG_MESSAGE_TEXT= 10,
   DIAG_MYSQL_ERRNO= 11,
-  LAST_DIAG_SET_PROPERTY= DIAG_MYSQL_ERRNO
+  DIAG_ROW_NUMBER= 12,
+  LAST_DIAG_SET_PROPERTY= DIAG_ROW_NUMBER
 } Diag_condition_item_name;
 
 /**
@@ -1131,6 +1132,7 @@ struct THD_count
 {
   static Atomic_counter<uint32_t> count;
   static uint value() { return static_cast<uint>(count); }
+  static uint connection_thd_count();
   THD_count() { count++; }
   ~THD_count() { count--; }
 };
@@ -3918,6 +3920,11 @@ public:
     user_time= t;
     set_time();
   }
+  inline void force_set_time(my_time_t t, ulong sec_part)
+  {
+    start_time= system_time.sec= t;
+    start_time_sec_part= system_time.sec_part= sec_part;
+  }
   /*
     this is only used by replication and BINLOG command.
     usecs > TIME_MAX_SECOND_PART means "was not in binlog"
@@ -3929,15 +3936,9 @@ public:
     else
     {
       if (sec_part <= TIME_MAX_SECOND_PART)
-      {
-        start_time= system_time.sec= t;
-        start_time_sec_part= system_time.sec_part= sec_part;
-      }
+        force_set_time(t, sec_part);
       else if (t != system_time.sec)
-      {
-        start_time= system_time.sec= t;
-        start_time_sec_part= system_time.sec_part= 0;
-      }
+        force_set_time(t, 0);
       else
       {
         start_time= t;
@@ -4800,45 +4801,17 @@ private:
     @param msg the condition message text
     @return The condition raised, or NULL
   */
-  Sql_condition*
-  raise_condition(uint sql_errno,
-                  const char* sqlstate,
-                  Sql_condition::enum_warning_level level,
-                  const char* msg)
+  Sql_condition* raise_condition(uint sql_errno, const char* sqlstate,
+                  Sql_condition::enum_warning_level level, const char* msg)
   {
-    return raise_condition(sql_errno, sqlstate, level,
-                           Sql_user_condition_identity(), msg);
+    Sql_condition cond(NULL, // don't strdup the msg
+                       Sql_condition_identity(sql_errno, sqlstate, level,
+                                              Sql_user_condition_identity()),
+                       msg, get_stmt_da()->current_row_for_warning());
+    return raise_condition(&cond);
   }
 
-  /**
-    Raise a generic or a user defined SQL condition.
-    @param ucid      - the user condition identity
-                       (or an empty identity if not a user condition)
-    @param sql_errno - the condition error number
-    @param sqlstate  - the condition SQLSTATE
-    @param level     - the condition level
-    @param msg       - the condition message text
-    @return The condition raised, or NULL
-  */
-  Sql_condition*
-  raise_condition(uint sql_errno,
-                  const char* sqlstate,
-                  Sql_condition::enum_warning_level level,
-                  const Sql_user_condition_identity &ucid,
-                  const char* msg);
-
-  Sql_condition*
-  raise_condition(const Sql_condition *cond)
-  {
-    Sql_condition *raised= raise_condition(cond->get_sql_errno(),
-                                           cond->get_sqlstate(),
-                                           cond->get_level(),
-                                           *cond/*Sql_user_condition_identity*/,
-                                           cond->get_message_text());
-    if (raised)
-      raised->copy_opt_attributes(cond);
-    return raised;
-  }
+  Sql_condition* raise_condition(const Sql_condition *cond);
 
 private:
   void push_warning_truncated_priv(Sql_condition::enum_warning_level level,
@@ -5412,7 +5385,8 @@ public:
       transaction->all.modified_non_trans_table= TRUE;
     transaction->all.m_unsafe_rollback_flags|=
       (transaction->stmt.m_unsafe_rollback_flags &
-       (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
+       (THD_TRANS::MODIFIED_NON_TRANS_TABLE |
+        THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
         THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL |
         THD_TRANS::EXECUTED_TABLE_ADMIN_CMD));
   }

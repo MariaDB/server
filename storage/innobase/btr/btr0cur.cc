@@ -1214,6 +1214,7 @@ If mode is PAGE_CUR_LE , cursor is left at the place where an insert of the
 search tuple should be performed in the B-tree. InnoDB does an insert
 immediately after the cursor. Thus, the cursor may end up on a user record,
 or on a page infimum record. */
+TRANSACTIONAL_TARGET
 dberr_t
 btr_cur_search_to_nth_level_func(
 	dict_index_t*	index,	/*!< in: index */
@@ -1630,6 +1631,9 @@ retry_page_get:
 		ut_ad(cursor->thr);
 
 		switch (btr_op) {
+		default:
+			ut_error;
+			break;
 		case BTR_INSERT_OP:
 		case BTR_INSERT_IGNORE_UNIQUE_OP:
 			ut_ad(buf_mode == BUF_GET_IF_IN_POOL);
@@ -1662,6 +1666,8 @@ retry_page_get:
 		case BTR_DELETE_OP:
 			ut_ad(buf_mode == BUF_GET_IF_IN_POOL_OR_WATCH);
 			ut_ad(!dict_index_is_spatial(index));
+			auto& chain = buf_pool.page_hash.cell_get(
+				page_id.fold());
 
 			if (!row_purge_poss_sec(cursor->purge_node,
 						index, tuple)) {
@@ -1676,15 +1682,12 @@ retry_page_get:
 				cursor->flag = BTR_CUR_DELETE_IBUF;
 			} else {
 				/* The purge could not be buffered. */
-				buf_pool.watch_unset(page_id);
+				buf_pool.watch_unset(page_id, chain);
 				break;
 			}
 
-			buf_pool.watch_unset(page_id);
+			buf_pool.watch_unset(page_id, chain);
 			goto func_exit;
-
-		default:
-			ut_error;
 		}
 
 		/* Insert to the insert/delete buffer did not succeed, we
@@ -1992,16 +1995,15 @@ retry_page_get:
 	    && mode != PAGE_CUR_RTREE_INSERT
 	    && mode != PAGE_CUR_RTREE_LOCATE
 	    && mode >= PAGE_CUR_CONTAIN) {
-		trx_t*		trx = thr_get_trx(cursor->thr);
 		lock_prdt_t	prdt;
 
-		lock_sys.rd_lock(SRW_LOCK_CALL);
-		trx->mutex_lock();
-		lock_init_prdt_from_mbr(
-			&prdt, &cursor->rtr_info->mbr, mode,
-			trx->lock.lock_heap);
-		lock_sys.rd_unlock();
-		trx->mutex_unlock();
+		{
+			trx_t* trx = thr_get_trx(cursor->thr);
+			TMLockTrxGuard g{TMLockTrxArgs(*trx)};
+			lock_init_prdt_from_mbr(
+				&prdt, &cursor->rtr_info->mbr, mode,
+				trx->lock.lock_heap);
+		}
 
 		if (rw_latch == RW_NO_LATCH && height != 0) {
 			block->lock.s_lock();
@@ -6743,11 +6745,10 @@ static void btr_blob_free(buf_block_t *block, bool all, mtr_t *mtr)
   ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
   mtr->commit();
 
-  const ulint fold= page_id.fold();
-
+  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   mysql_mutex_lock(&buf_pool.mutex);
 
-  if (buf_page_t *bpage= buf_pool.page_hash_get_low(page_id, fold))
+  if (buf_page_t *bpage= buf_pool.page_hash.get(page_id, chain))
     if (!buf_LRU_free_page(bpage, all) && all && bpage->zip.data)
       /* Attempt to deallocate the redundant copy of the uncompressed page
       if the whole ROW_FORMAT=COMPRESSED block cannot be deallocted. */

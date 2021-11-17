@@ -173,7 +173,7 @@ ALTER TABLE t1 DROP KEY f, ADD INDEX idx1(f), ALGORITHM=INSTANT;
 ALTER TABLE t1 ADD KEY idx2(f);
 DROP TABLE t1;
 CREATE TABLE t1(a blob , b blob , unique(a,b));
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column b;
 insert into t1 values(1,1);
 --error ER_DUP_ENTRY
@@ -369,6 +369,24 @@ show index from t2;
 
 # Cleanup
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-26453 Assertion `0' failed in row_upd_sec_index_entry & corruption
+--echo #
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t (c INT AUTO_INCREMENT KEY, UNIQUE USING HASH(c));
+
+CREATE TABLE t (c INT AUTO_INCREMENT KEY);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE UNIQUE INDEX i USING HASH ON t (c);
+INSERT INTO t VALUES (0);
+SELECT * FROM t;
+DELETE FROM t;
+
+DROP TABLE t;
+
+--echo # End of 10.4 tests
 
 #
 # MDEV-22113 SIGSEGV, ASAN use-after-poison, Assertion `next_insert_id == 0' in handler::ha_external_lock

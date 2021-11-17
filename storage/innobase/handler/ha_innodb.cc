@@ -114,6 +114,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "ut0mem.h"
 #include "row0ext.h"
 
+#include "lz4.h"
+#include "lzo/lzo1x.h"
+#include "lzma.h"
+#include "bzlib.h"
+#include "snappy-c.h"
+
 #include <limits>
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
@@ -149,6 +155,11 @@ void close_thread_tables(THD* thd);
 #include <mysql/service_md5.h>
 #include "wsrep_sst.h"
 #endif /* WITH_WSREP */
+
+#ifdef HAVE_URING
+/** The Linux kernel version if io_uring() is considered unsafe */
+const char *io_uring_may_be_unsafe;
+#endif
 
 #define INSIDE_HA_INNOBASE_CC
 
@@ -841,11 +852,6 @@ innodb_compression_algorithm_validate(
 						for update function */
 	struct st_mysql_value*		value);	/*!< in: incoming string */
 
-static ibool innodb_have_lzo=IF_LZO(1, 0);
-static ibool innodb_have_lz4=IF_LZ4(1, 0);
-static ibool innodb_have_lzma=IF_LZMA(1, 0);
-static ibool innodb_have_bzip2=IF_BZIP2(1, 0);
-static ibool innodb_have_snappy=IF_SNAPPY(1, 0);
 static ibool innodb_have_punch_hole=IF_PUNCH_HOLE(1, 0);
 
 static
@@ -1037,11 +1043,11 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_pages_encrypted, SHOW_LONGLONG},
   {"num_pages_decrypted",
    &export_vars.innodb_pages_decrypted, SHOW_LONGLONG},
-  {"have_lz4", &innodb_have_lz4, SHOW_BOOL},
-  {"have_lzo", &innodb_have_lzo, SHOW_BOOL},
-  {"have_lzma", &innodb_have_lzma, SHOW_BOOL},
-  {"have_bzip2", &innodb_have_bzip2, SHOW_BOOL},
-  {"have_snappy", &innodb_have_snappy, SHOW_BOOL},
+  {"have_lz4",        &(provider_service_lz4->is_loaded),    SHOW_BOOL},
+  {"have_lzo",        &(provider_service_lzo->is_loaded),    SHOW_BOOL},
+  {"have_lzma",       &(provider_service_lzma->is_loaded),   SHOW_BOOL},
+  {"have_bzip2",      &(provider_service_bzip2->is_loaded),  SHOW_BOOL},
+  {"have_snappy",     &(provider_service_snappy->is_loaded), SHOW_BOOL},
   {"have_punch_hole", &innodb_have_punch_hole, SHOW_BOOL},
 
   /* Defragmentation */
@@ -3180,6 +3186,7 @@ the query cache.
 @param[in]	table	table object
 @param[in]	trx	transaction object
 @return whether the storing or retrieving from the query cache is permitted */
+TRANSACTIONAL_TARGET
 static bool innobase_query_caching_table_check_low(
 	dict_table_t* table, trx_t* trx)
 {
@@ -3205,6 +3212,16 @@ static bool innobase_query_caching_table_check_low(
 	if (trx->read_view.is_open() && trx->read_view.low_limit_id() < inv) {
 		return false;
 	}
+
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+	if (xbegin()) {
+		if (table->lock_mutex_is_locked())
+			xabort();
+		auto len = UT_LIST_GET_LEN(table->locks);
+		xend();
+		return len == 0;
+	}
+#endif
 
 	table->lock_mutex_lock();
 	auto len= UT_LIST_GET_LEN(table->locks);
@@ -3670,23 +3687,36 @@ static const char* ha_innobase_exts[] = {
 @retval	0	if no system-versioned data was affected by the transaction */
 static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 {
-	if (const trx_t* trx = thd_to_trx(thd)) {
-		*trx_id = trx->id;
+  if (trx_t *trx= thd_to_trx(thd))
+  {
+    *trx_id= trx->id;
+    bool versioned= false;
 
-		for (const auto& t : trx->mod_tables) {
-			if (t.second.is_versioned()) {
-				DBUG_ASSERT(t.first->versioned_by_id());
-				DBUG_ASSERT(trx->rsegs.m_redo.rseg);
+    for (auto &t : trx->mod_tables)
+    {
+      if (t.second.is_versioned())
+      {
+        DBUG_ASSERT(t.first->versioned_by_id());
+        DBUG_ASSERT(trx->rsegs.m_redo.rseg);
+        versioned= true;
+        if (!trx->bulk_insert)
+          break;
+      }
+      if (t.second.is_bulk_insert())
+      {
+        ut_ad(trx->bulk_insert);
+        ut_ad(!trx->check_unique_secondary);
+        ut_ad(!trx->check_foreigns);
+        if (t.second.write_bulk(t.first, trx))
+          return ULONGLONG_MAX;
+      }
+    }
 
-				return trx_sys.get_new_trx_id();
-			}
-		}
+    return versioned ? trx_sys.get_new_trx_id() : 0;
+  }
 
-		return 0;
-	}
-
-	*trx_id = 0;
-	return 0;
+  *trx_id= 0;
+  return 0;
 }
 
 /** Initialize and normalize innodb_buffer_pool_size. */
@@ -3700,6 +3730,25 @@ static void innodb_buffer_pool_size_init()
 
 	srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
 	innobase_buffer_pool_size = srv_buf_pool_size;
+}
+
+
+static bool
+compression_algorithm_is_not_loaded(ulong compression_algorithm, myf flags)
+{
+  bool is_loaded[PAGE_ALGORITHM_LAST+1]= { 1, 1, provider_service_lz4->is_loaded,
+    provider_service_lzo->is_loaded, provider_service_lzma->is_loaded,
+    provider_service_bzip2->is_loaded, provider_service_snappy->is_loaded };
+
+  DBUG_ASSERT(compression_algorithm <= PAGE_ALGORITHM_LAST);
+
+  if (is_loaded[compression_algorithm])
+    return 0;
+
+  my_printf_error(HA_ERR_UNSUPPORTED, "InnoDB: compression algorithm %s (%u)"
+    " is not available. Please, load the corresponding provider plugin.", flags,
+    page_compression_algorithms[compression_algorithm], compression_algorithm);
+  return 1;
 }
 
 /** Initialize, validate and normalize the InnoDB startup parameters.
@@ -3734,50 +3783,8 @@ static int innodb_init_params()
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
-#ifndef HAVE_LZ4
-	if (innodb_compression_algorithm == PAGE_LZ4_ALGORITHM) {
-		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				"InnoDB: liblz4 is not installed. \n",
-				innodb_compression_algorithm);
-		DBUG_RETURN(HA_ERR_INITIALIZATION);
-	}
-#endif
-
-#ifndef HAVE_LZO
-	if (innodb_compression_algorithm == PAGE_LZO_ALGORITHM) {
-		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				"InnoDB: liblzo is not installed. \n",
-				innodb_compression_algorithm);
-		DBUG_RETURN(HA_ERR_INITIALIZATION);
-	}
-#endif
-
-#ifndef HAVE_LZMA
-	if (innodb_compression_algorithm == PAGE_LZMA_ALGORITHM) {
-		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				"InnoDB: liblzma is not installed. \n",
-				innodb_compression_algorithm);
-		DBUG_RETURN(HA_ERR_INITIALIZATION);
-	}
-#endif
-
-#ifndef HAVE_BZIP2
-	if (innodb_compression_algorithm == PAGE_BZIP2_ALGORITHM) {
-		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				"InnoDB: libbz2 is not installed. \n",
-				innodb_compression_algorithm);
-		DBUG_RETURN(HA_ERR_INITIALIZATION);
-	}
-#endif
-
-#ifndef HAVE_SNAPPY
-	if (innodb_compression_algorithm == PAGE_SNAPPY_ALGORITHM) {
-		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				"InnoDB: libsnappy is not installed. \n",
-				innodb_compression_algorithm);
-		DBUG_RETURN(HA_ERR_INITIALIZATION);
-	}
-#endif
+        if (compression_algorithm_is_not_loaded(innodb_compression_algorithm, ME_ERROR_LOG))
+          DBUG_RETURN(HA_ERR_INITIALIZATION);
 
 	if ((srv_encrypt_tables || srv_encrypt_log
 	     || innodb_encrypt_temporary_tables)
@@ -4029,6 +4036,14 @@ static int innodb_init_params()
 	and that also when the support is compiled in. In all other
 	cases, we ignore the setting of innodb_use_native_aio. */
 	srv_use_native_aio = FALSE;
+#endif
+#ifdef HAVE_URING
+	if (srv_use_native_aio && io_uring_may_be_unsafe) {
+		sql_print_warning("innodb_use_native_aio may cause "
+				  "hangs with this kernel %s; see "
+				  "https://jira.mariadb.org/browse/MDEV-26674",
+				  io_uring_may_be_unsafe);
+	}
 #endif
 
 #ifndef _WIN32
@@ -4532,6 +4547,10 @@ innobase_commit(
 		SQL statement */
 
 		trx_mark_sql_stat_end(trx);
+		if (UNIV_UNLIKELY(trx->error_state != DB_SUCCESS)) {
+			trx_rollback_for_mysql(trx);
+			DBUG_RETURN(1);
+		}
 	}
 
 	/* Reset the number AUTO-INC rows required */
@@ -5816,7 +5835,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 		table->persistent_autoinc without
 		autoinc_mutex protection, and there might be multiple
 		ha_innobase::open() executing concurrently. */
-	} else if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
+	} else if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 		/* If the recovery level is set so high that writes
 		are disabled we force the AUTOINC counter to 0
 		value effectively disabling writes to the table.
@@ -8119,8 +8138,7 @@ calc_row_difference(
 		    && prebuilt->table->fts
 		    && innobase_strcasecmp(
 			field->field_name.str, FTS_DOC_ID_COL_NAME) == 0) {
-			doc_id = (doc_id_t) mach_read_from_n_little_endian(
-				n_ptr, 8);
+			doc_id = mach_read_uint64_little_endian(n_ptr);
 			if (doc_id == 0) {
 				return(DB_FTS_INVALID_DOCID);
 			}
@@ -8363,16 +8381,6 @@ calc_row_difference(
 					<< innodb_table->name;
 
 				return(DB_FTS_INVALID_DOCID);
-			} else if ((doc_id
-				    - prebuilt->table->fts->cache->next_doc_id)
-				   >= FTS_DOC_ID_MAX_STEP) {
-
-				ib::warn() << "Doc ID " << doc_id << " is too"
-					" big. Its difference with largest"
-					" Doc ID used " << prebuilt->table->fts
-					->cache->next_doc_id - 1
-					<< " cannot exceed or equal to "
-					<< FTS_DOC_ID_MAX_STEP;
 			}
 
 
@@ -11492,10 +11500,6 @@ bool create_table_info_t::innobase_table_flags()
 		ut_min(static_cast<ulint>(UNIV_PAGE_SSIZE_MAX),
 		       static_cast<ulint>(PAGE_ZIP_SSIZE_MAX));
 
-	/* Cache the value of innobase_compression_level, in case it is
-	modified by another thread while the table is being created. */
-	const ulint     default_compression_level = page_zip_level;
-
 	ha_table_option_struct *options= m_form->s->option_struct;
 
 	m_flags = 0;
@@ -11684,12 +11688,23 @@ index_bad:
 		m_flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
 	}
 
+	ulint level = ulint(options->page_compression_level);
+	if (!level) {
+		level = page_zip_level;
+		if (!level && options->page_compressed) {
+			push_warning_printf(
+				m_thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_ILLEGAL_HA_CREATE_OPTION,
+				"InnoDB: PAGE_COMPRESSED requires"
+				" PAGE_COMPRESSION_LEVEL or"
+				" innodb_compression_level > 0");
+			DBUG_RETURN(false);
+		}
+	}
+
 	/* Set the table flags */
 	dict_tf_set(&m_flags, innodb_row_format, zip_ssize,
-			m_use_data_dir,
-			options->page_compressed,
-		    	options->page_compression_level == 0 ?
-		        default_compression_level : ulint(options->page_compression_level));
+		    m_use_data_dir, options->page_compressed, level);
 
 	if (m_form->s->table_type == TABLE_TYPE_SEQUENCE) {
 		m_flags |= DICT_TF_MASK_NO_ROLLBACK;
@@ -13312,25 +13327,6 @@ ha_innobase::discard_or_import_tablespace(
 				    err, m_prebuilt->table->flags, NULL));
 	}
 
-	/* Evict and reload the table definition in order to invoke
-	btr_cur_instant_init(). */
-	table_id_t id = m_prebuilt->table->id;
-	ut_ad(id);
-	dict_sys.lock(SRW_LOCK_CALL);
-	m_prebuilt->table->release();
-	dict_sys.remove(m_prebuilt->table);
-	m_prebuilt->table = dict_table_open_on_id(id, TRUE,
-						  DICT_TABLE_OP_NORMAL);
-	dict_sys.unlock();
-	if (!m_prebuilt->table) {
-		err = DB_TABLE_NOT_FOUND;
-	} else {
-		if (const Field* ai = table->found_next_number_field) {
-			initialize_auto_increment(m_prebuilt->table, ai);
-		}
-		dict_stats_init(m_prebuilt->table);
-	}
-
 	if (dict_stats_is_persistent_enabled(m_prebuilt->table)) {
 		dberr_t		ret;
 
@@ -13468,6 +13464,8 @@ int ha_innobase::delete_table(const char *name)
   }
 #endif
 
+  DEBUG_SYNC(thd, "before_delete_table_stats");
+
   if (err == DB_SUCCESS && dict_stats_is_persistent_enabled(table) &&
       !table->is_stats_table())
   {
@@ -13491,11 +13489,29 @@ int ha_innobase::delete_table(const char *name)
       dict_sys.unfreeze();
     }
 
+    auto &timeout= THDVAR(thd, lock_wait_timeout);
+    const auto save_timeout= timeout;
+    if (table->name.is_temporary())
+      timeout= 0;
+
     if (table_stats && index_stats &&
         !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&
         !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
         !(err= lock_table_for_trx(table_stats, trx, LOCK_X)))
       err= lock_table_for_trx(index_stats, trx, LOCK_X);
+
+    if (err != DB_SUCCESS && !timeout)
+    {
+      /* We may skip deleting statistics if we cannot lock the tables,
+      when the table carries a temporary name. */
+      err= DB_SUCCESS;
+      dict_table_close(table_stats, false, thd, mdl_table);
+      dict_table_close(index_stats, false, thd, mdl_index);
+      table_stats= nullptr;
+      index_stats= nullptr;
+    }
+
+    timeout= save_timeout;
   }
 
   if (err == DB_SUCCESS)
@@ -13640,7 +13656,6 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 
 	DEBUG_SYNC_C("innodb_rename_table_ready");
 
-	trx_start_if_not_started(trx, true);
 	ut_ad(trx->will_lock);
 
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, use_fk);
@@ -13777,7 +13792,23 @@ int ha_innobase::truncate()
 	dict_table_t *table_stats = nullptr, *index_stats = nullptr;
 	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
 
-	dberr_t error = lock_table_for_trx(ib_table, trx, LOCK_X);
+	dberr_t error = DB_SUCCESS;
+
+	dict_sys.freeze(SRW_LOCK_CALL);
+	for (const dict_foreign_t* f : ib_table->referenced_set) {
+		if (dict_table_t* child = f->foreign_table) {
+			error = lock_table_for_trx(child, trx, LOCK_X);
+			if (error != DB_SUCCESS) {
+				break;
+			}
+		}
+	}
+	dict_sys.unfreeze();
+
+	if (error == DB_SUCCESS) {
+		error = lock_table_for_trx(ib_table, trx, LOCK_X);
+	}
+
 	const bool fts = error == DB_SUCCESS
 		&& ib_table->flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
 
@@ -13939,6 +13970,27 @@ ha_innobase::rename_table(
 	normalize_table_name(norm_to, to);
 
 	dberr_t error = DB_SUCCESS;
+	const bool from_temp = dict_table_t::is_temporary_name(norm_from);
+
+	if (from_temp) {
+		/* There is no need to lock any FOREIGN KEY child tables. */
+	} else if (dict_table_t *table = dict_table_open_on_name(
+		    norm_from, false, DICT_ERR_IGNORE_FK_NOKEY)) {
+		dict_sys.freeze(SRW_LOCK_CALL);
+		for (const dict_foreign_t* f : table->referenced_set) {
+			if (dict_table_t* child = f->foreign_table) {
+				error = lock_table_for_trx(child, trx, LOCK_X);
+				if (error != DB_SUCCESS) {
+					break;
+				}
+			}
+		}
+		dict_sys.unfreeze();
+		if (error == DB_SUCCESS) {
+			error = lock_table_for_trx(table, trx, LOCK_X);
+		}
+		table->release();
+	}
 
 	if (strcmp(norm_from, TABLE_STATS_NAME)
 	    && strcmp(norm_from, INDEX_STATS_NAME)
@@ -13961,11 +14013,33 @@ ha_innobase::rename_table(
 			dict_sys.unfreeze();
 		}
 
-		if (table_stats && index_stats
+		if (error == DB_SUCCESS && table_stats && index_stats
 		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME)
-		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
-		    !(error = lock_table_for_trx(table_stats, trx, LOCK_X))) {
-			error = lock_table_for_trx(index_stats, trx, LOCK_X);
+		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
+			auto &timeout = THDVAR(thd, lock_wait_timeout);
+			const auto save_timeout = timeout;
+			if (from_temp) {
+				timeout = 0;
+			}
+			error = lock_table_for_trx(table_stats, trx, LOCK_X);
+			if (error == DB_SUCCESS) {
+				error = lock_table_for_trx(index_stats, trx,
+							   LOCK_X);
+			}
+			if (error != DB_SUCCESS && from_temp) {
+				error = DB_SUCCESS;
+				/* We may skip renaming statistics if
+				we cannot lock the tables, when the
+				table is being renamed from from a
+				temporary name. */
+				dict_table_close(table_stats, false, thd,
+						 mdl_table);
+				dict_table_close(index_stats, false, thd,
+						 mdl_index);
+				table_stats = nullptr;
+				index_stats = nullptr;
+			}
+			timeout = save_timeout;
 		}
 	}
 
@@ -14788,7 +14862,7 @@ ha_innobase::info_low(
 		}
 	}
 
-	if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
+	if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 
 		goto func_exit;
 
@@ -15552,6 +15626,7 @@ ha_innobase::extra(
 		row_ins_duplicate_error_in_clust() will acquire a
 		shared lock instead of an exclusive lock. */
 	stmt_boundary:
+		trx->bulk_insert_apply();
 		trx->end_bulk_insert(*m_prebuilt->table);
 		trx->bulk_insert = false;
 		break;
@@ -15572,6 +15647,9 @@ ha_innobase::extra(
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
 			if !unique_checks && !foreign_key_checks. */
+			if (dberr_t err = trx->bulk_insert_apply()) {
+				return err;
+			}
 			break;
 		}
 		goto stmt_boundary;
@@ -17143,7 +17221,12 @@ innodb_max_dirty_pages_pct_update(
 	}
 
 	srv_max_buf_pool_modified_pct = in_val;
-	pthread_cond_signal(&buf_pool.do_flush_list);
+
+	mysql_mutex_unlock(&LOCK_global_system_variables);
+	mysql_mutex_lock(&buf_pool.flush_list_mutex);
+	buf_pool.page_cleaner_wakeup();
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /****************************************************************//**
@@ -17174,7 +17257,12 @@ innodb_max_dirty_pages_pct_lwm_update(
 	}
 
 	srv_max_dirty_pages_pct_lwm = in_val;
-	pthread_cond_signal(&buf_pool.do_flush_list);
+
+	mysql_mutex_unlock(&LOCK_global_system_variables);
+	mysql_mutex_lock(&buf_pool.flush_list_mutex);
+	buf_pool.page_cleaner_wakeup();
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /*************************************************************//**
@@ -18473,7 +18561,9 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
     trx_t *vtrx= thd_to_trx(vthd);
     if (vtrx)
     {
-      lock_sys.wr_lock(SRW_LOCK_CALL);
+      /* Do not bother with lock elision using transactional memory here;
+      this is rather complex code */
+      LockMutexGuard g{SRW_LOCK_CALL};
       mysql_mutex_lock(&lock_sys.wait_mutex);
       vtrx->mutex_lock();
       /* victim transaction is either active or prepared, if it has already
@@ -18518,7 +18608,6 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
             WSREP_DEBUG("kill transaction skipped due to wsrep_aborter set");
         }
       }
-      lock_sys.wr_unlock();
       mysql_mutex_unlock(&lock_sys.wait_mutex);
       vtrx->mutex_unlock();
     }
@@ -18797,11 +18886,6 @@ static MYSQL_SYSVAR_ENUM(flush_method, srv_file_flush_method,
   "With which method to flush data.",
   NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT),
   &innodb_flush_method_typelib);
-
-static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Force InnoDB to load metadata of corrupted table.",
-  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -19305,10 +19389,30 @@ static MYSQL_SYSVAR_STR(version, innodb_version_str,
   PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_READONLY,
   "InnoDB version", NULL, NULL, INNODB_VERSION_STR);
 
+#ifdef HAVE_URING
+# include <sys/utsname.h>
+static utsname uname_for_io_uring;
+#else
+static
+#endif
+bool innodb_use_native_aio_default()
+{
+#ifdef HAVE_URING
+  utsname &u= uname_for_io_uring;
+  if (!uname(&u) && u.release[0] == '5' && u.release[1] == '.' &&
+      u.release[2] == '1' && u.release[3] > '0' && u.release[3] < '6')
+  {
+    io_uring_may_be_unsafe= u.release;
+    return false; /* working around io_uring hangs (MDEV-26674) */
+  }
+#endif
+  return true;
+}
+
 static MYSQL_SYSVAR_BOOL(use_native_aio, srv_use_native_aio,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Use native AIO if supported on this platform.",
-  NULL, NULL, TRUE);
+  NULL, NULL, innodb_use_native_aio_default());
 
 #ifdef HAVE_LIBNUMA
 static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
@@ -19549,7 +19653,7 @@ static MYSQL_SYSVAR_BOOL(force_primary_key,
   "Do not allow creating a table without primary key (off by default)",
   NULL, NULL, FALSE);
 
-static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
+const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
 static TYPELIB page_compression_algorithms_typelib=
 {
   array_elements(page_compression_algorithms) - 1, 0,
@@ -19680,7 +19784,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_min_token_size),
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
-  MYSQL_SYSVAR(force_load_corrupted),
   MYSQL_SYSVAR(lock_wait_timeout),
   MYSQL_SYSVAR(deadlock_detect),
   MYSQL_SYSVAR(deadlock_report),
@@ -20049,48 +20152,6 @@ innobase_rename_vc_templ(
 	table->vc_templ->tb_name = t_tbname;
 }
 
-/** Get the updated parent field value from the update vector for the
-given col_no.
-@param[in]	foreign		foreign key information
-@param[in]	update		updated parent vector.
-@param[in]	col_no		base column position of the child table to check
-@return updated field from the parent update vector, else NULL */
-static
-dfield_t*
-innobase_get_field_from_update_vector(
-	dict_foreign_t*	foreign,
-	upd_t*		update,
-	ulint		col_no)
-{
-	dict_table_t*	parent_table = foreign->referenced_table;
-	dict_index_t*	parent_index = foreign->referenced_index;
-	ulint		parent_field_no;
-	ulint		parent_col_no;
-	ulint		prefix_col_no;
-
-	for (ulint i = 0; i < foreign->n_fields; i++) {
-		if (dict_index_get_nth_col_no(foreign->foreign_index, i)
-		    != col_no) {
-			continue;
-		}
-
-		parent_col_no = dict_index_get_nth_col_no(parent_index, i);
-		parent_field_no = dict_table_get_nth_col_pos(
-			parent_table, parent_col_no, &prefix_col_no);
-
-		for (ulint j = 0; j < update->n_fields; j++) {
-			upd_field_t*	parent_ufield
-				= &update->fields[j];
-
-			if (parent_ufield->field_no == parent_field_no) {
-				return(&parent_ufield->new_val);
-			}
-		}
-	}
-
-	return (NULL);
-}
-
 
 /**
    Allocate a heap and record for calculating virtual fields
@@ -20173,9 +20234,10 @@ void innobase_report_computed_value_failed(dtuple_t *row)
 @param[in]	ifield		index field
 @param[in]	thd		MySQL thread handle
 @param[in,out]	mysql_table	mysql table object
+@param[in,out]	mysql_rec	MariaDB record buffer
 @param[in]	old_table	during ALTER TABLE, this is the old table
 				or NULL.
-@param[in]	parent_update	update vector for the parent row
+@param[in]	update		update vector for the row, if any
 @param[in]	foreign		foreign key information
 @return the field filled with computed value, or NULL if just want
 to store the value in passed in "my_rec" */
@@ -20191,8 +20253,7 @@ innobase_get_computed_value(
 	TABLE*			mysql_table,
 	byte*			mysql_rec,
 	const dict_table_t*	old_table,
-	upd_t*			parent_update,
-	dict_foreign_t*		foreign)
+	const upd_t*		update)
 {
 	byte		rec_buf2[REC_VERSION_56_MAX_INDEX_COL_LEN];
 	byte*		buf;
@@ -20204,6 +20265,8 @@ innobase_get_computed_value(
 		: dict_tf_get_zip_size(index->table->flags);
 
 	ulint		ret = 0;
+
+	dict_index_t *clust_index= dict_table_get_first_index(index->table);
 
 	ut_ad(index->table->vc_templ);
 	ut_ad(thd != NULL);
@@ -20234,14 +20297,17 @@ innobase_get_computed_value(
 			= index->table->vc_templ->vtempl[col_no];
 		const byte*			data;
 
-		if (parent_update != NULL) {
-			/** Get the updated field from update vector
-			of the parent table. */
-			row_field = innobase_get_field_from_update_vector(
-					foreign, parent_update, col_no);
+		if (update) {
+			ulint clust_no = dict_col_get_clust_pos(base_col,
+								clust_index);
+			ut_ad(clust_no != ULINT_UNDEFINED);
+			if (const upd_field_t *uf = upd_get_field_by_field_no(
+				    update, uint16_t(clust_no), false)) {
+				row_field = &uf->new_val;
+			}
 		}
 
-		if (row_field == NULL) {
+		if (!row_field) {
 			row_field = dtuple_get_nth_field(row, col_no);
 		}
 
@@ -20878,70 +20944,14 @@ innodb_compression_algorithm_validate(
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
 {
-	ulong		compression_algorithm;
 	DBUG_ENTER("innobase_compression_algorithm_validate");
 
 	if (check_sysvar_enum(thd, var, save, value)) {
 		DBUG_RETURN(1);
 	}
 
-	compression_algorithm = *reinterpret_cast<ulong*>(save);
-	(void)compression_algorithm;
-
-#ifndef HAVE_LZ4
-	if (compression_algorithm == PAGE_LZ4_ALGORITHM) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_UNSUPPORTED,
-				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				    "InnoDB: liblz4 is not installed. \n",
-				    compression_algorithm);
-		DBUG_RETURN(1);
-	}
-#endif
-
-#ifndef HAVE_LZO
-	if (compression_algorithm == PAGE_LZO_ALGORITHM) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_UNSUPPORTED,
-				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				    "InnoDB: liblzo is not installed. \n",
-				    compression_algorithm);
-		DBUG_RETURN(1);
-	}
-#endif
-
-#ifndef HAVE_LZMA
-	if (compression_algorithm == PAGE_LZMA_ALGORITHM) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_UNSUPPORTED,
-				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				    "InnoDB: liblzma is not installed. \n",
-				    compression_algorithm);
-		DBUG_RETURN(1);
-	}
-#endif
-
-#ifndef HAVE_BZIP2
-	if (compression_algorithm == PAGE_BZIP2_ALGORITHM) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_UNSUPPORTED,
-				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				    "InnoDB: libbz2 is not installed. \n",
-				    compression_algorithm);
-		DBUG_RETURN(1);
-	}
-#endif
-
-#ifndef HAVE_SNAPPY
-	if (compression_algorithm == PAGE_SNAPPY_ALGORITHM) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_UNSUPPORTED,
-				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
-				    "InnoDB: libsnappy is not installed. \n",
-				    compression_algorithm);
-		DBUG_RETURN(1);
-	}
-#endif
+        if (compression_algorithm_is_not_loaded(*(ulong*)save, ME_WARNING))
+          DBUG_RETURN(1);
 	DBUG_RETURN(0);
 }
 
@@ -21223,21 +21233,13 @@ void ins_node_t::vers_update_end(row_prebuilt_t *prebuilt, bool history_row)
   mem_heap_t *local_heap= NULL;
   for (ulint col_no= 0; col_no < dict_table_get_n_v_cols(table); col_no++)
   {
-
     const dict_v_col_t *v_col= dict_table_get_nth_v_col(table, col_no);
     for (ulint i= 0; i < unsigned(v_col->num_base); i++)
-    {
-      dict_col_t *base_col= v_col->base_col[i];
-      if (base_col->ind == table->vers_end)
-      {
+      if (v_col->base_col[i]->ind == table->vers_end)
         innobase_get_computed_value(row, v_col, clust_index, &local_heap,
                                     table->heap, NULL, thd, mysql_table,
-                                    mysql_table->record[0], NULL, NULL, NULL);
-      }
-    }
+                                    mysql_table->record[0], NULL, NULL);
   }
-  if (local_heap)
-  {
+  if (UNIV_LIKELY_NULL(local_heap))
     mem_heap_free(local_heap);
-  }
 }

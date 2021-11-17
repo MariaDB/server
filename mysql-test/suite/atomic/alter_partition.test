@@ -1,0 +1,174 @@
+--source include/have_partition.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/binlog_combinations.inc
+--source include/have_binlog_format_row_or_statement.inc
+--source include/not_valgrind.inc
+
+let $default_engine=InnoDB;
+let $extra_option=;
+let $save_debug=`select @@debug_dbug`;
+
+if ($MTR_COMBINATION_MYISAM)
+{
+  let $default_engine=MyISAM;
+}
+if ($MTR_COMBINATION_ARIA)
+{
+  let $default_engine=Aria;
+  let $extra_option=transactional=1;
+}
+
+if ($MTR_COMBINATION_STMT)
+{
+  let $binlog_format=include/set_binlog_format_statement.sql;
+}
+if ($MTR_COMBINATION_ROW)
+{
+  let $binlog_format=include/set_binlog_format_row.sql;
+}
+
+--disable_query_log
+--eval set @@default_storage_engine=$default_engine
+--enable_query_log
+
+--echo # Crash recovery
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+let $crash_count= 14;
+let $crash_points='crash_create_before_create_frm',
+                  'crash_alter_partition_after_create_frm',
+                  'crash_alter_partition_after_write_frm',
+                  'crash_convert_partition_1',
+                  'crash_convert_partition_2',
+                  'crash_convert_partition_3',
+                  'crash_convert_partition_4',
+                  'crash_convert_partition_5',
+                  'crash_convert_partition_6',
+                  'crash_convert_partition_7',
+                  'crash_convert_partition_8',
+                  'crash_convert_partition_9',
+                  'crash_convert_partition_10',
+                  'crash_convert_partition_11';
+
+#let $crash_count= 1;
+#let $crash_points= 'crash_convert_partition_10';
+
+let $statement_count= 2;
+let $statements= 'ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1',
+                 'ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)';
+
+#let $statement_count= 1;
+#let $statements= 'ALTER TABLE t1 CONVERT TABLE tp2 TO PARTITION p2 values less than (40)';
+
+--delimiter $
+create or replace procedure prepare_table(r int)
+begin
+  create or replace table t1 (x int)
+  with system versioning
+  partition by range(x) (
+    partition p0 values less than (10),
+    partition p1 values less than (20),
+    partition pn values less than (30));
+  insert into t1 values (2), (12), (22);
+
+  if r > 1 then
+    create or replace table tp2 (x int)
+    with system versioning;
+    insert into tp2 values (32), (39);
+  end if;
+
+  flush tables;
+end $
+--delimiter ;
+
+let $old_debug=`select @@debug_dbug`;
+
+let $keep_include_silent=1;
+let $grep_script=ALTER;
+--disable_query_log
+
+let $r=0;
+while ($r < $statement_count)
+{
+  inc $r;
+  let $statement=`select ELT($r, $statements)`;
+  --echo # QUERY: $statement
+
+  let $c=0;
+  while ($c < $crash_count)
+  {
+    inc $c;
+    let $crash=`select ELT($c, $crash_points)`;
+
+    --eval set @@default_storage_engine=$default_engine
+    eval call prepare_table($r);
+    if (!$c)
+    {
+      lock tables t1 write;
+    }
+
+    --source $binlog_format
+
+    RESET MASTER;
+    --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+    --disable_reconnect
+    --eval set @@debug_dbug="+d,$crash"
+    let $errno=0;
+    --error 0,2013
+    --eval $statement;
+    let $error=$errno;
+    --enable_reconnect
+    --source include/wait_until_connected_again.inc
+    --disable_query_log
+    --eval set @@debug_dbug="$old_debug"
+
+    if ($error == 0)
+    {
+      --echo # NO CRASH: $crash
+    }
+    if ($error)
+    {
+      --echo # CRASH: $crash
+    }
+    # Check which tables still exists
+    --replace_result MAI MYI MAD MYD
+    --list_files $MYSQLD_DATADIR/test t*
+    --replace_regex /backup-\d+/backup/
+    --list_files $MYSQLD_DATADIR/test *sql*
+    --remove_files_wildcard $MYSQLD_DATADIR/test *sql-backup-*
+
+    --let $binlog_file=master-bin.000001
+    --source include/show_binlog_events.inc
+    if ($error)
+    {
+      --let $binlog_file=master-bin.000002
+      --source include/show_binlog_events.inc
+    }
+
+    --replace_result $default_engine DEFAULT_ENGINE ' PAGE_CHECKSUM=1' ''
+    show create table t1;
+    select * from t1;
+    --replace_result $default_engine DEFAULT_ENGINE ' PAGE_CHECKSUM=1' ''
+    --error 0, ER_NO_SUCH_TABLE
+    show create table tp1;
+    --error 0, ER_NO_SUCH_TABLE
+    select * from tp1;
+    --replace_result $default_engine DEFAULT_ENGINE ' PAGE_CHECKSUM=1' ''
+    --error 0, ER_NO_SUCH_TABLE
+    show create table tp2;
+    --error 0, ER_NO_SUCH_TABLE
+    select * from tp2;
+    # Drop the tables. The warnings will show what was dropped
+    --disable_warnings
+    drop table t1;
+    drop table if exists tp1;
+    --enable_warnings
+  }
+}
+drop table if exists t1;
+drop procedure prepare_table;
+--eval set @@debug_dbug="$save_debug"
+
+--enable_query_log

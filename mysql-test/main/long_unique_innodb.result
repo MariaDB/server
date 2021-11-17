@@ -131,3 +131,6 @@ connection default;
 drop table t1;
 disconnect con1;
 disconnect con2;
+# MDEV-20131 Assertion `!pk->has_virtual()' failed
+create table t1 (a text, primary key(a(1871))) engine=innodb;
+ERROR 42000: Specified key was too long; max key length is 1536 bytes

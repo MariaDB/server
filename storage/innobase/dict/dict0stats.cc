@@ -3812,12 +3812,19 @@ dict_stats_update(
 
 	if (!table->is_readable()) {
 		return (dict_stats_report_error(table));
-	} else if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
+	} else if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 		/* If we have set a high innodb_force_recovery level, do
 		not calculate statistics, as a badly corrupted index can
 		cause a crash in it. */
 		dict_stats_empty_table(table, false);
 		return(DB_SUCCESS);
+	}
+
+	if (trx_id_t bulk_trx_id = table->bulk_trx_id) {
+		if (trx_sys.find(nullptr, bulk_trx_id, false)) {
+			dict_stats_empty_table(table, false);
+			return DB_SUCCESS;
+		}
 	}
 
 	switch (stats_upd_option) {

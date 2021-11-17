@@ -2043,3 +2043,22 @@ EXECUTE IMMEDIATE 'SELECT ''😎'' AS c';
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
+--echo #
+
+SET NAMES utf8mb4;
+SELECT 1 COLLATE utf8mb4_general_ci;
+SELECT 1 COLLATE utf8mb4_bin;
+--error ER_COLLATION_CHARSET_MISMATCH
+SELECT 1 COLLATE latin1_swedish_ci;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -307,11 +307,6 @@ void innodb_wait_allow_writes();
 # define innodb_wait_allow_writes() do {} while (0)
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
-/* If this flag is TRUE, then we will load the indexes' (and tables') metadata
-even if they are marked as "corrupted". Mostly it is for DBA to process
-corrupted index and table */
-extern my_bool	srv_load_corrupted;
-
 /** Requested size in bytes */
 extern ulint		srv_buf_pool_size;
 /** Minimum pool size in bytes */
@@ -562,11 +557,9 @@ enum {
 	SRV_FORCE_NO_BACKGROUND	= 2,	/*!< prevent the main thread from
 					running: if a crash would occur
 					in purge, this prevents it */
-	SRV_FORCE_NO_TRX_UNDO = 3,	/*!< do not run trx rollback after
+	SRV_FORCE_NO_TRX_UNDO = 3,	/*!< do not run DML rollback after
 					recovery */
-	SRV_FORCE_NO_IBUF_MERGE = 4,	/*!< prevent also ibuf operations:
-					if they would cause a crash, better
-					not do them */
+	SRV_FORCE_NO_DDL_UNDO = 4,	/*!< prevent also DDL rollback */
 	SRV_FORCE_NO_UNDO_LOG_SCAN = 5,	/*!< do not look at undo logs when
 					starting the database: InnoDB will
 					treat even incomplete transactions

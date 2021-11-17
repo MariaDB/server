@@ -807,9 +807,7 @@ do_retry:
   {
     mysql_mutex_lock(&entry->LOCK_parallel_entry);
     if (entry->stop_on_error_sub_id == (uint64) ULONGLONG_MAX ||
-#ifndef DBUG_OFF
-        (DBUG_EVALUATE_IF("simulate_mdev_12746", 1, 0)) ||
-#endif
+        DBUG_IF("simulate_mdev_12746") ||
         rgi->gtid_sub_id < entry->stop_on_error_sub_id)
     {
       register_wait_for_prior_event_group_commit(rgi, entry);
@@ -2347,7 +2345,8 @@ rpl_parallel::find(uint32 domain_id)
   struct rpl_parallel_entry *e;
 
   if (!(e= (rpl_parallel_entry *)my_hash_search(&domain_hash,
-                                                (const uchar *)&domain_id, 0)))
+                                                (const uchar *)&domain_id,
+                                                sizeof(domain_id))))
   {
     /* Allocate a new, empty one. */
     ulong count= opt_slave_domain_parallel_threads;

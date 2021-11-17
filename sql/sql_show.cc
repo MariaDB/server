@@ -231,6 +231,9 @@ static my_bool show_plugins(THD *thd, plugin_ref plugin,
   case PLUGIN_IS_DISABLED:
     table->field[2]->store(STRING_WITH_LEN("DISABLED"), cs);
     break;
+  case PLUGIN_IS_DYING:
+    table->field[2]->store(STRING_WITH_LEN("INACTIVE"), cs);
+    break;
   case PLUGIN_IS_FREED: // filtered in fill_plugins, used in fill_all_plugins
     table->field[2]->store(STRING_WITH_LEN("NOT INSTALLED"), cs);
     break;
@@ -324,7 +327,7 @@ int fill_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
   TABLE *table= tables->table;
 
   if (plugin_foreach_with_mask(thd, show_plugins, MYSQL_ANY_PLUGIN,
-                               ~(PLUGIN_IS_FREED | PLUGIN_IS_DYING), table))
+                               ~PLUGIN_IS_FREED, table))
     DBUG_RETURN(1);
 
   DBUG_RETURN(0);
@@ -354,7 +357,7 @@ int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
     plugin_dl_foreach(thd, 0, show_plugins, table);
 
   const char *wstr= lookup.db_value.str, *wend= wstr + lookup.db_value.length;
-  for (uint i=0; i < (uint) dirp->number_of_files; i++)
+  for (size_t i=0; i < dirp->number_of_files; i++)
   {
     FILEINFO *file= dirp->dir_entry+i;
     LEX_CSTRING dl= { file->name, strlen(file->name) };
@@ -952,7 +955,7 @@ find_files(THD *thd, Dynamic_array<LEX_CSTRING*> *files, LEX_CSTRING *db,
 
   if (!db)                                           /* Return databases */
   {
-    for (uint i=0; i < (uint) dirp->number_of_files; i++)
+    for (size_t i=0; i < dirp->number_of_files; i++)
     {
       FILEINFO *file= dirp->dir_entry+i;
 #ifdef USE_SYMDIR
@@ -2234,11 +2237,11 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     }
     else
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags & VERS_ROW_START)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW START"));
       }
-      else if (field->flags & VERS_SYS_END_FLAG)
+      else if (field->flags & VERS_ROW_END)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW END"));
       }
@@ -4479,7 +4482,9 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
   if (!lookup_field_vals->wild_table_value &&
       lookup_field_vals->table_value.str)
   {
-    if (lookup_field_vals->table_value.length > NAME_LEN)
+    if (check_table_name(lookup_field_vals->table_value.str,
+                         lookup_field_vals->table_value.length,
+                         false))
     {
       /*
         Impossible value for a table name,
@@ -4515,6 +4520,9 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
   if (db_name == &INFORMATION_SCHEMA_NAME)
     return (schema_tables_add(thd, table_names,
                               lookup_field_vals->table_value.str));
+
+  if (check_db_name((LEX_STRING*)db_name))
+    return 0; // Impossible TABLE_SCHEMA name
 
   find_files_result res= find_files(thd, table_names, db_name, path,
                                     &lookup_field_vals->table_value);
@@ -6099,7 +6107,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     }
     else if (field->flags & VERS_SYSTEM_FIELD)
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags & VERS_ROW_START)
       {
         table->field[21]->store(STRING_WITH_LEN("ROW START"), cs);
         buf.set(STRING_WITH_LEN("STORED GENERATED"), cs);
@@ -6712,7 +6720,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
     {
       if ((key_info->flags & HA_INVISIBLE_KEY) &&
-          DBUG_EVALUATE_IF("test_invisible_index", 0, 1))
+          !DBUG_IF("test_invisible_index"))
         continue;
       KEY_PART_INFO *key_part= key_info->key_part;
       LEX_CSTRING *str;
@@ -6720,7 +6728,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
         if (key_part->field->invisible >= INVISIBLE_SYSTEM &&
-            DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+            !DBUG_IF("test_completely_invisible"))
         {
           /*
             NOTE: we will get SEQ_IN_INDEX gap inside the result if this key_part
@@ -9802,23 +9810,17 @@ int initialize_schema_table(st_plugin_int *plugin)
 
 int finalize_schema_table(st_plugin_int *plugin)
 {
+  int deinit_status= 0;
   ST_SCHEMA_TABLE *schema_table= (ST_SCHEMA_TABLE *)plugin->data;
   DBUG_ENTER("finalize_schema_table");
 
   if (schema_table)
   {
     if (plugin->plugin->deinit)
-    {
-      DBUG_PRINT("info", ("Deinitializing plugin: '%s'", plugin->name.str));
-      if (plugin->plugin->deinit(NULL))
-      {
-        DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
-                               plugin->name.str));
-      }
-    }
+      deinit_status= plugin->plugin->deinit(NULL);
     my_free(schema_table);
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(deinit_status);
 }
 
 

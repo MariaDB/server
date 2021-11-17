@@ -283,7 +283,7 @@ void page_create_low(const buf_block_t* block, bool comp)
 	compile_time_assert(PAGE_BTR_IBUF_FREE_LIST_NODE + FLST_NODE_SIZE
 			    <= PAGE_DATA);
 
-	page = buf_block_get_frame(block);
+	page = block->frame;
 
 	fil_page_set_type(page, FIL_PAGE_INDEX);
 

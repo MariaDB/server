@@ -695,6 +695,7 @@ row_ins_set_detailed(
 Acquires dict_foreign_err_mutex, rewinds dict_foreign_err_file
 and displays information about the given transaction.
 The caller must release dict_foreign_err_mutex. */
+TRANSACTIONAL_TARGET
 static
 void
 row_ins_foreign_trx_print(
@@ -708,7 +709,7 @@ row_ins_foreign_trx_print(
 	ut_ad(!srv_read_only_mode);
 
 	{
-		LockMutexGuard g{SRW_LOCK_CALL};
+		TMLockMutexGuard g{SRW_LOCK_CALL};
 		n_rec_locks = trx->lock.n_rec_locks;
 		n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
 		heap_size = mem_heap_get_size(trx->lock.lock_heap);
@@ -863,7 +864,6 @@ row_ins_invalidate_query_cache(
 	innobase_invalidate_query_cache(thr_get_trx(thr), name);
 }
 
-
 /** Fill virtual column information in cascade node for the child table.
 @param[out]	cascade		child update node
 @param[in]	rec		clustered rec of child table
@@ -910,6 +910,11 @@ row_ins_foreign_fill_virtual(
 	if (!record) {
 		return DB_OUT_OF_MEMORY;
 	}
+	ut_ad(!node->is_delete
+	      || (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL));
+	ut_ad(foreign->type & (DICT_FOREIGN_ON_DELETE_SET_NULL
+			       | DICT_FOREIGN_ON_UPDATE_SET_NULL
+			       | DICT_FOREIGN_ON_UPDATE_CASCADE));
 
 	for (uint16_t i = 0; i < n_v_fld; i++) {
 
@@ -925,7 +930,7 @@ row_ins_foreign_fill_virtual(
 		dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
 				&vc.heap, update->heap, NULL, thd, mysql_table,
-                                record, NULL, NULL, NULL);
+				record, NULL, NULL);
 
 		if (vfield == NULL) {
 			return DB_COMPUTE_VALUE_FAILED;
@@ -941,16 +946,11 @@ row_ins_foreign_fill_virtual(
 
 		upd_field_set_v_field_no(upd_field, i, index);
 
-		bool set_null =
-			node->is_delete
-			? (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL)
-			: (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL);
-
 		dfield_t* new_vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
 				&vc.heap, update->heap, NULL, thd,
 				mysql_table, record, NULL,
-				set_null ? update : node->update, foreign);
+				update);
 
 		if (new_vfield == NULL) {
 			return DB_COMPUTE_VALUE_FAILED;
@@ -2640,15 +2640,20 @@ commit_exit:
 	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
 		DEBUG_SYNC_C("empty_root_page_insert");
 
+		trx->bulk_insert = true;
+
 		if (!index->table->is_temporary()) {
 			err = lock_table(index->table, LOCK_X, thr);
 
 			if (err != DB_SUCCESS) {
 				trx->error_state = err;
+				trx->bulk_insert = false;
 				goto commit_exit;
 			}
 
 			if (index->table->n_rec_locks) {
+avoid_bulk:
+				trx->bulk_insert = false;
 				goto skip_bulk_insert;
 			}
 
@@ -2663,9 +2668,20 @@ commit_exit:
 #else /* BTR_CUR_HASH_ADAPT */
 			index->table->bulk_trx_id = trx->id;
 #endif /* BTR_CUR_HASH_ADAPT */
-		}
 
-		trx->bulk_insert = true;
+			/* Write TRX_UNDO_EMPTY undo log and
+			start buffering the insert operation */
+			err = trx_undo_report_row_operation(
+				thr, index, entry,
+				nullptr, 0, nullptr, nullptr,
+				nullptr);
+
+			if (err != DB_SUCCESS) {
+				goto avoid_bulk;
+			}
+
+			goto commit_exit;
+		}
 	}
 
 skip_bulk_insert:
@@ -3268,7 +3284,7 @@ row_ins_sec_index_entry(
 	bool		check_foreign) /*!< in: true if check
 				foreign table is needed, false otherwise */
 {
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	mem_heap_t*	offsets_heap;
 	mem_heap_t*	heap;
 	trx_id_t	trx_id  = 0;
@@ -3345,12 +3361,20 @@ row_ins_index_entry(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	ut_ad(thr_get_trx(thr)->id || index->table->no_rollback()
+	trx_t* trx = thr_get_trx(thr);
+
+	ut_ad(trx->id || index->table->no_rollback()
 	      || index->table->is_temporary());
 
 	DBUG_EXECUTE_IF("row_ins_index_entry_timeout", {
 			DBUG_SET("-d,row_ins_index_entry_timeout");
 			return(DB_LOCK_WAIT);});
+
+	if (auto t= trx->check_bulk_buffer(index->table)) {
+		/* MDEV-25036 FIXME: check also foreign key constraints */
+		ut_ad(!trx->check_foreigns);
+		return t->bulk_insert_buffered(*entry, *index, trx);
+	}
 
 	if (index->is_primary()) {
 		return row_ins_clust_index_entry(index, entry, thr, 0);

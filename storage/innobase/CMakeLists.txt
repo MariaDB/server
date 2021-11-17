@@ -148,7 +148,7 @@ SET(INNOBASE_SOURCES
 	include/fts0tokenize.h
 	include/fts0types.h
 	include/fts0types.ic
-	include/fts0vlc.ic
+	include/fts0vlc.h
 	include/fut0fut.h
 	include/fut0lst.h
 	include/gis0geo.h

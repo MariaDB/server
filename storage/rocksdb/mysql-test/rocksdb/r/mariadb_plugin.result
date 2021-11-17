@@ -10,26 +10,35 @@ connection default;
 UNINSTALL SONAME 'ha_rocksdb';
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
 SELECT ENGINE, SUPPORT FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='ROCKSDB';
 ENGINE	SUPPORT
 ROCKSDB	NO
 disconnect con1;
+select engine, support from information_schema.engines where engine='rocksdb';
+engine	support
+select plugin_name,plugin_status from information_schema.plugins where plugin_name='rocksdb';
+plugin_name	plugin_status
+ROCKSDB	INACTIVE
 #
 # MDEV-15686: Loading MyRocks plugin back after it has been unloaded causes a crash
 #
-call mtr.add_suppression("Plugin 'ROCKSDB.*' init function returned error.");
-call mtr.add_suppression("Plugin 'ROCKSDB.*' registration as a INFORMATION SCHEMA failed.");
-call mtr.add_suppression("Plugin 'ROCKSDB' registration as a STORAGE ENGINE failed");
-#
-# There are two possible scenarios:
-#  ha_rocksdb.{dll,so} is still loaded into mysqld's address space. Its
-#  global variables are in the state that doesn't allow it to be
-#  initialized back (this is what MDEV-15686 is about). This is handled 
-#  by intentionally returning an error from rocksdb_init_func.
-#
-#  The second case is when ha_rocksdb.{ddl,so} has been fully unloaded 
-#  and so it will be now loaded as if it happens for the first time.
-INSTALL SONAME 'ha_rocksdb';
-# Whatever happened on the previous step, restore things to the way they
-# were at testcase start.
-UNINSTALL SONAME 'ha_rocksdb';
+INSTALL PLUGIN rocksdb SONAME 'ha_rocksdb';
+ERROR HY000: Plugin 'rocksdb' already installed
+select engine, support from information_schema.engines where engine='rocksdb';
+engine	support
+select plugin_name,plugin_status from information_schema.plugins where plugin_name='rocksdb';
+plugin_name	plugin_status
+ROCKSDB	INACTIVE

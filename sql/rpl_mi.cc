@@ -170,6 +170,8 @@ void Master_info::clear_in_memory_info(bool all)
   {
     port= MYSQL_PORT;
     host[0] = 0; user[0] = 0; password[0] = 0;
+    domain_id_filter.clear_ids();
+    reset_dynamic(&ignore_server_ids);
   }
 }
 
@@ -747,7 +749,7 @@ int flush_master_info(Master_info* mi,
                          (1 + mi->ignore_server_ids.elements), MYF(MY_WME));
     if (!ignore_server_ids_buf)
       DBUG_RETURN(1);                           /* error */
-    ulong cur_len= sprintf(ignore_server_ids_buf, "%u",
+    ulong cur_len= sprintf(ignore_server_ids_buf, "%zu",
                            mi->ignore_server_ids.elements);
     for (ulong i= 0; i < mi->ignore_server_ids.elements; i++)
     {
@@ -1816,6 +1818,12 @@ void Domain_id_filter::reset_filter()
   m_filter= false;
 }
 
+void Domain_id_filter::clear_ids()
+{
+  reset_dynamic(&m_domain_ids[DO_DOMAIN_IDS]);
+  reset_dynamic(&m_domain_ids[IGNORE_DOMAIN_IDS]);
+}
+
 /**
   Update the do/ignore domain id filter lists.
 
@@ -1929,7 +1937,7 @@ char *Domain_id_filter::as_string(enum_list_type type)
     return NULL;
 
   // Store the total number of elements followed by the individual elements.
-  size_t cur_len= sprintf(buf, "%u", ids->elements);
+  size_t cur_len= sprintf(buf, "%zu", ids->elements);
   sz-= cur_len;
 
   for (uint i= 0; i < ids->elements; i++)

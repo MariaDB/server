@@ -9,6 +9,7 @@
 /*********************************************************************************/
 #include <my_global.h>
 #include <mysqld.h>
+#include <mysqld_error.h>
 #include <mysql.h>
 #include <sql_error.h>
 #include <m_string.h>
@@ -21,7 +22,7 @@
 
 #define MEMFIX  4096
 #if defined(connect_EXPORTS)
-#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
+#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, M)
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif

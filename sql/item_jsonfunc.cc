@@ -3640,6 +3640,7 @@ LEX_CSTRING Item_func_json_format::func_name_cstring() const
 bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
+  collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   set_maybe_null();
   return FALSE;

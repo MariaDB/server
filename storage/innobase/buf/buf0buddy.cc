@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -362,6 +362,7 @@ buf_buddy_block_free(void* buf)
 	ut_ad(bpage->in_zip_hash);
 	ut_d(bpage->in_zip_hash = false);
 	HASH_DELETE(buf_page_t, hash, &buf_pool.zip_hash, fold, bpage);
+	bpage->hash = nullptr;
 
 	ut_d(memset(buf, 0, srv_page_size));
 	MEM_UNDEFINED(buf, srv_page_size);
@@ -499,9 +500,10 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 	ut_ad(space != BUF_BUDDY_STAMP_FREE);
 
 	const page_id_t	page_id(space, offset);
-	const ulint fold= page_id.fold();
+	/* FIXME: we are computing this while holding buf_pool.mutex */
+	auto &cell= buf_pool.page_hash.cell_get(page_id.fold());
 
-	bpage = buf_pool.page_hash_get_low(page_id, fold);
+	bpage = buf_pool.page_hash.get(page_id, cell);
 
 	if (!bpage || bpage->zip.data != src) {
 		/* The block has probably been freshly
@@ -546,8 +548,11 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		return false;
 	}
 
-	page_hash_latch *hash_lock = buf_pool.page_hash.lock_get(fold);
-	hash_lock->write_lock();
+	page_hash_latch &hash_lock = buf_pool.page_hash.lock_get(cell);
+	/* It does not make sense to use transactional_lock_guard here,
+	because the memcpy() of 1024 to 16384 bytes would likely make the
+	memory transaction too large. */
+	hash_lock.lock();
 
 	if (bpage->can_relocate()) {
 		/* Relocate the compressed page. */
@@ -558,7 +563,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		memcpy(dst, src, size);
 		bpage->zip.data = reinterpret_cast<page_zip_t*>(dst);
 
-		hash_lock->write_unlock();
+		hash_lock.unlock();
 
 		buf_buddy_mem_invalid(
 			reinterpret_cast<buf_buddy_free_t*>(src), i);
@@ -569,7 +574,7 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 		return(true);
 	}
 
-	hash_lock->write_unlock();
+	hash_lock.unlock();
 
 	return(false);
 }

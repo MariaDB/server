@@ -1,0 +1,40 @@
+--- suite/plugins/r/compression.result
++++ suite/plugins/r/compression.reject
+@@ -1,12 +1,8 @@
+ #
+-# Testing bzip2 compression provider with innodb
++# Testing lz4 compression provider with mroonga
+ #
+ call mtr.add_suppression("MariaDB tried to use the .+ compression, but its provider plugin is not loaded");
+-set global innodb_compression_algorithm = bzip2;
+-call mtr.add_suppression("Background Page read failed to read, uncompress, or decrypt");
+-call mtr.add_suppression("Table is compressed or encrypted but uncompress or decrypt failed");
+-call mtr.add_suppression("Table .*t1.* is compressed with (\\w+), which is not currently loaded. Please load the \\1 provider plugin to open the table");
+-create table t1 (a int, b text ) engine = innodb page_compressed = 1;
++create table t1 (a int, b text COMMENT 'FLAGS "COLUMN_SCALAR|COMPRESS_LZ4"') engine = mroonga charset = utf8;
+ insert t1 (a, b) values (0, repeat("abc", 100));
+ insert t1 (a, b) values (1, repeat("def", 1000));
+ insert t1 (a, b) values (2, repeat("ghi", 10000));
+@@ -14,8 +11,20 @@
+ 0	abcabcabc	300
+ 1	defdefdef	3000
+ 2	ghighighi	30000
+-# restart: --disable-provider-bzip2
++# restart: --disable-provider-lz4
+ select a, left(b, 9), length(b) from t1;
+-ERROR HY000: Table test/t1 is compressed with bzip2, which is not currently loaded. Please load the bzip2 provider plugin to open the table
++a	left(b, 9)	length(b)
++0		0
++1		0
++2		0
++Warnings:
++Warning	4185	MariaDB tried to use the LZ4 compression, but its provider plugin is not loaded
++select a, left(b, 9), length(b) from t1;
++a	left(b, 9)	length(b)
++0		0
++1		0
++2		0
++Warnings:
++Warning	4185	MariaDB tried to use the LZ4 compression, but its provider plugin is not loaded
+ drop table t1;
+ # restart

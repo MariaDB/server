@@ -274,11 +274,11 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, c
   return lock_return_code::EXPIRED;
 }
 
-void group_commit_lock::release(value_type num)
+group_commit_lock::value_type group_commit_lock::release(value_type num)
 {
   completion_callback callbacks[1000];
   size_t callback_count = 0;
-
+  value_type ret = 0;
   std::unique_lock<std::mutex> lk(m_mtx);
   m_lock = false;
 
@@ -359,6 +359,12 @@ void group_commit_lock::release(value_type num)
     {
       wakeup_list->m_group_commit_leader=true;
     }
+    else
+    {
+      /* Tell the caller that some pending callbacks left, and he should
+      do something to prevent stalls. This should be a rare situation.*/
+      ret= m_pending_callbacks[0].first;
+    }
   }
 
   lk.unlock();
@@ -371,6 +377,7 @@ void group_commit_lock::release(value_type num)
     next= cur->m_next;
     cur->m_sema.wake();
   }
+  return ret;
 }
 
 #ifndef DBUG_OFF

@@ -11,6 +11,8 @@
 # Exit immediately on any error
 set -e
 
+source ./VERSION
+
 # This file is invoked from Buildbot and Travis-CI to build deb packages.
 # As both of those CI systems have many parallel jobs that include different
 # parts of the test suite, we don't need to run the mysql-test-run at all when
@@ -32,7 +34,7 @@ then
   # Take the files and part of control from MCS directory
   cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
   echo >> debian/control
-  cat storage/columnstore/columnstore/debian/control >> debian/control
+  sed "s/10.7/${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}/" <storage/columnstore/columnstore/debian/control >> debian/control
 fi
 
 # Don't build or try to put files in a package for selected plugins and components on Travis-CI
@@ -50,7 +52,7 @@ then
   sed "/Package: mariadb-plugin-rocksdb/,/^$/d" -i debian/control
   sed "/Package: mariadb-plugin-spider/,/^$/d" -i debian/control
   sed "/Package: mariadb-plugin-oqgraph/,/^$/d" -i debian/control
-  sed "/ha_sphinx.so/d" -i debian/mariadb-server-10.7.install
+  sed "/ha_sphinx.so/d" -i debian/mariadb-server-${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.install
   sed "/Package: libmariadbd19/,/^$/d" -i debian/control
   sed "/Package: libmariadbd-dev/,/^$/d" -i debian/control
 fi
@@ -88,11 +90,19 @@ then
   sed '/-DWITH_PMEM=yes/d' -i debian/rules
 fi
 
+# Debian stretch doesn't support the zstd version 1.1.3 required
+# for RocksDB. zstd isn't enabled in Mroonga even though code exists
+# for it. If someone happens to have a non-default zstd installed
+# (not 1.1.2), assume its a backport and build with it.
+if [ "$(lsb_release -sc)" = stretch ] && [ "$(apt-cache madison 'libzstd-dev' | grep -v 1.1.2)" = '' ]
+then
+  sed '/libzstd-dev/d' -i debian/control
+fi
+
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
 
 # Find major.minor version
-source ./VERSION
 UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${MYSQL_VERSION_EXTRA}"
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"

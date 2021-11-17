@@ -18,7 +18,7 @@ INSERT INTO t1 VALUES (5,3),(5,6);
 ALTER TABLE t1 PARTITION BY KEY(b) PARTITIONS 3 ;
 ALTER TABLE t1 REPAIR PARTITION p1, p3;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 ALTER TABLE t1 ORDER BY b;
 DROP TABLE t1;
 #
@@ -32,7 +32,7 @@ PARTITION p1 VALUES LESS THAN MAXVALUE ) ;
 ALTER TABLE t1 DROP PARTITION p1;
 ALTER TABLE t1 ANALYZE PARTITION p0, p1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 ALTER TABLE t1 COMMENT 'altered';
 DROP TABLE t1;
 #

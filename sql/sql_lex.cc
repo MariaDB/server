@@ -1342,7 +1342,7 @@ void lex_unlock_plugins(LEX *lex)
   /* release used plugins */
   if (lex->plugins.elements) /* No function call and no mutex if no plugins. */
   {
-    plugin_unlock_list(0, (plugin_ref*)lex->plugins.buffer, 
+    plugin_unlock_list(0, (plugin_ref*)lex->plugins.buffer,
                        lex->plugins.elements);
   }
   reset_dynamic(&lex->plugins);
@@ -6045,8 +6045,10 @@ int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
 bool LEX::is_partition_management() const
 {
   return (sql_command == SQLCOM_ALTER_TABLE &&
-          (alter_info.partition_flags ==  ALTER_PARTITION_ADD ||
-           alter_info.partition_flags ==  ALTER_PARTITION_REORGANIZE));
+          (alter_info.partition_flags & (ALTER_PARTITION_ADD |
+                                         ALTER_PARTITION_CONVERT_IN |
+                                         ALTER_PARTITION_CONVERT_OUT |
+                                         ALTER_PARTITION_REORGANIZE)));
 }
 
 
@@ -9707,7 +9709,7 @@ bool LEX::last_field_generated_always_as_row_start()
   Vers_parse_info &info= vers_get_info();
   Lex_ident *p= &info.as_row.start;
   return last_field_generated_always_as_row_start_or_end(p, "START",
-                                                         VERS_SYS_START_FLAG);
+                                                         VERS_ROW_START);
 }
 
 
@@ -9716,7 +9718,7 @@ bool LEX::last_field_generated_always_as_row_end()
   Vers_parse_info &info= vers_get_info();
   Lex_ident *p= &info.as_row.end;
   return last_field_generated_always_as_row_start_or_end(p, "END",
-                                                         VERS_SYS_END_FLAG);
+                                                         VERS_ROW_END);
 }
 
 void st_select_lex_unit::reset_distinct()
@@ -11252,6 +11254,25 @@ bool LEX::stmt_alter_table_exchange_partition(Table_ident *table)
   DBUG_ASSERT(!m_sql_cmd);
   m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table_exchange_partition();
   return m_sql_cmd == NULL;
+}
+
+
+bool LEX::stmt_alter_table(Table_ident *table)
+{
+  DBUG_ASSERT(sql_command == SQLCOM_ALTER_TABLE);
+  first_select_lex()->db= table->db;
+  if (first_select_lex()->db.str == NULL &&
+      copy_db_to(&first_select_lex()->db))
+    return true;
+  if (unlikely(check_table_name(table->table.str, table->table.length,
+                                false)) ||
+      (table->db.str && unlikely(check_db_name((LEX_STRING*) &table->db))))
+  {
+    my_error(ER_WRONG_TABLE_NAME, MYF(0), table->table.str);
+    return true;
+  }
+  name= table->table;
+  return false;
 }
 
 

@@ -1526,6 +1526,16 @@ static void end_ssl();
 
 
 #ifndef EMBEDDED_LIBRARY
+extern Atomic_counter<uint32_t> local_connection_thread_count;
+
+uint THD_count::connection_thd_count()
+{
+  return value() -
+    binlog_dump_thread_count -
+    local_connection_thread_count;
+}
+
+
 /****************************************************************************
 ** Code to end mysqld
 ****************************************************************************/
@@ -1549,7 +1559,7 @@ static my_bool kill_thread_phase_1(THD *thd, void *)
   if (thd->slave_thread || thd->is_binlog_dump_thread())
     return 0;
 
-  if (DBUG_EVALUATE_IF("only_kill_system_threads", !thd->system_thread, 0))
+  if (DBUG_IF("only_kill_system_threads") ? !thd->system_thread : 0)
     return 0;
   thd->awake(KILL_SERVER_HARD);
   return 0;
@@ -1757,7 +1767,7 @@ static void close_connections(void)
   */
   DBUG_PRINT("info", ("THD_count: %u", THD_count::value()));
 
-  for (int i= 0; (THD_count::value() - binlog_dump_thread_count) && i < 1000; i++)
+  for (int i= 0; (THD_count::connection_thd_count()) && i < 1000; i++)
     my_sleep(20000);
 
   if (global_system_variables.log_warnings)
@@ -1772,12 +1782,12 @@ static void close_connections(void)
   /* All threads has now been aborted */
   DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)", THD_count::value()));
 
-  while (THD_count::value() - binlog_dump_thread_count)
+  while (THD_count::connection_thd_count())
     my_sleep(1000);
 
   /* Kill phase 2 */
   server_threads.iterate(kill_thread_phase_2);
-  for (uint64 i= 0; THD_count::value(); i++)
+  for (uint64 i= 0; THD_count::value() > local_connection_thread_count; i++)
   {
     /*
       This time the warnings are emitted within the loop to provide a
@@ -3259,7 +3269,7 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   {
     if (unlikely(MyFlags & ME_FATAL))
       thd->is_fatal_error= 1;
-    (void) thd->raise_condition(error, NULL, level, str);
+    (void) thd->raise_condition(error, "\0\0\0\0\0", level, str);
   }
   else
     mysql_audit_general(0, MYSQL_AUDIT_GENERAL_ERROR, error, str);
@@ -5056,12 +5066,16 @@ static int init_server_components()
 
   init_global_table_stats();
   init_global_index_stats();
+  init_update_queries();
 
   /* Allow storage engine to give real error messages */
   if (unlikely(ha_init_errors()))
     DBUG_RETURN(1);
 
   tc_log= 0; // ha_initialize_handlerton() needs that
+
+  if (!opt_abort && ddl_log_initialize())
+    unireg_abort(1);
 
   if (plugin_init(&remaining_argc, remaining_argv,
                   (opt_noacl ? PLUGIN_INIT_SKIP_PLUGIN_TABLE : 0) |
@@ -5127,6 +5141,9 @@ static int init_server_components()
       MYSQL_SUGGEST_ANALOG_OPTION("sporadic-binlog-dump-fail", "--debug-sporadic-binlog-dump-fail"),
       MYSQL_COMPATIBILITY_OPTION("new"),
       MYSQL_COMPATIBILITY_OPTION("show_compatibility_56"),
+
+      /* The following options were removed in 10.6 */
+      MARIADB_REMOVED_OPTION("innodb-force-load-corrupted"),
 
       /* The following options were removed in 10.5 */
 #if defined(__linux__)
@@ -5304,9 +5321,6 @@ static int init_server_components()
   }
 #endif
 
-  if (ddl_log_initialize())
-    unireg_abort(1);
-
   tc_log= get_tc_log_implementation();
 
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
@@ -5387,7 +5401,6 @@ static int init_server_components()
   ft_init_stopwords();
 
   init_max_user_conn();
-  init_update_queries();
   init_global_user_stats();
   init_global_client_stats();
   if (!opt_bootstrap)
@@ -8475,7 +8488,9 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if (global_system_variables.low_priority_updates)
     thr_upgraded_concurrent_insert_lock= TL_WRITE_LOW_PRIORITY;
 
-  if (ft_boolean_check_syntax_string((uchar*) ft_boolean_syntax))
+  if (ft_boolean_check_syntax_string((uchar*) ft_boolean_syntax,
+                                     strlen(ft_boolean_syntax),
+                                     system_charset_info))
   {
     sql_print_error("Invalid ft-boolean-syntax string: %s",
                     ft_boolean_syntax);
@@ -8549,7 +8564,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   {
     /* Allow break with SIGINT, no core or stack trace */
     test_flags|= TEST_SIGINT;
-    opt_stack_trace= 1;
     test_flags&= ~TEST_CORE_ON_SIGNAL;
   }
   /* Set global MyISAM variables from delay_key_write_options */

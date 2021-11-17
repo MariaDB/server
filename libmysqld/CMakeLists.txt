@@ -24,6 +24,7 @@ ${CMAKE_SOURCE_DIR}/sql
 ${CMAKE_SOURCE_DIR}/tpool
 ${CMAKE_BINARY_DIR}/sql 
 ${PCRE_INCLUDES}
+${LIBFMT_INCLUDE_DIR}
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${SSL_INTERNAL_INCLUDE_DIRS}
@@ -147,6 +148,9 @@ DTRACE_INSTRUMENT(sql_embedded)
 ADD_DEPENDENCIES(sql_embedded GenError GenServerSource)
 IF(TARGET pcre2)
   ADD_DEPENDENCIES(sql_embedded pcre2)
+ENDIF()
+IF(TARGET libfmt)
+  ADD_DEPENDENCIES(sql_embedded libfmt)
 ENDIF()
 
 # On Windows, static embedded server library is called mysqlserver.lib

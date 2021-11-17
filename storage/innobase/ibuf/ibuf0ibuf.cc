@@ -341,8 +341,6 @@ static buf_block_t *ibuf_tree_root_get(mtr_t *mtr)
 		page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO),
 		0, RW_SX_LATCH, mtr);
 
-	ut_ad(page_get_space_id(block->frame) == IBUF_SPACE_ID);
-	ut_ad(page_get_page_no(block->frame) == FSP_IBUF_TREE_ROOT_PAGE_NO);
 	ut_ad(ibuf.empty == page_is_empty(block->frame));
 
 	return block;
@@ -3145,7 +3143,7 @@ or clustered
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in,out]	thr		query thread
 @return DB_SUCCESS, DB_STRONG_FAIL or other error */
-static MY_ATTRIBUTE((warn_unused_result))
+static TRANSACTIONAL_TARGET MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 ibuf_insert_low(
 	ulint			mode,
@@ -3310,7 +3308,8 @@ fail_exit:
 
 	/* We check if the index page is suitable for buffered entries */
 
-	if (buf_pool.page_hash_contains(page_id)) {
+	if (buf_pool.page_hash_contains(
+		    page_id, buf_pool.page_hash.cell_get(page_id.fold()))) {
 commit_exit:
 		ibuf_mtr_commit(&bitmap_mtr);
 		goto fail_exit;
@@ -3469,6 +3468,7 @@ is clustered or unique.
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in,out]	thr		query thread
 @return true if success */
+TRANSACTIONAL_TARGET
 bool
 ibuf_insert(
 	ibuf_op_t		op,
@@ -3556,7 +3556,8 @@ check_watch:
 	that the issuer of IBUF_OP_DELETE has called
 	buf_pool_t::watch_set(). */
 
-	if (buf_pool.page_hash_contains<true>(page_id)) {
+	if (buf_pool.page_hash_contains<true>(
+		    page_id, buf_pool.page_hash.cell_get(page_id.fold()))) {
 		/* A buffer pool watch has been set or the
 		page has been read into the buffer pool.
 		Do not buffer the request.  If a purge operation

@@ -6045,7 +6045,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
   if (field)
   {
     if (field->invisible == INVISIBLE_FULL &&
-        DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+        !DBUG_IF("test_completely_invisible"))
       DBUG_RETURN((Field*)0);
 
     if (field->invisible == INVISIBLE_SYSTEM &&
@@ -8865,6 +8865,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   if (!thd->is_error())
   {
     thd->abort_on_warning= FALSE;
+    if (table->default_field && table->update_default_fields(ignore_errors))
+      goto err;
     if (table->versioned())
       table->vers_update_fields();
     if (table->vfield &&
@@ -8932,7 +8934,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
 
 my_bool mysql_rm_tmp_tables(void)
 {
-  uint i, idx;
+  size_t i, idx;
   char	path[FN_REFLEN], *tmpdir, path_copy[FN_REFLEN];
   MY_DIR *dirp;
   FILEINFO *file;
@@ -8954,7 +8956,7 @@ my_bool mysql_rm_tmp_tables(void)
 
     /* Remove all SQLxxx tables from directory */
 
-    for (idx=0 ; idx < (uint) dirp->number_of_files ; idx++)
+    for (idx=0 ; idx < dirp->number_of_files ; idx++)
     {
       file=dirp->dir_entry+idx;
 

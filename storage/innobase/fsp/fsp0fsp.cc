@@ -1052,10 +1052,10 @@ fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
   if (UNIV_UNLIKELY(space->is_being_truncated))
   {
     const page_id_t page_id{space->id, offset};
-    const ulint fold= page_id.fold();
+    buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
     mysql_mutex_lock(&buf_pool.mutex);
     block= reinterpret_cast<buf_block_t*>
-      (buf_pool.page_hash_get_low(page_id, fold));
+      (buf_pool.page_hash.get(page_id, chain));
     if (block && block->page.oldest_modification() <= 1)
       block= nullptr;
     mysql_mutex_unlock(&buf_pool.mutex);
@@ -1709,18 +1709,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 	mtr->x_lock_space(space);
 	ut_d(space->modify_check(*mtr));
 
-	if (block) {
-		ut_ad(block->page.id().space() == space->id);
-
-		if (!space->full_crc32()) {
-			fil_block_check_type(*block, block->page.id()
-					     == page_id_t(TRX_SYS_SPACE,
-							  TRX_SYS_PAGE_NO)
-					     ? FIL_PAGE_TYPE_TRX_SYS
-					     : FIL_PAGE_TYPE_SYS,
-					     mtr);
-		}
-	}
+	ut_ad(!block || block->page.id().space() == space->id);
 
 	if (!has_done_reservation
 	    && !fsp_reserve_free_extents(&n_reserved, space, 2,

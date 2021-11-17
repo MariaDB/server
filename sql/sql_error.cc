@@ -204,6 +204,7 @@ Sql_condition::copy_opt_attributes(const Sql_condition *cond)
   copy_string(m_mem_root, & m_table_name, & cond->m_table_name);
   copy_string(m_mem_root, & m_column_name, & cond->m_column_name);
   copy_string(m_mem_root, & m_cursor_name, & cond->m_cursor_name);
+  m_row_number= cond->m_row_number;
 }
 
 
@@ -216,7 +217,7 @@ Sql_condition::set_builtin_message_text(const char* str)
   */
   const char* copy;
 
-  copy= strdup_root(m_mem_root, str);
+  copy= m_mem_root ? strdup_root(m_mem_root, str) : str;
   m_message_text.set(copy, strlen(copy), error_message_charset_info);
   DBUG_ASSERT(! m_message_text.is_alloced());
 }
@@ -500,7 +501,7 @@ Diagnostics_area::disable_status()
 Warning_info::Warning_info(ulonglong warn_id_arg,
                            bool allow_unlimited_warnings, bool initialize)
   :m_current_statement_warn_count(0),
-  m_current_row_for_warning(1),
+  m_current_row_for_warning(0),
   m_warn_id(warn_id_arg),
   m_error_condition(NULL),
   m_allow_unlimited_warnings(allow_unlimited_warnings),
@@ -557,7 +558,7 @@ void Warning_info::clear(ulonglong new_id)
   free_memory();
   memset(m_warn_count, 0, sizeof(m_warn_count));
   m_current_statement_warn_count= 0;
-  m_current_row_for_warning= 1; /* Start counting from the first row */
+  m_current_row_for_warning= 0;
   clear_error_condition();
 }
 
@@ -726,7 +727,7 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
   if (level == Sql_condition::WARN_LEVEL_ERROR)
     level= Sql_condition::WARN_LEVEL_WARN;
 
-  (void) thd->raise_condition(code, NULL, level, msg);
+  (void) thd->raise_condition(code, "\0\0\0\0\0", level, msg);
 
   /* Make sure we also count warnings pushed after calling set_ok_status(). */
   thd->get_stmt_da()->increment_warning();

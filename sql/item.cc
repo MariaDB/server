@@ -1131,6 +1131,80 @@ bool Item::check_type_scalar(const LEX_CSTRING &opname) const
 }
 
 
+extern "C" {
+
+/*
+  All values greater than MY_NAME_BINARY_VALUE are
+  interpreted as binary bytes.
+  The exact constant value does not matter,
+  but it must be greater than 0x10FFFF,
+  which is the maximum possible character in Unicode.
+*/
+#define MY_NAME_BINARY_VALUE 0x200000
+
+/*
+  Print all binary bytes as well as zero character U+0000 in hex notation.
+  Print other characters normally.
+*/
+static int
+my_wc_mb_item_name(CHARSET_INFO *cs, my_wc_t wc, uchar *str, uchar *end)
+{
+  if (wc == 0 || wc >= MY_NAME_BINARY_VALUE)
+  {
+    if (str + 4 >= end)
+      return MY_CS_TOOSMALL3;
+    str[0]= '\\';
+    str[1]= 'x';
+    str[2]= _dig_vec_upper[(uchar) (wc >> 4)];
+    str[3]= _dig_vec_upper[(uchar) wc & 0x0F];
+    return 4;
+  }
+  return my_charset_utf8mb3_handler.wc_mb(cs, wc, str, end);
+}
+
+
+/*
+  Scan characters and mark all illegal sequences as binary byte values,
+  to have my_wc_mb_utf8_escape_name() print them using HEX notation.
+*/
+static int
+my_mb_wc_item_name(CHARSET_INFO *cs, my_wc_t *pwc,
+                   const uchar *str, const uchar *end)
+{
+  int rc= cs->cset->mb_wc(cs, pwc, str, end);
+  if (rc == MY_CS_ILSEQ)
+  {
+    *pwc= MY_NAME_BINARY_VALUE + *str;
+    return 1;
+  }
+  return rc;
+}
+
+}
+
+
+static LEX_CSTRING
+make_name(THD *thd,
+          const char *str, size_t length, CHARSET_INFO *cs,
+          size_t max_octet_length)
+{
+  uint errors;
+  size_t dst_nbytes= length * system_charset_info->mbmaxlen;
+  set_if_smaller(dst_nbytes, max_octet_length);
+  char *dst= (char*) thd->alloc(dst_nbytes + 1);
+  if (!dst)
+    return null_clex_str;
+  uint32 cnv_length= my_convert_using_func(dst, dst_nbytes, system_charset_info,
+                                           my_wc_mb_item_name,
+                                           str, length,
+                                           cs == &my_charset_bin ?
+                                             system_charset_info : cs,
+                                           my_mb_wc_item_name, &errors);
+  dst[cnv_length]= '\0';
+  return Lex_cstring(dst, cnv_length);
+}
+
+
 void Item::set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs)
 {
   if (!length)
@@ -1181,32 +1255,14 @@ void Item::set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs)
                           ER_REMOVED_SPACES, ER_THD(thd, ER_REMOVED_SPACES),
                           buff);
   }
-  if (!my_charset_same(cs, system_charset_info))
-  {
-    size_t res_length;
-    name.str= sql_strmake_with_convert(thd, str, length, cs,
-                                       MAX_ALIAS_NAME, system_charset_info,
-                                       &res_length);
-    name.length= res_length;
-  }
-  else
-    name.str= thd->strmake(str, (name.length= MY_MIN(length,MAX_ALIAS_NAME)));
+  name= make_name(thd, str, length, cs, MAX_ALIAS_NAME - 1);
 }
 
 
 void Item::set_name_no_truncate(THD *thd, const char *str, uint length,
                                 CHARSET_INFO *cs)
 {
-  if (!my_charset_same(cs, system_charset_info))
-  {
-    size_t res_length;
-    name.str= sql_strmake_with_convert(thd, str, length, cs,
-                                       UINT_MAX, system_charset_info,
-                                       &res_length);
-    name.length= res_length;
-  }
-  else
-    name.str= thd->strmake(str, (name.length= length));
+  name= make_name(thd, str, length, cs, UINT_MAX - 1);
 }
 
 
@@ -3846,8 +3902,48 @@ void Item_string::print(String *str, enum_query_type query_type)
   }
   else
   {
-    // Caller wants a result in the charset of str_value.
-    str_value.print(str);
+    /*
+      We're restoring a parse-able statement from an Item tree.
+      Make sure to revert character set conversions that previously
+      happened in the parser when Item_string was created.
+    */
+    if (print_introducer)
+    {
+      /*
+        Print the string as is, without conversion:
+        Strings with introducers are not converted in the parser.
+      */
+      str_value.print(str);
+    }
+    else
+    {
+      /*
+        Print the string with conversion.
+        Strings without introducers are converted in the parser,
+        from character_set_client to character_set_connection.
+
+        When restoring a CREATE VIEW statement,
+        - str_value.charsets() contains parse time character_set_connection
+        - str->charset() contains parse time character_set_client
+        So we convert the string back from parse-time character_set_connection
+        to parse time character_set_client.
+
+        In some cases, e.g. SHOW PROCEDURE CODE, it's also possible
+        that str->charset() is "utf8mb3" instead of parse time
+        character_set_client. In these cases we convert
+        here from the parse-time character_set_connection to utf8mb3.
+
+        QQ: perhaps the code behind SHOW PROCEDURE CODE should
+        also request the result in the parse-time character_set_client
+        (like the code restoring CREATE VIEW statements does),
+        rather than in utf8mb3:
+        - utf8mb3 does not work well with non-BMP characters (e.g. emoji).
+        - Simply changing utf8mb3 to utf8mb4 will not fully help:
+          some character sets have unassigned characters,
+          they get lost during during cs->utf8mb4->cs round trip.
+      */
+      str_value.print_with_conversion(str, str->charset());
+    }
   }
 
   str->append('\'');

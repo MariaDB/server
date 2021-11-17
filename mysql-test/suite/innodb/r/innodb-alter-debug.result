@@ -107,3 +107,39 @@ ALTER TABLE t RENAME INDEX i2 to x, ALGORITHM=INPLACE;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SET DEBUG_DBUG = @saved_debug_dbug;
 DROP TABLE t;
+#
+# MDEV-26772 InnoDB DDL fails with DUPLICATE KEY error
+#
+create table t1(f1 int not null primary key,
+f2 int not null, index idx(f2))engine=innodb;
+insert into t1 values(1, 1);
+connect con1,localhost,root,,,;
+SET DEBUG_SYNC='before_delete_table_stats SIGNAL blocked WAIT_FOR go';
+SET innodb_lock_wait_timeout=0;
+ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR blocked';
+BEGIN;
+SELECT * FROM mysql.innodb_table_stats FOR UPDATE;
+database_name	table_name	last_update	n_rows	clustered_index_size	sum_of_other_index_sizes
+SET DEBUG_SYNC='now SIGNAL go';
+connection con1;
+connection default;
+COMMIT;
+SET DEBUG_SYNC=RESET;
+connection con1;
+ALTER TABLE t1 RENAME KEY idx TO idx1, ALGORITHM=COPY;
+disconnect con1;
+connection default;
+DROP TABLE t1;
+#
+# MDEV-26903 Assertion ctx->trx->state == TRX_STATE_ACTIVE on DROP INDEX
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, INDEX(b)) ENGINE=InnoDB;
+SET @save_dbug=@@debug_dbug;
+SET debug_dbug='+d,innodb_table_deadlock';
+ALTER TABLE t1 DROP INDEX b, ALGORITHM=INPLACE;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SET debug_dbug=@save_dbug;
+DROP TABLE t1;
+# End of 10.6 tests

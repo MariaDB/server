@@ -57,7 +57,14 @@ my $body = pack("x[8]Nx[10]Nx[16312]", 768, 97937874);
 my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
 print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
 # Dummy pages 1..6.
-print OUT chr(0) x (6 * 16384);
+$body = pack("x[16338]");
+for (my($page) = 1; $page < 7; $page++)
+{
+    ## FIL_PAGE_OFFSET
+    $head = pack("Nx[18]", $page);
+    $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+    print OUT pack("N",$ck).$head.pack("x[16350]Nx[4]",$ck);
+}
 # Dictionary header page (page 7).
 ## FIL_PAGE_OFFSET
 $head = pack("Nx[18]", 7);

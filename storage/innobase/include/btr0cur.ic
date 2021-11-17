@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -109,10 +109,7 @@ btr_cur_position(
 	buf_block_t*	block,	/*!< in: buffer block of rec */
 	btr_cur_t*	cursor)	/*!< out: cursor */
 {
-	ut_ad(page_align(rec) == block->frame);
-
 	page_cur_position(rec, block, btr_cur_get_page_cur(cursor));
-
 	cursor->index = index;
 }
 

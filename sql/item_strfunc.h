@@ -271,6 +271,25 @@ public:
   { return get_item_copy<Item_func_aes_decrypt>(thd, this); }
 };
 
+class Item_func_natural_sort_key : public Item_str_func
+{
+public:
+  Item_func_natural_sort_key(THD *thd, Item *a)
+      : Item_str_func(thd, a){};
+  String *val_str(String *) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("natural_sort_key")};
+    return name;
+  }
+  bool fix_length_and_dec(void) override;
+  Item *get_copy(THD *thd) override
+  {
+    return get_item_copy<Item_func_natural_sort_key>(thd, this);
+  }
+
+  bool check_vcol_func_processor(void *arg) override;
+};
 
 class Item_func_concat :public Item_str_func
 {
@@ -584,6 +603,23 @@ public:
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_substr>(thd, this); }
+};
+
+class Item_func_sformat :public Item_str_func
+{
+  String *val_arg;
+public:
+  Item_func_sformat(THD *thd, List<Item> &list);
+  ~Item_func_sformat() { delete [] val_arg; }
+  String *val_str(String*) override;
+  bool fix_length_and_dec() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("sformat") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_sformat>(thd, this); }
 };
 
 class Item_func_substr_oracle :public Item_func_substr
@@ -1993,40 +2029,6 @@ public:
   String *val_str(String *) override ZLIB_DEPENDED_FUNCTION
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_uncompress>(thd, this); }
-};
-
-
-class Item_func_uuid: public Item_str_func
-{
-  /* Set if uuid should be returned without separators (Oracle sys_guid) */
-  bool without_separators;
-public:
-Item_func_uuid(THD *thd, bool without_separators_arg): Item_str_func(thd),
-    without_separators(without_separators_arg)
-  {}
-  bool fix_length_and_dec() override
-  {
-    collation.set(DTCollation_numeric());
-    fix_char_length(without_separators ? MY_UUID_ORACLE_STRING_LENGTH :
-                    MY_UUID_STRING_LENGTH);
-    return FALSE;
-  }
-  bool const_item() const override { return false; }
-  table_map used_tables() const override { return RAND_TABLE_BIT; }
-  LEX_CSTRING func_name_cstring() const override
-  {
-    static LEX_CSTRING mariadb_name=  {STRING_WITH_LEN("uuid") };
-    static LEX_CSTRING oracle_name=   {STRING_WITH_LEN("sys_guid") };
-    return without_separators ? oracle_name : mariadb_name;
-  }
-  String *val_str(String *) override;
-  bool check_vcol_func_processor(void *arg) override
-  {
-    return mark_unsupported_function(func_name(), "()", arg,
-                                     VCOL_NON_DETERMINISTIC);
-  }
-  Item *get_copy(THD *thd) override
-  { return get_item_copy<Item_func_uuid>(thd, this); }
 };
 
 

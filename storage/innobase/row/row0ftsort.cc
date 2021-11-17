@@ -876,7 +876,9 @@ loop:
 	if (t_ctx.rows_added[t_ctx.buf_used] && !processed) {
 		row_merge_buf_sort(buf[t_ctx.buf_used], NULL);
 		row_merge_buf_write(buf[t_ctx.buf_used],
+#ifndef DBUG_OFF
 				    merge_file[t_ctx.buf_used],
+#endif
 				    block[t_ctx.buf_used]);
 
 		if (!row_merge_write(merge_file[t_ctx.buf_used]->fd,
@@ -942,8 +944,11 @@ exit:
 	for (i = 0; i < FTS_NUM_AUX_INDEX; i++) {
 		if (t_ctx.rows_added[i]) {
 			row_merge_buf_sort(buf[i], NULL);
-			row_merge_buf_write(
-				buf[i], merge_file[i], block[i]);
+			row_merge_buf_write(buf[i],
+#ifndef DBUG_OFF
+					    merge_file[i],
+#endif
+					    block[i]);
 
 			/* Write to temp file, only if records have
 			been flushed to temp file before (offset > 0):
@@ -1761,8 +1766,6 @@ row_fts_merge_insert(
 	}
 
 exit:
-	aux_table->release();
-
 	fts_sql_commit(trx);
 
 	trx->op_info = "";
@@ -1771,6 +1774,8 @@ exit:
 
 	error = ins_ctx.btr_bulk->finish(error);
 	UT_DELETE(ins_ctx.btr_bulk);
+
+	aux_table->release();
 
 	trx->free();
 

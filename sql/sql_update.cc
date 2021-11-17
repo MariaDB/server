@@ -1002,6 +1002,7 @@ update_begin:
 
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &updated_or_same);
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
   while (!(error=info.read_record()) && !thd->killed)
   {
     explain->tracker.on_record_read();

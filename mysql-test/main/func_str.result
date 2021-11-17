@@ -5019,6 +5019,18 @@ DROP TABLE t1;
 # End of 10.1 tests
 #
 #
+# Start of 10.2 tests
+#
+#
+# MDEV-24742 Server crashes in Charset::numchars / String::numchars
+#
+SELECT NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux');
+NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux')
+NULL
+#
+# End of 10.2 tests
+#
+#
 # Start of 10.3 tests
 #
 #

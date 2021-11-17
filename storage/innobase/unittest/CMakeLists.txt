@@ -17,6 +17,10 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/unittest/mytap
                     ${CMAKE_SOURCE_DIR}/storage/innobase/include
                     ${CMAKE_SOURCE_DIR}/tpool)
+ADD_EXECUTABLE(innodb_fts-t innodb_fts-t.cc)
+TARGET_LINK_LIBRARIES(innodb_fts-t mysys mytap)
+ADD_DEPENDENCIES(innodb_fts-t GenError)
+MY_ADD_TEST(innodb_fts)
 ADD_EXECUTABLE(innodb_sync-t innodb_sync-t.cc ../sync/srw_lock.cc)
 TARGET_LINK_LIBRARIES(innodb_sync-t mysys mytap)
 ADD_DEPENDENCIES(innodb_sync-t GenError)

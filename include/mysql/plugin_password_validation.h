@@ -30,7 +30,7 @@
 extern "C" {
 #endif
 
-#define MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION 0x0100
+#define MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION 0x0101
 
 /**
   Password validation plugin descriptor
@@ -43,7 +43,8 @@ struct st_mariadb_password_validation
     and return 0 if the password has passed the validation.
   */
   int (*validate_password)(const MYSQL_CONST_LEX_STRING *username,
-                           const MYSQL_CONST_LEX_STRING *password);
+                           const MYSQL_CONST_LEX_STRING *password,
+                           const MYSQL_CONST_LEX_STRING *hostname);
 };
 
 #ifdef __cplusplus

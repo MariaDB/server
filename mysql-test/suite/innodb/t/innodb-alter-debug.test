@@ -142,5 +142,54 @@ SET DEBUG_DBUG = @saved_debug_dbug;
 
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-26772 InnoDB DDL fails with DUPLICATE KEY error
+--echo #
+
+create table t1(f1 int not null primary key,
+
+                f2 int not null, index idx(f2))engine=innodb;
+
+insert into t1 values(1, 1);
+
+connect(con1,localhost,root,,,);
+SET DEBUG_SYNC='before_delete_table_stats SIGNAL blocked WAIT_FOR go';
+SET innodb_lock_wait_timeout=0;
+send ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR blocked';
+BEGIN;
+SELECT * FROM mysql.innodb_table_stats FOR UPDATE;
+SET DEBUG_SYNC='now SIGNAL go';
+
+connection con1;
+reap;
+
+connection default;
+COMMIT;
+SET DEBUG_SYNC=RESET;
+
+connection con1;
+ALTER TABLE t1 RENAME KEY idx TO idx1, ALGORITHM=COPY;
+disconnect con1;
+
+connection default;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26903 Assertion ctx->trx->state == TRX_STATE_ACTIVE on DROP INDEX
+--echo #
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, INDEX(b)) ENGINE=InnoDB;
+SET @save_dbug=@@debug_dbug;
+SET debug_dbug='+d,innodb_table_deadlock';
+--error ER_LOCK_DEADLOCK
+ALTER TABLE t1 DROP INDEX b, ALGORITHM=INPLACE;
+SET debug_dbug=@save_dbug;
+DROP TABLE t1;
+
+--echo # End of 10.6 tests
+
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc

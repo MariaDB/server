@@ -575,3 +575,4 @@ CREATE TABLE t1 (pk INT, a TEXT NOT NULL DEFAULT '', PRIMARY KEY (pk), b INT AUT
 
 # Cleanup
 set @@GLOBAL.max_allowed_packet= @allowed_packet;
+--echo # End of 10.4 tests

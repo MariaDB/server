@@ -391,7 +391,7 @@ call test5041();
 d
 2013-09-21
 Warnings:
-Note	1265	Data truncated for column 'd' at row 1
+Note	1265	Data truncated for column 'd' at row 0
 drop procedure test5041;
 SET @@timestamp=DEFAULT;
 #

@@ -1119,6 +1119,8 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
   }
 }
 
+static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
+                                    Virtual_column_info *vcol);
 
 /** Parse TABLE_SHARE::vcol_defs
 
@@ -1304,6 +1306,9 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       Virtual_column_info *v= new (mem_root) Virtual_column_info();
       field->vcol_info= v;
       field->vcol_info->expr= hash_item;
+      field->vcol_info->set_vcol_type(VCOL_USING_HASH);
+      if (fix_and_check_vcol_expr(thd, table, v))
+        goto end;
       key->user_defined_key_parts= key->ext_key_parts= key->usable_key_parts= 1;
       key->key_part+= parts;
 
@@ -1347,7 +1352,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     if (check_vcol_forward_refs(field, field->vcol_info, 0) ||
         check_vcol_forward_refs(field, field->check_constraint, 1) ||
         check_vcol_forward_refs(field, field->default_value, 0))
+    {
+      *error_reported= true;
       goto end;
+    }
   }
 
   table->find_constraint_correlated_indexes();
@@ -2647,9 +2655,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (versioned)
     {
       if (i == vers.start_fieldno)
-        flags|= VERS_SYS_START_FLAG;
+        flags|= VERS_ROW_START;
       else if (i == vers.end_fieldno)
-        flags|= VERS_SYS_END_FLAG;
+        flags|= VERS_ROW_END;
 
       if (flags & VERS_SYSTEM_FIELD)
       {
@@ -5036,6 +5044,21 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
 #endif
     if (check_for_path_chars &&
         (*name == '/' || *name == '\\' || *name == '~' || *name == FN_EXTCHAR))
+      return 1;
+    /*
+      We don't allow zero byte in table/schema names:
+      - Some code still uses NULL-terminated strings.
+        Zero bytes will confuse this code.
+      - There is a little practical use of zero bytes in names anyway.
+      Note, if the string passed as "name" comes here
+      from the parser as an identifier, it does not contain zero bytes,
+      as the parser rejects zero bytes in identifiers.
+      But "name" can also come here from queries like this:
+        SELECT * FROM I_S.TABLES WHERE TABLE_NAME='str';
+      In this case "name" is a general string expression
+      and it can have any arbitrary bytes, including zero bytes.
+    */
+    if (*name == 0x00)
       return 1;
     name++;
     name_length++;
@@ -9693,6 +9716,9 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
   int error= table->file->ha_write_row(table->record[0]);
   if (unlikely(error))
     table->file->print_error(error, MYF(0));
+  /* extra() is used to apply the bulk insert operation
+  on mysql/transaction_registry table */
+  table->file->extra(HA_EXTRA_IGNORE_INSERT);
   return error;
 }
 

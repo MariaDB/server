@@ -443,7 +443,6 @@ private:
                 const char *msg, ulong current_row_for_warning)
    : Sql_condition_identity(value), m_mem_root(mem_root)
   {
-    DBUG_ASSERT(mem_root != NULL);
     DBUG_ASSERT(value.get_sql_errno() != 0);
     DBUG_ASSERT(msg != NULL);
     set_builtin_message_text(msg);
@@ -724,7 +723,7 @@ private:
   void inc_current_row_for_warning() { m_current_row_for_warning++; }
 
   /** Reset the current row counter. Start counting from the first row. */
-  void reset_current_row_for_warning() { m_current_row_for_warning= 1; }
+  void reset_current_row_for_warning(int n) { m_current_row_for_warning= n; }
 
   /** Return the current counter value. */
   ulong current_row_for_warning() const { return m_current_row_for_warning; }
@@ -746,10 +745,8 @@ private:
 
     @return a pointer to the added SQL-condition.
   */
-  Sql_condition *push_warning(THD *thd,
-                              const Sql_condition_identity *identity,
-                              const char* msg,
-                              ulong current_row_number);
+  Sql_condition *push_warning(THD *thd, const Sql_condition_identity *identity,
+                              const char* msg, ulong current_row_number);
 
   /**
     Add a new SQL-condition to the current list and increment the respective
@@ -1148,8 +1145,8 @@ public:
   void inc_current_row_for_warning()
   { get_warning_info()->inc_current_row_for_warning(); }
 
-  void reset_current_row_for_warning()
-  { get_warning_info()->reset_current_row_for_warning(); }
+  void reset_current_row_for_warning(int n)
+  { get_warning_info()->reset_current_row_for_warning(n); }
 
   bool is_warning_info_read_only() const
   { return get_warning_info()->is_read_only(); }

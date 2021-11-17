@@ -3475,6 +3475,8 @@ signal_condition_information_item_name:
           { $$= DIAG_MESSAGE_TEXT; }
         | MYSQL_ERRNO_SYM
           { $$= DIAG_MYSQL_ERRNO; }
+        | ROW_NUMBER_SYM
+          { $$= DIAG_ROW_NUMBER; }
         ;
 
 resignal_stmt:
@@ -3555,6 +3557,11 @@ simple_target_specification:
           }
         | '@' ident_or_text
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
             $$= new (thd->mem_root) Item_func_get_user_var(thd, &$2);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -4702,8 +4709,13 @@ part_def_list:
         | part_def_list ',' part_definition {}
         ;
 
+opt_partition:
+          /* empty */
+          | PARTITION_SYM
+          ;
+
 part_definition:
-          PARTITION_SYM
+          opt_partition
           {
             partition_info *part_info= Lex->part_info;
             partition_element *p_elem= new (thd->mem_root) partition_element();
@@ -5457,7 +5469,7 @@ versioning_option:
           {
             if (unlikely(Lex->create_info.options & HA_LEX_CREATE_TMP_TABLE))
             {
-              if (DBUG_EVALUATE_IF("sysvers_force", 0, 1))
+              if (!DBUG_IF("sysvers_force"))
               {
                 my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE TEMPORARY TABLE");
                 MYSQL_YYABORT;
@@ -7269,6 +7281,54 @@ alter_commands:
             if (Lex->stmt_alter_table_exchange_partition($6))
               MYSQL_YYABORT;
           }
+        | CONVERT_SYM PARTITION_SYM alt_part_name_item
+          TO_SYM TABLE_SYM table_ident have_partitioning
+          {
+            LEX *lex= Lex;
+            if (Lex->stmt_alter_table($6))
+              MYSQL_YYABORT;
+            lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table();
+            if (unlikely(lex->m_sql_cmd == NULL))
+              MYSQL_YYABORT;
+            lex->alter_info.partition_flags|= ALTER_PARTITION_CONVERT_OUT;
+          }
+        | CONVERT_SYM TABLE_SYM table_ident
+          {
+            LEX *lex= Lex;
+            if (!lex->first_select_lex()->add_table_to_list(thd, $3, nullptr, 0,
+                                                            TL_READ_NO_INSERT,
+                                                            MDL_SHARED_NO_WRITE))
+              MYSQL_YYABORT;
+
+            /*
+              This will appear as (new_db, new_name) in alter_ctx.
+              new_db will be IX-locked and new_name X-locked.
+            */
+            lex->first_select_lex()->db= $3->db;
+            lex->name= $3->table;
+            if (lex->first_select_lex()->db.str == NULL &&
+                lex->copy_db_to(&lex->first_select_lex()->db))
+              MYSQL_YYABORT;
+
+            lex->part_info= new (thd->mem_root) partition_info();
+            if (unlikely(!lex->part_info))
+              MYSQL_YYABORT;
+
+            lex->part_info->num_parts= 1;
+            /*
+              OR-ed with ALTER_PARTITION_ADD because too many checks of
+              ALTER_PARTITION_ADD required.
+            */
+            lex->alter_info.partition_flags|= ALTER_PARTITION_ADD |
+                                              ALTER_PARTITION_CONVERT_IN;
+          }
+          TO_SYM PARTITION_SYM part_definition
+          {
+            LEX *lex= Lex;
+            lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table();
+            if (unlikely(lex->m_sql_cmd == NULL))
+              MYSQL_YYABORT;
+          }
         ;
 
 remove_partitioning:
@@ -7517,17 +7577,9 @@ alter_list_item:
           }
         | RENAME opt_to table_ident
           {
-            LEX *lex=Lex;
-            lex->first_select_lex()->db= $3->db;
-            if (lex->first_select_lex()->db.str == NULL &&
-                lex->copy_db_to(&lex->first_select_lex()->db))
+            if (Lex->stmt_alter_table($3))
               MYSQL_YYABORT;
-            if (unlikely(check_table_name($3->table.str,$3->table.length,
-                                          FALSE)) ||
-                ($3->db.str && unlikely(check_db_name((LEX_STRING*) &$3->db))))
-              my_yyabort_error((ER_WRONG_TABLE_NAME, MYF(0), $3->table.str));
-            lex->name= $3->table;
-            lex->alter_info.flags|= ALTER_RENAME;
+            Lex->alter_info.flags|= ALTER_RENAME;
           }
         | RENAME COLUMN_SYM opt_if_exists_table_element ident TO_SYM ident
           {
@@ -10934,6 +10986,11 @@ variable_aux:
           ident_or_text SET_VAR expr
           {
             Item_func_set_user_var *item;
+            if (!$1.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
             $$= item= new (thd->mem_root) Item_func_set_user_var(thd, &$1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -10943,6 +11000,11 @@ variable_aux:
           }
         | ident_or_text
           {
+            if (!$1.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
             $$= new (thd->mem_root) Item_func_get_user_var(thd, &$1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -12584,6 +12646,12 @@ select_var_ident: select_outvar
 select_outvar:
           '@' ident_or_text
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
+
             $$ = Lex->result ? new (thd->mem_root) my_var_user(&$2) : NULL;
           }
         | ident_or_text
@@ -12837,6 +12905,7 @@ insert:
             Lex->sql_command= SQLCOM_INSERT;
             Lex->duplicates= DUP_ERROR;
             thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
+            thd->get_stmt_da()->reset_current_row_for_warning(1);
           }
           insert_start insert_lock_option opt_ignore opt_into insert_table
           {
@@ -12846,7 +12915,7 @@ insert:
           stmt_end
           {
             Lex->mark_first_table_as_inserting();
-            thd->get_stmt_da()->reset_current_row_for_warning();
+            thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
           ;
 
@@ -12856,6 +12925,7 @@ replace:
             Lex->sql_command = SQLCOM_REPLACE;
             Lex->duplicates= DUP_REPLACE;
             thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
+            thd->get_stmt_da()->reset_current_row_for_warning(1);
           }
           insert_start replace_lock_option opt_into insert_table
           {
@@ -12865,7 +12935,7 @@ replace:
           stmt_end
           {
             Lex->mark_first_table_as_inserting();
-            thd->get_stmt_da()->reset_current_row_for_warning();
+            thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
           ;
 
@@ -14564,6 +14634,12 @@ field_or_var:
           simple_ident_nospvar {$$= $1;}
         | '@' ident_or_text
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
+
             $$= new (thd->mem_root) Item_user_var_as_out_param(thd, &$2);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -16379,6 +16455,12 @@ option_value_no_option_type:
           }
         | '@' ident_or_text equal
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
+
             if (sp_create_assignment_lex(thd, $1.str))
               MYSQL_YYABORT;
           }

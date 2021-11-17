@@ -191,7 +191,7 @@ Host_entry *hostname_cache_first()
 
 static inline Host_entry *hostname_cache_search(const char *ip_key)
 {
-  return hostname_cache->search((uchar *) ip_key, 0);
+  return hostname_cache->search((uchar *) ip_key, HOST_ENTRY_KEY_SIZE);
 }
 
 static void add_hostname_impl(const char *ip_key, const char *hostname,

@@ -22,15 +22,3 @@
 
 
 DROP TRIGGER IF EXISTS sys_config_update_set_user;
-
-DELIMITER $$
-
-CREATE DEFINER='root'@'localhost' TRIGGER sys_config_update_set_user BEFORE UPDATE on sys_config
-    FOR EACH ROW
-BEGIN
-    IF @sys.ignore_sys_config_triggers != true AND NEW.set_by IS NULL THEN
-        SET NEW.set_by = USER();
-    END IF;
-END$$
-
-DELIMITER ;

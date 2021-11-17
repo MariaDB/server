@@ -1374,23 +1374,6 @@ error_exit:
 				trx->error_state = DB_FTS_INVALID_DOCID;
 				goto error_exit;
 			}
-
-			/* Difference between Doc IDs are restricted within
-			4 bytes integer. See fts_get_encoded_len(). Consecutive
-			doc_ids difference should not exceed
-			FTS_DOC_ID_MAX_STEP value. */
-
-			if (doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
-				 ib::error() << "Doc ID " << doc_id
-					<< " is too big. Its difference with"
-					" largest used Doc ID "
-					<< next_doc_id - 1 << " cannot"
-					" exceed or equal to "
-					<< FTS_DOC_ID_MAX_STEP;
-				err = DB_FTS_INVALID_DOCID;
-				trx->error_state = DB_FTS_INVALID_DOCID;
-				goto error_exit;
-			}
 		}
 
 		if (table->skip_alter_undo) {
@@ -2512,6 +2495,7 @@ rollback:
         fts_optimize_add_table(table);
       }
       trx->rollback();
+      row_mysql_unlock_data_dictionary(trx);
       return err;
     }
   }
@@ -2525,10 +2509,7 @@ rollback:
 
   err= row_discard_tablespace_foreign_key_checks(trx, table);
   if (err != DB_SUCCESS)
-  {
-    row_mysql_unlock_data_dictionary(trx);
     goto rollback;
-  }
 
   /* Note: The following cannot be rolled back. Rollback would see the
   UPDATE of SYS_INDEXES.TABLE_ID as two operations: DELETE and INSERT.

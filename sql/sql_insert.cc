@@ -229,6 +229,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
     }
     if (values.elements != table->s->visible_fields)
     {
+      thd->get_stmt_da()->reset_current_row_for_warning(1);
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
     }
@@ -253,6 +254,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 
     if (fields.elements != values.elements)
     {
+      thd->get_stmt_da()->reset_current_row_for_warning(1);
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
     }
@@ -842,7 +844,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     switch_to_nullable_trigger_fields(*values, table);
   }
   its.rewind ();
-  thd->get_stmt_da()->reset_current_row_for_warning();
+  thd->get_stmt_da()->reset_current_row_for_warning(0);
  
   /* Restore the current context. */
   ctx_state.restore_state(context, table_list);
@@ -1009,6 +1011,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
     while ((values= its++))
     {
+      thd->get_stmt_da()->inc_current_row_for_warning();
       if (fields.elements || !value_count)
       {
         /*
@@ -1125,7 +1128,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
       if (unlikely(error))
         break;
       info.accepted_rows++;
-      thd->get_stmt_da()->inc_current_row_for_warning();
     }
     its.rewind();
     iteration++;
@@ -1158,8 +1160,13 @@ values_loop_end:
     table->file->ha_release_auto_increment();
     if (using_bulk_insert)
     {
-      if (unlikely(table->file->ha_end_bulk_insert()) &&
-          !error)
+      /*
+        if my_error() wasn't called yet on some specific row, end_bulk_insert()
+        can still do it, but the error shouldn't be for any specific row number
+      */
+      if (!error)
+        thd->get_stmt_da()->reset_current_row_for_warning(0);
+      if (unlikely(table->file->ha_end_bulk_insert()) && !error)
       {
         table->file->print_error(my_errno,MYF(0));
         error=1;
@@ -1349,7 +1356,18 @@ values_loop_end:
 abort:
 #ifndef EMBEDDED_LIBRARY
   if (lock_type == TL_WRITE_DELAYED)
+  {
     end_delayed_insert(thd);
+    /*
+      In case of an error (e.g. data truncation), the data type specific data
+      in fields (e.g. Field_blob::value) was not taken over
+      by the delayed writer thread. All fields in table_list->table
+      will be freed by free_root() soon. We need to free the specific
+      data before free_root() to avoid a memory leak.
+    */
+    for (Field **ptr= table_list->table->field ; *ptr ; ptr++)
+      (*ptr)->free();
+  }
 #endif
   if (table != NULL)
     table->file->ha_release_auto_increment();
@@ -1672,6 +1690,8 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     /* Restore the current context. */
     ctx_state.restore_state(context, table_list);
   }
+
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
 
   if (res)
     DBUG_RETURN(res);
@@ -5169,12 +5189,6 @@ void select_create::abort_result_set()
   /* possible error of writing binary log is ignored deliberately */
   (void) thd->binlog_flush_pending_rows_event(TRUE, TRUE);
 
-  if (create_info->table_was_deleted)
-  {
-    /* Unlock locked table that was dropped by CREATE */
-    thd->locked_tables_list.unlock_locked_table(thd,
-                                                create_info->mdl_ticket);
-  }
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
@@ -5239,7 +5253,16 @@ void select_create::abort_result_set()
       }
     }
   }
+
   ddl_log_complete(&ddl_log_state_rm);
   ddl_log_complete(&ddl_log_state_create);
+
+  if (create_info->table_was_deleted)
+  {
+    /* Unlock locked table that was dropped by CREATE. */
+    (void) trans_rollback_stmt(thd);
+    thd->locked_tables_list.unlock_locked_table(thd, create_info->mdl_ticket);
+  }
+
   DBUG_VOID_RETURN;
 }

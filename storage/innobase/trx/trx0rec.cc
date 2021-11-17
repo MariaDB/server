@@ -1948,16 +1948,29 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	return err;
 }
 
-ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+TRANSACTIONAL_TARGET ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
 /** @return whether the transaction holds an exclusive lock on a table */
 static bool trx_has_lock_x(const trx_t &trx, dict_table_t& table)
 {
-  if (table.is_temporary())
-    return true;
+  ut_ad(!table.is_temporary());
 
-  table.lock_mutex_lock();
-  const auto n= table.n_lock_x_or_s;
-  table.lock_mutex_unlock();
+  uint32_t n;
+
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+  if (xbegin())
+  {
+    if (table.lock_mutex_is_locked())
+      xabort();
+    n= table.n_lock_x_or_s;
+    xend();
+  }
+  else
+#endif
+  {
+    table.lock_mutex_lock();
+    n= table.n_lock_x_or_s;
+    table.lock_mutex_unlock();
+  }
 
   /* This thread is executing trx. No other thread can modify our table locks
   (only record locks might be created, in an implicit-to-explicit conversion).
@@ -2036,9 +2049,16 @@ trx_undo_report_row_operation(
 		ut_ad(que_node_get_type(thr->run_node) == QUE_NODE_INSERT);
 		ut_ad(trx->bulk_insert);
 		return DB_SUCCESS;
-	} else if (m.second && trx->bulk_insert
-		   && trx_has_lock_x(*trx, *index->table)) {
-		m.first->second.start_bulk_insert();
+	} else if (!m.second || !trx->bulk_insert) {
+		bulk = false;
+	} else if (index->table->is_temporary()) {
+	} else if (trx_has_lock_x(*trx, *index->table)) {
+		m.first->second.start_bulk_insert(index->table);
+
+		if (dberr_t err = m.first->second.bulk_insert_buffered(
+			    *clust_entry, *index, trx)) {
+			return err;
+		}
 	} else {
 		bulk = false;
 	}

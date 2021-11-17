@@ -78,6 +78,7 @@ rtr_adjust_parent_path(
 Find the next matching record. This function is used by search
 or record locating during index delete/update.
 @return true if there is suitable record found, otherwise false */
+TRANSACTIONAL_TARGET
 static
 bool
 rtr_pcur_getnext_from_path(
@@ -387,7 +388,7 @@ rtr_pcur_getnext_from_path(
 			trx_t*		trx = thr_get_trx(
 						btr_cur->rtr_info->thr);
 			{
-				LockMutexGuard g{SRW_LOCK_CALL};
+				TMLockTrxGuard g{TMLockTrxArgs(*trx)};
 				lock_init_prdt_from_mbr(
 					&prdt, &btr_cur->rtr_info->mbr,
 					mode, trx->lock.lock_heap);

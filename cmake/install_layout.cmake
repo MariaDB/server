@@ -64,8 +64,6 @@
 #
 # - INSTALL_UNIX_ADDRDIR    (path to mysql.sock)
 #
-# When changing this page,  _please_ do not forget to update public Wiki
-# http://forge.mysql.com/wiki/CMake#Fine-tuning_installation_paths
 
 IF(NOT INSTALL_LAYOUT)
   IF(DEB)

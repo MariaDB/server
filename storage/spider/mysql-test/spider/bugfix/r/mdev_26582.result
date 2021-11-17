@@ -1,0 +1,11 @@
+#
+# MDEV-26582 SIGSEGV in spider_db_bulk_insert and spider_db_connect and spider_db_before_query, and hang in "End of update loop" / "Reset for next command" query states
+#
+CREATE DATABASE IF NOT EXISTS auto_test_local;
+USE auto_test_local;
+CREATE TABLE t (i CHAR) ENGINE=SPIDER;
+INSERT INTO t VALUES (0);
+ERROR HY000: Unable to connect to foreign data source: localhost
+INSERT t SELECT 1 ON DUPLICATE KEY UPDATE c=1;
+ERROR 42S22: Unknown column 'c' in 'field list'
+DROP DATABASE IF EXISTS auto_test_local;

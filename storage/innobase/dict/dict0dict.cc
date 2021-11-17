@@ -1039,8 +1039,18 @@ dict_table_open_on_name(
       if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY) &&
           !table->is_readable() && table->corrupted)
       {
-        ib::error() << "Table " << table->name
-                    << " is corrupted. Please drop the table and recreate.";
+        ulint algo = table->space->get_compression_algo();
+        if (algo <= PAGE_ALGORITHM_LAST && !fil_comp_algo_loaded(algo)) {
+	  my_printf_error(ER_PROVIDER_NOT_LOADED,
+            "Table %s is compressed with %s, which is not currently loaded. "
+            "Please load the %s provider plugin to open the table",
+	    MYF(ME_ERROR_LOG), table->name,
+            page_compression_algorithms[algo], page_compression_algorithms[algo]);
+        } else {
+	  my_printf_error(ER_TABLE_CORRUPT,
+            "Table %s is corrupted. Please drop the table and recreate.",
+	    MYF(ME_ERROR_LOG), table->name);
+	}
         dict_sys.unfreeze();
         DBUG_RETURN(nullptr);
       }
@@ -1181,6 +1191,7 @@ inline void dict_sys_t::add(dict_table_t* table)
 /** Test whether a table can be evicted from dict_sys.table_LRU.
 @param table   table to be considered for eviction
 @return whether the table can be evicted */
+TRANSACTIONAL_TARGET
 static bool dict_table_can_be_evicted(dict_table_t *table)
 {
 	ut_ad(dict_sys.locked());
@@ -2064,6 +2075,7 @@ dict_index_add_to_cache(
 
 /**********************************************************************//**
 Removes an index from the dictionary cache. */
+TRANSACTIONAL_TARGET
 static
 void
 dict_index_remove_from_cache_low(

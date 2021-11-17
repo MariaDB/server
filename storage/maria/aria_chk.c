@@ -1592,7 +1592,7 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
     }
     compile_time_assert((MY_UUID_STRING_LENGTH + 1) <= sizeof(buff));
     buff[MY_UUID_STRING_LENGTH]= 0;
-    my_uuid2str(share->base.uuid, buff);
+    my_uuid2str(share->base.uuid, buff, 1);
     printf("UUID:                %s\n", buff);
     if (ma_control_file_inited() &&
         memcmp(share->base.uuid, maria_uuid, MY_UUID_SIZE))

@@ -54,7 +54,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "backup_copy.h"
 #include "backup_mysql.h"
 #include "mysqld.h"
-#include "encryption_plugin.h"
+#include "xb_plugin.h"
 #include <sstream>
 #include <sql_error.h>
 #include "page0zip.h"
@@ -1621,7 +1621,7 @@ bool write_backup_config_file()
 			"innodb_buffer_pool_filename=" : "",
 		innobase_buffer_pool_filename ?
 			innobase_buffer_pool_filename : "",
-		encryption_plugin_get_config());
+		xb_plugin_get_config());
 		return rc;
 }
 

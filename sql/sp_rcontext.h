@@ -111,15 +111,18 @@ public:
     /// Text message.
     char *message;
 
+    /** Row number where the condition has happened */
+    ulong m_row_number;
+
     /// The constructor.
     ///
     /// @param _sql_condition  The SQL condition.
     /// @param arena           Query arena for SP
-    Sql_condition_info(const Sql_condition *_sql_condition,
-                       Query_arena *arena)
+    Sql_condition_info(const Sql_condition *_sql_condition, Query_arena *arena)
       :Sql_condition_identity(*_sql_condition)
     {
       message= strdup_root(arena->mem_root, _sql_condition->get_message_text());
+      m_row_number= _sql_condition->m_row_number;
     }
   };
 

@@ -483,6 +483,7 @@ enum chf_create_flags {
 #define HA_CREATE_TMP_ALTER     8U
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
+#define HA_SKIP_KEY_SORT        64U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -789,11 +790,16 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 */
 #define ALTER_COLUMN_INDEX_LENGTH            (1ULL << 60)
 
+/**
+  Indicate that index order might have been changed. Disables inplace algorithm
+  by default (not for InnoDB).
+*/
+#define ALTER_INDEX_ORDER                    (1ULL << 61)
 
 /**
   Means that the ignorability of an index is changed.
 */
-#define ALTER_INDEX_IGNORABILITY              (1ULL << 61)
+#define ALTER_INDEX_IGNORABILITY              (1ULL << 62)
 
 /*
   Flags set in partition_flags when altering partitions
@@ -823,7 +829,9 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 // Set by Sql_cmd_alter_table_truncate_partition::execute()
 #define ALTER_PARTITION_TRUNCATE    (1ULL << 11)
 // Set for REORGANIZE PARTITION
-#define ALTER_PARTITION_TABLE_REORG           (1ULL << 12)
+#define ALTER_PARTITION_TABLE_REORG (1ULL << 12)
+#define ALTER_PARTITION_CONVERT_IN  (1ULL << 13)
+#define ALTER_PARTITION_CONVERT_OUT (1ULL << 14)
 
 /*
   This is master database for most of system tables. However there
@@ -1869,9 +1877,13 @@ struct THD_TRANS
  /*
     Define the type of statements which cannot be rolled back safely.
     Each type occupies one bit in m_unsafe_rollback_flags.
+    MODIFIED_NON_TRANS_TABLE is limited to mark only the temporary
+    non-transactional table *when* it's cached along with the transactional
+    events; the regular table is covered by the "namesake" bool var.
   */
   enum unsafe_statement_types
   {
+    MODIFIED_NON_TRANS_TABLE= 1,
     CREATED_TEMP_TABLE= 2,
     DROPPED_TEMP_TABLE= 4,
     DID_WAIT= 8,
@@ -1879,6 +1891,14 @@ struct THD_TRANS
     EXECUTED_TABLE_ADMIN_CMD= 0x20
   };
 
+  void mark_modified_non_trans_temp_table()
+  {
+    m_unsafe_rollback_flags|= MODIFIED_NON_TRANS_TABLE;
+  }
+  bool has_modified_non_trans_temp_table() const
+  {
+    return (m_unsafe_rollback_flags & MODIFIED_NON_TRANS_TABLE) != 0;
+  }
   void mark_executed_table_admin_cmd()
   {
     DBUG_PRINT("debug", ("mark_executed_table_admin_cmd"));
