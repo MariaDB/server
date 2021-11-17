@@ -57,8 +57,18 @@ C_MODE_END
 
 /* fmtlib include (https://fmt.dev/). */
 #define FMT_STATIC_THOUSANDS_SEPARATOR ','
+#if !defined(HAVE_SYSTEM_LIBFMT) && !defined(LINK_SYSTEM_LIBFMT)
 #define FMT_HEADER_ONLY 1
-#include "fmt/format-inl.h"
+#endif
+
+#include <fmt/format-inl.h>
+
+#if FMT_VERSION < 70000
+using namespace ::fmt::internal;
+#else
+using namespace ::fmt::detail;
+#endif
+
 
 size_t username_char_length= USERNAME_CHAR_LENGTH;
 
@@ -1393,14 +1403,14 @@ String *Item_func_sformat::val_str(String *res)
     switch (args[carg]->result_type())
     {
     case INT_RESULT:
-      vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_int());
+      vargs[carg-1]= make_arg<ctx>(args[carg]->val_int());
       break;
     case DECIMAL_RESULT: // TODO
     case REAL_RESULT:
       if (args[carg]->field_type() == MYSQL_TYPE_FLOAT)
-        vargs[carg-1]= fmt::detail::make_arg<ctx>((float)args[carg]->val_real());
+        vargs[carg-1]= make_arg<ctx>((float)args[carg]->val_real());
       else
-        vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_real());
+        vargs[carg-1]= make_arg<ctx>(args[carg]->val_real());
       break;
     case STRING_RESULT:
       if (!(parg= args[carg]->val_str(&val_arg[carg-1])))
@@ -1408,7 +1418,7 @@ String *Item_func_sformat::val_str(String *res)
         delete [] vargs;
         return NULL;
       }
-      vargs[carg-1]= fmt::detail::make_arg<ctx>(*parg);
+      vargs[carg-1]= make_arg<ctx>(*parg);
       break;
     case TIME_RESULT: // TODO
     case ROW_RESULT: // TODO
