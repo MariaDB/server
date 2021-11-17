@@ -3109,9 +3109,8 @@ static dberr_t decrypt_decompress(fil_space_crypt_t *space_crypt,
     if (!buf_page_verify_crypt_checksum(data, space_flags))
       return DB_CORRUPTION;
 
-    dberr_t err;
-    if (!fil_space_decrypt(space_id, space_crypt, data, page.size(),
-                           space_flags, data, &err) || err != DB_SUCCESS)
+    if (dberr_t err= fil_space_decrypt(space_id, space_crypt, data,
+                                       page.size(), space_flags, data))
       return err;
   }
 
@@ -3825,9 +3824,12 @@ page_corrupted:
     if (!buf_page_verify_crypt_checksum(readptr, m_space_flags))
       goto page_corrupted;
 
-    if (!fil_space_decrypt(get_space_id(), iter.crypt_data, readptr,
-                           size, m_space_flags, readptr, &err) ||
-        err != DB_SUCCESS)
+    if (ENCRYPTION_KEY_NOT_ENCRYPTED ==
+        buf_page_get_key_version(readptr, m_space_flags))
+      goto page_corrupted;
+
+    if ((err= fil_space_decrypt(get_space_id(), iter.crypt_data, readptr, size,
+                                m_space_flags, readptr)))
       goto func_exit;
   }
 
@@ -3978,7 +3980,6 @@ page_corrupted:
 
 			if (!encrypted) {
 			} else if (!key_version) {
-not_encrypted:
 				if (block->page.id().page_no() == 0
 				    && block->page.zip.data) {
 					block->page.zip.data = src;
@@ -3997,21 +3998,16 @@ not_encrypted:
 					goto page_corrupted;
 				}
 
-				decrypted = fil_space_decrypt(
+				if ((err = fil_space_decrypt(
 					actual_space_id,
 					iter.crypt_data, dst,
 					callback.physical_size(),
 					callback.get_space_flags(),
-					src, &err);
-
-				if (err != DB_SUCCESS) {
+					src))) {
 					goto func_exit;
 				}
 
-				if (!decrypted) {
-					goto not_encrypted;
-				}
-
+				decrypted = true;
 				updated = true;
 			}
 
