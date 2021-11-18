@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2011, 2012, Monty Program Ab
+   Copyright (c) 2011, 2021 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,6 +36,7 @@ typedef struct mysqld_service_properties_st
 
 extern int get_mysql_service_properties(const wchar_t *bin_path,
   mysqld_service_properties *props);
+
 
 #if !defined(UNICODE)
 #include <malloc.h>
@@ -92,15 +93,13 @@ end:
   return ret;
 }
 
-static inline SC_HANDLE my_CreateService(SC_HANDLE hSCManager, LPCSTR lpServiceName, LPCSTR lpDisplayName,
+static inline SC_HANDLE my_CreateService(SC_HANDLE hSCManager,
+  LPCSTR lpServiceName, LPCSTR lpDisplayName,
   DWORD dwDesiredAccess,  DWORD dwServiceType,
   DWORD dwStartType, DWORD dwErrorControl,
-  LPCSTR lpBinaryPathName,
-  LPCSTR lpLoadOrderGroup,
-  LPDWORD lpdwTagId,
-  LPCSTR lpDependencies,
-  LPCSTR lpServiceStartName,
-  LPCSTR lpPassword)
+  LPCSTR lpBinaryPathName, LPCSTR lpLoadOrderGroup,
+  LPDWORD lpdwTagId, LPCSTR lpDependencies,
+  LPCSTR lpServiceStartName, LPCSTR lpPassword)
 {
   wchar_t *w_ServiceName= NULL;
   wchar_t *w_DisplayName= NULL;
@@ -146,11 +145,11 @@ end:
 }
 
 static inline BOOL my_ChangeServiceConfig(SC_HANDLE hService, DWORD dwServiceType,
-                            DWORD dwStartType, DWORD dwErrorControl,
-                            LPCSTR lpBinaryPathName, LPCSTR lpLoadOrderGroup,
-                            LPDWORD lpdwTagId, LPCSTR lpDependencies,
-                            LPCSTR lpServiceStartName, LPCSTR lpPassword,
-                            LPCSTR lpDisplayName)
+   DWORD dwStartType, DWORD dwErrorControl,
+   LPCSTR lpBinaryPathName, LPCSTR lpLoadOrderGroup,
+   LPDWORD lpdwTagId, LPCSTR lpDependencies,
+   LPCSTR lpServiceStartName, LPCSTR lpPassword,
+   LPCSTR lpDisplayName)
 {
   wchar_t *w_DisplayName= NULL;
   wchar_t *w_BinaryPathName= NULL;
@@ -190,6 +189,7 @@ end:
     SetLastError(last_error);
   return ret;
 }
+#undef AWSTRDUP
 
 #undef OpenService
 #define OpenService my_OpenService
