@@ -216,7 +216,7 @@ void dict_stats_recalc_pool_del(table_id_t id, bool have_mdl_exclusive)
 
   mysql_mutex_lock(&recalc_pool_mutex);
 
-  const auto end= recalc_pool.end();
+  auto end= recalc_pool.end();
   auto i= std::find_if(recalc_pool.begin(), end,
                        [&](const recalc &r){return r.id == id;});
   if (i != end)
@@ -227,7 +227,14 @@ void dict_stats_recalc_pool_del(table_id_t id, bool have_mdl_exclusive)
       {
         i->state= recalc::IN_PROGRESS_DELETING;
         do
+        {
           my_cond_wait(&recalc_pool_cond, &recalc_pool_mutex.m_mutex);
+          end= recalc_pool.end();
+          i= std::find_if(recalc_pool.begin(), end,
+                          [&](const recalc &r){return r.id == id;});
+          if (i == end)
+            goto done;
+        }
         while (i->state == recalc::IN_PROGRESS_DELETING);
       }
       /* fall through */
@@ -241,6 +248,7 @@ void dict_stats_recalc_pool_del(table_id_t id, bool have_mdl_exclusive)
     }
   }
 
+done:
   mysql_mutex_unlock(&recalc_pool_mutex);
 }
 
