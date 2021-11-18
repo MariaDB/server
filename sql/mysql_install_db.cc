@@ -31,6 +31,7 @@
 #include <sddl.h>
 struct IUnknown;
 #include <shlwapi.h>
+#include <winservice.h>
 
 #include <string>
 
@@ -531,11 +532,9 @@ static int handle_user_privileges(const char *account_name, const wchar_t *privi
 
 /* Register service. Assume my.ini is in datadir */
 
-static int register_service(const char *datadir, const char *user)
+static int register_service(const char *datadir, const char *user, const char *passwd)
 {
-#define MAX_SERVICE_STRING_LEN 3 * MAX_PATH + 32
-  char buf[MAX_SERVICE_STRING_LEN]; /* path to mysqld.exe, to my.ini, service name */
-
+  char buf[3*MAX_PATH +32]; /* path to mysqld.exe, to my.ini, service name */
   SC_HANDLE sc_manager, sc_service;
 
   size_t datadir_len= strlen(datadir);
@@ -556,17 +555,10 @@ static int register_service(const char *datadir, const char *user)
     die("OpenSCManager failed (%u)\n", GetLastError());
   }
 
-  /* Windows bug with utf8 ANSI codepage - CreateServiceA is not really UTF8. */
-  wchar_t wbuf[MAX_SERVICE_STRING_LEN];
-  MultiByteToWideChar(CP_ACP, 0, buf, -1, wbuf, MAX_SERVICE_STRING_LEN);
-  wchar_t wservice[2 * MAX_PATH];
-  MultiByteToWideChar(CP_ACP, 0, opt_service, -1, wservice, MAX_PATH);
-  wchar_t wuser[MAX_PATH];
-  MultiByteToWideChar(CP_ACP, 0, user, -1, wuser, MAX_PATH);
   /* Create the service. */
-  sc_service= CreateServiceW(sc_manager, wservice,  wservice,
+  sc_service= CreateService(sc_manager, opt_service,  opt_service,
     SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, 
-    SERVICE_ERROR_NORMAL, wbuf, NULL, NULL, NULL, wuser, NULL);
+    SERVICE_ERROR_NORMAL, buf, NULL, NULL, NULL, user, passwd);
 
   if (!sc_service) 
   {
@@ -779,7 +771,7 @@ static int create_db_instance(const char *datadir)
   {
     /* Run service under virtual account NT SERVICE\service_name.*/
     service_user.append("NT SERVICE\\").append(opt_service);
-    ret = register_service(datadir, service_user.c_str());
+    ret = register_service(datadir, service_user.c_str(), NULL);
     if (ret)
       goto end;
     service_created = true;
