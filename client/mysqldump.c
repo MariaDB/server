@@ -6994,10 +6994,9 @@ void dump_tables_for_database_wild(const char *db, const char *pattern)
   DBUG_VOID_RETURN;
 }
 
-//pattern should be unquoted(?!)
+//pattern should be unquoted
 void dump_databases_wild(const char *db_pattern)
 {
-    //или заифать?
   MYSQL_RES *dbinfo;
   char buff[NAME_LEN+30];
   MYSQL_ROW row;
