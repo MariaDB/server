@@ -2545,7 +2545,7 @@ bool ddl_log_write_execute_entry(uint first_entry,
 
   file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= (uchar)DDL_LOG_EXECUTE_CODE;
   int4store(file_entry_buf + DDL_LOG_NEXT_ENTRY_POS, first_entry);
-  int8store(file_entry_buf + DDL_LOG_ID_POS, (cond_entry << DDL_LOG_RETRY_BITS));
+  int8store(file_entry_buf + DDL_LOG_ID_POS, (uint64_t(cond_entry) << DDL_LOG_RETRY_BITS));
 
   if (!(*active_entry))
   {
