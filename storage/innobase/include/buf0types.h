@@ -191,10 +191,8 @@ public:
   /** Acquire an exclusive lock */
   inline void lock();
 
-#ifdef UNIV_DEBUG
   /** @return whether an exclusive lock is being held by any thread */
   bool is_write_locked() const { return rw_lock::is_write_locked(); }
-#endif
 
   /** @return whether any lock is being held by any thread */
   bool is_locked() const { return rw_lock::is_locked(); }
