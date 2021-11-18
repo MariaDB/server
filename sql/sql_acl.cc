@@ -2464,13 +2464,16 @@ static bool set_user_salt_if_needed(ACL_USER *user_copy, int curr_auth,
 static bool fix_user_plugin_ptr(ACL_USER::AUTH *auth)
 {
   if (lex_string_eq(&auth->plugin, &native_password_plugin_name))
+  {
     auth->plugin= native_password_plugin_name;
-  else
+    return false;
+  }
   if (lex_string_eq(&auth->plugin, &old_password_plugin_name))
+  {
     auth->plugin= old_password_plugin_name;
-  else
-    return true;
-  return false;
+    return false;
+  }
+  return true;
 }
 
 
