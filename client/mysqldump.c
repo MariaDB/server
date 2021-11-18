@@ -320,7 +320,7 @@ static struct my_option my_long_options[] =
    "'USE db_name;' will be included in the output.",
    &opt_databases, &opt_databases, 0, GET_BOOL, NO_ARG, 0, 0,
    0, 0, 0, 0},
-   {"wildcards", 'd', "Usage of wildcards in the table/database name. Without "
+   {"wildcards", 'D', "Usage of wildcards in the table/database name. Without "
     "option \"databases\" wildcards can be used only in tables names, "
     "with option - in databases names.",
    &opt_wildcards, &opt_wildcards, 0, GET_BOOL, NO_ARG, 0, 0, 0,
@@ -6943,7 +6943,7 @@ static void dynstr_realloc_checked(DYNAMIC_STRING *str, ulong additional_size)
     die(EX_MYSQLERR, DYNAMIC_STR_ERROR_MSG);
 }
 
-void dump_tables_for_database_wild(char *db, char *pattern)
+void dump_tables_for_database_wild(const char *db, const char *pattern)
 {
   int num= 1;
   int number_of_tables= 0;
@@ -6951,8 +6951,20 @@ void dump_tables_for_database_wild(char *db, char *pattern)
   char buff[2*NAME_LEN+30];
   MYSQL_RES *dbinfo;
   char **tables_to_dump;
+  //dbcopy - unquoted db;
+  char dbcopy[2 * NAME_LEN + 30];
+  if (*db == '`')
+  {
+      size_t len = strlen(db);
+      memcpy(dbcopy, db + 1, len - 2);
+      dbcopy[len - 2] = 0;
+  }
+  else
+  {
+      strncpy(dbcopy, db, NAME_LEN + 1);
+  }
   DBUG_ENTER("dump_tables_for_database_wild");
-  my_snprintf(buff, sizeof(buff), "SHOW TABLES IN '%s' LIKE '%s'", db, pattern);
+  my_snprintf(buff, sizeof(buff), "SHOW TABLES IN `%s` LIKE '%s'", dbcopy, pattern);
   if(mysql_query_with_error_report(mysql, &dbinfo, buff))
   {
     fprintf(stderr, "%s: Error: '%s' when trying to find tables satisfying pattern\n",
@@ -6964,7 +6976,7 @@ void dump_tables_for_database_wild(char *db, char *pattern)
             PSI_NOT_INSTRUMENTED,
             (number_of_tables + (int) 2) * sizeof(char *), MYF(MY_WME))))
     die(EX_MYSQLERR, "Couldn't allocate memory");
-  tables_to_dump[0]= db;
+  tables_to_dump[0]= dbcopy;
   while ((row= mysql_fetch_row(dbinfo)))
   {
     tables_to_dump[num++]= row[0];
@@ -6974,16 +6986,18 @@ void dump_tables_for_database_wild(char *db, char *pattern)
   {
     if (!opt_alltspcs && !opt_notspcs)
       dump_tablespaces_for_tables(*tables_to_dump, (tables_to_dump + 1),
-                                  (number_of_tables));
+                                  number_of_tables);
     dump_selected_tables(*tables_to_dump, (tables_to_dump + 1),
-                         (number_of_tables));
+                         number_of_tables);
   }
   my_free(tables_to_dump);
   DBUG_VOID_RETURN;
 }
 
-void dump_databases_wild(char *db_pattern)
+//pattern should be unquoted(?!)
+void dump_databases_wild(const char *db_pattern)
 {
+    //или заифать?
   MYSQL_RES *dbinfo;
   char buff[NAME_LEN+30];
   MYSQL_ROW row;

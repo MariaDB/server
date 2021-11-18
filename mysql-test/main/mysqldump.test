@@ -2897,7 +2897,10 @@ INSERT INTO t1 VALUES (2),(5),(11);
 CREATE TABLE t2(a int);
 INSERT INTO t2 VALUES (21),(52),(131);
 --exec $MYSQL_DUMP --skip-comments --wildcards=ON test1 t_
+--exec $MYSQL_DUMP --skip-comments --wildcards=ON test1 t? tx
 DROP DATABASE test1;
+
+--echo #
 
 CREATE DATABASE test1;
 USE test1;
@@ -2907,6 +2910,8 @@ CREATE TABLE t2(a int);
 INSERT INTO t2 VALUES (21),(52),(131);
 --exec $MYSQL_DUMP --skip-comments --wildcards=ON test1 t%
 DROP DATABASE test1;
+
+--echo #
 
 CREATE DATABASE test1;
 USE test1;
@@ -2920,6 +2925,7 @@ INSERT INTO t1 VALUES (2),(5),(11);
 DROP DATABASE test1;
 DROP DATABASE test2;
 
+--echo #
 
 CREATE DATABASE test1;
 USE test1;
@@ -2931,9 +2937,38 @@ CREATE DATABASE test2;
 USE test2;
 CREATE TABLE t1(a int);
 INSERT INTO t1 VALUES (2),(5),(11);
---exec $MYSQL_DUMP --skip-comments --databases --wildcards=ON t?
+--exec $MYSQL_DUMP --skip-comments --databases --wildcards=ON t%
 DROP DATABASE test1;
 DROP DATABASE test2;
 
+--echo #
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --opt -D information_schema TABLES
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --opt -D information_schema TAB?ES
 
 
+--echo #
+--echo # strange names 
+--echo #
+
+CREATE DATABASE `t?1`;
+USE `t?1`;
+CREATE TABLE `t?1`(a int);
+INSERT INTO `t?1` VALUES (2),(5),(11);
+CREATE TABLE `t%t`(a int);
+INSERT INTO `t%t` VALUES (2),(5),(11);
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compatible=ansi --skip-comments -D `t?1` t%1
+CREATE DATABASE `t%*!`;
+USE `t%*!`;
+CREATE TABLE `t???1`(a int);
+INSERT INTO `t???1` VALUES (2),(5),(11);
+CREATE TABLE `t___t`(a int);
+INSERT INTO `t___t` VALUES (2),(5),(11);
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compatible=ansi --skip-comments -D t%
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compatible=ansi --skip-comments -D `t%*!` t?%1 
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compatible=ansi --skip-comments -D `t%*!` t?t t%t
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compatible=ansi --skip-comments --databases -D t%1
+DROP DATABASE `t?1`;
+DROP DATABASE `t%*!`;
+
+ 

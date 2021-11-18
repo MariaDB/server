@@ -6384,7 +6384,29 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
 DROP DATABASE test1;
+#
 CREATE DATABASE test1;
 USE test1;
 CREATE TABLE t1(a int);
@@ -6439,6 +6461,7 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 DROP DATABASE test1;
+#
 CREATE DATABASE test1;
 USE test1;
 CREATE TABLE t1(a int);
@@ -6504,6 +6527,7 @@ UNLOCK TABLES;
 
 DROP DATABASE test1;
 DROP DATABASE test2;
+#
 CREATE DATABASE test1;
 USE test1;
 CREATE TABLE t1(a int);
@@ -6525,6 +6549,57 @@ INSERT INTO t1 VALUES (2),(5),(11);
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 */;
+
+USE `test`;
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test1` /*!40100 DEFAULT CHARACTER SET latin1 */;
+
+USE `test1`;
+DROP TABLE IF EXISTS `t1`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `t1` WRITE;
+/*!40000 ALTER TABLE `t1` DISABLE KEYS */;
+INSERT INTO `t1` VALUES (2),(5),(11);
+/*!40000 ALTER TABLE `t1` ENABLE KEYS */;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS `tt`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `tt` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `tt` WRITE;
+/*!40000 ALTER TABLE `tt` DISABLE KEYS */;
+INSERT INTO `tt` VALUES (2),(5),(11);
+/*!40000 ALTER TABLE `tt` ENABLE KEYS */;
+UNLOCK TABLES;
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test2` /*!40100 DEFAULT CHARACTER SET latin1 */;
+
+USE `test2`;
+DROP TABLE IF EXISTS `t1`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `t1` WRITE;
+/*!40000 ALTER TABLE `t1` DISABLE KEYS */;
+INSERT INTO `t1` VALUES (2),(5),(11);
+/*!40000 ALTER TABLE `t1` ENABLE KEYS */;
+UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -6537,3 +6612,241 @@ INSERT INTO t1 VALUES (2),(5),(11);
 
 DROP DATABASE test1;
 DROP DATABASE test2;
+#
+DROP TABLE IF EXISTS `TABLES`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TEMPORARY TABLE `TABLES` (
+  `TABLE_CATALOG` varchar(512) NOT NULL DEFAULT '',
+  `TABLE_SCHEMA` varchar(64) NOT NULL DEFAULT '',
+  `TABLE_NAME` varchar(64) NOT NULL DEFAULT '',
+  `TABLE_TYPE` varchar(64) NOT NULL DEFAULT '',
+  `ENGINE` varchar(64) DEFAULT NULL,
+  `VERSION` bigint(21) unsigned DEFAULT NULL,
+  `ROW_FORMAT` varchar(10) DEFAULT NULL,
+  `TABLE_ROWS` bigint(21) unsigned DEFAULT NULL,
+  `AVG_ROW_LENGTH` bigint(21) unsigned DEFAULT NULL,
+  `DATA_LENGTH` bigint(21) unsigned DEFAULT NULL,
+  `MAX_DATA_LENGTH` bigint(21) unsigned DEFAULT NULL,
+  `INDEX_LENGTH` bigint(21) unsigned DEFAULT NULL,
+  `DATA_FREE` bigint(21) unsigned DEFAULT NULL,
+  `AUTO_INCREMENT` bigint(21) unsigned DEFAULT NULL,
+  `CREATE_TIME` datetime DEFAULT NULL,
+  `UPDATE_TIME` datetime DEFAULT NULL,
+  `CHECK_TIME` datetime DEFAULT NULL,
+  `TABLE_COLLATION` varchar(32) DEFAULT NULL,
+  `CHECKSUM` bigint(21) unsigned DEFAULT NULL,
+  `CREATE_OPTIONS` varchar(2048) DEFAULT NULL,
+  `TABLE_COMMENT` varchar(2048) NOT NULL DEFAULT '',
+  `MAX_INDEX_LENGTH` bigint(21) unsigned DEFAULT NULL,
+  `TEMPORARY` varchar(1) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3;
+/*!40101 SET character_set_client = @saved_cs_client */;
+LOCK TABLES `TABLES` WRITE;
+/*!40000 ALTER TABLE `TABLES` DISABLE KEYS */;
+INSERT INTO `TABLES` VALUES ('def','sys','x$waits_global_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$waits_by_user_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$waits_by_host_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$wait_classes_global_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$wait_classes_global_by_avg_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$user_summary_by_statement_type','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$user_summary_by_statement_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$user_summary_by_stages','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$user_summary_by_file_io_type','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$user_summary_by_file_io','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$user_summary','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$statements_with_temp_tables','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$statements_with_sorting','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$statements_with_runtimes_in_95th_percentile','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$statements_with_full_table_scans','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$statements_with_errors_or_warnings','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$statement_analysis','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$session','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$schema_tables_with_full_table_scans','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$schema_table_statistics_with_buffer','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$schema_table_statistics','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$schema_table_lock_waits','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$schema_index_statistics','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$schema_flattened_keys','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$ps_schema_table_statistics_io','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$ps_digest_avg_latency_distribution','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$ps_digest_95th_percentile_by_avg_us','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$processlist','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$memory_global_total','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$memory_global_by_current_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$memory_by_user_by_current_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$memory_by_thread_by_current_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$memory_by_host_by_current_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$latest_file_io','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$io_global_by_wait_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$io_global_by_wait_by_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$io_global_by_file_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$io_global_by_file_by_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$io_by_thread_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$innodb_lock_waits','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$innodb_buffer_stats_by_table','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$innodb_buffer_stats_by_schema','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$host_summary_by_statement_type','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$host_summary_by_statement_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$host_summary_by_stages','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$host_summary_by_file_io_type','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$host_summary_by_file_io','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','x$host_summary','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','waits_global_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','waits_by_user_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','waits_by_host_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','wait_classes_global_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','wait_classes_global_by_avg_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','version','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','user_summary_by_statement_type','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','user_summary_by_statement_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','user_summary_by_stages','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','user_summary_by_file_io_type','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','user_summary_by_file_io','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','user_summary','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','sys_config','BASE TABLE','Aria',10,'Page',6,2730,16384,17592186011648,16384,0,NULL,'2021-11-18 09:53:40','2021-11-18 09:53:41',NULL,'utf8mb3_general_ci',NULL,'transactional=1','',2305843009213685760,'N'),('def','sys','statements_with_temp_tables','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','statements_with_sorting','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','statements_with_runtimes_in_95th_percentile','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','statements_with_full_table_scans','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','statements_with_errors_or_warnings','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','statement_analysis','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','session_ssl_status','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','session','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','schema_unused_indexes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','schema_tables_with_full_table_scans','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','schema_table_statistics_with_buffer','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','schema_table_statistics','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','schema_table_lock_waits','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','schema_redundant_indexes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','schema_object_overview','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','schema_index_statistics','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','schema_auto_increment_columns','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','ps_check_lost_instrumentation','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','processlist','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','metrics','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','memory_global_total','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','memory_global_by_current_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','memory_by_user_by_current_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','memory_by_thread_by_current_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','memory_by_host_by_current_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','latest_file_io','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','io_global_by_wait_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','io_global_by_wait_by_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','io_global_by_file_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','io_global_by_file_by_bytes','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','io_by_thread_by_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','innodb_lock_waits','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','innodb_buffer_stats_by_table','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','innodb_buffer_stats_by_schema','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','host_summary_by_statement_type','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','host_summary_by_statement_latency','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','host_summary_by_stages','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','host_summary_by_file_io_type','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','host_summary_by_file_io','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','sys','host_summary','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','performance_schema','users','BASE TABLE','PERFORMANCE_SCHEMA',10,'Fixed',128,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','user_variables_by_thread','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',2560,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','threads','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',256,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','table_lock_waits_summary_by_table','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',4096,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','table_io_waits_summary_by_table','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',4096,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','table_io_waits_summary_by_index_usage','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',8192,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','table_handles','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1024,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','status_by_user','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',30336,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','status_by_thread','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',60672,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','status_by_host','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',30336,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','status_by_account','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',30336,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','socket_summary_by_instance','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',256,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','socket_summary_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',10,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','socket_instances','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',256,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','setup_timers','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',5,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','setup_objects','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',128,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','setup_instruments','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1147,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','setup_consumers','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',15,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','setup_actors','BASE TABLE','PERFORMANCE_SCHEMA',10,'Fixed',128,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','session_status','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',237,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','session_connect_attrs','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',524288,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_bin',NULL,'','',0,'N'),('def','performance_schema','session_account_connect_attrs','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',524288,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_bin',NULL,'','',0,'N'),('def','performance_schema','rwlock_instances','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1024,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','replication_connection_configuration','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','replication_applier_status_by_worker','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',0,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','replication_applier_status_by_coordinator','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','replication_applier_status','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','replication_applier_configuration','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','prepared_statements_instances','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',0,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','performance_timers','BASE TABLE','PERFORMANCE_SCHEMA',10,'Fixed',5,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','objects_summary_global_by_type','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',5120,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','mutex_instances','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1024,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','metadata_locks','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1024,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','memory_summary_global_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',320,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','memory_summary_by_user_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',40960,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','memory_summary_by_thread_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',81920,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','memory_summary_by_host_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',40960,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','memory_summary_by_account_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',40960,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','hosts','BASE TABLE','PERFORMANCE_SCHEMA',10,'Fixed',128,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','host_cache','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',279,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','global_status','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',237,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','file_summary_by_instance','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',4096,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','file_summary_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',80,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','file_instances','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',4096,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_waits_summary_global_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',444,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_waits_summary_by_user_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',56832,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_waits_summary_by_thread_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',113664,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_waits_summary_by_instance','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',7936,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_waits_summary_by_host_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',56832,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_waits_summary_by_account_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',56832,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_waits_history_long','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',10000,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_waits_history','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',2560,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_waits_current','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1536,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_transactions_summary_global_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_transactions_summary_by_user_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',128,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_transactions_summary_by_thread_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',256,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_transactions_summary_by_host_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',128,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_transactions_summary_by_account_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',128,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_transactions_history_long','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1000,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_transactions_history','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',2560,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_transactions_current','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',256,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_statements_summary_global_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',222,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_statements_summary_by_user_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',28416,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_statements_summary_by_thread_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',56832,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_statements_summary_by_program','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1024,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_statements_summary_by_host_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',28416,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_statements_summary_by_digest','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',200,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_statements_summary_by_account_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',28416,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_statements_history_long','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1000,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_statements_history','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',2560,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_statements_current','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',2560,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_stages_summary_global_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',160,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_stages_summary_by_user_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',20480,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_stages_summary_by_thread_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',40960,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_stages_summary_by_host_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',20480,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_stages_summary_by_account_by_event_name','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',20480,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_stages_history_long','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',1000,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_stages_history','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',2560,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','events_stages_current','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',256,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','cond_instances','BASE TABLE','PERFORMANCE_SCHEMA',10,'Dynamic',512,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','performance_schema','accounts','BASE TABLE','PERFORMANCE_SCHEMA',10,'Fixed',128,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','',0,'N'),('def','mysql','user','VIEW',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'VIEW',NULL,NULL),('def','mysql','transaction_registry','BASE TABLE','InnoDB',10,'Dynamic',0,0,16384,0,49152,0,NULL,'2021-11-18 09:54:57',NULL,NULL,'utf8mb3_bin',NULL,'stats_persistent=0','',0,'N'),('def','mysql','time_zone_transition_type','BASE TABLE','Aria',10,'Page',31,528,16384,17592186011648,16384,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:54:57',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=1','Time zone transition types',9007199254732800,'N'),('def','mysql','time_zone_transition','BASE TABLE','Aria',10,'Page',393,83,32768,17592186011648,16384,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:54:57',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=1','Time zone transitions',9007199254732800,'N'),('def','mysql','time_zone_name','BASE TABLE','Aria',10,'Page',6,2730,16384,17592186011648,16384,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:54:57',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=1','Time zone names',2305843009213685760,'N'),('def','mysql','time_zone_leap_second','BASE TABLE','Aria',10,'Page',22,744,16384,17592186011648,16384,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:54:57',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=1','Leap seconds information for time zones',9007199254732800,'N'),('def','mysql','time_zone','BASE TABLE','Aria',10,'Page',5,3276,16384,17592186011648,16384,0,6,'2021-11-18 09:54:57','2021-11-18 09:54:57',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=1','Time zones',9007199254732800,'N'),('def','mysql','tables_priv','BASE TABLE','Aria',10,'Page',1,16384,16384,17592186011648,24576,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:54:57','2021-11-18 09:54:57','utf8mb3_bin',NULL,'page_checksum=1 transactional=1','Table privileges',2305843009213685760,'N'),('def','mysql','table_stats','BASE TABLE','Aria',10,'Page',0,0,8192,17592186011648,8192,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:54:57',NULL,'utf8mb3_bin',NULL,'page_checksum=1 transactional=0','Statistics on Tables',2305843009213685760,'N'),('def','mysql','slow_log','BASE TABLE','CSV',10,'Dynamic',2,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','Slow log',0,'N'),('def','mysql','servers','BASE TABLE','Aria',10,'Page',0,0,8192,17592186011648,8192,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:54:57',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=1','MySQL Foreign Servers table',2305843009213685760,'N'),('def','mysql','roles_mapping','BASE TABLE','Aria',10,'Page',0,0,8192,17592186011648,8192,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:54:57',NULL,'utf8mb3_bin',NULL,'page_checksum=1 transactional=1','Granted roles',2305843009213685760,'N'),('def','mysql','proxies_priv','BASE TABLE','Aria',10,'Page',2,8192,16384,17592186011648,24576,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:54:57','2021-11-18 09:54:57','utf8mb3_bin',NULL,'page_checksum=1 transactional=1','User proxy privileges',2305843009213685760,'N'),('def','mysql','procs_priv','BASE TABLE','Aria',10,'Page',0,0,8192,17592186011648,8192,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:54:57','2021-11-18 09:54:57','utf8mb3_bin',NULL,'page_checksum=1 transactional=1','Procedure privileges',2305843009213685760,'N'),('def','mysql','proc','BASE TABLE','Aria',10,'Page',53,8810,466944,17592186011648,16384,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:55:03',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=1','Stored Procedures',2305843009213685760,'N'),('def','mysql','plugin','BASE TABLE','Aria',10,'Page',0,0,8192,17592186011648,8192,0,NULL,'2021-11-18 09:54:57','2021-11-18 09:54:57',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=1','MySQL plugins',2305843009213685760,'N'),('def','mysql','innodb_table_stats','BASE TABLE','InnoDB',10,'Dynamic',0,0,16384,0,0,0,NULL,'2021-11-18 09:54:57',NULL,NULL,'utf8mb3_bin',NULL,'stats_persistent=0','',0,'N'),('def','mysql','innodb_index_stats','BASE TABLE','InnoDB',10,'Dynamic',0,0,16384,0,0,0,NULL,'2021-11-18 09:54:55',NULL,NULL,'utf8mb3_bin',NULL,'stats_persistent=0','',0,'N'),('def','mysql','index_stats','BASE TABLE','Aria',10,'Page',0,0,8192,17592186011648,8192,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55',NULL,'utf8mb3_bin',NULL,'page_checksum=1 transactional=0','Statistics on Indexes',2305843009213685760,'N'),('def','mysql','help_topic','BASE TABLE','Aria',10,'Page',735,2084,1531904,17592186011648,40960,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=0','help topics',2305843009213685760,'N'),('def','mysql','help_relation','BASE TABLE','Aria',10,'Page',36,455,16384,17592186011648,24576,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55','2021-11-18 09:54:55','utf8mb3_general_ci',NULL,'page_checksum=1 transactional=0','keyword-topic relation',9007199254732800,'N'),('def','mysql','help_keyword','BASE TABLE','Aria',10,'Page',16,1024,16384,17592186011648,24576,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=0','help keywords',2305843009213685760,'N'),('def','mysql','help_category','BASE TABLE','Aria',10,'Page',44,372,16384,17592186011648,24576,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=0','help categories',2305843009213685760,'N'),('def','mysql','gtid_slave_pos','BASE TABLE','Aria',10,'Page',0,0,8192,17592186011648,8192,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55',NULL,'latin1_swedish_ci',NULL,'page_checksum=1 transactional=0','Replication slave GTID position',9007199254732800,'N'),('def','mysql','global_priv','BASE TABLE','Aria',11,'Page',5,3276,16384,17592186011648,16384,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55',NULL,'utf8mb3_bin',NULL,'page_checksum=1 transactional=1','Users and global privileges',2305843009213685760,'N'),('def','mysql','general_log','BASE TABLE','CSV',10,'Dynamic',2,0,0,0,0,0,NULL,NULL,NULL,NULL,'utf8mb3_general_ci',NULL,'','General log',0,'N'),('def','mysql','func','BASE TABLE','Aria',10,'Page',0,0,8192,17592186011648,8192,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55',NULL,'utf8mb3_bin',NULL,'page_checksum=1 transactional=1','User defined functions',2305843009213685760,'N'),('def','mysql','event','BASE TABLE','Aria',10,'Page',0,0,16384,17592186011648,16384,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:55:08',NULL,'utf8mb3_general_ci',NULL,'page_checksum=1 transactional=1','Events',2305843009213685760,'N'),('def','mysql','db','BASE TABLE','Aria',10,'Page',2,8192,16384,17592186011648,24576,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55','2021-11-18 09:54:55','utf8mb3_bin',NULL,'page_checksum=1 transactional=1','Database privileges',2305843009213685760,'N'),('def','mysql','columns_priv','BASE TABLE','Aria',10,'Page',0,0,8192,17592186011648,8192,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55',NULL,'utf8mb3_bin',NULL,'page_checksum=1 transactional=1','Column privileges',2305843009213685760,'N'),('def','mysql','column_stats','BASE TABLE','Aria',10,'Page',0,0,8192,17592186011648,8192,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55',NULL,'utf8mb3_bin',NULL,'page_checksum=1 transactional=0','Statistics on Columns',2305843009213685760,'N'),('def','mtr','test_suppressions','BASE TABLE','MyISAM',10,'Dynamic',3,60,180,281474976710655,1024,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55',NULL,'latin1_swedish_ci',NULL,'','',17179868160,'N'),('def','mtr','global_suppressions','BASE TABLE','MyISAM',10,'Dynamic',100,53,5320,281474976710655,1024,0,NULL,'2021-11-18 09:54:55','2021-11-18 09:54:55',NULL,'latin1_swedish_ci',NULL,'','',17179868160,'N'),('def','information_schema','ALL_PLUGINS','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=10380835156842741 transactional=0','',137438945280,'Y'),('def','information_schema','APPLICABLE_ROLES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,1565,0,1045420,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=670','',0,'Y'),('def','information_schema','CHARACTER_SETS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,384,0,1026816,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=2730','',0,'Y'),('def','information_schema','CHECK_CONSTRAINTS','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=8587869680497929 transactional=0','',137438945280,'Y'),('def','information_schema','COLLATIONS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,231,0,1043889,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=4539','',0,'Y'),('def','information_schema','COLLATION_CHARACTER_SET_APPLICABILITY','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,195,0,1022190,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=5377','',0,'Y'),('def','information_schema','COLUMNS','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=3056627021327183 transactional=0','',137438945280,'Y'),('def','information_schema','COLUMN_PRIVILEGES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,3478,0,1046878,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=301','',0,'Y'),('def','information_schema','ENABLED_ROLES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,388,0,1037512,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=2702','',0,'Y'),('def','information_schema','ENGINES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,732,0,1042368,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=1432','',0,'Y'),('def','information_schema','EVENTS','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=658600595298280 transactional=0','',137438945280,'Y'),('def','information_schema','FILES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,4004,0,1045044,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=261','',0,'Y'),('def','information_schema','GLOBAL_STATUS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,6340,0,1046100,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=165','',0,'Y'),('def','information_schema','GLOBAL_VARIABLES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,6340,0,1046100,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=165','',0,'Y'),('def','information_schema','KEYWORDS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,195,0,1022190,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=5377','',0,'Y'),('def','information_schema','KEY_CACHES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,660,0,1042140,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=1588','',0,'Y'),('def','information_schema','KEY_COLUMN_USAGE','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,4638,0,1043550,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=226','',0,'Y'),('def','information_schema','OPTIMIZER_TRACE','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=636094623231363848 transactional=0','',137438945280,'Y'),('def','information_schema','PARAMETERS','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=6630749127861089 transactional=0','',137438945280,'Y'),('def','information_schema','PARTITIONS','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=6153016702371431 transactional=0','',137438945280,'Y'),('def','information_schema','PLUGINS','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=10380835156842741 transactional=0','',137438945280,'Y'),('def','information_schema','PROCESSLIST','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=16739332190299048 transactional=0','',137438945280,'Y'),('def','information_schema','PROFILING','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,309,0,1038240,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=3393','',0,'Y'),('def','information_schema','REFERENTIAL_CONSTRAINTS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,4815,0,1044855,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=217','',0,'Y'),('def','information_schema','ROUTINES','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=621416340701012 transactional=0','',137438945280,'Y'),('def','information_schema','SCHEMATA','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,6539,0,1046240,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=160','',0,'Y'),('def','information_schema','SCHEMA_PRIVILEGES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,3092,0,1045096,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=339','',0,'Y'),('def','information_schema','SESSION_STATUS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,6340,0,1046100,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=165','',0,'Y'),('def','information_schema','SESSION_VARIABLES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,6340,0,1046100,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=165','',0,'Y'),('def','information_schema','STATISTICS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,5764,0,1043284,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=181','',0,'Y'),('def','information_schema','SQL_FUNCTIONS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,195,0,1022190,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=5377','',0,'Y'),('def','information_schema','SYSTEM_VARIABLES','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=578068505333883 transactional=0','',137438945280,'Y'),('def','information_schema','TABLES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,14833,0,1038310,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=70','',0,'Y'),('def','information_schema','TABLESPACES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,6952,0,1042800,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=150','',0,'Y'),('def','information_schema','TABLE_CONSTRAINTS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,2504,0,1044168,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=418','',0,'Y'),('def','information_schema','TABLE_PRIVILEGES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,3285,0,1044630,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=319','',0,'Y'),('def','information_schema','TRIGGERS','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=607160294704415 transactional=0','',137438945280,'Y'),('def','information_schema','USER_PRIVILEGES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,2899,0,1046539,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=361','',0,'Y'),('def','information_schema','VIEWS','SYSTEM VIEW','Aria',11,'Page',NULL,0,8192,4503599627288576,8192,0,NULL,'2021-11-18 09:55:11','2021-11-18 09:55:11',NULL,'utf8mb3_general_ci',NULL,'max_rows=5470564671918609 transactional=0','',137438945280,'Y'),('def','information_schema','CLIENT_STATISTICS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,386,0,1032164,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=2716','',0,'Y'),('def','information_schema','INDEX_STATISTICS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,1743,0,1047543,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=601','',0,'Y'),('def','information_schema','GEOMETRY_COLUMNS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,4244,0,1044024,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=247','',0,'Y'),('def','information_schema','SPATIAL_REF_SYS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,7691,0,1045976,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=136','',0,'Y'),('def','information_schema','USER_STATISTICS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,567,0,1046682,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=1849','',0,'Y'),('def','information_schema','INNODB_TRX','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,4430,0,1045480,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=236','',0,'Y'),('def','information_schema','INNODB_CMP_PER_INDEX','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,600,0,1034400,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=1747','',0,'Y'),('def','information_schema','INNODB_METRICS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,1830,0,1046760,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=572','',0,'Y'),('def','information_schema','TABLE_STATISTICS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,1181,0,1045185,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=887','',0,'Y'),('def','information_schema','INNODB_SYS_FIELDS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,206,0,1038446,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=5090','',0,'Y'),('def','information_schema','INNODB_BUFFER_PAGE_LRU','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,3559,0,1046346,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=294','',0,'Y'),('def','information_schema','INNODB_LOCKS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,30994,0,1022802,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=33','',0,'Y'),('def','information_schema','INNODB_CMPMEM','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,29,0,950272,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=36157','',0,'Y'),('def','information_schema','INNODB_SYS_FOREIGN_COLS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,972,0,1043928,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=1078','',0,'Y'),('def','information_schema','INNODB_BUFFER_POOL_STATS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,225,0,1016775,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=4660','',0,'Y'),('def','information_schema','INNODB_SYS_FOREIGN','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,1752,0,1042440,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=598','',0,'Y'),('def','information_schema','INNODB_SYS_TABLES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,1995,0,1045380,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=525','',0,'Y'),('def','information_schema','INNODB_SYS_COLUMNS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,222,0,1039182,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=4723','',0,'Y'),('def','information_schema','INNODB_SYS_INDEXES','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,230,0,1039370,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=4559','',0,'Y'),('def','information_schema','INNODB_BUFFER_PAGE','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,3556,0,1045464,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=294','',0,'Y'),('def','information_schema','INNODB_SYS_VIRTUAL','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,17,0,742730,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=61680','',0,'Y'),('def','information_schema','INNODB_LOCK_WAITS','SYSTEM VIEW','MEMORY',11,'Fixed',NULL,505,0,1034240,0,0,NULL,'2021-11-18 09:55:11',NULL,NULL,'utf8mb3_general_ci',NULL,'max_rows=2076','',0,'Y');
+/*!40000 ALTER TABLE `TABLES` ENABLE KEYS */;
+UNLOCK TABLES;
+#
+# strange names 
+#
+CREATE DATABASE `t?1`;
+USE `t?1`;
+CREATE TABLE `t?1`(a int);
+INSERT INTO `t?1` VALUES (2),(5),(11);
+CREATE TABLE `t%t`(a int);
+INSERT INTO `t%t` VALUES (2),(5),(11);
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO,ANSI' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+DROP TABLE IF EXISTS "t?1";
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE "t?1" (
+  "a" int(11) DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES "t?1" WRITE;
+/*!40000 ALTER TABLE "t?1" DISABLE KEYS */;
+INSERT INTO "t?1" VALUES (2),(5),(11);
+/*!40000 ALTER TABLE "t?1" ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+CREATE DATABASE `t%*!`;
+USE `t%*!`;
+CREATE TABLE `t???1`(a int);
+INSERT INTO `t???1` VALUES (2),(5),(11);
+CREATE TABLE `t___t`(a int);
+INSERT INTO `t___t` VALUES (2),(5),(11);
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO,ANSI' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+DROP TABLE IF EXISTS "t???1";
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE "t???1" (
+  "a" int(11) DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES "t???1" WRITE;
+/*!40000 ALTER TABLE "t???1" DISABLE KEYS */;
+INSERT INTO "t???1" VALUES (2),(5),(11);
+/*!40000 ALTER TABLE "t???1" ENABLE KEYS */;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS "t___t";
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE "t___t" (
+  "a" int(11) DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES "t___t" WRITE;
+/*!40000 ALTER TABLE "t___t" DISABLE KEYS */;
+INSERT INTO "t___t" VALUES (2),(5),(11);
+/*!40000 ALTER TABLE "t___t" ENABLE KEYS */;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS "t%t";
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE "t%t" (
+  "a" int(11) DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES "t%t" WRITE;
+/*!40000 ALTER TABLE "t%t" DISABLE KEYS */;
+INSERT INTO "t%t" VALUES (2),(5),(11);
+/*!40000 ALTER TABLE "t%t" ENABLE KEYS */;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS "t?1";
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE "t?1" (
+  "a" int(11) DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES "t?1" WRITE;
+/*!40000 ALTER TABLE "t?1" DISABLE KEYS */;
+INSERT INTO "t?1" VALUES (2),(5),(11);
+/*!40000 ALTER TABLE "t?1" ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO,ANSI' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+DROP TABLE IF EXISTS "t???1";
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE "t???1" (
+  "a" int(11) DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES "t???1" WRITE;
+/*!40000 ALTER TABLE "t???1" DISABLE KEYS */;
+INSERT INTO "t???1" VALUES (2),(5),(11);
+/*!40000 ALTER TABLE "t???1" ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO,ANSI' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+DROP TABLE IF EXISTS "t___t";
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE "t___t" (
+  "a" int(11) DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES "t___t" WRITE;
+/*!40000 ALTER TABLE "t___t" DISABLE KEYS */;
+INSERT INTO "t___t" VALUES (2),(5),(11);
+/*!40000 ALTER TABLE "t___t" ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO,ANSI' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ "t?1" /*!40100 DEFAULT CHARACTER SET latin1 */;
+
+USE "t?1";
+DROP TABLE IF EXISTS "t%t";
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE "t%t" (
+  "a" int(11) DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES "t%t" WRITE;
+/*!40000 ALTER TABLE "t%t" DISABLE KEYS */;
+INSERT INTO "t%t" VALUES (2),(5),(11);
+/*!40000 ALTER TABLE "t%t" ENABLE KEYS */;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS "t?1";
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE "t?1" (
+  "a" int(11) DEFAULT NULL
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES "t?1" WRITE;
+/*!40000 ALTER TABLE "t?1" DISABLE KEYS */;
+INSERT INTO "t?1" VALUES (2),(5),(11);
+/*!40000 ALTER TABLE "t?1" ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+DROP DATABASE `t?1`;
+DROP DATABASE `t%*!`;
