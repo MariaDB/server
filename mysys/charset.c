@@ -1393,7 +1393,7 @@ static const MY_CSET_OS_NAME charsets[] =
 #ifdef UNCOMMENT_THIS_WHEN_WL_WL_4024_IS_DONE
   {"cp54936",        "gb18030",  my_cs_exact},
 #endif
-  {"cp65001",        "utf8mb4",  my_cs_exact},
+  {"cp65001",        "utf8",     my_cs_exact},
 
 #else /* not Windows */
 

@@ -88,7 +88,9 @@ extern "C" {
 #endif /* defined(HAVE_CURSES_H) && defined(HAVE_TERM_H) */
 
 #undef bcmp				// Fix problem with new readline
-#if !defined(_WIN32)
+#if defined(_WIN32)
+#include <conio.h>
+#else
 # ifdef __APPLE__
 #  include <editline/readline.h>
 # else
@@ -101,101 +103,6 @@ extern "C" {
 #define USE_POPEN
 #endif
 }
-
-
-#if defined(_WIN32)
-/*
-  Set console mode for the whole duration of the client session.
-
-  We need for input
-    - line input (i.e read lines from console)
-    - echo typed characters
-    - "cooked" mode, i.e we do not want to handle all keystrokes,
-      like DEL etc ourselves, yet. We might want handle keystrokes
-      in the future, to implement tab completion, and better
-      (multiline) history.
-
- Disable VT escapes for the output.We do not know what kind of escapes SELECT would return.
-*/
-struct Console_mode
-{
-  HANDLE in= GetStdHandle(STD_INPUT_HANDLE);
-  HANDLE out= GetStdHandle(STD_OUTPUT_HANDLE);
-  DWORD mode_in=0;
-  DWORD mode_out=0;
-
-  enum {STDIN_CHANGED = 1, STDOUT_CHANGED = 2};
-  int changes=0;
-
-  Console_mode()
-  {
-    if (in && in != INVALID_HANDLE_VALUE && GetConsoleMode(in, &mode_in))
-    {
-      SetConsoleMode(in, ENABLE_ECHO_INPUT|ENABLE_LINE_INPUT|ENABLE_PROCESSED_INPUT);
-      changes |= STDIN_CHANGED;
-    }
-
-    if (out && out != INVALID_HANDLE_VALUE && GetConsoleMode(out, &mode_out))
-    {
-#ifdef ENABLE_VIRTUAL_TERMINAL_INPUT
-      SetConsoleMode(out, mode_out & ~ENABLE_VIRTUAL_TERMINAL_INPUT);
-      changes |= STDOUT_CHANGED;
-#endif
-    }
-  }
-
-  ~Console_mode()
-  {
-    if (changes & STDIN_CHANGED)
-      SetConsoleMode(in, mode_in);
-
-    if(changes & STDOUT_CHANGED)
-      SetConsoleMode(out, mode_out);
-  }
-};
-
-static Console_mode my_conmode;
-
-#define MAX_CGETS_LINE_LEN 65535
-/** Read line from console in ANSI codepage, chomp EOL*/
-static char *win_readline()
-{
-  static wchar_t wstrbuf[MAX_CGETS_LINE_LEN];
-  static char strbuf[MAX_CGETS_LINE_LEN*2];
-
-  DWORD nchars= 0;
-  SetLastError(0);
-  if (!ReadConsoleW(GetStdHandle(STD_INPUT_HANDLE), wstrbuf, MAX_CGETS_LINE_LEN-1,
-                    &nchars, NULL))
-    goto err;
-  if (nchars == 0 && GetLastError() == ERROR_OPERATION_ABORTED)
-    goto err;
-
-  while (nchars > 0)
-  {
-    if (wstrbuf[nchars - 1] != '\n' && wstrbuf[nchars - 1] != '\r')
-      break;
-    wstrbuf[--nchars]= 0;
-  }
-
-  wstrbuf[nchars]= 0;
-  if (nchars > 0)
-  {
-    int len = WideCharToMultiByte(GetConsoleCP(), 0, wstrbuf, nchars + 1,
-                               strbuf, sizeof(strbuf),NULL, NULL);
-    if (len < 1)
-      strbuf[0]= 0;
-  }
-  else
-  {
-    strbuf[0]= 0;
-  }
-  return strbuf;
-err:
-  return NULL;
-}
-#endif
-
 
 #ifdef HAVE_VIDATTR
 static int have_curses= 0;
@@ -1812,10 +1719,8 @@ static void usage(int version)
 	 my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE,
          readline, rl_library_version);
 #else
-  printf("%s  Ver %s Distrib %s, for %s (%s), source revision %s"
-         IF_WIN(", codepage %u",) "\n", my_progname, VER,
-         MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE,SOURCE_REVISION,
-         IF_WIN(GetConsoleCP(),));
+  printf("%s  Ver %s Distrib %s, for %s (%s), source revision %s\n", my_progname, VER,
+	MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE,SOURCE_REVISION);
 #endif
 
   if (version)
@@ -2210,7 +2115,26 @@ static int read_and_execute(bool interactive)
 
 #if defined(_WIN32)
       tee_fputs(prompt, stdout);
-      line= win_readline();
+      if (!tmpbuf.is_alloced())
+        tmpbuf.alloc(65535);
+      tmpbuf.length(0);
+      buffer.length(0);
+      size_t clen;
+      do
+      {
+	line= my_cgets((char*)tmpbuf.ptr(), tmpbuf.alloced_length()-1, &clen);
+        buffer.append(line, clen);
+        /* 
+           if we got buffer fully filled than there is a chance that
+           something else is still in console input buffer
+        */
+      } while (tmpbuf.alloced_length() <= clen);
+      /* 
+        An empty line is returned from my_cgets when there's error reading :
+        Ctrl-c for example
+      */
+      if (line)
+        line= buffer.c_ptr();
 #else
       if (opt_outfile)
 	fputs(prompt, OUTFILE);

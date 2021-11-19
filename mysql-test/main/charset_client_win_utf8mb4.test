@@ -1,2 +1,0 @@
---source include/windows.inc
---exec $MYSQL --default-character-set=auto -e "select @@character_set_client"

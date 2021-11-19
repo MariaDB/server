@@ -87,23 +87,6 @@ sub skip_combinations {
   $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
     unless $openssl_ver ge "1.0.2";
 
-  sub utf8_command_line_ok() {
-   if (IS_WINDOWS) {
-     # Can use UTF8 on command line since Windows 10 1903 (10.0.18362)
-     my($os_name, $os_major, $os_minor, $os_build, $os_id) = Win32::GetOSVersion();
-     if($os_major lt 10){
-       return 0;
-     } elsif($os_major gt 10 or $os_minor gt 0 or $os_build ge 18362) {
-       return 1;
-     }
-     return 0;
-   }
-   return 1;
-  }
-
-  $skip{'main/charset_client_win_utf8mb4.test'} =
-  $skip{'main/grant_utf8_cli.test'} = 'No utf8 command line support'
-    unless utf8_command_line_ok();
 
   %skip;
 }

@@ -134,20 +134,6 @@ static void get_datadir_from_ini(const char *ini, char *service_name, char *data
 }
 
 
-static int fix_and_check_datadir(mysqld_service_properties *props)
-{
-  normalize_path(props->datadir, MAX_PATH);
-  /* Check if datadir really exists */
-  if (GetFileAttributes(props->datadir) != INVALID_FILE_ATTRIBUTES)
-    return 0;
-  /*
-    It is possible, that datadir contains some unconvertable character.
-    We just pretend not to know what's the data directory
-  */
-  props->datadir[0]= 0;
-  return 0;
-}
-
 /*
   Retrieve some properties from windows mysqld service binary path.
   We're interested in ini file location and datadir, and also in version of
@@ -197,7 +183,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
   }
 
   /* Last parameter is the service name*/
-  WideCharToMultiByte(CP_ACP, 0, args[numargs - 1], -1, service_name, MAX_PATH, NULL, NULL);
+  wcstombs(service_name, args[numargs-1], MAX_PATH);
 
   if(have_inifile && wcsncmp(args[1], L"--defaults-file=", 16) != 0)
     goto end;
@@ -216,7 +202,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
     goto end;
   }
 
-  WideCharToMultiByte(CP_ACP, 0, mysqld_path, -1, props->mysqld_exe, MAX_PATH, NULL, NULL);
+  wcstombs(props->mysqld_exe, mysqld_path, MAX_PATH);
   /* If mysqld.exe exists, try to get its version from executable */
   if (GetFileAttributes(props->mysqld_exe) != INVALID_FILE_ATTRIBUTES)
   {
@@ -227,8 +213,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
   if (have_inifile)
   {
     /* We have --defaults-file in service definition. */
-    WideCharToMultiByte(CP_ACP, 0, args[1] + 16, -1, props->inifile,
-                        MAX_PATH, NULL, NULL);
+    wcstombs(props->inifile, args[1]+16, MAX_PATH);
     normalize_path(props->inifile, MAX_PATH);
     if (GetFileAttributes(props->inifile) != INVALID_FILE_ATTRIBUTES)
     {
@@ -299,9 +284,16 @@ int get_mysql_service_properties(const wchar_t *bin_path,
     }
   }
 
-  if (props->datadir[0] == 0 || fix_and_check_datadir(props))
+  if (props->datadir[0])
   {
-    /* There is no datadir in ini file, or non-existing dir, bail out.*/
+    normalize_path(props->datadir, MAX_PATH);
+    /* Check if datadir really exists */
+    if (GetFileAttributes(props->datadir) == INVALID_FILE_ATTRIBUTES)
+      goto end;
+  }
+  else
+  {
+    /* There is no datadir in ini file,  bail out.*/
     goto end;
   }
 

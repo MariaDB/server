@@ -67,38 +67,6 @@ static ulong atoi_octal(const char *str)
 MYSQL_FILE *mysql_stdin= NULL;
 static MYSQL_FILE instrumented_stdin;
 
-#ifdef _WIN32
-UINT orig_console_cp, orig_console_output_cp;
-
-static void reset_console_cp(void)
-{
-  SetConsoleCP(orig_console_cp);
-  SetConsoleOutputCP(orig_console_output_cp);
-}
-
-/*
-    The below fixes discrepancies in console output and
-    command line parameter encoding. command line is in
-    ANSI codepage, output to console by default is in OEM, but
-    we like them to be in the same encoding.
-
-    We do this only if current codepage is UTF8, i.e when we
-    know we're on Windows that can handle UTF8 well.
-  */
-static void set_console_cp()
-{
-  UINT acp= GetACP();
-  if (acp == CP_UTF8 && !getenv("MARIADB_DISABLE_UTF8_CONSOLE"))
-  {
-    orig_console_cp= GetConsoleCP();
-    SetConsoleCP(acp);
-    orig_console_output_cp= GetConsoleOutputCP();
-    SetConsoleOutputCP(acp);
-    atexit(reset_console_cp);
-  }
-}
-#endif
-
 /**
   Initialize my_sys functions, resources and variables
 
@@ -163,7 +131,6 @@ my_bool my_init(void)
 #ifdef _WIN32
     if (win32_init_tcp_ip())
       DBUG_RETURN(1);
-    set_console_cp();
 #endif
 #ifdef CHECK_UNLIKELY
     init_my_likely();
