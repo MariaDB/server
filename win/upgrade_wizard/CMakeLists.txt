@@ -5,6 +5,7 @@ ENDIF()
 # We need MFC
 # /permissive- flag does not play well with MFC, disable it.
 STRING(REPLACE "/permissive-"  "" CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS}")
+REMOVE_DEFINITIONS(-DNOSERVICE) # fixes "already defined" warning in an AFX header
 
 FIND_PACKAGE(MFC)
 IF(NOT MFC_FOUND)

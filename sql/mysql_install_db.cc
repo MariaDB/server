@@ -30,6 +30,7 @@
 #include <sddl.h>
 struct IUnknown;
 #include <shlwapi.h>
+#include <winservice.h>
 
 #include <string>
 
@@ -916,7 +917,7 @@ end:
     auto sc_manager = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (sc_manager)
     {
-      auto sc_handle= OpenServiceA(sc_manager,opt_service, DELETE);
+      auto sc_handle= OpenService(sc_manager,opt_service, DELETE);
       if (sc_handle)
       {
         DeleteService(sc_handle);
