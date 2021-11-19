@@ -1,6 +1,5 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
---source include/protocol.inc
 SELECT table_name, column_name FROM information_schema.columns where table_name="OPTIMIZER_TRACE";
 set optimizer_trace="enabled=on";
 show variables like 'optimizer_trace';
