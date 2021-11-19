@@ -2699,6 +2699,7 @@ got_block:
 		buf_block_t *new_block = buf_LRU_get_free_block(false);
 		buf_block_init_low(new_block);
 
+wait_for_unfix:
 		mysql_mutex_lock(&buf_pool.mutex);
 		page_hash_latch& hash_lock=buf_pool.page_hash.lock_get(chain);
 
@@ -2717,31 +2718,31 @@ got_block:
 		we are violating that principle. */
 		auto state = block->page.state();
 
-		for (;; state = block->page.state()) {
-			switch (state) {
-			case buf_page_t::UNFIXED + 1:
-			case buf_page_t::IBUF_EXIST + 1:
-			case buf_page_t::REINIT + 1:
-				break;
-			default:
-				ut_ad(state < buf_page_t::READ_FIX);
-
-				if (state < buf_page_t::UNFIXED + 1) {
-					ut_ad(state > buf_page_t::FREED);
-					ut_ad(mode == BUF_GET_POSSIBLY_FREED
-					      || mode == BUF_PEEK_IF_IN_POOL);
-					block->page.unfix();
-					block->page.lock.x_unlock();
-					hash_lock.unlock();
-					buf_LRU_block_free_non_file_page(new_block);
-					mysql_mutex_unlock(&buf_pool.mutex);
-					return nullptr;
-				}
-
-				LF_BACKOFF();
-				continue;
-			}
+		switch (state) {
+		case buf_page_t::UNFIXED + 1:
+		case buf_page_t::IBUF_EXIST + 1:
+		case buf_page_t::REINIT + 1:
 			break;
+		default:
+			ut_ad(state < buf_page_t::READ_FIX);
+
+			if (state < buf_page_t::UNFIXED + 1) {
+				ut_ad(state > buf_page_t::FREED);
+				ut_ad(mode == BUF_GET_POSSIBLY_FREED
+				      || mode == BUF_PEEK_IF_IN_POOL);
+				block->page.unfix();
+				block->page.lock.x_unlock();
+				hash_lock.unlock();
+				buf_LRU_block_free_non_file_page(new_block);
+				mysql_mutex_unlock(&buf_pool.mutex);
+				return nullptr;
+			}
+
+			mysql_mutex_unlock(&buf_pool.mutex);
+			hash_lock.unlock();
+			std::this_thread::sleep_for(
+				std::chrono::microseconds(100));
+			goto wait_for_unfix;
 		}
 
 		/* Ensure that mtr_t::page_lock(new_block, RW_NO_LATCH)
