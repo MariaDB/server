@@ -2670,3 +2670,15 @@ drop table t1;
 --echo #
 --error ER_NO_SUCH_TABLE
 alter table txxx engine=innodb, rename to tyyy;
+
+--echo #
+--echo # MDEV-27048 UBSAN: runtime error: shift exponent 32 is too large for 32-bit type 'unsigned int'
+--echo #
+CREATE TABLE t (a INT,b INT,c INT,x TEXT,y TEXT,z TEXT,id INT UNSIGNED AUTO_INCREMENT,i INT,KEY(id),UNIQUE KEY a (a,b,c));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+ALTER TABLE t ADD CONSTRAINT test UNIQUE (id) USING HASH;
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.7 tests
+--echo #
