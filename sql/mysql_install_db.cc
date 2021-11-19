@@ -21,6 +21,7 @@
 #include "mariadb.h"
 #include <my_getopt.h>
 #include <m_string.h>
+#include <password.h>
 
 #include <windows.h>
 #include <shellapi.h>
@@ -443,16 +444,14 @@ static int create_myini()
 }
 
 
-static const char update_root_passwd_part1[]=
+static constexpr const char* update_root_passwd=
   "UPDATE mysql.global_priv SET priv=json_set(priv,"
   "'$.password_last_changed', UNIX_TIMESTAMP(),"
   "'$.plugin','mysql_native_password',"
-  "'$.authentication_string',PASSWORD(";
-static const char update_root_passwd_part2[]=
-  ")) where User='root';\n";
-static const char remove_default_user_cmd[]=
+  "'$.authentication_string','%s') where User='root';\n";
+static constexpr char remove_default_user_cmd[]=
   "DELETE FROM mysql.user where User='';\n";
-static const char allow_remote_root_access_cmd[]=
+static constexpr char allow_remote_root_access_cmd[]=
   "CREATE TEMPORARY TABLE tmp_user LIKE global_priv;\n"
   "INSERT INTO tmp_user SELECT * from global_priv where user='root' "
     " AND host='localhost';\n"
@@ -871,18 +870,10 @@ static int create_db_instance(const char *datadir)
   /* Change root password if requested. */
   if (opt_password && opt_password[0])
   {
-    verbose("Setting root password",remove_default_user_cmd);
-    fputs(update_root_passwd_part1, in);
-
-    /* Use hex encoding for password, to avoid escaping problems.*/
-    fputc('0', in);
-    fputc('x', in);
-    for(int i= 0; opt_password[i]; i++)
-    {
-      fprintf(in,"%02x",opt_password[i]);
-    }
-
-    fputs(update_root_passwd_part2, in);
+    verbose("Setting root password");
+    char buf[2 * MY_SHA1_HASH_SIZE + 2];
+    my_make_scrambled_password(buf, opt_password, strlen(opt_password));
+    fprintf(in, update_root_passwd, buf);
     fflush(in);
   }
 
