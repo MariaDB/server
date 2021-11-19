@@ -88,9 +88,7 @@ extern "C" {
 #endif /* defined(HAVE_CURSES_H) && defined(HAVE_TERM_H) */
 
 #undef bcmp				// Fix problem with new readline
-#if defined(_WIN32)
-#include <conio.h>
-#else
+#if !defined(_WIN32)
 # ifdef __APPLE__
 #  include <editline/readline.h>
 # else
@@ -103,6 +101,98 @@ extern "C" {
 #define USE_POPEN
 #endif
 }
+
+static CHARSET_INFO *charset_info= &my_charset_latin1;
+
+#if defined(_WIN32)
+/*
+  Set console mode for the whole duration of the client session.
+
+  We need for input
+    - line input (i.e read lines from console)
+    - echo typed characters
+    - "cooked" mode, i.e we do not want to handle all keystrokes,
+      like DEL etc ourselves, yet. We might want handle keystrokes
+      in the future, to implement tab completion, and better
+      (multiline) history.
+
+ Disable VT escapes for the output.We do not know what kind of escapes SELECT would return.
+*/
+struct Console_mode
+{
+  HANDLE in= GetStdHandle(STD_INPUT_HANDLE);
+  HANDLE out= GetStdHandle(STD_OUTPUT_HANDLE);
+  DWORD mode_in=0;
+  DWORD mode_out=0;
+
+  enum {STDIN_CHANGED = 1, STDOUT_CHANGED = 2};
+  int changes=0;
+
+  Console_mode()
+  {
+    if (in && in != INVALID_HANDLE_VALUE && GetConsoleMode(in, &mode_in))
+    {
+      SetConsoleMode(in, ENABLE_ECHO_INPUT|ENABLE_LINE_INPUT|ENABLE_PROCESSED_INPUT);
+      changes |= STDIN_CHANGED;
+    }
+
+    if (out && out != INVALID_HANDLE_VALUE && GetConsoleMode(out, &mode_out))
+    {
+#ifdef ENABLE_VIRTUAL_TERMINAL_INPUT
+      SetConsoleMode(out, mode_out & ~ENABLE_VIRTUAL_TERMINAL_INPUT);
+      changes |= STDOUT_CHANGED;
+#endif
+    }
+  }
+
+  ~Console_mode()
+  {
+    if (changes & STDIN_CHANGED)
+      SetConsoleMode(in, mode_in);
+
+    if(changes & STDOUT_CHANGED)
+      SetConsoleMode(out, mode_out);
+  }
+};
+
+static Console_mode my_conmode;
+
+#define MAX_CGETS_LINE_LEN 65535
+/** Read line from console, chomp EOL*/
+static char *win_readline()
+{
+  static wchar_t wstrbuf[MAX_CGETS_LINE_LEN];
+  static char strbuf[MAX_CGETS_LINE_LEN * 4];
+
+  DWORD nchars= 0;
+  uint len= 0;
+  SetLastError(0);
+  if (!ReadConsoleW(GetStdHandle(STD_INPUT_HANDLE), wstrbuf, MAX_CGETS_LINE_LEN-1,
+                    &nchars, NULL))
+    goto err;
+  if (nchars == 0 && GetLastError() == ERROR_OPERATION_ABORTED)
+    goto err;
+
+  for (;nchars > 0; nchars--)
+  {
+    if (wstrbuf[nchars - 1] != '\n' && wstrbuf[nchars - 1] != '\r')
+      break;
+  }
+
+  if (nchars > 0)
+  {
+    uint errors;
+    len= my_convert(strbuf, sizeof(strbuf), charset_info,
+                    (const char *) wstrbuf, nchars * sizeof(wchar_t),
+                    &my_charset_utf16le_bin, &errors);
+  }
+  strbuf[len]= 0;
+  return strbuf;
+err:
+  return NULL;
+}
+#endif
+
 
 #ifdef HAVE_VIDATTR
 static int have_curses= 0;
@@ -208,7 +298,6 @@ unsigned short terminal_width= 80;
 
 static uint opt_protocol=0;
 static const char *opt_protocol_type= "";
-static CHARSET_INFO *charset_info= &my_charset_latin1;
 
 static uint protocol_to_force= MYSQL_PROTOCOL_DEFAULT;
 
@@ -2033,11 +2122,6 @@ static int get_options(int argc, char **argv)
 
 static int read_and_execute(bool interactive)
 {
-#if defined(_WIN32)
-  String tmpbuf;
-  String buffer;
-#endif
-
   char	*line= NULL;
   char	in_string=0;
   ulong line_number=0;
@@ -2115,26 +2199,7 @@ static int read_and_execute(bool interactive)
 
 #if defined(_WIN32)
       tee_fputs(prompt, stdout);
-      if (!tmpbuf.is_alloced())
-        tmpbuf.alloc(65535);
-      tmpbuf.length(0);
-      buffer.length(0);
-      size_t clen;
-      do
-      {
-	line= my_cgets((char*)tmpbuf.ptr(), tmpbuf.alloced_length()-1, &clen);
-        buffer.append(line, clen);
-        /* 
-           if we got buffer fully filled than there is a chance that
-           something else is still in console input buffer
-        */
-      } while (tmpbuf.alloced_length() <= clen);
-      /* 
-        An empty line is returned from my_cgets when there's error reading :
-        Ctrl-c for example
-      */
-      if (line)
-        line= buffer.c_ptr();
+      line= win_readline();
 #else
       if (opt_outfile)
 	fputs(prompt, OUTFILE);
@@ -2201,10 +2266,7 @@ static int read_and_execute(bool interactive)
     }
   }
 
-#if defined(_WIN32)
-  buffer.free();
-  tmpbuf.free();
-#else
+#if !defined(_WIN32)
   if (interactive)
     /*
       free the last entered line.
