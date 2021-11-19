@@ -3,10 +3,8 @@
 --source include/have_debug.inc
 
 SET @save_limit=@@GLOBAL.innodb_limit_optimistic_insert_debug;
-SET @save_disable=@@GLOBAL.innodb_disable_resize_buffer_pool_debug;
 SET @save_size=@@GLOBAL.innodb_buffer_pool_size;
 SET GLOBAL innodb_limit_optimistic_insert_debug=2;
-SET GLOBAL innodb_disable_resize_buffer_pool_debug=OFF;
 
 SET GLOBAL innodb_buffer_pool_size=16777216;
 
@@ -27,4 +25,3 @@ DROP TEMPORARY TABLE t1;
 
 SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
 SET GLOBAL innodb_buffer_pool_size=@save_size;
-SET GLOBAL innodb_disable_resize_buffer_pool_debug=@save_disable;

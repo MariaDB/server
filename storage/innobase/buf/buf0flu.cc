@@ -83,10 +83,6 @@ static struct
   ulint flush_pass;
 } page_cleaner;
 
-#ifdef UNIV_DEBUG
-my_bool innodb_page_cleaner_disabled_debug;
-#endif /* UNIV_DEBUG */
-
 /** If LRU list of a buf_pool is less than this size then LRU eviction
 should not happen. This is because when we do LRU flushing we also put
 the blocks on free list. If LRU list is very small then we can end up
@@ -1793,8 +1789,7 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
   if (buf_pool.get_oldest_modification(sync_lsn) < sync_lsn)
   {
 #if 1 /* FIXME: remove this, and guarantee that the page cleaner serves us */
-    if (UNIV_UNLIKELY(!buf_page_cleaner_is_active)
-        ut_d(|| innodb_page_cleaner_disabled_debug))
+    if (UNIV_UNLIKELY(!buf_page_cleaner_is_active))
     {
       do
       {
@@ -2325,12 +2320,6 @@ do_checkpoint:
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       goto unemployed;
     }
-
-#ifdef UNIV_DEBUG
-    while (innodb_page_cleaner_disabled_debug && !buf_flush_sync_lsn &&
-           srv_shutdown_state == SRV_SHUTDOWN_NONE)
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-#endif /* UNIV_DEBUG */
 
 #ifndef DBUG_OFF
 next:

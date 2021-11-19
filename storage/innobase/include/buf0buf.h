@@ -68,11 +68,6 @@ struct fil_addr_t;
 #define BUF_EVICT_IF_IN_POOL	20	/*!< evict a clean block if found */
 /* @} */
 
-# ifdef UNIV_DEBUG
-extern my_bool	buf_disable_resize_buffer_pool_debug; /*!< if TRUE, resizing
-					buffer pool is not allowed. */
-# endif /* UNIV_DEBUG */
-
 /** This structure defines information we will fetch from each buffer pool. It
 will be used to print table IO stats */
 struct buf_pool_info_t
