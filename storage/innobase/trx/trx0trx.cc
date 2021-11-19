@@ -1848,8 +1848,6 @@ trx_prepare(
 
 	lsn_t	lsn = trx_prepare_low(trx);
 
-	DBUG_EXECUTE_IF("ib_trx_crash_during_xa_prepare_step", DBUG_SUICIDE(););
-
 	ut_a(trx->state == TRX_STATE_ACTIVE);
 	{
 		TMTrxGuard tg{*trx};

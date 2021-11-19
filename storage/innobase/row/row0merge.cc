@@ -4966,7 +4966,6 @@ func_exit:
 		}
 	}
 
-	DBUG_EXECUTE_IF("ib_index_crash_after_bulk_load", DBUG_SUICIDE(););
 	DBUG_RETURN(error);
 }
 

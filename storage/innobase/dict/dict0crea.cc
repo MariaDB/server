@@ -1096,8 +1096,6 @@ dict_create_table_step(
 	}
 
 	if (node->state == TABLE_ADD_TO_CACHE) {
-		DBUG_EXECUTE_IF("ib_ddl_crash_during_create", DBUG_SUICIDE(););
-
 		node->table->can_be_evicted = true;
 		node->table->add_to_cache();
 
