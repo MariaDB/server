@@ -2650,7 +2650,7 @@ void fsp_flags_try_adjust(fil_space_t *space, uint32_t flags)
 	if (buf_block_t* b = buf_page_get(
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, &mtr)) {
-		uint32_t f = fsp_header_get_flags(b->frame);
+		uint32_t f = fsp_header_get_flags(b->page.frame);
 		if (fil_space_t::full_crc32(f)) {
 			goto func_exit;
 		}
@@ -2668,7 +2668,7 @@ void fsp_flags_try_adjust(fil_space_t *space, uint32_t flags)
 		mtr.set_named_space(space);
 		mtr.write<4,mtr_t::FORCED>(*b,
 					   FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
-					   + b->frame, flags);
+					   + b->page.frame, flags);
 	}
 func_exit:
 	mtr.commit();
@@ -2836,7 +2836,7 @@ fail:
 		goto release_sync_write;
 	} else {
 		/* Queue the aio request */
-		err = os_aio(IORequest(bpage, node, type.type),
+		err = os_aio(IORequest{bpage, type.slot, node, type.type},
 			     buf, offset, len);
 	}
 
@@ -2892,7 +2892,7 @@ write_completed:
     files and never issue asynchronous reads of change buffer pages. */
     const page_id_t id(request.bpage->id());
 
-    if (dberr_t err= buf_page_read_complete(request.bpage, *request.node))
+    if (dberr_t err= request.bpage->read_complete(*request.node))
     {
       if (recv_recovery_is_on() && !srv_force_recovery)
       {
@@ -3126,12 +3126,6 @@ fil_names_clear(
 	bool	do_write)
 {
 	mtr_t	mtr;
-	ulint	mtr_checkpoint_size = RECV_SCAN_SIZE - 1;
-
-	DBUG_EXECUTE_IF(
-		"increase_mtr_checkpoint_size",
-		mtr_checkpoint_size = 75 * 1024;
-		);
 
 	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(lsn);
@@ -3140,9 +3134,8 @@ fil_names_clear(
 
 	for (auto it = fil_system.named_spaces.begin();
 	     it != fil_system.named_spaces.end(); ) {
-		if (mtr.get_log()->size()
-		    + (3 + 5 + 1) + strlen(it->chain.start->name)
-		    >= mtr_checkpoint_size) {
+		if (mtr.get_log()->size() + strlen(it->chain.start->name)
+		    >= RECV_SCAN_SIZE - (3 + 5)) {
 			/* Prevent log parse buffer overflow */
 			mtr.commit_files();
 			mtr.start();

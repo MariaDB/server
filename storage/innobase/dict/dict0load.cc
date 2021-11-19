@@ -934,7 +934,8 @@ void dict_check_tablespaces_and_store_max_id()
 	mtr.start();
 	uint32_t max_space_id = mach_read_from_4(DICT_HDR_MAX_SPACE_ID
 						 + DICT_HDR
-						 + dict_hdr_get(&mtr)->frame);
+						 + dict_hdr_get(&mtr)
+						 ->page.frame);
 	mtr.commit();
 
 	fil_set_max_space_id_if_bigger(max_space_id);
@@ -949,7 +950,8 @@ void dict_check_tablespaces_and_store_max_id()
 }
 
 /** Error message for a delete-marked record in dict_load_column_low() */
-static const char* dict_load_column_del = "delete-marked record in SYS_COLUMN";
+static const char *dict_load_column_del= "delete-marked record in SYS_COLUMNS";
+static const char *dict_load_column_none= "SYS_COLUMNS record not found";
 
 /** Load a table column definition from a SYS_COLUMNS record to dict_table_t.
 @return	error message
@@ -1001,7 +1003,7 @@ err_len:
 	if (table_id) {
 		*table_id = mach_read_from_8(field);
 	} else if (table->id != mach_read_from_8(field)) {
-		return("SYS_COLUMNS.TABLE_ID mismatch");
+		return dict_load_column_none;
 	}
 
 	field = rec_get_nth_field_old(
@@ -1124,7 +1126,8 @@ err_len:
 }
 
 /** Error message for a delete-marked record in dict_load_virtual_low() */
-static const char* dict_load_virtual_del = "delete-marked record in SYS_VIRTUAL";
+static const char *dict_load_virtual_del= "delete-marked record in SYS_VIRTUAL";
+static const char *dict_load_virtual_none= "SYS_VIRTUAL record not found";
 
 /** Load a virtual column "mapping" (to base columns) information
 from a SYS_VIRTUAL record
@@ -1168,7 +1171,7 @@ err_len:
 	if (table_id != NULL) {
 		*table_id = mach_read_from_8(field);
 	} else if (table->id != mach_read_from_8(field)) {
-		return("SYS_VIRTUAL.TABLE_ID mismatch");
+		return dict_load_virtual_none;
 	}
 
 	field = rec_get_nth_field_old(
@@ -1267,16 +1270,21 @@ dict_load_columns(
 
 		rec = btr_pcur_get_rec(&pcur);
 
-		ut_a(btr_pcur_is_on_user_rec(&pcur));
+		err_msg = btr_pcur_is_on_user_rec(&pcur)
+			? dict_load_column_low(table, heap, NULL, NULL,
+					       &name, rec, &nth_v_col)
+			: dict_load_column_none;
 
-		err_msg = dict_load_column_low(table, heap, NULL, NULL,
-					       &name, rec, &nth_v_col);
-
-		if (err_msg == dict_load_column_del) {
+		if (!err_msg) {
+		} else if (err_msg == dict_load_column_del) {
 			n_skipped++;
 			goto next_rec;
-		} else if (err_msg) {
-			ib::fatal() << err_msg;
+		} else if (err_msg == dict_load_column_none
+			&& strstr(table->name.m_name,
+				  "/" TEMP_FILE_PREFIX_INNODB)) {
+			break;
+		} else {
+			ib::fatal() << err_msg << " for table " << table->name;
 		}
 
 		/* Note: Currently we have one DOC_ID column that is
@@ -1339,7 +1347,6 @@ dict_load_virtual_one_col(
 	btr_pcur_t	pcur;
 	dtuple_t*	tuple;
 	dfield_t*	dfield;
-	const rec_t*	rec;
 	byte*		buf;
 	ulint		i = 0;
 	mtr_t		mtr;
@@ -1384,28 +1391,26 @@ dict_load_virtual_one_col(
 				  BTR_SEARCH_LEAF, &pcur, &mtr);
 
 	for (i = 0; i < unsigned{v_col->num_base} + skipped; i++) {
-		const char*	err_msg;
 		ulint		pos;
-
-		ut_ad(btr_pcur_is_on_user_rec(&pcur));
-
-		rec = btr_pcur_get_rec(&pcur);
-
-		ut_a(btr_pcur_is_on_user_rec(&pcur));
-
-		err_msg = dict_load_virtual_low(table,
+		const char*	err_msg
+			= btr_pcur_is_on_user_rec(&pcur)
+			? dict_load_virtual_low(table,
 						&v_col->base_col[i - skipped],
 						NULL,
-					        &pos, NULL, rec);
+					        &pos, NULL,
+						btr_pcur_get_rec(&pcur))
+			: dict_load_virtual_none;
 
-		if (err_msg) {
-			if (err_msg != dict_load_virtual_del) {
-				ib::fatal() << err_msg;
-			} else {
-				skipped++;
-			}
-		} else {
+		if (!err_msg) {
 			ut_ad(pos == vcol_pos);
+		} else if (err_msg == dict_load_virtual_del) {
+			skipped++;
+		} else if (err_msg == dict_load_virtual_none
+			   && strstr(table->name.m_name,
+				     "/" TEMP_FILE_PREFIX_INNODB)) {
+			break;
+		} else {
+			ib::fatal() << err_msg << " for table " << table->name;
 		}
 
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
@@ -1433,7 +1438,9 @@ dict_load_virtual(
 }
 
 /** Error message for a delete-marked record in dict_load_field_low() */
-static const char* dict_load_field_del = "delete-marked record in SYS_FIELDS";
+static const char *dict_load_field_del= "delete-marked record in SYS_FIELDS";
+
+static const char *dict_load_field_none= "SYS_FIELDS record not found";
 
 /** Load an index field definition from a SYS_FIELDS record to dict_index_t.
 @return	error message
@@ -1488,7 +1495,7 @@ err_len:
 	} else {
 		first_field = (index->n_def == 0);
 		if (memcmp(field, index_id, 8)) {
-			return("SYS_FIELDS.INDEX_ID mismatch");
+			return dict_load_field_none;
 		}
 	}
 
@@ -1569,7 +1576,6 @@ dict_load_fields(
 	btr_pcur_t	pcur;
 	dtuple_t*	tuple;
 	dfield_t*	dfield;
-	const rec_t*	rec;
 	byte*		buf;
 	ulint		i;
 	mtr_t		mtr;
@@ -1596,27 +1602,29 @@ dict_load_fields(
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
 				  BTR_SEARCH_LEAF, &pcur, &mtr);
 	for (i = 0; i < index->n_fields; i++) {
-		const char* err_msg;
+		const char *err_msg = btr_pcur_is_on_user_rec(&pcur)
+			? dict_load_field_low(buf, index, NULL, NULL, NULL,
+					      heap, btr_pcur_get_rec(&pcur))
+			: dict_load_field_none;
 
-		rec = btr_pcur_get_rec(&pcur);
-
-		ut_a(btr_pcur_is_on_user_rec(&pcur));
-
-		err_msg = dict_load_field_low(buf, index, NULL, NULL, NULL,
-					      heap, rec);
-
-		if (err_msg == dict_load_field_del) {
+		if (!err_msg) {
+		} else if (err_msg == dict_load_field_del) {
 			/* There could be delete marked records in
 			SYS_FIELDS because SYS_FIELDS.INDEX_ID can be
 			updated by ALTER TABLE ADD INDEX. */
-
-			goto next_rec;
-		} else if (err_msg) {
-			ib::error() << err_msg;
+		} else {
+			if (err_msg != dict_load_field_none
+			    || strstr(index->table->name.m_name,
+				      "/" TEMP_FILE_PREFIX_INNODB)) {
+				ib::error() << err_msg << " for index "
+					    << index->name
+					    << " of table "
+					    << index->table->name;
+			}
 			error = DB_CORRUPTION;
 			goto func_exit;
 		}
-next_rec:
+
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 	}
 
@@ -1628,11 +1636,11 @@ func_exit:
 }
 
 /** Error message for a delete-marked record in dict_load_index_low() */
-static const char* dict_load_index_del = "delete-marked record in SYS_INDEXES";
+static const char *dict_load_index_del= "delete-marked record in SYS_INDEXES";
 /** Error message for table->id mismatch in dict_load_index_low() */
-static const char* dict_load_index_id_err = "SYS_INDEXES.TABLE_ID mismatch";
+static const char *dict_load_index_none= "SYS_INDEXES record not found";
 /** Error message for SYS_TABLES flags mismatch in dict_load_table_low() */
-static const char* dict_load_table_flags = "incorrect flags in SYS_TABLES";
+static const char *dict_load_table_flags= "incorrect flags in SYS_TABLES";
 
 /** Load an index definition from a SYS_INDEXES record to dict_index_t.
 If allocate=TRUE, we will create a dict_index_t structure and fill it
@@ -1705,7 +1713,7 @@ err_len:
 	} else if (memcmp(field, table_id, 8)) {
 		/* Caller supplied table_id, verify it is the same
 		id as on the index record */
-		return(dict_load_index_id_err);
+		return dict_load_index_none;
 	}
 
 	field = rec_get_nth_field_old(
@@ -1858,7 +1866,7 @@ dict_load_indexes(
 		err_msg = dict_load_index_low(buf, heap, rec, TRUE, &index);
 		ut_ad(!index == !!err_msg);
 
-		if (err_msg == dict_load_index_id_err) {
+		if (err_msg == dict_load_index_none) {
 			/* We have ran out of index definitions for
 			the table. */
 			break;
@@ -1962,8 +1970,8 @@ corrupted:
 			of the database server */
 			dict_mem_index_free(index);
 		} else {
-			dict_load_fields(index, heap);
 			index->table = table;
+			dict_load_fields(index, heap);
 
 			/* The data dictionary tables should never contain
 			invalid index definitions.  If we ignored this error
@@ -2360,15 +2368,15 @@ corrupted:
 				page_id, table->space->zip_size(),
 				RW_S_LATCH, &mtr);
 			const bool corrupted = !block
-				|| page_get_space_id(block->frame)
+				|| page_get_space_id(block->page.frame)
 				!= page_id.space()
-				|| page_get_page_no(block->frame)
+				|| page_get_page_no(block->page.frame)
 				!= page_id.page_no()
 				|| (mach_read_from_2(FIL_PAGE_TYPE
-						    + block->frame)
+						    + block->page.frame)
 				    != FIL_PAGE_INDEX
 				    && mach_read_from_2(FIL_PAGE_TYPE
-							+ block->frame)
+							+ block->page.frame)
 				    != FIL_PAGE_TYPE_INSTANT);
 			mtr.commit();
 			if (corrupted) {

@@ -1,0 +1,4 @@
+[crc32]
+innodb-checksum-algorithm=crc32
+[full_crc32]
+innodb-checksum-algorithm=full_crc32

@@ -56,7 +56,7 @@ public:
     buf_block_t *block= m_block;
     bool res= f(block);
     if (block)
-      buf_block_buf_fix_dec(block);
+      block->page.unfix();
     return res;
   }
 

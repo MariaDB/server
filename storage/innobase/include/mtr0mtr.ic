@@ -30,7 +30,8 @@ Created 11/26/1995 Heikki Tuuri
 @return true if the mtr is dirtying a clean page. */
 inline bool mtr_t::is_block_dirtied(const buf_block_t *block)
 {
-  ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
+  ut_ad(block->page.in_file());
+  ut_ad(block->page.frame);
   ut_ad(block->page.buf_fix_count());
   return block->page.oldest_modification() <= 1;
 }
@@ -109,7 +110,8 @@ mtr_t::sx_latch_at_savepoint(
 	/* == RW_NO_LATCH */
 	ut_a(slot->type == MTR_MEMO_BUF_FIX);
 
-	block->lock.u_lock();
+	block->page.lock.u_lock();
+	ut_ad(!block->page.is_io_fixed());
 
 	if (!m_made_dirty) {
 		m_made_dirty = is_block_dirtied(block);
@@ -142,7 +144,8 @@ mtr_t::x_latch_at_savepoint(
 	/* == RW_NO_LATCH */
 	ut_a(slot->type == MTR_MEMO_BUF_FIX);
 
-	block->lock.x_lock();
+	block->page.lock.x_lock();
+	ut_ad(!block->page.is_io_fixed());
 
 	if (!m_made_dirty) {
 		m_made_dirty = is_block_dirtied(block);
@@ -159,15 +162,23 @@ mtr_t::release_block_at_savepoint(
 	ulint		savepoint,
 	buf_block_t*	block)
 {
-	ut_ad(is_active());
+  ut_ad(is_active());
 
-	mtr_memo_slot_t* slot = m_memo.at<mtr_memo_slot_t*>(savepoint);
+  mtr_memo_slot_t *slot = m_memo.at<mtr_memo_slot_t*>(savepoint);
 
-	ut_a(slot->object == block);
+  ut_a(slot->object == block);
+  slot->object= nullptr;
+  block->page.unfix();
 
-	buf_page_release_latch(block, slot->type);
-
-	reinterpret_cast<buf_block_t*>(block)->unfix();
-
-	slot->object = NULL;
+  switch (slot->type) {
+  case MTR_MEMO_PAGE_S_FIX:
+    block->page.lock.s_unlock();
+    break;
+  case MTR_MEMO_PAGE_SX_FIX:
+  case MTR_MEMO_PAGE_X_FIX:
+    block->page.lock.u_or_x_unlock(slot->type == MTR_MEMO_PAGE_SX_FIX);
+    break;
+  default:
+    break;
+  }
 }

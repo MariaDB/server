@@ -813,7 +813,6 @@ srv_open_tmp_tablespace(bool create_new_db)
 static void srv_shutdown_threads()
 {
 	ut_ad(!srv_undo_sources);
-	ut_d(srv_master_thread_enable());
 	srv_master_timer.reset();
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
 
@@ -1519,13 +1518,13 @@ file_checked:
 					RW_SX_LATCH, &mtr);
 				ulint size = mach_read_from_4(
 					FSP_HEADER_OFFSET + FSP_SIZE
-					+ block->frame);
+					+ block->page.frame);
 				ut_ad(size == fil_system.sys_space
 				      ->size_in_header);
 				size += sum_of_new_sizes;
 				mtr.write<4>(*block,
 					     FSP_HEADER_OFFSET + FSP_SIZE
-					     + block->frame, size);
+					     + block->page.frame, size);
 				fil_system.sys_space->size_in_header
 					= uint32_t(size);
 				mtr.commit();
@@ -1539,7 +1538,7 @@ file_checked:
 			buf_block_t* block = buf_page_get(page_id_t(0, 0), 0,
 							  RW_S_LATCH, &mtr);
 			ut_ad(mach_read_from_4(FSP_SIZE + FSP_HEADER_OFFSET
-					       + block->frame)
+					       + block->page.frame)
 			      == fil_system.sys_space->size_in_header);
 			mtr.commit();
 		}
@@ -1902,8 +1901,6 @@ skip_monitors:
 void srv_shutdown_bg_undo_sources()
 {
 	srv_shutdown_state = SRV_SHUTDOWN_INITIATED;
-
-	ut_d(srv_master_thread_enable());
 
 	if (srv_undo_sources) {
 		ut_ad(!srv_read_only_mode);

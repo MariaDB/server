@@ -4510,9 +4510,6 @@ innobase_commit(
 	if (commit_trx
 	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
 
-		DBUG_EXECUTE_IF("crash_innodb_before_commit",
-				DBUG_SUICIDE(););
-
 		/* Run the fast part of commit if we did not already. */
 		if (!trx->active_commit_ordered) {
 			innobase_commit_ordered_2(trx, thd);
@@ -10804,9 +10801,6 @@ err_col:
 		ut_ad(dict_sys.sys_tables_exist());
 
 		err = row_create_table_for_mysql(table, m_trx);
-
-		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",
-				DBUG_SUICIDE(););
 	}
 
 	switch (err) {
@@ -17509,8 +17503,10 @@ func_exit:
 	if (block != NULL) {
 		ib::info() << "Dirtying page: " << block->page.id();
 		mtr.write<1,mtr_t::FORCED>(*block,
-					   block->frame + FIL_PAGE_SPACE_ID,
-					   block->frame[FIL_PAGE_SPACE_ID]);
+					   block->page.frame
+					   + FIL_PAGE_SPACE_ID,
+					   block->page.frame
+					   [FIL_PAGE_SPACE_ID]);
 	}
 	mtr.commit();
 	log_write_up_to(mtr.commit_lsn(), true);
@@ -17964,7 +17960,8 @@ static bool innodb_buffer_pool_evict_uncompressed()
 	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
 	     block != NULL; ) {
 		buf_block_t*	prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
-		ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
+		ut_ad(block->page.in_file());
+		ut_ad(block->page.belongs_to_unzip_LRU());
 		ut_ad(block->in_unzip_LRU_list);
 		ut_ad(block->page.in_LRU_list);
 
@@ -19623,29 +19620,7 @@ static MYSQL_SYSVAR_UINT(saved_page_number_debug,
   srv_saved_page_number_debug, PLUGIN_VAR_OPCMDARG,
   "An InnoDB page number.",
   NULL, NULL, 0, 0, UINT_MAX32, 0);
-
-static MYSQL_SYSVAR_BOOL(disable_resize_buffer_pool_debug,
-  buf_disable_resize_buffer_pool_debug, PLUGIN_VAR_NOCMDARG,
-  "Disable resizing buffer pool to make assertion code not expensive.",
-  NULL, NULL, TRUE);
-
-static MYSQL_SYSVAR_BOOL(page_cleaner_disabled_debug,
-  innodb_page_cleaner_disabled_debug, PLUGIN_VAR_OPCMDARG,
-  "Disable page cleaner",
-  NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_BOOL(dict_stats_disabled_debug,
-  innodb_dict_stats_disabled_debug,
-  PLUGIN_VAR_OPCMDARG,
-  "Disable dict_stats thread",
-  NULL, dict_stats_disabled_debug_update, FALSE);
-
-static MYSQL_SYSVAR_BOOL(master_thread_disabled_debug,
-  srv_master_thread_disabled_debug,
-  PLUGIN_VAR_OPCMDARG,
-  "Disable master thread",
-  NULL, srv_master_thread_disabled_debug_update, FALSE);
-#endif /* UNIV_DEBUG */
+#endif
 
 static MYSQL_SYSVAR_BOOL(force_primary_key,
   srv_force_primary_key,
@@ -19887,10 +19862,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
-  MYSQL_SYSVAR(disable_resize_buffer_pool_debug),
-  MYSQL_SYSVAR(page_cleaner_disabled_debug),
-  MYSQL_SYSVAR(dict_stats_disabled_debug),
-  MYSQL_SYSVAR(master_thread_disabled_debug),
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(force_primary_key),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
@@ -20867,21 +20838,6 @@ innodb_buffer_pool_size_validate(
 				    " because InnoDB is not started.");
 		return(1);
 	}
-
-#ifdef UNIV_DEBUG
-	if (buf_disable_resize_buffer_pool_debug == TRUE) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_WRONG_ARGUMENTS,
-			"Cannot update innodb_buffer_pool_size,"
-			" because innodb_disable_resize_buffer_pool_debug"
-			" is set.");
-		ib::warn() << "Cannot update innodb_buffer_pool_size,"
-			" because innodb_disable_resize_buffer_pool_debug"
-			" is set.";
-		return(1);
-	}
-#endif /* UNIV_DEBUG */
-
 
 	mysql_mutex_lock(&buf_pool.mutex);
 

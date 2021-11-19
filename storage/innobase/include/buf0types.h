@@ -39,16 +39,6 @@ struct buf_buddy_stat_t;
 /** A buffer frame. @see page_t */
 typedef	byte	buf_frame_t;
 
-/** Flags for io_fix types */
-enum buf_io_fix {
-	BUF_IO_NONE = 0,		/**< no pending I/O */
-	BUF_IO_READ,			/**< read pending */
-	BUF_IO_WRITE,			/**< write pending */
-	BUF_IO_PIN			/**< disallow relocation of
-					block and its removal of from
-					the flush_list */
-};
-
 /** Alternatives for srv_checksum_algorithm, which can be changed by
 setting innodb_checksum_algorithm */
 enum srv_checksum_algorithm_t {
@@ -189,10 +179,8 @@ public:
   /** Acquire an exclusive lock */
   inline void lock();
 
-#ifdef UNIV_DEBUG
   /** @return whether an exclusive lock is being held by any thread */
   bool is_write_locked() const { return rw_lock::is_write_locked(); }
-#endif
 
   /** @return whether any lock is being held by any thread */
   bool is_locked() const { return rw_lock::is_locked(); }

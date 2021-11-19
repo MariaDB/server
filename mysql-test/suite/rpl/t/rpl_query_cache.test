@@ -1,0 +1,27 @@
+-- source include/have_binlog_format_row.inc
+-- source include/have_innodb.inc
+-- source include/master-slave.inc
+
+--connection slave
+SET @qtype= @@global.query_cache_type;
+SET GLOBAL query_cache_type= ON;
+SET query_cache_type= ON;
+
+--connection master
+create table t1 (i int) engine=innodb;
+insert into t1 set i=1;
+
+--sync_slave_with_master
+select * from t1;
+--connection master
+insert into t1 set i=2;
+
+--sync_slave_with_master
+select * from t1;
+select sql_no_cache * from t1;
+
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+SET GLOBAL query_cache_type= @qtype;
+--source include/rpl_end.inc

@@ -137,6 +137,7 @@ public:
   void destroy();
   /** @return whether any writer is waiting */
   bool is_waiting() const { return (value() & WRITER_WAITING) != 0; }
+  bool is_write_locked() const { return rw_lock::is_write_locked(); }
 
   bool rd_lock_try() { uint32_t l; return read_trylock(l); }
   bool wr_lock_try() { return write_trylock(); }

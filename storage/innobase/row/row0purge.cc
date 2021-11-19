@@ -567,7 +567,7 @@ row_purge_remove_sec_if_poss_leaf(
 
 				if (block->page.id().page_no()
 				    != index->page
-				    && page_get_n_recs(block->frame) < 2
+				    && page_get_n_recs(block->page.frame) < 2
 				    && !lock_test_prdt_page_lock(
 					    btr_cur->rtr_info
 					    && btr_cur->rtr_info->thr
@@ -804,9 +804,9 @@ retry:
 				size_t offs = page_offset(ptr);
 				mtr->memset(block, offs, DATA_TRX_ID_LEN, 0);
 				offs += DATA_TRX_ID_LEN;
-				mtr->write<1,mtr_t::MAYBE_NOP>(*block,
-							       block->frame
-							       + offs, 0x80U);
+				mtr->write<1,mtr_t::MAYBE_NOP>(
+					*block, block->page.frame + offs,
+					0x80U);
 				mtr->memset(block, offs + 1,
 					    DATA_ROLL_PTR_LEN - 1, 0);
 			}

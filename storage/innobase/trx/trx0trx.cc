@@ -571,7 +571,7 @@ trx_resurrect_table_locks(
 		page_id_t(trx->rsegs.m_redo.rseg->space->id,
 			  undo->top_page_no), &mtr);
 	buf_block_t* undo_block = block;
-	trx_undo_rec_t* undo_rec = block->frame + undo->top_offset;
+	trx_undo_rec_t* undo_rec = block->page.frame + undo->top_offset;
 
 	do {
 		ulint		type;
@@ -1847,8 +1847,6 @@ trx_prepare(
 	ut_a(!trx->is_recovered);
 
 	lsn_t	lsn = trx_prepare_low(trx);
-
-	DBUG_EXECUTE_IF("ib_trx_crash_during_xa_prepare_step", DBUG_SUICIDE(););
 
 	ut_a(trx->state == TRX_STATE_ACTIVE);
 	{

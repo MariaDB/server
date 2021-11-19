@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -70,9 +70,10 @@ typedef	byte	flst_node_t;
 @param[in,out]	mtr	mini-transaction */
 inline void flst_init(const buf_block_t* block, uint16_t ofs, mtr_t* mtr)
 {
-  ut_ad(!mach_read_from_2(FLST_LEN + ofs + block->frame));
-  ut_ad(!mach_read_from_2(FLST_FIRST + FIL_ADDR_BYTE + ofs + block->frame));
-  ut_ad(!mach_read_from_2(FLST_LAST + FIL_ADDR_BYTE + ofs + block->frame));
+  ut_d(const page_t *page= block->page.frame);
+  ut_ad(!mach_read_from_2(FLST_LEN + ofs + page));
+  ut_ad(!mach_read_from_2(FLST_FIRST + FIL_ADDR_BYTE + ofs + page));
+  ut_ad(!mach_read_from_2(FLST_LAST + FIL_ADDR_BYTE + ofs + page));
   compile_time_assert(FIL_NULL == 0xffU * 0x1010101U);
   mtr->memset(block, FLST_FIRST + FIL_ADDR_PAGE + ofs, 4, 0xff);
   mtr->memset(block, FLST_LAST + FIL_ADDR_PAGE + ofs, 4, 0xff);

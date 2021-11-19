@@ -836,7 +836,6 @@ repeat:
     ret_lsn2= flush_lock.release(flush_lsn);
 
     log_flush_notify(flush_lsn);
-    DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
   }
 
   if (ret_lsn1 || ret_lsn2)
@@ -975,8 +974,6 @@ ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn)
 
 	MONITOR_INC(MONITOR_NUM_CHECKPOINT);
 
-	DBUG_EXECUTE_IF("crash_after_checkpoint", DBUG_SUICIDE(););
-
 	mysql_mutex_unlock(&log_sys.mutex);
 }
 
@@ -1056,7 +1053,6 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 	dict_stats_shutdown();
 	btr_defragment_shutdown();
 
-	ut_d(srv_master_thread_enable());
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 
 	if (srv_buffer_pool_dump_at_shutdown &&
