@@ -4869,6 +4869,10 @@ create_like:
 opt_create_select:
           /* empty */ {}
         | opt_duplicate opt_as create_select_query_expression
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 create_select_query_expression:
@@ -4877,16 +4881,12 @@ create_select_query_expression:
           { 
             Select->set_braces(0);
             Select->set_with_clause($1);
-            if (Lex->check_cte_dependencies_and_resolve_references())
-              MYSQL_YYABORT;
           }
           union_clause
         | opt_with_clause SELECT_SYM create_select_part2 
           create_select_part3_union_not_ready create_select_part4
           {
             Select->set_with_clause($1);
-            if (Lex->check_cte_dependencies_and_resolve_references())
-              MYSQL_YYABORT;
           }
         | '(' create_select_query_specification ')'
         | '(' create_select_query_specification ')'

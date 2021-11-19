@@ -2136,4 +2136,30 @@ drop procedure sp1;
 drop function g;
 drop function f;
 drop table t1;
+#
+# MDEV-27086: union using CTEs in CREATE TABLE
+#
+create or replace temporary table tmp as
+with cte1 as (select 1 as a), cte2 as (select 2 as a)
+select * from cte1 union select * from cte2;
+select * from tmp;
+a
+1
+2
+create table t1 as
+with cte1 as (select 1 as a), cte2 as (select 2 as a)
+select * from cte1 union select * from cte2;
+select * from t1;
+a
+1
+2
+insert into t1 values (3);
+create table t2 as
+with cte1 as (select * from t1 where a <2), cte2 as (select * from t1 where a > 2)
+select * from cte1 union select * from cte2;
+select * from t2;
+a
+1
+3
+drop table t1,t2;
 # End of 10.2 tests
