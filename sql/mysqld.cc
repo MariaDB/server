@@ -7655,7 +7655,7 @@ static int mysql_init_variables(void)
   disable_log_notes= 0;
   mqh_used= 0;
   cleanup_done= 0;
-  test_flags= select_errors= dropping_tables= ha_open_options=0;
+  select_errors= dropping_tables= ha_open_options=0;
   THD_count::count= CONNECT::count= 0;
   slave_open_temp_tables= 0;
   opt_endinfo= using_udf_functions= 0;

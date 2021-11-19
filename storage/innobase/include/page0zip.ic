@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -302,18 +302,6 @@ page_zip_available(
 
 	return(length + trailer_len + page_zip->m_end
 	       < page_zip_get_size(page_zip));
-}
-
-/**********************************************************************//**
-Initialize a compressed page descriptor. */
-UNIV_INLINE
-void
-page_zip_des_init(
-/*==============*/
-	page_zip_des_t*	page_zip)	/*!< in/out: compressed page
-					descriptor */
-{
-	memset(page_zip, 0, sizeof *page_zip);
 }
 
 /**********************************************************************//**

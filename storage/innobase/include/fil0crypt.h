@@ -296,17 +296,15 @@ byte* fil_space_encrypt(
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	physical_size		page size
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
-@return true if page decrypted, false if not.*/
-bool
+@return DB_SUCCESS or error */
+dberr_t
 fil_space_decrypt(
 	uint32_t		space_id,
 	uint32_t		fsp_flags,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	ulint			physical_size,
-	byte*			src_frame,
-	dberr_t*		err);
+	byte*			src_frame);
 
 /******************************************************************
 Decrypt a page

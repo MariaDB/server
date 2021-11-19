@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -128,11 +128,11 @@ uint16_t trx_undo_page_get_end(const buf_block_t *undo_page, uint32_t page_no,
 {
   if (page_no == undo_page->page.id().page_no())
     if (uint16_t end = mach_read_from_2(TRX_UNDO_NEXT_LOG + offset +
-					undo_page->frame))
+					undo_page->page.frame))
       return end;
 
   return mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE +
-			  undo_page->frame);
+			  undo_page->page.frame);
 }
 
 /** Get the next record in an undo log.
@@ -146,6 +146,6 @@ trx_undo_page_get_next_rec(const buf_block_t *undo_page, uint16_t rec,
                            uint32_t page_no, uint16_t offset)
 {
   uint16_t end= trx_undo_page_get_end(undo_page, page_no, offset);
-  uint16_t next= mach_read_from_2(undo_page->frame + rec);
-  return next == end ? nullptr : undo_page->frame + next;
+  uint16_t next= mach_read_from_2(undo_page->page.frame + rec);
+  return next == end ? nullptr : undo_page->page.frame + next;
 }

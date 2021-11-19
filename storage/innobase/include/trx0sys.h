@@ -176,7 +176,7 @@ trx_sysf_rseg_get_space(const buf_block_t* sys_header, ulint rseg_id)
 	ut_ad(rseg_id < TRX_SYS_N_RSEGS);
 	return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SPACE
 				+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
-				+ sys_header->frame);
+				+ sys_header->page.frame);
 }
 
 /** Read the page number of a rollback segment slot.
@@ -189,7 +189,7 @@ trx_sysf_rseg_get_page_no(const buf_block_t *sys_header, ulint rseg_id)
   ut_ad(rseg_id < TRX_SYS_N_RSEGS);
   return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO +
 			  rseg_id * TRX_SYS_RSEG_SLOT_SIZE +
-			  sys_header->frame);
+			  sys_header->page.frame);
 }
 
 /** Maximum length of MySQL binlog file name, in bytes.

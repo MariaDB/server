@@ -24,12 +24,11 @@ The database buffer pool flush algorithm
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef buf0flu_h
-#define buf0flu_h
+#pragma once
 
 #include "ut0byte.h"
 #include "log0log.h"
-#include "buf0types.h"
+#include "buf0buf.h"
 
 /** Number of pages flushed. Protected by buf_pool.mutex. */
 extern ulint buf_flush_page_count;
@@ -122,15 +121,28 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious);
 This function should be called at a mini-transaction commit, if a page was
 modified in it. Puts the block to the list of modified blocks, if it not
 already in it. */
-UNIV_INLINE
-void
-buf_flush_note_modification(
-/*========================*/
-	buf_block_t*	block,		/*!< in: block which is modified */
-	lsn_t		start_lsn,	/*!< in: start lsn of the first mtr in a
-					set of mtr's */
-	lsn_t		end_lsn);	/*!< in: end lsn of the last mtr in the
-					set of mtr's */
+inline void buf_flush_note_modification(buf_block_t *b, lsn_t start, lsn_t end)
+{
+  ut_ad(!srv_read_only_mode);
+  ut_d(const auto s= b->page.state());
+  ut_ad(s > buf_page_t::FREED);
+  ut_ad(s < buf_page_t::READ_FIX);
+  ut_ad(mach_read_from_8(b->page.frame + FIL_PAGE_LSN) <= end);
+  mach_write_to_8(b->page.frame + FIL_PAGE_LSN, end);
+  if (UNIV_LIKELY_NULL(b->page.zip.data))
+    memcpy_aligned<8>(FIL_PAGE_LSN + b->page.zip.data,
+                      FIL_PAGE_LSN + b->page.frame, 8);
+
+  const lsn_t oldest_modification= b->page.oldest_modification();
+
+  if (oldest_modification > 1)
+    ut_ad(oldest_modification <= start);
+  else if (fsp_is_system_temporary(b->page.id().space()))
+    b->page.set_temp_modified();
+  else
+    buf_pool.insert_into_flush_list(b, start);
+  srv_stats.buf_pool_write_requests.inc();
+}
 
 /** Initialize page_cleaner. */
 ATTRIBUTE_COLD void buf_flush_page_cleaner_init();
@@ -149,7 +161,3 @@ void buf_flush_validate();
 /** Synchronously flush dirty blocks.
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 void buf_flush_sync();
-
-#include "buf0flu.ic"
-
-#endif

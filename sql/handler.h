@@ -2625,6 +2625,9 @@ public:
   /** true when InnoDB should abort the alter when table is not empty */
   const bool error_if_not_empty;
 
+  /** True when DDL should avoid downgrading the MDL */
+  bool mdl_exclusive_after_prepare= false;
+
   Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
                      Alter_info *alter_info_arg,
                      KEY *key_info_arg, uint key_count_arg,

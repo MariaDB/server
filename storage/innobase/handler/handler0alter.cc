@@ -1914,10 +1914,15 @@ innobase_fts_check_doc_id_col(
 }
 
 /** Check whether the table is empty.
-@param[in]	table	table to be checked
+@param[in]	table			table to be checked
+@param[in]	ignore_delete_marked	Ignore the delete marked
+					flag record
 @return true if table is empty */
-static bool innobase_table_is_empty(const dict_table_t *table)
+static bool innobase_table_is_empty(const dict_table_t *table,
+				    bool ignore_delete_marked=true)
 {
+  if (!table->space)
+    return false;
   dict_index_t *clust_index= dict_table_get_first_index(table);
   mtr_t mtr;
   btr_pcur_t pcur;
@@ -1955,12 +1960,16 @@ next_page:
   }
 
   rec= page_cur_get_rec(cur);
-  if (rec_get_deleted_flag(rec, dict_table_is_comp(table)));
-  else if (!page_rec_is_supremum(rec))
+  if (rec_get_deleted_flag(rec, dict_table_is_comp(table)))
   {
+    if (ignore_delete_marked)
+      goto scan_leaf;
+non_empty:
     mtr.commit();
     return false;
   }
+  else if (!page_rec_is_supremum(rec))
+    goto non_empty;
   else
   {
     next_page= true;
@@ -5816,8 +5825,8 @@ add_all_virtual:
 	btr_pcur_move_to_next_on_page(&pcur);
 
 	buf_block_t* block = btr_pcur_get_block(&pcur);
-	ut_ad(page_is_leaf(block->frame));
-	ut_ad(!page_has_prev(block->frame));
+	ut_ad(page_is_leaf(block->page.frame));
+	ut_ad(!page_has_prev(block->page.frame));
 	ut_ad(!buf_block_get_page_zip(block));
 	const rec_t* rec = btr_pcur_get_rec(&pcur);
 	que_thr_t* thr = pars_complete_graph_for_exec(
@@ -5830,8 +5839,8 @@ add_all_virtual:
 		if (is_root
 		    && !rec_is_alter_metadata(rec, *index)
 		    && !index->table->instant
-		    && !page_has_next(block->frame)
-		    && page_rec_is_last(rec, block->frame)) {
+		    && !page_has_next(block->page.frame)
+		    && page_rec_is_last(rec, block->page.frame)) {
 			goto empty_table;
 		}
 
@@ -5843,7 +5852,8 @@ add_all_virtual:
 		buf_block_t* root = btr_root_block_get(index, RW_X_LATCH,
 						       &mtr);
 		DBUG_ASSERT(root);
-		if (fil_page_get_type(root->frame) != FIL_PAGE_TYPE_INSTANT) {
+		if (fil_page_get_type(root->page.frame)
+		    != FIL_PAGE_TYPE_INSTANT) {
 			DBUG_ASSERT("wrong page type" == 0);
 			err = DB_CORRUPTION;
 			goto func_exit;
@@ -5914,8 +5924,8 @@ add_all_virtual:
 		   && !index->table->instant) {
 empty_table:
 		/* The table is empty. */
-		ut_ad(fil_page_index_page_check(block->frame));
-		ut_ad(!page_has_siblings(block->frame));
+		ut_ad(fil_page_index_page_check(block->page.frame));
+		ut_ad(!page_has_siblings(block->page.frame));
 		ut_ad(block->page.id().page_no() == index->page);
 		/* MDEV-17383: free metadata BLOBs! */
 		btr_page_empty(block, NULL, index, 0, &mtr);
@@ -5933,7 +5943,7 @@ empty_table:
 	mtr.start();
 	index->set_modified(mtr);
 	if (buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, &mtr)) {
-		if (fil_page_get_type(root->frame) != FIL_PAGE_INDEX) {
+		if (fil_page_get_type(root->page.frame) != FIL_PAGE_INDEX) {
 			DBUG_ASSERT("wrong page type" == 0);
 			goto err_exit;
 		}
@@ -6753,6 +6763,7 @@ wrong_column_name:
 		DBUG_ASSERT(num_fts_index <= 1);
 		DBUG_ASSERT(!ctx->online || num_fts_index == 0);
 		DBUG_ASSERT(!ctx->online
+			    || !ha_alter_info->mdl_exclusive_after_prepare
 			    || ctx->add_autoinc == ULINT_UNDEFINED);
 		DBUG_ASSERT(!ctx->online
 			    || !innobase_need_rebuild(ha_alter_info, old_table)
@@ -7548,6 +7559,20 @@ ha_innobase::prepare_inplace_alter_table(
 		DBUG_RETURN(false);
 	}
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+	if (table->part_info == NULL) {
+#endif
+	/* Ignore the MDL downgrade when table is empty.
+	This optimization is disabled for partition table. */
+	ha_alter_info->mdl_exclusive_after_prepare =
+		innobase_table_is_empty(m_prebuilt->table, false);
+	if (ha_alter_info->online
+	    && ha_alter_info->mdl_exclusive_after_prepare) {
+		ha_alter_info->online = false;
+	}
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+	}
+#endif
 	indexed_table = m_prebuilt->table;
 
 	/* ALTER TABLE will not implicitly move a table from a single-table
@@ -8344,7 +8369,9 @@ ha_innobase::inplace_alter_table(
 
 	DEBUG_SYNC(m_user_thd, "innodb_inplace_alter_table_enter");
 
-	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)) {
+	/* Ignore the inplace alter phase when table is empty */
+	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
+	    || ha_alter_info->mdl_exclusive_after_prepare) {
 ok_exit:
 		DEBUG_SYNC(m_user_thd, "innodb_after_inplace_alter_table");
 		DBUG_RETURN(false);
@@ -10467,7 +10494,8 @@ commit_cache_norebuild(
 					    space->zip_size(),
 					    RW_X_LATCH, &mtr)) {
 					byte* f = FSP_HEADER_OFFSET
-						+ FSP_SPACE_FLAGS + b->frame;
+						+ FSP_SPACE_FLAGS
+						+ b->page.frame;
 					const auto sf = space->flags
 						& ~FSP_FLAGS_MEM_MASK;
 					if (mach_read_from_4(f) != sf) {

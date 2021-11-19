@@ -7,6 +7,9 @@ CREATE TABLE t1 (pk INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 # MDEV-515 takes X-lock on the table for the first insert.
 # So concurrent insert won't happen on the table
 INSERT INTO t0 VALUES(100);
+
+INSERT INTO t1 VALUES(100, 100);
+
 --connect (con1,localhost,root,,test)
 BEGIN;
 INSERT INTO t0 SET pk=1;

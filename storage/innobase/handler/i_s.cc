@@ -116,10 +116,8 @@ struct buf_page_info_t{
 	ulint		block_id;	/*!< Buffer Pool block ID */
 	/** page identifier */
 	page_id_t	id;
-	unsigned	access_time:32;	/*!< Time of first access */
-	unsigned	io_fix:2;	/*!< type of pending I/O operation */
-	uint32_t	fix_count;	/*!< Count of how manyfold this block
-					is bufferfixed */
+	uint32_t	access_time;	/*!< Time of first access */
+	uint32_t	state;		/*!< buf_page_t::state() */
 #ifdef BTR_CUR_HASH_ADAPT
 	unsigned	hashed:1;	/*!< Whether hash index has been
 					built on this page */
@@ -130,7 +128,7 @@ struct buf_page_info_t{
 					buf_pool.freed_page_clock */
 	unsigned	zip_ssize:PAGE_ZIP_SSIZE_BITS;
 					/*!< Compressed page size */
-	unsigned	page_state:3; /*!< Page state */
+	unsigned	compressed_only:1; /*!< ROW_FORMAT=COMPRESSED only */
 	unsigned	page_type:I_S_PAGE_TYPE_BITS;	/*!< Page type */
 	unsigned	num_recs:UNIV_PAGE_SIZE_SHIFT_MAX-2;
 					/*!< Number of records on Page */
@@ -3816,12 +3814,11 @@ static const LEX_CSTRING io_values[] =
 {
 	{ STRING_WITH_LEN("IO_NONE") },
 	{ STRING_WITH_LEN("IO_READ") },
-	{ STRING_WITH_LEN("IO_WRITE") },
-	{ STRING_WITH_LEN("IO_PIN") }
+	{ STRING_WITH_LEN("IO_WRITE") }
 };
 
 
-static TypelibBuffer<4> io_values_typelib(io_values);
+static TypelibBuffer<3> io_values_typelib(io_values);
 
 namespace Show {
 /* Fields of the dynamic table INNODB_BUFFER_POOL_PAGE. */
@@ -3944,7 +3941,7 @@ i_s_innodb_buffer_page_fill(
 		OK(fields[IDX_BUFFER_PAGE_FLUSH_TYPE]->store(0, true));
 
 		OK(fields[IDX_BUFFER_PAGE_FIX_COUNT]->store(
-			   page_info->fix_count, true));
+			   ~buf_page_t::LRU_MASK & page_info->state, true));
 
 #ifdef BTR_CUR_HASH_ADAPT
 		OK(fields[IDX_BUFFER_PAGE_HASHED]->store(
@@ -4017,12 +4014,27 @@ i_s_innodb_buffer_page_fill(
 			   ? (UNIV_ZIP_SIZE_MIN >> 1) << page_info->zip_ssize
 			   : 0, true));
 
-		OK(fields[IDX_BUFFER_PAGE_STATE]->store(
-			   1 + std::min<unsigned>(page_info->page_state,
-						  BUF_BLOCK_FILE_PAGE), true));
+		static_assert(buf_page_t::NOT_USED == 0, "compatibility");
+		static_assert(buf_page_t::MEMORY == 1, "compatibility");
+		static_assert(buf_page_t::REMOVE_HASH == 2, "compatibility");
 
-		OK(fields[IDX_BUFFER_PAGE_IO_FIX]->store(
-			   1 + page_info->io_fix, true));
+		OK(fields[IDX_BUFFER_PAGE_STATE]->store(
+			   std::min<uint32_t>(3, page_info->state) + 1, true));
+
+		static_assert(buf_page_t::UNFIXED == 1U << 29, "comp.");
+		static_assert(buf_page_t::READ_FIX == 4U << 29, "comp.");
+		static_assert(buf_page_t::WRITE_FIX == 5U << 29, "comp.");
+
+		unsigned io_fix = page_info->state >> 29;
+		if (io_fix < 4) {
+			io_fix = 1;
+		} else if (io_fix > 5) {
+			io_fix = 3;
+		} else {
+			io_fix -= 2;
+		}
+
+		OK(fields[IDX_BUFFER_PAGE_IO_FIX]->store(io_fix, true));
 
 		OK(fields[IDX_BUFFER_PAGE_IS_OLD]->store(
 			   page_info->is_old, true));
@@ -4106,26 +4118,22 @@ i_s_innodb_buffer_page_get_info(
 {
 	page_info->block_id = pos;
 
-	compile_time_assert(BUF_BLOCK_NOT_USED == 0);
-	compile_time_assert(BUF_BLOCK_MEMORY == 1);
-	compile_time_assert(BUF_BLOCK_REMOVE_HASH == 2);
-	compile_time_assert(BUF_BLOCK_FILE_PAGE == 3);
-	compile_time_assert(BUF_BLOCK_ZIP_PAGE == 4);
+	static_assert(buf_page_t::NOT_USED == 0, "compatibility");
+	static_assert(buf_page_t::MEMORY == 1, "compatibility");
+	static_assert(buf_page_t::REMOVE_HASH == 2, "compatibility");
+	static_assert(buf_page_t::UNFIXED == 1U << 29, "compatibility");
+	static_assert(buf_page_t::READ_FIX == 4U << 29, "compatibility");
+	static_assert(buf_page_t::WRITE_FIX == 5U << 29, "compatibility");
 
-	auto state = bpage->state();
-	page_info->page_state= int{state} & 7;
+	page_info->state = bpage->state();
 
-	switch (state) {
-	default:
+	if (page_info->state < buf_page_t::FREED) {
 		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
-		break;
-	case BUF_BLOCK_FILE_PAGE:
-	case BUF_BLOCK_ZIP_PAGE:
+		page_info->compressed_only = false;
+	} else {
 		const byte*	frame;
 
 		page_info->id = bpage->id();
-
-		page_info->fix_count = bpage->buf_fix_count();
 
 		page_info->oldest_mod = bpage->oldest_modification();
 
@@ -4133,34 +4141,28 @@ i_s_innodb_buffer_page_get_info(
 
 		page_info->zip_ssize = bpage->zip.ssize;
 
-		page_info->io_fix = bpage->io_fix() & 3;
-
 		page_info->is_old = bpage->old;
 
 		page_info->freed_page_clock = bpage->freed_page_clock;
 
-		switch (bpage->io_fix()) {
-		case BUF_IO_NONE:
-		case BUF_IO_WRITE:
-		case BUF_IO_PIN:
-			break;
-		case BUF_IO_READ:
+		if (page_info->state >= buf_page_t::READ_FIX
+		    && page_info->state < buf_page_t::WRITE_FIX) {
 			page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
 			page_info->newest_mod = 0;
 			return;
 		}
 
-		if (state == BUF_BLOCK_FILE_PAGE) {
-			const buf_block_t*block;
-
-			block = reinterpret_cast<const buf_block_t*>(bpage);
-			frame = block->frame;
+		page_info->compressed_only = !bpage->frame,
+		frame = bpage->frame;
+		if (UNIV_LIKELY(frame != nullptr)) {
 #ifdef BTR_CUR_HASH_ADAPT
 			/* Note: this may be a false positive, that
 			is, block->index will not always be set to
 			NULL when the last adaptive hash index
 			reference is dropped. */
-			page_info->hashed = (block->index != NULL);
+			page_info->hashed =
+				reinterpret_cast<const buf_block_t*>(bpage)
+				->index != nullptr;
 #endif /* BTR_CUR_HASH_ADAPT */
 		} else {
 			ut_ad(page_info->zip_ssize);
@@ -4447,7 +4449,7 @@ i_s_innodb_buf_page_lru_fill(
 		OK(fields[IDX_BUF_LRU_PAGE_FLUSH_TYPE]->store(0, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_FIX_COUNT]->store(
-			   page_info->fix_count, true));
+			   ~buf_page_t::LRU_MASK & page_info->state, true));
 
 #ifdef BTR_CUR_HASH_ADAPT
 		OK(fields[IDX_BUF_LRU_PAGE_HASHED]->store(
@@ -4520,11 +4522,22 @@ i_s_innodb_buf_page_lru_fill(
 			   ? 512 << page_info->zip_ssize : 0, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_STATE]->store(
-			   page_info->page_state == BUF_BLOCK_ZIP_PAGE,
-			   true));
+			   page_info->compressed_only, true));
 
-		OK(fields[IDX_BUF_LRU_PAGE_IO_FIX]->store(
-			   1 + page_info->io_fix, true));
+		static_assert(buf_page_t::UNFIXED == 1U << 29, "comp.");
+		static_assert(buf_page_t::READ_FIX == 4U << 29, "comp.");
+		static_assert(buf_page_t::WRITE_FIX == 5U << 29, "comp.");
+
+		unsigned io_fix = page_info->state >> 29;
+		if (io_fix < 4) {
+			io_fix = 1;
+		} else if (io_fix > 5) {
+			io_fix = 3;
+		} else {
+			io_fix -= 2;
+		}
+
+		OK(fields[IDX_BUF_LRU_PAGE_IO_FIX]->store(io_fix, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_IS_OLD]->store(
 			   page_info->is_old, true));

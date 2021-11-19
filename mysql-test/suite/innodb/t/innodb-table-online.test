@@ -395,6 +395,7 @@ SET GLOBAL innodb_monitor_disable = module_ddl;
 DROP TABLE t1;
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b blob) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0,NULL);
 
 connection con1;
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL created WAIT_FOR ins';

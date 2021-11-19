@@ -571,7 +571,7 @@ trx_resurrect_table_locks(
 		page_id_t(trx->rsegs.m_redo.rseg->space->id,
 			  undo->top_page_no), &mtr);
 	buf_block_t* undo_block = block;
-	trx_undo_rec_t* undo_rec = block->frame + undo->top_offset;
+	trx_undo_rec_t* undo_rec = block->page.frame + undo->top_offset;
 
 	do {
 		ulint		type;

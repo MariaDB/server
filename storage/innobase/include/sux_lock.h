@@ -68,10 +68,13 @@ public:
     ut_ad(!writer.load(std::memory_order_relaxed));
     ut_ad(!recursive);
     ut_d(readers_lock.init());
-    ut_ad(!readers.load(std::memory_order_relaxed));
+#ifdef UNIV_DEBUG
+    if (auto r= readers.load(std::memory_order_relaxed))
+      ut_ad(r->empty());
+#endif
   }
 
-  /** Free the rw-lock after create() */
+  /** Free the rw-lock after init() */
   void free()
   {
     ut_ad(!writer.load(std::memory_order_relaxed));
@@ -271,6 +274,13 @@ public:
 
   /** @return whether any writer is waiting */
   bool is_waiting() const { return lock.is_waiting(); }
+
+  bool is_write_locked() const { return lock.is_write_locked(); }
+
+  bool is_locked_or_waiting() const { return lock.is_locked_or_waiting(); }
+
+  inline void lock_shared();
+  inline void unlock_shared();
 };
 
 typedef sux_lock<ssux_lock_impl<true>> block_lock;
@@ -286,7 +296,10 @@ template<> inline void sux_lock<ssux_lock_impl<true>>::init()
   ut_ad(!writer.load(std::memory_order_relaxed));
   ut_ad(!recursive);
   ut_d(readers_lock.init());
-  ut_ad(!readers.load(std::memory_order_relaxed));
+#ifdef UNIV_DEBUG
+  if (auto r= readers.load(std::memory_order_relaxed))
+    ut_ad(r->empty());
+#endif
 }
 
 template<>
@@ -350,6 +363,11 @@ template<typename ssux> inline void sux_lock<ssux>::s_lock()
   lock.rd_lock();
   ut_d(s_lock_register());
 }
+
+template<typename ssux>
+inline void sux_lock<ssux>::lock_shared() { s_lock(); }
+template<typename ssux>
+inline void sux_lock<ssux>::unlock_shared() { s_unlock(); }
 
 template<typename ssux> inline void sux_lock<ssux>::u_lock()
 {

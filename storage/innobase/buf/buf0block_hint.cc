@@ -43,16 +43,15 @@ void Block_hint::buffer_fix_block_if_still_valid()
   different page, and that slice of buf_pool.page_hash could be protected
   by another hash_lock that we are not holding.)
 
-  Finally, assuming that we have correct hash bucket latched, we must
-  validate m_block->state() to ensure that the block is not being freed. */
+  Finally, we must ensure that the block is not being freed. */
   if (m_block)
   {
     auto &cell= buf_pool.page_hash.cell_get(m_page_id.fold());
     transactional_shared_lock_guard<page_hash_latch> g
       {buf_pool.page_hash.lock_get(cell)};
     if (buf_pool.is_uncompressed(m_block) && m_page_id == m_block->page.id() &&
-        m_block->page.state() == BUF_BLOCK_FILE_PAGE)
-      m_block->fix();
+        m_block->page.frame && m_block->page.in_file())
+      m_block->page.fix();
     else
       clear();
   }
