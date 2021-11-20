@@ -3479,7 +3479,7 @@ bool select_max_min_finder_subselect::cmp_str()
     but added for safety
   */
   val1= cache->val_str(&buf1);
-  val2= maxmin->val_str(&buf1);
+  val2= maxmin->val_str(&buf2);
 
   /* Ignore NULLs for ANY and keep them for ALL subqueries */
   if (cache->null_value)
