@@ -824,5 +824,15 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '23:59:59';
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-27098 Subquery using the ALL keyword on TIME columns produces a wrong result
+--echo #
+
+CREATE TABLE t1 (d TIME);
+INSERT INTO t1 VALUES ('120:00:00'), ('20:00:00'), ('-120:00:00'), ('-220:00:00');
+SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
+SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
