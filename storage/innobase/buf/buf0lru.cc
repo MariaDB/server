@@ -1318,7 +1318,7 @@ func_exit:
 /* Avoid GCC 4.8.5 internal compiler error "could not split insn".
 We would only need this for buf_LRU_scan_and_free_block(),
 but GCC 4.8.5 does not support pop_options. */
-# pragma GCC optimize ("no-expensive-optimizations")
+# pragma GCC optimize ("O0")
 #endif
 /** Try to free a replaceable block.
 @param limit  maximum number of blocks to scan

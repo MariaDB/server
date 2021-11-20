@@ -1168,26 +1168,17 @@ void mtr_t::lock_upgrade(const index_lock &lock)
 void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
 {
   mtr_memo_type_t fix_type;
-  const auto state= block->page.state();
-  ut_ad(state >= buf_page_t::FREED);
+  ut_d(const auto state= block->page.state());
+  ut_ad(state > buf_page_t::FREED);
+  ut_ad(state > buf_page_t::WRITE_FIX || state < buf_page_t::READ_FIX);
   switch (rw_latch)
   {
   case RW_NO_LATCH:
     fix_type= MTR_MEMO_BUF_FIX;
-    if (state >= buf_page_t::READ_FIX && state < buf_page_t::WRITE_FIX)
-    {
-      /* The io-fix will be released after block->page.lock in
-      buf_page_t::read_complete(), buf_pool_t::corrupted_evict(), and
-      buf_page_t::write_complete(). */
-      block->page.lock.s_lock();
-      ut_ad(!block->page.is_read_fixed());
-      block->page.lock.s_unlock();
-    }
     goto done;
   case RW_S_LATCH:
     fix_type= MTR_MEMO_PAGE_S_FIX;
     block->page.lock.s_lock();
-    ut_ad(!block->page.is_read_fixed());
     break;
   case RW_SX_LATCH:
     fix_type= MTR_MEMO_PAGE_SX_FIX;

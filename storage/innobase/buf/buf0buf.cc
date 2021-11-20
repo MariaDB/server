@@ -977,6 +977,7 @@ buf_block_init(buf_block_t* block, byte* frame)
 
 	MEM_MAKE_DEFINED(&block->modify_clock, sizeof block->modify_clock);
 	ut_ad(!block->modify_clock);
+	MEM_MAKE_DEFINED(&block->page.lock, sizeof block->page.lock);
 	block->page.init(buf_page_t::NOT_USED, page_id_t(~0ULL));
 #ifdef BTR_CUR_HASH_ADAPT
 	MEM_MAKE_DEFINED(&block->index, sizeof block->index);
@@ -989,8 +990,6 @@ buf_block_init(buf_block_t* block, byte* frame)
 
 	MEM_MAKE_DEFINED(&block->page.hash, sizeof block->page.hash);
 	ut_ad(!block->page.hash);
-	MEM_MAKE_DEFINED(&block->page.lock, sizeof block->page.lock);
-	block->page.lock.init();
 }
 
 /** Allocate a chunk of buffer frames.
@@ -2520,20 +2519,21 @@ buf_page_get_low(
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
 loop:
 	buf_block_t* block = guess;
+	uint32_t state;
 
 	if (block) {
 		transactional_shared_lock_guard<page_hash_latch> g{hash_lock};
 		if (buf_pool.is_uncompressed(block)
 		    && page_id == block->page.id()) {
 			ut_ad(!block->page.in_zip_hash);
-			const auto state = block->page.state();
+			state = block->page.state();
 			/* Ignore guesses that point to read-fixed blocks.
 			We can only avoid a race condition by
 			looking up the block via buf_pool.page_hash. */
 			if ((state >= buf_page_t::FREED
-			     && state < buf_page_t::READ_FIX) ||
-			    state >= buf_page_t::WRITE_FIX) {
-				block->fix();
+			     && state < buf_page_t::READ_FIX)
+			    || state >= buf_page_t::WRITE_FIX) {
+				state = block->page.fix();
 				goto got_block;
 			}
 		}
@@ -2547,7 +2547,7 @@ loop:
 		buf_pool.page_hash.get(page_id, chain));
 	if (UNIV_LIKELY(block
 			&& !buf_pool.watch_is_sentinel(block->page))) {
-		block->fix();
+		state = block->page.fix();
 		hash_lock.unlock_shared();
 		goto got_block;
 	}
@@ -2564,11 +2564,8 @@ loop:
 		hash_lock.lock();
 		block = reinterpret_cast<buf_block_t*>
 			(buf_pool.watch_set(page_id, chain));
-		if (block) {
-			/* buffer-fixing prevents block->page.in_file()
-			from changing */
-			block->fix();
-		}
+		/* buffer-fixing will prevent eviction */
+		state = block ? block->page.fix() : 0;
 		hash_lock.unlock();
 
 		if (block) {
@@ -2657,18 +2654,33 @@ loop:
 
 got_block:
 	ut_ad(!block->page.in_zip_hash);
-	ut_ad(block->page.in_file());
+	state++;
+	ut_ad(state > buf_page_t::FREED);
 
-	if (mode == BUF_PEEK_IF_IN_POOL) {
-		if (UNIV_UNLIKELY(!block->page.frame
-				  || block->page.is_read_fixed())) {
-			/* This mode is only used for dropping an
-			adaptive hash index. There cannot be an
-			adaptive hash index for a compressed-only page
-			or a page that is only being read into the
-			buffer pool. */
+	if (state > buf_page_t::READ_FIX && state < buf_page_t::WRITE_FIX) {
+		if (mode == BUF_PEEK_IF_IN_POOL
+		    || mode == BUF_EVICT_IF_IN_POOL) {
+ignore_block:
 			block->unfix();
 			return nullptr;
+		}
+
+		if (UNIV_LIKELY(block->page.frame != nullptr)) {
+			/* A read-fix is released after block->page.lock
+			in buf_page_t::read_complete() or
+			buf_pool_t::corrupted_evict(), or
+			after buf_zip_decompress() in this function. */
+			block->page.lock.s_lock();
+			state = block->page.state();
+			block->page.lock.s_unlock();
+			ut_ad(state < buf_page_t::READ_FIX);
+		}
+	} else if (mode == BUF_PEEK_IF_IN_POOL) {
+		if (UNIV_UNLIKELY(!block->page.frame)) {
+			/* This mode is only used for dropping an
+			adaptive hash index. There cannot be an
+			adaptive hash index for a compressed-only page. */
+			goto ignore_block;
 		}
 	} else if (mode == BUF_EVICT_IF_IN_POOL) {
 		ut_ad(!block->page.oldest_modification());
@@ -2716,7 +2728,7 @@ wait_for_unfix:
 		FIXME: Never fix() before acquiring the lock.
 		Only in buf_page_get_gen(), buf_page_get_low(), buf_page_free()
 		we are violating that principle. */
-		auto state = block->page.state();
+		state = block->page.state();
 
 		switch (state) {
 		case buf_page_t::UNFIXED + 1:
@@ -2745,8 +2757,7 @@ wait_for_unfix:
 			goto wait_for_unfix;
 		}
 
-		/* Ensure that mtr_t::page_lock(new_block, RW_NO_LATCH)
-		in another thread will wait for
+		/* Ensure that another buf_page_get_low() will wait for
 		new_block->page.lock.x_unlock(). */
 		block->page.set_state(buf_page_t::READ_FIX);
 
@@ -2789,6 +2800,7 @@ wait_for_unfix:
 		buf_pool.mutex. */
 		auto ok = buf_zip_decompress(block, false);
 		block->page.read_unfix(state);
+		state = block->page.state();
 		block->page.lock.x_unlock();
 		--buf_pool.n_pend_unzip;
 
@@ -2799,11 +2811,9 @@ wait_for_unfix:
 			if (err) {
 				*err = DB_PAGE_CORRUPTED;
 			}
-			return NULL;
+			return nullptr;
 		}
 	}
-
-	ut_ad(block->page.frame);
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 re_evict:
@@ -2844,9 +2854,13 @@ re_evict:
 		buf_flush_list();
 		buf_flush_wait_batch_end_acquiring_mutex(false);
 		while (buf_flush_list_space(space));
-		os_aio_wait_until_no_pending_writes();
+		/* Wait for page write completion. */
+		block->page.lock.u_lock();
+		block->page.lock.u_unlock();
 
-		if (block->page.buf_fix_count() == 1
+		state = block->page.state();
+
+		if (state == buf_page_t::UNFIXED + 1
 		    && !block->page.oldest_modification()) {
 			goto re_evict;
 		}
@@ -2855,8 +2869,9 @@ re_evict:
 	}
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
-	ut_ad(block->page.buf_fix_count());
-	ut_ad(block->page.in_file());
+	ut_ad(state > buf_page_t::FREED);
+	ut_ad(state < buf_page_t::UNFIXED || (~buf_page_t::LRU_MASK) & state);
+	ut_ad(state > buf_page_t::WRITE_FIX || state < buf_page_t::READ_FIX);
 
 	/* While tablespace is reinited the indexes are already freed but the
 	blocks related to it still resides in buffer pool. Trying to remove
@@ -2866,7 +2881,7 @@ re_evict:
 	with mode = BUF_PEEK_IF_IN_POOL that is invoked from
 	"btr_search_drop_page_hash_when_freed". */
 	ut_ad(mode == BUF_GET_POSSIBLY_FREED || mode == BUF_PEEK_IF_IN_POOL
-	      || !block->page.is_freed());
+	      || state > buf_page_t::UNFIXED);
 
 	const bool not_first_access = block->page.set_accessed();
 
@@ -2881,19 +2896,18 @@ re_evict:
 #ifdef UNIV_DEBUG
 	if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
 #endif /* UNIV_DEBUG */
-	ut_ad(block->page.in_file());
 	ut_ad(block->page.frame);
 
 	ut_ad(block->page.id() == page_id);
 
-	if (!block->page.is_freed()
+	if (state >= buf_page_t::UNFIXED
 	    && allow_ibuf_merge
 	    && fil_page_get_type(block->page.frame) == FIL_PAGE_INDEX
 	    && page_is_leaf(block->page.frame)) {
 		block->page.lock.x_lock();
-		ut_ad(!block->page.is_io_fixed());
+		state = block->page.state();
+		ut_ad(state < buf_page_t::READ_FIX);
 
-		const auto state = block->page.state();
 		if (state >= buf_page_t::IBUF_EXIST
 		    && state < buf_page_t::REINIT) {
 			block->page.clear_ibuf_exist();
