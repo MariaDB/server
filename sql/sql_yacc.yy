@@ -12668,6 +12668,10 @@ delete:
             lex->select_lex.init_order();
           }
           opt_delete_options single_multi
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 single_multi:
