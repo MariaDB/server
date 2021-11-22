@@ -80,6 +80,7 @@ extern ulong       wsrep_max_ws_size;
 extern ulong       wsrep_max_ws_rows;
 extern const char* wsrep_notify_cmd;
 extern const char* wsrep_status_file;
+extern const char* wsrep_allowlist;
 extern my_bool     wsrep_certify_nonPK;
 extern long int    wsrep_protocol_version;
 extern ulong       wsrep_forced_binlog_format;
@@ -233,6 +234,7 @@ extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
 extern bool wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* table, wsrep::key_array* keys);
 extern bool wsrep_reload_ssl();
+extern bool wsrep_split_allowlist(std::vector<std::string>& allowlist);
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
