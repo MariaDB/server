@@ -100,7 +100,7 @@ char *get_tty_password(const char *opt_message)
   /*
     Allocate output string, and convert UTF16 password to output codepage.
   */
-  cp= GetConsoleCP();
+  cp= GetACP() == CP_UTF8 ? CP_UTF8 : GetConsoleCP();
 
   if (!(to_len= WideCharToMultiByte(cp, 0, wbuf, -1, NULL, 0, NULL, NULL)))
     DBUG_RETURN(NULL);

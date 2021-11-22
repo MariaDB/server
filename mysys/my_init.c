@@ -34,6 +34,7 @@
 #endif
 static void my_win_init(void);
 static my_bool win32_init_tcp_ip();
+static void setup_codepages();
 #else
 #define my_win_init()
 #endif
@@ -66,6 +67,69 @@ static ulong atoi_octal(const char *str)
 
 MYSQL_FILE *mysql_stdin= NULL;
 static MYSQL_FILE instrumented_stdin;
+
+#ifdef _WIN32
+static UINT orig_console_cp, orig_console_output_cp;
+
+static void reset_console_cp(void)
+{
+  /*
+    We try not to call SetConsoleCP unnecessarily, to workaround a bug on
+    older Windows 10 (1803), which could switch truetype console fonts to
+    raster, eventhough SetConsoleCP would be a no-op (switch from UTF8 to UTF8).
+  */
+  if (GetConsoleCP() != orig_console_cp)
+    SetConsoleCP(orig_console_cp);
+  if (GetConsoleOutputCP() != orig_console_output_cp)
+    SetConsoleOutputCP(orig_console_output_cp);
+}
+
+/*
+  The below fixes discrepancies in console output and
+  command line parameter encoding. command line is in
+  ANSI codepage, output to console by default is in OEM, but
+  we like them to be in the same encoding.
+
+  We do this only if current codepage is UTF8, i.e when we
+  know we're on Windows that can handle UTF8 well.
+*/
+static void setup_codepages()
+{
+  UINT acp;
+  BOOL is_a_tty= fileno(stdout) >= 0 && isatty(fileno(stdout));
+
+  if (is_a_tty)
+  {
+    /*
+      Save console codepages, in case we change them,
+      to restore them on exit.
+    */
+    orig_console_cp= GetConsoleCP();
+    orig_console_output_cp= GetConsoleOutputCP();
+    if (orig_console_cp && orig_console_output_cp)
+      atexit(reset_console_cp);
+  }
+
+  if ((acp= GetACP()) != CP_UTF8)
+    return;
+
+  /*
+    Use setlocale to make mbstowcs/mkdir/getcwd behave, see
+    https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/setlocale-wsetlocale
+  */
+  setlocale(LC_ALL, "en_US.UTF8");
+
+  if (is_a_tty && (orig_console_cp != acp || orig_console_output_cp != acp))
+  {
+    /*
+      If ANSI codepage is UTF8, we actually want to switch console
+      to it as well.
+    */
+    SetConsoleCP(acp);
+    SetConsoleOutputCP(acp);
+  }
+}
+#endif
 
 /**
   Initialize my_sys functions, resources and variables
@@ -337,6 +401,17 @@ static void my_win_init(void)
 
   _tzset();
 
+  /*
+   We do not want text translation (LF->CRLF)
+   when stdout is console/terminal, it is buggy
+  */
+  if (fileno(stdout) >= 0 && isatty(fileno(stdout)))
+    (void)setmode(fileno(stdout), O_BINARY);
+
+  if (fileno(stderr) >= 0 && isatty(fileno(stderr)))
+    (void) setmode(fileno(stderr), O_BINARY);
+
+  setup_codepages();
   DBUG_VOID_RETURN;
 }
 

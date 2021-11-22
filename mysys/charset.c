@@ -1517,9 +1517,15 @@ const char* my_default_csname()
   const char* csname = NULL;
 #ifdef _WIN32
   char cpbuf[64];
-  int cp = GetConsoleCP();
-  if (cp == 0)
-    cp = GetACP();
+  UINT cp;
+  if (GetACP() == CP_UTF8)
+    cp= CP_UTF8;
+  else
+  {
+    cp= GetConsoleCP();
+    if (cp == 0)
+      cp= GetACP();
+  }
   snprintf(cpbuf, sizeof(cpbuf), "cp%d", (int)cp);
   csname = my_os_charset_to_mysql_charset(cpbuf);
 #elif defined(HAVE_SETLOCALE) && defined(HAVE_NL_LANGINFO)
