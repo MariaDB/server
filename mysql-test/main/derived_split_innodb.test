@@ -186,4 +186,116 @@ eval $q;
 drop table t1,t2,t3;
 set optimizer_switch='split_materialized=default';
 
+--echo #
+--echo # MDEV-26337: subquery with groupby and ROLLUP returns incorrect results on LEFT JOIN on INDEXED values
+--echo #
+
+CREATE TABLE t1 (
+   the_date  date NOT NULL
+  , PRIMARY KEY ( the_date )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO t1 VALUES ('2021-08-10'),('2021-08-11'),('2021-08-12'),('2021-08-13');
+ 
+CREATE TABLE t2 (
+   the_date  date NOT NULL,
+   ptn_id  char(5) CHARACTER SET utf8mb3 NOT NULL DEFAULT '',
+   cco_stk_ttl  int,
+  PRIMARY KEY ( the_date , ptn_id )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ 
+INSERT INTO  t2 VALUES 
+('2021-08-11','10002',NULL),('2021-08-11','10741',128),
+('2021-08-11','11001',4),('2021-08-11','11003',2048),
+('2021-08-12','10001',4096),('2021-08-12','10002',1),
+('2021-08-12','10429',256),('2021-08-12','10499',16),
+('2021-08-12','10580',8),('2021-08-12','10740',32),
+('2021-08-12','10741',64),('2021-08-12','10771',512),
+('2021-08-12','11001',2),('2021-08-12','11003',1024);
+ 
+CREATE TABLE t3 (
+   id  int NOT NULL AUTO_INCREMENT,
+   nsc_id  char(5) NOT NULL,
+   dept_id  char(4) NOT NULL,
+   district_id  char(3) NOT NULL,
+   region_id  char(2) NOT NULL,
+  PRIMARY KEY ( id ),
+  UNIQUE KEY  dept_district  ( dept_id , district_id ),
+  KEY  region_id  ( dept_id , region_id )
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4;
+ 
+INSERT INTO t3 VALUES 
+(1,'MMD','ADVB','10','1'), (2,'MMD','ADVB','11','1'),
+(3,'MMD','ADVB','21','2'),(4,'MMD','ADVB','22','2');
+ 
+CREATE TABLE t4 (
+   dept_id  char(4) CHARACTER SET utf8mb3 NOT NULL,
+   ptn_id  char(5) CHARACTER SET utf8mb3 NOT NULL,
+   district_id  char(3) CHARACTER SET utf8mb3 NOT NULL DEFAULT '0',
+   nsc_id  char(5) CHARACTER SET utf8mb3 NOT NULL
+  , PRIMARY KEY (ptn_id , dept_id) 
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ 
+INSERT INTO  t4 VALUES 
+('ADVB','10001','10','MMD'),('ADVB','10002','10','MMD'),
+('ADVB','10003','10','MMD'),('ADVB','10429','22','MMD'),
+('ADVB','10740','21','MMD'),('ADVB','10741','21','MMD'),
+('ADVB','10771','23','MMD'),('ADVB','11001','11','MMD'),
+('ADVB','11002','11','MMD');
+ 
+CREATE TABLE `t10` (
+  `the_date` date NOT NULL,
+  `dept_id` char(4) CHARACTER SET utf8mb4 ,
+  `org_id` varchar(3) CHARACTER SET utf8mb4 ,
+  `district_id` char(3) CHARACTER SET utf8mb4 ,
+  `region_id` char(2) CHARACTER SET utf8mb4 
+);
+
+insert into t10
+SELECT cal.the_date ,
+        org.dept_id ,
+        coalesce(org.district_id, org.region_id, 'MMD') AS org_id ,
+        org.district_id ,
+        org.region_id
+FROM t1 cal
+CROSS JOIN t3 org
+WHERE org.nsc_id = 'MMD'
+ AND org.dept_id IN ('ADVB')
+ AND cal.the_date = '2021-08-12'
+GROUP BY cal.the_date,
+         org.dept_id,
+         org.region_id,
+         org.district_id WITH ROLLUP HAVING NOT (cal.the_date IS NULL
+                                                 OR org.dept_id IS NULL);
+
+let $q=
+SELECT sql_no_cache org2.the_date ,
+       org2.org_id ,
+       org2.dept_id ,
+       msr. cco_stk_ttl
+FROM
+ t10 org2
+LEFT JOIN
+ ( SELECT sub.the_date ,
+          dis.dept_id ,
+          dis.region_id ,
+          dis.district_id ,
+          sum(sub.cco_stk_ttl) AS cco_stk_ttl
+  FROM t2 sub
+  JOIN t4 org ON org.ptn_id = sub.ptn_id
+  JOIN t3 dis ON dis.dept_id = org.dept_id
+  AND dis.district_id = org.district_id
+  WHERE dis.nsc_id = 'MMD'
+   AND dis.dept_id IN ('ADVB')
+  GROUP BY sub.the_date,
+           dis.dept_id,
+           dis.region_id,
+           dis.district_id WITH ROLLUP ) msr ON msr.the_date = org2.the_date
+AND msr.dept_id <=> org2.dept_id
+AND msr.region_id <=> org2.region_id
+AND msr.district_id <=> org2.district_id;
+
+evalp explain $q;
+evalp $q;
+
+drop table t1,t2,t3,t4,t10;
 --echo # End of 10.3 tests

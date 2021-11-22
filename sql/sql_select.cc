@@ -17047,6 +17047,26 @@ const_expression_in_where(COND *cond, Item *comp_item, Field *comp_field,
     Item *right_item= ((Item_func*) cond)->arguments()[1];
     if (equal(left_item, comp_item, comp_field))
     {
+      /*
+        If this condition
+        1. Was injected by LATERAL DERIVED optimization,
+        2. But is not used for ref access
+        then we ingore it. This is the same as what mmake_cond_for_table() does
+        when it is invoked from make_join_select().
+      */
+      if (func->functype() == Item_func::EQ_FUNC)
+      {
+        if (is_eq_cond_injected_for_split_opt((Item_func_eq*)func))
+        {
+          bool used_for_ref= false;
+          if (left_item->type() == Item::FIELD_ITEM &&
+              test_if_ref(func, (Item_field*)left_item, right_item))
+           used_for_ref= true;
+
+          if (!used_for_ref)
+           return 0;
+        }
+      }
       if (test_if_equality_guarantees_uniqueness (left_item, right_item))
       {
 	if (*const_item)
@@ -17057,6 +17077,20 @@ const_expression_in_where(COND *cond, Item *comp_item, Field *comp_field,
     }
     else if (equal(right_item, comp_item, comp_field))
     {
+      /* Do the same as above */
+      if (func->functype() == Item_func::EQ_FUNC)
+      {
+        if (is_eq_cond_injected_for_split_opt((Item_func_eq*)func))
+        {
+          bool used_for_ref= false;
+          if (right_item->type() == Item::FIELD_ITEM &&
+              test_if_ref(func, (Item_field*)right_item, left_item))
+           used_for_ref= true;
+
+          if (!used_for_ref)
+           return 0;
+        }
+      }
       if (test_if_equality_guarantees_uniqueness (right_item, left_item))
       {
 	if (*const_item)
