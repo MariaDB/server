@@ -158,51 +158,103 @@ static int cmp_strings(const void* a, const void *b)
   return strcmp((const char *)a, *(const char **)b);
 }
 
+
+#define MY_INI_SECTION_SIZE 32 * 1024 + 3
+
+
+int fix_section(const char *myini_path, const char *section_name,
+                bool is_server)
+{
+  if (!is_server)
+    return 0;
+
+  static char section_data[MY_INI_SECTION_SIZE];
+  DWORD size= GetPrivateProfileSection(section_name, section_data,
+                                       MY_INI_SECTION_SIZE, myini_path);
+  if (size == MY_INI_SECTION_SIZE - 2)
+  {
+    return -1;
+  }
+
+  for (char *keyval= section_data; *keyval; keyval += strlen(keyval)+1)
+  {
+    char varname[256];
+    char *value;
+    char *key_end= strchr(keyval, '=');
+    if (!key_end)
+      key_end= keyval + strlen(keyval);
+
+    if (key_end - keyval > sizeof(varname))
+      continue;
+
+    value= key_end + 1;
+
+    // Check if variable should be removed from config.
+    // First, copy and normalize (convert dash to underscore) to  variable
+    // names
+    for (char *p= keyval, *q= varname;; p++, q++)
+    {
+      if (p == key_end)
+      {
+        *q= 0;
+        break;
+      }
+      *q= (*p == '-') ? '_' : *p;
+    }
+    const char *v= (const char *) bsearch(varname, removed_variables, sizeof(removed_variables) / sizeof(removed_variables[0]),
+                                          sizeof(char *), cmp_strings);
+
+    if (v)
+    {
+      fprintf(stdout, "Removing variable '%s' from config file\n", varname);
+      // delete variable
+      *key_end= 0;
+      WritePrivateProfileString(section_name, keyval, 0, myini_path);
+    }
+  }
+  return 0;
+}
+
+static bool is_mariadb_section(const char *name, bool *is_server)
+{
+  if (strncmp(name, "mysql", 5)
+      && strncmp(name, "mariadb", 7)
+      && strcmp(name, "client")
+      && strcmp(name, "client-server")
+      && strcmp(name, "server"))
+  {
+    return false;
+  }
+
+  for (const char *section_name : {"mysqld", "server", "mariadb"})
+    if (*is_server= !strcmp(section_name, name))
+      break;
+
+  return *is_server;
+}
+
+
 /**
-  Convert file from a previous version, by removing
+  Convert file from a previous version, by removing obsolete variables
+  Also, fix values to be UTF8, if MariaDB is running in utf8 mode
 */
 int upgrade_config_file(const char *myini_path)
 {
-#define MY_INI_SECTION_SIZE 32*1024 +3
-  static char section_data[MY_INI_SECTION_SIZE];
-  for (const char *section_name : { "mysqld","server","mariadb" })
+  static char all_sections[MY_INI_SECTION_SIZE];
+  int sz= GetPrivateProfileSectionNamesA(all_sections, MY_INI_SECTION_SIZE,
+                                         myini_path);
+  if (!sz)
+    return 0;
+  if (sz > MY_INI_SECTION_SIZE - 2)
   {
-    DWORD size = GetPrivateProfileSection(section_name, section_data, MY_INI_SECTION_SIZE, myini_path);
-    if (size == MY_INI_SECTION_SIZE - 2)
-    {
-      return -1;
-    }
-
-    for (char *keyval = section_data; *keyval; keyval += strlen(keyval) + 1)
-    {
-      char varname[256];
-      char *key_end = strchr(keyval, '=');
-      if (!key_end)
-        key_end = keyval+ strlen(keyval);
-
-      if (key_end - keyval > sizeof(varname))
-        continue;
-      // copy and normalize (convert dash to underscore) to  variable names
-      for (char *p = keyval, *q = varname;; p++,q++)
-      {
-        if (p == key_end)
-        {
-          *q = 0;
-          break;
-        }
-        *q = (*p == '-') ? '_' : *p;
-      }
-      const char *v = (const char *)bsearch(varname, removed_variables, sizeof(removed_variables) / sizeof(removed_variables[0]),
-        sizeof(char *), cmp_strings);
-
-      if (v)
-      {
-        fprintf(stdout, "Removing variable '%s' from config file\n", varname);
-        // delete variable
-        *key_end = 0;
-        WritePrivateProfileString(section_name, keyval, 0, myini_path);
-      }
-    }
+    fprintf(stderr, "Too many sections in config file\n");
+    return -1;
+  }
+  for (char *section= all_sections; *section; section+= strlen(section) + 1)
+  {
+    bool is_server_section;
+    if (is_mariadb_section(section, &is_server_section))
+      fix_section(myini_path, section, is_server_section);
   }
   return 0;
 }
