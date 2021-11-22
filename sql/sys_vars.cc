@@ -6236,6 +6236,12 @@ static Sys_var_charptr Sys_wsrep_patch_version(
        READ_ONLY GLOBAL_VAR(wsrep_patch_version_ptr), CMD_LINE_HELP_ONLY,
        DEFAULT(WSREP_PATCH_VERSION));
 
+
+static Sys_var_charptr Sys_wsrep_allowlist(
+       "wsrep_allowlist", "Allowed IP addresses split by comma delimiter",
+       READ_ONLY GLOBAL_VAR(wsrep_allowlist), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(""));
+
 #endif /* WITH_WSREP */
 
 static bool fix_host_cache_size(sys_var *, THD *, enum_var_type)

@@ -16,6 +16,7 @@
 #include "my_global.h"
 #include "wsrep_api.h"
 #include "wsrep_server_state.h"
+#include "wsrep_allowlist_service.h"
 #include "wsrep_binlog.h" /* init/deinit group commit */
 
 mysql_mutex_t LOCK_wsrep_server_state;
@@ -25,6 +26,8 @@ mysql_cond_t  COND_wsrep_server_state;
 PSI_mutex_key key_LOCK_wsrep_server_state;
 PSI_cond_key  key_COND_wsrep_server_state;
 #endif
+
+wsrep::provider::services Wsrep_server_state::m_provider_services;
 
 Wsrep_server_state::Wsrep_server_state(const std::string& name,
                                        const std::string& incoming_address,
@@ -74,7 +77,6 @@ void Wsrep_server_state::init_once(const std::string& name,
 
 void Wsrep_server_state::destroy()
 {
-
   if (m_instance)
   {
     delete m_instance;
@@ -83,3 +85,16 @@ void Wsrep_server_state::destroy()
     mysql_cond_destroy(&COND_wsrep_server_state);
   }
 }
+
+void Wsrep_server_state::init_provider_services()
+{
+  m_provider_services.allowlist_service= wsrep_allowlist_service_init();
+}
+
+void Wsrep_server_state::deinit_provider_services()
+{
+  if (m_provider_services.allowlist_service)
+    wsrep_allowlist_service_deinit();
+  m_provider_services= wsrep::provider::services();
+}
+
