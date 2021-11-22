@@ -19396,7 +19396,14 @@ bool innodb_use_native_aio_default()
 #ifdef HAVE_URING
   utsname &u= uname_for_io_uring;
   if (!uname(&u) && u.release[0] == '5' && u.release[1] == '.' &&
-      u.release[2] == '1' && u.release[3] > '0' && u.release[3] < '6')
+      u.release[2] == '1' && u.release[3] > '0' && u.release[3] < '6' /* 5.10 > && < 5.16 */
+      && !(u.release[3] == '4' && u.release[4] == '.' && /* 5.14. */
+        ((u.release[5] >= '2' && isdigit(u.release[6])) || /* 5.14.[2+]\d is ok */
+	(isdigit(u.release[5]) && isdigit(u.release[6]) && isdigit(u.release[7])) || /* 5.14.\d\d\d* is ok */
+        (u.release[5] == '1' && u.release[6] == '9'))) /* 5.14.19 is ok */
+      && !(u.release[3] == '5' && u.release[4] == '.' && /* 5.15. */
+        (u.release[5] >= '3' || isdigit(u.release[6])))  /* 5.15.3+ and 5.15.X\d* are ok */
+      )
   {
     io_uring_may_be_unsafe= u.release;
     return false; /* working around io_uring hangs (MDEV-26674) */
