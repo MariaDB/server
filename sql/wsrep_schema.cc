@@ -38,6 +38,7 @@
 #define WSREP_STREAMING_TABLE "wsrep_streaming_log"
 #define WSREP_CLUSTER_TABLE   "wsrep_cluster"
 #define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
+#define WSREP_ALLOWLIST_TABLE "wsrep_allowlist"
 
 const char* wsrep_sr_table_name_full= WSREP_SCHEMA "/" WSREP_STREAMING_TABLE;
 
@@ -45,6 +46,7 @@ static const std::string wsrep_schema_str= WSREP_SCHEMA;
 static const std::string sr_table_str= WSREP_STREAMING_TABLE;
 static const std::string cluster_table_str= WSREP_CLUSTER_TABLE;
 static const std::string members_table_str= WSREP_MEMBERS_TABLE;
+static const std::string allowlist_table_str= WSREP_ALLOWLIST_TABLE;
 
 static const std::string create_cluster_table_str=
   "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + cluster_table_str +
@@ -88,6 +90,13 @@ static const std::string create_frag_table_str=
   "flags INT NOT NULL, "
   "frag LONGBLOB NOT NULL, "
   "PRIMARY KEY (node_uuid, trx_id, seqno)"
+  ") ENGINE=InnoDB STATS_PERSISTENT=0";
+
+static const std::string create_allowlist_table_str=
+  "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + allowlist_table_str +
+  "("
+  "ip CHAR(64) NOT NULL,"	
+  "PRIMARY KEY (ip)"
   ") ENGINE=InnoDB STATS_PERSISTENT=0";
 
 static const std::string delete_from_cluster_table=
@@ -439,11 +448,18 @@ static int insert(TABLE* table) {
   }
 
   if ((error= table->file->ha_write_row(table->record[0]))) {
-    WSREP_ERROR("Error writing into %s.%s: %d",
-                table->s->db.str,
-                table->s->table_name.str,
-                error);
-    ret= 1;
+   if (error == HA_ERR_FOUND_DUPP_KEY) {
+      WSREP_WARN("Duplicate key found when writing into %s.%s",
+                 table->s->db.str,
+                 table->s->table_name.str);
+      ret= HA_ERR_FOUND_DUPP_KEY;
+    } else  {
+      WSREP_ERROR("Error writing into %s.%s: %d",
+                  table->s->db.str,
+                  table->s->table_name.str,
+                  error);
+      ret= 1;
+    }
   }
 
   DBUG_RETURN(ret);
@@ -684,6 +700,8 @@ static void wsrep_init_thd_for_schema(THD *thd)
   wsrep_store_threadvars(thd);
 }
 
+static bool wsrep_schema_ready= false;
+
 int Wsrep_schema::init()
 {
   DBUG_ENTER("Wsrep_schema::init()");
@@ -719,12 +737,16 @@ int Wsrep_schema::init()
                                      alter_members_table.size()) ||
       Wsrep_schema_impl::execute_SQL(thd,
                                      alter_frag_table.c_str(),
-	                             alter_frag_table.size()))
+                                     alter_frag_table.size()) ||
+      Wsrep_schema_impl::execute_SQL(thd,
+                                     create_allowlist_table_str.c_str(),
+                                     create_allowlist_table_str.size()))
   {
     ret= 1;
   }
   else
   {
+    wsrep_schema_ready= true;
     ret= 0;
   }
 
@@ -1494,4 +1516,122 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
   storage_thd.set_mysys_var(0);
 out:
   DBUG_RETURN(ret);
+}
+
+void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
+{
+  THD* thd= new THD(next_thread_id());
+  if (!thd) 
+  {
+    WSREP_ERROR("Unable to get thd");
+    return;
+  }
+  thd->thread_stack= (char*)&thd;
+  wsrep_init_thd_for_schema(thd);
+  TABLE* allowlist_table= 0;
+  int error;
+  Wsrep_schema_impl::init_stmt(thd);
+  if (Wsrep_schema_impl::open_for_write(thd, allowlist_table_str.c_str(),
+                                        &allowlist_table))
+  {
+    WSREP_ERROR("Failed to open mysql.wsrep_allowlist table");
+    goto out;
+  }
+  for (size_t i= 0; i < ip_allowlist.size(); ++i)
+  {
+    Wsrep_schema_impl::store(allowlist_table, 0, ip_allowlist[i]);
+    if ((error= Wsrep_schema_impl::insert(allowlist_table)))
+    { 
+      if (error == HA_ERR_FOUND_DUPP_KEY)
+      {
+        WSREP_WARN("Duplicate entry (%s) found in `wsrep_allowlist` list", ip_allowlist[i].c_str());
+      }
+      else
+      {
+        WSREP_ERROR("Failed to write mysql.wsrep_allowlist table: %d", error);
+        goto out;
+      }
+    }
+  }
+  Wsrep_schema_impl::finish_stmt(thd);
+out:
+  delete thd;
+}
+
+bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
+                                   const std::string& value)
+{
+  // We don't have wsrep schema initialized at this point
+  if (wsrep_schema_ready == false)
+  {
+    return true;
+  }
+  my_thread_init();
+  THD *thd = new THD(next_thread_id());
+  if (!thd) 
+  {
+    my_thread_end();
+    WSREP_ERROR("Unable to get thd");
+    return false;
+  }
+  thd->thread_stack= (char*)&thd;
+  int error;
+  TABLE *allowlist_table= 0;
+  bool match_found_or_empty= false;
+  bool table_have_rows= false;
+  char row[64]= { 0, };
+  wsrep_init_thd_for_schema(thd);
+
+  /*
+   * Read allowlist table
+   */
+  Wsrep_schema_impl::init_stmt(thd);
+  if (Wsrep_schema_impl::open_for_read(thd, 
+                                       allowlist_table_str.c_str(), 
+                                       &allowlist_table) ||
+      Wsrep_schema_impl::init_for_scan(allowlist_table)) 
+ 	
+  {
+    goto out;
+  }
+  while (true) 
+  {
+    if ((error= Wsrep_schema_impl::next_record(allowlist_table)) == 0) 
+    {
+      if (Wsrep_schema_impl::scan(allowlist_table, 0, row, sizeof(row))) 
+      {
+        goto out;
+      }
+      table_have_rows= true;
+      if (!value.compare(row))
+      {
+        match_found_or_empty= true;
+        break;
+      }
+    }
+    else if (error == HA_ERR_END_OF_FILE) 
+    {
+      if (!table_have_rows)
+      {
+        WSREP_DEBUG("allowlist table empty, allowing all connections.");
+        // If table is empty we are allowing all connections
+        match_found_or_empty= true;
+      }
+      break;
+    }
+    else 
+    {
+      goto out;
+    }
+  }
+  if (Wsrep_schema_impl::end_scan(allowlist_table)) 
+  {
+    goto out;
+  }
+  Wsrep_schema_impl::finish_stmt(thd);
+  (void)trans_commit(thd);
+out:
+  delete thd;
+  my_thread_end();
+  return match_found_or_empty;
 }

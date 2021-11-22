@@ -1,0 +1,35 @@
+connection node_2;
+connection node_1;
+SELECT COUNT(*) = 3 FROM mysql.wsrep_allowlist;
+COUNT(*) = 3
+1
+connection node_2;
+SELECT COUNT(*) = 3 FROM mysql.wsrep_allowlist;
+COUNT(*) = 3
+1
+connection node_3;
+SET @@global.wsrep_desync = 1;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+connection node_1;
+DELETE FROM mysql.wsrep_allowlist WHERE ip LIKE '127.0.0.3';
+SELECT COUNT(*) = 2 FROM mysql.wsrep_allowlist;
+COUNT(*) = 2
+1
+connection node_2;
+SELECT COUNT(*) = 2 FROM mysql.wsrep_allowlist;
+COUNT(*) = 2
+1
+connection node_3;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+SET @@global.wsrep_desync = 0;
+connection node_1;
+INSERT INTO mysql.wsrep_allowlist(ip) VALUES ('127.0.0.3');
+connection node_3;
+# restart
+connection node_1;
+CALL mtr.add_suppression('WSREP: Connection not allowed');
+connection node_2;
+CALL mtr.add_suppression('WSREP: Connection not allowed');
+connection node_3;
+CALL mtr.add_suppression('WSREP: Ignoring lack of quorum');
