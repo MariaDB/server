@@ -19,6 +19,8 @@
 
 #include "lex_string.h"
 #include "privilege.h"
+#include "sql_lex.h"
+#include "sql_list.h"
 
 class LEX_COLUMN;
 class Lex_ident_sys;
