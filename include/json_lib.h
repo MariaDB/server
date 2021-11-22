@@ -83,7 +83,8 @@ enum json_path_step_types
   JSON_PATH_KEY_WILD= 1+4,
   JSON_PATH_KEY_DOUBLEWILD= 1+8,
   JSON_PATH_ARRAY_WILD= 2+4,
-  JSON_PATH_ARRAY_DOUBLEWILD= 2+8
+  JSON_PATH_ARRAY_DOUBLEWILD= 2+8,
+  JSON_PATH_NEGATIVE_INDEX= 16
 };
 
 
@@ -93,7 +94,7 @@ typedef struct st_json_path_step_t
                                    /* see json_path_step_types */
   const uchar *key; /* Pointer to the beginning of the key. */
   const uchar *key_end;  /* Pointer to the end of the key. */
-  uint n_item;      /* Item number in an array. No meaning for the key step. */
+  int n_item;  /* Item number in an array. No meaning for the key step. */
 } json_path_step_t;
 
 
@@ -356,7 +357,7 @@ int json_skip_level_and_count(json_engine_t *j, int *n_items_skipped);
 */
 int json_find_path(json_engine_t *je,
                    json_path_t *p, json_path_step_t **p_cur_step,
-                   uint *array_counters);
+                   int *array_counters);
 
 
 typedef struct st_json_find_paths_t
@@ -365,7 +366,7 @@ typedef struct st_json_find_paths_t
   json_path_t *paths;
   uint cur_depth;
   uint *path_depths;
-  uint array_counters[JSON_DEPTH_LIMIT];
+  int array_counters[JSON_DEPTH_LIMIT];
 } json_find_paths_t;
 
 
@@ -425,13 +426,8 @@ int json_get_path_start(json_engine_t *je, CHARSET_INFO *i_cs,
 
 int json_get_path_next(json_engine_t *je, json_path_t *p);
 
-
-int json_path_parts_compare(
-        const json_path_step_t *a, const json_path_step_t *a_end,
-        const json_path_step_t *b, const json_path_step_t *b_end,
-        enum json_value_types vt);
 int json_path_compare(const json_path_t *a, const json_path_t *b,
-                      enum json_value_types vt);
+                      enum json_value_types vt, const int* array_size_counter);
 
 int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs);
 
@@ -442,6 +438,8 @@ int json_locate_key(const char *js, const char *js_end,
 
 int json_normalize(DYNAMIC_STRING *result,
                    const char *s, size_t size, CHARSET_INFO *cs);
+
+int json_skip_array_and_count(json_engine_t *j, int* n_item);
 
 #ifdef  __cplusplus
 }
