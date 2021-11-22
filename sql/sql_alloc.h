@@ -16,7 +16,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include <my_sys.h>                    /* alloc_root, MEM_ROOT, TRASH */
+#include <my_global.h>                 /* _current_thd, TRASH_FREE */
+#include <my_sys.h>                    /* alloc_root */
 
 /* MariaDB standard class memory allocator */
 
