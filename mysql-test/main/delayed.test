@@ -642,3 +642,18 @@ insert delayed into t1 values (3,3);
 flush tables t1;
 select * from t1;
 drop table t1;
+
+--echo #
+--echo # INSERT DELAYED upon INSERT DELAYED with virtual columns
+--echo #
+
+CREATE TABLE t (
+  id INT AUTO_INCREMENT,
+  a varchar(16) NOT NULL DEFAULT '',
+  b varchar(16) GENERATED ALWAYS AS (a) VIRTUAL,
+  KEY `col_year` (b(8),id)
+) ENGINE=MyISAM;
+
+INSERT DELAYED INTO t (a) VALUES ('foo'),('bar');
+
+DROP TABLE t;

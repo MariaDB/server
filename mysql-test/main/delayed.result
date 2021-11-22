@@ -510,3 +510,14 @@ a	b
 2	2
 3	3
 drop table t1;
+#
+# INSERT DELAYED upon INSERT DELAYED with virtual columns
+#
+CREATE TABLE t (
+id INT AUTO_INCREMENT,
+a varchar(16) NOT NULL DEFAULT '',
+b varchar(16) GENERATED ALWAYS AS (a) VIRTUAL,
+KEY `col_year` (b(8),id)
+) ENGINE=MyISAM;
+INSERT DELAYED INTO t (a) VALUES ('foo'),('bar');
+DROP TABLE t;
