@@ -1,4 +1,4 @@
-/* Copyright 2018 Codership Oy <info@codership.com>
+/* Copyright 2021 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,18 +14,16 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 /*
-  Wsrep typedefs to better conform to coding style.
+  Implementation of wsrep provider threads instrumentation.
  */
-#ifndef WSREP_TYPES_H
-#define WSREP_TYPES_H
 
-#include "wsrep/seqno.hpp"
-#include "wsrep/view.hpp"
+#ifndef WSREP_PROVIDER_ALLOWLIST_H
+#define WSREP_PROVIDER_ALLOWLIST_H
+
 #include "wsrep/allowlist_service.hpp"
 
-typedef wsrep::id Wsrep_id;
-typedef wsrep::seqno Wsrep_seqno;
-typedef wsrep::view Wsrep_view;
-typedef enum wsrep::allowlist_service::allowlist_key Wsrep_allowlist_key;
+wsrep::allowlist_service* wsrep_allowlist_service_init();
 
-#endif /* WSREP_TYPES_H */
+void wsrep_allowlist_service_deinit();
+
+#endif /* WSREP_PROVIDER_ALLOWLIST_H */

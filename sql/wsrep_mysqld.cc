@@ -82,6 +82,7 @@ const char *wsrep_start_position;
 const char *wsrep_data_home_dir;
 const char *wsrep_dbug_option;
 const char *wsrep_notify_cmd;
+const char *wsrep_allowlist;
 
 ulong   wsrep_debug;                            // Debug level logging
 my_bool wsrep_convert_LOCK_to_trx;              // Convert locking sessions to trx
@@ -452,6 +453,16 @@ void wsrep_init_schema()
     {
       WSREP_ERROR("Failed to init wsrep schema");
       unireg_abort(1);
+    }
+    // If we are bootstraping new cluster we should 
+    // populate allowlist from variable
+    if (wsrep_new_cluster) 
+    {
+      std::vector<std::string> ip_allowlist;
+      if (wsrep_split_allowlist(ip_allowlist))
+      {
+        wsrep_schema->store_allowlist(ip_allowlist);
+      }
     }
   }
 }
@@ -862,10 +873,14 @@ int wsrep_init()
   if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
     wsrep_data_home_dir= mysql_real_data_home;
 
-  if (Wsrep_server_state::instance().load_provider(wsrep_provider,
-                                                   wsrep_provider_options))
+  Wsrep_server_state::init_provider_services();
+  if (Wsrep_server_state::instance().load_provider(
+      wsrep_provider,
+      wsrep_provider_options,
+      Wsrep_server_state::instance().provider_services()))
   {
     WSREP_ERROR("Failed to load provider");
+    Wsrep_server_state::deinit_provider_services();
     return 1;
   }
 
@@ -879,6 +894,7 @@ int wsrep_init()
                 "supports streaming replication.",
                 wsrep_provider, global_system_variables.wsrep_trx_fragment_size);
     Wsrep_server_state::instance().unload_provider();
+    Wsrep_server_state::deinit_provider_services();
     return 1;
   }
 
@@ -994,6 +1010,8 @@ void wsrep_deinit(bool free_options)
   WSREP_DEBUG("wsrep_deinit");
 
   Wsrep_server_state::instance().unload_provider();
+  Wsrep_server_state::deinit_provider_services();
+
   provider_name[0]=    '\0';
   provider_version[0]= '\0';
   provider_vendor[0]=  '\0';
@@ -1673,6 +1691,34 @@ bool wsrep_reload_ssl()
     WSREP_ERROR("Failed to get provider options");
     return true;
   }
+}
+
+bool wsrep_split_allowlist(std::vector<std::string>& allowlist)
+{
+  if (!wsrep_allowlist || 0 == strlen(wsrep_allowlist))
+  {
+    return false;
+  }
+  std::istringstream ss{wsrep_allowlist};
+  std::string token;
+  while (std::getline(ss, token, ',')) 
+  {
+    if (!token.empty()) 
+    {
+      struct sockaddr_in sa_4;
+      struct sockaddr_in6 sa_6;
+      if ((inet_pton(AF_INET, token.c_str(), &(sa_4.sin_addr)) != 0) ||
+          (inet_pton(AF_INET6, token.c_str(), &(sa_6.sin6_addr)) != 0))
+      {
+        allowlist.push_back(token);
+      }
+      else
+      {
+        WSREP_WARN("Invalid IP address %s provided in `wsrep_allowlist` variable", token.c_str());
+      }
+    }
+  }
+  return allowlist.size();
 }
 
 /*!

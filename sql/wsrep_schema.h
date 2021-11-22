@@ -133,6 +133,22 @@ class Wsrep_schema
   */
   int recover_sr_transactions(THD* orig_thd);
 
+  /**
+     Store allowlist ip on bootstrap from `wsrep_allowlist` variable
+  */
+  void store_allowlist(std::vector<std::string>& ip_allowlist);
+
+  /**
+     Scan white list table against accepted connection. Allow if ip
+     is found in table or if table is empty.
+
+     @param key   Which allowlist column to compare
+     @param value Value to be checked against allowlist
+     
+     @return True if found or empty table, false on not found 
+  */
+  bool allowlist_check(Wsrep_allowlist_key key, const std::string& val);
+
  private:
   /* Non-copyable */
   Wsrep_schema(const Wsrep_schema&);

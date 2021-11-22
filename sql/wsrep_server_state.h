@@ -55,6 +55,14 @@ public:
   {
     return (get_provider().capabilities() & capability);
   }
+  
+  static void init_provider_services();
+  static void deinit_provider_services();
+
+  static const wsrep::provider::services& provider_services()
+  {
+    return m_provider_services;
+  }
 
 private:
   Wsrep_server_state(const std::string& name,
@@ -67,6 +75,7 @@ private:
   Wsrep_mutex m_mutex;
   Wsrep_condition_variable m_cond;
   Wsrep_server_service m_service;
+  static wsrep::provider::services m_provider_services;
   static Wsrep_server_state* m_instance;
 
 };
