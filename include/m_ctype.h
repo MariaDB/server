@@ -190,6 +190,13 @@ typedef struct my_uca_level_booster_t
 } MY_UCA_LEVEL_BOOSTER;
 
 
+typedef struct my_uca_level_booster_contractions_t
+{
+  size_t nitems_alloced;
+  MY_CONTRACTION *item;
+} MY_UCA_LEVEL_BOOSTER_CONTRACTIONS;
+
+
 /* Collation weights on a single level (e.g. primary, secondary, tertiarty) */
 typedef struct my_uca_level_info_st
 {
@@ -199,6 +206,7 @@ typedef struct my_uca_level_info_st
   MY_CONTRACTIONS contractions;
   uint    levelno;
   MY_UCA_LEVEL_BOOSTER *booster;
+  MY_UCA_LEVEL_BOOSTER_CONTRACTIONS contractions_booster;
 } MY_UCA_WEIGHT_LEVEL;
 
 
