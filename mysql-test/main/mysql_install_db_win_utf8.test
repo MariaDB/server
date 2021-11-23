@@ -1,0 +1,35 @@
+--source include/windows.inc
+--source include/check_utf8_cli.inc
+
+# Create database  in tmp directory using mysql_install_db.exe,
+# and start server from this directory.
+let $ddir= $MYSQLTEST_VARDIR/tmp/датадир;
+--error 0,1
+rmdir $ddir;
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=パスワード -R;
+--source include/kill_mysqld.inc
+
+# Note "restart" via MTR does not work, if server's command line has 
+# non-ASCII characters used (or, characters outside of ANSI codepage).
+# This is a perl limitation, which is worked around in this test - 
+# the server started in background, via exec $MYSQLD
+
+--replace_result $MYSQLD MYSQLD $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+exec $MYSQLD  --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group-suffix=.1 --datadir=$ddir --loose-innodb > NUL 2>&1 &;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+connect (con1,localhost,root,パスワード,mysql);
+
+# Smoke test - check that we're actually using datadir
+# we've created (i.e restart_parameters worked)
+--replace_result  $ddir DATADIR
+SELECT @@datadir;
+# restart in the original datadir again
+--source include/kill_mysqld.inc
+rmdir $ddir;
+
+connection default;
+--source include/start_mysqld.inc
+

@@ -1,0 +1,14 @@
+Running bootstrap
+Creating my.ini file
+Removing default user
+Allowing remote access for user root
+Setting root password
+Creation of the database was successful
+# Kill the server
+connect  con1,localhost,root,パスワード,mysql;
+SELECT @@datadir;
+@@datadir
+DATADIR/
+# Kill the server
+connection default;
+# restart
