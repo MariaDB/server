@@ -34,6 +34,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-uca.h"
 
 typedef struct
 {
@@ -31689,62 +31690,13 @@ my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t currwc,
 
 /****************************************************************/
 
-/**
-  Implicit weights for a code CP are constructed as follows:
-    [.AAAA.0020.0002][.BBBB.0000.0000]
-
-  where:
-    AAAA= BASE + (CP >> 15);
-    BBBB= (CP & 0x7FFF) | 0x8000;
-
-  There are two weights in the primary level (AAAA followed by BBBB).
-  There is one weight on other levels:
-  - 0020 on the secondary level
-  - 0002 on the tertiary level
-*/
-
-
-/**
-  Return BASE for an implicit weight on the primary level
-
-  According to UCA, BASE is calculated as follows:
-  - FB40 for Unified_Ideograph=True AND
-             ((Block=CJK_Unified_Ideograph) OR
-              (Block=CJK_Compatibility_Ideographs))
-  - FB80 for Unified_Ideograph=True AND NOT
-             ((Block=CJK_Unified_Ideograph) OR
-              (Block=CJK_Compatibility_Ideographs))
-  - FBC0 for any other code point
-  TODO: it seems we're not handling BASE correctly:
-  - check what are those blocks
-  - there are more Unified Ideograph blocks in the latest Unicode versions
-*/
-static inline uint16
-my_uca_implicit_weight_base(my_wc_t code)
-{
-  if (code >= 0x3400 && code <= 0x4DB5)
-    return 0xFB80;
-  if (code >= 0x4E00 && code <= 0x9FA5)
-    return 0xFB40;
-  return 0xFBC0;
-}
-
-
 static inline void
 my_uca_implicit_weight_put(uint16 *to, my_wc_t code, uint level)
 {
-  switch (level) {
-  case 1: to[0]= 0x0020; to[1]= 0; break; /* Secondary level */
-  case 2: to[0]= 0x0002; to[1]= 0; break; /* Tertiary level */
-  case 3: to[0]= 0x0001; to[1]= 0; break; /* Quaternary level */
-  default:
-    DBUG_ASSERT(0);
-  case 0:
-    break;
-  }
-  /* Primary level */
-  to[0]= (uint16)(code >> 15) + my_uca_implicit_weight_base(code);
-  to[1]= (code & 0x7FFF) | 0x8000;
+  MY_UCA_IMPLICIT_WEIGHT weight;
+  weight= my_uca_520_implicit_weight_on_level(code, level);
+  to[0]= weight.weight[0];
+  to[1]= weight.weight[1];
   to[2]= 0;
 }
 
@@ -31766,10 +31718,11 @@ static inline int
 my_uca_scanner_next_implicit_primary(my_uca_scanner *scanner)
 {
   my_wc_t wc= (scanner->page << 8) + scanner->code;
-  scanner->implicit[0]= (wc & 0x7FFF) | 0x8000; /* The second weight */
-  scanner->implicit[1]= 0;                      /* 0 terminator      */
+  MY_UCA_IMPLICIT_WEIGHT weight= my_uca_520_implicit_weight_primary(wc);
+  scanner->implicit[0]= weight.weight[1]; /* The second weight */
+  scanner->implicit[1]= 0;                /* 0 terminator      */
   scanner->wbeg= scanner->implicit;
-  return my_uca_implicit_weight_base(wc) + (wc >> 15);
+  return weight.weight[0];                /* The first weight  */
 }
 
 
