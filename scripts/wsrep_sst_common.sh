@@ -44,6 +44,7 @@ WSREP_SST_OPT_HOST_ESCAPED=""
 INNODB_DATA_HOME_DIR="${INNODB_DATA_HOME_DIR:-}"
 INNODB_LOG_GROUP_HOME="${INNODB_LOG_GROUP_HOME:-}"
 INNODB_UNDO_DIR="${INNODB_UNDO_DIR:-}"
+INNODB_FORCE_RECOVERY=""
 INNOEXTRA=""
 
 while [ $# -gt 0 ]; do
@@ -382,6 +383,14 @@ case "$1" in
                        fi
                        skip_mysqld_arg=1
                        ;;
+                   '--innodb-force-recovery')
+                       if [ -n "$value" ]; then
+                           if [ "$value" -ne 0 ]; then
+                               INNODB_FORCE_RECOVERY="$value"
+                           fi
+                       fi
+                       skip_mysqld_arg=1
+                       ;;
                    '--log-bin')
                        if [ -z "$WSREP_SST_OPT_BINLOG" ]; then
                            MYSQLD_OPT_LOG_BIN="$value"
@@ -499,6 +508,7 @@ if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     fi
 fi
 
+readonly INNODB_FORCE_RECOVERY
 readonly WSREP_SST_OPT_MYSQLD
 
 get_binlog()
