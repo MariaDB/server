@@ -2732,6 +2732,14 @@ setup_subq_exit:
     }
     if (make_aggr_tables_info())
       DBUG_RETURN(1);
+
+    /*
+      It could be that we've only done optimization stage 1 for
+      some of the derived tables, and never did stage 2.
+      Do it now, otherwise Explain data structure will not be complete.
+    */
+    if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
+      DBUG_RETURN(1);
   }
   /*
     Even with zero matching rows, subqueries in the HAVING clause may
