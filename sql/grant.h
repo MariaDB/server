@@ -72,15 +72,10 @@ protected:
   privilege_t m_column_privilege_total;
   bool m_all_privileges;
 public:
-  Grant_privilege()
-   :m_object_privilege(NO_ACL),
+  Grant_privilege(privilege_t privileges)
+   :m_object_privilege(privileges),
     m_column_privilege_total(NO_ACL),
     m_all_privileges(false)
-  { }
-  Grant_privilege(privilege_t privilege, bool all_privileges)
-   :m_object_privilege(privilege),
-    m_column_privilege_total(NO_ACL),
-    m_all_privileges(all_privileges)
   { }
   void add_object_privilege(privilege_t privilege)
   {
@@ -94,7 +89,17 @@ public:
                        const Grant_object_name &ident,
                        SELECT_LEX *sel,
                        privilege_t with_grant_option);
-  const List<LEX_COLUMN> & columns() const { return m_columns; }
+  void set_all_privileges()
+  {
+    m_object_privilege= GLOBAL_ACLS;
+    m_all_privileges= true;
+  }
+  /* Getters */
+  List<LEX_COLUMN> & columns() { return m_columns; }
+  const Lex_cstring& db() const { return m_db; }
+  privilege_t object_privilege() const { return m_object_privilege; }
+  privilege_t column_privilege_total() const { return m_column_privilege_total; }
+  bool has_all_privileges() const { return m_all_privileges; }
 };
 
 
