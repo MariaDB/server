@@ -37,3 +37,5 @@ MAYBE_DISABLE_IPO(strings)
 ADD_EXECUTABLE(conf_to_src EXCLUDE_FROM_ALL conf_to_src.c)
 SET_TARGET_PROPERTIES(conf_to_src PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 TARGET_LINK_LIBRARIES(conf_to_src mysys strings)
+
+ADD_EXECUTABLE(uca-dump uca-dump.c)
