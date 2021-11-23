@@ -26322,6 +26322,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
           elimination.
       (2) they are not merged derived tables
       (3) they are not hanging CTEs (they are needed for execution)
+      (4) this is not a derived subquery in a degenerate select.
     */
     if (!(tmp_unit->item && tmp_unit->item->eliminated) &&    // (1)
         (!tmp_unit->derived ||
@@ -26329,7 +26330,8 @@ int JOIN::save_explain_data_intern(Explain_query *output,
         (!tmp_unit->with_element  ||
          (tmp_unit->derived &&
           tmp_unit->derived->derived_result &&
-          !tmp_unit->with_element->is_hanging_recursive())))  // (3)
+          !tmp_unit->with_element->is_hanging_recursive())) &&   // (3)
+        !(tmp_unit->derived && zero_result_cause)) // (4)
    {
       explain->add_child(tmp_unit->first_select()->select_number);
     }
