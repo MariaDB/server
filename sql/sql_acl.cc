@@ -678,6 +678,8 @@ static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field=0);
 static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b);
 static int acl_user_compare(const ACL_USER *a, const ACL_USER *b);
 static void rebuild_acl_users();
+static privilege_t acl_get(const char *host, const char *ip, const char *user,
+                           const char *db, bool db_is_pattern);
 static int acl_db_compare(const ACL_DB *a, const ACL_DB *b);
 static void rebuild_acl_dbs();
 static void init_check_host(void);
@@ -3058,12 +3060,7 @@ check_access(THD *thd, privilege_t want_access,
     if (!(sctx->master_access & SELECT_ACL))
     {
       if (db && (!thd->db.str || db_is_pattern || strcmp(db, thd->db.str)))
-      {
-        db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user, db,
-                           db_is_pattern);
-        if (sctx->priv_role[0])
-          db_access|= acl_get("", "", sctx->priv_role, db, db_is_pattern);
-      }
+        db_access= acl_get_current_auth(sctx, db, db_is_pattern);
       else
       {
         /* get access for current db */
@@ -3107,14 +3104,7 @@ check_access(THD *thd, privilege_t want_access,
   }
 
   if (db && (!thd->db.str || db_is_pattern || strcmp(db, thd->db.str)))
-  {
-    db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user, db,
-                       db_is_pattern);
-    if (sctx->priv_role[0])
-    {
-      db_access|= acl_get("", "", sctx->priv_role, db, db_is_pattern);
-    }
-  }
+    db_access= acl_get_current_auth(sctx, db, db_is_pattern);
   else
     db_access= sctx->db_access;
   DBUG_PRINT("info",("db_access: %llx  want_access: %llx",
@@ -4410,8 +4400,9 @@ static bool compute_acl_cache_key(const char *ip,
   acl_cache is not used if db_is_pattern is set.
 */
 
-privilege_t acl_get(const char *host, const char *ip,
-                    const char *user, const char *db, my_bool db_is_pattern)
+static privilege_t acl_get(const char *host, const char *ip,
+                           const char *user, const char *db,
+                           bool db_is_pattern)
 {
   privilege_t host_access(ALL_KNOWN_ACL), db_access(NO_ACL);
   uint i;
@@ -4479,6 +4470,17 @@ exit:
   mysql_mutex_unlock(&acl_cache->lock);
   DBUG_PRINT("exit", ("access: 0x%llx", (longlong) (db_access & host_access)));
   DBUG_RETURN(db_access & host_access);
+}
+
+
+privilege_t acl_get_current_auth(Security_context *sctx,
+                                 const char *db, bool db_is_pattern)
+{
+  privilege_t result= acl_get(sctx->priv_host, sctx->ip, sctx->priv_user,
+                              db, db_is_pattern);
+  if (sctx->priv_role[0])
+    result |= acl_get("","", sctx->priv_role, db, db_is_pattern);
+  return result;
 }
 
 /*
@@ -5390,10 +5392,7 @@ static bool test_if_create_new_users(THD *thd)
                       NULL, TL_WRITE);
     create_new_users= 1;
 
-    db_access=acl_get(sctx->host, sctx->ip,
-		      sctx->priv_user, tl.db.str, 0);
-    if (sctx->priv_role[0])
-      db_access|= acl_get("", "", sctx->priv_role, tl.db.str, 0);
+    db_access= acl_get_current_auth(sctx, tl.db.str, 0);
     if (!(db_access & INSERT_ACL))
     {
       if (check_grant(thd, INSERT_ACL, &tl, FALSE, UINT_MAX, TRUE))
@@ -13605,10 +13604,7 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
   if (!thd->db.str || strcmp(db, thd->db.str))
   {
     /* db privileges */
-    grant->privilege|= acl_get(sctx->host, sctx->ip, sctx->priv_user, db, 0);
-    /* db privileges for role */
-    if (sctx->priv_role[0])
-      grant->privilege|= acl_get("", "", sctx->priv_role, db, 0);
+    grant->privilege|= acl_get_current_auth(sctx, db, 0);
   }
   else
   {

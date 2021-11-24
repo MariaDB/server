@@ -28,8 +28,7 @@
                                          // filename_to_tablename
                                          // validate_comment_length
 #include "sql_rename.h"                  // mysql_rename_tables
-#include "sql_acl.h"                     // SELECT_ACL, DB_ACLS,
-                                         // acl_get, check_grant_db
+#include "sql_acl.h"                     // SELECT_ACL, DB_ACLS, check_grant_db
 #include "log_event.h"                   // Query_log_event
 #include "sql_base.h"                    // lock_table_names
 #include "sql_handler.h"                 // mysql_ha_rm_tables
@@ -1781,15 +1780,8 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
   if (test_all_bits(sctx->master_access, DB_ACLS))
     db_access= DB_ACLS;
   else
-  {
-    db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user,
-                        new_db_file_name.str, FALSE) | sctx->master_access;
-    if (sctx->priv_role[0])
-    {
-      /* include a possible currently set role for access */
-      db_access|= acl_get("", "", sctx->priv_role, new_db_file_name.str, FALSE);
-    }
-  }
+    db_access= sctx->master_access |
+                 acl_get_current_auth(sctx, new_db_file_name.str, false);
 
   if (!force_switch &&
       !(db_access & DB_ACLS) &&
