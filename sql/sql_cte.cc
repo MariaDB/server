@@ -1048,6 +1048,15 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
   lex_start(thd);
   lex->clone_spec_offset= unparsed_spec_offset;
   lex->with_cte_resolution= true;
+  /*
+    There's no need to add SPs/SFs referenced in the clone to the global
+    list of the SPs/SFs used in the query as they were added when the first
+    reference to the cloned CTE was parsed. Yet the recursive call of the
+    parser must to know that they were already included into the list.
+  */
+  lex->sroutines= old_lex->sroutines;
+  lex->sroutines_list_own_last= old_lex->sroutines_list_own_last;
+  lex->sroutines_list_own_elements= old_lex->sroutines_list_own_elements;
 
   /*
     The specification of a CTE is to be parsed as a regular query.
@@ -1093,6 +1102,29 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
     goto err;
 
   /*
+    The unit of the specification that just has been parsed is included
+    as a slave of the select that contained in its from list the table
+    reference for which the unit has been created.
+  */
+  lex->unit.include_down(with_table->select_lex);
+  lex->unit.set_slave(with_select);
+  lex->unit.cloned_from= spec;
+
+  /*
+    Now all references to the CTE defined outside of the cloned specification
+    has to be resolved. Additionally if old_lex->only_cte_resolution == false
+    for the table references that has not been resolved requests for mdl_locks
+    has to be set.
+  */
+  lex->only_cte_resolution= old_lex->only_cte_resolution;
+  if (lex->resolve_references_to_cte(lex->query_tables,
+                                     lex->query_tables_last))
+  {
+    res= NULL;
+    goto err;
+  }
+
+  /*
     The global chain of TABLE_LIST objects created for the specification that
     just has been parsed is added to such chain that contains the reference
     to the CTE whose specification is parsed right after the TABLE_LIST object
@@ -1116,32 +1148,11 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
       old_lex->query_tables_last= lex->query_tables_last;
     }
   }
+  old_lex->sroutines_list_own_last= lex->sroutines_list_own_last;
+  old_lex->sroutines_list_own_elements= lex->sroutines_list_own_elements;
   res= &lex->unit;
   res->with_element= this;
   
-  /*
-    The unit of the specification that just has been parsed is included
-    as a slave of the select that contained in its from list the table
-    reference for which the unit has been created.
-  */
-  lex->unit.include_down(with_table->select_lex);
-  lex->unit.set_slave(with_select);
-  lex->unit.cloned_from= spec;
-
-  /*
-    Now all references to the CTE defined outside of the cloned specification
-    has to be resolved. Additionally if old_lex->only_cte_resolution == false
-    for the table references that has not been resolved requests for mdl_locks
-    has to be set.
-  */
-  lex->only_cte_resolution= old_lex->only_cte_resolution;
-  if (lex->resolve_references_to_cte(lex->query_tables,
-                                     lex->query_tables_last))
-  {
-    res= NULL;
-    goto err;
-  }
-
   last_clone_select= lex->all_selects_list;
   while (last_clone_select->next_select_in_list())
     last_clone_select= last_clone_select->next_select_in_list();
