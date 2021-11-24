@@ -76,8 +76,8 @@ bool hostname_requires_resolving(const char *hostname);
 bool  acl_init(bool dont_read_acl_tables);
 bool acl_reload(THD *thd);
 void acl_free(bool end=0);
-privilege_t acl_get(const char *host, const char *ip,
-                    const char *user, const char *db, my_bool db_is_pattern);
+privilege_t acl_get_current_auth(Security_context *ctx, const char *db,
+                                 bool db_is_pattern);
 bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);
 bool acl_getroot(Security_context *sctx, const char *user, const char *host,
                  const char *ip, const char *db);
