@@ -321,8 +321,6 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
                         const char *schema_name,
                         const char *table_name);
 
-bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
-                                   bool with_grant);
 int acl_setrole(THD *thd, const char *rolename, privilege_t access);
 int acl_check_setrole(THD *thd, const char *rolename, privilege_t *access);
 int acl_check_set_default_role(THD *thd, const char *host, const char *user,
@@ -350,10 +348,11 @@ class Sql_cmd_grant: public Sql_cmd
 {
 protected:
   enum_sql_command m_command;
+  List<LEX_USER> m_resolved_users;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   void warn_hostname_requires_resolving(THD *thd, List<LEX_USER> &list);
-  bool user_list_reset_mqh(THD *thd, List<LEX_USER> &list);
-  void grant_stage0(THD *thd);
+  void user_list_reset_mqh();
+  bool grant_stage0(THD *thd);
 #endif
 public:
   Sql_cmd_grant(enum_sql_command command)
