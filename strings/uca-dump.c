@@ -24,12 +24,6 @@
 #include "m_ctype.h"
 #include "ctype-uca.h"
 
-struct uca_item_st
-{
-  uchar  num;
-  uint16 weight[4][MY_UCA_MAX_WEIGHT_SIZE];
-};
-
 #if 0
 #define MY_UCA_NPAGES	1024
 #define MY_UCA_NCHARS	64
@@ -59,6 +53,27 @@ static OPT defaults=
   "-",
   3
 };
+
+
+typedef struct my_ducet_weight_st
+{
+  uint16 weight[4][MY_UCA_MAX_WEIGHT_SIZE];
+  size_t weight_length;
+} MY_DUCET_WEIGHT;
+
+
+typedef struct my_ducet_single_char_t
+{
+  MY_DUCET_WEIGHT weight;
+} MY_DUCET_SINGLE_CHAR;
+
+
+typedef struct my_allkeys_st
+{
+  MY_DUCET_SINGLE_CHAR single_chars[MAX_ALLOWED_CODE+1];
+  uint version;
+  char version_str[32];
+} MY_DUCET;
 
 
 /* Name prefix that goes into page weight array names after global_name_prefix */
@@ -146,11 +161,80 @@ void close_file(FILE *file)
 }
 
 
+char *strrtrim(char *str)
+{
+  char *end= str + strlen(str);
+  for ( ; str < end; end--)
+  {
+    if (end[-1] != '\r' && end[-1] != '\n' &&
+        end[-1] != ' '  && end[-1] != '\t')
+      break;
+    end[-1]= '\0';
+  }
+  return str;
+}
+
+
+/*
+  Parse a line starting with '@'.
+  As of 14.0.0, allkeys.txt has @version and @implicitweights lines.
+  Only @version is parsed here.
+
+  It could also be possible to parse @implicitweights to automatically
+  generate routines responsible for implicit weight handling for Siniform
+  ideographic scripts (Tangut, Nushu, Khitan). But as there are only a few
+  of them at the moment, it was easier to write these routines in ctype-uca.h
+  manually. So @implicitweights lines are ignored here.
+*/
+my_bool parse_at_line(MY_DUCET *ducet, const char *str)
+{
+  static const LEX_CSTRING version= {STRING_WITH_LEN("@version ")};
+  if (!strncmp(str, version.str, version.length))
+  {
+    /*
+      Examples:
+        @version 4.0.0
+        @version 5.2.0
+        @version 14.0.0
+    */
+    const char *src= str + version.length;
+    long n[3]= {0};
+    uint pos;
+    int length;
+
+    length= snprintf(ducet->version_str, sizeof(ducet->version_str)-1,
+                     "%s", src);
+    ducet->version_str[length]= '\0';
+
+    for (pos= 0 ; pos < 3; pos++)
+    {
+      char *endptr;
+      n[pos]= strtol(src, &endptr, 10);
+      if (*endptr != '.' && *endptr != '\r' && *endptr != '\n' && *endptr != 0)
+        return TRUE;
+      src= endptr + 1;
+    }
+    ducet->version= MY_UCA_VERSION_ID(n[0], n[1], n[2]);
+  }
+  return FALSE;
+}
+
+
+static void
+print_version(const MY_DUCET *ducet, const OPT *opt)
+{
+  printf("\n");
+  printf("#define %s_version %d /* %s */\n",
+         opt->name_prefix, ducet->version, ducet->version_str);
+  printf("\n");
+}
+
+
 int main(int ac, char **av)
 {
   char str[1024];
   char *weights[64];
-  static struct uca_item_st uca[MAX_ALLOWED_CODE+1];
+  static MY_DUCET ducet;
   my_wc_t code;
   uint w;
   int pageloaded[MY_UCA_NPAGES];
@@ -166,7 +250,7 @@ int main(int ac, char **av)
     return 1;
   }
 
-  bzero(uca, sizeof(uca));
+  bzero(&ducet, sizeof(ducet));
   bzero(pageloaded, sizeof(pageloaded));
   
   while (fgets(str, sizeof(str), file))
@@ -175,6 +259,12 @@ int main(int ac, char **av)
     char *weight;
     char *s;
     size_t codenum;
+
+    if (str[0] == '@')
+    {
+      parse_at_line(&ducet, strrtrim(str));
+      continue;
+    }
     
     code= (my_wc_t) strtol(str,NULL,16);
     
@@ -212,18 +302,18 @@ int main(int ac, char **av)
       continue;
     }
     
-    uca[code].num= 0;
+    ducet.single_chars[code].weight.weight_length= 0;
     s= strtok(weight, " []");
     while (s)
     {
-      weights[uca[code].num]= s;
+      weights[ducet.single_chars[code].weight.weight_length]= s;
       s= strtok(NULL, " []");
-      uca[code].num++;
+      ducet.single_chars[code].weight.weight_length++;
     }
     
-    set_if_smaller(uca[code].num, MY_UCA_MAX_WEIGHT_SIZE-1);
+    set_if_smaller(ducet.single_chars[code].weight.weight_length, MY_UCA_MAX_WEIGHT_SIZE-1);
 
-    for (w=0; w < uca[code].num ; w++)
+    for (w=0; w < ducet.single_chars[code].weight.weight_length ; w++)
     {
       size_t partnum;
       
@@ -233,7 +323,7 @@ int main(int ac, char **av)
       {
         char *endptr;
         uint part= (uint) strtoul(s + 1, &endptr, 16);
-        uca[code].weight[partnum][w]= (uint16) part;
+        ducet.single_chars[code].weight.weight[partnum][w]= (uint16) part;
         s= endptr;
         partnum++;
       }
@@ -249,25 +339,22 @@ int main(int ac, char **av)
   {
     uint level;
 
-    if (uca[code].num)
+    if (ducet.single_chars[code].weight.weight_length)
       continue;
 
     for (level= 0; level < 4; level++)
     {
       MY_UCA_IMPLICIT_WEIGHT weight;
-      weight= my_uca_520_implicit_weight_on_level(code, level);
-      uca[code].weight[level][0]= weight.weight[0];
-      uca[code].weight[level][1]= weight.weight[1];
+      weight= my_uca_implicit_weight_on_level(ducet.version, code, level);
+      ducet.single_chars[code].weight.weight[level][0]= weight.weight[0];
+      ducet.single_chars[code].weight.weight[level][1]= weight.weight[1];
     }
-    uca[code].num= 2;
+    ducet.single_chars[code].weight.weight_length= 2;
   }
   
-  printf("#include \"my_uca.h\"\n");
-  
-  printf("#define MY_UCA_NPAGES %d\n",MY_UCA_NPAGES);
-  printf("#define MY_UCA_NCHARS %d\n",MY_UCA_NCHARS);
-  printf("#define MY_UCA_CMASK  %d\n",MY_UCA_CMASK);
-  printf("#define MY_UCA_PSHIFT %d\n",MY_UCA_PSHIFT);
+  printf("/*\n");
+  printf("  Generated from allkeys.txt version '%s'\n", ducet.version_str);
+  printf("*/\n");
 
   for (w=0; w < options.levels; w++)
   {
@@ -304,8 +391,8 @@ int main(int ac, char **av)
         code= page*MY_UCA_NCHARS+offs;
         
         /* Calculate only non-zero weights */
-        for (num=0, i=0; i < uca[code].num; i++)
-          if (uca[code].weight[w][i])
+        for (num=0, i=0; i < ducet.single_chars[code].weight.weight_length; i++)
+          if (ducet.single_chars[code].weight.weight[w][i])
             num++;
         
         maxnum= maxnum < num ? num : maxnum;
@@ -314,13 +401,13 @@ int main(int ac, char **av)
         if (w == 1 && num == 1)
         {
           /* 0020 0000 ... */
-          if (uca[code].weight[w][0] == 0x0020)
+          if (ducet.single_chars[code].weight.weight[w][0] == 0x0020)
             ndefs++;
         }
         else if (w == 2 && num == 1)
         {
           /* 0002 0000 ... */
-          if (uca[code].weight[w][0] == 0x0002)
+          if (ducet.single_chars[code].weight.weight[w][0] == 0x0002)
             ndefs++;
         }
       } 
@@ -341,7 +428,7 @@ int main(int ac, char **av)
         case 2: mchars= 8; break;
         case 3: mchars= 9; break;
         case 4: mchars= 8; break;
-        default: mchars= uca[code].num;
+        default: mchars= ducet.single_chars[code].weight.weight_length;
       }
       
       pagemaxlen[page]= (int) maxnum;
@@ -366,11 +453,11 @@ int main(int ac, char **av)
         bzero(weight,sizeof(weight));
         
         /* Copy non-zero weights */
-        for (num=0, i=0; i < uca[code].num; i++)
+        for (num=0, i=0; i < ducet.single_chars[code].weight.weight_length; i++)
         {
-          if (uca[code].weight[w][i])
+          if (ducet.single_chars[code].weight.weight[w][i])
           {
-            weight[num]= uca[code].weight[w][i];
+            weight[num]= ducet.single_chars[code].weight.weight[w][i];
             num++;
           }
         }
@@ -433,7 +520,7 @@ int main(int ac, char **av)
     printf("};\n");
   }
 
+  print_version(&ducet, &options);
   
-  printf("int main(void){ return 0;};\n");
   return 0;
 }
