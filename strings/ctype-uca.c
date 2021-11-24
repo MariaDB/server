@@ -31694,7 +31694,7 @@ static inline void
 my_uca_implicit_weight_put(uint16 *to, my_wc_t code, uint level)
 {
   MY_UCA_IMPLICIT_WEIGHT weight;
-  weight= my_uca_520_implicit_weight_on_level(code, level);
+  weight= my_uca_implicit_weight_on_level(520, code, level);
   to[0]= weight.weight[0];
   to[1]= weight.weight[1];
   to[2]= 0;
