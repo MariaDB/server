@@ -1,0 +1,7 @@
+source include/windows.inc;
+source include/check_utf8_cli.inc;
+
+let $datadir_name=датадир;
+let $service_name_prefix=mariadb_sörvis;
+let $password=パスワード;
+source winservice.inc;

@@ -109,6 +109,9 @@ sub skip_combinations {
 
   $skip{'include/no_utf8_cli.inc'} = 'Not tested with utf8 command line support'
     unless !utf8_command_line_ok();
+  
+  $skip{'include/check_windows_admin.inc'} = 'Requires admin privileges'
+    unless IS_WINDOWS and Win32::IsAdminUser();
 
   %skip;
 }
