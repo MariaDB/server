@@ -17,6 +17,7 @@
    Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
    MA 02110-1335  USA */
 
+#define MY_UCA_VERSION_ID(x,y,z)  ((uint) ((x) * 100 + (y) * 10 + (z)))
 
 /*
   Implicit weight handling is done according to
@@ -105,6 +106,18 @@ my_uca_520_implicit_weight_primary(my_wc_t code)
 }
 
 
+#include "ctype-uca1400.h"
+
+
+static inline MY_UCA_IMPLICIT_WEIGHT
+my_uca_implicit_weight_primary(uint version, my_wc_t code)
+{
+  return version >= 1400 ?
+         my_uca_1400_implicit_weight_primary(code) :
+         my_uca_520_implicit_weight_primary(code);
+}
+
+
 static inline MY_UCA_IMPLICIT_WEIGHT
 my_uca_implicit_weight_secondary()
 {
@@ -136,11 +149,11 @@ my_uca_implicit_weight_quaternary()
 
 
 static inline MY_UCA_IMPLICIT_WEIGHT
-my_uca_520_implicit_weight_on_level(my_wc_t code, uint level)
+my_uca_implicit_weight_on_level(uint version, my_wc_t code, uint level)
 {
   switch (level) {
   case 0:
-    return my_uca_520_implicit_weight_primary(code);
+    return my_uca_implicit_weight_primary(version, code);
   case 1:
     return my_uca_implicit_weight_secondary();
   case 2:
