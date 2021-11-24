@@ -777,7 +777,7 @@ int mdl_iterate(mdl_iterator_callback callback, void *arg)
 my_hash_value_type mdl_hash_function(CHARSET_INFO *cs,
                                      const uchar *key, size_t length)
 {
-  MDL_key *mdl_key= (MDL_key*) (key - my_offsetof(MDL_key, m_ptr));
+  MDL_key *mdl_key= (MDL_key*) (key - offsetof(MDL_key, m_ptr));
   return mdl_key->hash_value();
 }
 
