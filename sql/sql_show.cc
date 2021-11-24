@@ -2369,6 +2369,8 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         packet->append_parenthesized((long) key_part->length /
                                       key_part->field->charset()->mbmaxlen);
       }
+      if (key_part->key_part_flag & HA_REVERSE_SORT)
+        packet->append(STRING_WITH_LEN(" DESC"));
     }
 
     if (key_info->without_overlaps)

@@ -2281,7 +2281,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
 
 static bool key_cmp(const Key_part_spec &a, const Key_part_spec &b)
 {
-  return a.length == b.length &&
+  return a.length == b.length && a.asc == b.asc &&
          !lex_string_cmp(system_charset_info, &a.field_name, &b.field_name);
 }
 
@@ -3328,6 +3328,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       key_part_info->fieldnr= field;
       key_part_info->offset=  (uint16) sql_field->offset;
       key_part_info->key_type=sql_field->pack_flag;
+      key_part_info->key_part_flag= column->asc ? 0 : HA_REVERSE_SORT;
       uint key_part_length= sql_field->type_handler()->
                               calc_key_length(*sql_field);
 
@@ -6335,6 +6336,14 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
       return Compare_keys::NotEqual;
     }
 
+    /*
+      Check the descending flag for index field.
+    */
+    if ((new_part->key_part_flag ^ key_part->key_part_flag) & HA_REVERSE_SORT)
+    {
+      return Compare_keys::NotEqual;
+    }
+
     auto compare= table->file->compare_key_parts(
         *table->field[key_part->fieldnr - 1], new_field, *key_part, *new_part);
     result= merge(result, compare);
@@ -8386,9 +8395,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 	  key_part_length= 0;			// Use whole field
       }
       key_part_length /= kfield->charset()->mbmaxlen;
-      key_parts.push_back(new (thd->mem_root) Key_part_spec(&cfield->field_name,
-                                                            key_part_length, true),
-                          thd->mem_root);
+      Key_part_spec *kps= new (thd->mem_root) Key_part_spec(&cfield->field_name,
+                                                            key_part_length, true);
+      kps->asc= !(key_part->key_part_flag & HA_REVERSE_SORT);
+      key_parts.push_back(kps, thd->mem_root);
       if (!(cfield->invisible == INVISIBLE_SYSTEM && cfield->vers_sys_field()))
         user_keyparts= true;
     }

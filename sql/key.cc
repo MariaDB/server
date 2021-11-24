@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2018, 2020, MariaDB
+   Copyright (c) 2018, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -573,6 +573,9 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
     /* loop over every key part */
     do
     {
+      const int GREATER= key_part->key_part_flag & HA_REVERSE_SORT ? -1 : +1;
+      const int LESS= -GREATER;
+
       field= key_part->field;
 
       if (key_part->null_bit)
@@ -593,12 +596,12 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
             ; /* Fall through, no NULL fields */
           else
           {
-            DBUG_RETURN(+1);
+            DBUG_RETURN(GREATER);
           }
         }
         else if (!sec_is_null)
         {
-          DBUG_RETURN(-1);
+          DBUG_RETURN(LESS);
         }
         else
           goto next_loop; /* Both were NULL */
@@ -612,7 +615,7 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
       */
       if ((result= field->cmp_prefix(field->ptr+first_diff, field->ptr+sec_diff,
                                      key_part->length)))
-        DBUG_RETURN(result);
+        DBUG_RETURN(result * GREATER);
 next_loop:
       key_part++;
       key_part_num++;

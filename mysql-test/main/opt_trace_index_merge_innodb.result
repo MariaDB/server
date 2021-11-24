@@ -93,13 +93,13 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                   "potential_range_indexes": [
                     {
                       "index": "PRIMARY",
-                      "usable": true,
-                      "key_parts": ["pk1", "pk2"]
+                      "key_parts": ["pk1", "pk2"],
+                      "usable": true
                     },
                     {
                       "index": "key1",
-                      "usable": true,
-                      "key_parts": ["key1"]
+                      "key_parts": ["key1"],
+                      "usable": true
                     },
                     {
                       "index": "key2",

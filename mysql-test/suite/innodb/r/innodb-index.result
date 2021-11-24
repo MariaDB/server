@@ -1969,7 +1969,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `id` (`id`)
+  UNIQUE KEY `id` (`id` DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #

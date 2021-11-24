@@ -1201,8 +1201,8 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
                     },
                     {
                       "index": "a",
-                      "usable": true,
-                      "key_parts": ["a"]
+                      "key_parts": ["a"],
+                      "usable": true
                     }
                   ],
                   "best_covering_index_scan": {
@@ -1384,8 +1384,8 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                   "potential_range_indexes": [
                     {
                       "index": "a",
-                      "usable": true,
-                      "key_parts": ["a", "b", "c", "d"]
+                      "key_parts": ["a", "b", "c", "d"],
+                      "usable": true
                     }
                   ],
                   "best_covering_index_scan": {
@@ -1583,8 +1583,8 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                   "potential_range_indexes": [
                     {
                       "index": "id",
-                      "usable": true,
-                      "key_parts": ["id", "a"]
+                      "key_parts": ["id", "a"],
+                      "usable": true
                     }
                   ],
                   "best_covering_index_scan": {
@@ -1771,8 +1771,8 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                   "potential_range_indexes": [
                     {
                       "index": "id",
-                      "usable": true,
-                      "key_parts": ["id", "a"]
+                      "key_parts": ["id", "a"],
+                      "usable": true
                     }
                   ],
                   "best_covering_index_scan": {
@@ -2010,13 +2010,13 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     },
                     {
                       "index": "a_c",
-                      "usable": true,
-                      "key_parts": ["a", "c"]
+                      "key_parts": ["a", "c"],
+                      "usable": true
                     },
                     {
                       "index": "a_b",
-                      "usable": true,
-                      "key_parts": ["a", "b"]
+                      "key_parts": ["a", "b"],
+                      "usable": true
                     }
                   ],
                   "setup_range_conditions": [],
@@ -2213,8 +2213,8 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 },
                 {
                   "index": "a_c",
-                  "usable": true,
-                  "key_parts": ["a", "c"]
+                  "key_parts": ["a", "c"],
+                  "usable": true
                 },
                 {
                   "index": "a_b",
@@ -3233,18 +3233,18 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                   "potential_range_indexes": [
                     {
                       "index": "pk",
-                      "usable": true,
-                      "key_parts": ["pk"]
+                      "key_parts": ["pk"],
+                      "usable": true
                     },
                     {
                       "index": "pk_a",
-                      "usable": true,
-                      "key_parts": ["pk", "a"]
+                      "key_parts": ["pk", "a"],
+                      "usable": true
                     },
                     {
                       "index": "pk_a_b",
-                      "usable": true,
-                      "key_parts": ["pk", "a", "b"]
+                      "key_parts": ["pk", "a", "b"],
+                      "usable": true
                     }
                   ],
                   "best_covering_index_scan": {
@@ -3751,8 +3751,8 @@ explain delete from t0 where t0.a<3	{
         "potential_range_indexes": [
           {
             "index": "a",
-            "usable": true,
-            "key_parts": ["a"]
+            "key_parts": ["a"],
+            "usable": true
           }
         ],
         "setup_range_conditions": [],
@@ -3889,8 +3889,8 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                   "potential_range_indexes": [
                     {
                       "index": "a",
-                      "usable": true,
-                      "key_parts": ["a"]
+                      "key_parts": ["a"],
+                      "usable": true
                     }
                   ],
                   "best_covering_index_scan": {
@@ -3954,8 +3954,8 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                   "potential_range_indexes": [
                     {
                       "index": "a",
-                      "usable": true,
-                      "key_parts": ["a"]
+                      "key_parts": ["a"],
+                      "usable": true
                     }
                   ],
                   "best_covering_index_scan": {

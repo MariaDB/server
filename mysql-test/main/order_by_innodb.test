@@ -1,7 +1,8 @@
 #
 # ORDER BY handling (e.g. filesort) tests that require innodb
 #
--- source include/have_innodb.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
@@ -209,3 +210,14 @@ from
 drop table t1,t2;
 
 --echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-26938 Support descending indexes internally in InnoDB
+--echo #
+create table t1 (a int, b int, c int, key r (a desc, b asc));
+insert t1 select seq % 10, seq div 10, seq from seq_1_to_55;
+insert t1 values (NULL, NULL, NULL), (9, NULL, NULL);
+explain select * from t1 force index(r) order by a,b limit 20;
+explain select * from t1 force index(r) order by a desc,b limit 20;
+        select * from t1 force index(r) order by a desc,b limit 20;
+drop table t1;

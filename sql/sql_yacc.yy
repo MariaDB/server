@@ -6803,10 +6803,12 @@ ignorability:
 key_list:
           key_list ',' key_part order_dir
           {
+            $3->asc= $4;
             Lex->last_key->columns.push_back($3, thd->mem_root);
           }
         | key_part order_dir
           {
+            $1->asc= $2;
             Lex->last_key->columns.push_back($1, thd->mem_root);
           }
         ;

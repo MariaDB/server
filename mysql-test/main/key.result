@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3;
 SET SQL_WARNINGS=1;
 CREATE TABLE t1 (
 ID CHAR(32) NOT NULL,
@@ -685,3 +684,8 @@ c	c
 9	10
 10	11
 drop table t1,t2;
+#
+# MDEV-13756 Implement descending index: KEY (a DESC, b ASC)
+#
+create table t1 (a int, b int, key(a), key(a desc));
+drop table t1;
