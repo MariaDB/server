@@ -290,9 +290,9 @@ class Key_part_spec :public Sql_alloc {
 public:
   LEX_CSTRING field_name;
   uint length;
-  bool generated;
+  bool generated, asc;
   Key_part_spec(const LEX_CSTRING *name, uint len, bool gen= false)
-    : field_name(*name), length(len), generated(gen)
+    : field_name(*name), length(len), generated(gen), asc(1)
   {}
   bool operator==(const Key_part_spec& other) const;
   /**

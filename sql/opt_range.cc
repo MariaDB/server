@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2805,11 +2805,11 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         continue;    // ToDo: ft-keys in non-ft ranges, if possible   SerG
       }
 
-      trace_idx_details.add("usable", true);
       param.key[param.keys]=key_parts;
       key_part_info= key_info->key_part;
       uint cur_key_len= 0;
       Json_writer_array trace_keypart(thd, "key_parts");
+      bool unusable_has_desc_keyparts= false;
       for (uint part= 0 ; part < n_key_parts ; 
            part++, key_parts++, key_part_info++)
       {
@@ -2824,7 +2824,16 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
           (key_info->flags & HA_SPATIAL) ? Field::itMBR : Field::itRAW;
         /* Only HA_PART_KEY_SEG is used */
         key_parts->flag=         (uint8) key_part_info->key_part_flag;
+        if (key_part_info->key_part_flag & HA_REVERSE_SORT)
+          unusable_has_desc_keyparts= true;
         trace_keypart.add(key_parts->field->field_name);
+      }
+      trace_keypart.end();
+      trace_idx_details.add("usable", !unusable_has_desc_keyparts);
+      if (unusable_has_desc_keyparts) // TODO MDEV-13756
+      {
+        key_parts= param.key[param.keys];
+        continue;
       }
       param.real_keynr[param.keys++]=idx;
       if (cur_key_len > max_key_len)
