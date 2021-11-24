@@ -4248,7 +4248,7 @@ retain_lock:
     else
     {
       ut_ad(lock_get_type_low(lock) & LOCK_TABLE);
-      dict_table_t *table= lock->un_member.tab_lock.table;
+      ut_d(dict_table_t *table= lock->un_member.tab_lock.table);
       ut_ad(!table->is_temporary());
 
       switch (lock_get_mode(lock)) {
