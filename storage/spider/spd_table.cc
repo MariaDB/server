@@ -31,6 +31,7 @@
 #include "sql_select.h"
 #include "tztime.h"
 #include "sql_parse.h"
+#include "create_options.h"
 #endif
 #include "spd_err.h"
 #include "spd_param.h"
@@ -312,6 +313,18 @@ static PSI_thread_info all_spider_threads[] = {
 #endif
 };
 #endif
+
+struct ha_table_option_struct
+{
+  char *remote_server;
+  char *remote_database;
+  char *remote_table;
+};
+
+ha_create_table_option spider_table_option_list[]= {
+    HA_TOPTION_STRING("REMOTE_SERVER", remote_server),
+    HA_TOPTION_STRING("REMOTE_DATABASE", remote_database),
+    HA_TOPTION_STRING("REMOTE_TABLE", remote_table), HA_TOPTION_END};
 
 extern HASH spider_open_connections;
 extern HASH spider_ipport_conns;
@@ -1189,7 +1202,8 @@ int spider_create_string_list(
   DBUG_ENTER("spider_create_string_list");
 
   *list_length = 0;
-  param_string_parse->init_param_value();
+  if (param_string_parse)
+    param_string_parse->init_param_value();
   if (!str)
   {
     *string_list = NULL;
@@ -1389,8 +1403,9 @@ int spider_create_string_list(
     }
   }
 
-  param_string_parse->set_param_value(tmp_ptr3,
-                                      tmp_ptr3 + strlen(tmp_ptr3) + 1);
+  if (param_string_parse)
+    param_string_parse->set_param_value(tmp_ptr3,
+                                        tmp_ptr3 + strlen(tmp_ptr3) + 1);
 
   DBUG_PRINT("info",("spider string_list[%d]=%s", roop_count,
     (*string_list)[roop_count]));
@@ -1848,9 +1863,16 @@ int st_spider_param_string_parse::print_param_error()
 #define SPIDER_PARAM_STR_LENS(name) name ## _lengths
 #define SPIDER_PARAM_STR_CHARLEN(name) name ## _charlen
 #define SPIDER_PARAM_STR_LIST(title_name, param_name) \
+  SPIDER_PARAM_STR_LIST_CHECK(title_name, param_name, FALSE)
+#define SPIDER_PARAM_STR_LIST_CHECK(title_name, param_name, already_set) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
+    if (already_set)                                    \
+    {                                                   \
+      error_num= ER_SPIDER_INVALID_CONNECT_INFO_NUM;    \
+      goto error;                                       \
+    }                                                   \
     if (!share->param_name) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -2075,6 +2097,31 @@ int st_spider_param_string_parse::print_param_error()
     break; \
   }
 
+/*
+  Set a given engine-defined option, which holds a string list, to the
+  corresponding attribute of SPIDER_SHARE.
+*/
+#define SPIDER_OPTION_STR_LIST(title_name, option_name, param_name) \
+  if (option_struct->option_name)                                             \
+  {                                                                           \
+    DBUG_PRINT("info", ("spider " title_name " start overwrite"));            \
+    share->SPIDER_PARAM_STR_CHARLEN(param_name)=                              \
+        strlen(option_struct->option_name);                                   \
+    if ((error_num= spider_create_string_list(                                \
+             &share->param_name, &share->SPIDER_PARAM_STR_LENS(param_name),   \
+             &share->SPIDER_PARAM_STR_LEN(param_name),                        \
+             option_struct->option_name,                                      \
+             share->SPIDER_PARAM_STR_CHARLEN(param_name), NULL)))             \
+      goto error;                                                             \
+  }
+
+/*
+  Parse connection information specified by COMMENT, CONNECT, or engine-defined
+  options.
+
+  TODO: Deprecate the connection specification by COMMENT and CONNECT,
+  and then solely utilize engine-defined options.
+*/
 int spider_parse_connect_info(
   SPIDER_SHARE *share,
   TABLE_SHARE *table_share,
@@ -2091,6 +2138,7 @@ int spider_parse_connect_info(
   int title_length;
   SPIDER_PARAM_STRING_PARSE connect_string_parse;
   SPIDER_ALTER_TABLE *share_alter;
+  ha_table_option_struct *option_struct;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_element *part_elem;
   partition_element *sub_elem;
@@ -2113,7 +2161,14 @@ int spider_parse_connect_info(
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   spider_get_partition_info(share->table_name, share->table_name_length,
     table_share, part_info, &part_elem, &sub_elem);
+  if (part_info)
+    if (part_info->is_sub_partitioned())
+      option_struct= sub_elem->option_struct;
+    else
+      option_struct= part_elem->option_struct;
+  else
 #endif
+    option_struct= table_share->option_struct;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   share->sts_bg_mode = -1;
 #endif
@@ -2439,7 +2494,8 @@ int spider_parse_connect_info(
           SPIDER_PARAM_STR_LIST("sqn", tgt_sequence_names);
           SPIDER_PARAM_LONGLONG("srd", second_read, 0);
           SPIDER_PARAM_DOUBLE("srt", scan_rate, 0);
-          SPIDER_PARAM_STR_LIST("srv", server_names);
+          SPIDER_PARAM_STR_LIST_CHECK("srv", server_names,
+                                      option_struct->remote_server);
           SPIDER_PARAM_DOUBLE("ssr", semi_split_read, 0);
           SPIDER_PARAM_LONGLONG("ssl", semi_split_read_limit, 0);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -2449,7 +2505,8 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("stl", semi_table_lock, 0, 1);
           SPIDER_PARAM_LONGLONG("srs", static_records_for_status, 0);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("svc", tgt_ssl_vscs, 0, 1);
-          SPIDER_PARAM_STR_LIST("tbl", tgt_table_names);
+          SPIDER_PARAM_STR_LIST_CHECK("tbl", tgt_table_names,
+                                      option_struct->remote_table);
           SPIDER_PARAM_INT_WITH_MAX("tcm", table_count_mode, 0, 3);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("uhd", use_handlers, 0, 3);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -2469,12 +2526,14 @@ int spider_parse_connect_info(
           error_num = connect_string_parse.print_param_error();
           goto error;
         case 5:
-          SPIDER_PARAM_STR_LIST("table", tgt_table_names);
+          SPIDER_PARAM_STR_LIST_CHECK("table", tgt_table_names,
+                                      option_struct->remote_table);
           error_num = connect_string_parse.print_param_error();
           goto error;
         case 6:
           SPIDER_PARAM_STR_LIST("driver", tgt_drivers);
-          SPIDER_PARAM_STR_LIST("server", server_names);
+          SPIDER_PARAM_STR_LIST_CHECK("server", server_names,
+                                      option_struct->remote_server);
           SPIDER_PARAM_STR_LIST("socket", tgt_sockets);
           SPIDER_PARAM_HINT("idx", key_hint, 3, (int) table_share->keys,
             spider_db_append_key_hint);
@@ -2491,7 +2550,8 @@ int spider_parse_connect_info(
           error_num = connect_string_parse.print_param_error();
           goto error;
         case 8:
-          SPIDER_PARAM_STR_LIST("database", tgt_dbs);
+          SPIDER_PARAM_STR_LIST_CHECK("database", tgt_dbs,
+                                      option_struct->remote_database);
           SPIDER_PARAM_STR_LIST("password", tgt_passwords);
           SPIDER_PARAM_INT_WITH_MAX("sts_mode", sts_mode, 1, 2);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -2743,6 +2803,10 @@ int spider_parse_connect_info(
           goto error;
     }
   }
+
+  SPIDER_OPTION_STR_LIST("server", remote_server, server_names);
+  SPIDER_OPTION_STR_LIST("database", remote_database, tgt_dbs);
+  SPIDER_OPTION_STR_LIST("table", remote_table, tgt_table_names);
 
   /* check all_link_count */
   share->all_link_count = 1;
@@ -7458,6 +7522,7 @@ int spider_db_init(
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   spider_hton->create_group_by = spider_create_group_by_handler;
 #endif
+  spider_hton->table_options= spider_table_option_list;
 
   if (my_gethwaddr((uchar *) addr))
   {
@@ -8031,6 +8096,12 @@ char *spider_create_table_name_string(
 }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+/*
+  Get the target partition_elements.
+
+  The target partition and subpartition are detected by the table name,
+  which is in the form like "t1#P#pt1".
+*/
 void spider_get_partition_info(
   const char *table_name,
   uint table_name_length,
