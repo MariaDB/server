@@ -12,14 +12,11 @@
 # * Basic Settings
 #
 
-user                    = mysql
+#user                    = mysql
 pid-file                = /run/mysqld/mysqld.pid
 basedir                 = /usr
-datadir                 = /var/lib/mysql
-tmpdir                  = /tmp
-lc-messages-dir         = /usr/share/mysql
-lc-messages             = en_US
-skip-external-locking
+#datadir                 = /var/lib/mysql
+#tmpdir                  = /tmp
 
 # Broken reverse DNS slows down connections considerably and name resolve is
 # safe to skip if there are no "host by domain name" access grants
