@@ -126,9 +126,9 @@ create_prepared_stmt(void *identity,
     if (pfs_stmt)
     {
       if (pfs_program)
-        pfs->m_owner_event_id= pfs_stmt->m_nesting_event_id;
+        pfs->m_owner_event_id= pfs_stmt->m_event.m_nesting_event_id;
       else
-        pfs->m_owner_event_id= pfs_stmt->m_event_id;
+        pfs->m_owner_event_id= pfs_stmt->m_event.m_event_id;
     }
 
     /* Insert this record. */

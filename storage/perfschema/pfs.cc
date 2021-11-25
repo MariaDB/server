@@ -4841,8 +4841,8 @@ pfs_start_stage_v1(PSI_stage_key key, const char *src_file, int src_line)
     pfs->m_class= NULL;
 
     /* New waits will now be attached directly to the parent statement. */
-    child_wait->m_event_id= parent_statement->m_event_id;
-    child_wait->m_event_type= parent_statement->m_event_type;
+    child_wait->m_event_id= parent_statement->m_event.m_event_id;
+    child_wait->m_event_type= parent_statement->m_event.m_event_type;
     /* See below for new stages, that may overwrite this. */
   }
 
@@ -4957,8 +4957,8 @@ void pfs_end_stage_v1()
     /* New waits will now be attached directly to the parent statement. */
     PFS_events_waits *child_wait= & pfs_thread->m_events_waits_stack[0];
     PFS_events_statements *parent_statement= & pfs_thread->m_statement_stack[0];
-    child_wait->m_event_id= parent_statement->m_event_id;
-    child_wait->m_event_type= parent_statement->m_event_type;
+    child_wait->m_event_id= parent_statement->m_event.m_event_id;
+    child_wait->m_event_type= parent_statement->m_event.m_event_type;
 
     /* This stage is completed */
     pfs->m_class= NULL;
@@ -5009,13 +5009,13 @@ pfs_get_thread_statement_locker_v1(PSI_statement_locker_state *state,
       pfs_dirty_state dirty_state;
       pfs_thread->m_stmt_lock.allocated_to_dirty(& dirty_state);
       PFS_events_statements *pfs= & pfs_thread->m_statement_stack[pfs_thread->m_events_statements_count];
-      pfs->m_thread_internal_id= pfs_thread->m_thread_internal_id;
-      pfs->m_event_id= event_id;
-      pfs->m_event_type= EVENT_TYPE_STATEMENT;
-      pfs->m_end_event_id= 0;
-      pfs->m_class= klass;
-      pfs->m_timer_start= 0;
-      pfs->m_timer_end= 0;
+      pfs->m_event.m_thread_internal_id= pfs_thread->m_thread_internal_id;
+      pfs->m_event.m_event_id= event_id;
+      pfs->m_event.m_event_type= EVENT_TYPE_STATEMENT;
+      pfs->m_event.m_end_event_id= 0;
+      pfs->m_event.m_class= klass;
+      pfs->m_event.m_timer_start= 0;
+      pfs->m_event.m_timer_end= 0;
       pfs->m_lock_time= 0;
       pfs->m_current_schema_name_length= 0;
       pfs->m_sqltext_length= 0;
@@ -5065,9 +5065,9 @@ pfs_get_thread_statement_locker_v1(PSI_statement_locker_state *state,
       if (pfs_thread->m_events_statements_count > 0)
       {
         parent_statement= pfs - 1;
-        parent_event= parent_statement->m_event_id;
-        parent_type=  parent_statement->m_event_type;
-        parent_level= parent_statement->m_nesting_event_level + 1;
+        parent_event= parent_statement->m_event.m_event_id;
+        parent_type=  parent_statement->m_event.m_event_type;
+        parent_level= parent_statement->m_event.m_nesting_event_level + 1;
       }
 
       if (parent_transaction->m_state == TRANS_STATE_ACTIVE &&
@@ -5077,9 +5077,9 @@ pfs_get_thread_statement_locker_v1(PSI_statement_locker_state *state,
         parent_type=  parent_transaction->m_event_type;
       }
 
-      pfs->m_nesting_event_id= parent_event;
-      pfs->m_nesting_event_type= parent_type;
-      pfs->m_nesting_event_level= parent_level;
+      pfs->m_event.m_nesting_event_id= parent_event;
+      pfs->m_event.m_nesting_event_type= parent_type;
+      pfs->m_event.m_nesting_event_level= parent_level;
 
       /* Set parent Stored Procedure information for this statement. */
       if(sp_share)
@@ -5197,7 +5197,7 @@ pfs_refine_statement_v1(PSI_statement_locker *locker,
     DBUG_ASSERT(pfs != NULL);
 
     /* mutate EVENTS_STATEMENTS_CURRENT.EVENT_NAME */
-    pfs->m_class= klass;
+    pfs->m_event.m_class= klass;
   }
 
   state->m_class= klass;
@@ -5233,9 +5233,9 @@ void pfs_start_statement_v1(PSI_statement_locker *locker,
     PFS_events_statements *pfs= reinterpret_cast<PFS_events_statements*> (state->m_statement);
     DBUG_ASSERT(pfs != NULL);
 
-    pfs->m_timer_start= timer_start;
-    pfs->m_source_file= src_file;
-    pfs->m_source_line= src_line;
+    pfs->m_event.m_timer_start= timer_start;
+    pfs->m_event.m_source_file= src_file;
+    pfs->m_event.m_source_line= src_line;
 
     DBUG_ASSERT(db_len <= sizeof(pfs->m_current_schema_name));
     if (db_len > 0)
@@ -5492,8 +5492,8 @@ void pfs_end_statement_v1(PSI_statement_locker *locker, void *stmt_da)
           break;
       }
 
-      pfs->m_timer_end= timer_end;
-      pfs->m_end_event_id= thread->m_event_id;
+      pfs->m_event.m_timer_end= timer_end;
+      pfs->m_event.m_end_event_id= thread->m_event_id;
 
       if (digest_storage != NULL)
       {
@@ -5970,8 +5970,8 @@ pfs_get_thread_transaction_locker_v1(PSI_transaction_locker_state *state,
       {
         PFS_events_statements *pfs_statement=
           &pfs_thread->m_statement_stack[statements_count - 1];
-        pfs->m_nesting_event_id= pfs_statement->m_event_id;
-        pfs->m_nesting_event_type= pfs_statement->m_event_type;
+        pfs->m_nesting_event_id= pfs_statement->m_event.m_event_id;
+        pfs->m_nesting_event_type= pfs_statement->m_event.m_event_type;
       }
       else
       {
