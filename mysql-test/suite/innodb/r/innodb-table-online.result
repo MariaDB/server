@@ -202,10 +202,10 @@ SET lock_wait_timeout = 10;
 ALTER TABLE t1 ROW_FORMAT=COMPACT
 PAGE_COMPRESSED = YES PAGE_COMPRESSION_LEVEL = 1, ALGORITHM = INPLACE;
 connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR rebuilt2';
 INSERT INTO t1 SELECT  80 + c1, c2, c3 FROM t1;
 INSERT INTO t1 SELECT 160 + c1, c2, c3 FROM t1;
 UPDATE t1 SET c2 = c2 + 1;
-SET DEBUG_SYNC = 'now WAIT_FOR rebuilt2';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0

@@ -195,13 +195,12 @@ ALTER TABLE t1 ROW_FORMAT=COMPACT
 PAGE_COMPRESSED = YES PAGE_COMPRESSION_LEVEL = 1, ALGORITHM = INPLACE;
 
 # Generate some log (delete-mark, delete-unmark, insert etc.)
-# while the index creation is blocked. Some of this may run
-# in parallel with the clustered index scan.
+# while the index creation is blocked.
 connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR rebuilt2';
 INSERT INTO t1 SELECT  80 + c1, c2, c3 FROM t1;
 INSERT INTO t1 SELECT 160 + c1, c2, c3 FROM t1;
 UPDATE t1 SET c2 = c2 + 1;
-SET DEBUG_SYNC = 'now WAIT_FOR rebuilt2';
 # At this point, the clustered index scan must have completed,
 # but the modification log keeps accumulating due to the DEBUG_SYNC.
 eval $innodb_metrics_select;
