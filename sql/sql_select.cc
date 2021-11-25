@@ -4504,7 +4504,13 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         if (*s->on_expr_ref)
           *s->on_expr_ref= select->cond;
         else
+	{
           join->conds= select->cond;
+          if (join->conds && join->conds->type() == Item::COND_ITEM &&
+              ((Item_cond*) (join->conds))->functype() ==
+              Item_func::COND_AND_FUNC)
+            join->cond_equal= &((Item_cond_and*) (join->conds))->m_cond_equal;
+        }
 
         s->quick=select->quick;
         s->needed_reg=select->needed_reg;
