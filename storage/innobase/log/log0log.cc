@@ -836,6 +836,7 @@ repeat:
     ret_lsn2= flush_lock.release(flush_lsn);
 
     log_flush_notify(flush_lsn);
+    DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
   }
 
   if (ret_lsn1 || ret_lsn2)
