@@ -951,7 +951,11 @@ setup_commands()
     if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
         mysqld_args="--mysqld-args $WSREP_SST_OPT_MYSQLD"
     fi
-    INNOAPPLY="$BACKUP_BIN --prepare $disver $iapts $INNOEXTRA --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
+    if [ -z "$INNODB_FORCE_RECOVERY" ]; then
+        INNOAPPLY="$BACKUP_BIN --prepare $disver $iapts $INNOEXTRA --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
+    else
+        INNOAPPLY="$BACKUP_BIN --prepare $disver $iapts $INNOEXTRA --innodb-force-recovery=$INNODB_FORCE_RECOVERY --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
+    fi
     INNOMOVE="$BACKUP_BIN $WSREP_SST_OPT_CONF --move-back $disver $impts --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
     INNOBACKUP="$BACKUP_BIN $WSREP_SST_OPT_CONF --backup $disver $iopts $tmpopts $INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA' $mysqld_args $INNOBACKUP"
 }
@@ -1245,8 +1249,8 @@ then
             cd "$binlog_dir"
             wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
             rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || true
-            binlog_index="${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
-            [ -f "$binlog_index" ] && rm -fv "$binlog_index" 1>&2 \+ || true
+            [ -f "$WSREP_SST_OPT_BINLOG_INDEX" ] && \
+                rm -fv "$WSREP_SST_OPT_BINLOG_INDEX" 1>&2 \+ || true
             cd "$OLD_PWD"
         fi
 
@@ -1321,7 +1325,7 @@ then
 
             cd "$BINLOG_DIRNAME"
             for bfile in $(ls -1 "$BINLOG_FILENAME".[0-9]*); do
-                echo "$BINLOG_DIRNAME/$bfile" >> "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
+                echo "$BINLOG_DIRNAME/$bfile" >> "$WSREP_SST_OPT_BINLOG_INDEX"
             done
             cd "$OLD_PWD"
 
