@@ -376,7 +376,6 @@ protected:
   */
   bool closed;
 
-public:
   explicit Json_writer_struct(Json_writer *writer)
   : my_writer(writer)
   {
