@@ -33720,16 +33720,11 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
   for (i= 0; i != src->contractions.nitems; i++)
   {
     MY_CONTRACTION *item= &src->contractions.item[i];
-    /*
-      TODO: calculate length from item->ch.
-      Generally contractions can consist of more than 2 characters.
-    */
-    uint length= 2;
+    uint length= my_wstrnlen(item->ch, array_elements(item->ch));
     uint16 *weights= my_uca_init_one_contraction(&dst->contractions,
                                                  item->ch, length,
                                                  item->with_context);
-    memcpy(weights, item->weight, length * sizeof(uint16));
-    weights[length]= 0;
+    memcpy(weights, item->weight, sizeof(item->weight));
   }
   return FALSE;
 }
