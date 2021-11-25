@@ -12,6 +12,7 @@ CREATE TABLE t1 (
 INSERT INTO t1 VALUES ('текст');
 
 --connection node_2
+--source include/wait_until_ready.inc
 SELECT f1 = 'текст' FROM t1;
 
 #
