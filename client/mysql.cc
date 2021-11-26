@@ -1442,6 +1442,46 @@ sig_handler mysql_end(int sig)
   exit(status.exit_status);
 }
 
+#ifdef _WIN32
+#define CNV_BUFSIZE 1024
+
+/**
+ Convert user,database,and password to requested charset.
+
+ This is done in the single case when user connects with non-UTF8
+ default-character-set, on UTF8 capable Windows.
+
+ User, password, and database are UTF8 encoded, prior to the function,
+ this needs to be fixed, in case they contain non-ASCIIs.
+
+ Mostly a workaround, to allow existng users with non-ASCII password
+ to survive upgrade without losing connectivity.
+*/
+static void maybe_convert_charset(const char **user, const char **password,
+                                  const char **database, const char *csname)
+{
+  if (GetACP() != CP_UTF8 || !strncmp(csname, "utf8", 4))
+    return;
+  static char bufs[3][CNV_BUFSIZE];
+  const char **from[]= {user, password, database};
+  CHARSET_INFO *cs= get_charset_by_csname(csname, MY_CS_PRIMARY,
+                                         MYF(MY_UTF8_IS_UTF8MB3 | MY_WME));
+  if (!cs)
+    return;
+  for (int i= 0; i < 3; i++)
+  {
+    const char *str= *from[i];
+    if (!str)
+      continue;
+    uint errors;
+    uint len= my_convert(bufs[i], CNV_BUFSIZE, cs, str, (uint32) strlen(str),
+                         &my_charset_utf8mb4_bin, &errors);
+    bufs[i][len]= 0;
+    *from[i]= bufs[i];
+  }
+}
+#endif
+
 /*
   set connection-specific options and call mysql_real_connect
 */
@@ -1473,6 +1513,10 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysql");
+#ifdef _WIN32
+  maybe_convert_charset(&user, &password, &database,default_charset);
+#endif
+
   return mysql_real_connect(mysql, host, user, password, database,
                             opt_mysql_port, opt_mysql_unix_port, flags);
 }
