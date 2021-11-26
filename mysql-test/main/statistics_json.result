@@ -7658,3 +7658,28 @@ test.t1	analyze	status	OK
 ALTER TABLE t1 MODIFY f TEXT, ORDER BY pk;
 INSERT INTO t1 (f) VALUES ('bar');
 DROP TABLE t1;
+#
+# MDEV-26886: Estimation for filtered rows less precise with JSON histogram
+#
+create table t1 (a tinyint) as select if(seq%3,seq,0) as a from seq_1_to_100;
+select count(*) from t1 where a <= 0;
+count(*)
+33
+set histogram_type = JSON_HB, histogram_size=default;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze select * from t1 where a <= 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	33.00	33.00	Using where
+analyze select * from t1 where a < 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	1.47	0.00	Using where
+analyze select * from t1 where a > 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	67.00	67.00	Using where
+analyze select * from t1 where a >= 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	100.00	Using where
+drop table t1;

@@ -340,3 +340,17 @@ ANALYZE TABLE t1 PERSISTENT FOR ALL;
 ALTER TABLE t1 MODIFY f TEXT, ORDER BY pk;
 INSERT INTO t1 (f) VALUES ('bar');
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26886: Estimation for filtered rows less precise with JSON histogram
+--echo #
+create table t1 (a tinyint) as select if(seq%3,seq,0) as a from seq_1_to_100;
+select count(*) from t1 where a <= 0;
+
+set histogram_type = JSON_HB, histogram_size=default;
+analyze table t1 persistent for all;
+analyze select * from t1 where a <= 0;
+analyze select * from t1 where a < 0;
+analyze select * from t1 where a > 0;
+analyze select * from t1 where a >= 0;
+drop table t1;
