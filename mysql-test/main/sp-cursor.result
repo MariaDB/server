@@ -737,3 +737,43 @@ rec.en1
 c
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# Start of 10.8 tests
+#
+#
+# MDEV-10654 IN, OUT, INOUT parameters in CREATE FUNCTION
+#
+BEGIN NOT ATOMIC
+DECLARE va INT;
+DECLARE cur CURSOR (IN a INT) FOR SELECT a FROM dual;
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+va
+1
+BEGIN NOT ATOMIC
+DECLARE va INT;
+DECLARE cur CURSOR (OUT a INT) FOR SELECT a FROM dual;
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'OUT/INOUT cursor parameter'
+BEGIN NOT ATOMIC
+DECLARE va INT;
+DECLARE cur CURSOR (INOUT a INT) FOR SELECT a FROM dual;
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'OUT/INOUT cursor parameter'
+#
+# End of 10.8 tests
+#
