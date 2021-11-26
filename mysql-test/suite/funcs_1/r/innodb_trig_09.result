@@ -55,9 +55,9 @@ f174 numeric (0),
 f175 numeric (64)
 ) engine = <engine_to_be_used>;
 Warnings:
-Note	1265	Data truncated for column 'f150' at row 1
-Note	1265	Data truncated for column 'f151' at row 1
-Note	1265	Data truncated for column 'f152' at row 1
+Note	1265	Data truncated for column 'f150' at row 0
+Note	1265	Data truncated for column 'f151' at row 0
+Note	1265	Data truncated for column 'f152' at row 0
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/memory_tb3.txt'
 into table tb3;
 

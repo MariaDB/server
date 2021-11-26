@@ -202,10 +202,10 @@ SET lock_wait_timeout = 10;
 ALTER TABLE t1 ROW_FORMAT=COMPACT
 PAGE_COMPRESSED = YES PAGE_COMPRESSION_LEVEL = 1, ALGORITHM = INPLACE;
 connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR rebuilt2';
 INSERT INTO t1 SELECT  80 + c1, c2, c3 FROM t1;
 INSERT INTO t1 SELECT 160 + c1, c2, c3 FROM t1;
 UPDATE t1 SET c2 = c2 + 1;
-SET DEBUG_SYNC = 'now WAIT_FOR rebuilt2';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
@@ -434,6 +434,7 @@ t1	CREATE TABLE `t1` (
 SET GLOBAL innodb_monitor_disable = module_ddl;
 DROP TABLE t1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b blob) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0,NULL);
 connection con1;
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL created WAIT_FOR ins';
 ALTER TABLE t1 FORCE;
@@ -448,6 +449,7 @@ disconnect con1;
 connection default;
 SELECT * FROM t1;
 a	b
+0	NULL
 DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;

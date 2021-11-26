@@ -483,6 +483,7 @@ enum chf_create_flags {
 #define HA_CREATE_TMP_ALTER     8U
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
+#define HA_SKIP_KEY_SORT        64U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -789,11 +790,16 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 */
 #define ALTER_COLUMN_INDEX_LENGTH            (1ULL << 60)
 
+/**
+  Indicate that index order might have been changed. Disables inplace algorithm
+  by default (not for InnoDB).
+*/
+#define ALTER_INDEX_ORDER                    (1ULL << 61)
 
 /**
   Means that the ignorability of an index is changed.
 */
-#define ALTER_INDEX_IGNORABILITY              (1ULL << 61)
+#define ALTER_INDEX_IGNORABILITY              (1ULL << 62)
 
 /*
   Flags set in partition_flags when altering partitions
@@ -823,7 +829,9 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 // Set by Sql_cmd_alter_table_truncate_partition::execute()
 #define ALTER_PARTITION_TRUNCATE    (1ULL << 11)
 // Set for REORGANIZE PARTITION
-#define ALTER_PARTITION_TABLE_REORG           (1ULL << 12)
+#define ALTER_PARTITION_TABLE_REORG (1ULL << 12)
+#define ALTER_PARTITION_CONVERT_IN  (1ULL << 13)
+#define ALTER_PARTITION_CONVERT_OUT (1ULL << 14)
 
 /*
   This is master database for most of system tables. However there
@@ -968,39 +976,6 @@ struct xid_recovery_member
 #define MIN_XID_LIST_SIZE  128
 #define MAX_XID_LIST_SIZE  (1024*128)
 
-/*
-  These structures are used to pass information from a set of SQL commands
-  on add/drop/change tablespace definitions to the proper hton.
-*/
-#define UNDEF_NODEGROUP 65535
-enum ts_command_type
-{
-  TS_CMD_NOT_DEFINED = -1,
-  CREATE_TABLESPACE = 0,
-  ALTER_TABLESPACE = 1,
-  CREATE_LOGFILE_GROUP = 2,
-  ALTER_LOGFILE_GROUP = 3,
-  DROP_TABLESPACE = 4,
-  DROP_LOGFILE_GROUP = 5,
-  CHANGE_FILE_TABLESPACE = 6,
-  ALTER_ACCESS_MODE_TABLESPACE = 7
-};
-
-enum ts_alter_tablespace_type
-{
-  TS_ALTER_TABLESPACE_TYPE_NOT_DEFINED = -1,
-  ALTER_TABLESPACE_ADD_FILE = 1,
-  ALTER_TABLESPACE_DROP_FILE = 2
-};
-
-enum tablespace_access_mode
-{
-  TS_NOT_DEFINED= -1,
-  TS_READ_ONLY = 0,
-  TS_READ_WRITE = 1,
-  TS_NOT_ACCESSIBLE = 2
-};
-
 /* Statistics about batch operations like bulk_insert */
 struct ha_copy_info
 {
@@ -1009,50 +984,6 @@ struct ha_copy_info
   ha_rows copied;
   ha_rows deleted;
   ha_rows updated;
-};
-
-struct handlerton;
-class st_alter_tablespace : public Sql_alloc
-{
-  public:
-  const char *tablespace_name;
-  const char *logfile_group_name;
-  enum ts_command_type ts_cmd_type;
-  enum ts_alter_tablespace_type ts_alter_tablespace_type;
-  const char *data_file_name;
-  const char *undo_file_name;
-  const char *redo_file_name;
-  ulonglong extent_size;
-  ulonglong undo_buffer_size;
-  ulonglong redo_buffer_size;
-  ulonglong initial_size;
-  ulonglong autoextend_size;
-  ulonglong max_size;
-  uint nodegroup_id;
-  handlerton *storage_engine;
-  bool wait_until_completed;
-  const char *ts_comment;
-  enum tablespace_access_mode ts_access_mode;
-  st_alter_tablespace()
-  {
-    tablespace_name= NULL;
-    logfile_group_name= "DEFAULT_LG"; //Default log file group
-    ts_cmd_type= TS_CMD_NOT_DEFINED;
-    data_file_name= NULL;
-    undo_file_name= NULL;
-    redo_file_name= NULL;
-    extent_size= 1024*1024;        //Default 1 MByte
-    undo_buffer_size= 8*1024*1024; //Default 8 MByte
-    redo_buffer_size= 8*1024*1024; //Default 8 MByte
-    initial_size= 128*1024*1024;   //Default 128 MByte
-    autoextend_size= 0;            //No autoextension as default
-    max_size= 0;                   //Max size == initial size => no extension
-    storage_engine= NULL;
-    nodegroup_id= UNDEF_NODEGROUP;
-    wait_until_completed= TRUE;
-    ts_comment= NULL;
-    ts_access_mode= TS_NOT_DEFINED;
-  }
 };
 
 /* The handler for a table type.  Will be included in the TABLE structure */
@@ -1118,6 +1049,7 @@ typedef bool (stat_print_fn)(THD *thd, const char *type, size_t type_len,
 enum ha_stat_type { HA_ENGINE_STATUS, HA_ENGINE_LOGS, HA_ENGINE_MUTEX };
 extern MYSQL_PLUGIN_IMPORT st_plugin_int *hton2plugin[MAX_HA];
 
+struct handlerton;
 #define view_pseudo_hton ((handlerton *)1)
 
 /* Transaction log maintains type definitions */
@@ -1548,8 +1480,7 @@ struct handlerton
    bool (*show_status)(handlerton *hton, THD *thd, stat_print_fn *print, enum ha_stat_type stat);
    uint (*partition_flags)();
    alter_table_operations (*alter_table_flags)(alter_table_operations flags);
-   int (*alter_tablespace)(handlerton *hton, THD *thd, st_alter_tablespace *ts_info);
-   int (*fill_is_table)(handlerton *hton, THD *thd, TABLE_LIST *tables, 
+   int (*fill_is_table)(handlerton *hton, THD *thd, TABLE_LIST *tables,
                         class Item *cond, 
                         enum enum_schema_tables);
    uint32 flags;                                /* global handler flags */
@@ -1946,9 +1877,13 @@ struct THD_TRANS
  /*
     Define the type of statements which cannot be rolled back safely.
     Each type occupies one bit in m_unsafe_rollback_flags.
+    MODIFIED_NON_TRANS_TABLE is limited to mark only the temporary
+    non-transactional table *when* it's cached along with the transactional
+    events; the regular table is covered by the "namesake" bool var.
   */
   enum unsafe_statement_types
   {
+    MODIFIED_NON_TRANS_TABLE= 1,
     CREATED_TEMP_TABLE= 2,
     DROPPED_TEMP_TABLE= 4,
     DID_WAIT= 8,
@@ -1956,6 +1891,14 @@ struct THD_TRANS
     EXECUTED_TABLE_ADMIN_CMD= 0x20
   };
 
+  void mark_modified_non_trans_temp_table()
+  {
+    m_unsafe_rollback_flags|= MODIFIED_NON_TRANS_TABLE;
+  }
+  bool has_modified_non_trans_temp_table() const
+  {
+    return (m_unsafe_rollback_flags & MODIFIED_NON_TRANS_TABLE) != 0;
+  }
   void mark_executed_table_admin_cmd()
   {
     DBUG_PRINT("debug", ("mark_executed_table_admin_cmd"));
@@ -2681,6 +2624,9 @@ public:
 
   /** true when InnoDB should abort the alter when table is not empty */
   const bool error_if_not_empty;
+
+  /** True when DDL should avoid downgrading the MDL */
+  bool mdl_exclusive_after_prepare= false;
 
   Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
                      Alter_info *alter_info_arg,

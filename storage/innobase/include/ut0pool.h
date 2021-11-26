@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -300,12 +300,9 @@ private:
 			pool = UT_NEW_NOKEY(PoolType(m_size));
 
 			if (pool != NULL) {
-
-				ut_ad(n_pools <= m_pools.size());
-
 				m_pools.push_back(pool);
 
-				ib::info() << "Number of pools: "
+				ib::info() << "Number of transaction pools: "
 					<< m_pools.size();
 
 				added = true;

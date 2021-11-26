@@ -349,7 +349,7 @@ static bool row_undo_rec_get(undo_node_t* node)
 		ut_ad(undo->empty());
 	}
 
-	node->undo_rec = trx_undo_rec_copy(undo_page->frame + offset,
+	node->undo_rec = trx_undo_rec_copy(undo_page->page.frame + offset,
 					   node->heap);
 	mtr.commit();
 
@@ -401,19 +401,6 @@ row_undo(
 		return DB_SUCCESS;
 	}
 
-	/* Prevent prepare_inplace_alter_table_dict() from adding
-	dict_table_t::indexes while we are processing the record.
-	Recovered transactions are not protected by MDL, and the
-	secondary index creation is not protected by table locks
-	for online operation. (A table lock would only be acquired
-	when committing the ALTER TABLE operation.) */
-	trx_t* trx = node->trx;
-	const bool locked_data_dict = !trx->dict_operation_lock_mode;
-
-	if (UNIV_UNLIKELY(locked_data_dict)) {
-		row_mysql_freeze_data_dictionary(trx);
-	}
-
 	dberr_t err;
 
 	switch (node->state) {
@@ -428,11 +415,6 @@ row_undo(
 	default:
 		ut_ad("wrong state" == 0);
 		err = DB_CORRUPTION;
-	}
-
-	if (locked_data_dict) {
-
-		row_mysql_unfreeze_data_dictionary(trx);
 	}
 
 	node->state = UNDO_NODE_FETCH_NEXT;

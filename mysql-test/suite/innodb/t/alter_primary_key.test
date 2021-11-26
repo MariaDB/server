@@ -9,6 +9,7 @@
 
 CREATE TABLE t0 (pk INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t1 (c CHAR(2) NOT NULL) ENGINE=InnoDB;
+INSERT INTO  t1 VALUES('cd');
 
 connect (con1,localhost,root,,);
 BEGIN;

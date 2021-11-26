@@ -397,7 +397,7 @@ class ha_rocksdb : public my_core::handler {
     current lookup to be covered. If the bitmap field is null, that means this
     index does not cover the current lookup for any record.
    */
-  MY_BITMAP m_lookup_bitmap = {nullptr, nullptr, nullptr, 0, 0};
+  MY_BITMAP m_lookup_bitmap = {nullptr, nullptr, 0, 0};
 
   int alloc_key_buffers(const TABLE *const table_arg,
                         const Rdb_tbl_def *const tbl_def_arg,
@@ -453,15 +453,13 @@ class ha_rocksdb : public my_core::handler {
     }
   }
 
-  /** @brief
-    The name that will be used for display purposes.
-   */
-  const char *table_type() const /*override*/ {
-    DBUG_ENTER_FUNC();
-   // MariaDB: this function is not virtual, however ha_innodb
-   // declares it (and then never uses!) psergey-merge-todo:.
-    DBUG_RETURN(rocksdb_hton_name);
-  }
+  /*
+    MariaDB: this function:
+
+    const char *table_type() const
+
+    is non-virtual in class handler, so there's no point to override it.
+  */
 
   /* The following is only used by SHOW KEYS: */
   const char *index_type(uint inx) override {
@@ -1063,8 +1061,6 @@ struct Rdb_inplace_alter_ctx : public my_core::inplace_alter_handler_ctx {
 std::string rdb_corruption_marker_file_name();
 
 const int MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL= MariaDB_PLUGIN_MATURITY_STABLE;
-
-extern bool prevent_myrocks_loading;
 
 void sql_print_verbose_info(const char *format, ...);
 

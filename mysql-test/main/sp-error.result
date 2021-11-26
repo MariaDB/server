@@ -2780,7 +2780,7 @@ END|
 
 CALL p1()|
 Warnings:
-Warning	1366	Incorrect integer value: 'string' for column ``.``.`var1` at row 1
+Warning	1366	Incorrect integer value: 'string' for column ``.``.`var1` at row 0
 
 SET sql_mode = DEFAULT|
 CREATE PROCEDURE p2()

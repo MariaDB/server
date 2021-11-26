@@ -2426,7 +2426,7 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
       partition_element *new_part_elem= new_part_it++;
       /*
         The following must match:
-        partition_name, tablespace_name, data_file_name, index_file_name,
+        partition_name, data_file_name, index_file_name,
         engine_type, part_max_rows, part_min_rows, nodegroup_id.
         (max_value, signed_flag, has_null_value only on partition level,
         RANGE/LIST)
@@ -2512,9 +2512,7 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
             if (strcmp_null(sub_part_elem->data_file_name,
                             new_sub_part_elem->data_file_name) ||
                 strcmp_null(sub_part_elem->index_file_name,
-                            new_sub_part_elem->index_file_name) ||
-                strcmp_null(sub_part_elem->tablespace_name,
-                            new_sub_part_elem->tablespace_name))
+                            new_sub_part_elem->index_file_name))
               DBUG_RETURN(false);
 
           } while (++j < num_subparts);
@@ -2530,9 +2528,7 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
         if (strcmp_null(part_elem->data_file_name,
                         new_part_elem->data_file_name) ||
             strcmp_null(part_elem->index_file_name,
-                        new_part_elem->index_file_name) ||
-            strcmp_null(part_elem->tablespace_name,
-                        new_part_elem->tablespace_name))
+                        new_part_elem->index_file_name))
           DBUG_RETURN(false);
       }
     } while (++i < num_parts);

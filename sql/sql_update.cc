@@ -271,8 +271,8 @@ static void prepare_record_for_error_message(int error, TABLE *table)
     DBUG_VOID_RETURN;
 
   /* Create unique_map with all fields used by that index. */
-  my_bitmap_init(&unique_map, unique_map_buf, table->s->fields, FALSE);
-  table->mark_columns_used_by_index(keynr, &unique_map);
+  my_bitmap_init(&unique_map, unique_map_buf, table->s->fields);
+  table->mark_index_columns(keynr, &unique_map);
 
   /* Subtract read_set and write_set. */
   bitmap_subtract(&unique_map, table->read_set);
@@ -754,15 +754,20 @@ int mysql_update(THD *thd,
       !table->check_virtual_columns_marked_for_write())
   {
     DBUG_PRINT("info", ("Trying direct update"));
-    if (select && select->cond &&
-        (select->cond->used_tables() == table->map))
+    bool use_direct_update= !select || !select->cond;
+    if (!use_direct_update &&
+        (select->cond->used_tables() & ~RAND_TABLE_BIT) == table->map)
     {
       DBUG_ASSERT(!table->file->pushed_cond);
       if (!table->file->cond_push(select->cond))
+      {
+        use_direct_update= TRUE;
         table->file->pushed_cond= select->cond;
+      }
     }
 
-    if (!table->file->info_push(INFO_KIND_UPDATE_FIELDS, &fields) &&
+    if (use_direct_update &&
+        !table->file->info_push(INFO_KIND_UPDATE_FIELDS, &fields) &&
         !table->file->info_push(INFO_KIND_UPDATE_VALUES, &values) &&
         !table->file->direct_update_rows_init(&fields))
     {
@@ -997,6 +1002,7 @@ update_begin:
 
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &updated_or_same);
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
   while (!(error=info.read_record()) && !thd->killed)
   {
     explain->tracker.on_record_read();

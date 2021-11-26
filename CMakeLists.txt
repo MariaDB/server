@@ -33,22 +33,11 @@ PROJECT(MySQL)
 # in RPM's:
 
 #set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
-
-IF(POLICY CMP0022)
-  CMAKE_POLICY(SET CMP0022 NEW)
-ENDIF()
-IF(POLICY CMP0048)
-  CMAKE_POLICY(SET CMP0048 NEW)
-ENDIF()
-IF(POLICY CMP0054)
-  CMAKE_POLICY(SET CMP0054 NEW)
-ENDIF()
-IF(POLICY CMP0075)
-  CMAKE_POLICY(SET CMP0075 NEW)
-ENDIF()
-IF(POLICY CMP0069)
- CMAKE_POLICY(SET CMP0069 NEW)
-ENDIF()
+FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0075 CMP0069)
+  IF(POLICY ${p})
+    CMAKE_POLICY(SET ${p} NEW)
+  ENDIF()
+ENDFOREACH()
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
@@ -153,6 +142,7 @@ IF (NOT CPACK_GENERATOR)
   ENDIF(WIN32) 
 ENDIF(NOT CPACK_GENERATOR)
 
+INCLUDE(FeatureSummary)
 INCLUDE(misc)
 INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
@@ -168,6 +158,7 @@ INCLUDE(readline)
 INCLUDE(libutils)
 INCLUDE(dtrace)
 INCLUDE(pcre)
+INCLUDE(libfmt)
 INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
@@ -183,6 +174,10 @@ IF(DISABLE_SHARED)
   SET(WITHOUT_DYNAMIC_PLUGINS 1)
 ENDIF()
 OPTION(ENABLED_PROFILING "Enable profiling" ON)
+OPTION(ENABLED_JSON_WRITER_CONSISTENCY_CHECKS "Enable Json_writer_object / Json_writer_array checking to produce consistent JSON output" OFF)
+IF(ENABLED_JSON_WRITER_CONSISTENCY_CHECKS)
+  ADD_DEFINITIONS(-DENABLED_JSON_WRITER_CONSISTENCY_CHECKS)
+ENDIF()
 OPTION(WITHOUT_SERVER "Build only the client library and clients" OFF)
 IF(UNIX)
   OPTION(WITH_VALGRIND "Valgrind instrumentation" OFF)
@@ -380,7 +375,8 @@ ADD_DEFINITIONS(-DHAVE_CONFIG_H)
 IF(_FILE_OFFSET_BITS)
   ADD_DEFINITIONS(-D_FILE_OFFSET_BITS=${_FILE_OFFSET_BITS})
 ENDIF()
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include
+                    ${CMAKE_SOURCE_DIR}/include/providers)
 
 # Add bundled or system zlib.
 MYSQL_CHECK_ZLIB_WITH_COMPRESS()
@@ -392,6 +388,7 @@ MYSQL_CHECK_READLINE()
 SET(MALLOC_LIBRARY "system")
 
 CHECK_PCRE()
+CHECK_LIBFMT()
 ADD_SUBDIRECTORY(tpool)
 CHECK_SYSTEMD()
 
@@ -449,12 +446,15 @@ ADD_SUBDIRECTORY(sql/share)
 IF(NOT WITHOUT_SERVER)
   ADD_SUBDIRECTORY(tests)
   ADD_SUBDIRECTORY(sql)
-  OPTION (WITH_EMBEDDED_SERVER "Compile MySQL with embedded server" OFF)
-  IF(WITH_EMBEDDED_SERVER) 
-   ADD_SUBDIRECTORY(libmysqld)
-   ADD_SUBDIRECTORY(libmysqld/examples)
-   ADD_SUBDIRECTORY(unittest/embedded)
+  OPTION (WITH_EMBEDDED_SERVER "Compile MariaDB with embedded server" OFF)
+  IF(WITH_EMBEDDED_SERVER)
+    ADD_SUBDIRECTORY(libmysqld)
+    ADD_SUBDIRECTORY(libmysqld/examples)
+    ADD_SUBDIRECTORY(unittest/embedded)
   ENDIF(WITH_EMBEDDED_SERVER)
+  IF(NOT WIN32)
+    ADD_FEATURE_INFO(EMBEDDED_SERVER WITH_EMBEDDED_SERVER "Embedded MariaDB Server Library")
+  ENDIF()
 
   ADD_SUBDIRECTORY(mysql-test)
   ADD_SUBDIRECTORY(mysql-test/lib/My/SafeProcess)
@@ -548,7 +548,53 @@ IF(WIN32 AND SIGNCODE)
   INSTALL(SCRIPT ${PROJECT_BINARY_DIR}/sign.cmake)
 ENDIF()
 
+FEATURE_SUMMARY(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES VAR MARIADB_FEATURE_SUMMARY)
+
+OPTION(FEATURE_SUMMARY "Print feature summary at the end of configure step" ON)
+IF (FEATURE_SUMMARY)
+  MESSAGE("${MARIADB_FEATURE_SUMMARY}")
+  SET(FEATURE_SUMMARY OFF CACHE BOOL "" FORCE)
+ENDIF()
+
 IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
 You have linked MariaDB with ${NON_DISTRIBUTABLE_WARNING} libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with the Free Software Foundation.")
+ENDIF()
+
+IF(NOT WITHOUT_SERVER)
+  # Define target for minimal mtr-testable build
+  ADD_CUSTOM_TARGET(minbuild)
+  ADD_DEPENDENCIES(minbuild
+   aria_chk
+   aria_pack
+   mariadb
+   mariadb-admin
+   mariadb-binlog
+   mariadb-check
+   mariadb-client-test
+   mariadb-conv
+   mariadb-dump
+   mariadb-import
+   mariadb-plugin
+   mariadb-show
+   mariadb-slap
+   mariadb-test
+   mariadb-tzinfo-to-sql
+   mariadb-upgrade
+   mariadbd
+   my_print_defaults
+   my_safe_process
+   myisam_ftdump
+   myisamchk
+   myisamlog
+   myisampack
+   perror
+   replace)
+  IF(WIN32)
+    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill)
+  ENDIF()
+  ADD_CUSTOM_TARGET(smoketest
+    COMMAND perl ./mysql-test-run.pl main.1st
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/mysql-test)
+  ADD_DEPENDENCIES(smoketest minbuild)
 ENDIF()

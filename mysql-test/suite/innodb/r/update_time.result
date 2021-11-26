@@ -2,7 +2,7 @@
 # Test that INFORMATION_SCHEMA.TABLES.UPDATE_TIME is filled
 # correctly for InnoDB tables.
 #
-CREATE TABLE t (a INT) ENGINE=INNODB;
+CREATE TABLE t (a INT) ENGINE=INNODB STATS_PERSISTENT=0;
 SELECT update_time FROM information_schema.tables WHERE table_name = 't';
 update_time
 NULL
@@ -24,8 +24,7 @@ SELECT COUNT(*) FROM information_schema.innodb_buffer_page
 WHERE table_name = '`test`.`t`';
 COUNT(*)
 1
-# INSERT lots of data in table 'big': begin
-# INSERT lots of data in table 'big': end
+INSERT INTO big SELECT REPEAT('a', 1024) FROM seq_1_to_10240;
 SELECT COUNT(*) FROM information_schema.innodb_buffer_page
 WHERE table_name = '`test`.`t`';
 COUNT(*)

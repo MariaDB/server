@@ -470,7 +470,7 @@ static void cleanup_load_tmpdir(LEX_CSTRING *connection_name)
 {
   MY_DIR *dirp;
   FILEINFO *file;
-  uint i;
+  size_t i;
   char dir[FN_REFLEN], fname[FN_REFLEN];
   char prefbuf[31 + MAX_CONNECTION_NAME* MAX_FILENAME_MBWIDTH + 1];
   DBUG_ENTER("cleanup_load_tmpdir");
@@ -491,7 +491,7 @@ static void cleanup_load_tmpdir(LEX_CSTRING *connection_name)
   load_data_tmp_prefix(prefbuf, connection_name);
   DBUG_PRINT("enter", ("dir: '%s'  prefix: '%s'", dir, prefbuf));
 
-  for (i=0 ; i < (uint)dirp->number_of_files; i++)
+  for (i=0 ; i < dirp->number_of_files; i++)
   {
     file=dirp->dir_entry+i;
     if (is_prefix(file->name, prefbuf))
@@ -1299,7 +1299,7 @@ bool Query_log_event::write()
   if (thd && thd->binlog_xid)
   {
     *start++= Q_XID;
-    int8store(start, thd->query_id);
+    int8store(start, thd->binlog_xid);
     start+= 8;
   }
 
@@ -5225,8 +5225,7 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                          m_width,
-                          false)))
+                          m_width)))
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))
@@ -5623,19 +5622,15 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     }
 
 #ifdef HAVE_QUERY_CACHE
-#ifdef WITH_WSREP
     /*
       Moved invalidation right before the call to rows_event_stmt_cleanup(),
       to avoid query cache being polluted with stale entries,
     */
-    if (! (WSREP(thd) && wsrep_thd_is_applying(thd)))
-    {
-#endif /* WITH_WSREP */
-    query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-#ifdef WITH_WSREP
-    }
-#endif /* WITH_WSREP */
-#endif
+# ifdef WITH_WSREP
+    if (!WSREP(thd) && !wsrep_thd_is_applying(thd))
+# endif /* WITH_WSREP */
+      query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
+#endif /* HAVE_QUERY_CACHE */
   }
 
   table= m_table= rgi->m_table_map.get_table(m_table_id);
@@ -5836,19 +5831,20 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   restore_empty_query_table_list(thd->lex);
 
 #if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
-    if (WSREP(thd) && wsrep_thd_is_applying(thd))
-    {
-      query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-    }
+  if (WSREP(thd) && wsrep_thd_is_applying(thd))
+    query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
 #endif /* WITH_WSREP && HAVE_QUERY_CACHE */
 
-    if (unlikely(get_flags(STMT_END_F) &&
-                 (error= rows_event_stmt_cleanup(rgi, thd))))
-    slave_rows_error_report(ERROR_LEVEL,
-                            thd->is_error() ? 0 : error,
-                            rgi, thd, table,
-                            get_type_str(),
-                            RPL_LOG_NAME, log_pos);
+  if (get_flags(STMT_END_F))
+  {
+    if (unlikely((error= rows_event_stmt_cleanup(rgi, thd))))
+      slave_rows_error_report(ERROR_LEVEL, thd->is_error() ? 0 : error,
+                              rgi, thd, table, get_type_str(),
+                              RPL_LOG_NAME, log_pos);
+    if (thd->slave_thread)
+      free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
+  }
+
   DBUG_RETURN(error);
 
 err:
@@ -6459,7 +6455,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   LEX_CSTRING tmp_tbl_name= {tname_mem, tname_mem_length };
 
   table_list->init_one_table(&tmp_db_name, &tmp_tbl_name, 0, TL_WRITE);
-  table_list->table_id= DBUG_EVALUATE_IF("inject_tblmap_same_id_maps_diff_table", 0, m_table_id);
+  table_list->table_id= DBUG_IF("inject_tblmap_same_id_maps_diff_table") ? 0 : m_table_id;
   table_list->updating= 1;
   table_list->required_type= TABLE_TYPE_NORMAL;
 
@@ -6699,7 +6695,7 @@ void Table_map_log_event::init_metadata_fields()
 
   if (binlog_row_metadata == BINLOG_ROW_METADATA_FULL)
   {
-    if (DBUG_EVALUATE_IF("dont_log_column_name", 0, init_column_name_field()) ||
+    if ((!DBUG_IF("dont_log_column_name") && init_column_name_field()) ||
         init_charset_field(&is_enum_or_set_field, ENUM_AND_SET_DEFAULT_CHARSET,
                            ENUM_AND_SET_COLUMN_CHARSET) ||
         init_set_str_value_field() ||
@@ -8281,8 +8277,7 @@ void Update_rows_log_event::init(MY_BITMAP const *cols)
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols_ai,
                           m_width <= sizeof(m_bitbuf_ai)*8 ? m_bitbuf_ai : NULL,
-                          m_width,
-                          false)))
+                          m_width)))
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))

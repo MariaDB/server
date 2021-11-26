@@ -1,0 +1,54 @@
+# Note: This test assumes NO_BACKSLASH_ESCAPES is not set in SQL_MODE.
+##############################
+#      Setup
+##############################
+#
+# Saving old state
+#
+set @old_sql_mode= @@global.SQL_MODE;
+set @@global.SQL_MODE= "";
+#
+# Create table for data entry
+#
+CREATE TABLE tb (`id` int(11) NOT NULL AUTO_INCREMENT,`cb` longblob DEFAULT NULL, PRIMARY KEY (`id`)) AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
+RESET MASTER;
+##############################
+#      Test Case
+##############################
+#
+# \0 (0x5c00 in binary) should be allowed in data strings if
+# --binary-mode is enabled.
+#
+FOUND 10 /\x5c\x00/ in binary_zero_inserts.sql
+# MYSQL --binary-mode test < MYSQL_TMP_DIR/binary_zero_inserts.sql
+#
+# Ensure a row exists from each insert statement with a \0
+#
+SELECT COUNT(*)=8 from tb;
+COUNT(*)=8
+1
+#
+# Ensure that the binary zero was parsed and exists in the row data
+# Note: We only look for 00 because the 5c only served as an escape
+#       in parsing.
+#
+# MYSQL_DUMP test tb --hex-blob > MYSQL_TMP_DIR/dump.sql
+FOUND 8 /\([0-9]+,0x([1-9][0-9])*00([1-9][0-9])*\)/ in dump.sql
+#
+# Ensure data consistency on mysqlbinlog replay
+#
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/binlog_file > MYSQL_TMP_DIR/binlog_zeros.sql
+FOUND 10 /\x5c\x00/ in binlog_zeros.sql
+# MYSQL --binary-mode test < MYSQL_TMP_DIR/binlog_zeros.sql
+# Table checksum is equivalent before and after binlog replay
+#
+# A \0 should still be treated as end-of-query in binary mode.
+#
+# MYSQL --binary-mode -B test < MYSQL_TMP_DIR/binary_zero_eoq.sql
+##############################
+#      Cleanup
+##############################
+SET @@global.sql_mode= @old_sql_mode;
+drop table tb;
+RESET MASTER;

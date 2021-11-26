@@ -4,14 +4,14 @@ OPTIMIZER_TRACE	QUERY
 OPTIMIZER_TRACE	TRACE
 OPTIMIZER_TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE
 OPTIMIZER_TRACE	INSUFFICIENT_PRIVILEGES
-show variables like 'optimizer_trace';
-Variable_name	Value
-optimizer_trace	enabled=off
 set optimizer_trace="enabled=on";
 show variables like 'optimizer_trace';
 Variable_name	Value
 optimizer_trace	enabled=on
 set optimizer_trace="enabled=off";
+show variables like 'optimizer_trace';
+Variable_name	Value
+optimizer_trace	enabled=off
 create table t1 (a int, b int);
 insert into t1 values (1,2),(2,3);
 create table t2 (b int);
@@ -8667,6 +8667,41 @@ set max_session_mem_used=1024*1024*1024;
 select count(*) from information_schema.optimizer_trace;
 select * from information_schema.optimizer_trace;
 set max_session_mem_used=default;
+#
+# MDEV-22380 Assertion `name.length == strlen(name.str)' failed in Item::print_item_w_name on SELECT w/ optimizer_trace enabled
+#
+SET optimizer_trace="enabled=on";
+SELECT 'a\0' LIMIT 0;
+a\x00
+SELECT query, trace FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+query	trace
+SELECT 'a\0' LIMIT 0	{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "select 'a\0' AS `a\x00` limit 0"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": []
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": []
+      }
+    }
+  ]
+}
+SET optimizer_trace=DEFAULT;
 #
 # End of 10.4 tests
 #

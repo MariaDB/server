@@ -3839,9 +3839,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (i= first + sjm->tables; i <= tablenr; i++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[i].table);
         }
         best_access_path(join, join->best_positions[i].table, rem_tables,
@@ -3878,9 +3878,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[idx].table);
         }
         if (join->best_positions[idx].use_join_buffer)
@@ -3917,9 +3917,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[idx].table);
         }
         if (join->best_positions[idx].use_join_buffer || (idx == first))
@@ -4476,7 +4476,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     STEP 1: Get temporary table name
   */
   if (use_temp_pool && !(test_flags & TEST_KEEP_TMP_TABLES))
-    temp_pool_slot = bitmap_lock_set_next(&temp_pool);
+    temp_pool_slot = temp_pool_set_next();
 
   if (temp_pool_slot != MY_BIT_NONE) // we got a slot
     sprintf(path, "%s-subquery-%lx-%i", tmp_file_prefix,
@@ -4513,7 +4513,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
                         NullS))
   {
     if (temp_pool_slot != MY_BIT_NONE)
-      bitmap_lock_clear_bit(&temp_pool, temp_pool_slot);
+      temp_pool_clear_bit(temp_pool_slot);
     DBUG_RETURN(TRUE);
   }
   strmov(tmpname,path);
@@ -4723,7 +4723,7 @@ err:
   thd->mem_root= mem_root_save;
   free_tmp_table(thd,table);                    /* purecov: inspected */
   if (temp_pool_slot != MY_BIT_NONE)
-    bitmap_lock_clear_bit(&temp_pool, temp_pool_slot);
+    temp_pool_clear_bit(temp_pool_slot);
   DBUG_RETURN(TRUE);				/* purecov: inspected */
 }
 

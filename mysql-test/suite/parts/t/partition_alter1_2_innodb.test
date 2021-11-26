@@ -71,6 +71,9 @@ let $do_pk_tests= 1;
 #     and smaller than the maximum value of SIGNED INTEGER
 let $MAX_VALUE= (2147483646);
 
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
+
 # Generate the prerequisites ($variables, @variables, tables) needed
 --source suite/parts/inc/partition.pre
 
@@ -87,3 +90,5 @@ let $MAX_VALUE= (2147483646);
 #------------------------------------------------------------------------------#
 # Cleanup
 --source suite/parts/inc/partition_cleanup.inc
+
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

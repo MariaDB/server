@@ -10,16 +10,19 @@
 --echo # Testing which locks we get from all stages
 --echo #
 
+let $mdl= LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+
 BACKUP STAGE START;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 BACKUP STAGE FLUSH;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 BACKUP STAGE BLOCK_DDL;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 BACKUP STAGE BLOCK_COMMIT;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 BACKUP STAGE END;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 
 --echo #
 --echo # testing BACKUP STAGE LOCK's
@@ -54,7 +57,7 @@ let $wait_condition=
     where state = "Waiting for table metadata lock";
 --source include/wait_condition.inc
 backup stage flush;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 #
 # Do first test with max_statement_time, other tests later are done with
 # lock_wait_timeout. This is mostly to ensure that both methods works
@@ -103,7 +106,7 @@ let $wait_condition=
 --source include/wait_condition.inc
 backup stage start;
 backup stage flush;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 backup stage block_ddl;
 backup stage block_commit;
 connection default;
@@ -146,7 +149,7 @@ let $wait_condition=
 SET STATEMENT lock_wait_timeout=0 FOR SELECT * FROM t1;
 
 backup stage block_ddl;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 backup stage end;
 
 connection default;
@@ -170,7 +173,7 @@ let $wait_condition=
     where state = "Waiting for backup lock";
 --source include/wait_condition.inc
 connection con2;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 # Check that select's are not blocked
 SELECT * FROM t1;
 connection default;

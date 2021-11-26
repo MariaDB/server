@@ -51,7 +51,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <my_getopt.h>
 #include <mysql_com.h>
 #include <my_default.h>
-#include <mysqld.h>
+#include <sql_class.h>
 
 #include <fcntl.h>
 #include <string.h>
@@ -106,7 +106,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "backup_mysql.h"
 #include "backup_copy.h"
 #include "backup_mysql.h"
-#include "encryption_plugin.h"
+#include "xb_plugin.h"
 #include <sql_plugin.h>
 #include <srv0srv.h>
 #include <log.h>
@@ -1392,6 +1392,11 @@ uint xb_client_options_count = array_elements(xb_client_options);
 static const char *dbug_option;
 #endif
 
+#ifdef HAVE_URING
+extern const char *io_uring_may_be_unsafe;
+bool innodb_use_native_aio_default();
+#endif
+
 struct my_option xb_server_options[] =
 {
   {"datadir", 'h', "Path to the database root.", (G_PTR*) &mysql_data_home,
@@ -1508,7 +1513,12 @@ struct my_option xb_server_options[] =
    "Use native AIO if supported on this platform.",
    (G_PTR*) &srv_use_native_aio,
    (G_PTR*) &srv_use_native_aio, 0, GET_BOOL, NO_ARG,
-   TRUE, 0, 0, 0, 0, 0},
+#ifdef HAVE_URING
+   innodb_use_native_aio_default(),
+#else
+   TRUE,
+#endif
+   0, 0, 0, 0, 0},
   {"innodb_page_size", OPT_INNODB_PAGE_SIZE,
    "The universal page size of the database.",
    (G_PTR*) &innobase_page_size, (G_PTR*) &innobase_page_size, 0,
@@ -1553,7 +1563,7 @@ struct my_option xb_server_options[] =
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
   {"plugin-dir", OPT_PLUGIN_DIR,
-  "Server plugin directory. Used to load encryption plugin during 'prepare' phase."
+  "Server plugin directory. Used to load plugins during 'prepare' phase."
   "Has no effect in the 'backup' phase (plugin directory during backup is the same as server's)",
   &xb_plugin_dir, &xb_plugin_dir,
   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
@@ -2071,8 +2081,12 @@ static bool innodb_init_param()
 		msg("InnoDB: Using Linux native AIO");
 	}
 #elif defined(HAVE_URING)
-
-	if (srv_use_native_aio) {
+	if (!srv_use_native_aio) {
+	} else if (io_uring_may_be_unsafe) {
+		msg("InnoDB: Using liburing on this kernel %s may cause hangs;"
+		    " see https://jira.mariadb.org/browse/MDEV-26674",
+		    io_uring_may_be_unsafe);
+	} else {
 		msg("InnoDB: Using liburing");
 	}
 #else
@@ -3309,7 +3323,8 @@ static void xb_load_single_table_tablespace(const char *dirname,
 			0, false, false);
 		node->deferred= defer;
 		mysql_mutex_lock(&fil_system.mutex);
-		space->read_page0();
+		if (!space->read_page0())
+                  err= DB_CANNOT_OPEN_FILE;
 		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (srv_operation == SRV_OPERATION_RESTORE_DELTA
@@ -3321,7 +3336,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 	delete file;
 
 	if (err != DB_SUCCESS && xtrabackup_backup && !is_empty_file) {
-		die("Failed to not validate first page of the file %s, error %d",name, (int)err);
+		die("Failed to validate first page of the file %s, error %d",name, (int)err);
 	}
 
 	ut_free(name);
@@ -3451,7 +3466,7 @@ next_file:
 		if (err == ERROR_NO_MORE_FILES) {
 			status = 1;
 		} else {
-			msg("readdir_next_file in %s returned %lu", dir, err);
+			msg("FindNextFile in %s returned %lu", dirname, err);
 			status = -1;
 		}
 	}
@@ -4390,7 +4405,7 @@ static bool xtrabackup_backup_func()
 		return(false);
 	}
 	msg("cd to %s", mysql_real_data_home);
-	encryption_plugin_backup_init(mysql_connection);
+	xb_plugin_backup_init(mysql_connection);
 	msg("open files limit requested %lu, set to %lu",
 	    xb_open_files_limit,
 	    xb_set_max_open_files(xb_open_files_limit));
@@ -5773,7 +5788,7 @@ static bool xtrabackup_prepare_func(char** argv)
 	}
 
 	int argc; for (argc = 0; argv[argc]; argc++) {}
-	encryption_plugin_prepare_init(argc, argv);
+	xb_plugin_prepare_init(argc, argv, xtrabackup_incremental_dir);
 
 	xtrabackup_target_dir= mysql_data_home_buff;
 	xtrabackup_target_dir[0]=FN_CURLIB;		// all paths are relative from here
@@ -6331,12 +6346,17 @@ void handle_options(int argc, char **argv, char ***argv_server,
           {
             prepare= true;
           }
-          else if (!strncmp(argv[i], "--target-dir", optend - argv[i]) &&
+          else if (!strncmp(argv[i], "--incremental-dir", optend - argv[i]) &&
                    *optend)
           {
             target_dir= optend + 1;
           }
-          else if (!*optend && argv[i][0] != '-')
+          else if (!strncmp(argv[i], "--target-dir", optend - argv[i]) &&
+                   *optend && !target_dir)
+          {
+            target_dir= optend + 1;
+          }
+          else if (!*optend && argv[i][0] != '-' && !target_dir)
           {
             target_dir= argv[i];
           }

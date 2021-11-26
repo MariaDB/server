@@ -9,9 +9,11 @@
 /*********************************************************************************/
 #include <my_global.h>
 #include <mysqld.h>
+#include <mysqld_error.h>
 #include <mysql.h>
 #include <sql_error.h>
 #include <stdio.h>
+#include <cassert>
 
 #include "bsonudf.h"
 
@@ -21,7 +23,7 @@
 
 #define MEMFIX  4096
 #if defined(connect_EXPORTS)
-#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
+#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, M)
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
@@ -691,7 +693,7 @@ PVAL BJNX::GetCalcValue(PGLOBAL g, PBVAL bap, int n)
 
 			break;
 		default:
-			break;
+			DBUG_ASSERT(!"Implement new op type support.");
 	} // endswitch Op
 
 	return valp = AllocateValue(g, type, lng, prec);
@@ -1890,24 +1892,31 @@ static int *GetIntArgPtr(PGLOBAL g, UDF_ARGS *args, uint& n)
 /*********************************************************************************/
 int IsArgJson(UDF_ARGS *args, uint i)
 {
-	int n = 0;
+	const char *pat = args->attributes[i];
+	int   n = 0;
+
+	if (*pat == '@') {
+		pat++;
+
+		if (*pat == '\'' || *pat == '"')
+			pat++;
+
+	} // endif pat
 
 	if (i >= args->arg_count || args->arg_type[i] != STRING_RESULT) {
-	} else if (!strnicmp(args->attributes[i], "Bson_", 5) ||
-		         !strnicmp(args->attributes[i], "Json_", 5)) {
+	} else if (!strnicmp(pat, "Bson_", 5) || !strnicmp(pat, "Json_", 5)) {
 		if (!args->args[i] || strchr("[{ \t\r\n", *args->args[i]))
 			n = 1;					 // arg should be is a json item
 //	else
 //		n = 2;           // A file name may have been returned
 
-	} else if (!strnicmp(args->attributes[i], "Bbin_", 5)) {
+	} else if (!strnicmp(pat, "Bbin_", 5)) {
 		if (args->lengths[i] == sizeof(BSON))
 			n = 3;					 //	arg is a binary json item
 //	else
 //		n = 2;           // A file name may have been returned
 
-	} else if (!strnicmp(args->attributes[i], "Bfile_", 6) ||
-		         !strnicmp(args->attributes[i], "Jfile_", 6)) {
+	} else if (!strnicmp(pat, "Bfile_", 6) || !strnicmp(pat, "Jfile_", 6)) {
 		n = 2;					   //	arg is a json file name
 #if 0
 	} else if (args->lengths[i]) {
@@ -4972,7 +4981,7 @@ char *bbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		uint	n = 2;
 		int* x = GetIntArgPtr(g, args, n);
 		BJNX  bnx(g, NULL, TYPE_STRING);
-		PBVAL top, jarp = NULL, jvp = NULL;
+		PBVAL jarp = NULL, top = NULL, jvp = NULL;
 		PBVAL jsp = bnx.MakeValue(args, 0, true, &top);
 
 		if (bnx.CheckPath(g, args, jsp, jvp, 2))

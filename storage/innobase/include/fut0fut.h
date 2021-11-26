@@ -61,7 +61,7 @@ fut_get_ptr(
 				 rw_latch, nullptr, BUF_GET_POSSIBLY_FREED,
 				 mtr);
 	if (!block) {
-	} else if (block->page.status == buf_page_t::FREED) {
+	} else if (block->page.is_freed()) {
 		block = nullptr;
 	} else {
 		ptr = buf_block_get_frame(block) + addr.boffset;

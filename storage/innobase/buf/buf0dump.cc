@@ -328,16 +328,15 @@ buf_dump(
 	for (bpage = UT_LIST_GET_FIRST(buf_pool.LRU), j = 0;
 	     bpage != NULL && j < n_pages;
 	     bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
-
-		ut_a(bpage->in_file());
-		const page_id_t id(bpage->id());
+		const auto status = bpage->state();
+		if (status < buf_page_t::UNFIXED) {
+			ut_a(status >= buf_page_t::FREED);
+			continue;
+		}
+		const page_id_t id{bpage->id()};
 
 		if (id.space() == SRV_TMP_SPACE_ID) {
 			/* Ignore the innodb_temporary tablespace. */
-			continue;
-		}
-
-		if (bpage->status == buf_page_t::FREED) {
 			continue;
 		}
 
@@ -683,7 +682,7 @@ buf_load()
 		}
 
 		space->reacquire();
-		buf_read_page_background(space, dump[i], zip_size, true);
+		buf_read_page_background(space, dump[i], zip_size);
 
 		if (buf_load_abort_flag) {
 			if (space) {
@@ -719,6 +718,10 @@ buf_load()
 	}
 
 	ut_free(dump);
+
+	if (i == dump_n) {
+		os_aio_wait_until_no_pending_reads();
+	}
 
 	ut_sprintf_timestamp(now);
 

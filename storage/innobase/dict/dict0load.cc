@@ -145,10 +145,6 @@ dict_load_field_low(
 					for temporary storage */
 	const rec_t*	rec);		/*!< in: SYS_FIELDS record */
 
-/* If this flag is TRUE, then we will load the cluster index's (and tables')
-metadata even if it is marked as "corrupted". */
-my_bool     srv_load_corrupted;
-
 #ifdef UNIV_DEBUG
 /****************************************************************//**
 Compare the name of an index column.
@@ -509,7 +505,7 @@ dict_sys_tables_rec_check(
 	const byte*	field;
 	ulint		len;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	if (rec_get_deleted_flag(rec, 0)) {
 		return("delete-marked record in SYS_TABLES");
@@ -826,7 +822,7 @@ static uint32_t dict_check_sys_tables()
 
 	DBUG_ENTER("dict_check_sys_tables");
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	mtr_start(&mtr);
 
@@ -932,13 +928,14 @@ void dict_check_tablespaces_and_store_max_id()
 
 	DBUG_ENTER("dict_check_tablespaces_and_store_max_id");
 
-	dict_sys_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	/* Initialize the max space_id from sys header */
 	mtr.start();
 	uint32_t max_space_id = mach_read_from_4(DICT_HDR_MAX_SPACE_ID
 						 + DICT_HDR
-						 + dict_hdr_get(&mtr)->frame);
+						 + dict_hdr_get(&mtr)
+						 ->page.frame);
 	mtr.commit();
 
 	fil_set_max_space_id_if_bigger(max_space_id);
@@ -947,13 +944,14 @@ void dict_check_tablespaces_and_store_max_id()
 	max_space_id = dict_check_sys_tables();
 	fil_set_max_space_id_if_bigger(max_space_id);
 
-	dict_sys_unlock();
+	dict_sys.unlock();
 
 	DBUG_VOID_RETURN;
 }
 
 /** Error message for a delete-marked record in dict_load_column_low() */
-static const char* dict_load_column_del = "delete-marked record in SYS_COLUMN";
+static const char *dict_load_column_del= "delete-marked record in SYS_COLUMNS";
+static const char *dict_load_column_none= "SYS_COLUMNS record not found";
 
 /** Load a table column definition from a SYS_COLUMNS record to dict_table_t.
 @return	error message
@@ -1005,7 +1003,7 @@ err_len:
 	if (table_id) {
 		*table_id = mach_read_from_8(field);
 	} else if (table->id != mach_read_from_8(field)) {
-		return("SYS_COLUMNS.TABLE_ID mismatch");
+		return dict_load_column_none;
 	}
 
 	field = rec_get_nth_field_old(
@@ -1128,7 +1126,8 @@ err_len:
 }
 
 /** Error message for a delete-marked record in dict_load_virtual_low() */
-static const char* dict_load_virtual_del = "delete-marked record in SYS_VIRTUAL";
+static const char *dict_load_virtual_del= "delete-marked record in SYS_VIRTUAL";
+static const char *dict_load_virtual_none= "SYS_VIRTUAL record not found";
 
 /** Load a virtual column "mapping" (to base columns) information
 from a SYS_VIRTUAL record
@@ -1172,7 +1171,7 @@ err_len:
 	if (table_id != NULL) {
 		*table_id = mach_read_from_8(field);
 	} else if (table->id != mach_read_from_8(field)) {
-		return("SYS_VIRTUAL.TABLE_ID mismatch");
+		return dict_load_virtual_none;
 	}
 
 	field = rec_get_nth_field_old(
@@ -1235,7 +1234,7 @@ dict_load_columns(
 	mtr_t		mtr;
 	ulint		n_skipped = 0;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	mtr_start(&mtr);
 
@@ -1271,16 +1270,21 @@ dict_load_columns(
 
 		rec = btr_pcur_get_rec(&pcur);
 
-		ut_a(btr_pcur_is_on_user_rec(&pcur));
+		err_msg = btr_pcur_is_on_user_rec(&pcur)
+			? dict_load_column_low(table, heap, NULL, NULL,
+					       &name, rec, &nth_v_col)
+			: dict_load_column_none;
 
-		err_msg = dict_load_column_low(table, heap, NULL, NULL,
-					       &name, rec, &nth_v_col);
-
-		if (err_msg == dict_load_column_del) {
+		if (!err_msg) {
+		} else if (err_msg == dict_load_column_del) {
 			n_skipped++;
 			goto next_rec;
-		} else if (err_msg) {
-			ib::fatal() << err_msg;
+		} else if (err_msg == dict_load_column_none
+			&& strstr(table->name.m_name,
+				  "/" TEMP_FILE_PREFIX_INNODB)) {
+			break;
+		} else {
+			ib::fatal() << err_msg << " for table " << table->name;
 		}
 
 		/* Note: Currently we have one DOC_ID column that is
@@ -1343,13 +1347,12 @@ dict_load_virtual_one_col(
 	btr_pcur_t	pcur;
 	dtuple_t*	tuple;
 	dfield_t*	dfield;
-	const rec_t*	rec;
 	byte*		buf;
 	ulint		i = 0;
 	mtr_t		mtr;
 	ulint		skipped = 0;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	if (v_col->num_base == 0) {
 		return;
@@ -1388,28 +1391,26 @@ dict_load_virtual_one_col(
 				  BTR_SEARCH_LEAF, &pcur, &mtr);
 
 	for (i = 0; i < unsigned{v_col->num_base} + skipped; i++) {
-		const char*	err_msg;
 		ulint		pos;
-
-		ut_ad(btr_pcur_is_on_user_rec(&pcur));
-
-		rec = btr_pcur_get_rec(&pcur);
-
-		ut_a(btr_pcur_is_on_user_rec(&pcur));
-
-		err_msg = dict_load_virtual_low(table,
+		const char*	err_msg
+			= btr_pcur_is_on_user_rec(&pcur)
+			? dict_load_virtual_low(table,
 						&v_col->base_col[i - skipped],
 						NULL,
-					        &pos, NULL, rec);
+					        &pos, NULL,
+						btr_pcur_get_rec(&pcur))
+			: dict_load_virtual_none;
 
-		if (err_msg) {
-			if (err_msg != dict_load_virtual_del) {
-				ib::fatal() << err_msg;
-			} else {
-				skipped++;
-			}
-		} else {
+		if (!err_msg) {
 			ut_ad(pos == vcol_pos);
+		} else if (err_msg == dict_load_virtual_del) {
+			skipped++;
+		} else if (err_msg == dict_load_virtual_none
+			   && strstr(table->name.m_name,
+				     "/" TEMP_FILE_PREFIX_INNODB)) {
+			break;
+		} else {
+			ib::fatal() << err_msg << " for table " << table->name;
 		}
 
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
@@ -1437,7 +1438,9 @@ dict_load_virtual(
 }
 
 /** Error message for a delete-marked record in dict_load_field_low() */
-static const char* dict_load_field_del = "delete-marked record in SYS_FIELDS";
+static const char *dict_load_field_del= "delete-marked record in SYS_FIELDS";
+
+static const char *dict_load_field_none= "SYS_FIELDS record not found";
 
 /** Load an index field definition from a SYS_FIELDS record to dict_index_t.
 @return	error message
@@ -1492,7 +1495,7 @@ err_len:
 	} else {
 		first_field = (index->n_def == 0);
 		if (memcmp(field, index_id, 8)) {
-			return("SYS_FIELDS.INDEX_ID mismatch");
+			return dict_load_field_none;
 		}
 	}
 
@@ -1573,13 +1576,12 @@ dict_load_fields(
 	btr_pcur_t	pcur;
 	dtuple_t*	tuple;
 	dfield_t*	dfield;
-	const rec_t*	rec;
 	byte*		buf;
 	ulint		i;
 	mtr_t		mtr;
 	dberr_t		error;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	mtr_start(&mtr);
 
@@ -1600,27 +1602,29 @@ dict_load_fields(
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
 				  BTR_SEARCH_LEAF, &pcur, &mtr);
 	for (i = 0; i < index->n_fields; i++) {
-		const char* err_msg;
+		const char *err_msg = btr_pcur_is_on_user_rec(&pcur)
+			? dict_load_field_low(buf, index, NULL, NULL, NULL,
+					      heap, btr_pcur_get_rec(&pcur))
+			: dict_load_field_none;
 
-		rec = btr_pcur_get_rec(&pcur);
-
-		ut_a(btr_pcur_is_on_user_rec(&pcur));
-
-		err_msg = dict_load_field_low(buf, index, NULL, NULL, NULL,
-					      heap, rec);
-
-		if (err_msg == dict_load_field_del) {
+		if (!err_msg) {
+		} else if (err_msg == dict_load_field_del) {
 			/* There could be delete marked records in
 			SYS_FIELDS because SYS_FIELDS.INDEX_ID can be
 			updated by ALTER TABLE ADD INDEX. */
-
-			goto next_rec;
-		} else if (err_msg) {
-			ib::error() << err_msg;
+		} else {
+			if (err_msg != dict_load_field_none
+			    || strstr(index->table->name.m_name,
+				      "/" TEMP_FILE_PREFIX_INNODB)) {
+				ib::error() << err_msg << " for index "
+					    << index->name
+					    << " of table "
+					    << index->table->name;
+			}
 			error = DB_CORRUPTION;
 			goto func_exit;
 		}
-next_rec:
+
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 	}
 
@@ -1632,11 +1636,11 @@ func_exit:
 }
 
 /** Error message for a delete-marked record in dict_load_index_low() */
-static const char* dict_load_index_del = "delete-marked record in SYS_INDEXES";
+static const char *dict_load_index_del= "delete-marked record in SYS_INDEXES";
 /** Error message for table->id mismatch in dict_load_index_low() */
-static const char* dict_load_index_id_err = "SYS_INDEXES.TABLE_ID mismatch";
+static const char *dict_load_index_none= "SYS_INDEXES record not found";
 /** Error message for SYS_TABLES flags mismatch in dict_load_table_low() */
-static const char* dict_load_table_flags = "incorrect flags in SYS_TABLES";
+static const char *dict_load_table_flags= "incorrect flags in SYS_TABLES";
 
 /** Load an index definition from a SYS_INDEXES record to dict_index_t.
 If allocate=TRUE, we will create a dict_index_t structure and fill it
@@ -1709,7 +1713,7 @@ err_len:
 	} else if (memcmp(field, table_id, 8)) {
 		/* Caller supplied table_id, verify it is the same
 		id as on the index record */
-		return(dict_load_index_id_err);
+		return dict_load_index_none;
 	}
 
 	field = rec_get_nth_field_old(
@@ -1809,7 +1813,7 @@ dict_load_indexes(
 	mtr_t		mtr;
 	dberr_t		error = DB_SUCCESS;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	mtr_start(&mtr);
 
@@ -1831,31 +1835,11 @@ dict_load_indexes(
 
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
 				  BTR_SEARCH_LEAF, &pcur, &mtr);
-	for (;;) {
+	while (btr_pcur_is_on_user_rec(&pcur)) {
 		dict_index_t*	index = NULL;
 		const char*	err_msg;
 
-		if (!btr_pcur_is_on_user_rec(&pcur)) {
-
-			/* We should allow the table to open even
-			without index when DICT_ERR_IGNORE_CORRUPT is set.
-			DICT_ERR_IGNORE_CORRUPT is currently only set
-			for drop table */
-			if (dict_table_get_first_index(table) == NULL
-			    && !(ignore_err & DICT_ERR_IGNORE_CORRUPT)) {
-				ib::warn() << "Cannot load table "
-					<< table->name
-					<< " because it has no indexes in"
-					" InnoDB internal data dictionary.";
-				error = DB_CORRUPTION;
-				goto func_exit;
-			}
-
-			break;
-		}
-
 		rec = btr_pcur_get_rec(&pcur);
-
 		if ((ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)
 		    && (rec_get_n_fields_old(rec)
 			== DICT_NUM_FIELDS__SYS_INDEXES
@@ -1880,27 +1864,11 @@ dict_load_indexes(
 		}
 
 		err_msg = dict_load_index_low(buf, heap, rec, TRUE, &index);
-		ut_ad((index == NULL && err_msg != NULL)
-		      || (index != NULL && err_msg == NULL));
+		ut_ad(!index == !!err_msg);
 
-		if (err_msg == dict_load_index_id_err) {
-			/* TABLE_ID mismatch means that we have
-			run out of index definitions for the table. */
-
-			if (dict_table_get_first_index(table) == NULL
-			    && !(ignore_err & DICT_ERR_IGNORE_CORRUPT)) {
-
-				ib::warn() << "Failed to load the"
-					" clustered index for table "
-					<< table->name
-					<< " because of TABLE_ID mismatch."
-					" Refusing to load the rest of the"
-					" indexes (if any) and the whole table"
-					" altogether.";
-				error = DB_CORRUPTION;
-				goto func_exit;
-			}
-
+		if (err_msg == dict_load_index_none) {
+			/* We have ran out of index definitions for
+			the table. */
 			break;
 		}
 
@@ -1912,7 +1880,7 @@ dict_load_indexes(
 			goto next_rec;
 		} else if (err_msg) {
 			ib::error() << err_msg;
-			if (ignore_err & DICT_ERR_IGNORE_CORRUPT) {
+			if (ignore_err & DICT_ERR_IGNORE_INDEX) {
 				goto next_rec;
 			}
 			error = DB_CORRUPTION;
@@ -1931,29 +1899,11 @@ dict_load_indexes(
 		ut_ad(!dict_index_is_online_ddl(index));
 
 		/* Check whether the index is corrupted */
-		if (index->is_corrupted()) {
-			ib::error() << "Index " << index->name
-				<< " of table " << table->name
-				<< " is corrupted";
-
-			if (!srv_load_corrupted
-			    && !(ignore_err & DICT_ERR_IGNORE_CORRUPT)
-			    && dict_index_is_clust(index)) {
-				dict_mem_index_free(index);
-
-				error = DB_INDEX_CORRUPT;
-				goto func_exit;
-			} else {
-				/* We will load the index if
-				1) srv_load_corrupted is TRUE
-				2) ignore_err is set with
-				DICT_ERR_IGNORE_CORRUPT
-				3) if the index corrupted is a secondary
-				index */
-				ib::info() << "Load corrupted index "
-					<< index->name
-					<< " of table " << table->name;
-			}
+		if (ignore_err != DICT_ERR_IGNORE_DROP
+		    && index->is_corrupted() && index->is_clust()) {
+			dict_mem_index_free(index);
+			error = DB_INDEX_CORRUPT;
+			goto func_exit;
 		}
 
 		if (index->type & DICT_FTS
@@ -1979,31 +1929,30 @@ dict_load_indexes(
 		} else if (index->page == FIL_NULL
 			   && table->is_readable()
 			   && (!(index->type & DICT_FTS))) {
+			if (ignore_err != DICT_ERR_IGNORE_DROP) {
+				ib::error_or_warn(!(ignore_err
+						    & DICT_ERR_IGNORE_INDEX))
+					<< "Index " << index->name
+					<< " for table " << table->name
+					<< " has been freed!";
+			}
 
-			ib::error() << "Trying to load index " << index->name
-				<< " for table " << table->name
-				<< ", but the index tree has been freed!";
-
-			if (ignore_err & DICT_ERR_IGNORE_INDEX_ROOT) {
-				/* If caller can tolerate this error,
-				we will continue to load the index and
-				let caller deal with this error. However
-				mark the index and table corrupted. We
-				only need to mark such in the index
-				dictionary cache for such metadata corruption,
-				since we would always be able to set it
-				when loading the dictionary cache */
-				index->table = table;
-				dict_set_corrupted_index_cache_only(index);
-
-				ib::info() << "Index is corrupt but forcing"
-					" load into data dictionary";
-			} else {
+			if (!(ignore_err & DICT_ERR_IGNORE_INDEX)) {
 corrupted:
 				dict_mem_index_free(index);
 				error = DB_CORRUPTION;
 				goto func_exit;
 			}
+			/* If caller can tolerate this error,
+			we will continue to load the index and
+			let caller deal with this error. However
+			mark the index and table corrupted. We
+			only need to mark such in the index
+			dictionary cache for such metadata corruption,
+			since we would always be able to set it
+			when loading the dictionary cache */
+			index->table = table;
+			dict_set_corrupted_index_cache_only(index);
 		} else if (!dict_index_is_clust(index)
 			   && NULL == dict_table_get_first_index(table)) {
 
@@ -2021,8 +1970,8 @@ corrupted:
 			of the database server */
 			dict_mem_index_free(index);
 		} else {
-			dict_load_fields(index, heap);
 			index->table = table;
+			dict_load_fields(index, heap);
 
 			/* The data dictionary tables should never contain
 			invalid index definitions.  If we ignored this error
@@ -2034,9 +1983,29 @@ corrupted:
 			    != DB_SUCCESS) {
 				goto func_exit;
 			}
+
+#ifdef UNIV_DEBUG
+			// The following assertion doesn't hold for FTS indexes
+			// as it may have prefix_len=1 with any charset
+			if (index->type != DICT_FTS) {
+				for (uint i = 0; i < index->n_fields; i++) {
+					dict_field_t &f = index->fields[i];
+					ut_ad(f.col->mbmaxlen == 0
+					      || f.prefix_len
+					      % f.col->mbmaxlen == 0);
+				}
+			}
+#endif /* UNIV_DEBUG */
 		}
 next_rec:
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
+	}
+
+	if (!dict_table_get_first_index(table)
+	    && !(ignore_err & DICT_ERR_IGNORE_INDEX)) {
+		ib::warn() << "No indexes found for table " << table->name;
+		error = DB_CORRUPTION;
+		goto func_exit;
 	}
 
 	ut_ad(table->fts_doc_id_index == NULL);
@@ -2116,7 +2085,7 @@ dict_save_data_dir_path(
 	dict_table_t*	table,		/*!< in/out: table */
 	const char*	filepath)	/*!< in: filepath of tablespace */
 {
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.frozen());
 	ut_a(DICT_TF_HAS_DATA_DIR(table->flags));
 
 	ut_a(!table->data_dir_path);
@@ -2139,20 +2108,17 @@ dict_save_data_dir_path(
 	}
 }
 
-/** Make sure the data_dir_path is saved in dict_table_t if needed.
-@param[in]	table		Table object
-@param[in]	dict_mutex_own	true if dict_sys.mutex is owned already */
-void
-dict_get_and_save_data_dir_path(
-	dict_table_t*	table,
-	bool		dict_mutex_own)
+/** Make sure the data_file_name is saved in dict_table_t if needed.
+@param[in,out]	table		Table object
+@param[in]	dict_locked	dict_sys.frozen() */
+void dict_get_and_save_data_dir_path(dict_table_t* table, bool dict_locked)
 {
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space || table->space->id == table->space_id);
 
 	if (!table->data_dir_path && table->space_id && table->space) {
-		if (!dict_mutex_own) {
-			dict_sys.mutex_lock();
+		if (!dict_locked) {
+			dict_sys.freeze(SRW_LOCK_CALL);
 		}
 
 		table->flags |= 1 << DICT_TF_POS_DATA_DIR
@@ -2170,8 +2136,8 @@ dict_get_and_save_data_dir_path(
 				& ((1U << DICT_TF_BITS) - 1);
 		}
 
-		if (!dict_mutex_own) {
-			dict_sys.mutex_unlock();
+		if (!dict_locked) {
+			dict_sys.unfreeze();
 		}
 	}
 }
@@ -2209,7 +2175,7 @@ dict_load_tablespace(
 		return;
 	}
 
-	if (ignore_err == DICT_ERR_IGNORE_DROP) {
+	if (ignore_err >= DICT_ERR_IGNORE_TABLESPACE) {
 		table->file_unreadable = true;
 		return;
 	}
@@ -2282,7 +2248,7 @@ static dict_table_t *dict_load_table_one(const span<const char> &name,
 	DBUG_PRINT("dict_load_table_one",
 		   ("table: %.*s", name.size(), name.data()));
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	heap = mem_heap_create(32000);
 
@@ -2372,46 +2338,45 @@ err_exit:
 	if (err == DB_INDEX_CORRUPT) {
 		/* Refuse to load the table if the table has a corrupted
 		cluster index */
-		if (!srv_load_corrupted) {
-
-			ib::error() << "Load table " << table->name
-				<< " failed, the table has"
-				" corrupted clustered indexes. Turn on"
-				" 'innodb_force_load_corrupted' to drop it";
-			dict_sys.remove(table);
-			table = NULL;
-			goto func_exit;
-		} else {
-			if (table->indexes.start->is_corrupted()) {
-				table->corrupted = true;
-			}
-		}
+		ut_ad(index_load_err != DICT_ERR_IGNORE_DROP);
+		ib::error() << "Refusing to load corrupted table "
+			    << table->name;
+evict:
+		dict_sys.remove(table);
+		table = NULL;
+		goto func_exit;
 	}
 
-	if (err == DB_SUCCESS && table->is_readable()) {
-		const auto root = dict_table_get_first_index(table)->page;
-
-		if (root >= table->space->get_size()) {
+	if (err != DB_SUCCESS || !table->is_readable()) {
+	} else if (dict_index_t* pk = dict_table_get_first_index(table)) {
+		ut_ad(pk->is_primary());
+		if (pk->is_corrupted()
+		    || pk->page >= table->space->get_size()) {
 corrupted:
 			table->corrupted = true;
 			table->file_unreadable = true;
 			err = DB_CORRUPTION;
+		} else if (table->space->id
+			   && ignore_err == DICT_ERR_IGNORE_DROP) {
+			/* Do not bother to load data from .ibd files
+			only to delete the .ibd files. */
+			goto corrupted;
 		} else {
-			const page_id_t page_id(table->space->id, root);
+			const page_id_t page_id{table->space->id, pk->page};
 			mtr.start();
 			buf_block_t* block = buf_page_get(
 				page_id, table->space->zip_size(),
 				RW_S_LATCH, &mtr);
 			const bool corrupted = !block
-				|| page_get_space_id(block->frame)
+				|| page_get_space_id(block->page.frame)
 				!= page_id.space()
-				|| page_get_page_no(block->frame)
+				|| page_get_page_no(block->page.frame)
 				!= page_id.page_no()
 				|| (mach_read_from_2(FIL_PAGE_TYPE
-						    + block->frame)
+						    + block->page.frame)
 				    != FIL_PAGE_INDEX
 				    && mach_read_from_2(FIL_PAGE_TYPE
-							+ block->frame)
+							+ block->page.frame)
 				    != FIL_PAGE_TYPE_INSTANT);
 			mtr.commit();
 			if (corrupted) {
@@ -2421,6 +2386,12 @@ corrupted:
 			if (table->supports_instant()) {
 				err = btr_cur_instant_init(table);
 			}
+		}
+	} else {
+		ut_ad(ignore_err & DICT_ERR_IGNORE_INDEX);
+		if (ignore_err != DICT_ERR_IGNORE_DROP) {
+			err = DB_CORRUPTION;
+			goto evict;
 		}
 	}
 
@@ -2444,32 +2415,10 @@ corrupted:
 				<< " failed, the table has missing"
 				" foreign key indexes. Turn off"
 				" 'foreign_key_checks' and try again.";
-evict:
-			dict_sys.remove(table);
-			table = NULL;
+			goto evict;
 		} else {
 			dict_mem_table_fill_foreign_vcol_set(table);
 			table->fk_max_recusive_level = 0;
-		}
-	} else {
-		dict_index_t*   index;
-
-		/* Make sure that at least the clustered index was loaded.
-		Otherwise refuse to load the table */
-		index = dict_table_get_first_index(table);
-
-		if (!srv_force_recovery
-		    || !index
-		    || !index->is_primary()) {
-			ib::warn() << "Failed to load table " << table->name
-				   << ":" << err;
-			goto evict;
-		} else if (index->is_corrupted()
-			   && table->is_readable()) {
-			/* It is possible we force to load a corrupted
-			clustered index if srv_load_corrupted is set.
-			Mark the table as corrupted in this case */
-			table->corrupted = true;
 		}
 	}
 
@@ -2538,10 +2487,10 @@ dict_load_table_on_id(
 	ulint		len;
 	mtr_t		mtr;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	/* NOTE that the operation of this function is protected by
-	the dictionary mutex, and therefore no deadlocks can occur
+	dict_sys.latch, and therefore no deadlocks can occur
 	with other dictionary operations. */
 
 	mtr.start();
@@ -2621,7 +2570,7 @@ dict_load_sys_table(
 {
 	mem_heap_t*	heap;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	heap = mem_heap_create(1000);
 
@@ -2656,7 +2605,7 @@ dict_load_foreign_cols(
 	mtr_t		mtr;
 	size_t		id_len;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	id_len = strlen(foreign->id);
 
@@ -2798,7 +2747,7 @@ dict_load_foreign(
 	DBUG_PRINT("dict_load_foreign",
 		   ("id: '%s', check_recursive: %d", id, check_recursive));
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	id_len = strlen(id);
 
@@ -2971,7 +2920,7 @@ dict_load_foreigns(
 
 	DBUG_ENTER("dict_load_foreigns");
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	if (!dict_sys.sys_foreign || !dict_sys.sys_foreign_cols) {
 		if (ignore_err & DICT_ERR_IGNORE_FK_NOKEY) {

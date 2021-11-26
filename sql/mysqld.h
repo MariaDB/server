@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -100,7 +100,9 @@ extern CHARSET_INFO *error_message_charset_info;
 
 extern CHARSET_INFO *character_set_filesystem;
 
-extern MY_BITMAP temp_pool;
+void temp_pool_clear_bit(uint bit);
+uint temp_pool_set_next();
+
 extern bool opt_large_files;
 extern bool opt_update_log, opt_bin_log, opt_error_log, opt_bin_log_compress; 
 extern uint opt_bin_log_compress_min_len;
@@ -191,7 +193,8 @@ enum vers_system_time_t
 struct vers_asof_timestamp_t
 {
   ulong type;
-  MYSQL_TIME ltime;
+  my_time_t unix_time;
+  ulong second_part;
 };
 
 enum vers_alter_history_enum
@@ -676,6 +679,13 @@ extern PSI_stage_info stage_slave_background_process_request;
 extern PSI_stage_info stage_slave_background_wait_request;
 extern PSI_stage_info stage_waiting_for_deadlock_kill;
 extern PSI_stage_info stage_starting;
+#ifdef WITH_WSREP
+// Aditional Galera thread states
+extern PSI_stage_info stage_waiting_isolation;
+extern PSI_stage_info stage_waiting_certification;
+extern PSI_stage_info stage_waiting_ddl;
+extern PSI_stage_info stage_waiting_flow;
+#endif /* WITH_WSREP */
 
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**
@@ -760,7 +770,6 @@ extern mysql_rwlock_t LOCK_ssl_refresh;
 extern mysql_prlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_start_thread;
 extern mysql_cond_t COND_manager;
-extern Atomic_counter<uint32_t> thread_count;
 
 extern my_bool opt_use_ssl;
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,

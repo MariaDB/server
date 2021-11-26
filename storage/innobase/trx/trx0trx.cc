@@ -174,7 +174,7 @@ struct TrxFactory {
 		trx->rw_trx_hash_pins = 0;
 		trx_init(trx);
 
-		trx->dict_operation_lock_mode = 0;
+		trx->dict_operation_lock_mode = false;
 
 		trx->detailed_error = reinterpret_cast<char*>(
 			ut_zalloc_nokey(MAX_DETAILED_ERROR_LEN));
@@ -215,7 +215,7 @@ struct TrxFactory {
 
 		ut_a(trx->lock.wait_lock == NULL);
 		ut_a(trx->lock.wait_thr == NULL);
-		ut_a(trx->dict_operation_lock_mode == 0);
+		ut_a(!trx->dict_operation_lock_mode);
 
 		if (trx->lock.lock_heap != NULL) {
 			mem_heap_free(trx->lock.lock_heap);
@@ -456,7 +456,7 @@ void trx_t::free()
 }
 
 /** Transition to committed state, to release implicit locks. */
-inline void trx_t::commit_state()
+TRANSACTIONAL_INLINE inline void trx_t::commit_state()
 {
   ut_ad(state == TRX_STATE_PREPARED
 	|| state == TRX_STATE_PREPARED_RECOVERED
@@ -473,9 +473,8 @@ inline void trx_t::commit_state()
   makes modifications to the database, will get an lsn larger than the
   committing transaction T. In the case where the log flush fails, and
   T never gets committed, also T2 will never get committed. */
-  mutex.wr_lock();
+  TMTrxGuard tg{*this};
   state= TRX_STATE_COMMITTED_IN_MEMORY;
-  mutex.wr_unlock();
   ut_ad(id || !is_referenced());
 }
 
@@ -498,8 +497,7 @@ inline void trx_t::release_locks()
 }
 
 /** At shutdown, frees a transaction object. */
-void
-trx_free_at_shutdown(trx_t *trx)
+TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 {
 	ut_ad(trx->is_recovered);
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
@@ -573,7 +571,7 @@ trx_resurrect_table_locks(
 		page_id_t(trx->rsegs.m_redo.rseg->space->id,
 			  undo->top_page_no), &mtr);
 	buf_block_t* undo_block = block;
-	trx_undo_rec_t* undo_rec = block->frame + undo->top_offset;
+	trx_undo_rec_t* undo_rec = block->page.frame + undo->top_offset;
 
 	do {
 		ulint		type;
@@ -604,10 +602,10 @@ trx_resurrect_table_locks(
 		if (dict_table_t* table = dict_table_open_on_id(
 			    p.first, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE)) {
 			if (!table->is_readable()) {
-				dict_sys.mutex_lock();
-				dict_table_close(table, TRUE, FALSE);
+				dict_sys.lock(SRW_LOCK_CALL);
+				table->release();
 				dict_sys.remove(table);
-				dict_sys.mutex_unlock();
+				dict_sys.unlock();
 				continue;
 			}
 
@@ -622,7 +620,7 @@ trx_resurrect_table_locks(
 				 "resurrect " << ib::hex(trx->id)
 				 << " lock on " << table->name);
 
-			dict_table_close(table, FALSE, FALSE);
+			table->release();
 		}
 	}
 }
@@ -1114,7 +1112,7 @@ trx_finalize_for_fts(
 	trx->fts_trx = NULL;
 }
 
-extern "C" MYSQL_THD thd_increment_pending_ops();
+
 extern "C" void thd_decrement_pending_ops(MYSQL_THD);
 
 
@@ -1123,11 +1121,11 @@ extern "C" void thd_decrement_pending_ops(MYSQL_THD);
 /*
   If required, initiates write and optionally flush of the log to
   disk
-  @param[in] lsn - lsn up to which logs are to be flushed.
-  @param[in] trx_state - if trx_state is PREPARED, the function will
+  @param lsn   LSN up to which logs are to be flushed.
+  @param trx   transaction; if trx->state is PREPARED, the function will
   also wait for the flush to complete.
 */
-static void trx_flush_log_if_needed_low(lsn_t lsn, trx_state_t trx_state)
+static void trx_flush_log_if_needed_low(lsn_t lsn, const trx_t *trx)
 {
   if (!srv_flush_log_at_trx_commit)
     return;
@@ -1135,28 +1133,26 @@ static void trx_flush_log_if_needed_low(lsn_t lsn, trx_state_t trx_state)
   if (log_sys.get_flushed_lsn() > lsn)
     return;
 
-  bool flush= srv_file_flush_method != SRV_NOSYNC &&
-              srv_flush_log_at_trx_commit == 1;
+  const bool flush= srv_file_flush_method != SRV_NOSYNC &&
+    (srv_flush_log_at_trx_commit & 1);
 
-  if (trx_state == TRX_STATE_PREPARED)
+  if (trx->state == TRX_STATE_PREPARED)
   {
     /* XA, which is used with binlog as well.
     Be conservative, use synchronous wait.*/
+sync:
     log_write_up_to(lsn, flush);
     return;
   }
 
   completion_callback cb;
-  if ((cb.m_param = thd_increment_pending_ops()))
+  if ((cb.m_param = innodb_thd_increment_pending_ops(trx->mysql_thd)))
   {
     cb.m_callback = (void (*)(void *)) thd_decrement_pending_ops;
     log_write_up_to(lsn, flush, false, &cb);
   }
   else
-  {
-    /* No THD, synchronous write */
-    log_write_up_to(lsn, flush);
-  }
+    goto sync;
 }
 
 /**********************************************************************//**
@@ -1171,7 +1167,7 @@ trx_flush_log_if_needed(
 	trx_t*	trx)	/*!< in/out: transaction */
 {
 	trx->op_info = "flushing log";
-	trx_flush_log_if_needed_low(lsn,trx->state);
+	trx_flush_log_if_needed_low(lsn, trx);
 	trx->op_info = "";
 }
 
@@ -1199,18 +1195,17 @@ void trx_t::evict_table(table_id_t table_id, bool reset_only)
 {
 	ut_ad(in_rollback);
 
-	dict_table_t* table = dict_table_open_on_id(
-		table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
+	dict_table_t* table = dict_sys.find_table(table_id);
 	if (!table) {
 		return;
 	}
 
 	table->def_trx_id = 0;
 
-	if (!table->release()) {
+	if (auto ref_count = table->get_ref_count()) {
 		/* This must be a DDL operation that is being rolled
 		back in an active connection. */
-		ut_a(table->get_ref_count() == 1);
+		ut_a(ref_count == 1);
 		ut_ad(!is_recovered);
 		ut_ad(mysql_thd);
 		return;
@@ -1231,7 +1226,7 @@ void trx_t::evict_table(table_id_t table_id, bool reset_only)
 }
 
 /** Mark a transaction committed in the main memory data structures. */
-inline void trx_t::commit_in_memory(const mtr_t *mtr)
+TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
 {
   must_flush_log_later= false;
   read_view.close();
@@ -1278,7 +1273,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
       /* Wait for any implicit-to-explicit lock conversions to cease,
       so that there will be no race condition in lock_release(). */
       while (UNIV_UNLIKELY(is_referenced()))
-        ut_delay(srv_spin_wait_delay);
+        LF_BACKOFF();
     }
     else
       ut_ad(read_only || !rsegs.m_redo.rseg);
@@ -1305,10 +1300,12 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
     }
   }
 
+  /* We already detached from rseg in trx_write_serialisation_history() */
   ut_ad(!rsegs.m_redo.undo);
   ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
 
   if (trx_rseg_t *rseg= rsegs.m_redo.rseg)
+    /* This is safe due to us having detached the persistent undo log. */
     rseg->release();
 
   if (mtr)
@@ -1396,7 +1393,7 @@ void trx_t::commit_cleanup()
 
 /** Commit the transaction in a mini-transaction.
 @param mtr  mini-transaction (if there are any persistent modifications) */
-void trx_t::commit_low(mtr_t *mtr)
+TRANSACTIONAL_TARGET void trx_t::commit_low(mtr_t *mtr)
 {
   ut_ad(!mtr || mtr->is_active());
   ut_d(bool aborted = in_rollback && error_state == DB_DEADLOCK);
@@ -1637,6 +1634,9 @@ trx_mark_sql_stat_end(
 		}
 
 		if (trx->is_bulk_insert()) {
+			/* MDEV-25036 FIXME: we support buffered
+			insert only for the first insert statement */
+			trx->error_state = trx->bulk_insert_apply();
 			/* Allow a subsequent INSERT into an empty table
 			if !unique_checks && !foreign_key_checks. */
 			return;
@@ -1695,7 +1695,9 @@ trx_print_low(
 	fprintf(f, ", state %lu", (ulong) trx->state);
 	ut_ad(0);
 state_ok:
-	if (const char *op_info = trx->op_info) {
+	const char* op_info = trx->op_info;
+
+	if (*op_info) {
 		putc(' ', f);
 		fputs(op_info, f);
 	}
@@ -1770,6 +1772,7 @@ trx_print_latched(
 /**********************************************************************//**
 Prints info about a transaction.
 Acquires and releases lock_sys.latch. */
+TRANSACTIONAL_TARGET
 void
 trx_print(
 /*======*/
@@ -1780,7 +1783,7 @@ trx_print(
 {
   ulint n_rec_locks, n_trx_locks, heap_size;
   {
-    LockMutexGuard g{SRW_LOCK_CALL};
+    TMLockMutexGuard g{SRW_LOCK_CALL};
     n_rec_locks= trx->lock.n_rec_locks;
     n_trx_locks= UT_LIST_GET_LEN(trx->lock.trx_locks);
     heap_size= mem_heap_get_size(trx->lock.lock_heap);
@@ -1832,6 +1835,7 @@ static lsn_t trx_prepare_low(trx_t *trx)
 
 /****************************************************************//**
 Prepares a transaction. */
+TRANSACTIONAL_TARGET
 static
 void
 trx_prepare(
@@ -1844,12 +1848,11 @@ trx_prepare(
 
 	lsn_t	lsn = trx_prepare_low(trx);
 
-	DBUG_EXECUTE_IF("ib_trx_crash_during_xa_prepare_step", DBUG_SUICIDE(););
-
 	ut_a(trx->state == TRX_STATE_ACTIVE);
-	trx->mutex_lock();
-	trx->state = TRX_STATE_PREPARED;
-	trx->mutex_unlock();
+	{
+		TMTrxGuard tg{*trx};
+		trx->state = TRX_STATE_PREPARED;
+	}
 
 	if (lsn) {
 		/* Depending on the my.cnf options, we may now write the log
@@ -1869,6 +1872,20 @@ trx_prepare(
 		We must not be holding any mutexes or latches here. */
 
 		trx_flush_log_if_needed(lsn, trx);
+
+		if (!UT_LIST_GET_LEN(trx->lock.trx_locks)
+		    || trx->isolation_level == TRX_ISO_SERIALIZABLE) {
+			/* Do not release any locks at the
+			SERIALIZABLE isolation level. */
+		} else if (!trx->mysql_thd
+			   || thd_sql_command(trx->mysql_thd)
+			   != SQLCOM_XA_PREPARE) {
+			/* Do not release locks for XA COMMIT ONE PHASE
+			or for internal distributed transactions
+			(XID::get_my_xid() would be nonzero). */
+		} else {
+			lock_release_on_prepare(trx);
+		}
 	}
 }
 

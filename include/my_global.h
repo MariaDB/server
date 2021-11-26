@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,15 +22,11 @@
 
 /*
   MDEV-25602 Deprecate __WIN__ symbol.
-  Temporarily, allow inside connect engine,
-  until fixed in upstream.
 */
-#ifndef connect_EXPORTS
-#ifdef _MSC_VER
+#if defined (_MSC_VER) && !defined(__clang__)
 #pragma deprecated("__WIN__")
 #elif defined (__GNUC__)
 #pragma GCC poison __WIN__
-#endif
 #endif
 
 /*

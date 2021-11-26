@@ -1622,6 +1622,15 @@ protected:
   virtual ~Create_func_name_const() {}
 };
 
+class Create_func_natural_sort_key : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1) override;
+  static Create_func_natural_sort_key s_singleton;
+protected:
+  Create_func_natural_sort_key() {}
+  virtual ~Create_func_natural_sort_key() {}
+};
 
 class Create_func_nullif : public Create_func_arg2
 {
@@ -1922,6 +1931,16 @@ protected:
   virtual ~Create_func_sec_to_time() {}
 };
 
+class Create_func_sformat : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
+			      List<Item> *item_list);
+  static Create_func_sformat s_singleton;
+protected:
+  Create_func_sformat() {}
+  virtual ~Create_func_sformat() {}
+};
 
 class Create_func_sha : public Create_func_arg1
 {
@@ -2260,30 +2279,6 @@ protected:
   virtual ~Create_func_unix_timestamp() {}
 };
 
-
-class Create_func_uuid : public Create_func_arg0
-{
-public:
-  virtual Item *create_builder(THD *thd);
-
-  static Create_func_uuid s_singleton;
-
-protected:
-  Create_func_uuid() {}
-  virtual ~Create_func_uuid() {}
-};
-
-class Create_func_sys_guid : public Create_func_arg0
-{
-public:
-  virtual Item *create_builder(THD *thd);
-
-  static Create_func_sys_guid s_singleton;
-
-protected:
-  Create_func_sys_guid() {}
-  virtual ~Create_func_sys_guid() {}
-};
 
 class Create_func_uuid_short : public Create_func_arg0
 {
@@ -4642,6 +4637,12 @@ Create_func_md5::create_1_arg(THD *thd, Item *arg1)
   return new (thd->mem_root) Item_func_md5(thd, arg1);
 }
 
+Create_func_natural_sort_key Create_func_natural_sort_key::s_singleton;
+
+Item *Create_func_natural_sort_key::create_1_arg(THD *thd, Item* arg1)
+{
+  return new (thd->mem_root) Item_func_natural_sort_key(thd, arg1);
+}
 
 Create_func_monthname Create_func_monthname::s_singleton;
 
@@ -5010,6 +5011,26 @@ Create_func_sec_to_time::create_1_arg(THD *thd, Item *arg1)
   return new (thd->mem_root) Item_func_sec_to_time(thd, arg1);
 }
 
+Create_func_sformat Create_func_sformat::s_singleton;
+
+Item*
+Create_func_sformat::create_native(THD *thd, LEX_CSTRING *name,
+                                  List<Item> *item_list)
+{
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  if (unlikely(arg_count < 1))
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return NULL;
+  }
+
+  return new (thd->mem_root) Item_func_sformat(thd, *item_list);
+}
+
 
 Create_func_sha Create_func_sha::s_singleton;
 
@@ -5328,29 +5349,6 @@ Create_func_unix_timestamp::create_native(THD *thd, LEX_CSTRING *name,
 }
 
 
-Create_func_uuid Create_func_uuid::s_singleton;
-
-Item*
-Create_func_uuid::create_builder(THD *thd)
-{
-  DBUG_ENTER("Create_func_uuid::create");
-  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  thd->lex->safe_to_cache_query= 0;
-  DBUG_RETURN(new (thd->mem_root) Item_func_uuid(thd, 0));
-}
-
-Create_func_sys_guid Create_func_sys_guid::s_singleton;
-
-Item*
-Create_func_sys_guid::create_builder(THD *thd)
-{
-  DBUG_ENTER("Create_func_sys_guid::create");
-  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  thd->lex->safe_to_cache_query= 0;
-  DBUG_RETURN(new (thd->mem_root) Item_func_uuid(thd, 1));
-}
-
-
 Create_func_uuid_short Create_func_uuid_short::s_singleton;
 
 Item*
@@ -5648,6 +5646,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("MD5") }, BUILDER(Create_func_md5)},
   { { STRING_WITH_LEN("MONTHNAME") }, BUILDER(Create_func_monthname)},
   { { STRING_WITH_LEN("NAME_CONST") }, BUILDER(Create_func_name_const)},
+  {  {STRING_WITH_LEN("NATURAL_SORT_KEY")}, BUILDER(Create_func_natural_sort_key)},
   { { STRING_WITH_LEN("NVL") }, BUILDER(Create_func_ifnull)},
   { { STRING_WITH_LEN("NVL2") }, BUILDER(Create_func_nvl2)},
   { { STRING_WITH_LEN("NULLIF") }, BUILDER(Create_func_nullif)},
@@ -5677,6 +5676,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("RTRIM") }, BUILDER(Create_func_rtrim)},
   { { STRING_WITH_LEN("RTRIM_ORACLE") }, BUILDER(Create_func_rtrim_oracle)},
   { { STRING_WITH_LEN("SEC_TO_TIME") }, BUILDER(Create_func_sec_to_time)},
+  { { STRING_WITH_LEN("SFORMAT") }, BUILDER(Create_func_sformat)},
   { { STRING_WITH_LEN("SHA") }, BUILDER(Create_func_sha)},
   { { STRING_WITH_LEN("SHA1") }, BUILDER(Create_func_sha)},
   { { STRING_WITH_LEN("SHA2") }, BUILDER(Create_func_sha2)},
@@ -5692,7 +5692,6 @@ Native_func_registry func_array[] =
       BUILDER(Create_func_substr_oracle)},
   { { STRING_WITH_LEN("SUBSTRING_INDEX") }, BUILDER(Create_func_substr_index)},
   { { STRING_WITH_LEN("SUBTIME") }, BUILDER(Create_func_subtime)},
-  { { STRING_WITH_LEN("SYS_GUID") }, BUILDER(Create_func_sys_guid)},
   { { STRING_WITH_LEN("TAN") }, BUILDER(Create_func_tan)},
   { { STRING_WITH_LEN("TIMEDIFF") }, BUILDER(Create_func_timediff)},
   { { STRING_WITH_LEN("TIME_FORMAT") }, BUILDER(Create_func_time_format)},
@@ -5708,7 +5707,6 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("UNIX_TIMESTAMP") }, BUILDER(Create_func_unix_timestamp)},
   { { STRING_WITH_LEN("UPDATEXML") }, BUILDER(Create_func_xml_update)},
   { { STRING_WITH_LEN("UPPER") }, BUILDER(Create_func_ucase)},
-  { { STRING_WITH_LEN("UUID") }, BUILDER(Create_func_uuid)},
   { { STRING_WITH_LEN("UUID_SHORT") }, BUILDER(Create_func_uuid_short)},
   { { STRING_WITH_LEN("VERSION") }, BUILDER(Create_func_version)},
   { { STRING_WITH_LEN("WEEKDAY") }, BUILDER(Create_func_weekday)},

@@ -2627,6 +2627,7 @@ DROP TABLE t1, t2;
 set time_zone="+00:00";
 SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 SET @@session.sql_mode = 'STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
+set @rpt=1;
 CREATE TABLE t1 (c CHAR(1) NOT NULL);
 DELIMITER |;
 CREATE TRIGGER t1_bi
@@ -2634,13 +2635,14 @@ CREATE TRIGGER t1_bi
   ON t1
   FOR EACH ROW
  BEGIN
-  SET NEW.c = 'www';
+  SET NEW.c = repeat(@rpt,@rpt);
+  set @rpt=@rpt+1;
  END;
 |
 DELIMITER ;|
 SET @@session.sql_mode = default;
 --error ER_DATA_TOO_LONG
-INSERT INTO t1 VALUES ('a');
+INSERT INTO t1 VALUES ('a'),('b'); # this is a BUG, must be "at row 2"
 show create trigger t1_bi;
 DROP TRIGGER t1_bi;
 DROP TABLE t1;

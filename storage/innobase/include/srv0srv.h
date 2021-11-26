@@ -307,11 +307,6 @@ void innodb_wait_allow_writes();
 # define innodb_wait_allow_writes() do {} while (0)
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
-/* If this flag is TRUE, then we will load the indexes' (and tables') metadata
-even if they are marked as "corrupted". Mostly it is for DBA to process
-corrupted index and table */
-extern my_bool	srv_load_corrupted;
-
 /** Requested size in bytes */
 extern ulint		srv_buf_pool_size;
 /** Minimum pool size in bytes */
@@ -457,8 +452,6 @@ extern ulint	srv_log_writes_and_flush;
 extern my_bool	innodb_evict_tables_on_commit_debug;
 extern my_bool	srv_purge_view_update_only_debug;
 
-/** Value of MySQL global used to disable master thread. */
-extern my_bool	srv_master_thread_disabled_debug;
 /** InnoDB system tablespace to set during recovery */
 extern uint	srv_sys_space_size_debug;
 /** whether redo log file has been created at startup */
@@ -562,11 +555,9 @@ enum {
 	SRV_FORCE_NO_BACKGROUND	= 2,	/*!< prevent the main thread from
 					running: if a crash would occur
 					in purge, this prevents it */
-	SRV_FORCE_NO_TRX_UNDO = 3,	/*!< do not run trx rollback after
+	SRV_FORCE_NO_TRX_UNDO = 3,	/*!< do not run DML rollback after
 					recovery */
-	SRV_FORCE_NO_IBUF_MERGE = 4,	/*!< prevent also ibuf operations:
-					if they would cause a crash, better
-					not do them */
+	SRV_FORCE_NO_DDL_UNDO = 4,	/*!< prevent also DDL rollback */
 	SRV_FORCE_NO_UNDO_LOG_SCAN = 5,	/*!< do not look at undo logs when
 					starting the database: InnoDB will
 					treat even incomplete transactions
@@ -685,18 +676,6 @@ void srv_purge_shutdown();
 
 /** Init purge tasks*/
 void srv_init_purge_tasks();
-
-#ifdef UNIV_DEBUG
-/** Disables master thread. It's used by:
-	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
-@param[in]	save		immediate result from check function */
-void
-srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
-					const void* save);
-
-/** Enable the master thread on shutdown. */
-void srv_master_thread_enable();
-#endif /* UNIV_DEBUG */
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{

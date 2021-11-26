@@ -3966,6 +3966,7 @@ static my_bool is_binary_compatible(enum enum_field_types type1,
 
 static my_bool setup_one_fetch_function(MYSQL_BIND *param, MYSQL_FIELD *field)
 {
+  my_bool field_is_unsigned;
   DBUG_ENTER("setup_one_fetch_function");
 
   /* Setup data copy functions for the different supported types */
@@ -4042,6 +4043,7 @@ static my_bool setup_one_fetch_function(MYSQL_BIND *param, MYSQL_FIELD *field)
 
   /* Setup skip_result functions (to calculate max_length) */
   param->skip_result= skip_result_fixed;
+  field_is_unsigned= MY_TEST(field->flags & UNSIGNED_FLAG);
   switch (field->type) {
   case MYSQL_TYPE_NULL: /* for dummy binds */
     param->pack_length= 0;
@@ -4049,23 +4051,23 @@ static my_bool setup_one_fetch_function(MYSQL_BIND *param, MYSQL_FIELD *field)
     break;
   case MYSQL_TYPE_TINY:
     param->pack_length= 1;
-    field->max_length= 4;                     /* as in '-127' */
+    field->max_length= field_is_unsigned ? 3 : 4; /* '255' and '-127' */
     break;
   case MYSQL_TYPE_YEAR:
   case MYSQL_TYPE_SHORT:
     param->pack_length= 2;
-    field->max_length= 6;                     /* as in '-32767' */
+    field->max_length= field_is_unsigned ? 5 : 6; /* 65536 and '-32767' */
     break;
   case MYSQL_TYPE_INT24:
-    field->max_length= 9;  /* as in '16777216' or in '-8388607' */
+    field->max_length=  8;  /* '16777216' or in '-8388607' */
     param->pack_length= 4;
     break;
   case MYSQL_TYPE_LONG:
-    field->max_length= 11;                    /* '-2147483647' */
+    field->max_length= field_is_unsigned ? 10 : 11; /* '4294967295' and '-2147483647' */
     param->pack_length= 4;
     break;
   case MYSQL_TYPE_LONGLONG:
-    field->max_length= 21;                    /* '18446744073709551616' */
+    field->max_length= 20; /* '18446744073709551616' or -9223372036854775808 */
     param->pack_length= 8;
     break;
   case MYSQL_TYPE_FLOAT:

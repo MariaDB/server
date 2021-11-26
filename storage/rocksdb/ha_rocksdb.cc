@@ -702,7 +702,7 @@ static int rmdir_force(const char *dir) {
   if (!dir_info)
     return 1;
 
-  for (uint i = 0; i < dir_info->number_of_files; i++) {
+  for (size_t i = 0; i < dir_info->number_of_files; i++) {
     FILEINFO *file = dir_info->dir_entry + i;
 
     strxnmov(path, sizeof(path), dir, sep, file->name, NULL);
@@ -5203,9 +5203,6 @@ static rocksdb::Status check_rocksdb_options_compatibility(
   return status;
 }
 
-bool prevent_myrocks_loading= false;
-
-
 static int rocksdb_check_version(handlerton *hton,
                                  const char *path,
                                  const LEX_CUSTRING *version,
@@ -5225,14 +5222,6 @@ static int rocksdb_check_version(handlerton *hton,
 static int rocksdb_init_func(void *const p) {
 
   DBUG_ENTER_FUNC();
-
-  if (prevent_myrocks_loading)
-  {
-    my_error(ER_INTERNAL_ERROR, MYF(0),
-             "Loading MyRocks plugin after it has been unloaded is not "
-             "supported. Please restart mariadbd");
-    DBUG_RETURN(1);
-  }
 
   if (rdb_check_rocksdb_corruption()) {
     // NO_LINT_DEBUG
@@ -5794,8 +5783,6 @@ static int rocksdb_init_func(void *const p) {
 static int rocksdb_done_func(void *const p) {
   DBUG_ENTER_FUNC();
 
-  int error = 0;
-
   // signal the drop index thread to stop
   rdb_drop_idx_thread.signal(true);
 
@@ -5837,12 +5824,6 @@ static int rocksdb_done_func(void *const p) {
     // NO_LINT_DEBUG
     sql_print_error(
         "RocksDB: Couldn't stop the manual compaction thread: (errno=%d)", err);
-  }
-
-  if (rdb_open_tables.count()) {
-    // Looks like we are getting unloaded and yet we have some open tables
-    // left behind.
-    error = 1;
   }
 
   rdb_open_tables.free();
@@ -5896,7 +5877,7 @@ static int rocksdb_done_func(void *const p) {
     MariaDB: don't clear rocksdb_db_options and rocksdb_tbl_options.
     MyRocks' plugin variables refer to them.
 
-    The plugin cannot be loaded again (see prevent_myrocks_loading) but plugin
+    The plugin cannot be loaded again but plugin
     variables are processed before myrocks::rocksdb_init_func is invoked, so
     they must point to valid memory.
   */
@@ -5911,12 +5892,12 @@ static int rocksdb_done_func(void *const p) {
   my_error_unregister(HA_ERR_ROCKSDB_FIRST, HA_ERR_ROCKSDB_LAST);
 
   /*
-    Prevent loading the plugin after it has been loaded and then unloaded. This
-    doesn't work currently.
+    returning non-zero status from the plugin deinit function will prevent
+    the server from unloading the plugin. it will only be marked unusable.
+    This is needed here, because RocksDB cannot be fully unloaded
+    and reloaded (see sql_plugin.cc near STB_GNU_UNIQUE).
   */
-  prevent_myrocks_loading= true;
-
-  DBUG_RETURN(error);
+  DBUG_RETURN(1);
 }
 
 static inline void rocksdb_smart_seek(bool seek_backward,
@@ -10786,7 +10767,7 @@ int ha_rocksdb::index_end() {
 
   release_scan_iterator();
 
-  bitmap_free(&m_lookup_bitmap);
+  my_bitmap_free(&m_lookup_bitmap);
 
   active_index = MAX_KEY;
   in_range_check_pushed_down = FALSE;
@@ -12454,6 +12435,7 @@ my_core::enum_alter_inplace_result ha_rocksdb::check_if_supported_inplace_alter(
         ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
         ALTER_PARTITIONED |
         ALTER_ADD_UNIQUE_INDEX |
+        ALTER_INDEX_ORDER |
         ALTER_CHANGE_CREATE_OPTION)) {
     DBUG_RETURN(my_core::HA_ALTER_INPLACE_NOT_SUPPORTED);
   }

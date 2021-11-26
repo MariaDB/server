@@ -155,7 +155,7 @@ static char  *opt_password=0,*current_user=0,
              *lines_terminated=0, *enclosed=0, *opt_enclosed=0, *escaped=0,
              *where=0, *order_by=0,
              *err_ptr= 0,
-             *log_error_file= NULL;
+             *log_error_file= NULL, *opt_asof_timestamp= NULL;
 static const char *opt_compatible_mode_str= 0;
 static char **defaults_argv= 0;
 static char compatible_mode_normal_str[255];
@@ -278,6 +278,9 @@ static struct my_option my_long_options[] =
    "Adds 'STOP SLAVE' prior to 'CHANGE MASTER' and 'START SLAVE' to bottom of dump.",
    &opt_slave_apply, &opt_slave_apply, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
+  {"as-of", OPT_ASOF_TIMESTAMP,
+   "Dump system versioned table as of specified timestamp.",
+   &opt_asof_timestamp, &opt_asof_timestamp, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", (char **)&charsets_dir,
    (char **)&charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1330,6 +1333,12 @@ static int get_options(int *argc, char ***argv)
     fprintf(stderr, 
             "%s: --ignore-database can only be used together with --all-databases.\n",
 	    my_progname_short);
+    return(EX_USAGE);
+  }
+  if (opt_asof_timestamp && strchr(opt_asof_timestamp, '\''))
+  {
+    fprintf(stderr, "%s: Incorrect DATETIME value: '%s'\n",
+            my_progname_short, opt_asof_timestamp);
     return(EX_USAGE);
   }
   if (strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME) &&
@@ -3046,7 +3055,7 @@ static void get_sequence_structure(const char *seq, const char *db)
 */
 
 static uint get_table_structure(const char *table, const char *db, char *table_type,
-                                char *ignore_flag)
+                                char *ignore_flag, my_bool *versioned)
 {
   my_bool    init=0, delayed, write_data, complete_insert;
   my_ulonglong num_fields;
@@ -3112,6 +3121,26 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                   delayed ? " DELAYED " : opt_ignore ? " IGNORE " : "");
 
   verbose_msg("-- Retrieving table structure for table %s...\n", table);
+
+  if (versioned)
+  {
+    if (!opt_asof_timestamp)
+      versioned= NULL;
+    else
+    {
+      my_snprintf(query_buff, sizeof(query_buff), "select 1 from"
+                  " information_schema.tables where table_schema=database()"
+                  " and table_name=%s and table_type='SYSTEM VERSIONED'",
+                  quote_for_equal(table, table_buff));
+      if (!mysql_query_with_error_report(mysql, &result, query_buff))
+      {
+        *versioned= result->row_count > 0;
+        mysql_free_result(result);
+      }
+      else
+        *versioned= 0;
+    }
+  }
 
   len= my_snprintf(query_buff, sizeof(query_buff),
                    "SET SQL_QUOTE_SHOW_CREATE=%d",
@@ -3390,9 +3419,10 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       }
       else
       {
-        dynstr_append_checked(&insert_pat, " VALUES ");
-        if (!extended_insert)
-          dynstr_append_checked(&insert_pat, "(");
+        if (extended_insert)
+          dynstr_append_checked(&insert_pat, " VALUES\n");
+        else
+          dynstr_append_checked(&insert_pat, " VALUES (");
       }
     }
 
@@ -3998,6 +4028,15 @@ static char *alloc_query_str(size_t size)
 }
 
 
+static void vers_append_system_time(DYNAMIC_STRING* query_string)
+{
+  DBUG_ASSERT(opt_asof_timestamp);
+  dynstr_append_checked(query_string, " FOR SYSTEM_TIME AS OF TIMESTAMP '");
+  dynstr_append_checked(query_string, opt_asof_timestamp);
+  dynstr_append_checked(query_string, "'");
+}
+
+
 /*
 
  SYNOPSIS
@@ -4025,6 +4064,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   ulong         rownr, row_break;
   uint num_fields;
   size_t total_length, init_length;
+  my_bool versioned= 0;
 
   MYSQL_RES     *res;
   MYSQL_FIELD   *field;
@@ -4035,7 +4075,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     Make sure you get the create table info before the following check for
     --no-data flag below. Otherwise, the create table info won't be printed.
   */
-  num_fields= get_table_structure(table, db, table_type, &ignore_flag);
+  num_fields= get_table_structure(table, db, table_type, &ignore_flag, &versioned);
 
   /*
     The "table" could be a view.  If so, we don't do anything here.
@@ -4142,6 +4182,8 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 
     dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
+    if (versioned)
+      vers_append_system_time(&query_string);
 
     if (where)
     {
@@ -4174,6 +4216,8 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     dynstr_append_checked(&query_string, select_field_names.str);
     dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
+    if (versioned)
+      vers_append_system_time(&query_string);
 
     if (where)
     {
@@ -4451,7 +4495,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
         if (total_length + row_length < opt_net_buffer_length)
         {
           total_length+= row_length;
-          fputc(',',md_result_file);            /* Always row break */
+          fputs(",\n",md_result_file);           /* Always row break */
           fputs(extended_row.str,md_result_file);
         }
         else
@@ -4481,7 +4525,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     if (!opt_xml && opt_copy_s3_tables && (ignore_flag & IGNORE_S3_TABLE))
     {
       DYNAMIC_STRING alter_string;
-      init_dynamic_string_checked(&alter_string, "ATER TABLE ", 1024, 1024);
+      init_dynamic_string_checked(&alter_string, "ALTER TABLE ", 1024, 1024);
       dynstr_append_checked(&alter_string, opt_quoted_table);
       dynstr_append_checked(&alter_string, " ENGINE=S3;\n");
       fputs(alter_string.str, md_result_file);
@@ -5644,21 +5688,21 @@ static int dump_all_tables_in_db(char *database)
     if (general_log_table_exists)
     {
       if (!get_table_structure((char *) "general_log",
-                               database, table_type, &ignore_flag) )
+                               database, table_type, &ignore_flag, NULL) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'general_log' table\n");
     }
     if (slow_log_table_exists)
     {
       if (!get_table_structure((char *) "slow_log",
-                               database, table_type, &ignore_flag) )
+                               database, table_type, &ignore_flag, NULL) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'slow_log' table\n");
     }
     if (transaction_registry_table_exists)
     {
       if (!get_table_structure((char *) "transaction_registry",
-                               database, table_type, &ignore_flag) )
+                               database, table_type, &ignore_flag, NULL) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'transaction_registry' table\n");
     }

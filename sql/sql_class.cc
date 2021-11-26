@@ -293,7 +293,7 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
                           &sql_field->field_name)) {}
     if (!sql_field)
     {
-      my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
+      my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
       DBUG_RETURN(TRUE);
     }
     if (type == Key::FOREIGN_KEY && sql_field->vcol_info)
@@ -965,10 +965,8 @@ Internal_error_handler *THD::pop_internal_handler()
 void THD::raise_error(uint sql_errno)
 {
   const char* msg= ER_THD(this, sql_errno);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_ERROR,
-                         msg);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_ERROR, msg);
 }
 
 void THD::raise_error_printf(uint sql_errno, ...)
@@ -981,20 +979,16 @@ void THD::raise_error_printf(uint sql_errno, ...)
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_ERROR,
-                         ebuff);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_ERROR, ebuff);
   DBUG_VOID_RETURN;
 }
 
 void THD::raise_warning(uint sql_errno)
 {
   const char* msg= ER_THD(this, sql_errno);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_WARN,
-                         msg);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_WARN, msg);
 }
 
 void THD::raise_warning_printf(uint sql_errno, ...)
@@ -1007,10 +1001,8 @@ void THD::raise_warning_printf(uint sql_errno, ...)
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_WARN,
-                         ebuff);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_WARN, ebuff);
   DBUG_VOID_RETURN;
 }
 
@@ -1021,10 +1013,8 @@ void THD::raise_note(uint sql_errno)
   if (!(variables.option_bits & OPTION_SQL_NOTES))
     DBUG_VOID_RETURN;
   const char* msg= ER_THD(this, sql_errno);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_NOTE,
-                         msg);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_NOTE, msg);
   DBUG_VOID_RETURN;
 }
 
@@ -1040,21 +1030,20 @@ void THD::raise_note_printf(uint sql_errno, ...)
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_NOTE,
-                         ebuff);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_NOTE, ebuff);
   DBUG_VOID_RETURN;
 }
 
-Sql_condition* THD::raise_condition(uint sql_errno,
-                                    const char* sqlstate,
-                                    Sql_condition::enum_warning_level level,
-                                    const Sql_user_condition_identity &ucid,
-                                    const char* msg)
+Sql_condition* THD::raise_condition(const Sql_condition *cond)
 {
+  uint sql_errno= cond->get_sql_errno();
+  const char *sqlstate= cond->get_sqlstate();
+  Sql_condition::enum_warning_level level= cond->get_level();
+  const char *msg= cond->get_message_text();
+
   Diagnostics_area *da= get_stmt_da();
-  Sql_condition *cond= NULL;
+  Sql_condition *raised= NULL;
   DBUG_ENTER("THD::raise_condition");
   DBUG_ASSERT(level < Sql_condition::WARN_LEVEL_END);
 
@@ -1082,22 +1071,18 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     sql_errno= ER_UNKNOWN_ERROR;
   if (msg == NULL)
     msg= ER_THD(this, sql_errno);
-  if (sqlstate == NULL)
+  if (!*sqlstate)
    sqlstate= mysql_errno_to_sqlstate(sql_errno);
 
-  if ((level == Sql_condition::WARN_LEVEL_WARN) &&
-      really_abort_on_warning())
+  if ((level == Sql_condition::WARN_LEVEL_WARN) && really_abort_on_warning())
   {
-    /*
-      FIXME:
-      push_warning and strict SQL_MODE case.
-    */
+    /* FIXME: push_warning and strict SQL_MODE case. */
     level= Sql_condition::WARN_LEVEL_ERROR;
   }
 
   if (!is_fatal_error &&
-      handle_condition(sql_errno, sqlstate, &level, msg, &cond))
-    DBUG_RETURN(cond);
+      handle_condition(sql_errno, sqlstate, &level, msg, &raised))
+    goto ret;
 
   switch (level) {
   case Sql_condition::WARN_LEVEL_NOTE:
@@ -1122,8 +1107,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
       With wsrep we allow converting BF abort error to warning if
       errors are ignored.
      */
-    if (!is_fatal_error &&
-        no_errors       &&
+    if (!is_fatal_error && no_errors &&
         (wsrep_trx().bf_aborted() || wsrep_retry_counter))
     {
       WSREP_DEBUG("BF abort error converted to warning");
@@ -1134,7 +1118,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
       if (!da->is_error())
       {
 	set_row_count_func(-1);
-	da->set_error_status(sql_errno, msg, sqlstate, ucid, cond);
+	da->set_error_status(sql_errno, msg, sqlstate, *cond, raised);
       }
     }
   }
@@ -1149,9 +1133,13 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   if (likely(!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
                                   sql_errno == ER_OUTOFMEMORY))))
   {
-    cond= da->push_warning(this, sql_errno, sqlstate, level, ucid, msg);
+    raised= da->push_warning(this, sql_errno, sqlstate, level, *cond, msg,
+                             cond->m_row_number);
   }
-  DBUG_RETURN(cond);
+ret:
+  if (raised)
+    raised->copy_opt_attributes(cond);
+  DBUG_RETURN(raised);
 }
 
 extern "C"
@@ -1310,6 +1298,7 @@ void THD::init()
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_aborter           = 0;
+  wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -4785,6 +4774,19 @@ extern "C" const char *thd_priv_host(MYSQL_THD thd, size_t *length)
 }
 
 
+extern "C" const char *thd_priv_user(MYSQL_THD thd, size_t *length)
+{
+  const Security_context *sctx= thd->security_ctx;
+  if (!sctx)
+  {
+    *length= 0;
+    return NULL;
+  }
+  *length= strlen(sctx->priv_user);
+  return sctx->priv_user;
+}
+
+
 #ifdef INNODB_COMPATIBILITY_HOOKS
 
 /** open a table and add it to thd->open_tables
@@ -4886,11 +4888,13 @@ void destroy_thd(MYSQL_THD thd)
 extern "C" pthread_key(struct st_my_thread_var *, THR_KEY_mysys);
 MYSQL_THD create_background_thd()
 {
-  DBUG_ASSERT(!current_thd);
+  auto save_thd = current_thd;
+  set_current_thd(nullptr);
+
   auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
 
   /*
-    Allocate new mysys_var specifically this THD,
+    Allocate new mysys_var specifically new THD,
     so that e.g safemalloc, DBUG etc are happy.
   */
   pthread_setspecific(THR_KEY_mysys, 0);
@@ -4898,19 +4902,23 @@ MYSQL_THD create_background_thd()
   auto thd_mysysvar= pthread_getspecific(THR_KEY_mysys);
   auto thd= new THD(0);
   pthread_setspecific(THR_KEY_mysys, save_mysysvar);
-  thd->set_psi(PSI_CALL_get_thread());
+  thd->set_psi(nullptr);
+  set_current_thd(save_thd);
 
   /*
     Workaround the adverse effect of incrementing thread_count
     in THD constructor. We do not want these THDs to be counted,
     or waited for on shutdown.
   */
-  thread_count--;
+  THD_count::count--;
 
   thd->mysys_var= (st_my_thread_var *) thd_mysysvar;
   thd->set_command(COM_DAEMON);
   thd->system_thread= SYSTEM_THREAD_GENERIC;
   thd->security_ctx->host_or_ip= "";
+  thd->real_id= 0;
+  thd->thread_id= 0;
+  thd->query_id= 0;
   return thd;
 }
 
@@ -4961,7 +4969,7 @@ void destroy_background_thd(MYSQL_THD thd)
     As we decremented it in create_background_thd(), in order for it
     not to go negative, we have to increment it before destructor.
   */
-  thread_count++;
+  THD_count::count++;
   delete thd;
 
   thd_detach_thd(save_mysys_var);
@@ -5003,13 +5011,9 @@ void reset_thd(MYSQL_THD thd)
   guarantees, in other words, server can't send OK packet
   before modified data is durable in redo log.
 */
-extern "C" MYSQL_THD thd_increment_pending_ops(void)
+extern "C" void thd_increment_pending_ops(MYSQL_THD thd)
 {
-  THD *thd = current_thd;
-  if (!thd)
-    return NULL;
   thd->async_state.inc_pending_ops();
-  return thd;
 }
 
 /**
@@ -5444,8 +5448,8 @@ extern "C" bool thd_is_strict_mode(const MYSQL_THD thd)
 */
 void thd_get_query_start_data(THD *thd, char *buf)
 {
-  LEX_CSTRING field_name;
-  Field_timestampf f((uchar *)buf, NULL, 0, Field::NONE, &field_name, NULL, 6);
+  Field_timestampf f((uchar *)buf, nullptr, 0, Field::NONE, &empty_clex_str,
+                     nullptr, 6);
   f.store_TIME(thd->query_start(), thd->query_start_sec_part());
 }
 
@@ -7139,8 +7143,8 @@ void THD::binlog_prepare_row_images(TABLE *table)
     {
       case BINLOG_ROW_IMAGE_MINIMAL:
         /* MINIMAL: Mark only PK */
-        table->mark_columns_used_by_index(table->s->primary_key,
-                                          &table->tmp_set);
+        table->mark_index_columns(table->s->primary_key,
+                                  &table->tmp_set);
         break;
       case BINLOG_ROW_IMAGE_NOBLOB:
         /**

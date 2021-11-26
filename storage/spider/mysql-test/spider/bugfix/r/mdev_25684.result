@@ -1,0 +1,18 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+MDEV-25684 Crash in THD::find_temporary_table while calling spider_direct_sql UDF without temporary table created
+
+connection master_1;
+SELECT SPIDER_DIRECT_SQL('SELECT * FROM s', 'non_existing_temporary_table', 'srv "s_2_1"');
+ERROR HY000: Temporary table 'test.non_existing_temporary_table' is not found
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3

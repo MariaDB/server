@@ -115,7 +115,7 @@ class Ed_row;
   automatic type conversion.
 */
 
-class Ed_result_set: public Sql_alloc
+class Ed_result_set
 {
 public:
   operator List<Ed_row>&() { return *m_rows; }
@@ -129,6 +129,8 @@ public:
 
   size_t get_field_count() const { return m_column_count; }
 
+  static void *operator new(size_t size, MEM_ROOT *mem_root)
+  { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr, size_t size) throw ();
   static void operator delete(void *, MEM_ROOT *){}
 private:
@@ -350,5 +352,7 @@ private:
   Ed_column *m_column_array;
   size_t m_column_count; /* TODO: change to point to metadata */
 };
+
+extern Atomic_counter<uint32_t> local_connection_thread_count;
 
 #endif // SQL_PREPARE_H

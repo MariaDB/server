@@ -27,12 +27,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
 /** A "fat" rw-lock that supports
 S (shared), U (update, or shared-exclusive), and X (exclusive) modes
 as well as recursive U and X latch acquisition
-@tparam srw ssux_lock_low or ssux_lock */
-template<typename srw>
+@tparam ssux ssux_lock_impl or ssux_lock */
+template<typename ssux>
 class sux_lock final
 {
   /** The underlying non-recursive lock */
-  srw lock;
+  ssux lock;
   /** Numbers of U and X locks. Protected by lock. */
   uint32_t recursive;
   /** The owner of the U or X lock (0 if none); protected by lock */
@@ -68,10 +68,13 @@ public:
     ut_ad(!writer.load(std::memory_order_relaxed));
     ut_ad(!recursive);
     ut_d(readers_lock.init());
-    ut_ad(!readers.load(std::memory_order_relaxed));
+#ifdef UNIV_DEBUG
+    if (auto r= readers.load(std::memory_order_relaxed))
+      ut_ad(r->empty());
+#endif
   }
 
-  /** Free the rw-lock after create() */
+  /** Free the rw-lock after init() */
   void free()
   {
     ut_ad(!writer.load(std::memory_order_relaxed));
@@ -98,6 +101,9 @@ public:
     ut_ad(recursive);
     return recursive == RECURSIVE_X || recursive == RECURSIVE_U;
   }
+
+  /** @return the number of X locks being held (by any thread) */
+  unsigned x_lock_count() const { return recursive & RECURSIVE_MAX; }
 #endif
 
   /** Acquire a recursive lock */
@@ -268,28 +274,32 @@ public:
 
   /** @return whether any writer is waiting */
   bool is_waiting() const { return lock.is_waiting(); }
+
+  bool is_write_locked() const { return lock.is_write_locked(); }
+
+  bool is_locked_or_waiting() const { return lock.is_locked_or_waiting(); }
+
+  inline void lock_shared();
+  inline void unlock_shared();
 };
 
-/** needed for dict_index_t::clone() */
-template<> inline void sux_lock<ssux_lock>::operator=(const sux_lock&)
-{
-  memset((void*) this, 0, sizeof *this);
-}
-
-typedef sux_lock<ssux_lock_low> block_lock;
+typedef sux_lock<ssux_lock_impl<true>> block_lock;
 
 #ifndef UNIV_PFS_RWLOCK
-typedef block_lock index_lock;
+typedef sux_lock<ssux_lock_impl<false>> index_lock;
 #else
 typedef sux_lock<ssux_lock> index_lock;
 
-template<> inline void sux_lock<ssux_lock_low>::init()
+template<> inline void sux_lock<ssux_lock_impl<true>>::init()
 {
   lock.init();
   ut_ad(!writer.load(std::memory_order_relaxed));
   ut_ad(!recursive);
   ut_d(readers_lock.init());
-  ut_ad(!readers.load(std::memory_order_relaxed));
+#ifdef UNIV_DEBUG
+  if (auto r= readers.load(std::memory_order_relaxed))
+    ut_ad(r->empty());
+#endif
 }
 
 template<>
@@ -340,8 +350,13 @@ inline void sux_lock<ssux_lock>::u_x_upgrade(const char *file, unsigned line)
 }
 #endif
 
-template<>
-inline void sux_lock<ssux_lock_low>::s_lock()
+/** needed for dict_index_t::clone() */
+template<> inline void index_lock::operator=(const sux_lock&)
+{
+  memset((void*) this, 0, sizeof *this);
+}
+
+template<typename ssux> inline void sux_lock<ssux>::s_lock()
 {
   ut_ad(!have_x());
   ut_ad(!have_s());
@@ -349,8 +364,12 @@ inline void sux_lock<ssux_lock_low>::s_lock()
   ut_d(s_lock_register());
 }
 
-template<>
-inline void sux_lock<ssux_lock_low>::u_lock()
+template<typename ssux>
+inline void sux_lock<ssux>::lock_shared() { s_lock(); }
+template<typename ssux>
+inline void sux_lock<ssux>::unlock_shared() { s_unlock(); }
+
+template<typename ssux> inline void sux_lock<ssux>::u_lock()
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)
@@ -364,8 +383,7 @@ inline void sux_lock<ssux_lock_low>::u_lock()
   }
 }
 
-template<>
-inline void sux_lock<ssux_lock_low>::x_lock(bool for_io)
+template<typename ssux> inline void sux_lock<ssux>::x_lock(bool for_io)
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)
@@ -382,15 +400,14 @@ inline void sux_lock<ssux_lock_low>::x_lock(bool for_io)
   }
 }
 
-template<>
-inline void sux_lock<ssux_lock_low>::u_x_upgrade()
+template<typename ssux> inline void sux_lock<ssux>::u_x_upgrade()
 {
   ut_ad(have_u_not_x());
   lock.u_wr_upgrade();
   recursive/= RECURSIVE_U;
 }
 
-template<> inline bool sux_lock<ssux_lock_low>::x_lock_upgraded()
+template<typename ssux> inline bool sux_lock<ssux>::x_lock_upgraded()
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)
@@ -417,8 +434,7 @@ template<> inline bool sux_lock<ssux_lock_low>::x_lock_upgraded()
   }
 }
 
-template<>
-inline bool sux_lock<ssux_lock_low>::u_lock_try(bool for_io)
+template<typename ssux> inline bool sux_lock<ssux>::u_lock_try(bool for_io)
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)
@@ -438,8 +454,7 @@ inline bool sux_lock<ssux_lock_low>::u_lock_try(bool for_io)
   return false;
 }
 
-template<>
-inline bool sux_lock<ssux_lock_low>::x_lock_try()
+template<typename ssux> inline bool sux_lock<ssux>::x_lock_try()
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)

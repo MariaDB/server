@@ -1,0 +1,120 @@
+#
+# Check that BACKUP STAGE BLOCK_DDL desyncs and pauses the node until BACKUP STAGE END:
+# - Local DDLs will fail immediately
+# - Local DMLs will block until resync
+# - Remote txns will be applied after resync (STAGE END).
+# 
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_metadata_lock_info.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 varchar(10)) ENGINE=InnoDB;
+
+# First, check that BACKUP STAGE END skipping desyncing stages is fine
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE END;
+
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_retry_autocommit=0;
+INSERT INTO t1 (f1) values ("node1_1");
+ALTER TABLE t1 ADD COLUMN (f2 int(10));
+
+--connection node_2
+INSERT INTO t1 (f1) values ("node2_1");
+ALTER TABLE t1 ADD COLUMN (f3 int(10));
+
+# BLOCK_DDL desyncs and pauses the node
+--connection node_1
+BACKUP STAGE BLOCK_DDL;
+
+--connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1c
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT variable_value="Donor/Desynced" FROM information_schema.global_status WHERE variable_name="wsrep_local_state_comment"
+--source include/wait_condition.inc
+
+--connection node_2
+INSERT INTO t1 (f1) values("node2_2");
+ALTER TABLE t1 ADD COLUMN (f5 int(10));
+
+--connection node_1a
+--error ER_UNKNOWN_COM_ERROR
+ALTER TABLE t1 ADD COLUMN (f4 int(10));
+--let $insert_id = `SELECT CONNECTION_ID()`
+--send INSERT INTO t1 (f1) values("node1a");
+
+# the insert will block during commit inside the provider, in certify. We can't
+# check for sure it is blocked there, so we wait for the thread to at least
+# reach commit stage. In the unlikely case the interleaving is different, the
+# result of the test should not change.
+--connection node_1c
+--let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.processlist WHERE (State='Commit' OR State='Waiting for certification') AND ID=$insert_id
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.metadata_lock_info WHERE TABLE_NAME='t1' AND THREAD_ID=$insert_id
+--source include/wait_condition.inc
+
+--connection node_1
+BACKUP STAGE BLOCK_COMMIT;
+
+# node only resumes/resyncs upon STAGE END
+--connection node_1c
+SELECT variable_value="Donor/Desynced" FROM information_schema.global_status WHERE variable_name="wsrep_local_state_comment";
+
+--connection node_2
+INSERT INTO t1 (f1) values("node2_3");
+ALTER TABLE t1 ADD COLUMN (f6 int(10));
+
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1b
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_retry_autocommit=0;
+--error ER_UNKNOWN_COM_ERROR
+ALTER TABLE t1 ADD COLUMN (f4 int(10));
+--let $insert_id = `SELECT CONNECTION_ID()`
+--send INSERT INTO t1 (f1) values("node1b");
+
+# wait for insert to get blocked
+--connection node_1c
+--let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.processlist WHERE (State='Commit' OR State='Waiting for certification') AND ID=$insert_id
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.metadata_lock_info WHERE TABLE_NAME='t1' AND THREAD_ID=$insert_id
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*)=2 FROM information_schema.processlist WHERE Info like 'INSERT INTO t1 (f1) values("node1%")' AND (State = 'Commit'  OR State='Waiting for certification')
+--source include/wait_condition.inc
+
+# nothing after BLOCK_DDL is applied
+SELECT COUNT(*)=2 FROM t1;
+SELECT COUNT(*)=3 FROM information_schema.columns WHERE table_name = 't1';
+
+# STAGE END resumes and resyncs the node
+--connection node_1
+BACKUP STAGE END;
+
+# Upon resume, blocked inserts will continue but conflict with the applying alters
+--connection node_1a
+--error ER_LOCK_DEADLOCK
+--reap
+--connection node_1b
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_1
+SELECT COUNT(*)=4 FROM t1;
+SELECT COUNT(*)=5 FROM information_schema.columns WHERE table_name = 't1';
+
+--connection node_2
+SELECT COUNT(*)=4 FROM t1;
+SELECT COUNT(*)=5 FROM information_schema.columns WHERE table_name = 't1';
+
+--connection node_1
+DROP TABLE t1;
+call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
+call mtr.add_suppression("greater than drain seqno");

@@ -69,6 +69,9 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include "trx0types.h"
 #include <list>
+#include "log.h"
+
+#include "transactional_lock_guard.h"
 
 #include <my_service_manager.h>
 /* The following is the maximum allowed duration of a lock wait. */
@@ -143,13 +146,6 @@ my_bool	srv_numa_interleave;
 my_bool	srv_use_atomic_writes;
 /** innodb_compression_algorithm; used with page compression */
 ulong	innodb_compression_algorithm;
-
-#ifdef UNIV_DEBUG
-/** Used by SET GLOBAL innodb_master_thread_disabled_debug = X. */
-my_bool	srv_master_thread_disabled_debug;
-/** Event used to inform that master thread is disabled. */
-static pthread_cond_t srv_master_thread_disabled_cond;
-#endif /* UNIV_DEBUG */
 
 /*------------------------- LOG FILES ------------------------ */
 char*	srv_log_group_home_dir;
@@ -528,7 +524,26 @@ struct purge_coordinator_state
   /** Snapshot of the last history length before the purge call.*/
   uint32 m_history_length;
   Atomic_counter<int> m_running;
-  purge_coordinator_state() : m_history_length(), m_running(0) {}
+private:
+  ulint count;
+  ulint n_use_threads;
+  ulint n_threads;
+
+  ulint lsn_lwm;
+  ulint lsn_hwm;
+  ulonglong start_time;
+  ulint lsn_age_factor;
+
+  static constexpr ulint adaptive_purge_threshold= 20;
+  static constexpr ulint safety_net= 20;
+  ulint series[innodb_purge_threads_MAX + 1];
+
+  inline void compute_series();
+  inline void lazy_init();
+  void refresh(bool full);
+
+public:
+  inline void do_purge();
 };
 
 static purge_coordinator_state purge_state;
@@ -642,7 +657,6 @@ static void srv_init()
 	UT_LIST_INIT(srv_sys.tasks, &que_thr_t::queue);
 
 	need_srv_free = true;
-	ut_d(pthread_cond_init(&srv_master_thread_disabled_cond, nullptr));
 
 	mysql_mutex_init(page_zip_stat_per_index_mutex_key,
 			 &page_zip_stat_per_index_mutex, nullptr);
@@ -666,21 +680,21 @@ srv_free(void)
 	mysql_mutex_destroy(&page_zip_stat_per_index_mutex);
 	mysql_mutex_destroy(&srv_sys.tasks_mutex);
 
-	ut_d(pthread_cond_destroy(&srv_master_thread_disabled_cond));
-
 	trx_i_s_cache_free(trx_i_s_cache);
 	srv_thread_pool_end();
 }
 
 /*********************************************************************//**
 Boots the InnoDB server. */
-void
-srv_boot(void)
-/*==========*/
+void srv_boot()
 {
-	srv_thread_pool_init();
-	trx_pool_init();
-	srv_init();
+#ifndef NO_ELISION
+  if (transactional_lock_enabled())
+    sql_print_information("InnoDB: Using transactional memory");
+#endif
+  srv_thread_pool_init();
+  trx_pool_init();
+  srv_init();
 }
 
 /******************************************************************//**
@@ -1297,7 +1311,7 @@ void srv_monitor_task(void*)
 			    || waited == threshold / 2
 			    || waited == threshold / 4 * 3) {
 				ib::warn() << "Long wait (" << waited
-					   << " seconds) for dict_sys.mutex";
+					   << " seconds) for dict_sys.latch";
 			}
 		}
 	}
@@ -1329,7 +1343,6 @@ bool srv_any_background_activity()
 
 static void purge_worker_callback(void*);
 static void purge_coordinator_callback(void*);
-static void purge_coordinator_timer_callback(void*);
 
 static tpool::task_group purge_task_group;
 tpool::waitable_task purge_worker_task(purge_worker_callback, nullptr,
@@ -1371,8 +1384,6 @@ void purge_sys_t::stop_SYS()
 /** Stop purge during FLUSH TABLES FOR EXPORT */
 void purge_sys_t::stop()
 {
-  dict_sys.assert_not_locked();
-
   for (;;)
   {
     latch.wr_lock(SRW_LOCK_CALL);
@@ -1510,48 +1521,6 @@ srv_shutdown_print_master_pending(
 	}
 }
 
-#ifdef UNIV_DEBUG
-/** Waits in loop as long as master thread is disabled (debug) */
-static void srv_master_do_disabled_loop()
-{
-  if (!srv_master_thread_disabled_debug)
-    return;
-  srv_main_thread_op_info = "disabled";
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  while (srv_master_thread_disabled_debug)
-    my_cond_wait(&srv_master_thread_disabled_cond,
-                 &LOCK_global_system_variables.m_mutex);
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  srv_main_thread_op_info = "";
-}
-
-/** Disables master thread. It's used by:
-	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
-@param[in]	save		immediate result from check function */
-void
-srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
-                                        const void* save)
-{
-  mysql_mutex_assert_owner(&LOCK_global_system_variables);
-  const bool disable= *static_cast<const my_bool*>(save);
-  srv_master_thread_disabled_debug= disable;
-  if (!disable)
-    pthread_cond_signal(&srv_master_thread_disabled_cond);
-}
-
-/** Enable the master thread on shutdown. */
-void srv_master_thread_enable()
-{
-  if (srv_master_thread_disabled_debug)
-  {
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    srv_master_thread_disabled_debug= FALSE;
-    pthread_cond_signal(&srv_master_thread_disabled_cond);
-    mysql_mutex_unlock(&LOCK_global_system_variables);
-  }
-}
-#endif /* UNIV_DEBUG */
-
 /** Perform periodic tasks whenever the server is active.
 @param counter_time  microsecond_interval_timer() */
 static void srv_master_do_active_tasks(ulonglong counter_time)
@@ -1623,24 +1592,24 @@ void srv_shutdown(bool ibuf_merge)
 /** The periodic master task controlling the server. */
 void srv_master_callback(void*)
 {
-	static ulint old_activity_count;
+  static ulint old_activity_count;
 
-	ut_a(srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
+  ut_a(srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
-	MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
-	ut_d(srv_master_do_disabled_loop());
-	purge_coordinator_timer_callback(nullptr);
-	ulonglong counter_time = microsecond_interval_timer();
-	srv_sync_log_buffer_in_background();
-	MONITOR_INC_TIME_IN_MICRO_SECS(
-		MONITOR_SRV_LOG_FLUSH_MICROSECOND, counter_time);
+  MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
+  if (!purge_state.m_running)
+    srv_wake_purge_thread_if_not_active();
+  ulonglong counter_time= microsecond_interval_timer();
+  srv_sync_log_buffer_in_background();
+  MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_LOG_FLUSH_MICROSECOND,
+				 counter_time);
 
-	if (srv_check_activity(&old_activity_count)) {
-		srv_master_do_active_tasks(counter_time);
-	} else {
-		srv_master_do_idle_tasks(counter_time);
-	}
-	srv_main_thread_op_info = "sleeping";
+  if (srv_check_activity(&old_activity_count))
+    srv_master_do_active_tasks(counter_time);
+  else
+    srv_master_do_idle_tasks(counter_time);
+
+  srv_main_thread_op_info= "sleeping";
 }
 
 /** @return whether purge should exit due to shutdown */
@@ -1700,96 +1669,189 @@ static bool srv_task_execute()
 	return false;
 }
 
+static void purge_create_background_thds(int );
+
 std::mutex purge_thread_count_mtx;
 void srv_update_purge_thread_count(uint n)
 {
 	std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
+	ut_ad(n > 0);
+	ut_ad(n <= innodb_purge_threads_MAX);
 	srv_n_purge_threads = n;
 	srv_purge_thread_count_changed = 1;
 }
 
 Atomic_counter<int> srv_purge_thread_count_changed;
 
-/** Do the actual purge operation.
-@param[in,out]	n_total_purged	total number of purged pages
-@return length of history list before the last purge batch. */
-static uint32_t srv_do_purge(ulint* n_total_purged)
+inline void purge_coordinator_state::do_purge()
 {
-	ulint		n_pages_purged;
+  ut_ad(!srv_read_only_mode);
+  lazy_init();
+  ut_ad(n_threads);
+  bool wakeup= false;
 
-	static ulint	count = 0;
-	static ulint	n_use_threads = 0;
-	static uint32_t	rseg_history_len = 0;
-	ulint		old_activity_count = srv_get_activity_count();
-	static ulint	n_threads = srv_n_purge_threads;
+  purge_coordinator_timer->disarm();
 
-	ut_a(n_threads > 0);
-	ut_ad(!srv_read_only_mode);
+  while (purge_sys.enabled() && !purge_sys.paused())
+  {
+loop:
+    wakeup= false;
+    const auto now= my_interval_timer();
+    const auto sigcount= m_running;
 
-	/* Purge until there are no more records to purge and there is
-	no change in configuration or server state. If the user has
-	configured more than one purge thread then we treat that as a
-	pool of threads and only use the extra threads if purge can't
-	keep up with updates. */
+    if (now - start_time >= 1000000)
+    {
+      refresh(false);
+      start_time= now;
+    }
 
-	if (n_use_threads == 0) {
-		n_use_threads = n_threads;
-	}
+    const auto old_activity_count= srv_sys.activity_count;
+    const auto history_size= trx_sys.history_size();
 
-	do {
-		if (UNIV_UNLIKELY(srv_purge_thread_count_changed)) {
-			/* Read the fresh value of srv_n_purge_threads, reset
-			the changed flag. Both variables are protected by
-			purge_thread_count_mtx.
+    if (UNIV_UNLIKELY(srv_purge_thread_count_changed))
+    {
+      /* Read the fresh value of srv_n_purge_threads, reset
+      the changed flag. Both are protected by purge_thread_count_mtx.
 
-			This code does not run concurrently, it is executed
-			by a single purge_coordinator thread, and no races
-			involving srv_purge_thread_count_changed are possible.
-			*/
+      This code does not run concurrently, it is executed
+      by a single purge_coordinator thread, and no races
+      involving srv_purge_thread_count_changed are possible. */
+      {
+        std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
+        n_threads= n_use_threads= srv_n_purge_threads;
+        srv_purge_thread_count_changed= 0;
+      }
+      refresh(true);
+      start_time= now;
+    }
+    else if (history_size > m_history_length)
+    {
+      /* dynamically adjust the purge thread based on redo log fill factor */
+      if (n_use_threads < n_threads && lsn_age_factor < lsn_lwm)
+      {
+more_threads:
+        ++n_use_threads;
+        lsn_hwm= lsn_lwm;
+        lsn_lwm-= series[n_use_threads];
+      }
+      else if (n_use_threads > 1 && lsn_age_factor >= lsn_hwm)
+      {
+fewer_threads:
+        --n_use_threads;
+        lsn_lwm= lsn_hwm;
+        lsn_hwm+= series[n_use_threads];
+      }
+      else if (n_use_threads == 1 && lsn_age_factor >= 100 - safety_net)
+      {
+        wakeup= true;
+        break;
+      }
+    }
+    else if (n_threads > n_use_threads &&
+             srv_max_purge_lag && m_history_length > srv_max_purge_lag)
+      goto more_threads;
+    else if (n_use_threads > 1 && old_activity_count == srv_sys.activity_count)
+      goto fewer_threads;
 
-			std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
-			n_threads = n_use_threads = srv_n_purge_threads;
-			srv_purge_thread_count_changed = 0;
-		} else if (trx_sys.history_size_approx() > rseg_history_len
-			   || (srv_max_purge_lag > 0
-			       && rseg_history_len > srv_max_purge_lag)) {
-			/* History length is now longer than what it was
-			when we took the last snapshot. Use more threads. */
+    ut_ad(n_use_threads);
+    ut_ad(n_use_threads <= n_threads);
 
-			if (n_use_threads < n_threads) {
-				++n_use_threads;
-			}
+    m_history_length= history_size;
 
-		} else if (srv_check_activity(&old_activity_count)
-			   && n_use_threads > 1) {
+    if (history_size &&
+        trx_purge(n_use_threads,
+                  !(++count % srv_purge_rseg_truncate_frequency) ||
+                  purge_sys.truncate.current ||
+                  (srv_shutdown_state != SRV_SHUTDOWN_NONE &&
+                   srv_fast_shutdown == 0)))
+      continue;
 
-			/* History length same or smaller since last snapshot,
-			use fewer threads. */
+    if (m_running == sigcount)
+    {
+      /* Purge was not woken up by srv_wake_purge_thread_if_not_active() */
 
-			--n_use_threads;
-		}
+      /* The magic number 5000 is an approximation for the case where we have
+      cached undo log records which prevent truncate of rollback segments. */
+      wakeup= history_size &&
+        (history_size >= 5000 ||
+         history_size != trx_sys.history_size_approx());
+      break;
+    }
+    else if (!trx_sys.history_exists())
+      break;
 
-		/* Ensure that the purge threads are less than what
-		was configured. */
+    if (!srv_purge_should_exit())
+      goto loop;
+  }
 
-		ut_a(n_use_threads > 0);
-		ut_a(n_use_threads <= n_threads);
+  if (wakeup)
+    purge_coordinator_timer->set_time(10, 0);
 
-		/* Take a snapshot of the history list before purge. */
-		if (!(rseg_history_len = trx_sys.history_size())) {
-			break;
-		}
+  m_running= 0;
+}
 
-		n_pages_purged = trx_purge(
-			n_use_threads,
-			!(++count % srv_purge_rseg_truncate_frequency)
-			|| purge_sys.truncate.current);
+inline void purge_coordinator_state::compute_series()
+{
+  ulint points= n_threads;
+  memset(series, 0, sizeof series);
+  constexpr ulint spread= 100 - adaptive_purge_threshold - safety_net;
 
-		*n_total_purged += n_pages_purged;
-	} while (n_pages_purged > 0 && !purge_sys.paused()
-		 && !srv_purge_should_exit());
+  /* We distribute spread across n_threads,
+  e.g.: spread of 60 is distributed across n_threads=4 as: 6+12+18+24 */
 
-	return(rseg_history_len);
+  const ulint additional_points= (points * (points + 1)) / 2;
+  if (spread % additional_points == 0)
+  {
+    /* Arithmetic progression is possible. */
+    const ulint delta= spread / additional_points;
+    ulint growth= delta;
+    do
+    {
+      series[points--]= growth;
+      growth += delta;
+    }
+    while (points);
+    return;
+  }
+
+  /* Use average distribution to spread across the points */
+  const ulint delta= spread / points;
+  ulint total= 0;
+  do
+  {
+    series[points--]= delta;
+    total+= delta;
+  }
+  while (points);
+
+  for (points= 1; points <= n_threads && total++ < spread; )
+    series[points++]++;
+}
+
+inline void purge_coordinator_state::lazy_init()
+{
+  if (n_threads)
+    return;
+  n_threads= n_use_threads= srv_n_purge_threads;
+  refresh(true);
+  start_time= my_interval_timer();
+}
+
+void purge_coordinator_state::refresh(bool full)
+{
+  if (full)
+  {
+    compute_series();
+    lsn_lwm= adaptive_purge_threshold;
+    lsn_hwm= adaptive_purge_threshold + series[n_threads];
+  }
+
+  mysql_mutex_lock(&log_sys.mutex);
+  const lsn_t last= log_sys.last_checkpoint_lsn,
+    max_age= log_sys.max_checkpoint_age;
+  mysql_mutex_unlock(&log_sys.mutex);
+
+  lsn_age_factor= ulint(((log_sys.get_lsn() - last) * 100) / max_age);
 }
 
 
@@ -1797,15 +1859,25 @@ static std::list<THD*> purge_thds;
 static std::mutex purge_thd_mutex;
 extern void* thd_attach_thd(THD*);
 extern void thd_detach_thd(void *);
+static int n_purge_thds;
 
-THD* acquire_thd(void **ctx)
+/* Ensure  that we have at least n background THDs for purge */
+static void purge_create_background_thds(int n)
+{
+	THD *thd= current_thd;
+	std::unique_lock<std::mutex> lk(purge_thd_mutex);
+	while (n_purge_thds < n)
+	{
+		purge_thds.push_back(innobase_create_background_thd("InnoDB purge worker"));
+		n_purge_thds++;
+	}
+	set_current_thd(thd);
+}
+
+static THD *acquire_thd(void **ctx)
 {
 	std::unique_lock<std::mutex> lk(purge_thd_mutex);
-	if (purge_thds.empty()) {
-		THD* thd = current_thd;
-		purge_thds.push_back(innobase_create_background_thd("InnoDB purge worker"));
-		set_current_thd(thd);
-	}
+	ut_a(!purge_thds.empty());
 	THD* thd = purge_thds.front();
 	purge_thds.pop_front();
 	lk.unlock();
@@ -1816,31 +1888,13 @@ THD* acquire_thd(void **ctx)
 	return thd;
 }
 
-void release_thd(THD *thd, void *ctx)
+static void release_thd(THD *thd, void *ctx)
 {
 	thd_detach_thd(ctx);
 	std::unique_lock<std::mutex> lk(purge_thd_mutex);
 	purge_thds.push_back(thd);
 	lk.unlock();
 	set_current_thd(0);
-}
-
-
-/**
-  Called by timer when purge coordinator decides
-  to delay processing of purge records.
-*/
-static void purge_coordinator_timer_callback(void *)
-{
-  if (!purge_sys.enabled() || purge_sys.paused() || purge_state.m_running)
-    return;
-
-  /* The magic number 5000 is an approximation for the case where we have
-  cached undo log records which prevent truncate of the rollback segments. */
-  if (const auto history_size= trx_sys.history_size())
-    if (purge_state.m_history_length >= 5000 ||
-        purge_state.m_history_length != history_size)
-      srv_wake_purge_thread_if_not_active();
 }
 
 static void purge_worker_callback(void*)
@@ -1855,69 +1909,34 @@ static void purge_worker_callback(void*)
   release_thd(thd,ctx);
 }
 
-static void purge_coordinator_callback_low()
-{
-  ulint n_total_purged= ULINT_UNDEFINED;
-  purge_state.m_history_length= 0;
-
-  if (!purge_sys.enabled() || purge_sys.paused())
-    return;
-  do
-  {
-    n_total_purged = 0;
-    int sigcount= purge_state.m_running;
-
-    purge_state.m_history_length= srv_do_purge(&n_total_purged);
-
-    /* Check if purge was woken by srv_wake_purge_thread_if_not_active() */
-
-    bool woken_during_purge= purge_state.m_running > sigcount;
-
-    /* If last purge batch processed less than 1 page and there is
-    still work to do, delay the next batch by 10ms. Unless
-    someone added work and woke us up. */
-    if (n_total_purged == 0)
-    {
-      if (trx_sys.history_size() == 0)
-        return;
-      if (!woken_during_purge)
-      {
-        /* Delay next purge round*/
-        purge_coordinator_timer->set_time(10, 0);
-        return;
-      }
-    }
-  }
-  while ((purge_sys.enabled() && !purge_sys.paused()) ||
-         !srv_purge_should_exit());
-}
-
 static void purge_coordinator_callback(void*)
 {
   void *ctx;
   THD *thd= acquire_thd(&ctx);
-  purge_coordinator_callback_low();
-  release_thd(thd,ctx);
-  purge_state.m_running= 0;
+  purge_state.do_purge();
+  release_thd(thd, ctx);
 }
 
 void srv_init_purge_tasks()
 {
+  purge_create_background_thds(innodb_purge_threads_MAX);
   purge_coordinator_timer= srv_thread_pool->create_timer
-    (purge_coordinator_timer_callback, nullptr);
+    (purge_coordinator_callback, nullptr);
 }
 
 static void srv_shutdown_purge_tasks()
 {
-  purge_coordinator_task.wait();
+  purge_coordinator_task.disable();
   delete purge_coordinator_timer;
   purge_coordinator_timer= nullptr;
   purge_worker_task.wait();
+  std::unique_lock<std::mutex> lk(purge_thd_mutex);
   while (!purge_thds.empty())
   {
     innobase_destroy_background_thd(purge_thds.front());
     purge_thds.pop_front();
   }
+  n_purge_thds= 0;
 }
 
 /**********************************************************************//**
@@ -1958,7 +1977,8 @@ ulint srv_get_task_queue_length()
 void srv_purge_shutdown()
 {
 	if (purge_sys.enabled()) {
-		srv_update_purge_thread_count(innodb_purge_threads_MAX);
+		if (!srv_fast_shutdown && !opt_bootstrap)
+			srv_update_purge_thread_count(innodb_purge_threads_MAX);
 		while(!srv_purge_should_exit()) {
 			ut_a(!purge_sys.paused());
 			srv_wake_purge_thread_if_not_active();

@@ -938,7 +938,8 @@ bool With_clause::prepare_unreferenced_elements(THD *thd)
        with_elem;
        with_elem= with_elem->next)
   {
-    if (!with_elem->is_referenced() && with_elem->prepare_unreferenced(thd))
+    if ((with_elem->is_hanging_recursive() || !with_elem->is_referenced()) &&
+        with_elem->prepare_unreferenced(thd))
       return true;
   }
 
@@ -1047,6 +1048,15 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
   lex_start(thd);
   lex->clone_spec_offset= unparsed_spec_offset;
   lex->with_cte_resolution= true;
+  /*
+    There's no need to add SPs/SFs referenced in the clone to the global
+    list of the SPs/SFs used in the query as they were added when the first
+    reference to the cloned CTE was parsed. Yet the recursive call of the
+    parser must to know that they were already included into the list.
+  */
+  lex->sroutines= old_lex->sroutines;
+  lex->sroutines_list_own_last= old_lex->sroutines_list_own_last;
+  lex->sroutines_list_own_elements= old_lex->sroutines_list_own_elements;
 
   /*
     The specification of a CTE is to be parsed as a regular query.
@@ -1092,6 +1102,29 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
     goto err;
 
   /*
+    The unit of the specification that just has been parsed is included
+    as a slave of the select that contained in its from list the table
+    reference for which the unit has been created.
+  */
+  lex->unit.include_down(with_table->select_lex);
+  lex->unit.set_slave(with_select);
+  lex->unit.cloned_from= spec;
+
+  /*
+    Now all references to the CTE defined outside of the cloned specification
+    has to be resolved. Additionally if old_lex->only_cte_resolution == false
+    for the table references that has not been resolved requests for mdl_locks
+    has to be set.
+  */
+  lex->only_cte_resolution= old_lex->only_cte_resolution;
+  if (lex->resolve_references_to_cte(lex->query_tables,
+                                     lex->query_tables_last))
+  {
+    res= NULL;
+    goto err;
+  }
+
+  /*
     The global chain of TABLE_LIST objects created for the specification that
     just has been parsed is added to such chain that contains the reference
     to the CTE whose specification is parsed right after the TABLE_LIST object
@@ -1115,17 +1148,11 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
       old_lex->query_tables_last= lex->query_tables_last;
     }
   }
+  old_lex->sroutines_list_own_last= lex->sroutines_list_own_last;
+  old_lex->sroutines_list_own_elements= lex->sroutines_list_own_elements;
   res= &lex->unit;
   res->with_element= this;
   
-  /*
-    The unit of the specification that just has been parsed is included
-    as a slave of the select that contained in its from list the table
-    reference for which the unit has been created.
-  */
-  lex->unit.include_down(with_table->select_lex);
-  lex->unit.set_slave(with_select);
-  lex->unit.cloned_from= spec;
   last_clone_select= lex->all_selects_list;
   while (last_clone_select->next_select_in_list())
     last_clone_select= last_clone_select->next_select_in_list();
@@ -1134,20 +1161,6 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
                      insert_chain_before(
                        (st_select_lex_node **) &(old_lex->all_selects_list),
                        last_clone_select));
-
-  /*
-    Now all references to the CTE defined outside of the cloned specification
-    has to be resolved. Additionally if old_lex->only_cte_resolution == false
-    for the table references that has not been resolved requests for mdl_locks
-    has to be set.
-  */
-  lex->only_cte_resolution= old_lex->only_cte_resolution;
-  if (lex->resolve_references_to_cte(lex->query_tables,
-                                     lex->query_tables_last))
-  {
-    res= NULL;
-    goto err;
-  }
 
  lex->sphead= NULL;    // in order not to delete lex->sphead
   lex_end(lex);
@@ -1323,6 +1336,7 @@ bool With_element::is_anchor(st_select_lex *sel)
 With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
 {
   With_element *found= NULL;
+  With_clause *containing_with_clause= NULL;
   st_select_lex_unit *master_unit;
   st_select_lex *outer_sl;
   for (st_select_lex *sl= this; sl; sl= outer_sl)
@@ -1335,6 +1349,7 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
     */
     With_clause *attached_with_clause= sl->get_with_clause();
     if (attached_with_clause &&
+        attached_with_clause != containing_with_clause &&
         (found= attached_with_clause->find_table_def(table, NULL)))
       break;
     master_unit= sl->master_unit();
@@ -1342,7 +1357,7 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
     With_element *with_elem= sl->get_with_element();
     if (with_elem)
     {
-      With_clause *containing_with_clause= with_elem->get_owner();
+      containing_with_clause= with_elem->get_owner();
       With_element *barrier= containing_with_clause->with_recursive ?
                                NULL : with_elem;
       if ((found= containing_with_clause->find_table_def(table, barrier)))

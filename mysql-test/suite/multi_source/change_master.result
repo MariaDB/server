@@ -1,0 +1,8 @@
+RESET MASTER;
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
+change master 'abc1' to relay_log_file='';
+ERROR HY000: Failed initializing relay log position: Could not find target log during relay log initialization
+change master 'abc1' to relay_log_file='';
+ERROR HY000: Failed initializing relay log position: Could not find target log during relay log initialization
+disconnect slave;
+connection default;

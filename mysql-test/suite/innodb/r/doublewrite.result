@@ -17,7 +17,7 @@ innodb_saved_page_number_debug	0
 connect  stop_purge,localhost,root,,;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
-create table t1 (f1 int primary key, f2 blob) engine=innodb;
+create table t1 (f1 int primary key, f2 blob) engine=innodb stats_persistent=0;
 start transaction;
 insert into t1 values(1, repeat('#',12));
 insert into t1 values(2, repeat('+',12));
@@ -65,6 +65,7 @@ where name = 'test/t1';
 # Ensure that dirty pages of table t1 is flushed.
 flush tables t1 for export;
 unlock tables;
+set global innodb_log_checkpoint_now=1;
 begin;
 insert into t1 values (6, repeat('%', 12));
 # Make the first page dirty for table t1

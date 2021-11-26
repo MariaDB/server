@@ -1709,7 +1709,7 @@ performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-sql-text-length 1024
 performance-schema-max-stage-classes 160
-performance-schema-max-statement-classes 222
+performance-schema-max-statement-classes 221
 performance-schema-max-statement-stack 10
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
@@ -1844,5 +1844,5 @@ userstat FALSE
 verbose TRUE
 wait-timeout 28800
 
-To see what variables a running MySQL server is using, type
-'mysqladmin variables' instead of 'mysqld --verbose --help'.
+To see what variables a running server is using, type
+'SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES' instead of 'mysqld --verbose --help' or 'mariadbd --verbose --help'.

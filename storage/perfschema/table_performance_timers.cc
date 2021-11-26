@@ -46,10 +46,10 @@ table_performance_timers::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE performance_timers("
-                      "TIMER_NAME ENUM ('CYCLE', 'NANOSECOND', 'MICROSECOND', 'MILLISECOND', 'TICK') not null,"
-                      "TIMER_FREQUENCY BIGINT,"
-                      "TIMER_RESOLUTION BIGINT,"
-                      "TIMER_OVERHEAD BIGINT)") },
+                      "TIMER_NAME ENUM ('CYCLE', 'NANOSECOND', 'MICROSECOND', 'MILLISECOND', 'TICK') not null comment 'Time name, used in the setup_timers table.',"
+                      "TIMER_FREQUENCY BIGINT comment 'Number of timer units per second. Dependent on the processor speed.',"
+                      "TIMER_RESOLUTION BIGINT comment 'Number of timer units by which timed values increase each time.',"
+                      "TIMER_OVERHEAD BIGINT comment 'Minimum timer overhead, determined during initialization by calling the timer 20 times and selecting the smallest value. Total overhead will be at least double this, as the timer is called at the beginning and end of each timed event.')") },
   false  /* perpetual */
 };
 

@@ -1,5 +1,3 @@
-DROP TABLE IF EXISTS t1,t2,t3,t4;
-DROP DATABASE IF EXISTS world;
 set names utf8;
 CREATE DATABASE world;
 use world;

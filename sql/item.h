@@ -2647,7 +2647,7 @@ public:
   
   bool depends_only_on(table_map view_map) 
   { return marker & MARKER_FULL_EXTRACTION; }
-  int get_extraction_flag()
+  int get_extraction_flag() const
   { return marker & MARKER_EXTRACTION_MASK; }
   void set_extraction_flag(int16 flags)
   {
@@ -3504,10 +3504,11 @@ public:
     Collect outer references
   */
   bool collect_outer_ref_processor(void *arg) override;
+  Item *derived_field_transformer_for_having(THD *thd, uchar *arg) override;
   friend bool insert_fields(THD *thd, Name_resolution_context *context,
                             const char *db_name,
                             const char *table_name, List_iterator<Item> *it,
-                            bool any_privileges);
+                            bool any_privileges, bool returning_field);
 };
 
 
@@ -4072,7 +4073,7 @@ class Item_param :public Item_basic_value,
       m_string.swap(other.m_string);
       m_string_ptr.swap(other.m_string_ptr);
     }
-    double val_real() const;
+    double val_real(const Type_std_attributes *attr) const;
     longlong val_int(const Type_std_attributes *attr) const;
     my_decimal *val_decimal(my_decimal *dec, const Type_std_attributes *attr);
     String *val_str(String *str, const Type_std_attributes *attr);
@@ -4168,7 +4169,7 @@ public:
 
   double val_real() override
   {
-    return can_return_value() ? value.val_real() : 0e0;
+    return can_return_value() ? value.val_real(this) : 0e0;
   }
   longlong val_int() override
   {
@@ -4433,6 +4434,8 @@ public:
   virtual void top_level_item() override {}
   void set_join_tab_idx(uint8 join_tab_idx_arg) override
   { DBUG_ASSERT(0); }
+
+  void cleanup() override {}
 };
 
 /* The following variablese are stored in a read only segment */
@@ -6619,12 +6622,15 @@ public:
 
 class Item_default_value : public Item_field
 {
+  bool vcol_assignment_ok;
   void calculate();
 public:
   Item *arg= nullptr;
   Field *cached_field= nullptr;
-  Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a) :
-    Item_field(thd, context_arg), arg(a) {}
+  Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a,
+                     bool vcol_assignment_arg)
+    : Item_field(thd, context_arg),
+      vcol_assignment_ok(vcol_assignment_arg), arg(a) {}
   Type type() const override { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const override;
   bool fix_fields(THD *, Item **) override;
@@ -6663,6 +6669,8 @@ public:
     if (field && field->default_value)
       field->default_value->expr->update_used_tables();
   }
+  bool vcol_assignment_allowed_value() const override
+  { return vcol_assignment_ok; }
   Field *get_tmp_table_field() override { return nullptr; }
   Item *get_tmp_table_item(THD *) override { return this; }
   Item_field *field_for_view_update() override { return nullptr; }
@@ -7691,6 +7699,19 @@ public:
   void close() {}
 };
 
+
+/*
+  fix_escape_item() sets the out "escape" parameter to:
+  - native code in case of an 8bit character set
+  - Unicode code point in case of a multi-byte character set
+
+  The value meaning a not-initialized ESCAPE character must not be equal to
+  any valid value, so must be outside of these ranges:
+  - -128..+127, not to conflict with a valid 8bit charcter
+  - 0..0x10FFFF, not to conflict with a valid Unicode code point
+  The exact value does not matter.
+*/
+#define ESCAPE_NOT_INITIALIZED -1000
 
 /*
   It's used in ::fix_fields() methods of LIKE and JSON_SEARCH

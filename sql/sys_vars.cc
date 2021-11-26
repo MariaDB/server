@@ -512,11 +512,10 @@ static Sys_var_charptr_fscs Sys_my_bind_addr(
        READ_ONLY GLOBAL_VAR(my_bind_addr_str), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
 
-const char *Sys_var_vers_asof::asof_keywords[]= {"DEFAULT", NULL};
 static Sys_var_vers_asof Sys_vers_asof_timestamp(
        "system_versioning_asof", "Default value for the FOR SYSTEM_TIME AS OF clause",
        SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
-       Sys_var_vers_asof::asof_keywords, DEFAULT(SYSTEM_TIME_UNSPECIFIED));
+       DEFAULT(SYSTEM_TIME_UNSPECIFIED));
 
 static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP", NullS};
 static Sys_var_enum Sys_vers_alter_history(
@@ -743,13 +742,9 @@ static Sys_var_charptr_fscs Sys_character_sets_dir(
 
 static bool check_engine_supports_temporary(sys_var *self, THD *thd, set_var *var)
 {
-  String str, *res;
-  LEX_CSTRING name;
-  if (!var->value || var->value->is_null())
+  plugin_ref plugin= var->save_result.plugin;
+  if (!plugin)
     return false;
-  res= var->value->val_str(&str);
-  res->get_value(&name);
-  plugin_ref plugin= ha_resolve_by_name(thd, &name, true);
   DBUG_ASSERT(plugin);
   handlerton *hton= plugin_hton(plugin);
   DBUG_ASSERT(hton);
@@ -757,10 +752,8 @@ static bool check_engine_supports_temporary(sys_var *self, THD *thd, set_var *va
   {
     my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), hton_name(hton)->str,
              "TEMPORARY");
-    plugin_unlock(thd, plugin);
     return true;
   }
-  plugin_unlock(thd, plugin);
   return false;
 }
 
@@ -1237,7 +1230,9 @@ static Sys_var_ulong Sys_flush_time(
 static bool check_ftb_syntax(sys_var *self, THD *thd, set_var *var)
 {
   return ft_boolean_check_syntax_string((uchar*)
-                      (var->save_result.string_value.str));
+                      (var->save_result.string_value.str),
+                      var->save_result.string_value.length,
+                      self->charset(thd));
 }
 static bool query_cache_flush(sys_var *self, THD *thd, enum_var_type type)
 {
@@ -1899,8 +1894,9 @@ static Sys_var_gtid_binlog_pos Sys_gtid_binlog_pos(
        READ_ONLY GLOBAL_VAR(opt_gtid_binlog_pos_dummy), NO_CMD_LINE);
 
 
-uchar *
-Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd,
+                                          const LEX_CSTRING *base) const
 {
   char buf[128];
   String str(buf, sizeof(buf), system_charset_info);
@@ -1927,8 +1923,9 @@ static Sys_var_gtid_current_pos Sys_gtid_current_pos(
        READ_ONLY GLOBAL_VAR(opt_gtid_current_pos_dummy), NO_CMD_LINE);
 
 
-uchar *
-Sys_var_gtid_current_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_current_pos::global_value_ptr(THD *thd,
+                                           const LEX_CSTRING *base) const
 {
   String str;
   char *p;
@@ -2008,8 +2005,9 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
-Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_slave_pos::global_value_ptr(THD *thd,
+                                         const LEX_CSTRING *base) const
 {
   String str;
   char *p;
@@ -2132,8 +2130,9 @@ Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
-Sys_var_gtid_binlog_state::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_binlog_state::global_value_ptr(THD *thd,
+                                            const LEX_CSTRING *base) const
 {
   char buf[512];
   String str(buf, sizeof(buf), system_charset_info);
@@ -2167,8 +2166,8 @@ static Sys_var_last_gtid Sys_last_gtid(
 export sys_var *Sys_last_gtid_ptr= &Sys_last_gtid; // for check changing
 
 
-uchar *
-Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   char buf[10+1+10+1+20+1];
   String str(buf, sizeof(buf), system_charset_info);
@@ -2342,9 +2341,10 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
+const uchar *
 Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
-                                              const LEX_CSTRING *base_name)
+                                              const
+                                              LEX_CSTRING *base_name) const
 {
   Master_info *mi;
   enum_slave_parallel_mode val=
@@ -4748,12 +4748,16 @@ static Sys_var_session_special Sys_identity(
 */
 static bool update_insert_id(THD *thd, set_var *var)
 {
-  if (!var->value)
-  {
-    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
-    return true;
-  }
-  thd->force_one_auto_inc_interval(var->save_result.ulonglong_value);
+  /*
+    If we set the insert_id to the DEFAULT or 0
+    it means we 'reset' it so it's value doesn't
+    affect the INSERT.
+  */
+  if (!var->value ||
+      var->save_result.ulonglong_value == 0)
+    thd->auto_inc_intervals_forced.empty();
+  else
+    thd->force_one_auto_inc_interval(var->save_result.ulonglong_value);
   return false;
 }
 
@@ -4761,6 +4765,8 @@ static ulonglong read_insert_id(THD *thd)
 {
   return thd->auto_inc_intervals_forced.minimum();
 }
+
+
 static Sys_var_session_special Sys_insert_id(
        "insert_id", "The value to be used by the following INSERT "
        "or ALTER TABLE statement when inserting an AUTO_INCREMENT value",
@@ -5341,8 +5347,9 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   return status;
 }
 
-uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd,
-                                            const LEX_CSTRING *base_name)
+const uchar *
+Sys_var_rpl_filter::global_value_ptr(THD *thd,
+                                     const LEX_CSTRING *base_name) const
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
@@ -5462,7 +5469,7 @@ Sys_slave_net_timeout(
 */
 
 ulonglong Sys_var_multi_source_ulonglong::
-get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset)
+get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
 {
   Master_info *mi;
   ulonglong res= 0;                                  // Default value
@@ -5711,14 +5718,14 @@ static bool update_locale(sys_var *self, THD* thd, enum_var_type type)
 static Sys_var_struct Sys_lc_messages(
        "lc_messages", "Set the language used for the error messages",
        SESSION_VAR(lc_messages), NO_CMD_LINE,
-       my_offsetof(MY_LOCALE, name), DEFAULT(&my_default_lc_messages),
+       offsetof(MY_LOCALE, name), DEFAULT(&my_default_lc_messages),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_locale), ON_UPDATE(update_locale));
 
 static Sys_var_struct Sys_lc_time_names(
        "lc_time_names", "Set the language used for the month "
        "names and the days of the week",
        SESSION_VAR(lc_time_names), NO_CMD_LINE,
-       my_offsetof(MY_LOCALE, name), DEFAULT(&my_default_lc_time_names),
+       offsetof(MY_LOCALE, name), DEFAULT(&my_default_lc_time_names),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_locale));
 
 static Sys_var_tz Sys_time_zone(
@@ -6026,16 +6033,6 @@ static Sys_var_mybool Sys_wsrep_desync (
        ON_CHECK(wsrep_desync_check),
        ON_UPDATE(wsrep_desync_update));
 
-static Sys_var_mybool Sys_wsrep_strict_ddl (
-       "wsrep_strict_ddl",
-       "If set, reject DDL on affected tables not supporting Galera replication",
-       GLOBAL_VAR(wsrep_strict_ddl),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0),
-       ON_UPDATE(wsrep_strict_ddl_update),
-       DEPRECATED("'@@wsrep_mode=STRICT_REPLICATION'")); // since 10.6.0
-
 static const char *wsrep_reject_queries_names[]= { "NONE", "ALL", "ALL_KILL", NullS };
 static Sys_var_enum Sys_wsrep_reject_queries(
        "wsrep_reject_queries", "Variable to set to reject queries",
@@ -6055,13 +6052,6 @@ static Sys_var_mybool Sys_wsrep_recover_datadir(
        "wsrep_recover", "Recover database state after crash and exit",
        READ_ONLY GLOBAL_VAR(wsrep_recovery),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
-static Sys_var_mybool Sys_wsrep_replicate_myisam(
-       "wsrep_replicate_myisam", "To enable myisam replication",
-       GLOBAL_VAR(wsrep_replicate_myisam), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(wsrep_replicate_myisam_update),
-       DEPRECATED("'@@wsrep_mode=REPLICATE_MYISAM'")); // since 10.6.0
 
 static Sys_var_mybool Sys_wsrep_log_conflicts(
        "wsrep_log_conflicts", "To log multi-master conflicts",

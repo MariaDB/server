@@ -151,7 +151,9 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     }
   }
 
-cont: __attribute__((unused));
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+cont:
+#endif
   /* read the true engine name */
   {
     MY_STAT state;

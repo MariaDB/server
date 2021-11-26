@@ -28,16 +28,15 @@ Created 5/7/1996 Heikki Tuuri
 #define lock0lock_h
 
 #include "buf0types.h"
-#include "trx0types.h"
+#include "trx0trx.h"
 #include "mtr0types.h"
 #include "rem0types.h"
-#include "que0types.h"
-#include "lock0types.h"
 #include "hash0hash.h"
 #include "srv0srv.h"
 #include "ut0vec.h"
 #include "gis0rtree.h"
 #include "lock0prdt.h"
+#include "transactional_lock_guard.h"
 
 // Forward declaration
 class ReadView;
@@ -62,8 +61,10 @@ lock_get_min_heap_no(
 /*=================*/
 	const buf_block_t*	block);	/*!< in: buffer block */
 
-/** Discard locks for an index */
-void lock_discard_for_index(const dict_index_t &index);
+/** Discard locks for an index when purging DELETE FROM SYS_INDEXES
+after an aborted CREATE INDEX operation.
+@param index   a stale index on which ADD INDEX operation was aborted */
+ATTRIBUTE_COLD void lock_discard_for_index(const dict_index_t &index);
 
 /*************************************************************//**
 Updates the lock table when we have reorganized a page. NOTE: we copy
@@ -221,6 +222,17 @@ state was stored on the infimum of a page.
 whose infimum stored the lock state; lock bits are reset on the infimum */
 void lock_rec_restore_from_page_infimum(const buf_block_t &block,
 					const rec_t *rec, page_id_t donator);
+
+/**
+Create a table lock, without checking for deadlocks or lock compatibility.
+@param table      table on which the lock is created
+@param type_mode  lock type and mode
+@param trx        transaction
+@param c_lock     conflicting lock
+@return the created lock object */
+lock_t *lock_table_create(dict_table_t *table, unsigned type_mode, trx_t *trx,
+                          lock_t *c_lock= nullptr);
+
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate insert of
 a record. If they do, first tests if the query thread should anyway
@@ -393,6 +405,12 @@ lock_table_for_trx(
 	enum lock_mode	mode)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Exclusively lock the data dictionary tables.
+@param trx  dictionary transaction
+@return error code
+@retval DB_SUCCESS on success */
+dberr_t lock_sys_tables(trx_t *trx);
+
 /*************************************************************//**
 Removes a granted record lock of a transaction from the queue and grants
 locks to other transactions waiting in the queue if they now are entitled
@@ -409,6 +427,10 @@ lock_rec_unlock(
 /** Release the explicit locks of a committing transaction,
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t* trx);
+
+/** Release non-exclusive locks on XA PREPARE,
+and release possible other transactions waiting because of these locks. */
+void lock_release_on_prepare(trx_t *trx);
 
 /** Release locks on a table whose creation is being rolled back */
 ATTRIBUTE_COLD void lock_release_on_rollback(trx_t *trx, dict_table_t *table);
@@ -550,6 +572,9 @@ class lock_sys_t
 {
   friend struct LockGuard;
   friend struct LockMultiGuard;
+  friend struct TMLockGuard;
+  friend struct TMLockMutexGuard;
+  friend struct TMLockTrxGuard;
 
   /** Hash table latch */
   struct hash_latch
@@ -564,10 +589,15 @@ class lock_sys_t
     void acquire() { if (!try_acquire()) wait(); }
     /** Release a lock */
     void release();
+    /** @return whether any lock is being held or waited for by any thread */
+    bool is_locked_or_waiting() const
+    { return rw_lock::is_locked_or_waiting(); }
+    /** @return whether this latch is possibly held by any thread */
+    bool is_locked() const { return rw_lock::is_locked(); }
 #else
   {
   private:
-    srw_lock_low lock;
+    srw_spin_lock_low lock;
   public:
     /** Try to acquire a lock */
     bool try_acquire() { return lock.wr_lock_try(); }
@@ -575,11 +605,11 @@ class lock_sys_t
     void acquire() { lock.wr_lock(); }
     /** Release a lock */
     void release() { lock.wr_unlock(); }
-#endif
-#ifdef UNIV_DEBUG
+    /** @return whether any lock may be held by any thread */
+    bool is_locked_or_waiting() const noexcept
+    { return lock.is_locked_or_waiting(); }
     /** @return whether this latch is possibly held by any thread */
-    bool is_locked() const
-    { return memcmp(this, field_ref_zero, sizeof *this); }
+    bool is_locked() const noexcept { return lock.is_locked(); }
 #endif
   };
 
@@ -592,8 +622,9 @@ public:
 
     /** Number of array[] elements per hash_latch.
     Must be LATCH less than a power of 2. */
-    static constexpr size_t ELEMENTS_PER_LATCH= CPU_LEVEL1_DCACHE_LINESIZE /
-      sizeof(void*) - LATCH;
+    static constexpr size_t ELEMENTS_PER_LATCH= (64 / sizeof(void*)) - LATCH;
+    static constexpr size_t EMPTY_SLOTS_PER_LATCH=
+      ((CPU_LEVEL1_DCACHE_LINESIZE / 64) - 1) * (64 / sizeof(void*));
 
     /** number of payload elements in array[]. Protected by lock_sys.latch. */
     ulint n_cells;
@@ -615,9 +646,15 @@ public:
 
     /** @return the index of an array element */
     inline ulint calc_hash(ulint fold) const;
+
     /** @return raw array index converted to padded index */
     static ulint pad(ulint h)
-    { return LATCH + LATCH * (h / ELEMENTS_PER_LATCH) + h; }
+    {
+      ulint latches= LATCH * (h / ELEMENTS_PER_LATCH);
+      ulint empty_slots= (h / ELEMENTS_PER_LATCH) * EMPTY_SLOTS_PER_LATCH;
+      return LATCH + latches + empty_slots + h;
+    }
+
     /** Get a latch. */
     static hash_latch *latch(hash_cell_t *cell)
     {
@@ -649,7 +686,7 @@ private:
   bool m_initialised;
 
   /** mutex proteting the locks */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
 #ifdef UNIV_DEBUG
   /** The owner of exclusive latch (0 if none); protected by latch */
   std::atomic<os_thread_id_t> writer{0};
@@ -771,7 +808,14 @@ public:
 #ifdef UNIV_DEBUG
   /** @return whether the current thread is the lock_sys.latch writer */
   bool is_writer() const
-  { return writer.load(std::memory_order_relaxed) == os_thread_get_curr_id(); }
+  {
+# ifdef SUX_LOCK_GENERIC
+    return writer.load(std::memory_order_relaxed) == os_thread_get_curr_id();
+# else
+    return writer.load(std::memory_order_relaxed) == os_thread_get_curr_id() ||
+      (xtest() && !latch.is_locked_or_waiting());
+# endif
+  }
   /** Assert that a lock shard is exclusively latched (by some thread) */
   void assert_locked(const lock_t &lock) const;
   /** Assert that a table lock shard is exclusively latched by this thread */
@@ -808,13 +852,14 @@ public:
   void deadlock_check();
 
   /** Cancel a waiting lock request.
-  @param lock          waiting lock request
-  @param trx           active transaction
-  @param check_victim  whether to check trx->lock.was_chosen_as_deadlock_victim
+  @tparam check_victim  whether to check for DB_DEADLOCK
+  @param lock           waiting lock request
+  @param trx            active transaction
   @retval DB_SUCCESS    if no lock existed
   @retval DB_DEADLOCK   if trx->lock.was_chosen_as_deadlock_victim was set
   @retval DB_LOCK_WAIT  if the lock was canceled */
-  static dberr_t cancel(trx_t *trx, lock_t *lock, bool check_victim);
+  template<bool check_victim>
+  static dberr_t cancel(trx_t *trx, lock_t *lock);
   /** Cancel a waiting lock request (if any) when killing a transaction */
   static void cancel(trx_t *trx);
 
@@ -951,6 +996,149 @@ private:
   hash_cell_t *cell1_;
   /** The second hash array cell */
   hash_cell_t *cell2_;
+};
+
+/** lock_sys.latch exclusive guard using transactional memory */
+struct TMLockMutexGuard
+{
+  TRANSACTIONAL_INLINE
+  TMLockMutexGuard(SRW_LOCK_ARGS(const char *file, unsigned line))
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (xbegin())
+    {
+      if (was_elided())
+        return;
+      xabort();
+    }
+#endif
+    lock_sys.wr_lock(SRW_LOCK_ARGS(file, line));
+  }
+  TRANSACTIONAL_INLINE
+  ~TMLockMutexGuard()
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (was_elided()) xend(); else
+#endif
+    lock_sys.wr_unlock();
+  }
+
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+  bool was_elided() const noexcept
+  { return !lock_sys.latch.is_locked_or_waiting(); }
+#else
+  bool was_elided() const noexcept { return false; }
+#endif
+};
+
+/** lock_sys latch guard for 1 page_id_t, using transactional memory */
+struct TMLockGuard
+{
+  TRANSACTIONAL_TARGET
+  TMLockGuard(lock_sys_t::hash_table &hash, const page_id_t id);
+  TRANSACTIONAL_INLINE ~TMLockGuard()
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (elided)
+    {
+      xend();
+      return;
+    }
+#endif
+    lock_sys_t::hash_table::latch(cell_)->release();
+    /* Must be last, to avoid a race with lock_sys_t::hash_table::resize() */
+    lock_sys.rd_unlock();
+  }
+  /** @return the hash array cell */
+  hash_cell_t &cell() const { return *cell_; }
+private:
+  /** The hash array cell */
+  hash_cell_t *cell_;
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+  /** whether the latches were elided */
+  bool elided;
+#endif
+};
+
+/** guard for shared lock_sys.latch and trx_t::mutex using
+transactional memory */
+struct TMLockTrxGuard
+{
+  trx_t &trx;
+
+  TRANSACTIONAL_INLINE
+#ifndef UNIV_PFS_RWLOCK
+  TMLockTrxGuard(trx_t &trx) : trx(trx)
+# define TMLockTrxArgs(trx) trx
+#else
+  TMLockTrxGuard(const char *file, unsigned line, trx_t &trx) : trx(trx)
+# define TMLockTrxArgs(trx) SRW_LOCK_CALL, trx
+#endif
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (xbegin())
+    {
+      if (!lock_sys.latch.is_write_locked() && was_elided())
+        return;
+      xabort();
+    }
+#endif
+    lock_sys.rd_lock(SRW_LOCK_ARGS(file, line));
+    trx.mutex_lock();
+  }
+  TRANSACTIONAL_INLINE
+  ~TMLockTrxGuard()
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (was_elided())
+    {
+      xend();
+      return;
+    }
+#endif
+    lock_sys.rd_unlock();
+    trx.mutex_unlock();
+  }
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+  bool was_elided() const noexcept { return !trx.mutex_is_locked(); }
+#else
+  bool was_elided() const noexcept { return false; }
+#endif
+};
+
+/** guard for trx_t::mutex using transactional memory */
+struct TMTrxGuard
+{
+  trx_t &trx;
+
+  TRANSACTIONAL_INLINE TMTrxGuard(trx_t &trx) : trx(trx)
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (xbegin())
+    {
+      if (was_elided())
+        return;
+      xabort();
+    }
+#endif
+    trx.mutex_lock();
+  }
+  TRANSACTIONAL_INLINE ~TMTrxGuard()
+  {
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+    if (was_elided())
+    {
+      xend();
+      return;
+    }
+#endif
+    trx.mutex_unlock();
+  }
+#if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+  bool was_elided() const noexcept { return !trx.mutex_is_locked(); }
+#else
+  bool was_elided() const noexcept { return false; }
+#endif
 };
 
 /*********************************************************************//**

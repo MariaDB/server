@@ -54,6 +54,12 @@ Created 10/25/1995 Heikki Tuuri
 # include <dirent.h>
 #endif
 
+#include "lz4.h"
+#include "lzo/lzo1x.h"
+#include "lzma.h"
+#include "bzlib.h"
+#include "snappy-c.h"
+
 /** Try to close a file to adhere to the innodb_open_files limit.
 @param print_info   whether to diagnose why a file cannot be closed
 @return whether a file was closed */
@@ -85,13 +91,22 @@ bool fil_space_t::try_to_close(bool print_info)
 
     if (const auto n= space.set_closing())
     {
-      if (print_info)
-        ib::info() << "Cannot close file " << node->name
-                   << " because of "
-                   << (n & PENDING)
-                   << ((n & NEEDS_FSYNC)
-                       ? " pending operations and pending fsync"
-                       : " pending operations");
+      if (!print_info)
+        continue;
+      print_info= false;
+      const time_t now= time(nullptr);
+      if (now - fil_system.n_open_exceeded_time < 5)
+        continue; /* We display messages at most once in 5 seconds. */
+      fil_system.n_open_exceeded_time= now;
+
+      if (n & PENDING)
+        sql_print_information("InnoDB: Cannot close file %s because of "
+                              UINT32PF " pending operations%s", node->name,
+                              n & PENDING,
+                              (n & NEEDS_FSYNC) ? " and pending fsync" : "");
+      else if (n & NEEDS_FSYNC)
+        sql_print_information("InnoDB: Cannot close file %s because of "
+                              "pending fsync", node->name);
       continue;
     }
 
@@ -233,38 +248,30 @@ fil_space_t *fil_space_get(uint32_t id)
   return space;
 }
 
-/** Validate the compression algorithm for full crc32 format.
-@param[in]	space	tablespace object
-@return whether the compression algorithm support */
-static bool fil_comp_algo_validate(const fil_space_t* space)
+/** Check if the compression algorithm is loaded
+@param[in]	comp_algo ulint compression algorithm
+@return whether the compression algorithm is loaded */
+bool fil_comp_algo_loaded(ulint comp_algo)
 {
-	if (!space->full_crc32()) {
-		return true;
-	}
-
-	DBUG_EXECUTE_IF("fil_comp_algo_validate_fail",
-			return false;);
-
-	ulint	comp_algo = space->get_compression_algo();
 	switch (comp_algo) {
 	case PAGE_UNCOMPRESSED:
 	case PAGE_ZLIB_ALGORITHM:
-#ifdef HAVE_LZ4
-	case PAGE_LZ4_ALGORITHM:
-#endif /* HAVE_LZ4 */
-#ifdef HAVE_LZO
-	case PAGE_LZO_ALGORITHM:
-#endif /* HAVE_LZO */
-#ifdef HAVE_LZMA
-	case PAGE_LZMA_ALGORITHM:
-#endif /* HAVE_LZMA */
-#ifdef HAVE_BZIP2
-	case PAGE_BZIP2_ALGORITHM:
-#endif /* HAVE_BZIP2 */
-#ifdef HAVE_SNAPPY
-	case PAGE_SNAPPY_ALGORITHM:
-#endif /* HAVE_SNAPPY */
 		return true;
+
+	case PAGE_LZ4_ALGORITHM:
+		return provider_service_lz4->is_loaded;
+
+	case PAGE_LZO_ALGORITHM:
+		return provider_service_lzo->is_loaded;
+
+	case PAGE_LZMA_ALGORITHM:
+		return provider_service_lzma->is_loaded;
+
+	case PAGE_BZIP2_ALGORITHM:
+		return provider_service_bzip2->is_loaded;
+
+	case PAGE_SNAPPY_ALGORITHM:
+		return provider_service_snappy->is_loaded;
 	}
 
 	return false;
@@ -311,7 +318,7 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 	this->size += size;
 	UT_LIST_ADD_LAST(chain, node);
 	if (node->is_open()) {
-		n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
+		clear_closing();
 		if (++fil_system.n_open >= srv_max_n_open_files) {
 			reacquire();
 			try_to_close(true);
@@ -363,9 +370,26 @@ static bool fil_node_open_file_low(fil_node_t *node)
     return false;
   }
 
+  ulint comp_algo = node->space->get_compression_algo();
+  bool comp_algo_invalid = false;
+
   if (node->size);
-  else if (!node->read_page0() || !fil_comp_algo_validate(node->space))
+  else if (!node->read_page0() ||
+            // validate compression algorithm for full crc32 format
+            (node->space->full_crc32() &&
+             (comp_algo_invalid = !fil_comp_algo_loaded(comp_algo))))
   {
+    if (comp_algo_invalid)
+    {
+      if (comp_algo <= PAGE_ALGORITHM_LAST)
+        ib::warn() << "'" << node->name << "' is compressed with "
+                   << page_compression_algorithms[comp_algo]
+                   << ", which is not currently loaded";
+      else
+        ib::warn() << "'" << node->name << "' is compressed with "
+                   << "invalid algorithm: " << comp_algo;
+    }
+
     os_file_close(node->handle);
     node->handle= OS_FILE_CLOSED;
     return false;
@@ -399,15 +423,18 @@ static bool fil_node_open_file(fil_node_t *node)
   ut_ad(node->space->purpose != FIL_TYPE_TEMPORARY);
   ut_ad(node->space->referenced());
 
+  const auto old_time= fil_system.n_open_exceeded_time;
+
   for (ulint count= 0; fil_system.n_open >= srv_max_n_open_files; count++)
   {
     if (fil_space_t::try_to_close(count > 1))
       count= 0;
     else if (count >= 2)
     {
-      ib::warn() << "innodb_open_files=" << srv_max_n_open_files
-                 << " is exceeded (" << fil_system.n_open
-                 << ") files stay open)";
+      if (old_time != fil_system.n_open_exceeded_time)
+        sql_print_warning("InnoDB: innodb_open_files=" ULINTPF
+                          " is exceeded (" ULINTPF " files stay open)",
+                          srv_max_n_open_files, fil_system.n_open);
       break;
     }
     else
@@ -553,10 +580,15 @@ fil_space_extend_must_retry(
 
 	const unsigned	page_size = space->physical_size();
 
-	/* Datafile::read_first_page() expects srv_page_size bytes.
-	fil_node_t::read_page0() expects at least 4 * srv_page_size bytes.*/
+	/* Datafile::read_first_page() expects innodb_page_size bytes.
+	fil_node_t::read_page0() expects at least 4 * innodb_page_size bytes.
+	os_file_set_size() expects multiples of 4096 bytes.
+	For ROW_FORMAT=COMPRESSED tables using 1024-byte or 2048-byte
+	pages, we will preallocate up to an integer multiple of 4096 bytes,
+	and let normal writes append 1024, 2048, or 3072 bytes to the file. */
 	os_offset_t new_size = std::max(
-		os_offset_t(size - file_start_page_no) * page_size,
+		(os_offset_t(size - file_start_page_no) * page_size)
+		& ~os_offset_t(4095),
 		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
 
 	*success = os_file_set_size(node->name, node->handle, new_size,
@@ -666,7 +698,7 @@ ATTRIBUTE_COLD bool fil_space_t::prepare(bool have_mutex)
   }
   else
 clear:
-   n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
+    clear_closing();
 
   if (!have_mutex)
     mysql_mutex_unlock(&fil_system.mutex);
@@ -1405,8 +1437,7 @@ fil_space_t *fil_space_t::get(uint32_t id)
 
   if (n & STOPPING)
     space= nullptr;
-
-  if ((n & CLOSING) && !space->prepare())
+  else if ((n & CLOSING) && !space->prepare())
     space= nullptr;
 
   return space;
@@ -1511,38 +1542,23 @@ static void fil_name_write(uint32_t space_id, const char *name,
 fil_space_t *fil_space_t::check_pending_operations(uint32_t id)
 {
   ut_a(!is_system_tablespace(id));
-  bool being_deleted= false;
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
 
-  if (!space);
-  else if (space->pending() & STOPPING)
-    being_deleted= true;
-  else
-  {
-    if (space->crypt_data)
-    {
-      space->reacquire();
-      mysql_mutex_unlock(&fil_system.mutex);
-      fil_space_crypt_close_tablespace(space);
-      mysql_mutex_lock(&fil_system.mutex);
-      space->release();
-    }
-    being_deleted= space->set_stopping();
-  }
-  mysql_mutex_unlock(&fil_system.mutex);
-
   if (!space)
-    return nullptr;
-
-  if (being_deleted)
   {
+    mysql_mutex_unlock(&fil_system.mutex);
+    return nullptr;
+  }
+
+  if (space->pending() & STOPPING)
+  {
+being_deleted:
     /* A thread executing DDL and another thread executing purge may
     be executing fil_delete_tablespace() concurrently for the same
     tablespace. Wait for the other thread to complete the operation. */
     for (ulint count= 0;; count++)
     {
-      mysql_mutex_lock(&fil_system.mutex);
       space= fil_space_get_by_id(id);
       ut_ad(!space || space->is_stopping());
       mysql_mutex_unlock(&fil_system.mutex);
@@ -1553,8 +1569,24 @@ fil_space_t *fil_space_t::check_pending_operations(uint32_t id)
         sql_print_warning("InnoDB: Waiting for tablespace " UINT32PF
                           " to be deleted", id);
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      mysql_mutex_lock(&fil_system.mutex);
     }
   }
+  else
+  {
+    if (space->crypt_data)
+    {
+      space->reacquire();
+      mysql_mutex_unlock(&fil_system.mutex);
+      fil_space_crypt_close_tablespace(space);
+      mysql_mutex_lock(&fil_system.mutex);
+      space->release();
+    }
+    if (space->set_stopping_check())
+      goto being_deleted;
+  }
+
+  mysql_mutex_unlock(&fil_system.mutex);
 
   for (ulint count= 0;; count++)
   {
@@ -2054,7 +2086,7 @@ to the .err log. This function is used to open a tablespace when we start
 mysqld after the dictionary has been booted, and also in IMPORT TABLESPACE.
 
 NOTE that we assume this operation is used either at the database startup
-or under the protection of the dictionary mutex, so that two users cannot
+or under the protection of dict_sys.latch, so that two users cannot
 race here. This operation does not leave the file associated with the
 tablespace open, but closes it after we have looked at the space id in it.
 
@@ -2618,7 +2650,7 @@ void fsp_flags_try_adjust(fil_space_t *space, uint32_t flags)
 	if (buf_block_t* b = buf_page_get(
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, &mtr)) {
-		uint32_t f = fsp_header_get_flags(b->frame);
+		uint32_t f = fsp_header_get_flags(b->page.frame);
 		if (fil_space_t::full_crc32(f)) {
 			goto func_exit;
 		}
@@ -2636,7 +2668,7 @@ void fsp_flags_try_adjust(fil_space_t *space, uint32_t flags)
 		mtr.set_named_space(space);
 		mtr.write<4,mtr_t::FORCED>(*b,
 					   FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
-					   + b->frame, flags);
+					   + b->page.frame, flags);
 	}
 func_exit:
 	mtr.commit();
@@ -2684,16 +2716,19 @@ func_exit:
 /*============================ FILE I/O ================================*/
 
 /** Report information about an invalid page access. */
-ATTRIBUTE_COLD __attribute__((noreturn))
-static void
-fil_report_invalid_page_access(const char *name,
-                               os_offset_t offset, ulint len, bool is_read)
+ATTRIBUTE_COLD
+static void fil_invalid_page_access_msg(bool fatal, const char *name,
+                                        os_offset_t offset, ulint len,
+                                        bool is_read)
 {
-  ib::fatal() << "Trying to " << (is_read ? "read " : "write ") << len
-              << " bytes at " << offset
-              << " outside the bounds of the file: " << name;
+  sql_print_error("%s%s %zu bytes at " UINT64PF
+                  " outside the bounds of the file: %s",
+                  fatal ? "[FATAL] InnoDB: " : "InnoDB: ",
+                  is_read ? "Trying to read" : "Trying to write",
+                  len, offset, name);
+  if (fatal)
+    abort();
 }
-
 
 /** Update the data structures on write completion */
 inline void fil_node_t::complete_write()
@@ -2747,6 +2782,7 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 	}
 
 	ulint p = static_cast<ulint>(offset >> srv_page_size_shift);
+	bool fatal;
 
 	if (UNIV_LIKELY_NULL(UT_LIST_GET_NEXT(chain, node))) {
 		ut_ad(this == fil_system.sys_space
@@ -2757,13 +2793,16 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 			p -= node->size;
 			node = UT_LIST_GET_NEXT(chain, node);
 			if (!node) {
-				if (type.type == IORequest::READ_ASYNC) {
-					release();
-					return {DB_ERROR, nullptr};
+				release();
+				if (type.type != IORequest::READ_ASYNC) {
+					fatal = true;
+fail:
+					fil_invalid_page_access_msg(
+						fatal, node->name,
+						offset, len,
+						type.is_read());
 				}
-				fil_report_invalid_page_access(node->name,
-							       offset, len,
-							       type.is_read());
+				return {DB_IO_ERROR, nullptr};
 			}
 		}
 
@@ -2771,16 +2810,17 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 	}
 
 	if (UNIV_UNLIKELY(node->size <= p)) {
+		release();
+
 		if (type.type == IORequest::READ_ASYNC) {
-			release();
 			/* If we can tolerate the non-existent pages, we
 			should return with DB_ERROR and let caller decide
 			what to do. */
 			return {DB_ERROR, nullptr};
 		}
 
-		fil_report_invalid_page_access(
-			node->name, offset, len, type.is_read());
+		fatal = node->space->purpose != FIL_TYPE_IMPORT;
+		goto fail;
 	}
 
 	dberr_t err;
@@ -2796,7 +2836,7 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 		goto release_sync_write;
 	} else {
 		/* Queue the aio request */
-		err = os_aio(IORequest(bpage, node, type.type),
+		err = os_aio(IORequest{bpage, type.slot, node, type.type},
 			     buf, offset, len);
 	}
 
@@ -2852,7 +2892,7 @@ write_completed:
     files and never issue asynchronous reads of change buffer pages. */
     const page_id_t id(request.bpage->id());
 
-    if (dberr_t err= buf_page_read_complete(request.bpage, *request.node))
+    if (dberr_t err= request.bpage->read_complete(*request.node))
     {
       if (recv_recovery_is_on() && !srv_force_recovery)
       {
@@ -3010,8 +3050,7 @@ fil_space_validate_for_mtr_commit(
 
 	/* We are serving mtr_commit(). While there is an active
 	mini-transaction, we should have !space->stop_new_ops. This is
-	guaranteed by meta-data locks or transactional locks, or
-	dict_sys.latch (X-lock in DROP, S-lock in purge). */
+	guaranteed by meta-data locks or transactional locks. */
 	ut_ad(!space->is_stopping()
 	      || space->is_being_truncated /* fil_truncate_prepare() */
 	      || space->referenced());
@@ -3087,12 +3126,6 @@ fil_names_clear(
 	bool	do_write)
 {
 	mtr_t	mtr;
-	ulint	mtr_checkpoint_size = RECV_SCAN_SIZE - 1;
-
-	DBUG_EXECUTE_IF(
-		"increase_mtr_checkpoint_size",
-		mtr_checkpoint_size = 75 * 1024;
-		);
 
 	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(lsn);
@@ -3101,9 +3134,8 @@ fil_names_clear(
 
 	for (auto it = fil_system.named_spaces.begin();
 	     it != fil_system.named_spaces.end(); ) {
-		if (mtr.get_log()->size()
-		    + (3 + 5 + 1) + strlen(it->chain.start->name)
-		    >= mtr_checkpoint_size) {
+		if (mtr.get_log()->size() + strlen(it->chain.start->name)
+		    >= RECV_SCAN_SIZE - (3 + 5)) {
 			/* Prevent log parse buffer overflow */
 			mtr.commit_files();
 			mtr.start();

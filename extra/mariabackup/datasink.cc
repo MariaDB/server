@@ -23,7 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "common.h"
 #include "datasink.h"
 #include "ds_compress.h"
-#include "ds_archive.h"
 #include "ds_xbstream.h"
 #include "ds_local.h"
 #include "ds_stdout.h"
@@ -44,13 +43,6 @@ ds_create(const char *root, ds_type_t type)
 		break;
 	case DS_TYPE_LOCAL:
 		ds = &datasink_local;
-		break;
-	case DS_TYPE_ARCHIVE:
-#ifdef HAVE_LIBARCHIVE
-		ds = &datasink_archive;
-#else
-		die("mariabackup was built without libarchive support");
-#endif
 		break;
 	case DS_TYPE_XBSTREAM:
 		ds = &datasink_xbstream;

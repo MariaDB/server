@@ -290,7 +290,6 @@ class sp_pcontext;
 class sp_variable;
 class sp_expr_lex;
 class sp_assignment_lex;
-class st_alter_tablespace;
 class partition_info;
 class Event_parse_data;
 class set_var_base;
@@ -1027,20 +1026,7 @@ public:
   int save_union_explain_part2(Explain_query *output);
   unit_common_op common_op();
 
-  bool explainable() const
-  {
-    /*
-      EXPLAIN/ANALYZE unit, when:
-      (1) if it's a subquery - it's not part of eliminated WHERE/ON clause.
-      (2) if it's a CTE - it's not hanging (needed for execution)
-      (3) if it's a derived - it's not merged
-      if it's not 1/2/3 - it's some weird internal thing, ignore it
-    */
-    return item ? !item->eliminated :                           // (1)
-           with_element ? derived && derived->derived_result :  // (2)
-           derived ? derived->is_materialized_derived() :       // (3)
-           false;
-  }
+  bool explainable() const;
 
   void reset_distinct();
   void fix_distinct();
@@ -3534,12 +3520,6 @@ public:
 
 
   /*
-    Reference to a struct that contains information in various commands
-    to add/create/drop/change table spaces.
-  */
-  st_alter_tablespace *alter_tablespace_info;
-
-  /*
     The set of those tables whose fields are referenced in all subqueries
     of the query.
     TODO: possibly this it is incorrect to have used tables in LEX because
@@ -4681,6 +4661,7 @@ public:
   void stmt_deallocate_prepare(const Lex_ident_sys_st &ident);
 
   bool stmt_alter_table_exchange_partition(Table_ident *table);
+  bool stmt_alter_table(Table_ident *table);
 
   void stmt_purge_to(const LEX_CSTRING &to);
   bool stmt_purge_before(Item *item);

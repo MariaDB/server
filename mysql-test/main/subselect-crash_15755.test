@@ -1,6 +1,4 @@
 --source include/have_innodb.inc
-set global innodb_stats_persistent= 1;
-drop table if exists t1;
 create table t1 (
   f1 bigint(20) default 0,
   f2 varchar(50) default '',
@@ -48,8 +46,7 @@ create table t1 (
   f44 varchar(50) default '',
   f45 int(10) default 0,
   f46 tinyint(1) default 0
-) engine=innodb row_format=dynamic;
- 
+) engine=innodb stats_persistent=1 row_format=dynamic;
 insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 insert into t1 select * from t1;
 insert into t1 select * from t1;
@@ -57,4 +54,3 @@ insert into t1 select * from t1;
 insert into t1 select * from t1;
 select * from t1 where f2 in (select f2 from t1 group by f2 having count(distinct f3) = 1);
 drop table t1;
-set global innodb_stats_persistent= 0;

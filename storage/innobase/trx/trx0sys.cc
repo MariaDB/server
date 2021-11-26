@@ -164,10 +164,10 @@ trx_sysf_create(
 
 	ut_a(block->page.id() == page_id_t(0, TRX_SYS_PAGE_NO));
 
-	mtr->write<2>(*block, FIL_PAGE_TYPE + block->frame,
+	mtr->write<2>(*block, FIL_PAGE_TYPE + block->page.frame,
 		      FIL_PAGE_TYPE_TRX_SYS);
 
-	ut_ad(!mach_read_from_4(block->frame
+	ut_ad(!mach_read_from_4(block->page.frame
 				+ TRX_SYS_DOUBLEWRITE
 				+ TRX_SYS_DOUBLEWRITE_MAGIC));
 
@@ -191,7 +191,7 @@ trx_sysf_create(
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
 	buf_block_t* rblock = trx_rseg_header_create(fil_system.sys_space,
-						     slot_no, block, mtr);
+						     slot_no, 0, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
 	ut_a(rblock->page.id() == page_id_t(0, FSP_FIRST_RSEG_PAGE_NO));
@@ -293,7 +293,7 @@ static trx_rseg_t *trx_rseg_create(uint32_t space_id)
     {
       ulint rseg_id= trx_sys_rseg_find_free(sys_header);
       if (buf_block_t *rblock= rseg_id == ULINT_UNDEFINED
-          ? nullptr : trx_rseg_header_create(space, rseg_id, sys_header,
+          ? nullptr : trx_rseg_header_create(space, rseg_id, 0, sys_header,
                                              &mtr))
       {
         ut_ad(trx_sysf_rseg_get_space(sys_header, rseg_id) == space_id);

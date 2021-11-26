@@ -1,0 +1,59 @@
+#
+# MDEV-16355 Add option for mysqldump to read data as of specific timestamp from system-versioned tables
+#
+create or replace table t1 (x int) with system versioning;
+set timestamp=unix_timestamp('1990-01-01 00:00');
+insert t1 (x) values (1),(2),(3);
+set timestamp=unix_timestamp('1990-08-03 00:00');
+delete from t1 where x=1;
+set timestamp=unix_timestamp('1991-01-02 00:00');
+delete from t1 where x=2;
+set timestamp=default;
+#MYSQL_DUMP --compact test
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES
+(3);
+#MYSQL_DUMP --compact --as-of="1990-01-02 00:00" test
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES
+(1),
+(2),
+(3);
+#MYSQL_DUMP --compact --as-of="1990-08-02 00:00" --databases test
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 */;
+
+USE `test`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES
+(1),
+(2),
+(3);
+#MYSQL_DUMP --compact --as-of="1990-08-04 00:00" test t1
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES
+(2),
+(3);
+#MYSQL_DUMP --compact --as-of="1990-08-04 00:00' where 'abc" test 2>&1
+mysqldump: Incorrect DATETIME value: '1990-08-04 00:00' where 'abc'
+drop tables t1;

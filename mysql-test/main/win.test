@@ -2556,6 +2556,153 @@ SELECT sum(i) over () IN ( SELECT 1 FROM t1 a) FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-25565: 2-nd call of SP with SELECT from view / derived table / CTE
+--echo #             returning the result  of calculation of 2 window
+--echo #             functions that use the same window specification
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (7), (1), (1), (3), (1), (5);
+
+create view v2 as select a from t1 group by a;
+create view v1 as select * from v2;
+
+let $q1=
+select v1.a,
+          sum(v1.a) over (partition by v1.a  order by v1.a) as k,
+          avg(v1.a) over (partition by v1.a  order by v1.a) as m
+from v1;
+
+eval create procedure sp1() $q1;
+call sp1();
+call sp1();
+
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q2=
+select * from
+  ( select dt1.a,
+           sum(dt1.a) over (partition by dt1.a  order by dt1.a) as k,
+           avg(dt1.a) over (partition by dt1.a  order by dt1.a) as m
+    from (select * from v2) as dt1
+  ) as dt;
+
+eval create procedure sp2() $q2;
+call sp2();
+call sp2();
+
+eval prepare stmt from "$q2";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q3=
+select * from
+  ( select dt1.a,
+           sum(dt1.a) over (partition by dt1.a  order by dt1.a) as k,
+           avg(dt1.a) over (partition by dt1.a  order by dt1.a) as m
+    from ( select * from (select * from t1 group by a) as dt2 ) as dt1
+  ) as dt;
+
+eval create procedure sp3() $q3;
+call sp3();
+call sp3();
+
+eval prepare stmt from "$q3";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q4=
+with cte1 as (select * from (select * from t1 group by a) as dt2),
+     cte as
+     ( select cte1.a,
+              sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+              avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+       from cte1 )
+select * from cte;
+
+eval create procedure sp4() $q4;
+call sp4();
+call sp4();
+
+eval prepare stmt from "$q4";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q5=
+with cte1 as (select * from v2),
+     cte as
+     ( select cte1.a,
+              sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+              avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+       from cte1 )
+select * from cte;
+
+eval create procedure sp5() $q5;
+call sp5();
+call sp5();
+
+eval prepare stmt from "$q5";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q6=
+with
+cte1 as (with cte2 as (select * from t1 group by a) select * from cte2),
+     cte as
+     ( select cte1.a,
+              sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+              avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+       from cte1 )
+select * from cte;
+
+eval create procedure sp6() $q6;
+call sp6();
+call sp6();
+
+eval prepare stmt from "$q6";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q7=
+with
+     cte2 as (select * from v1),
+     cte1 as (select * from cte2),
+     cte as
+     ( select cte1.a,
+              sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+              avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+       from cte1 )
+select * from cte;
+
+eval create procedure sp7() $q7;
+call sp7();
+call sp7();
+
+eval prepare stmt from "$q7";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+
+drop procedure sp1;
+drop procedure sp2;
+drop procedure sp3;
+drop procedure sp4;
+drop procedure sp5;
+drop procedure sp6;
+drop procedure sp7;
+drop view v1,v2;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

@@ -14,9 +14,9 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 #include <mysql_version.h>
-#include <mysql/plugin.h>
 
 #include <my_global.h>
+#include <mysql/plugin.h>
 #include <sql_class.h>
 #include <sql_i_s.h>
 #include <mysql/plugin.h>
@@ -131,7 +131,10 @@ static int queues_fill_table(THD* thd, TABLE_LIST* tables, COND*)
         table->field[2]->store(prio, true);
         /* CONNECTION_ID */
         if (c->thd)
+        {
+          table->field[3]->set_notnull();
           table->field[3]->store(c->thd->thread_id, true);
+        }
         /* QUEUEING_TIME */
         table->field[4]->store(now - c->enqueue_time, true);
 

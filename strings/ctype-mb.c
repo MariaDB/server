@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-mb.h"
 
 #ifdef USE_MB
 
@@ -401,9 +402,9 @@ my_copy_fix_mb(CHARSET_INFO *cs,
   size_t well_formed_nchars;
   size_t well_formed_length;
   size_t fixed_length;
+  size_t min_length= MY_MIN(src_length, dst_length);
 
-  set_if_smaller(src_length, dst_length);
-  well_formed_nchars= my_ci_well_formed_char_length(cs, src, src + src_length,
+  well_formed_nchars= my_ci_well_formed_char_length(cs, src, src + min_length,
                                                         nchars, status);
   DBUG_ASSERT(well_formed_nchars <= nchars);
   well_formed_length= status->m_source_end_pos - src;
@@ -637,6 +638,46 @@ my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
   */
   const uchar *end= skip_trailing_space(key, len);
   my_hash_sort_mb_nopad_bin(cs, key, end - key, nr1, nr2);
+}
+
+
+static inline size_t
+my_repeat_char_native(CHARSET_INFO *cs,
+                      uchar *dst, size_t dst_size, size_t nchars,
+                      my_wc_t native_code)
+{
+  uchar *dst0= dst;
+  uchar *dstend= dst + dst_size;
+  int chlen= my_ci_native_to_mb(cs, native_code, dst, dstend);
+  if (chlen < 1 /* Not enough space */ || !nchars)
+    return 0;
+  for (dst+= chlen, nchars--;
+       dst + chlen <= dstend && nchars > 0;
+       dst+= chlen, nchars--)
+    memcpy(dst, dst0, chlen);
+  return dst - dst0;
+}
+
+
+size_t my_min_str_mb_simple(CHARSET_INFO *cs,
+                            uchar *dst, size_t dst_size, size_t nchars)
+{
+  return my_repeat_char_native(cs, dst, dst_size, nchars, cs->min_sort_char);
+}
+
+
+size_t my_min_str_mb_simple_nopad(CHARSET_INFO *cs,
+                                  uchar *dst, size_t dst_size, size_t nchars)
+{
+  /* For NOPAD collations, the empty string is the smallest possible */
+  return 0;
+}
+
+
+size_t my_max_str_mb_simple(CHARSET_INFO *cs,
+                            uchar *dst, size_t dst_size, size_t nchars)
+{
+  return my_repeat_char_native(cs, dst, dst_size, nchars, cs->max_sort_char);
 }
 
 

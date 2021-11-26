@@ -22,21 +22,31 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #ifdef SUX_LOCK_GENERIC
 /** An exclusive-only variant of srw_lock */
-class srw_mutex final
+template<bool spinloop>
+class srw_mutex_impl final
 {
   pthread_mutex_t lock;
+  void wr_wait();
 public:
   void init() { pthread_mutex_init(&lock, nullptr); }
   void destroy() { pthread_mutex_destroy(&lock); }
-  void wr_lock() { pthread_mutex_lock(&lock); }
+  inline void wr_lock();
   void wr_unlock() { pthread_mutex_unlock(&lock); }
   bool wr_lock_try() { return !pthread_mutex_trylock(&lock); }
 };
+
+template<> void srw_mutex_impl<true>::wr_wait();
+template<>
+inline void srw_mutex_impl<false>::wr_lock() { pthread_mutex_lock(&lock); }
+template<>
+inline void srw_mutex_impl<true>::wr_lock() { if (!wr_lock_try()) wr_wait(); }
 #else
 /** Futex-based mutex */
-class srw_mutex final
+template<bool spinloop>
+class srw_mutex_impl final
 {
-  /** The lock word, containing HOLDER and a count of waiters */
+  /** The lock word, containing HOLDER + 1 if the lock is being held,
+  plus the number of waiters */
   std::atomic<uint32_t> lock;
   /** Identifies that the lock is being held */
   static constexpr uint32_t HOLDER= 1U << 31;
@@ -50,10 +60,10 @@ class srw_mutex final
 public:
   /** @return whether the mutex is being held or waited for */
   bool is_locked_or_waiting() const
-  { return lock.load(std::memory_order_relaxed) != 0; }
+  { return lock.load(std::memory_order_acquire) != 0; }
   /** @return whether the mutex is being held by any thread */
   bool is_locked() const
-  { return (lock.load(std::memory_order_relaxed) & HOLDER) != 0; }
+  { return (lock.load(std::memory_order_acquire) & HOLDER) != 0; }
 
   void init() { DBUG_ASSERT(!is_locked_or_waiting()); }
   void destroy() { DBUG_ASSERT(!is_locked_or_waiting()); }
@@ -62,7 +72,7 @@ public:
   bool wr_lock_try()
   {
     uint32_t lk= 0;
-    return lock.compare_exchange_strong(lk, HOLDER,
+    return lock.compare_exchange_strong(lk, HOLDER + 1,
                                         std::memory_order_acquire,
                                         std::memory_order_relaxed);
   }
@@ -70,8 +80,8 @@ public:
   void wr_lock() { if (!wr_lock_try()) wait_and_lock(); }
   void wr_unlock()
   {
-    const uint32_t lk= lock.fetch_and(~HOLDER, std::memory_order_release);
-    if (lk != HOLDER)
+    const uint32_t lk= lock.fetch_sub(HOLDER + 1, std::memory_order_release);
+    if (lk != HOLDER + 1)
     {
       DBUG_ASSERT(lk & HOLDER);
       wake();
@@ -80,8 +90,14 @@ public:
 };
 #endif
 
+typedef srw_mutex_impl<true> srw_spin_mutex;
+typedef srw_mutex_impl<false> srw_mutex;
+
+template<bool spinloop> class srw_lock_impl;
+
 /** Slim shared-update-exclusive lock with no recursion */
-class ssux_lock_low final
+template<bool spinloop>
+class ssux_lock_impl final
 #ifdef SUX_LOCK_GENERIC
   : private rw_lock
 #endif
@@ -91,7 +107,7 @@ class ssux_lock_low final
 # ifdef SUX_LOCK_GENERIC
 # elif defined _WIN32
 # else
-  friend class srw_lock;
+  friend srw_lock_impl<spinloop>;
 # endif
 #endif
 #ifdef SUX_LOCK_GENERIC
@@ -121,6 +137,8 @@ public:
   void destroy();
   /** @return whether any writer is waiting */
   bool is_waiting() const { return (value() & WRITER_WAITING) != 0; }
+  bool is_write_locked() const { return rw_lock::is_write_locked(); }
+  bool is_locked_or_waiting() const { return rw_lock::is_locked_or_waiting(); }
 
   bool rd_lock_try() { uint32_t l; return read_trylock(l); }
   bool wr_lock_try() { return write_trylock(); }
@@ -135,7 +153,7 @@ public:
   void wr_unlock();
 #else
   /** mutex for synchronization; held by U or X lock holders */
-  srw_mutex writer;
+  srw_mutex_impl<spinloop> writer;
   /** S or U holders, and WRITER flag for X holder or waiter */
   std::atomic<uint32_t> readers;
   /** indicates an X request; readers=WRITER indicates granted X lock */
@@ -158,11 +176,7 @@ public:
   { return (readers.load(std::memory_order_relaxed) & WRITER) != 0; }
 # ifndef DBUG_OFF
   /** @return whether the lock is being held or waited for */
-  bool is_vacant() const
-  {
-    return !readers.load(std::memory_order_relaxed) &&
-      !writer.is_locked_or_waiting();
-  }
+  bool is_vacant() const { return !is_locked_or_waiting(); }
 # endif /* !DBUG_OFF */
 
   bool rd_lock_try()
@@ -210,8 +224,18 @@ public:
   void wr_lock()
   {
     writer.wr_lock();
+#if defined __i386__||defined __x86_64__||defined _M_IX86||defined _M_IX64
+    /* On IA-32 and AMD64, this type of fetch_or() can only be implemented
+    as a loop around LOCK CMPXCHG. In this particular case, setting the
+    most significant bit using fetch_add() is equivalent, and is
+    translated into a simple LOCK XADD. */
+    static_assert(WRITER == 1U << 31, "compatibility");
+    if (uint32_t lk= readers.fetch_add(WRITER, std::memory_order_acquire))
+      wr_wait(lk);
+#else
     if (uint32_t lk= readers.fetch_or(WRITER, std::memory_order_acquire))
       wr_wait(lk);
+#endif
   }
 
   void u_wr_upgrade()
@@ -224,7 +248,7 @@ public:
   void wr_u_downgrade()
   {
     DBUG_ASSERT(writer.is_locked());
-    DBUG_ASSERT(readers.load(std::memory_order_relaxed) == WRITER);
+    DBUG_ASSERT(is_write_locked());
     readers.store(1, std::memory_order_release);
     /* Note: Any pending rd_lock() will not be woken up until u_unlock() */
   }
@@ -246,51 +270,95 @@ public:
   }
   void wr_unlock()
   {
-    DBUG_ASSERT(readers.load(std::memory_order_relaxed) == WRITER);
+    DBUG_ASSERT(is_write_locked());
     readers.store(0, std::memory_order_release);
     writer.wr_unlock();
   }
+  /** @return whether an exclusive lock may be held by any thread */
+  bool is_write_locked() const noexcept
+  { return readers.load(std::memory_order_acquire) == WRITER; }
+  /** @return whether any lock may be held by any thread */
+  bool is_locked() const noexcept
+  { return readers.load(std::memory_order_acquire) != 0; }
+  /** @return whether any lock may be held by any thread */
+  bool is_locked_or_waiting() const noexcept
+  { return is_locked() || writer.is_locked_or_waiting(); }
+
+  void lock_shared() { rd_lock(); }
+  void unlock_shared() { rd_unlock(); }
+  void lock() { wr_lock(); }
+  void unlock() { wr_unlock(); }
 #endif
 };
 
+#if defined _WIN32 || defined SUX_LOCK_GENERIC
+/** Slim read-write lock */
+template<bool spinloop>
+class srw_lock_
+{
+# ifdef UNIV_PFS_RWLOCK
+  friend srw_lock_impl<spinloop>;
+# endif
+# ifdef _WIN32
+  SRWLOCK lk;
+# else
+  rw_lock_t lk;
+# endif
+
+  void rd_wait();
+  void wr_wait();
+public:
+  void init() { IF_WIN(,my_rwlock_init(&lk, nullptr)); }
+  void destroy() { IF_WIN(,rwlock_destroy(&lk)); }
+  inline void rd_lock();
+  inline void wr_lock();
+  bool rd_lock_try()
+  { return IF_WIN(TryAcquireSRWLockShared(&lk), !rw_tryrdlock(&lk)); }
+  void rd_unlock()
+  { IF_WIN(ReleaseSRWLockShared(&lk), rw_unlock(&lk)); }
+  bool wr_lock_try()
+  { return IF_WIN(TryAcquireSRWLockExclusive(&lk), !rw_trywrlock(&lk)); }
+  void wr_unlock()
+  { IF_WIN(ReleaseSRWLockExclusive(&lk), rw_unlock(&lk)); }
 #ifdef _WIN32
-/** Slim read-write lock */
-class srw_lock_low
-{
-# ifdef UNIV_PFS_RWLOCK
-  friend class srw_lock;
-# endif
-  SRWLOCK lock;
-public:
-  void init() {}
-  void destroy() {}
-  void rd_lock() { AcquireSRWLockShared(&lock); }
-  bool rd_lock_try() { return TryAcquireSRWLockShared(&lock); }
-  void rd_unlock() { ReleaseSRWLockShared(&lock); }
-  void wr_lock() { AcquireSRWLockExclusive(&lock); }
-  bool wr_lock_try() { return TryAcquireSRWLockExclusive(&lock); }
-  void wr_unlock() { ReleaseSRWLockExclusive(&lock); }
+  /** @return whether any lock may be held by any thread */
+  bool is_locked_or_waiting() const noexcept { return (size_t&)(lk) != 0; }
+  /** @return whether any lock may be held by any thread */
+  bool is_locked() const noexcept { return is_locked_or_waiting(); }
+  /** @return whether an exclusive lock may be held by any thread */
+  bool is_write_locked() const noexcept
+  {
+    // FIXME: this returns false positives for shared locks
+    return is_locked();
+  }
+
+  void lock_shared() { rd_lock(); }
+  void unlock_shared() { rd_unlock(); }
+  void lock() { wr_lock(); }
+  void unlock() { wr_unlock(); }
+#endif
 };
-#elif defined SUX_LOCK_GENERIC
-/** Slim read-write lock */
-class srw_lock_low
-{
-# ifdef UNIV_PFS_RWLOCK
-  friend class srw_lock;
-# endif
-  rw_lock_t lock;
-public:
-  void init() { my_rwlock_init(&lock, nullptr); }
-  void destroy() { rwlock_destroy(&lock); }
-  void rd_lock() { rw_rdlock(&lock); }
-  bool rd_lock_try() { return !rw_tryrdlock(&lock); }
-  void rd_unlock() { rw_unlock(&lock); }
-  void wr_lock() { rw_wrlock(&lock); }
-  bool wr_lock_try() { return !rw_trywrlock(&lock); }
-  void wr_unlock() { rw_unlock(&lock); }
-};
+
+template<> void srw_lock_<true>::rd_wait();
+template<> void srw_lock_<true>::wr_wait();
+
+template<>
+inline void srw_lock_<false>::rd_lock()
+{ IF_WIN(AcquireSRWLockShared(&lk), rw_rdlock(&lk)); }
+template<>
+inline void srw_lock_<false>::wr_lock()
+{ IF_WIN(AcquireSRWLockExclusive(&lk), rw_wrlock(&lk)); }
+
+template<>
+inline void srw_lock_<true>::rd_lock() { if (!rd_lock_try()) rd_wait(); }
+template<>
+inline void srw_lock_<true>::wr_lock() { if (!wr_lock_try()) wr_wait(); }
+
+typedef srw_lock_<false> srw_lock_low;
+typedef srw_lock_<true> srw_spin_lock_low;
 #else
-typedef ssux_lock_low srw_lock_low;
+typedef ssux_lock_impl<false> srw_lock_low;
+typedef ssux_lock_impl<true> srw_spin_lock_low;
 #endif
 
 #ifndef UNIV_PFS_RWLOCK
@@ -298,7 +366,7 @@ typedef ssux_lock_low srw_lock_low;
 # define SRW_LOCK_ARGS(file, line) /* nothing */
 # define SRW_LOCK_CALL /* nothing */
 typedef srw_lock_low srw_lock;
-typedef ssux_lock_low ssux_lock;
+typedef srw_spin_lock_low srw_spin_lock;
 #else
 # define SRW_LOCK_INIT(key) init(key)
 # define SRW_LOCK_ARGS(file, line) file, line
@@ -308,7 +376,7 @@ typedef ssux_lock_low ssux_lock;
 class ssux_lock
 {
   PSI_rwlock *pfs_psi;
-  ssux_lock_low lock;
+  ssux_lock_impl<false> lock;
 
   ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line);
   ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line);
@@ -382,10 +450,15 @@ public:
 };
 
 /** Slim reader-writer lock with PERFORMANCE_SCHEMA instrumentation */
-class srw_lock
+template<bool spinloop>
+class srw_lock_impl
 {
   PSI_rwlock *pfs_psi;
-  srw_lock_low lock;
+# if defined _WIN32 || defined SUX_LOCK_GENERIC
+  srw_lock_<spinloop> lock;
+# else
+  ssux_lock_impl<spinloop> lock;
+# endif
 
   ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line);
   ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line);
@@ -432,5 +505,18 @@ public:
   }
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool wr_lock_try() { return lock.wr_lock_try(); }
+#ifndef SUX_LOCK_GENERIC
+  /** @return whether any lock may be held by any thread */
+  bool is_locked_or_waiting() const noexcept
+  { return lock.is_locked_or_waiting(); }
+  /** @return whether an exclusive lock may be held by any thread */
+  bool is_locked() const noexcept { return lock.is_locked(); }
+  /** @return whether an exclusive lock may be held by any thread */
+  bool is_write_locked() const noexcept { return lock.is_write_locked(); }
+#endif
 };
+
+typedef srw_lock_impl<false> srw_lock;
+typedef srw_lock_impl<true> srw_spin_lock;
+
 #endif

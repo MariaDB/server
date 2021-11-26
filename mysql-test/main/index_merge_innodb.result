@@ -6,6 +6,8 @@ SET DEFAULT_STORAGE_ENGINE = InnoDB;
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='index_merge_sort_intersection=off';
 set optimizer_switch='rowid_filter=off';
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 #---------------- Index merge test 2 -------------------------------------------
 create table t1
 (
@@ -835,3 +837,4 @@ a	b	c
 DROP TABLE t1;
 SET sort_buffer_size= @save_sort_buffer_size;
 disconnect disable_purge;
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

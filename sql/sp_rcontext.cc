@@ -518,7 +518,8 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
       found_condition=
         new (callers_arena->mem_root) Sql_condition(callers_arena->mem_root,
                                                     da->get_error_condition_identity(),
-                                                    da->message());
+                                                    da->message(),
+                                                    da->current_row_for_warning());
     }
   }
   else if (da->current_statement_warn_count())

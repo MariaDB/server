@@ -268,12 +268,11 @@ extern "C" my_bool wsrep_thd_order_before(const THD *left, const THD *right)
 extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
 {
   mysql_mutex_assert_owner(&thd->LOCK_thd_data);
-  if (thd != 0)
+
+  const wsrep::client_state& cs(thd->wsrep_cs());
+  const enum wsrep::transaction::state tx_state(cs.transaction().state());
+  switch (tx_state)
   {
-    const wsrep::client_state& cs(thd->wsrep_cs());
-    const enum wsrep::transaction::state tx_state(cs.transaction().state());
-    switch (tx_state)
-    {
     case wsrep::transaction::s_must_abort:
       return (cs.state() == wsrep::client_state::s_exec ||
               cs.state() == wsrep::client_state::s_result);
@@ -282,8 +281,8 @@ extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
       return true;
     default:
       return false;
-    }
   }
+
   return false;
 }
 

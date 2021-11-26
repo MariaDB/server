@@ -1342,7 +1342,7 @@ void lex_unlock_plugins(LEX *lex)
   /* release used plugins */
   if (lex->plugins.elements) /* No function call and no mutex if no plugins. */
   {
-    plugin_unlock_list(0, (plugin_ref*)lex->plugins.buffer, 
+    plugin_unlock_list(0, (plugin_ref*)lex->plugins.buffer,
                        lex->plugins.elements);
   }
   reset_dynamic(&lex->plugins);
@@ -3562,7 +3562,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
     prepared statement
   */
   Query_arena *arena= thd->stmt_arena;
-  const uint n_elems= (n_sum_items +
+  const size_t n_elems= (n_sum_items +
                        n_child_sum_items +
                        item_list.elements +
                        select_n_reserved +
@@ -3570,7 +3570,8 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
                        select_n_where_fields +
                        order_group_num +
                        hidden_bit_fields +
-                       fields_in_window_functions) * 5;
+                       fields_in_window_functions) * (size_t) 5;
+  DBUG_ASSERT(n_elems % 5 == 0);
   if (!ref_pointer_array.is_null())
   {
     /*
@@ -6044,8 +6045,10 @@ int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
 bool LEX::is_partition_management() const
 {
   return (sql_command == SQLCOM_ALTER_TABLE &&
-          (alter_info.partition_flags ==  ALTER_PARTITION_ADD ||
-           alter_info.partition_flags ==  ALTER_PARTITION_REORGANIZE));
+          (alter_info.partition_flags & (ALTER_PARTITION_ADD |
+                                         ALTER_PARTITION_CONVERT_IN |
+                                         ALTER_PARTITION_CONVERT_OUT |
+                                         ALTER_PARTITION_REORGANIZE)));
 }
 
 
@@ -9706,7 +9709,7 @@ bool LEX::last_field_generated_always_as_row_start()
   Vers_parse_info &info= vers_get_info();
   Lex_ident *p= &info.as_row.start;
   return last_field_generated_always_as_row_start_or_end(p, "START",
-                                                         VERS_SYS_START_FLAG);
+                                                         VERS_ROW_START);
 }
 
 
@@ -9715,7 +9718,7 @@ bool LEX::last_field_generated_always_as_row_end()
   Vers_parse_info &info= vers_get_info();
   Lex_ident *p= &info.as_row.end;
   return last_field_generated_always_as_row_start_or_end(p, "END",
-                                                         VERS_SYS_END_FLAG);
+                                                         VERS_ROW_END);
 }
 
 void st_select_lex_unit::reset_distinct()
@@ -11254,6 +11257,25 @@ bool LEX::stmt_alter_table_exchange_partition(Table_ident *table)
 }
 
 
+bool LEX::stmt_alter_table(Table_ident *table)
+{
+  DBUG_ASSERT(sql_command == SQLCOM_ALTER_TABLE);
+  first_select_lex()->db= table->db;
+  if (first_select_lex()->db.str == NULL &&
+      copy_db_to(&first_select_lex()->db))
+    return true;
+  if (unlikely(check_table_name(table->table.str, table->table.length,
+                                false)) ||
+      (table->db.str && unlikely(check_db_name((LEX_STRING*) &table->db))))
+  {
+    my_error(ER_WRONG_TABLE_NAME, MYF(0), table->table.str);
+    return true;
+  }
+  name= table->table;
+  return false;
+}
+
+
 void LEX::stmt_purge_to(const LEX_CSTRING &to)
 {
   type= 0;
@@ -11722,4 +11744,24 @@ bool LEX::map_data_type(const Lex_ident_sys_st &schema_name,
   const Type_handler *mapped= schema->map_data_type(thd, type->type_handler());
   type->set_handler(mapped);
   return false;
+}
+
+
+bool SELECT_LEX_UNIT::explainable() const
+{
+  /*
+    EXPLAIN/ANALYZE unit, when:
+    (1) if it's a subquery - it's not part of eliminated WHERE/ON clause.
+    (2) if it's a CTE - it's not hanging (needed for execution)
+    (3) if it's a derived - it's not merged
+    if it's not 1/2/3 - it's some weird internal thing, ignore it
+  */
+  return item ?
+           !item->eliminated :                        // (1)
+           with_element ?
+             derived && derived->derived_result &&
+               !with_element->is_hanging_recursive(): // (2)
+             derived ?
+               derived->is_materialized_derived() :   // (3)
+               false;
 }

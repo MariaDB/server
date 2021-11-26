@@ -3,6 +3,10 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 MACRO(CHECK_OQGRAPH)
 MESSAGE(STATUS "Configuring OQGraph")
 FIND_PACKAGE(Boost 1.40.0)
+SET_PACKAGE_PROPERTIES(Boost PROPERTIES
+  PURPOSE "Required for the OQGraph storage engine"
+  TYPE OPTIONAL
+)
 IF(NOT Boost_FOUND)
   MESSAGE(STATUS "Boost not found. OQGraph will not be compiled")
   SET(OQGRAPH_OK 0 CACHE INTERNAL "")
@@ -11,6 +15,10 @@ ENDIF()
 INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
 
 FIND_PACKAGE(Judy)
+SET_PACKAGE_PROPERTIES(Judy PROPERTIES
+  PURPOSE "Required for the OQGraph storage engine"
+  TYPE OPTIONAL
+)
 IF(NOT Judy_FOUND)
   MESSAGE(STATUS "Judy not found. OQGraph will not be compiled")
   SET(OQGRAPH_OK 0 CACHE INTERNAL "")

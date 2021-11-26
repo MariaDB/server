@@ -659,6 +659,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     table->copy_blobs=1;
 
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
+    thd->get_stmt_da()->reset_current_row_for_warning(1);
 
     bool create_lookup_handler= handle_duplicates != DUP_ERROR;
     if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS))

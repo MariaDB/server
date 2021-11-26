@@ -1,4 +1,4 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -831,15 +831,16 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
     ret= Wsrep_server_state::instance().provider().desync();
     if (ret) {
       WSREP_WARN ("SET desync failed %d for schema: %s, query: %s", ret,
-                  thd->db.str, WSREP_QUERY(thd));
+                  thd->db.str, wsrep_thd_query(thd));
       my_error (ER_CANNOT_USER, MYF(0), "'desync'", thd->query());
       return true;
     }
   } else {
+    THD_STAGE_INFO(thd, stage_waiting_flow);
     ret= Wsrep_server_state::instance().provider().resync();
     if (ret != WSREP_OK) {
       WSREP_WARN ("SET resync failed %d for schema: %s, query: %s", ret,
-                  thd->get_db(), thd->query());
+                  thd->get_db(), wsrep_thd_query(thd));
       my_error (ER_CANNOT_USER, MYF(0), "'resync'", thd->query());
       return true;
     }
@@ -1100,24 +1101,3 @@ bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)
   return false;
 }
 
-bool wsrep_strict_ddl_update(sys_var *self, THD* thd, enum_var_type var_type)
-{
-  // In case user still sets wsrep_strict_ddl we set new
-  // option to wsrep_mode
-  if (wsrep_strict_ddl)
-    wsrep_mode|= WSREP_MODE_STRICT_REPLICATION;
-  else
-    wsrep_mode&= (~WSREP_MODE_STRICT_REPLICATION);
-  return false;
-}
-
-bool wsrep_replicate_myisam_update(sys_var *self, THD* thd, enum_var_type var_type)
-{
-  // In case user still sets wsrep_replicate_myisam we set new
-  // option to wsrep_mode
-  if (wsrep_replicate_myisam)
-    wsrep_mode|= WSREP_MODE_REPLICATE_MYISAM;
-  else
-    wsrep_mode&= (~WSREP_MODE_REPLICATE_MYISAM);
-  return false;
-}

@@ -73,14 +73,18 @@
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
 /* warning C4065: switch statement contains 'default' but no 'case' labels */
-#pragma warning (disable : 4065)
+/* warning C4102: 'yyexhaustedlab': unreferenced label */
+#pragma warning (disable : 4065 4102)
+#endif
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wunused-label" /* yyexhaustedlab: */
 #endif
 
 int yylex(void *yylval, void *yythd);
 
 #define yyoverflow(A,B,C,D,E,F)               \
   {                                           \
-    size_t val= *(F);                          \
+    size_t val= *(F);                         \
     if (unlikely(my_yyoverflow((B), (D), &val))) \
     {                                         \
       yyerror(thd, (char*) (A));              \
@@ -778,6 +782,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  CATALOG_NAME_SYM              /* SQL-2003-N */
 %token  <kwd>  CHAIN_SYM                     /* SQL-2003-N */
 %token  <kwd>  CHANGED
+%token  <kwd>  CHANNEL_SYM
 %token  <kwd>  CHARSET
 %token  <kwd>  CHECKPOINT_SYM
 %token  <kwd>  CHECKSUM_SYM
@@ -1459,7 +1464,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         field_options last_field_options
 
 %type <ulonglong_number>
-        ulonglong_num real_ulonglong_num size_number
+        ulonglong_num real_ulonglong_num
 
 %type <longlong_number>
         longlong_num
@@ -1478,7 +1483,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
         primary_expr string_factor_expr mysql_concatenation_expr
         select_sublist_qualified_asterisk
-        expr_or_default set_expr_or_default
+        expr_or_ignore expr_or_ignore_or_default set_expr_or_default
         signed_literal expr_or_literal
         sp_opt_default
         simple_ident_nospvar
@@ -2039,12 +2044,12 @@ execute_using:
         ;
 
 execute_params:
-          expr_or_default
+          expr_or_ignore_or_default
           {
             if (unlikely(!($$= List<Item>::make(thd->mem_root, $1))))
               MYSQL_YYABORT;
           }
-        | execute_params ',' expr_or_default
+        | execute_params ',' expr_or_ignore_or_default
           {
             if (($$= $1)->push_back($3, thd->mem_root))
               MYSQL_YYABORT;
@@ -2076,6 +2081,7 @@ change:
             Lex->sql_command = SQLCOM_CHANGE_MASTER;
           }
           master_defs
+          optional_for_channel
           {}
         ;
 
@@ -2306,6 +2312,34 @@ connection_name:
 #endif
          }
          ;
+
+optional_for_channel:
+        /* empty */
+          {
+            /*do nothing */
+          }
+        | for_channel
+
+        ;
+
+for_channel:
+        FOR_SYM CHANNEL_SYM TEXT_STRING_sys
+        {
+          if (Lex->mi.connection_name.str != NULL)
+          {
+            my_yyabort_error((ER_WRONG_ARGUMENTS, MYF(0), "CONNECTION_NAME AND FOR CHANNEL CAN NOT BE SPECIFIED AT THE SAME TIME)"));
+          }
+          else
+          {
+            Lex->mi.connection_name= $3;
+#ifdef HAVE_REPLICATION
+           if (unlikely(check_master_connection_name(&$3)))
+              my_yyabort_error((ER_WRONG_ARGUMENTS, MYF(0), "MASTER_CONNECTION_NAME"));
+#endif
+          }
+
+          }
+          ;
 
 /* create a table */
 
@@ -2547,14 +2581,6 @@ create:
             if (unlikely(Lex->set_command_with_check(SQLCOM_CREATE_ROLE,
                          $1 | $3)))
               MYSQL_YYABORT;
-          }
-        | CREATE LOGFILE_SYM GROUP_SYM logfile_group_info 
-          {
-            Lex->alter_tablespace_info->ts_cmd_type= CREATE_LOGFILE_GROUP;
-          }
-        | CREATE TABLESPACE tablespace_info
-          {
-            Lex->alter_tablespace_info->ts_cmd_type= CREATE_TABLESPACE;
           }
         | create_or_replace { Lex->set_command(SQLCOM_CREATE_SERVER, $1); }
           server_def
@@ -3449,6 +3475,8 @@ signal_condition_information_item_name:
           { $$= DIAG_MESSAGE_TEXT; }
         | MYSQL_ERRNO_SYM
           { $$= DIAG_MYSQL_ERRNO; }
+        | ROW_NUMBER_SYM
+          { $$= DIAG_ROW_NUMBER; }
         ;
 
 resignal_stmt:
@@ -3529,6 +3557,11 @@ simple_target_specification:
           }
         | '@' ident_or_text
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
             $$= new (thd->mem_root) Item_func_get_user_var(thd, &$2);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -3605,6 +3638,8 @@ condition_information_item_name:
           { $$= Condition_information_item::MYSQL_ERRNO; }
         | RETURNED_SQLSTATE_SYM
           { $$= Condition_information_item::RETURNED_SQLSTATE; }
+        | ROW_NUMBER_SYM
+          { $$= Condition_information_item::ROW_NUMBER; }
         ;
 
 sp_decl_ident:
@@ -4304,350 +4339,6 @@ trg_event:
           | DELETE_SYM
             { Lex->trg_chistics.event= TRG_EVENT_DELETE; }
           ;
-/*
-  This part of the parser contains common code for all TABLESPACE
-  commands.
-  CREATE TABLESPACE name ...
-  ALTER TABLESPACE name CHANGE DATAFILE ...
-  ALTER TABLESPACE name ADD DATAFILE ...
-  ALTER TABLESPACE name access_mode
-  CREATE LOGFILE GROUP_SYM name ...
-  ALTER LOGFILE GROUP_SYM name ADD UNDOFILE ..
-  ALTER LOGFILE GROUP_SYM name ADD REDOFILE ..
-  DROP TABLESPACE name
-  DROP LOGFILE GROUP_SYM name
-*/
-change_tablespace_access:
-          tablespace_name
-          ts_access_mode
-        ;
-
-change_tablespace_info:
-          tablespace_name
-          CHANGE ts_datafile
-          change_ts_option_list
-        ;
-
-tablespace_info:
-          tablespace_name
-          ADD ts_datafile
-          opt_logfile_group_name
-          tablespace_option_list
-        ;
-
-opt_logfile_group_name:
-          /* empty */ {}
-        | USE_SYM LOGFILE_SYM GROUP_SYM ident
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->logfile_group_name= $4.str;
-          }
-        ;
-
-alter_tablespace_info:
-          tablespace_name
-          ADD ts_datafile
-          alter_tablespace_option_list
-          { 
-            Lex->alter_tablespace_info->ts_alter_tablespace_type= ALTER_TABLESPACE_ADD_FILE; 
-          }
-        | tablespace_name
-          DROP ts_datafile
-          alter_tablespace_option_list
-          { 
-            Lex->alter_tablespace_info->ts_alter_tablespace_type= ALTER_TABLESPACE_DROP_FILE; 
-          }
-        ;
-
-logfile_group_info:
-          logfile_group_name
-          add_log_file
-          logfile_group_option_list
-        ;
-
-alter_logfile_group_info:
-          logfile_group_name
-          add_log_file
-          alter_logfile_group_option_list
-        ;
-
-add_log_file:
-          ADD lg_undofile
-        | ADD lg_redofile
-        ;
-
-change_ts_option_list:
-          /* empty */ {}
-          change_ts_options
-        ;
-
-change_ts_options:
-          change_ts_option
-        | change_ts_options change_ts_option
-        | change_ts_options ',' change_ts_option
-        ;
-
-change_ts_option:
-          opt_ts_initial_size
-        | opt_ts_autoextend_size
-        | opt_ts_max_size
-        ;
-
-tablespace_option_list:
-        tablespace_options
-        ;
-
-tablespace_options:
-          tablespace_option
-        | tablespace_options tablespace_option
-        | tablespace_options ',' tablespace_option
-        ;
-
-tablespace_option:
-          opt_ts_initial_size
-        | opt_ts_autoextend_size
-        | opt_ts_max_size
-        | opt_ts_extent_size
-        | opt_ts_nodegroup
-        | opt_ts_engine
-        | ts_wait
-        | opt_ts_comment
-        ;
-
-alter_tablespace_option_list:
-        alter_tablespace_options
-        ;
-
-alter_tablespace_options:
-          alter_tablespace_option
-        | alter_tablespace_options alter_tablespace_option
-        | alter_tablespace_options ',' alter_tablespace_option
-        ;
-
-alter_tablespace_option:
-          opt_ts_initial_size
-        | opt_ts_autoextend_size
-        | opt_ts_max_size
-        | opt_ts_engine
-        | ts_wait
-        ;
-
-logfile_group_option_list:
-        logfile_group_options
-        ;
-
-logfile_group_options:
-          logfile_group_option
-        | logfile_group_options logfile_group_option
-        | logfile_group_options ',' logfile_group_option
-        ;
-
-logfile_group_option:
-          opt_ts_initial_size
-        | opt_ts_undo_buffer_size
-        | opt_ts_redo_buffer_size
-        | opt_ts_nodegroup
-        | opt_ts_engine
-        | ts_wait
-        | opt_ts_comment
-        ;
-
-alter_logfile_group_option_list:
-          alter_logfile_group_options
-        ;
-
-alter_logfile_group_options:
-          alter_logfile_group_option
-        | alter_logfile_group_options alter_logfile_group_option
-        | alter_logfile_group_options ',' alter_logfile_group_option
-        ;
-
-alter_logfile_group_option:
-          opt_ts_initial_size
-        | opt_ts_engine
-        | ts_wait
-        ;
-
-
-ts_datafile:
-          DATAFILE_SYM TEXT_STRING_sys
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->data_file_name= $2.str;
-          }
-        ;
-
-lg_undofile:
-          UNDOFILE_SYM TEXT_STRING_sys
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->undo_file_name= $2.str;
-          }
-        ;
-
-lg_redofile:
-          REDOFILE_SYM TEXT_STRING_sys
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->redo_file_name= $2.str;
-          }
-        ;
-
-tablespace_name:
-          ident
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info= (new (thd->mem_root)
-                                         st_alter_tablespace());
-            if (unlikely(lex->alter_tablespace_info == NULL))
-              MYSQL_YYABORT;
-            lex->alter_tablespace_info->tablespace_name= $1.str;
-            lex->sql_command= SQLCOM_ALTER_TABLESPACE;
-          }
-        ;
-
-logfile_group_name:
-          ident
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info= (new (thd->mem_root)
-                                         st_alter_tablespace());
-            if (unlikely(lex->alter_tablespace_info == NULL))
-              MYSQL_YYABORT;
-            lex->alter_tablespace_info->logfile_group_name= $1.str;
-            lex->sql_command= SQLCOM_ALTER_TABLESPACE;
-          }
-        ;
-
-ts_access_mode:
-          READ_ONLY_SYM
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_access_mode= TS_READ_ONLY;
-          }
-        | READ_WRITE_SYM
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_access_mode= TS_READ_WRITE;
-          }
-        | NOT_SYM ACCESSIBLE_SYM
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_access_mode= TS_NOT_ACCESSIBLE;
-          }
-        ;
-
-opt_ts_initial_size:
-          INITIAL_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->initial_size= $3;
-          }
-        ;
-
-opt_ts_autoextend_size:
-          AUTOEXTEND_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->autoextend_size= $3;
-          }
-        ;
-
-opt_ts_max_size:
-          MAX_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->max_size= $3;
-          }
-        ;
-
-opt_ts_extent_size:
-          EXTENT_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->extent_size= $3;
-          }
-        ;
-
-opt_ts_undo_buffer_size:
-          UNDO_BUFFER_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->undo_buffer_size= $3;
-          }
-        ;
-
-opt_ts_redo_buffer_size:
-          REDO_BUFFER_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->redo_buffer_size= $3;
-          }
-        ;
-
-opt_ts_nodegroup:
-          NODEGROUP_SYM opt_equal real_ulong_num
-          {
-            LEX *lex= Lex;
-            if (unlikely(lex->alter_tablespace_info->nodegroup_id != UNDEF_NODEGROUP))
-              my_yyabort_error((ER_FILEGROUP_OPTION_ONLY_ONCE,MYF(0),"NODEGROUP"));
-            lex->alter_tablespace_info->nodegroup_id= $3;
-          }
-        ;
-
-opt_ts_comment:
-          COMMENT_SYM opt_equal TEXT_STRING_sys
-          {
-            LEX *lex= Lex;
-            if (unlikely(lex->alter_tablespace_info->ts_comment != NULL))
-              my_yyabort_error((ER_FILEGROUP_OPTION_ONLY_ONCE,MYF(0),"COMMENT"));
-            lex->alter_tablespace_info->ts_comment= $3.str;
-          }
-        ;
-
-opt_ts_engine:
-          opt_storage ENGINE_SYM opt_equal storage_engines
-          {
-            LEX *lex= Lex;
-            if (unlikely(lex->alter_tablespace_info->storage_engine != NULL))
-              my_yyabort_error((ER_FILEGROUP_OPTION_ONLY_ONCE, MYF(0),
-                                "STORAGE ENGINE"));
-            lex->alter_tablespace_info->storage_engine= $4;
-          }
-        ;
-
-opt_ts_wait:
-          /* empty */
-        | ts_wait
-        ;
-
-ts_wait:
-          WAIT_SYM
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->wait_until_completed= TRUE;
-          }
-        | NO_WAIT_SYM
-          {
-            LEX *lex= Lex;
-            if (unlikely(!(lex->alter_tablespace_info->wait_until_completed)))
-              my_yyabort_error((ER_FILEGROUP_OPTION_ONLY_ONCE,MYF(0),"NO_WAIT"));
-            lex->alter_tablespace_info->wait_until_completed= FALSE;
-          }
-        ;
-
-size_number:
-          real_ulonglong_num { $$= $1;}
-        | IDENT_sys
-          {
-            if ($1.to_size_number(&$$))
-              MYSQL_YYABORT;
-          }
-        ;
-
-/*
-  End tablespace part
-*/
 
 create_body:
           create_field_list_parens
@@ -5018,8 +4709,13 @@ part_def_list:
         | part_def_list ',' part_definition {}
         ;
 
+opt_partition:
+          /* empty */
+          | PARTITION_SYM
+          ;
+
 part_definition:
-          PARTITION_SYM
+          opt_partition
           {
             partition_info *part_info= Lex->part_info;
             partition_element *p_elem= new (thd->mem_root) partition_element();
@@ -5365,7 +5061,7 @@ opt_part_option_list:
 
 opt_part_option:
           TABLESPACE opt_equal ident_or_text
-          { Lex->part_info->curr_part_elem->tablespace_name= $3.str; }
+          { /* Compatibility with MySQL */ }
         | opt_storage ENGINE_SYM opt_equal storage_engines
           {
             partition_info *part_info= Lex->part_info;
@@ -5704,7 +5400,7 @@ create_table_option:
             Lex->create_info.used_fields|= HA_CREATE_USED_INDEXDIR;
           }
         | TABLESPACE ident
-          {Lex->create_info.tablespace= $2.str;}
+          { /* Compatiblity with MySQL */ }
         | STORAGE_SYM DISK_SYM
           {Lex->create_info.storage_media= HA_SM_DISK;}
         | STORAGE_SYM MEMORY_SYM
@@ -5773,7 +5469,7 @@ versioning_option:
           {
             if (unlikely(Lex->create_info.options & HA_LEX_CREATE_TMP_TABLE))
             {
-              if (DBUG_EVALUATE_IF("sysvers_force", 0, 1))
+              if (!DBUG_IF("sysvers_force"))
               {
                 my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE TEMPORARY TABLE");
                 MYSQL_YYABORT;
@@ -7352,26 +7048,6 @@ alter:
 
             Lex->pop_select(); //main select
           }
-        | ALTER TABLESPACE alter_tablespace_info
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= ALTER_TABLESPACE;
-          }
-        | ALTER LOGFILE_SYM GROUP_SYM alter_logfile_group_info
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= ALTER_LOGFILE_GROUP;
-          }
-        | ALTER TABLESPACE change_tablespace_info
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= CHANGE_FILE_TABLESPACE;
-          }
-        | ALTER TABLESPACE change_tablespace_access
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= ALTER_ACCESS_MODE_TABLESPACE;
-          }
         | ALTER SERVER_SYM ident_or_text
           {
             LEX *lex= Lex;
@@ -7603,6 +7279,54 @@ alter_commands:
           WITH TABLE_SYM table_ident have_partitioning
           {
             if (Lex->stmt_alter_table_exchange_partition($6))
+              MYSQL_YYABORT;
+          }
+        | CONVERT_SYM PARTITION_SYM alt_part_name_item
+          TO_SYM TABLE_SYM table_ident have_partitioning
+          {
+            LEX *lex= Lex;
+            if (Lex->stmt_alter_table($6))
+              MYSQL_YYABORT;
+            lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table();
+            if (unlikely(lex->m_sql_cmd == NULL))
+              MYSQL_YYABORT;
+            lex->alter_info.partition_flags|= ALTER_PARTITION_CONVERT_OUT;
+          }
+        | CONVERT_SYM TABLE_SYM table_ident
+          {
+            LEX *lex= Lex;
+            if (!lex->first_select_lex()->add_table_to_list(thd, $3, nullptr, 0,
+                                                            TL_READ_NO_INSERT,
+                                                            MDL_SHARED_NO_WRITE))
+              MYSQL_YYABORT;
+
+            /*
+              This will appear as (new_db, new_name) in alter_ctx.
+              new_db will be IX-locked and new_name X-locked.
+            */
+            lex->first_select_lex()->db= $3->db;
+            lex->name= $3->table;
+            if (lex->first_select_lex()->db.str == NULL &&
+                lex->copy_db_to(&lex->first_select_lex()->db))
+              MYSQL_YYABORT;
+
+            lex->part_info= new (thd->mem_root) partition_info();
+            if (unlikely(!lex->part_info))
+              MYSQL_YYABORT;
+
+            lex->part_info->num_parts= 1;
+            /*
+              OR-ed with ALTER_PARTITION_ADD because too many checks of
+              ALTER_PARTITION_ADD required.
+            */
+            lex->alter_info.partition_flags|= ALTER_PARTITION_ADD |
+                                              ALTER_PARTITION_CONVERT_IN;
+          }
+          TO_SYM PARTITION_SYM part_definition
+          {
+            LEX *lex= Lex;
+            lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table();
+            if (unlikely(lex->m_sql_cmd == NULL))
               MYSQL_YYABORT;
           }
         ;
@@ -7853,17 +7577,9 @@ alter_list_item:
           }
         | RENAME opt_to table_ident
           {
-            LEX *lex=Lex;
-            lex->first_select_lex()->db= $3->db;
-            if (lex->first_select_lex()->db.str == NULL &&
-                lex->copy_db_to(&lex->first_select_lex()->db))
+            if (Lex->stmt_alter_table($3))
               MYSQL_YYABORT;
-            if (unlikely(check_table_name($3->table.str,$3->table.length,
-                                          FALSE)) ||
-                ($3->db.str && unlikely(check_db_name((LEX_STRING*) &$3->db))))
-              my_yyabort_error((ER_WRONG_TABLE_NAME, MYF(0), $3->table.str));
-            lex->name= $3->table;
-            lex->alter_info.flags|= ALTER_RENAME;
+            Lex->alter_info.flags|= ALTER_RENAME;
           }
         | RENAME COLUMN_SYM opt_if_exists_table_element ident TO_SYM ident
           {
@@ -8030,7 +7746,7 @@ opt_to:
         ;
 
 slave:
-          START_SYM SLAVE optional_connection_name slave_thread_opts
+          START_SYM SLAVE optional_connection_name slave_thread_opts optional_for_channel
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_START;
@@ -8047,7 +7763,7 @@ slave:
             /* If you change this code don't forget to update STOP SLAVE too */
           }
           {}
-        | STOP_SYM SLAVE optional_connection_name slave_thread_opts
+        | STOP_SYM SLAVE optional_connection_name slave_thread_opts optional_for_channel
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_STOP;
@@ -9951,7 +9667,7 @@ column_default_non_parenthesized_expr:
             if (unlikely(il))
               my_yyabort_error((ER_WRONG_COLUMN_NAME, MYF(0), il->my_name()->str));
             $$= new (thd->mem_root) Item_default_value(thd, Lex->current_context(),
-                                                         $3);
+                                                         $3, 0);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
             Lex->default_used= TRUE;
@@ -11270,6 +10986,11 @@ variable_aux:
           ident_or_text SET_VAR expr
           {
             Item_func_set_user_var *item;
+            if (!$1.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
             $$= item= new (thd->mem_root) Item_func_set_user_var(thd, &$1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -11279,6 +11000,11 @@ variable_aux:
           }
         | ident_or_text
           {
+            if (!$1.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
             $$= new (thd->mem_root) Item_func_get_user_var(thd, &$1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -12920,6 +12646,12 @@ select_var_ident: select_outvar
 select_outvar:
           '@' ident_or_text
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
+
             $$ = Lex->result ? new (thd->mem_root) my_var_user(&$2) : NULL;
           }
         | ident_or_text
@@ -13068,16 +12800,6 @@ drop:
             lex->set_command(SQLCOM_DROP_TRIGGER, $3);
             lex->spname= $4;
           }
-        | DROP TABLESPACE tablespace_name opt_ts_engine opt_ts_wait
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= DROP_TABLESPACE;
-          }
-        | DROP LOGFILE_SYM GROUP_SYM logfile_group_name opt_ts_engine opt_ts_wait
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= DROP_LOGFILE_GROUP;
-          }
         | DROP SERVER_SYM opt_if_exists ident_or_text
           {
             Lex->set_command(SQLCOM_DROP_SERVER, $3);
@@ -13182,6 +12904,8 @@ insert:
           {
             Lex->sql_command= SQLCOM_INSERT;
             Lex->duplicates= DUP_ERROR;
+            thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
+            thd->get_stmt_da()->reset_current_row_for_warning(1);
           }
           insert_start insert_lock_option opt_ignore opt_into insert_table
           {
@@ -13191,6 +12915,7 @@ insert:
           stmt_end
           {
             Lex->mark_first_table_as_inserting();
+            thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
           ;
 
@@ -13199,6 +12924,8 @@ replace:
           {
             Lex->sql_command = SQLCOM_REPLACE;
             Lex->duplicates= DUP_REPLACE;
+            thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
+            thd->get_stmt_da()->reset_current_row_for_warning(1);
           }
           insert_start replace_lock_option opt_into insert_table
           {
@@ -13208,6 +12935,7 @@ replace:
           stmt_end
           {
             Lex->mark_first_table_as_inserting();
+            thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
           ;
 
@@ -13320,7 +13048,7 @@ ident_eq_list:
         ;
 
 ident_eq_value:
-          simple_ident_nospvar equal expr_or_default
+          simple_ident_nospvar equal expr_or_ignore_or_default
           {
             LEX *lex=Lex;
             if (unlikely(lex->field_list.push_back($1, thd->mem_root)) ||
@@ -13358,6 +13086,7 @@ no_braces:
           opt_values ')'
           {
             LEX *lex=Lex;
+            thd->get_stmt_da()->inc_current_row_for_warning();
             if (unlikely(lex->many_values.push_back(lex->insert_list,
                                                     thd->mem_root)))
               MYSQL_YYABORT;
@@ -13373,6 +13102,7 @@ no_braces_with_names:
           opt_values_with_names ')'
           {
             LEX *lex=Lex;
+            thd->get_stmt_da()->inc_current_row_for_warning();
             if (unlikely(lex->many_values.push_back(lex->insert_list,
                                                     thd->mem_root)))
               MYSQL_YYABORT;
@@ -13390,12 +13120,12 @@ opt_values_with_names:
         ;
 
 values:
-          values ','  expr_or_default
+          values ','  expr_or_ignore_or_default
           {
             if (unlikely(Lex->insert_list->push_back($3, thd->mem_root)))
               MYSQL_YYABORT;
           }
-        | expr_or_default
+        | expr_or_ignore_or_default
           {
             if (unlikely(Lex->insert_list->push_back($1, thd->mem_root)))
               MYSQL_YYABORT;
@@ -13403,7 +13133,7 @@ values:
         ;
 
 values_with_names:
-          values_with_names ','  remember_name expr_or_default remember_end
+          values_with_names ','  remember_name expr_or_ignore_or_default remember_end
           {
             if (unlikely(Lex->insert_list->push_back($4, thd->mem_root)))
                MYSQL_YYABORT;
@@ -13411,7 +13141,7 @@ values_with_names:
             if (!$4->name.str || $4->name.str == item_empty_name)
               $4->set_name(thd, $3, (uint) ($5 - $3), thd->charset());
            }
-        | remember_name expr_or_default remember_end
+        | remember_name expr_or_ignore_or_default remember_end
           {
             if (unlikely(Lex->insert_list->push_back($2, thd->mem_root)))
                MYSQL_YYABORT;
@@ -13421,17 +13151,21 @@ values_with_names:
           }
         ;
 
-expr_or_default:
+expr_or_ignore:
           expr { $$= $1;}
-        | DEFAULT
-          {
-            $$= new (thd->mem_root) Item_default_specification(thd);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
         | IGNORE_SYM
           {
             $$= new (thd->mem_root) Item_ignore_specification(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        ;
+
+expr_or_ignore_or_default:
+          expr_or_ignore { $$= $1;}
+        | DEFAULT
+          {
+            $$= new (thd->mem_root) Item_default_specification(thd);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -13511,10 +13245,16 @@ update_list:
         ;
 
 update_elem:
-          simple_ident_nospvar equal expr_or_default
+          simple_ident_nospvar equal DEFAULT
           {
-            if (unlikely(add_item_to_list(thd, $1)) ||
-                unlikely(add_value_to_list(thd, $3)))
+            Item *def= new (thd->mem_root) Item_default_value(thd,
+                                             Lex->current_context(), $1, 1);
+            if (!def || add_item_to_list(thd, $1) || add_value_to_list(thd, def))
+              MYSQL_YYABORT;
+          }
+        | simple_ident_nospvar equal expr_or_ignore
+          {
+            if (add_item_to_list(thd, $1) || add_value_to_list(thd, $3))
               MYSQL_YYABORT;
           }
         ;
@@ -13525,7 +13265,7 @@ insert_update_list:
         ;
 
 insert_update_elem:
-          simple_ident_nospvar equal expr_or_default
+          simple_ident_nospvar equal expr_or_ignore_or_default
           {
           LEX *lex= Lex;
           if (unlikely(lex->update_list.push_back($1, thd->mem_root)) ||
@@ -13921,7 +13661,8 @@ show_param:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_RELAYLOG_EVENTS;
           }
-          opt_global_limit_clause
+          opt_global_limit_clause optional_for_channel
+          { }
         | keys_or_index from_or_in table_ident opt_db opt_where_clause
           {
             LEX *lex= Lex;
@@ -14066,16 +13807,7 @@ show_param:
               MYSQL_YYABORT;
             Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
           }
-        | SLAVE STATUS_SYM
-          {
-            LEX *lex= thd->lex;
-            lex->mi.connection_name= null_clex_str;
-            if (!(lex->m_sql_cmd= new (thd->mem_root)
-                  Sql_cmd_show_slave_status()))
-              MYSQL_YYABORT;
-            lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
-          }
-        | SLAVE connection_name STATUS_SYM
+        | SLAVE optional_connection_name STATUS_SYM optional_for_channel
           {
             if (!(Lex->m_sql_cmd= new (thd->mem_root)
                   Sql_cmd_show_slave_status()))
@@ -14460,7 +14192,7 @@ flush_option:
           { Lex->type|= REFRESH_SLOW_LOG; }
         | BINARY LOGS_SYM opt_delete_gtid_domain
           { Lex->type|= REFRESH_BINARY_LOG; }
-        | RELAY LOGS_SYM optional_connection_name
+        | RELAY LOGS_SYM optional_connection_name optional_for_channel
           {
             LEX *lex= Lex;
             if (unlikely(lex->type & REFRESH_RELAY_LOG))
@@ -14611,7 +14343,8 @@ reset_options:
 reset_option:
           SLAVE               { Lex->type|= REFRESH_SLAVE; }
           optional_connection_name
-          slave_reset_options { }
+          slave_reset_options optional_for_channel
+          { }
         | MASTER_SYM
           {
              Lex->type|= REFRESH_MASTER;
@@ -14901,6 +14634,12 @@ field_or_var:
           simple_ident_nospvar {$$= $1;}
         | '@' ident_or_text
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
+
             $$= new (thd->mem_root) Item_user_var_as_out_param(thd, &$2);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -14918,7 +14657,7 @@ load_data_set_list:
         ;
 
 load_data_set_elem:
-          simple_ident_nospvar equal remember_name expr_or_default remember_end
+          simple_ident_nospvar equal remember_name expr_or_ignore_or_default remember_end
           {
             LEX *lex= Lex;
             if (unlikely(lex->update_list.push_back($1, thd->mem_root)) ||
@@ -15908,6 +15647,7 @@ keyword_sp_var_and_label:
         | CASCADED
         | CATALOG_NAME_SYM
         | CHAIN_SYM
+        | CHANNEL_SYM
         | CHANGED
         | CIPHER_SYM
         | CLIENT_SYM
@@ -16715,6 +16455,12 @@ option_value_no_option_type:
           }
         | '@' ident_or_text equal
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
+
             if (sp_create_assignment_lex(thd, $1.str))
               MYSQL_YYABORT;
           }

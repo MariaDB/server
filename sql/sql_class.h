@@ -199,6 +199,7 @@ extern MYSQL_PLUGIN_IMPORT const char **errmesg;
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd);
 extern "C" unsigned long long thd_query_id(const MYSQL_THD thd);
 extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
+extern "C" const char *thd_priv_user(MYSQL_THD thd,  size_t *length);
 extern "C" const char *thd_priv_host(MYSQL_THD thd,  size_t *length);
 extern "C" const char *thd_user_name(MYSQL_THD thd);
 extern "C" const char *thd_client_host(MYSQL_THD thd);
@@ -559,7 +560,8 @@ typedef enum enum_diag_condition_item_name
   DIAG_CURSOR_NAME= 9,
   DIAG_MESSAGE_TEXT= 10,
   DIAG_MYSQL_ERRNO= 11,
-  LAST_DIAG_SET_PROPERTY= DIAG_MYSQL_ERRNO
+  DIAG_ROW_NUMBER= 12,
+  LAST_DIAG_SET_PROPERTY= DIAG_ROW_NUMBER
 } Diag_condition_item_name;
 
 /**
@@ -1115,6 +1117,24 @@ public:
     return res;
   }
   static THD_list_iterator *iterator();
+};
+
+/**
+  A counter of THDs
+
+  It must be specified as a first base class of THD, so that increment is
+  done before any other THD constructors and decrement - after any other THD
+  destructors.
+
+  Destructor unblocks close_conneciton() if there are no more THD's left.
+*/
+struct THD_count
+{
+  static Atomic_counter<uint32_t> count;
+  static uint value() { return static_cast<uint>(count); }
+  static uint connection_thd_count();
+  THD_count() { count++; }
+  ~THD_count() { count--; }
 };
 
 #ifdef MYSQL_SERVER
@@ -2359,21 +2379,6 @@ public:
 };
 
 /**
-  A wrapper around thread_count.
-
-  It must be specified as a first base class of THD, so that increment is
-  done before any other THD constructors and decrement - after any other THD
-  destructors.
-
-  Destructor unblocks close_conneciton() if there are no more THD's left.
-*/
-struct THD_count
-{
-  THD_count() { thread_count++; }
-  ~THD_count() { thread_count--; }
-};
-
-/**
   Support structure for asynchronous group commit, or more generally
   any asynchronous operation that needs to finish before server writes
   response to client.
@@ -2528,7 +2533,7 @@ struct thd_async_state
   }
 };
 
-extern "C" MYSQL_THD thd_increment_pending_ops(void);
+extern "C" void thd_increment_pending_ops(MYSQL_THD);
 extern "C" void thd_decrement_pending_ops(MYSQL_THD);
 
 
@@ -3407,6 +3412,9 @@ public:
   uint	     server_status,open_options;
   enum enum_thread_type system_thread;
   enum backup_stages current_backup_stage;
+#ifdef WITH_WSREP
+  bool wsrep_desynced_backup_stage;
+#endif /* WITH_WSREP */
   /*
     Current or next transaction isolation level.
     When a connection is established, the value is taken from
@@ -3912,6 +3920,11 @@ public:
     user_time= t;
     set_time();
   }
+  inline void force_set_time(my_time_t t, ulong sec_part)
+  {
+    start_time= system_time.sec= t;
+    start_time_sec_part= system_time.sec_part= sec_part;
+  }
   /*
     this is only used by replication and BINLOG command.
     usecs > TIME_MAX_SECOND_PART means "was not in binlog"
@@ -3923,15 +3936,9 @@ public:
     else
     {
       if (sec_part <= TIME_MAX_SECOND_PART)
-      {
-        start_time= system_time.sec= t;
-        start_time_sec_part= system_time.sec_part= sec_part;
-      }
+        force_set_time(t, sec_part);
       else if (t != system_time.sec)
-      {
-        start_time= system_time.sec= t;
-        start_time_sec_part= system_time.sec_part= 0;
-      }
+        force_set_time(t, 0);
       else
       {
         start_time= t;
@@ -4657,11 +4664,8 @@ public:
         for any CTE references.
       */
       if (!lex->with_cte_resolution)
-      {
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-        return TRUE;
-      }
-      return FALSE;
+      return TRUE;
     }
 
     to->str= strmake(db.str, db.length);
@@ -4797,45 +4801,17 @@ private:
     @param msg the condition message text
     @return The condition raised, or NULL
   */
-  Sql_condition*
-  raise_condition(uint sql_errno,
-                  const char* sqlstate,
-                  Sql_condition::enum_warning_level level,
-                  const char* msg)
+  Sql_condition* raise_condition(uint sql_errno, const char* sqlstate,
+                  Sql_condition::enum_warning_level level, const char* msg)
   {
-    return raise_condition(sql_errno, sqlstate, level,
-                           Sql_user_condition_identity(), msg);
+    Sql_condition cond(NULL, // don't strdup the msg
+                       Sql_condition_identity(sql_errno, sqlstate, level,
+                                              Sql_user_condition_identity()),
+                       msg, get_stmt_da()->current_row_for_warning());
+    return raise_condition(&cond);
   }
 
-  /**
-    Raise a generic or a user defined SQL condition.
-    @param ucid      - the user condition identity
-                       (or an empty identity if not a user condition)
-    @param sql_errno - the condition error number
-    @param sqlstate  - the condition SQLSTATE
-    @param level     - the condition level
-    @param msg       - the condition message text
-    @return The condition raised, or NULL
-  */
-  Sql_condition*
-  raise_condition(uint sql_errno,
-                  const char* sqlstate,
-                  Sql_condition::enum_warning_level level,
-                  const Sql_user_condition_identity &ucid,
-                  const char* msg);
-
-  Sql_condition*
-  raise_condition(const Sql_condition *cond)
-  {
-    Sql_condition *raised= raise_condition(cond->get_sql_errno(),
-                                           cond->get_sqlstate(),
-                                           cond->get_level(),
-                                           *cond/*Sql_user_condition_identity*/,
-                                           cond->get_message_text());
-    if (raised)
-      raised->copy_opt_attributes(cond);
-    return raised;
-  }
+  Sql_condition* raise_condition(const Sql_condition *cond);
 
 private:
   void push_warning_truncated_priv(Sql_condition::enum_warning_level level,
@@ -5409,7 +5385,8 @@ public:
       transaction->all.modified_non_trans_table= TRUE;
     transaction->all.m_unsafe_rollback_flags|=
       (transaction->stmt.m_unsafe_rollback_flags &
-       (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
+       (THD_TRANS::MODIFIED_NON_TRANS_TABLE |
+        THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
         THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL |
         THD_TRANS::EXECUTED_TABLE_ADMIN_CMD));
   }

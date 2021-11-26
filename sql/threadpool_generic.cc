@@ -1206,7 +1206,7 @@ TP_connection_generic *get_event(worker_thread_t *current_thread,
       non-blocking event poll, i.e with timeout = 0.
       If this returns events, pick one
     */
-    if (!oversubscribed)
+    if (!oversubscribed && !threadpool_dedicated_listener)
     {
       native_event ev[MAX_EVENTS];
       int cnt = io_poll_wait(thread_group->pollfd, ev, MAX_EVENTS, 0);
@@ -1746,9 +1746,9 @@ static void print_pool_blocked_message(bool max_threads_reached)
   if (now > pool_block_start + BLOCK_MSG_DELAY && !msg_written)
   {
     if (max_threads_reached)
-      sql_print_error(MAX_THREADS_REACHED_MSG);
+      sql_print_warning(MAX_THREADS_REACHED_MSG);
     else
-      sql_print_error(CREATE_THREAD_ERROR_MSG, my_errno);
+      sql_print_warning(CREATE_THREAD_ERROR_MSG, my_errno);
 
     sql_print_information("Threadpool has been blocked for %u seconds\n",
       (uint)((now- pool_block_start)/1000000));

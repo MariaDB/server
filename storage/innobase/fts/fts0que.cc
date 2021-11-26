@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2020, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,6 +34,7 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "fts0pars.h"
 #include "fts0types.h"
 #include "fts0plugin.h"
+#include "fts0vlc.h"
 
 #include <iomanip>
 #include <vector>
@@ -1193,7 +1194,7 @@ fts_query_difference(
 			query->error = error;
 		}
 
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 
 	/* The size can't increase. */
@@ -1317,7 +1318,7 @@ fts_query_intersect(
 			query->error = error;
 		}
 
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 
 		if (query->error == DB_SUCCESS) {
 			/* Make the intesection (rb tree) the current doc id
@@ -1437,7 +1438,7 @@ fts_query_union(
 		query->error = error;
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	if (query->error == DB_SUCCESS) {
 
@@ -2147,7 +2148,7 @@ fts_query_find_term(
 		query->fts_index_table.suffix = fts_get_suffix(selected);
 
 		fts_get_table_name(&query->fts_index_table, table_name);
-		pars_info_bind_id(info, true, "index_table_name", table_name);
+		pars_info_bind_id(info, "index_table_name", table_name);
 	}
 
 	select.found = FALSE;
@@ -2287,7 +2288,7 @@ fts_query_total_docs_containing_term(
 
 	fts_get_table_name(&query->fts_index_table, table_name);
 
-	pars_info_bind_id(info, true, "index_table_name", table_name);
+	pars_info_bind_id(info, "index_table_name", table_name);
 
 	graph = fts_parse_sql(
 		&query->fts_index_table,
@@ -2331,7 +2332,7 @@ fts_query_total_docs_containing_term(
 		}
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2370,7 +2371,7 @@ fts_query_terms_in_document(
 
 	fts_get_table_name(&query->fts_index_table, table_name);
 
-	pars_info_bind_id(info, true, "index_table_name", table_name);
+	pars_info_bind_id(info, "index_table_name", table_name);
 
 	graph = fts_parse_sql(
 		&query->fts_index_table,
@@ -2413,7 +2414,7 @@ fts_query_terms_in_document(
 		}
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2504,7 +2505,7 @@ fts_query_is_in_proximity_range(
 
 	/* Free the prepared statement. */
 	if (get_doc.get_document_graph) {
-		fts_que_graph_free(get_doc.get_document_graph);
+		que_graph_free(get_doc.get_document_graph);
 		get_doc.get_document_graph = NULL;
 	}
 
@@ -2594,7 +2595,7 @@ fts_query_search_phrase(
 func_exit:
 	/* Free the prepared statement. */
 	if (get_doc.get_document_graph) {
-		fts_que_graph_free(get_doc.get_document_graph);
+		que_graph_free(get_doc.get_document_graph);
 		get_doc.get_document_graph = NULL;
 	}
 
@@ -2809,7 +2810,7 @@ fts_query_phrase_search(
 				query->error = error;
 			}
 
-			fts_que_graph_free(graph);
+			que_graph_free(graph);
 			graph = NULL;
 
 			fts_query_cache(query, token);
@@ -3225,7 +3226,7 @@ fts_query_filter_doc_ids(
 	ulint			len,		/*!< in: doc id ilist size */
 	ibool			calc_doc_count)	/*!< in: whether to remember doc count */
 {
-	byte*		ptr = static_cast<byte*>(data);
+	const byte*	ptr = static_cast<byte*>(data);
 	doc_id_t	doc_id = 0;
 	ulint		decoded = 0;
 	ib_rbt_t*	doc_freqs = word_freq->doc_freqs;
@@ -3235,8 +3236,8 @@ fts_query_filter_doc_ids(
 		ulint		freq = 0;
 		fts_doc_freq_t*	doc_freq;
 		fts_match_t*	match = NULL;
-		ulint		last_pos = 0;
-		ulint		pos = fts_decode_vlc(&ptr);
+		doc_id_t	last_pos = 0;
+		doc_id_t	pos = fts_decode_vlc(&ptr);
 
 		/* Some sanity checks. */
 		if (doc_id == 0) {
@@ -3786,7 +3787,7 @@ fts_query_free(
 {
 
 	if (query->read_nodes_graph) {
-		fts_que_graph_free(query->read_nodes_graph);
+		que_graph_free(query->read_nodes_graph);
 	}
 
 	if (query->root) {

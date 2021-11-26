@@ -111,7 +111,6 @@ public:
   ha_rows part_min_rows;
   longlong range_value;
   const char *partition_name;
-  const char *tablespace_name;
   struct st_ddl_log_memory_entry *log_entry;
   const char* part_comment;
   const char* data_file_name;
@@ -129,7 +128,7 @@ public:
 
   partition_element()
   : part_max_rows(0), part_min_rows(0), range_value(0),
-    partition_name(NULL), tablespace_name(NULL),
+    partition_name(NULL),
     log_entry(NULL), part_comment(NULL),
     data_file_name(NULL), index_file_name(NULL),
     engine_type(NULL), connect_string(null_clex_str), part_state(PART_NORMAL),
@@ -143,7 +142,6 @@ public:
   : part_max_rows(part_elem->part_max_rows),
     part_min_rows(part_elem->part_min_rows),
     range_value(0), partition_name(NULL),
-    tablespace_name(part_elem->tablespace_name),
     log_entry(NULL),
     part_comment(part_elem->part_comment),
     data_file_name(part_elem->data_file_name),

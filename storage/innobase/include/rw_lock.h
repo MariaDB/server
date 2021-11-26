@@ -50,9 +50,22 @@ protected:
   static constexpr uint32_t UPDATER= 1U << 29;
 #endif /* SUX_LOCK_GENERIC */
 
+  /** Start waiting for an exclusive lock. */
+  void write_lock_wait_start()
+  {
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    static_assert(WRITER_WAITING == 1U << 30, "compatibility");
+    __asm__ __volatile__("lock btsl $30, %0" : "+m" (lock));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+    static_assert(WRITER_WAITING == 1U << 30, "compatibility");
+    _interlockedbittestandset(reinterpret_cast<volatile long*>(&lock), 30);
+#else
+    lock.fetch_or(WRITER_WAITING, std::memory_order_relaxed);
+#endif
+  }
   /** Start waiting for an exclusive lock.
   @return current value of the lock word */
-  uint32_t write_lock_wait_start()
+  uint32_t write_lock_wait_start_read()
   { return lock.fetch_or(WRITER_WAITING, std::memory_order_relaxed); }
   /** Wait for an exclusive lock.
   @param l the value of the lock word
@@ -124,8 +137,8 @@ protected:
     }
     DBUG_ASSERT((l & ~WRITER_WAITING) == UPDATER);
     /* Any thread that had set WRITER_WAITING will eventually be woken
-    up by ssux_lock_low::x_unlock() or ssux_lock_low::u_unlock()
-    (not ssux_lock_low::wr_u_downgrade() to keep the code simple). */
+    up by ssux_lock_impl::x_unlock() or ssux_lock_impl::u_unlock()
+    (not ssux_lock_impl::wr_u_downgrade() to keep the code simple). */
     return true;
   }
   /** Downgrade an exclusive lock to an update lock. */
@@ -183,8 +196,12 @@ public:
   /** Release an exclusive lock */
   void write_unlock()
   {
-    IF_DBUG_ASSERT(auto l=,)
-    lock.fetch_and(~WRITER, std::memory_order_release);
+    /* Below, we use fetch_sub(WRITER) instead of fetch_and(~WRITER).
+    The reason is that on IA-32 and AMD64 it translates into the 80486
+    instruction LOCK XADD, while fetch_and() translates into a loop
+    around LOCK CMPXCHG. For other ISA either form should be fine. */
+    static_assert(WRITER == 1U << 31, "compatibility");
+    IF_DBUG_ASSERT(auto l=,) lock.fetch_sub(WRITER, std::memory_order_release);
     /* the write lock must have existed */
 #ifdef SUX_LOCK_GENERIC
     DBUG_ASSERT((l & (WRITER | UPDATER)) == WRITER);
@@ -205,23 +222,13 @@ public:
   }
 
   /** @return whether an exclusive lock is being held by any thread */
-  bool is_write_locked() const
-  { return !!(lock.load(std::memory_order_relaxed) & WRITER); }
+  bool is_write_locked() const { return !!(value() & WRITER); }
 #ifdef SUX_LOCK_GENERIC
   /** @return whether an update lock is being held by any thread */
-  bool is_update_locked() const
-  { return !!(lock.load(std::memory_order_relaxed) & UPDATER); }
+  bool is_update_locked() const { return !!(value() & UPDATER); }
 #endif /* SUX_LOCK_GENERIC */
-  /** @return whether a shared lock is being held by any thread */
-  bool is_read_locked() const
-  {
-    auto l= lock.load(std::memory_order_relaxed);
-    return (l & ~WRITER_PENDING) && !(l & WRITER);
-  }
   /** @return whether any lock is being held or waited for by any thread */
-  bool is_locked_or_waiting() const
-  { return lock.load(std::memory_order_relaxed) != 0; }
+  bool is_locked_or_waiting() const { return value() != 0; }
   /** @return whether any lock is being held by any thread */
-  bool is_locked() const
-  { return (lock.load(std::memory_order_relaxed) & ~WRITER_WAITING) != 0; }
+  bool is_locked() const { return (value() & ~WRITER_WAITING) != 0; }
 };

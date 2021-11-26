@@ -5119,7 +5119,7 @@ my_bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
 
   if (!(bitmap_buf= (my_bitmap_map*) alloc_root(mem_root,
                                                 bitmap_buffer_size(n_bits))) ||
-      my_bitmap_init(map, bitmap_buf, n_bits, FALSE))
+      my_bitmap_init(map, bitmap_buf, n_bits))
     return TRUE;
   bitmap_clear_all(map);
   return FALSE;
@@ -5309,6 +5309,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
 
   context= new (thd->mem_root) Name_resolution_context;
   context->init();
+  context->select_lex= item_in->unit->first_select();
   context->first_name_resolution_table=
     context->last_name_resolution_table= tmp_table_ref;
   semi_join_conds_context= context;
@@ -6011,7 +6012,7 @@ bool Ordered_key::alloc_keys_buffers()
     lookup offset.
   */
   /* Notice that max_null_row is max array index, we need count, so +1. */
-  if (my_bitmap_init(&null_key, NULL, (uint)(max_null_row + 1), FALSE))
+  if (my_bitmap_init(&null_key, NULL, (uint)(max_null_row + 1)))
     return TRUE;
 
   cur_key_idx= HA_POS_ERROR;

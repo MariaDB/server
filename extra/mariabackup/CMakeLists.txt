@@ -15,6 +15,7 @@
 
 
 OPTION(WITH_MARIABACKUP "Include mariabackup" ON)
+ADD_FEATURE_INFO(MARIABACKUP WITH_MARIABACKUP "MariaDB Backup Utility")
 IF(NOT WITH_MARIABACKUP)
   RETURN()
 ENDIF()
@@ -67,7 +68,7 @@ MYSQL_ADD_EXECUTABLE(mariadb-backup
   xbstream_write.cc
   backup_mysql.cc
   backup_copy.cc
-  encryption_plugin.cc
+  xb_plugin.cc
   ${PROJECT_BINARY_DIR}/sql/sql_builtin.cc
   ${PROJECT_SOURCE_DIR}/sql/net_serv.cc
   ${PROJECT_SOURCE_DIR}/libmysqld/libmysql.c

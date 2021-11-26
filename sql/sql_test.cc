@@ -264,7 +264,7 @@ static void print_keyuse(KEYUSE *keyuse)
 void print_keyuse_array(DYNAMIC_ARRAY *keyuse_array)
 {
   DBUG_LOCK_FILE;
-  fprintf(DBUG_FILE, "KEYUSE array (%d elements)\n", keyuse_array->elements);
+  fprintf(DBUG_FILE, "KEYUSE array (%zu elements)\n", keyuse_array->elements);
   for(uint i=0; i < keyuse_array->elements; i++)
     print_keyuse((KEYUSE*)dynamic_array_ptr(keyuse_array, i));
   DBUG_UNLOCK_FILE;

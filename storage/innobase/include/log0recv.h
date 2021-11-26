@@ -225,7 +225,7 @@ private:
 public:
   /** whether we are applying redo log records during crash recovery */
   bool recovery_on;
-  /** whether recv_recover_page(), invoked from buf_page_read_complete(),
+  /** whether recv_recover_page(), invoked from buf_page_t::read_complete(),
   should apply log records*/
   bool apply_log_recs;
 	byte*		buf;	/*!< buffer for parsing log records */

@@ -29,6 +29,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-mb.h"
 
 #ifdef HAVE_CHARSET_big5
 
@@ -6690,6 +6691,7 @@ my_mb_wc_big5(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _big5_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (big5code(x, y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 
@@ -6706,6 +6708,7 @@ my_mb_wc_big5(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _big5_nopad_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (big5code(x, y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 
@@ -6721,7 +6724,9 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_chinese_ci=
   my_strcasecmp_mb,
   my_instr_mb,
   my_hash_sort_simple,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -6737,7 +6742,9 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_bin=
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -6753,7 +6760,9 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_chinese_nopad_ci=
   my_strcasecmp_mb,
   my_instr_mb,
   my_hash_sort_simple_nopad,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -6769,7 +6778,9 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_nopad_bin=
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_nopad_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 

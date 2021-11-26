@@ -1,0 +1,21 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+CREATE TABLE t(a INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
+
+INSERT INTO t VALUES (10), (30);
+
+--connect (con1,localhost,root,,)
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+BEGIN;
+INSERT INTO t VALUES (20);
+SELECT * FROM t WHERE a BETWEEN 10 AND 30;
+
+--connection default
+SET session innodb_lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t VALUES (15);
+
+--disconnect con1
+DROP TABLE t;
+--source include/wait_until_count_sessions.inc

@@ -494,8 +494,8 @@ inline void PageBulk::finishPage()
 
 inline bool PageBulk::needs_finish() const
 {
-  ut_ad(page_align(m_cur_rec) == m_block->frame);
-  ut_ad(m_page == m_block->frame);
+  ut_ad(page_align(m_cur_rec) == m_block->page.frame);
+  ut_ad(m_page == m_block->page.frame);
   if (!m_page[PAGE_HEADER + PAGE_DIRECTION_B])
     return true;
   ulint heap_no, n_heap= page_header_get_field(m_page, PAGE_N_HEAP);
@@ -839,7 +839,7 @@ PageBulk::release()
 	finish();
 
 	/* We fix the block because we will re-pin it soon. */
-	buf_block_buf_fix_inc(m_block);
+	m_block->page.fix();
 
 	/* No other threads can modify this block. */
 	m_modify_clock = buf_block_get_modify_clock(m_block);
@@ -856,9 +856,10 @@ PageBulk::latch()
 
 	ut_ad(m_block->page.buf_fix_count());
 
-	/* In case the block is S-latched by page_cleaner. */
+	/* In case the block is U-latched by page_cleaner. */
 	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
 				     &m_mtr)) {
+		/* FIXME: avoid another lookup */
 		m_block = buf_page_get_gen(page_id_t(m_index->table->space_id,
 						     m_page_no),
 					   0, RW_X_LATCH,
@@ -872,11 +873,11 @@ PageBulk::latch()
 		ut_ad(m_block != NULL);
 	}
 
-	buf_block_buf_fix_dec(m_block);
+	ut_d(const auto buf_fix_count =) m_block->page.unfix();
 
-	ut_ad(m_block->page.buf_fix_count());
-
-	ut_ad(m_cur_rec > m_page && m_cur_rec < m_heap_top);
+	ut_ad(buf_fix_count);
+	ut_ad(m_cur_rec > m_page);
+	ut_ad(m_cur_rec < m_heap_top);
 
 	return (m_err);
 }
@@ -1207,7 +1208,7 @@ BtrBulk::finish(dberr_t	err)
 		last_block = btr_block_get(*m_index, last_page_no, RW_X_LATCH,
 					   false, &mtr);
 		first_rec = page_rec_get_next(
-			page_get_infimum_rec(last_block->frame));
+			page_get_infimum_rec(last_block->page.frame));
 		ut_ad(page_rec_is_user_rec(first_rec));
 
 		/* Copy last page to root page. */

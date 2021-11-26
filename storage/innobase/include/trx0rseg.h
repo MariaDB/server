@@ -43,6 +43,7 @@ trx_rsegf_get(fil_space_t* space, uint32_t page_no, mtr_t* mtr);
 /** Create a rollback segment header.
 @param[in,out]	space		system, undo, or temporary tablespace
 @param[in]	rseg_id		rollback segment identifier
+@param[in]	max_trx_id	new value of TRX_RSEG_MAX_TRX_ID
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
 @return the created rollback segment
@@ -51,6 +52,7 @@ buf_block_t*
 trx_rseg_header_create(
 	fil_space_t*	space,
 	ulint		rseg_id,
+	trx_id_t	max_trx_id,
 	buf_block_t*	sys_header,
 	mtr_t*		mtr);
 
@@ -72,7 +74,7 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) trx_rseg_t
   /** tablespace containing the rollback segment; constant after init() */
   fil_space_t *space;
   /** latch protecting everything except page_no, space */
-  srw_lock_low latch;
+  srw_spin_lock_low latch;
   /** rollback segment header page number; constant after init() */
   uint32_t page_no;
   /** length of the TRX_RSEG_HISTORY list (number of transactions) */
@@ -91,6 +93,43 @@ private:
   static constexpr uint32_t REF= 4;
 
   uint32_t ref_load() const { return ref.load(std::memory_order_relaxed); }
+
+  /** Set a bit in ref */
+  template<bool needs_purge> void ref_set()
+  {
+    static_assert(SKIP == 1U << 0, "compatibility");
+    static_assert(NEEDS_PURGE == 1U << 1, "compatibility");
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    if (needs_purge)
+      __asm__ __volatile__("lock btsl $1, %0" : "+m" (ref));
+    else
+      __asm__ __volatile__("lock btsl $0, %0" : "+m" (ref));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+    _interlockedbittestandset(reinterpret_cast<volatile long*>(&ref),
+                              needs_purge);
+#else
+    ref.fetch_or(needs_purge ? NEEDS_PURGE : SKIP, std::memory_order_relaxed);
+#endif
+  }
+  /** Clear a bit in ref */
+  template<bool needs_purge> void ref_reset()
+  {
+    static_assert(SKIP == 1U << 0, "compatibility");
+    static_assert(NEEDS_PURGE == 1U << 1, "compatibility");
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    if (needs_purge)
+      __asm__ __volatile__("lock btrl $1, %0" : "+m" (ref));
+    else
+      __asm__ __volatile__("lock btrl $0, %0" : "+m" (ref));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+    _interlockedbittestandreset(reinterpret_cast<volatile long*>(&ref),
+                                needs_purge);
+#else
+    ref.fetch_and(needs_purge ? ~NEEDS_PURGE : ~SKIP,
+                  std::memory_order_relaxed);
+#endif
+  }
+
 public:
 
   /** Initialize the fields that are not zero-initialized. */
@@ -101,21 +140,22 @@ public:
   void destroy();
 
   /** Note that undo tablespace truncation was started. */
-  void set_skip_allocation()
-  { ut_ad(is_persistent()); ref.fetch_or(SKIP, std::memory_order_relaxed); }
+  void set_skip_allocation() { ut_ad(is_persistent()); ref_set<false>(); }
   /** Note that undo tablespace truncation was completed. */
   void clear_skip_allocation()
   {
     ut_ad(is_persistent());
+#if defined DBUG_OFF
+    ref_reset<false>();
+#else
     ut_d(auto r=) ref.fetch_and(~SKIP, std::memory_order_relaxed);
     ut_ad(r == SKIP);
+#endif
   }
   /** Note that the rollback segment requires purge. */
-  void set_needs_purge()
-  { ref.fetch_or(NEEDS_PURGE, std::memory_order_relaxed); }
+  void set_needs_purge() { ref_set<true>(); }
   /** Note that the rollback segment will not require purge. */
-  void clear_needs_purge()
-  { ref.fetch_and(~NEEDS_PURGE, std::memory_order_relaxed); }
+  void clear_needs_purge() { ref_reset<true>(); }
   /** @return whether the segment is marked for undo truncation */
   bool skip_allocation() const { return ref_load() & SKIP; }
   /** @return whether the segment needs purge */
@@ -250,7 +290,7 @@ inline uint32_t trx_rsegf_get_nth_undo(const buf_block_t *rseg_header, ulint n)
 {
   ut_ad(n < TRX_RSEG_N_SLOTS);
   return mach_read_from_4(TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
-                          n * TRX_RSEG_SLOT_SIZE + rseg_header->frame);
+                          n * TRX_RSEG_SLOT_SIZE + rseg_header->page.frame);
 }
 
 #ifdef WITH_WSREP

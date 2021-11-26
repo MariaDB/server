@@ -173,6 +173,16 @@ row_undo_mod_clust_low(
 	case DICT_INDEXES_ID:
 		if (node->trx != trx_roll_crash_recv_trx) {
 			break;
+		} else if (node->rec_type == TRX_UNDO_DEL_MARK_REC
+			   && btr_cur_get_rec(btr_cur)
+			   [8 + 8 + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN]
+			   == static_cast<byte>(*TEMP_INDEX_PREFIX_STR)) {
+			/* We are rolling back the DELETE of metadata
+			for a failed ADD INDEX operation. This does
+			not affect any cached table definition,
+			because we are filtering out such indexes in
+			dict_load_indexes(). */
+			break;
 		}
 		/* fall through */
 	case DICT_COLUMNS_ID:
@@ -267,7 +277,6 @@ row_undo_mod_clust(
 	bool		online;
 
 	ut_ad(thr_get_trx(thr) == node->trx);
-	ut_ad(node->trx->dict_operation_lock_mode);
 	ut_ad(node->trx->in_rollback);
 
 	log_free_check();
@@ -285,7 +294,7 @@ row_undo_mod_clust(
 
 	online = dict_index_is_online_ddl(index);
 	if (online) {
-		ut_ad(node->trx->dict_operation_lock_mode != RW_X_LATCH);
+		ut_ad(!node->trx->dict_operation_lock_mode);
 		mtr_s_lock_index(index, &mtr);
 	}
 
@@ -324,13 +333,7 @@ row_undo_mod_clust(
 		ut_ad(err == DB_SUCCESS || err == DB_OUT_OF_FILE_SPACE);
 	}
 
-	/* Online rebuild cannot be initiated while we are holding
-	dict_sys.latch and index->lock. (It can be aborted.) */
-	ut_ad(online || !dict_index_is_online_ddl(index));
-
-	if (err == DB_SUCCESS && online) {
-		ut_ad(index->lock.have_any());
-
+	if (err == DB_SUCCESS && online && dict_index_is_online_ddl(index)) {
 		switch (node->rec_type) {
 		case TRX_UNDO_DEL_MARK_REC:
 			row_log_table_insert(
@@ -510,7 +513,7 @@ row_undo_mod_clust(
 				mtr.memset(block, offs, DATA_TRX_ID_LEN, 0);
 				offs += DATA_TRX_ID_LEN;
 				mtr.write<1,mtr_t::MAYBE_NOP>(*block,
-							      block->frame
+							      block->page.frame
 							      + offs, 0x80U);
 				mtr.memset(block, offs + 1,
 					   DATA_ROLL_PTR_LEN - 1, 0);
@@ -921,37 +924,6 @@ func_exit_no_pcur:
 }
 
 /***********************************************************//**
-Flags a secondary index corrupted. */
-static MY_ATTRIBUTE((nonnull))
-void
-row_undo_mod_sec_flag_corrupted(
-/*============================*/
-	trx_t*		trx,	/*!< in/out: transaction */
-	dict_index_t*	index)	/*!< in: secondary index */
-{
-	ut_ad(!dict_index_is_clust(index));
-
-	switch (trx->dict_operation_lock_mode) {
-	case RW_S_LATCH:
-		/* Because row_undo() is holding an S-latch
-		on the data dictionary during normal rollback,
-		we can only mark the index corrupted in the
-		data dictionary cache. TODO: fix this somehow.*/
-		dict_sys.mutex_lock();
-		dict_set_corrupted_index_cache_only(index);
-		dict_sys.mutex_unlock();
-		break;
-	default:
-		ut_ad(0);
-		/* fall through */
-	case RW_X_LATCH:
-		/* This should be the rollback of a data dictionary
-		transaction. */
-		dict_set_corrupted(index, trx, "rollback");
-	}
-}
-
-/***********************************************************//**
 Undoes a modify in secondary indexes when undo record type is UPD_DEL.
 @return DB_SUCCESS or DB_OUT_OF_FILE_SPACE */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
@@ -1064,8 +1036,7 @@ row_undo_mod_del_mark_sec(
 		}
 
 		if (err == DB_DUPLICATE_KEY) {
-			row_undo_mod_sec_flag_corrupted(
-				thr_get_trx(thr), index);
+			index->type |= DICT_CORRUPT;
 			err = DB_SUCCESS;
 			/* Do not return any error to the caller. The
 			duplicate will be reported by ALTER TABLE or
@@ -1210,8 +1181,7 @@ row_undo_mod_upd_exist_sec(
 		}
 
 		if (err == DB_DUPLICATE_KEY) {
-			row_undo_mod_sec_flag_corrupted(
-				thr_get_trx(thr), index);
+			index->type |= DICT_CORRUPT;
 			err = DB_SUCCESS;
 		} else if (err != DB_SUCCESS) {
 			break;
@@ -1255,9 +1225,9 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
-		dict_sys.mutex_lock();
+		dict_sys.freeze(SRW_LOCK_CALL);
 		node->table = dict_sys.acquire_temporary_table(table_id);
-		dict_sys.mutex_unlock();
+		dict_sys.unfreeze();
 	} else {
 		node->table = dict_sys.acquire_temporary_table(table_id);
 	}
@@ -1279,7 +1249,7 @@ close_table:
 		would probably be better to just drop all temporary
 		tables (and temporary undo log records) of the current
 		connection, instead of doing this rollback. */
-		dict_table_close(node->table, dict_locked, FALSE);
+		dict_table_close(node->table, dict_locked);
 		node->table = NULL;
 		return false;
 	}
@@ -1367,13 +1337,14 @@ row_undo_mod(
 {
 	dberr_t	err;
 	ut_ad(thr_get_trx(thr) == node->trx);
-	const bool dict_locked = node->trx->dict_operation_lock_mode
-		== RW_X_LATCH;
+	const bool dict_locked = node->trx->dict_operation_lock_mode;
 
 	if (!row_undo_mod_parse_undo_rec(node, dict_locked)) {
 		return DB_SUCCESS;
 	}
 
+	ut_ad(node->table->is_temporary()
+	      || lock_table_has_locks(node->table));
 	node->index = dict_table_get_first_index(node->table);
 	ut_ad(dict_index_is_clust(node->index));
 
@@ -1429,7 +1400,7 @@ rollback_clust:
 			/* Do not attempt to update statistics when
 			executing ROLLBACK in the InnoDB SQL
 			interpreter, because in that case we would
-			already be holding dict_sys.mutex, which
+			already be holding dict_sys.latch, which
 			would be acquired when updating statistics. */
 			if (update_statistics && !dict_locked) {
 				dict_stats_update_if_needed(node->table,
@@ -1440,7 +1411,7 @@ rollback_clust:
 		}
 	}
 
-	dict_table_close(node->table, dict_locked, FALSE);
+	dict_table_close(node->table, dict_locked);
 
 	node->table = NULL;
 

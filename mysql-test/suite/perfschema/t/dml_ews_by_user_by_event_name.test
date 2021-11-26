@@ -39,3 +39,9 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.events_waits_summary_by_user_by_event_name WRITE;
 UNLOCK TABLES;
 
+--echo #
+--echo # MDEV-25325 column_comment for performance_schema tables
+--echo #
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='events_waits_summary_by_user_by_event_name';

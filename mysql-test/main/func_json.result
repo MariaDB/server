@@ -765,8 +765,8 @@ DROP TABLE t1;
 #
 # MDEV-16054 simple json functions flatline cpu on garbage input.
 #
-select json_array(1,uuid(),compress(5.140264e+307));
-json_array(1,uuid(),compress(5.140264e+307))
+select json_array(1,user(),compress(5.140264e+307));
+json_array(1,user(),compress(5.140264e+307))
 NULL
 #
 # MDEV-16869 String functions don't respect character set of JSON_VALUE.
@@ -933,6 +933,12 @@ CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DOUBLE) AS cf,
 CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
 cf	cd
 0	0
+#
+# MDEV-24585 Assertion `je->s.cs == nice_js->charset()' failed in json_nice.
+#
+SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
+JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' )
+["x"]
 #
 # End of 10.2 tests
 #

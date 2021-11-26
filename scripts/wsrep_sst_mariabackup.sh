@@ -34,6 +34,7 @@ ssyslog=""
 ssystag=""
 BACKUP_PID=""
 tcert=""
+tpath=0
 tpem=""
 tkey=""
 tmode="DISABLED"
@@ -85,7 +86,6 @@ readonly SECRET_TAG="secret"
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
-# 5.6.21 PXC and later can't donate to an older joiner
 sst_ver=1
 
 if [ -n "$(command -v pv)" ] && pv --help | grep -qw -- '-F'; then
@@ -166,7 +166,8 @@ get_keys()
     fi
 
     if [ -z "$ekey" -a ! -r "$ekeyfile" ]; then
-        wsrep_log_error "FATAL: Either key or keyfile must be readable"
+        wsrep_log_error "FATAL: Either key must be specified " \
+                        "or keyfile must be readable"
         exit 3
     fi
 
@@ -338,63 +339,82 @@ get_transfer()
             fi
         fi
 
+        CN_option=",commonname=''"
+
         if [ $encrypt -eq 2 ]; then
             wsrep_log_info "Using openssl based encryption with socat: with crt and pem"
             if [ -z "$tpem" -o -z "$tcert" ]; then
-                wsrep_log_error "Both PEM and CRT files required"
+                wsrep_log_error \
+                    "Both PEM file and CRT file (or path) are required"
                 exit 22
             fi
             if [ ! -r "$tpem" -o ! -r "$tcert" ]; then
-                wsrep_log_error "Both PEM and CRT files must be readable"
+                wsrep_log_error \
+                    "Both PEM file and CRT file (or path) must be readable"
                 exit 22
             fi
-            verify_ca_matches_cert "$tcert" "$tpem"
-            tcmd="$tcmd,cert='$tpem',cafile='$tcert'$sockopt"
+            verify_ca_matches_cert "$tcert" "$tpem" $tpath
+            if [ $tpath -eq 0 ]; then
+                tcmd="$tcmd,cert='$tpem',cafile='$tcert'"
+            else
+                tcmd="$tcmd,cert='$tpem',capath='$tcert'"
+            fi
             stagemsg="$stagemsg-OpenSSL-Encrypted-2"
-            wsrep_log_info "$action with cert=$tpem, cafile=$tcert"
+            wsrep_log_info "$action with cert=$tpem, ca=$tcert"
         elif [ $encrypt -eq 3 -o $encrypt -eq 4 ]; then
             wsrep_log_info "Using openssl based encryption with socat: with key and crt"
             if [ -z "$tpem" -o -z "$tkey" ]; then
-                wsrep_log_error "Both certificate and key files required"
+                wsrep_log_error "Both certificate file (or path) " \
+                                "and key file are required"
                 exit 22
             fi
             if [ ! -r "$tpem" -o ! -r "$tkey" ]; then
-                wsrep_log_error "Both certificate and key files must be readable"
+                wsrep_log_error "Both certificate file (or path) " \
+                                "and key file must be readable"
                 exit 22
             fi
             verify_cert_matches_key "$tpem" "$tkey"
             stagemsg="$stagemsg-OpenSSL-Encrypted-3"
             if [ -z "$tcert" ]; then
                 if [ $encrypt -eq 4 ]; then
-                    wsrep_log_error "Peer certificate required if encrypt=4"
+                    wsrep_log_error \
+                        "Peer certificate file (or path) required if encrypt=4"
                     exit 22
                 fi
                 # no verification
-                tcmd="$tcmd,cert='$tpem',key='$tkey',verify=0$sockopt"
+                CN_option=""
+                tcmd="$tcmd,cert='$tpem',key='$tkey',verify=0"
                 wsrep_log_info "$action with cert=$tpem, key=$tkey, verify=0"
             else
                 # CA verification
                 if [ ! -r "$tcert" ]; then
-                    wsrep_log_error "Certificate file must be readable"
+                    wsrep_log_error "Certificate file or path must be readable"
                     exit 22
                 fi
-                verify_ca_matches_cert "$tcert" "$tpem"
+                verify_ca_matches_cert "$tcert" "$tpem" $tpath
                 if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
                     CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
-                elif [ $encrypt -eq 4 ]; then
+                elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' -o $encrypt -eq 4 ]
+                then
                     CN_option=",commonname=''"
                 elif is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
                     CN_option=',commonname=localhost'
                 else
                     CN_option=",commonname='$WSREP_SST_OPT_HOST_UNESCAPED'"
                 fi
-                tcmd="$tcmd,cert='$tpem',key='$tkey',cafile='$tcert'$CN_option$sockopt"
-                wsrep_log_info "$action with cert=$tpem, key=$tkey, cafile=$tcert"
+                if [ $tpath -eq 0 ]; then
+                    tcmd="$tcmd,cert='$tpem',key='$tkey',cafile='$tcert'"
+                else
+                    tcmd="$tcmd,cert='$tpem',key='$tkey',capath='$tcert'"
+                fi
+                wsrep_log_info "$action with cert=$tpem, key=$tkey, ca=$tcert"
             fi
         else
             wsrep_log_info "Unknown encryption mode: encrypt=$encrypt"
             exit 22
         fi
+
+        tcmd="$tcmd$CN_option$sockopt"
 
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
             tcmd="$tcmd stdio"
@@ -448,9 +468,36 @@ encgroups='--mysqld|sst|xtrabackup'
 
 check_server_ssl_config()
 {
-    tcert=$(parse_cnf "$encgroups" 'ssl-ca')
-    tpem=$(parse_cnf "$encgroups" 'ssl-cert')
-    tkey=$(parse_cnf "$encgroups" 'ssl-key')
+    # backward-compatible behavior:
+    tcert=$(parse_cnf 'sst' 'tca')
+    tpem=$(parse_cnf 'sst' 'tcert')
+    tkey=$(parse_cnf 'sst' 'tkey')
+    # reading new ssl configuration options:
+    local tcert2=$(parse_cnf "$encgroups" 'ssl-ca')
+    local tpem2=$(parse_cnf "$encgroups" 'ssl-cert')
+    local tkey2=$(parse_cnf "$encgroups" 'ssl-key')
+    # if there are no old options, then we take new ones:
+    if [ -z "$tcert" -a -z "$tpem" -a -z "$tkey" ]; then
+        tcert="$tcert2"
+        tpem="$tpem2"
+        tkey="$tkey2"
+    # checking for presence of the new-style SSL configuration:
+    elif [ -n "$tcert2" -o -n "$tpem2" -o -n "$tkey2" ]; then
+        if [ "$tcert" != "$tcert2" -o \
+             "$tpem"  != "$tpem2"  -o \
+             "$tkey"  != "$tkey2" ]
+        then
+            wsrep_log_info "new ssl configuration options (ssl-ca, ssl-cert " \
+                           "and ssl-key) are ignored by SST due to presence " \
+                           "of the tca, tcert and/or tkey in the [sst] section"
+        fi
+    fi
+    if [ -n "$tcert" ]; then
+       tcert=$(trim_string "$tcert")
+       if [ "${tcert%/}" != "$tcert" ]; then
+           tpath=1
+       fi
+    fi
 }
 
 read_cnf()
@@ -463,18 +510,10 @@ read_cnf()
 
     if [ $encrypt -eq 0 -o $encrypt -ge 2 ]
     then
-        if [ "$tmode" != 'DISABLED' -o $encrypt -ge 2 ]
-        then
-            tcert=$(parse_cnf 'sst' 'tca')
-            tpem=$(parse_cnf 'sst' 'tcert')
-            tkey=$(parse_cnf 'sst' 'tkey')
+        if [ "$tmode" != 'DISABLED' -o $encrypt -ge 2 ]; then
+            check_server_ssl_config
         fi
         if [ "$tmode" != 'DISABLED' ]; then
-            # backward-incompatible behavior
-            if [ -z "$tpem" -a -z "$tkey" -a -z "$tcert" ]; then
-                # no old-style SSL config in [sst]
-                check_server_ssl_config
-            fi
             if [ 0 -eq $encrypt -a -n "$tpem" -a -n "$tkey" ]
             then
                 encrypt=3 # enable cert/key SSL encyption
@@ -489,7 +528,11 @@ read_cnf()
         ealgo=$(parse_cnf "$encgroups" 'encrypt-algo')
         eformat=$(parse_cnf "$encgroups" 'encrypt-format' 'openssl')
         ekey=$(parse_cnf "$encgroups" 'encrypt-key')
-        ekeyfile=$(parse_cnf "$encgroups" 'encrypt-key-file')
+        # The keyfile should be read only when the key
+        # is not specified or empty:
+        if [ -z "$ekey" ]; then
+            ekeyfile=$(parse_cnf "$encgroups" 'encrypt-key-file')
+        fi
     fi
 
     wsrep_log_info "SSL configuration: CA='$tcert', CERT='$tpem'," \
@@ -908,7 +951,11 @@ setup_commands()
     if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
         mysqld_args="--mysqld-args $WSREP_SST_OPT_MYSQLD"
     fi
-    INNOAPPLY="$BACKUP_BIN --prepare $disver $iapts $INNOEXTRA --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
+    if [ -z "$INNODB_FORCE_RECOVERY" ]; then
+        INNOAPPLY="$BACKUP_BIN --prepare $disver $iapts $INNOEXTRA --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
+    else
+        INNOAPPLY="$BACKUP_BIN --prepare $disver $iapts $INNOEXTRA --innodb-force-recovery=$INNODB_FORCE_RECOVERY --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
+    fi
     INNOMOVE="$BACKUP_BIN $WSREP_SST_OPT_CONF --move-back $disver $impts --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
     INNOBACKUP="$BACKUP_BIN $WSREP_SST_OPT_CONF --backup $disver $iopts $tmpopts $INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA' $mysqld_args $INNOBACKUP"
 }
@@ -931,8 +978,10 @@ then
         tmpdir=$(parse_cnf "$encgroups" 'tmpdir')
         if [ -z "$tmpdir" ]; then
             xtmpdir="$(mktemp -d)"
-        else
+        elif [ "$OS" = 'Linux' ]; then
             xtmpdir=$(mktemp '-d' "--tmpdir=$tmpdir")
+        else
+            xtmpdir=$(TMPDIR="$tmpdir"; mktemp '-d')
         fi
 
         wsrep_log_info "Using '$xtmpdir' as mariabackup temporary directory"
@@ -1200,8 +1249,8 @@ then
             cd "$binlog_dir"
             wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
             rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || true
-            binlog_index="${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
-            [ -f "$binlog_index" ] && rm -fv "$binlog_index" 1>&2 \+ || true
+            [ -f "$WSREP_SST_OPT_BINLOG_INDEX" ] && \
+                rm -fv "$WSREP_SST_OPT_BINLOG_INDEX" 1>&2 \+ || true
             cd "$OLD_PWD"
         fi
 
@@ -1276,7 +1325,7 @@ then
 
             cd "$BINLOG_DIRNAME"
             for bfile in $(ls -1 "$BINLOG_FILENAME".[0-9]*); do
-                echo "$BINLOG_DIRNAME/$bfile" >> "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
+                echo "$BINLOG_DIRNAME/$bfile" >> "$WSREP_SST_OPT_BINLOG_INDEX"
             done
             cd "$OLD_PWD"
 

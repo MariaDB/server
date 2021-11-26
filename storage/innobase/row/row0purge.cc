@@ -108,19 +108,16 @@ row_purge_remove_clust_if_poss_low(
 	dict_index_t* index = dict_table_get_first_index(node->table);
 	table_id_t table_id = 0;
 	index_id_t index_id = 0;
-	MDL_ticket* mdl_ticket = nullptr;
 	dict_table_t *table = nullptr;
 	pfs_os_file_t f = OS_FILE_CLOSED;
 
 	if (table_id) {
 retry:
 		purge_sys.check_stop_FTS();
-		dict_sys.mutex_lock();
-		table = dict_table_open_on_id(
-			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
-			node->purge_thd, &mdl_ticket);
+		dict_sys.lock(SRW_LOCK_CALL);
+		table = dict_sys.find_table(table_id);
 		if (!table) {
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		} else if (table->n_rec_locks) {
 			for (dict_index_t* ind = UT_LIST_GET_FIRST(
 				     table->indexes); ind;
@@ -143,9 +140,7 @@ removed:
 		mtr.commit();
 close_and_exit:
 		if (table) {
-			dict_table_close(table, true, false,
-					 node->purge_thd, mdl_ticket);
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		}
 		return success;
 	}
@@ -169,22 +164,14 @@ close_and_exit:
 		if (const uint32_t space_id = dict_drop_index_tree(
 			    &node->pcur, nullptr, &mtr)) {
 			if (table) {
-				if (table->release()) {
+				if (table->get_ref_count() == 0) {
 					dict_sys.remove(table);
 				} else if (table->space_id == space_id) {
 					table->space = nullptr;
 					table->file_unreadable = true;
 				}
+				dict_sys.unlock();
 				table = nullptr;
-				dict_sys.mutex_unlock();
-				if (!mdl_ticket);
-				else if (MDL_context* mdl_context =
-					 static_cast<MDL_context*>(
-						 thd_mdl_context(node->
-								 purge_thd))) {
-					mdl_context->release_lock(mdl_ticket);
-					mdl_ticket = nullptr;
-				}
 			}
 			f = fil_delete_tablespace(space_id);
 		}
@@ -192,9 +179,7 @@ close_and_exit:
 		mtr.commit();
 
 		if (table) {
-			dict_table_close(table, true, false,
-					 node->purge_thd, mdl_ticket);
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 			table = nullptr;
 		}
 
@@ -582,7 +567,7 @@ row_purge_remove_sec_if_poss_leaf(
 
 				if (block->page.id().page_no()
 				    != index->page
-				    && page_get_n_recs(block->frame) < 2
+				    && page_get_n_recs(block->page.frame) < 2
 				    && !lock_test_prdt_page_lock(
 					    btr_cur->rtr_info
 					    && btr_cur->rtr_info->thr
@@ -819,9 +804,9 @@ retry:
 				size_t offs = page_offset(ptr);
 				mtr->memset(block, offs, DATA_TRX_ID_LEN, 0);
 				offs += DATA_TRX_ID_LEN;
-				mtr->write<1,mtr_t::MAYBE_NOP>(*block,
-							       block->frame
-							       + offs, 0x80U);
+				mtr->write<1,mtr_t::MAYBE_NOP>(
+					*block, block->page.frame + offs,
+					0x80U);
 				mtr->memset(block, offs + 1,
 					    DATA_ROLL_PTR_LEN - 1, 0);
 			}
@@ -929,7 +914,7 @@ skip_secondaries:
 
 			index->set_modified(mtr);
 
-			/* NOTE: we must also acquire an X-latch to the
+			/* NOTE: we must also acquire a U latch to the
 			root page of the tree. We will need it when we
 			free pages from the tree. If the tree is of height 1,
 			the tree X-latch does NOT protect the root page,
@@ -938,7 +923,7 @@ skip_secondaries:
 			latching order if we would only later latch the
 			root page of such a tree! */
 
-			btr_root_get(index, &mtr);
+			btr_root_block_get(index, RW_SX_LATCH, &mtr);
 
 			block = buf_page_get(
 				page_id_t(rseg.space->id, page_no),

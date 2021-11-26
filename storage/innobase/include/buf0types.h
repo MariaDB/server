@@ -39,16 +39,6 @@ struct buf_buddy_stat_t;
 /** A buffer frame. @see page_t */
 typedef	byte	buf_frame_t;
 
-/** Flags for io_fix types */
-enum buf_io_fix {
-	BUF_IO_NONE = 0,		/**< no pending I/O */
-	BUF_IO_READ,			/**< read pending */
-	BUF_IO_WRITE,			/**< write pending */
-	BUF_IO_PIN			/**< disallow relocation of
-					block and its removal of from
-					the flush_list */
-};
-
 /** Alternatives for srv_checksum_algorithm, which can be changed by
 setting innodb_checksum_algorithm */
 enum srv_checksum_algorithm_t {
@@ -176,35 +166,58 @@ enum rw_lock_type_t
 
 #include "sux_lock.h"
 
-class page_hash_latch : public rw_lock
+#ifdef SUX_LOCK_GENERIC
+class page_hash_latch : private rw_lock
 {
-public:
   /** Wait for a shared lock */
   void read_lock_wait();
   /** Wait for an exclusive lock */
   void write_lock_wait();
-
+public:
   /** Acquire a shared lock */
-  inline void read_lock();
+  inline void lock_shared();
   /** Acquire an exclusive lock */
-  inline void write_lock();
+  inline void lock();
 
-  /** Acquire a lock */
-  template<bool exclusive> void acquire()
-  {
-    if (exclusive)
-      write_lock();
-    else
-      read_lock();
-  }
-  /** Release a lock */
-  template<bool exclusive> void release()
-  {
-    if (exclusive)
-      write_unlock();
-    else
-      read_unlock();
-  }
+  /** @return whether an exclusive lock is being held by any thread */
+  bool is_write_locked() const { return rw_lock::is_write_locked(); }
+
+  /** @return whether any lock is being held by any thread */
+  bool is_locked() const { return rw_lock::is_locked(); }
+  /** @return whether any lock is being held or waited for by any thread */
+  bool is_locked_or_waiting() const { return rw_lock::is_locked_or_waiting(); }
+
+  /** Release a shared lock */
+  void unlock_shared() { read_unlock(); }
+  /** Release an exclusive lock */
+  void unlock() { write_unlock(); }
 };
+#elif defined _WIN32 || SIZEOF_SIZE_T >= 8
+class page_hash_latch
+{
+  srw_spin_lock_low lk;
+public:
+  void lock_shared() { lk.rd_lock(); }
+  void unlock_shared() { lk.rd_unlock(); }
+  void lock() { lk.wr_lock(); }
+  void unlock() { lk.wr_unlock(); }
+  bool is_write_locked() const { return lk.is_write_locked(); }
+  bool is_locked() const { return lk.is_locked(); }
+  bool is_locked_or_waiting() const { return lk.is_locked_or_waiting(); }
+};
+#else
+class page_hash_latch
+{
+  srw_spin_mutex lk;
+public:
+  void lock_shared() { lock(); }
+  void unlock_shared() { unlock(); }
+  void lock() { lk.wr_lock(); }
+  void unlock() { lk.wr_unlock(); }
+  bool is_locked() const { return lk.is_locked(); }
+  bool is_write_locked() const { return is_locked(); }
+  bool is_locked_or_waiting() const { return is_locked(); }
+};
+#endif
 
 #endif /* !UNIV_INNOCHECKSUM */

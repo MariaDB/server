@@ -121,7 +121,7 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
       /* explictly don't use O_EXCL here has it has a different
          meaning with O_TMPFILE
       */
-      if ((file= open(dir, mode | O_TMPFILE | O_CLOEXEC,
+      if ((file= open(dir, (mode & ~O_CREAT) | O_TMPFILE | O_CLOEXEC,
                       S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)) >= 0)
       {
         my_snprintf(to, FN_REFLEN, "%s/#sql/fd=%d", dir, file);

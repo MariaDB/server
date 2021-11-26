@@ -79,7 +79,7 @@ struct Vers_part_info : public Sql_alloc
   partition_element *hist_part;
 };
 
-class partition_info : public Sql_alloc
+class partition_info : public DDL_LOG_STATE, public Sql_alloc
 {
 public:
   /*
@@ -153,10 +153,6 @@ public:
   Item *subpart_expr;
 
   Item *item_free_list;
-
-  struct st_ddl_log_memory_entry *first_log_entry;
-  struct st_ddl_log_memory_entry *exec_log_entry;
-  struct st_ddl_log_memory_entry *frm_log_entry;
 
   /* 
     Bitmaps of partitions used by the current query. 
@@ -297,7 +293,6 @@ public:
     part_field_buffers(NULL), subpart_field_buffers(NULL),
     restore_part_field_ptrs(NULL), restore_subpart_field_ptrs(NULL),
     part_expr(NULL), subpart_expr(NULL), item_free_list(NULL),
-    first_log_entry(NULL), exec_log_entry(NULL), frm_log_entry(NULL),
     bitmaps_are_initialized(FALSE),
     list_array(NULL), vers_info(NULL), err_value(0),
     part_info_string(NULL),
@@ -319,6 +314,7 @@ public:
     is_auto_partitioned(FALSE),
     has_null_value(FALSE), column_list(FALSE)
   {
+    bzero((DDL_LOG_STATE *) this, sizeof(DDL_LOG_STATE));
     all_fields_in_PF.clear_all();
     all_fields_in_PPF.clear_all();
     all_fields_in_SPF.clear_all();

@@ -20,6 +20,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-mb.h"
 #include <my_sys.h>
 #include <stdarg.h>
 
@@ -1513,7 +1514,9 @@ static MY_COLLATION_HANDLER my_collation_utf16_general_ci_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf16,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -1529,7 +1532,9 @@ static MY_COLLATION_HANDLER my_collation_utf16_bin_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf16_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -1545,7 +1550,9 @@ static MY_COLLATION_HANDLER my_collation_utf16_general_nopad_ci_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf16_nopad,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -1561,7 +1568,9 @@ static MY_COLLATION_HANDLER my_collation_utf16_nopad_bin_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf16_nopad_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -1854,7 +1863,9 @@ static MY_COLLATION_HANDLER my_collation_utf16le_general_ci_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf16,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -1870,7 +1881,9 @@ static MY_COLLATION_HANDLER my_collation_utf16le_bin_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf16_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -1886,7 +1899,9 @@ static MY_COLLATION_HANDLER my_collation_utf16le_general_nopad_ci_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf16_nopad,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -1902,7 +1917,9 @@ static MY_COLLATION_HANDLER my_collation_utf16le_nopad_bin_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf16_nopad_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -2680,7 +2697,9 @@ static MY_COLLATION_HANDLER my_collation_utf32_general_ci_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf32,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -2696,7 +2715,9 @@ static MY_COLLATION_HANDLER my_collation_utf32_bin_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf32,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -2712,7 +2733,9 @@ static MY_COLLATION_HANDLER my_collation_utf32_general_nopad_ci_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf32_nopad,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -2728,7 +2751,9 @@ static MY_COLLATION_HANDLER my_collation_utf32_nopad_bin_handler =
   my_strcasecmp_mb2_or_mb4,
   my_instr_mb,
   my_hash_sort_utf32_nopad,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -3271,7 +3296,9 @@ static MY_COLLATION_HANDLER my_collation_ucs2_general_ci_handler =
     my_strcasecmp_mb2_or_mb4,
     my_instr_mb,
     my_hash_sort_ucs2,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -3287,7 +3314,9 @@ static MY_COLLATION_HANDLER my_collation_ucs2_bin_handler =
     my_strcasecmp_mb2_or_mb4,
     my_instr_mb,
     my_hash_sort_ucs2_bin,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -3303,7 +3332,9 @@ static MY_COLLATION_HANDLER my_collation_ucs2_general_nopad_ci_handler =
     my_strcasecmp_mb2_or_mb4,
     my_instr_mb,
     my_hash_sort_ucs2_nopad,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple_nopad,
+    my_max_str_mb_simple
 };
 
 
@@ -3319,7 +3350,9 @@ static MY_COLLATION_HANDLER my_collation_ucs2_nopad_bin_handler =
     my_strcasecmp_mb2_or_mb4,
     my_instr_mb,
     my_hash_sort_ucs2_nopad_bin,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple_nopad,
+    my_max_str_mb_simple
 };
 
 

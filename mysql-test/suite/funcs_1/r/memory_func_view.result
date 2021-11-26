@@ -3323,9 +3323,9 @@ NULL	NULL	1
 -3333.33	-3333.3333	30
 Warnings:
 Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
-Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 1
+Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 2
 Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
-Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 1
+Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 3
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_double` as decimal(37,2)) AS `CAST(my_double AS DECIMAL(37,2))`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci

@@ -15,4 +15,4 @@
 
 SET(SOURCES test_sql_service.c)
 
-MYSQL_ADD_PLUGIN(test_sql_service  ${SOURCES} MODULE_ONLY RECOMPILE_FOR_EMBEDDED)
+MYSQL_ADD_PLUGIN(test_sql_service  ${SOURCES} MODULE_ONLY)

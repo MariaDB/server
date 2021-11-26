@@ -54,7 +54,6 @@
                               // check_mqh,
                               // reset_mqh
 #include "sql_rename.h"       // mysql_rename_tables
-#include "sql_tablespace.h"   // mysql_alter_tablespace
 #include "hostname.h"         // hostname_cache_refresh
 #include "sql_test.h"         // mysql_print_status
 #include "sql_select.h"       // handle_select, mysql_select,
@@ -878,7 +877,6 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_ALTER_PROCEDURE]|=  CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_ALTER_FUNCTION]|=   CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_TRUNCATE]|=         CF_DISALLOW_IN_RO_TRANS;
-  sql_command_flags[SQLCOM_ALTER_TABLESPACE]|= CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_REPAIR]|=           CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_OPTIMIZE]|=         CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_GRANT]|=            CF_DISALLOW_IN_RO_TRANS;
@@ -2259,11 +2257,10 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     size_t length=
 #endif
     my_snprintf(buff, buff_len - 1,
-                        "Uptime: %lu  Threads: %d  Questions: %lu  "
+                        "Uptime: %lu  Threads: %u  Questions: %lu  "
                         "Slow queries: %lu  Opens: %lu  "
                         "Open tables: %u  Queries per second avg: %u.%03u",
-                        uptime,
-                        (int) thread_count, (ulong) thd->query_id,
+                        uptime, THD_count::value(), (ulong) thd->query_id,
                         current_global_status_var->long_query_count,
                         current_global_status_var->opened_tables,
                         tc_records(),
@@ -4138,7 +4135,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         If new master was not added, we still need to free mi.
       */
       if (master_info_added)
-        master_info_index->remove_master_info(mi);
+        master_info_index->remove_master_info(mi, 1);
       else
         delete mi;
     }
@@ -5667,6 +5664,11 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     /* Begin transaction with the same isolation level. */
     if (tx_chain)
     {
+#ifdef WITH_WSREP
+      /* If there are pending changes after rollback we should clear them */
+      if (wsrep_on(thd) && wsrep_has_changes(thd))
+        wsrep_after_statement(thd);
+#endif
       if (trans_begin(thd))
         goto error;
     }
@@ -5884,12 +5886,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   }
   case SQLCOM_XA_RECOVER:
     res= mysql_xa_recover(thd);
-    break;
-  case SQLCOM_ALTER_TABLESPACE:
-    if (check_global_access(thd, CREATE_TABLESPACE_ACL))
-      break;
-    if (!(res= mysql_alter_tablespace(thd, lex->alter_tablespace_info)))
-      my_ok(thd);
     break;
   case SQLCOM_INSTALL_PLUGIN:
     if (! (res= mysql_install_plugin(thd, &thd->lex->comment,
@@ -6122,7 +6118,12 @@ finish:
   thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
 
   if (wsrep_thd_is_toi(thd) || wsrep_thd_is_in_rsu(thd))
+  {
+    WSREP_DEBUG("mysql_execute_command for %s", wsrep_thd_query(thd));
+    THD_STAGE_INFO(thd, stage_waiting_isolation);
     wsrep_to_isolation_end(thd);
+  }
+
   /*
     Force release of transactional locks if not in active MST and wsrep is on.
   */
@@ -7886,7 +7887,8 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
                     });
         WSREP_DEBUG("wsrep retrying AC query: %lu  %s",
-                    thd->wsrep_retry_counter, WSREP_QUERY(thd));
+                    thd->wsrep_retry_counter,
+                    wsrep_thd_query(thd));
         wsrep_prepare_for_autocommit_retry(thd, rawbuf, length, parser_state);
         if (thd->lex->explain)
           delete_explain_query(thd->lex);
@@ -7900,7 +7902,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                     is_autocommit,
                     thd->wsrep_retry_counter,
                     thd->variables.wsrep_retry_autocommit,
-                    WSREP_QUERY(thd));
+                    wsrep_thd_query(thd));
         my_error(ER_LOCK_DEADLOCK, MYF(0));
         thd->reset_kill_query();
         thd->wsrep_retry_counter= 0;             //  reset

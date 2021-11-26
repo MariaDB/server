@@ -31,7 +31,7 @@ SELECT @@global.gtid_binlog_pos as 'Before the crash';
 #
 # Server restart
 #
---let $restart_parameters= --rpl-semi-sync-slave-enabled=1
+--let $restart_parameters= --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
 --source include/start_mysqld.inc
 
 # Check error log for a successful truncate message.
@@ -39,7 +39,7 @@ SELECT @@global.gtid_binlog_pos as 'Before the crash';
 
 --let SEARCH_FILE=$log_error_
 --let SEARCH_PATTERN=Successfully truncated.*to remove transactions starting from GTID $truncate_gtid_pos
- 
+
 --source include/search_pattern_in_file.inc
 
 --echo Pre-crash binlog file content:

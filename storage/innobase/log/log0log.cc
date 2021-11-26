@@ -78,10 +78,8 @@ void log_buffer_extend(ulong len)
 	const size_t new_buf_size = ut_calc_align(len, srv_page_size);
 	byte* new_buf = static_cast<byte*>
 		(ut_malloc_dontdump(new_buf_size, PSI_INSTRUMENT_ME));
-	TRASH_ALLOC(new_buf, new_buf_size);
 	byte* new_flush_buf = static_cast<byte*>
 		(ut_malloc_dontdump(new_buf_size, PSI_INSTRUMENT_ME));
-	TRASH_ALLOC(new_flush_buf, new_buf_size);
 
 	mysql_mutex_lock(&log_sys.mutex);
 
@@ -175,8 +173,14 @@ void log_t::create()
   ut_ad(!is_initialised());
   m_initialised= true;
 
+#if defined(__aarch64__)
+  mysql_mutex_init(log_sys_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(
+    log_flush_order_mutex_key, &flush_order_mutex, MY_MUTEX_INIT_FAST);
+#else
   mysql_mutex_init(log_sys_mutex_key, &mutex, nullptr);
   mysql_mutex_init(log_flush_order_mutex_key, &flush_order_mutex, nullptr);
+#endif
 
   /* Start the lsn from one log block from zero: this way every
   log record has a non-zero start lsn, a fact which we will use */
@@ -803,6 +807,9 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
     return;
   }
 
+repeat:
+  lsn_t ret_lsn1= 0, ret_lsn2= 0;
+
   if (flush_to_disk &&
       flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
     return;
@@ -817,29 +824,67 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
     log_write(rotate_key);
 
     ut_a(log_sys.write_lsn == write_lsn);
-    write_lock.release(write_lsn);
+    ret_lsn1= write_lock.release(write_lsn);
   }
 
-  if (!flush_to_disk)
-    return;
+  if (flush_to_disk)
+  {
+    /* Flush the highest written lsn.*/
+    auto flush_lsn = write_lock.value();
+    flush_lock.set_pending(flush_lsn);
+    log_write_flush_to_disk_low(flush_lsn);
+    ret_lsn2= flush_lock.release(flush_lsn);
 
-  /* Flush the highest written lsn.*/
-  auto flush_lsn = write_lock.value();
-  flush_lock.set_pending(flush_lsn);
-  log_write_flush_to_disk_low(flush_lsn);
-  flush_lock.release(flush_lsn);
+    log_flush_notify(flush_lsn);
+    DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
+  }
 
-  log_flush_notify(flush_lsn);
-  DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
+  if (ret_lsn1 || ret_lsn2)
+  {
+    /*
+     There is no new group commit lead, some async waiters could stall.
+     Rerun log_write_up_to(), to prevent that.
+    */
+    lsn= std::max(ret_lsn1, ret_lsn2);
+    static const completion_callback dummy{[](void *) {},nullptr};
+    callback= &dummy;
+    goto repeat;
+  }
 }
 
-/** write to the log file up to the last log entry.
-@param[in]	sync	whether we want the written log
-also to be flushed to disk. */
+/** Write to the log file up to the last log entry.
+@param sync  whether to wait for a durable write to complete */
 void log_buffer_flush_to_disk(bool sync)
 {
   ut_ad(!srv_read_only_mode);
   log_write_up_to(log_sys.get_lsn(std::memory_order_acquire), sync);
+}
+
+/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush_prepare()
+{
+  mysql_mutex_assert_not_owner(&log_sys.mutex);
+
+  while (flush_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
+         group_commit_lock::ACQUIRED);
+  while (write_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
+         group_commit_lock::ACQUIRED);
+}
+
+/** Durably write the log and release log_sys.mutex */
+ATTRIBUTE_COLD void log_write_and_flush()
+{
+  ut_ad(!srv_read_only_mode);
+  auto lsn= log_sys.get_lsn();
+  write_lock.set_pending(lsn);
+  log_write(false);
+  ut_a(log_sys.write_lsn == lsn);
+  write_lock.release(lsn);
+
+  lsn= write_lock.value();
+  flush_lock.set_pending(lsn);
+  log_write_flush_to_disk_low(lsn);
+  flush_lock.release(lsn);
 }
 
 /********************************************************************
@@ -930,8 +975,6 @@ ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn)
 
 	MONITOR_INC(MONITOR_NUM_CHECKPOINT);
 
-	DBUG_EXECUTE_IF("crash_after_checkpoint", DBUG_SUICIDE(););
-
 	mysql_mutex_unlock(&log_sys.mutex);
 }
 
@@ -1011,7 +1054,6 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 	dict_stats_shutdown();
 	btr_defragment_shutdown();
 
-	ut_d(srv_master_thread_enable());
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 
 	if (srv_buffer_pool_dump_at_shutdown &&

@@ -188,34 +188,12 @@ void btr_corruption_report(const buf_block_t* block,const dict_index_t* index);
 		btr_corruption_report(block, index)
 
 /**************************************************************//**
-Gets the root node of a tree and sx-latches it for segment access.
-@return root page, sx-latched */
-page_t*
-btr_root_get(
-/*=========*/
-	const dict_index_t*	index,	/*!< in: index tree */
-	mtr_t*			mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
-
-/**************************************************************//**
 Checks and adjusts the root node of a tree during IMPORT TABLESPACE.
 @return error code, or DB_SUCCESS */
 dberr_t
 btr_root_adjust_on_import(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index tree */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/**************************************************************//**
-Gets the height of the B-tree (the level of the root, when the leaf
-level is assumed to be 0). The caller must hold an S or X latch on
-the index.
-@return tree height (level of the root) */
-ulint
-btr_height_get(
-/*===========*/
-	const dict_index_t*	index,	/*!< in: index tree */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Get an index page and declare its latching order level.
@@ -482,9 +460,9 @@ template<bool has_prev= false>
 inline void btr_set_min_rec_mark(rec_t *rec, const buf_block_t &block,
                                  mtr_t *mtr)
 {
-  ut_ad(block.frame == page_align(rec));
-  ut_ad(!page_is_leaf(block.frame));
-  ut_ad(has_prev == page_has_prev(block.frame));
+  ut_ad(block.page.frame == page_align(rec));
+  ut_ad(!page_is_leaf(block.page.frame));
+  ut_ad(has_prev == page_has_prev(block.page.frame));
 
   rec-= page_rec_is_comp(rec) ? REC_NEW_INFO_BITS : REC_OLD_INFO_BITS;
 
@@ -547,17 +525,6 @@ btr_discard_page(
 	btr_cur_t*	cursor,	/*!< in: cursor on the page to discard: not on
 				the root page */
 	mtr_t*		mtr);	/*!< in: mtr */
-/**************************************************************//**
-Gets the number of pages in a B-tree.
-@return number of pages, or ULINT_UNDEFINED if the index is unavailable */
-ulint
-btr_get_size(
-/*=========*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
-				is s-latched */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /**************************************************************//**
 Allocates a new file page to be used in an index tree. NOTE: we assume
@@ -624,7 +591,6 @@ btr_root_block_get(
 	rw_lock_type_t		mode,	/*!< in: either RW_S_LATCH
 					or RW_X_LATCH */
 	mtr_t*			mtr);	/*!< in: mtr */
-
 /*************************************************************//**
 Reorganizes an index page.
 
@@ -689,8 +655,9 @@ btr_validate_index(
 @param[in]	block		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
-			   mtr_t* mtr);
+dberr_t btr_level_list_remove(const buf_block_t& block,
+                              const dict_index_t& index, mtr_t* mtr)
+  MY_ATTRIBUTE((warn_unused_result));
 
 /*************************************************************//**
 If page is the only on its level, this function moves its records to the

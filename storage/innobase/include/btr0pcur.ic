@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -42,76 +42,6 @@ btr_pcur_get_rel_pos(
 
 	return(cursor->rel_pos);
 }
-
-#ifdef UNIV_DEBUG
-/*********************************************************//**
-Returns the btr cursor component of a persistent cursor.
-@return pointer to btr cursor component */
-UNIV_INLINE
-btr_cur_t*
-btr_pcur_get_btr_cur(
-/*=================*/
-	const btr_pcur_t*	cursor)	/*!< in: persistent cursor */
-{
-	const btr_cur_t*	btr_cur = &cursor->btr_cur;
-	return((btr_cur_t*) btr_cur);
-}
-
-/*********************************************************//**
-Returns the page cursor component of a persistent cursor.
-@return pointer to page cursor component */
-UNIV_INLINE
-page_cur_t*
-btr_pcur_get_page_cur(
-/*==================*/
-	const btr_pcur_t*	cursor)	/*!< in: persistent cursor */
-{
-	return(btr_cur_get_page_cur(btr_pcur_get_btr_cur(cursor)));
-}
-
-/*********************************************************//**
-Returns the page of a persistent cursor.
-@return pointer to the page */
-UNIV_INLINE
-page_t*
-btr_pcur_get_page(
-/*==============*/
-	const btr_pcur_t*	cursor)	/*!< in: persistent cursor */
-{
-	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
-
-	return(btr_cur_get_page(btr_pcur_get_btr_cur(cursor)));
-}
-
-/*********************************************************//**
-Returns the buffer block of a persistent cursor.
-@return pointer to the block */
-UNIV_INLINE
-buf_block_t*
-btr_pcur_get_block(
-/*===============*/
-	const btr_pcur_t*	cursor)	/*!< in: persistent cursor */
-{
-	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
-
-	return(btr_cur_get_block(btr_pcur_get_btr_cur(cursor)));
-}
-
-/*********************************************************//**
-Returns the record of a persistent cursor.
-@return pointer to the record */
-UNIV_INLINE
-rec_t*
-btr_pcur_get_rec(
-/*=============*/
-	const btr_pcur_t*	cursor)	/*!< in: persistent cursor */
-{
-	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
-	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
-
-	return(btr_cur_get_rec(btr_pcur_get_btr_cur(cursor)));
-}
-#endif /* UNIV_DEBUG */
 
 /**************************************************************//**
 Gets the up_match value for a pcur after a search.
@@ -479,7 +409,7 @@ btr_pcur_open_with_no_init_func(
 				that the ahi_latch protects the record! */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 #ifdef BTR_CUR_HASH_ADAPT
-	srw_lock*	ahi_latch,
+	srw_spin_lock*	ahi_latch,
 				/*!< in: currently held AHI rdlock, or NULL */
 #endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr)	/*!< in: mtr */

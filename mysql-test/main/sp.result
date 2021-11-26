@@ -3073,14 +3073,14 @@ select bug9775('a'),bug9775('b'),bug9775('c')|
 bug9775('a')	bug9775('b')	bug9775('c')
 a	b	
 Warnings:
-Warning	1265	Data truncated for column 'bug9775('c')' at row 1
+Warning	1265	Data truncated for column 'bug9775('c')' at row 0
 drop function bug9775|
 create function bug9775(v1 int) returns enum('a','b') return v1|
 select bug9775(1),bug9775(2),bug9775(3)|
 bug9775(1)	bug9775(2)	bug9775(3)
 a	b	
 Warnings:
-Warning	1265	Data truncated for column 'bug9775(3)' at row 1
+Warning	1265	Data truncated for column 'bug9775(3)' at row 0
 drop function bug9775|
 create function bug9775(v1 char(1)) returns set('a','b') return v1|
 select bug9775('a'),bug9775('b'),bug9775('a,b'),bug9775('c')|
@@ -3088,14 +3088,14 @@ bug9775('a')	bug9775('b')	bug9775('a,b')	bug9775('c')
 a	b	a	
 Warnings:
 Warning	1265	Data truncated for column 'v1' at row 1
-Warning	1265	Data truncated for column 'bug9775('c')' at row 1
+Warning	1265	Data truncated for column 'bug9775('c')' at row 0
 drop function bug9775|
 create function bug9775(v1 int) returns set('a','b') return v1|
 select bug9775(1),bug9775(2),bug9775(3),bug9775(4)|
 bug9775(1)	bug9775(2)	bug9775(3)	bug9775(4)
 a	b	a,b	
 Warnings:
-Warning	1265	Data truncated for column 'bug9775(4)' at row 1
+Warning	1265	Data truncated for column 'bug9775(4)' at row 0
 drop function bug9775|
 drop function if exists bug8861|
 create function bug8861(v1 int) returns year return v1|
@@ -3118,10 +3118,10 @@ create procedure bug9004_2(x char(16))
 call bug9004_1(x)|
 call bug9004_1('12345678901234567')|
 Warnings:
-Warning	1265	Data truncated for column 'x' at row 1
+Warning	1265	Data truncated for column 'x' at row 0
 call bug9004_2('12345678901234567890')|
 Warnings:
-Warning	1265	Data truncated for column 'x' at row 1
+Warning	1265	Data truncated for column 'x' at row 0
 delete from t1|
 drop procedure bug9004_1|
 drop procedure bug9004_2|
@@ -4591,7 +4591,7 @@ call bug15231_3()|
 Result
 Missed it (correct)
 Level	Code	Message
-Warning	1366	Incorrect decimal value: 'zap' for column ``.``.`x` at row 1
+Warning	1366	Incorrect decimal value: 'zap' for column ``.``.`x` at row 0
 Result
 Caught it (correct)
 call bug15231_5()|
@@ -6438,7 +6438,7 @@ DROP TABLE t1;
 
 CALL p1('text');
 Warnings:
-Warning	1265	Data truncated for column 'v' at row 1
+Warning	1265	Data truncated for column 'v' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -6458,7 +6458,7 @@ DROP TABLE t1;
 
 CALL p2('text');
 Warnings:
-Warning	1366	Incorrect integer value: 'text' for column ``.``.`v` at row 1
+Warning	1366	Incorrect integer value: 'text' for column ``.``.`v` at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -7070,10 +7070,10 @@ CALL p1(4, 'a');
 1
 1
 Warnings:
-Warning	1265	Data truncated for column 'b' at row 1
-Warning	1265	Data truncated for column 'b' at row 1
-Warning	1265	Data truncated for column 'b' at row 1
-Warning	1265	Data truncated for column 'b' at row 1
+Warning	1265	Data truncated for column 'b' at row 0
+Warning	1265	Data truncated for column 'b' at row 0
+Warning	1265	Data truncated for column 'b' at row 0
+Warning	1265	Data truncated for column 'b' at row 0
 SET @@max_sp_recursion_depth= @save_max_sp_recursion;
 DROP PROCEDURE p1;
 DROP PROCEDURE IF EXISTS p1;
@@ -7091,7 +7091,7 @@ CAST('10 ' as UNSIGNED INTEGER)
 1
 1
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Warning	1265	Data truncated for column 'a' at row 0
 Note	1292	Truncated incorrect INTEGER value: '10 '
 DROP PROCEDURE p1;
 DROP PROCEDURE IF EXISTS p1;
@@ -7144,7 +7144,7 @@ SELECT f1();
 f1()
 a
 Warnings:
-Warning	1265	Data truncated for column 'f4()' at row 1
+Warning	1265	Data truncated for column 'f4()' at row 0
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP FUNCTION f3;

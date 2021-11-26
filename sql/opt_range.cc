@@ -370,7 +370,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                                                    double read_time);
 static
 TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time);
+                                         double read_time, bool named_trace= false);
 static
 TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
                                         TRP_INDEX_MERGE *imerge_trp,
@@ -1308,7 +1308,7 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
     *create_error= 1;
   }
   else
-    my_bitmap_init(&column_bitmap, bitmap, head->s->fields, FALSE);
+    my_bitmap_init(&column_bitmap, bitmap, head->s->fields);
   DBUG_VOID_RETURN;
 }
 
@@ -2577,7 +2577,7 @@ static int fill_used_fields_bitmap(PARAM *param)
   param->fields_bitmap_size= table->s->column_bitmap_size;
   if (!(tmp= (my_bitmap_map*) alloc_root(param->mem_root,
                                   param->fields_bitmap_size)) ||
-      my_bitmap_init(&param->needed_fields, tmp, table->s->fields, FALSE))
+      my_bitmap_init(&param->needed_fields, tmp, table->s->fields))
     return 1;
 
   bitmap_copy(&param->needed_fields, table->read_set);
@@ -3347,7 +3347,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   my_bitmap_map* buf;
   if (!(buf= (my_bitmap_map*)thd->alloc(table->s->column_bitmap_size)))
     DBUG_RETURN(TRUE);
-  my_bitmap_init(&handled_columns, buf, table->s->fields, FALSE);
+  my_bitmap_init(&handled_columns, buf, table->s->fields);
 
   /*
     Calculate the selectivity of the range conditions supported by indexes.
@@ -4137,7 +4137,7 @@ static int find_used_partitions_imerge_list(PART_PRUNE_PARAM *ppar,
     */
     return find_used_partitions_imerge(ppar, merges.head());
   }
-  my_bitmap_init(&all_merges, bitmap_buf, n_bits, FALSE);
+  my_bitmap_init(&all_merges, bitmap_buf, n_bits);
   bitmap_set_prefix(&all_merges, n_bits);
 
   List_iterator<SEL_IMERGE> it(merges);
@@ -4793,8 +4793,7 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
     uint32 bufsize= bitmap_buffer_size(ppar->part_info->num_subparts);
     if (!(buf= (my_bitmap_map*) alloc_root(alloc, bufsize)))
       return TRUE;
-    my_bitmap_init(&ppar->subparts_bitmap, buf, ppar->part_info->num_subparts,
-                FALSE);
+    my_bitmap_init(&ppar->subparts_bitmap, buf, ppar->part_info->num_subparts);
   }
   range_par->key_parts= key_part;
   Field **field= (ppar->part_fields)? part_info->part_field_array :
@@ -5085,7 +5084,7 @@ double get_sweep_read_cost(const PARAM *param, ha_rows records)
 
 static
 TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time)
+                                         double read_time, bool named_trace)
 {
   SEL_TREE **ptree;
   TRP_INDEX_MERGE *imerge_trp= NULL;
@@ -5133,7 +5132,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                              n_child_scans)))
     DBUG_RETURN(NULL);
 
-  Json_writer_object trace_best_disjunct(thd);
+  const char* trace_best_disjunct_obj_name= named_trace ? "best_disjunct_quick" : nullptr;
+  Json_writer_object trace_best_disjunct(thd, trace_best_disjunct_obj_name);
   Json_writer_array to_merge(thd, "indexes_to_merge");
   /*
     Collect best 'range' scan for each of disjuncts, and, while doing so,
@@ -5489,7 +5489,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
   DBUG_ASSERT(imerge->trees_next>imerge->trees);
 
   if (imerge->trees_next-imerge->trees > 1)
-    trp= get_best_disjunct_quick(param, imerge, read_time);
+    trp= get_best_disjunct_quick(param, imerge, read_time, true);
   else
   {
     /*
@@ -5620,7 +5620,7 @@ bool create_fields_bitmap(PARAM *param, MY_BITMAP *fields_bitmap)
   if (!(bitmap_buf= (my_bitmap_map *) alloc_root(param->mem_root,
                                                  param->fields_bitmap_size)))
     return TRUE;
-  if (my_bitmap_init(fields_bitmap, bitmap_buf, param->table->s->fields, FALSE))
+  if (my_bitmap_init(fields_bitmap, bitmap_buf, param->table->s->fields))
     return TRUE;
   
   return FALSE;
@@ -5677,7 +5677,7 @@ void print_keyparts(THD *thd, KEY *key, uint key_parts)
   DBUG_ASSERT(thd->trace_started());
 
   KEY_PART_INFO *part= key->key_part;
-  Json_writer_array keyparts= Json_writer_array(thd, "keyparts");
+  Json_writer_array keyparts(thd, "keyparts");
   for(uint i= 0; i < key_parts; i++, part++)
     keyparts.add(part->field->field_name);
 }
@@ -6532,7 +6532,7 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
     DBUG_RETURN(NULL);
 
   if (my_bitmap_init(&ror_scan->covered_fields, bitmap_buf,
-                  param->table->s->fields, FALSE))
+                  param->table->s->fields))
     DBUG_RETURN(NULL);
   bitmap_clear_all(&ror_scan->covered_fields);
 
@@ -6649,8 +6649,7 @@ ROR_INTERSECT_INFO* ror_intersect_init(const PARAM *param)
   if (!(buf= (my_bitmap_map*) alloc_root(param->mem_root,
                                          param->fields_bitmap_size)))
     return NULL;
-  if (my_bitmap_init(&info->covered_fields, buf, param->table->s->fields,
-                  FALSE))
+  if (my_bitmap_init(&info->covered_fields, buf, param->table->s->fields))
     return NULL;
   info->is_covering= FALSE;
   info->index_scan_costs= 0.0;
@@ -6938,7 +6937,7 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
     DBUG_PRINT("info", ("info->total_cost= %g", info->total_cost));
   }
   else
-    trace_costs->add("disk_sweep_cost", static_cast<longlong>(0));
+    trace_costs->add("disk_sweep_cost", 0);
 
   DBUG_PRINT("info", ("New out_rows: %g", info->out_rows));
   DBUG_PRINT("info", ("New cost: %g, %scovering", info->total_cost,
@@ -7295,7 +7294,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                                                param->fields_bitmap_size);
   if (!covered_fields->bitmap ||
       my_bitmap_init(covered_fields, covered_fields->bitmap,
-                  param->table->s->fields, FALSE))
+                  param->table->s->fields))
     DBUG_RETURN(0);
   bitmap_clear_all(covered_fields);
 
@@ -12610,10 +12609,10 @@ int QUICK_RANGE_SELECT::reset()
 
   if (!mrr_buf_desc)
     empty_buf.buffer= empty_buf.buffer_end= empty_buf.end_of_used_area= NULL;
- 
-  error= file->multi_range_read_init(&seq_funcs, (void*)this, ranges.elements,
-                                     mrr_flags, mrr_buf_desc? mrr_buf_desc: 
-                                                              &empty_buf);
+
+  error= file->multi_range_read_init(&seq_funcs, (void*)this,
+                                     (uint)ranges.elements, mrr_flags,
+                                     mrr_buf_desc? mrr_buf_desc: &empty_buf);
 err:
   /* Restore bitmaps set on entry */
   if (in_ror_merged_scan)
@@ -12725,7 +12724,7 @@ int QUICK_RANGE_SELECT::get_next_prefix(uint prefix_length,
       }
     }
 
-    uint count= ranges.elements - (uint)(cur_range - (QUICK_RANGE**) ranges.buffer);
+    size_t count= ranges.elements - (size_t)(cur_range - (QUICK_RANGE**) ranges.buffer);
     if (count == 0)
     {
       /* Ranges have already been used up before. None is left for read. */
@@ -12770,7 +12769,7 @@ int QUICK_RANGE_SELECT_GEOM::get_next()
 	DBUG_RETURN(result);
     }
 
-    uint count= ranges.elements - (uint)(cur_range - (QUICK_RANGE**) ranges.buffer);
+    size_t count= ranges.elements - (size_t)(cur_range - (QUICK_RANGE**) ranges.buffer);
     if (count == 0)
     {
       /* Ranges have already been used up before. None is left for read. */
@@ -12811,9 +12810,9 @@ int QUICK_RANGE_SELECT_GEOM::get_next()
 bool QUICK_RANGE_SELECT::row_in_ranges()
 {
   QUICK_RANGE *res;
-  uint min= 0;
-  uint max= ranges.elements - 1;
-  uint mid= (max + min)/2;
+  size_t min= 0;
+  size_t max= ranges.elements - 1;
+  size_t mid= (max + min)/2;
 
   while (min != max)
   {
@@ -15799,7 +15798,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
 
   DBUG_ASSERT(min_max_ranges.elements > 0);
 
-  for (uint range_idx= min_max_ranges.elements; range_idx > 0; range_idx--)
+  for (size_t range_idx= min_max_ranges.elements; range_idx > 0; range_idx--)
   { /* Search from the right-most range to the left. */
     get_dynamic(&min_max_ranges, (uchar*)&cur_range, range_idx - 1);
 
@@ -16345,7 +16344,7 @@ void QUICK_GROUP_MIN_MAX_SELECT::dbug_dump(int indent, bool verbose)
   }
   if (min_max_ranges.elements > 0)
   {
-    fprintf(DBUG_FILE, "%*susing %d quick_ranges for MIN/MAX:\n",
+    fprintf(DBUG_FILE, "%*susing %zu quick_ranges for MIN/MAX:\n",
             indent, "", min_max_ranges.elements);
   }
 }

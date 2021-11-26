@@ -416,16 +416,6 @@ inline int hexchar_to_int(char c)
 /* This must match the path length limit in the ER_NOT_RW_DIR error msg. */
 #define ER_NOT_RW_DIR_PATHSIZE 200
 
-#define IS_TABLESPACES_TABLESPACE_NAME    0
-#define IS_TABLESPACES_ENGINE             1
-#define IS_TABLESPACES_TABLESPACE_TYPE    2
-#define IS_TABLESPACES_LOGFILE_GROUP_NAME 3
-#define IS_TABLESPACES_EXTENT_SIZE        4
-#define IS_TABLESPACES_AUTOEXTEND_SIZE    5
-#define IS_TABLESPACES_MAXIMUM_SIZE       6
-#define IS_TABLESPACES_NODEGROUP_ID       7
-#define IS_TABLESPACES_TABLESPACE_COMMENT 8
-
 bool db_name_is_in_ignore_db_dirs_list(const char *dbase);
 
 #endif /* MYSQL_SERVER */

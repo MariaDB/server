@@ -1,0 +1,16 @@
+CREATE TABLE t1 (a UUID);
+Field   1:  `a`
+Org_field:  `a`
+Catalog:    `def`
+Database:   `test`
+Table:      `t1`
+Org_table:  `t1`
+Type:       STRING (type=uuid)
+Collation:  latin1_swedish_ci (8)
+Length:     36
+Max_length: 0
+Decimals:   0
+Flags:      UNSIGNED BINARY 
+
+
+DROP TABLE t1;

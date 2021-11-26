@@ -55,10 +55,10 @@ table_replication_applier_status::m_share=
   sizeof(pos_t), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_status("
-  "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null,"
-  "SERVICE_STATE ENUM('ON','OFF') not null,"
-  "REMAINING_DELAY INTEGER unsigned,"
-  "COUNT_TRANSACTIONS_RETRIES BIGINT unsigned not null)") },
+  "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null comment 'The replication channel name.',"
+  "SERVICE_STATE ENUM('ON','OFF') not null comment 'Shows ON when the replication channel''s applier threads are active or idle, OFF means that the applier threads are not active.',"
+  "REMAINING_DELAY INTEGER unsigned comment 'Seconds the replica needs to wait to reach the desired delay from master.',"
+  "COUNT_TRANSACTIONS_RETRIES BIGINT unsigned not null comment 'The number of retries that were made because the replication SQL thread failed to apply a transaction.')") },
   false  /* perpetual */
 };
 

@@ -2,6 +2,7 @@
 
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
   MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
+  ADD_FEATURE_INFO(ROCKSDB "OFF" "Storage Engine")
   RETURN()
 ENDMACRO()
 
@@ -44,6 +45,15 @@ IF (WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
 ENDIF()
 IF(MSVC_ARM64)
  SKIP_ROCKSDB_PLUGIN("Windows ARM64 not supported")
+ENDIF()
+
+#
+# Also, disable on ARM64 when not Linux
+# Requires submodule update to v6.16.3
+# containing commit https://github.com/facebook/rocksdb/commit/ee4bd4780b321ddb5f92a0f4eb956f2a2ebd60dc
+#
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(arm64|aarch64)" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  SKIP_ROCKSDB_PLUGIN("ARM64 disabled on all except Linux")
 ENDIF()
 
 # This plugin needs recent C++ compilers (it is using C++11 features)
@@ -124,8 +134,12 @@ else()
   SET(ATOMIC_EXTRA_LIBS)
 endif()
 
+# don't use compression providers, there are standalone executables below
+GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
+LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
+SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
+
 MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} MODULE_ONLY STORAGE_ENGINE
-                 MODULE_OUTPUT_NAME ha_rocksdb
                  LINK_LIBRARIES ${ATOMIC_EXTRA_LIBS}
                  COMPONENT rocksdb-engine)
 
@@ -133,8 +147,6 @@ IF(NOT TARGET rocksdb)
   # Bail out if compilation with rocksdb engine is not requested
   RETURN()
 ENDIF()
-
-
 
 CHECK_CXX_SOURCE_COMPILES("
 #if defined(_MSC_VER) && !defined(__thread)

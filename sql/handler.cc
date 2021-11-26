@@ -581,6 +581,7 @@ static int hton_drop_table(handlerton *hton, const char *path)
 
 int ha_finalize_handlerton(st_plugin_int *plugin)
 {
+  int deinit_status= 0;
   handlerton *hton= (handlerton *)plugin->data;
   DBUG_ENTER("ha_finalize_handlerton");
 
@@ -595,18 +596,7 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
     hton->panic(hton, HA_PANIC_CLOSE);
 
   if (plugin->plugin->deinit)
-  {
-    /*
-      Today we have no defined/special behavior for uninstalling
-      engine plugins.
-    */
-    DBUG_PRINT("info", ("Deinitializing plugin: '%s'", plugin->name.str));
-    if (plugin->plugin->deinit(NULL))
-    {
-      DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
-                             plugin->name.str));
-    }
-  }
+    deinit_status= plugin->plugin->deinit(NULL);
 
   free_sysvar_table_options(hton);
   update_discovery_counters(hton, -1);
@@ -627,7 +617,7 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
   my_free(hton);
 
  end:
-  DBUG_RETURN(0);
+  DBUG_RETURN(deinit_status);
 }
 
 
@@ -1746,6 +1736,13 @@ int ha_commit_trans(THD *thd, bool all)
       if (ha_info->ht()->prepare_commit_versioned)
       {
         trx_end_id= ha_info->ht()->prepare_commit_versioned(thd, &trx_start_id);
+
+        if (trx_end_id == ULONGLONG_MAX)
+        {
+          my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
+          goto err;
+        }
+
         if (trx_end_id)
           break; // FIXME: use a common ID for cross-engine transactions
       }
@@ -1759,13 +1756,27 @@ int ha_commit_trans(THD *thd, bool all)
         goto err;
       }
       DBUG_ASSERT(trx_start_id);
+#ifdef WITH_WSREP
+      bool saved_wsrep_on= thd->variables.wsrep_on;
+      thd->variables.wsrep_on= false;
+#endif
       TR_table trt(thd, true);
       if (trt.update(trx_start_id, trx_end_id))
+#ifdef WITH_WSREP
+      {
+        thd->variables.wsrep_on= saved_wsrep_on;
+#endif
         goto err;
+#ifdef WITH_WSREP
+      }
+#endif
       // Here, the call will not commit inside InnoDB. It is only working
       // around closing thd->transaction.stmt open by TR_table::open().
       if (all)
         commit_one_phase_2(thd, false, &thd->transaction->stmt, false);
+#ifdef WITH_WSREP
+      thd->variables.wsrep_on= saved_wsrep_on;
+#endif
     }
   }
 #endif
@@ -2173,7 +2184,7 @@ int ha_rollback_trans(THD *thd, bool all)
   if (thd->is_error())
   {
     WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
-                thd->thread_id, all?"TRUE":"FALSE", WSREP_QUERY(thd),
+                thd->thread_id, all?"TRUE":"FALSE", wsrep_thd_query(thd),
                 thd->get_stmt_da()->message(), is_real_trans);
   }
   (void) wsrep_after_rollback(thd, all);
@@ -2731,10 +2742,10 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
                       info.found_foreign_xids);
   if (info.dry_run && info.found_my_xids)
   {
-    sql_print_error("Found %d prepared transactions! It means that mysqld was "
+    sql_print_error("Found %d prepared transactions! It means that server was "
                     "not shut down properly last time and critical recovery "
                     "information (last binlog or %s file) was manually deleted "
-                    "after a crash. You have to start mysqld with "
+                    "after a crash. You have to start server with "
                     "--tc-heuristic-recover switch to commit or rollback "
                     "pending transactions.",
                     info.found_my_xids, opt_tc_log_file);
@@ -4518,6 +4529,9 @@ void handler::print_error(int error, myf errflag)
   case HA_ERR_UNDO_REC_TOO_BIG:
     textno= ER_UNDO_RECORD_TOO_BIG;
     break;
+  case HA_ERR_COMMIT_ERROR:
+    textno= ER_ERROR_DURING_COMMIT;
+    break;
   default:
     {
       /* The error was "unknown" to this function.
@@ -6187,7 +6201,9 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     DBUG_RETURN(TRUE);
   }
 
-retry_from_frm: __attribute__((unused));
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+retry_from_frm:
+#endif
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
                                          db->str, table_name->str, "", 0);
@@ -8181,11 +8197,11 @@ bool Vers_parse_info::is_end(const char *name) const
 }
 bool Vers_parse_info::is_start(const Create_field &f) const
 {
-  return f.flags & VERS_SYS_START_FLAG;
+  return f.flags & VERS_ROW_START;
 }
 bool Vers_parse_info::is_end(const Create_field &f) const
 {
-  return f.flags & VERS_SYS_END_FLAG;
+  return f.flags & VERS_ROW_END;
 }
 
 static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int flags, bool integer)
@@ -8210,7 +8226,7 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
     f->set_handler(&type_handler_timestamp2);
     f->length= MAX_DATETIME_PRECISION;
   }
-  f->invisible= DBUG_EVALUATE_IF("sysvers_show", VISIBLE, INVISIBLE_SYSTEM);
+  f->invisible= DBUG_IF("sysvers_show") ? VISIBLE : INVISIBLE_SYSTEM;
 
   if (f->check(thd))
     return NULL;
@@ -8245,8 +8261,8 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   period= start_end_t(default_start, default_end);
   as_row= period;
 
-  if (vers_create_sys_field(thd, default_start, alter_info, VERS_SYS_START_FLAG) ||
-      vers_create_sys_field(thd, default_end, alter_info, VERS_SYS_END_FLAG))
+  if (vers_create_sys_field(thd, default_start, alter_info, VERS_ROW_START) ||
+      vers_create_sys_field(thd, default_end, alter_info, VERS_ROW_END))
   {
     return true;
   }
@@ -8266,15 +8282,16 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   if (!vers_info.need_check(alter_info))
     return false;
 
-  if (!vers_info.versioned_fields && vers_info.unversioned_fields &&
-      !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
+  const bool add_versioning= alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING;
+
+  if (!vers_info.versioned_fields && vers_info.unversioned_fields && !add_versioning)
   {
     // All is correct but this table is not versioned.
     options&= ~HA_VERSIONED_TABLE;
     return false;
   }
 
-  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING) && vers_info)
+  if (!add_versioning && vers_info && !vers_info.versioned_fields)
   {
     my_error(ER_MISSING, MYF(0), create_table.table_name.str,
              "WITH SYSTEM VERSIONING");
@@ -8284,8 +8301,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   List_iterator<Create_field> it(alter_info->create_list);
   while (Create_field *f= it++)
   {
-    if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
-         !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)) ||
+    if ((f->versioning == Column_definition::VERSIONING_NOT_SET && !add_versioning) ||
         f->versioning == Column_definition::WITHOUT_VERSIONING)
     {
       f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
@@ -8356,7 +8372,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (!need_check(alter_info) && !share->versioned)
     return false;
 
-  if (DBUG_EVALUATE_IF("sysvers_force", 0, share->tmp_table))
+  if (!DBUG_IF("sysvers_force") && share->tmp_table)
   {
     my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE TEMPORARY TABLE");
     return true;
@@ -8401,7 +8417,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
           return true;
         }
         my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
-                 f->flags & VERS_SYS_START_FLAG ? "START" : "END", f->field_name.str);
+                 f->flags & VERS_ROW_START ? "START" : "END", f->field_name.str);
         return true;
       }
     }
@@ -8515,13 +8531,13 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
 
   while ((f= it++))
   {
-    if (f->flags & VERS_SYS_START_FLAG)
+    if (f->flags & VERS_ROW_START)
     {
       f_start= f;
       if (f_end)
         break;
     }
-    else if (f->flags & VERS_SYS_END_FLAG)
+    else if (f->flags & VERS_ROW_END)
     {
       f_end= f;
       if (f_start)
@@ -8667,6 +8683,7 @@ bool Vers_type_trx::check_sys_fields(const LEX_CSTRING &table_name,
   return false;
 }
 
+
 bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
                                        const Lex_table_name &db,
                                        Alter_info *alter_info) const
@@ -8675,18 +8692,21 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
     return true;
 
   List_iterator<Create_field> it(alter_info->create_list);
-  const Create_field *row_start= NULL;
-  const Create_field *row_end= NULL;
+  const Create_field *row_start= nullptr;
+  const Create_field *row_end= nullptr;
   while (const Create_field *f= it++)
   {
-    if (f->flags & VERS_SYS_START_FLAG && !row_start)
+    if (f->flags & VERS_ROW_START && !row_start)
       row_start= f;
-    if (f->flags & VERS_SYS_END_FLAG && !row_end)
+    if (f->flags & VERS_ROW_END && !row_end)
       row_end= f;
   }
 
-  DBUG_ASSERT(row_start);
-  DBUG_ASSERT(row_end);
+  if (!row_start || !row_end)
+  {
+    my_error(ER_VERS_PERIOD_COLUMNS, MYF(0), as_row.start.str, as_row.end.str);
+    return true;
+  }
 
   const Vers_type_handler *row_start_vers= row_start->type_handler()->vers();
 
@@ -8696,10 +8716,7 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
     return true;
   }
 
-  if (row_start_vers->check_sys_fields(table_name, row_start, row_end))
-    return true;
-
-  return false;
+  return row_start_vers->check_sys_fields(table_name, row_start, row_end);
 }
 
 bool Table_period_info::check_field(const Create_field* f,

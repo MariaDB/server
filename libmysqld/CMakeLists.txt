@@ -24,6 +24,7 @@ ${CMAKE_SOURCE_DIR}/sql
 ${CMAKE_SOURCE_DIR}/tpool
 ${CMAKE_BINARY_DIR}/sql 
 ${PCRE_INCLUDES}
+${LIBFMT_INCLUDE_DIR}
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${SSL_INTERNAL_INCLUDE_DIRS}
@@ -86,7 +87,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/select_handler.cc
            ../sql/sql_show.cc ../sql/sql_state.c 
            ../sql/sql_statistics.cc ../sql/sql_string.cc
-           ../sql/sql_tablespace.cc ../sql/sql_table.cc ../sql/sql_test.cc
+           ../sql/sql_table.cc ../sql/sql_test.cc
            ../sql/ddl_log.cc
            ../sql/sql_trigger.cc ../sql/sql_udf.cc ../sql/sql_union.cc
            ../sql/sql_update.cc ../sql/sql_view.cc ../sql/sql_profile.cc
@@ -145,6 +146,12 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
 ADD_CONVENIENCE_LIBRARY(sql_embedded ${SQL_EMBEDDED_SOURCES})
 DTRACE_INSTRUMENT(sql_embedded)
 ADD_DEPENDENCIES(sql_embedded GenError GenServerSource)
+IF(TARGET pcre2)
+  ADD_DEPENDENCIES(sql_embedded pcre2)
+ENDIF()
+IF(TARGET libfmt)
+  ADD_DEPENDENCIES(sql_embedded libfmt)
+ENDIF()
 
 # On Windows, static embedded server library is called mysqlserver.lib
 # On Unix, it is libmysqld.a

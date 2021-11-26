@@ -389,10 +389,10 @@ sub _collect {
 #  1 Still running
 #
 sub wait_one {
-  my ($self, $timeout)= @_;
-  croak "usage: \$safe_proc->wait_one([timeout])" unless ref $self;
+  my ($self, $timeout, $keep)= @_;
+  croak "usage: \$safe_proc->wait_one([timeout] [, keep])" unless ref $self;
 
-  _verbose("wait_one $self, $timeout");
+  _verbose("wait_one $self, $timeout, $keep");
 
   if ( ! defined($self->{SAFE_PID}) ) {
     # No pid => not running
@@ -466,16 +466,16 @@ sub wait_one {
     return 1;
   }
 
-  if ( not $blocking and $retpid == -1 ) {
-    # still running
-    _verbose("still running");
-    return 1;
-  }
+  #if ( not $blocking and $retpid == -1 ) {
+  #  # still running
+  #  _verbose("still running");
+  #  return 1;
+  #}
 
   #warn "wait_one: expected pid $pid but got $retpid"
   #  unless( $retpid == $pid );
 
-  $self->_collect($exit_code);
+  $self->_collect($exit_code) unless $keep;
   return 0;
 }
 

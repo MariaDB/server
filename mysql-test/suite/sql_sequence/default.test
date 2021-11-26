@@ -123,3 +123,15 @@ ALTER TABLE t1 add column c int;
 ALTER TABLE t1 add column d int default next value for s_not_exits;
 drop table t1;
 drop sequence s1;
+
+--echo #
+--echo # MDEV 22785 Crash with prepared statements and NEXTVAL()
+--echo #
+CREATE SEQUENCE s;
+CREATE TABLE t1 (id int NOT NULL DEFAULT NEXTVAL(s), PRIMARY KEY (id));
+PREPARE stmt FROM " INSERT INTO t1 () values ()";
+INSERT INTO t1 () values ();
+EXECUTE stmt;
+# Cleanup
+DROP TABLE t1;
+DROP SEQUENCE s;

@@ -1,11 +1,6 @@
-<<<<<<< HEAD
 connection node_2;
 connection node_1;
-||||||| merged common ancestors
-=======
-call mtr.add_suppression("WSREP has not yet prepared node for application use");
->>>>>>> 10.3
-CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1;
 SET SESSION wsrep_reject_queries = ALL;
@@ -27,7 +22,7 @@ VARIABLE_VALUE = 2
 INSERT INTO t1 VALUES (1);
 connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET GLOBAL wsrep_reject_queries = NONE;
-SELECT COUNT(*) = 1 FROM t1;
-COUNT(*) = 1
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
 1
 DROP TABLE t1;

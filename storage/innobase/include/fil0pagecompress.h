@@ -48,7 +48,7 @@ ulint fil_page_compress(
 /** Decompress a page that may be subject to page_compressed compression.
 @param[in,out]	tmp_buf		temporary buffer (of innodb_page_size)
 @param[in,out]	buf		compressed page buffer
-@param[in]	flags		talespace flags
+@param[in]	flags		tablespace flags
 @return size of the compressed data
 @retval	0		if decompression failed
 @retval	srv_page_size	if the page was not compressed */

@@ -95,10 +95,6 @@ those defined in mysql file ft_global.h */
 /** Threshold where our optimize thread automatically kicks in */
 #define FTS_OPTIMIZE_THRESHOLD		10000000
 
-/** Threshold to avoid exhausting of doc ids. Consecutive doc id difference
-should not exceed FTS_DOC_ID_MAX_STEP */
-#define FTS_DOC_ID_MAX_STEP		65535
-
 /** Maximum possible Fulltext word length in bytes (assuming mbmaxlen=4) */
 #define FTS_MAX_WORD_LEN		(HA_FT_MAXCHARLEN * 4)
 
@@ -318,7 +314,7 @@ public:
 
 	/** Whether the ADDED table record sync-ed after crash recovery */
 	unsigned	added_synced:1;
-	/** Whether the table holds dict_sys.mutex */
+	/** Whether the table holds dict_sys.latch */
 	unsigned	dict_locked:1;
 
 	/** Work queue for scheduling jobs for the FTS 'Add' thread, or NULL
@@ -376,9 +372,6 @@ extern ulong		fts_min_token_size;
 /** Whether the total memory used for FTS cache is exhausted, and we will
 need a sync to free some memory */
 extern bool		fts_need_sync;
-
-/** Free a query graph */
-void fts_que_graph_free(que_t *graph);
 
 /******************************************************************//**
 Create a FTS cache. */
@@ -450,8 +443,7 @@ fts_trx_free(
 	fts_trx_t*	fts_trx);		/*!< in, own: FTS trx */
 
 /** Creates the common auxiliary tables needed for supporting an FTS index
-on the given table. row_mysql_lock_data_dictionary must have been called
-before this.
+on the given table.
 The following tables are created.
 CREATE TABLE $FTS_PREFIX_DELETED
 	(doc_id BIGINT UNSIGNED, UNIQUE CLUSTERED INDEX on doc_id)
@@ -474,8 +466,7 @@ fts_create_common_tables(
 	bool		skip_doc_id_index)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Creates the column specific ancillary tables needed for supporting an
-FTS index on the given table. row_mysql_lock_data_dictionary must have
-been called before this.
+FTS index on the given table.
 
 All FTS AUX Index tables have the following schema.
 CREAT TABLE $FTS_PREFIX_INDEX_[1-6](
@@ -741,16 +732,6 @@ FTS auxiliary INDEX table and clear the cache at the end.
 dberr_t fts_sync_table(dict_table_t* table, bool wait = true);
 
 /****************************************************************//**
-Free the query graph but check whether dict_sys.mutex is already
-held */
-void
-fts_que_graph_free_check_lock(
-/*==========================*/
-	fts_table_t*		fts_table,	/*!< in: FTS table */
-	const fts_index_cache_t*index_cache,	/*!< in: FTS index cache */
-	que_t*			graph);		/*!< in: query graph */
-
-/****************************************************************//**
 Create an FTS index cache. */
 CHARSET_INFO*
 fts_index_get_charset(
@@ -930,16 +911,6 @@ ibool
 fts_check_cached_index(
 /*===================*/
 	dict_table_t*	table);  /*!< in: Table where indexes are dropped */
-
-/** Check if the all the auxillary tables associated with FTS index are in
-consistent state. For now consistency is check only by ensuring
-index->page_no != FIL_NULL
-@param[out]	base_table	table has host fts index
-@param[in,out]	trx		trx handler */
-void
-fts_check_corrupt(
-	dict_table_t*	base_table,
-	trx_t*		trx);
 
 /** Fetch the document from tuple, tokenize the text data and
 insert the text data into fts auxiliary table and

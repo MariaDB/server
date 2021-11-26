@@ -1119,6 +1119,8 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
   }
 }
 
+static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
+                                    Virtual_column_info *vcol);
 
 /** Parse TABLE_SHARE::vcol_defs
 
@@ -1304,6 +1306,9 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       Virtual_column_info *v= new (mem_root) Virtual_column_info();
       field->vcol_info= v;
       field->vcol_info->expr= hash_item;
+      field->vcol_info->set_vcol_type(VCOL_USING_HASH);
+      if (fix_and_check_vcol_expr(thd, table, v))
+        goto end;
       key->user_defined_key_parts= key->ext_key_parts= key->usable_key_parts= 1;
       key->key_part+= parts;
 
@@ -1347,7 +1352,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     if (check_vcol_forward_refs(field, field->vcol_info, 0) ||
         check_vcol_forward_refs(field, field->check_constraint, 1) ||
         check_vcol_forward_refs(field, field->default_value, 0))
+    {
+      *error_reported= true;
       goto end;
+    }
   }
 
   table->find_constraint_correlated_indexes();
@@ -2647,9 +2655,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (versioned)
     {
       if (i == vers.start_fieldno)
-        flags|= VERS_SYS_START_FLAG;
+        flags|= VERS_ROW_START;
       else if (i == vers.end_fieldno)
-        flags|= VERS_SYS_END_FLAG;
+        flags|= VERS_ROW_END;
 
       if (flags & VERS_SYSTEM_FIELD)
       {
@@ -3329,7 +3337,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                              share->column_bitmap_size *
                                              bitmap_count)))
     goto err;
-  my_bitmap_init(&share->all_set, bitmaps, share->fields, FALSE);
+  my_bitmap_init(&share->all_set, bitmaps, share->fields);
   bitmap_set_all(&share->all_set);
   if (share->check_set)
   {
@@ -3340,7 +3348,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     my_bitmap_init(share->check_set,
                    (my_bitmap_map*) ((uchar*) bitmaps +
                                      share->column_bitmap_size),
-                   share->fields, FALSE);
+                   share->fields);
     bitmap_clear_all(share->check_set);
   }
 
@@ -4185,6 +4193,21 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
+
+    for (uint k= 0; k < share->keys; k++)
+    {
+      KEY &key_info= outparam->key_info[k];
+      uint parts = (share->use_ext_keys ? key_info.ext_key_parts :
+                    key_info.user_defined_key_parts);
+      for (uint p= 0; p < parts; p++)
+      {
+        KEY_PART_INFO &kp= key_info.key_part[p];
+        if (kp.field != outparam->field[kp.fieldnr - 1])
+        {
+          kp.field->vcol_info = outparam->field[kp.fieldnr - 1]->vcol_info;
+        }
+      }
+    }
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -4277,26 +4300,26 @@ partititon_err:
     goto err;
 
   my_bitmap_init(&outparam->def_read_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->def_write_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
 
   my_bitmap_init(&outparam->has_value_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->tmp_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->eq_join_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->cond_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->def_rpl_write_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   outparam->default_column_bitmaps();
 
   outparam->cond_selectivity= 1.0;
@@ -5022,6 +5045,21 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
     if (check_for_path_chars &&
         (*name == '/' || *name == '\\' || *name == '~' || *name == FN_EXTCHAR))
       return 1;
+    /*
+      We don't allow zero byte in table/schema names:
+      - Some code still uses NULL-terminated strings.
+        Zero bytes will confuse this code.
+      - There is a little practical use of zero bytes in names anyway.
+      Note, if the string passed as "name" comes here
+      from the parser as an identifier, it does not contain zero bytes,
+      as the parser rejects zero bytes in identifiers.
+      But "name" can also come here from queries like this:
+        SELECT * FROM I_S.TABLES WHERE TABLE_NAME='str';
+      In this case "name" is a general string expression
+      and it can have any arbitrary bytes, including zero bytes.
+    */
+    if (*name == 0x00)
+      return 1;
     name++;
     name_length++;
   }
@@ -5612,12 +5650,12 @@ void TABLE::reset_item_list(List<Item> *item_list, uint skip) const
     buffer	buffer for md5 writing
 */
 
-void  TABLE_LIST::calc_md5(const char *buffer)
+void  TABLE_LIST::calc_md5(char *buffer)
 {
   uchar digest[16];
   compute_md5_hash(digest, select_stmt.str,
                    select_stmt.length);
-  sprintf((char *) buffer,
+  sprintf(buffer,
 	    "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
 	    digest[0], digest[1], digest[2], digest[3],
 	    digest[4], digest[5], digest[6], digest[7],
@@ -7206,7 +7244,7 @@ void TABLE::prepare_for_position()
   if ((file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX) &&
       s->primary_key < MAX_KEY)
   {
-    mark_columns_used_by_index_no_reset(s->primary_key, read_set);
+    mark_index_columns_for_read(s->primary_key);
     /* signal change */
     file->column_bitmaps_signal();
   }
@@ -7222,7 +7260,7 @@ MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
     file->ha_start_keyread(index);
   if (map != read_set || !(file->index_flags(index, 0, 1) & HA_CLUSTERED_INDEX))
   {
-    mark_columns_used_by_index(index, map);
+    mark_index_columns(index, map);
     column_bitmaps_set(map);
   }
   DBUG_RETURN(backup);
@@ -7233,12 +7271,12 @@ MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
   Mark that only fields from one key is used. Useful before keyread.
 */
 
-void TABLE::mark_columns_used_by_index(uint index, MY_BITMAP *bitmap)
+void TABLE::mark_index_columns(uint index, MY_BITMAP *bitmap)
 {
-  DBUG_ENTER("TABLE::mark_columns_used_by_index");
+  DBUG_ENTER("TABLE::mark_index_columns");
 
   bitmap_clear_all(bitmap);
-  mark_columns_used_by_index_no_reset(index, bitmap);
+  mark_index_columns_no_reset(index, bitmap);
   DBUG_VOID_RETURN;
 }
 
@@ -7246,11 +7284,11 @@ void TABLE::mark_columns_used_by_index(uint index, MY_BITMAP *bitmap)
   Restore to use normal column maps after key read
 
   NOTES
-    This reverse the change done by mark_columns_used_by_index
+    This reverse the change done by mark_index_columns
 
   WARNING
     For this to work, one must have the normal table maps in place
-    when calling mark_columns_used_by_index
+    when calling mark_index_columns
 */
 
 void TABLE::restore_column_maps_after_keyread(MY_BITMAP *backup)
@@ -7262,22 +7300,35 @@ void TABLE::restore_column_maps_after_keyread(MY_BITMAP *backup)
   DBUG_VOID_RETURN;
 }
 
+static void do_mark_index_columns(TABLE *table, uint index,
+                                  MY_BITMAP *bitmap, bool read)
+{
+  KEY_PART_INFO *key_part= table->key_info[index].key_part;
+  uint key_parts= table->key_info[index].user_defined_key_parts;
+  for (uint k= 0; k < key_parts; k++)
+    if (read)
+      key_part[k].field->register_field_in_read_map();
+    else
+      bitmap_set_bit(bitmap, key_part[k].fieldnr-1);
+  if (table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX &&
+      table->s->primary_key != MAX_KEY && table->s->primary_key != index)
+    do_mark_index_columns(table, table->s->primary_key, bitmap, read);
 
+}
 /*
   mark columns used by key, but don't reset other fields
 */
 
-void TABLE::mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *bitmap)
+inline void TABLE::mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap)
 {
-  KEY_PART_INFO *key_part= key_info[index].key_part;
-  KEY_PART_INFO *key_part_end= (key_part + key_info[index].user_defined_key_parts);
-  for (;key_part != key_part_end; key_part++)
-    bitmap_set_bit(bitmap, key_part->fieldnr-1);
-  if (file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX &&
-      s->primary_key != MAX_KEY && s->primary_key != index)
-    mark_columns_used_by_index_no_reset(s->primary_key, bitmap);
+  do_mark_index_columns(this, index, bitmap, false);
 }
 
+
+inline void TABLE::mark_index_columns_for_read(uint index)
+{
+  do_mark_index_columns(this, index, read_set, true);
+}
 
 /*
   Mark auto-increment fields as used fields in both read and write maps
@@ -7297,7 +7348,7 @@ void TABLE::mark_auto_increment_column()
   bitmap_set_bit(read_set, found_next_number_field->field_index);
   bitmap_set_bit(write_set, found_next_number_field->field_index);
   if (s->next_number_keypart)
-    mark_columns_used_by_index_no_reset(s->next_number_index, read_set);
+    mark_index_columns_for_read(s->next_number_index);
   file->column_bitmaps_signal();
 }
 
@@ -7348,7 +7399,7 @@ void TABLE::mark_columns_needed_for_delete()
       file->use_hidden_primary_key();
     else
     {
-      mark_columns_used_by_index_no_reset(s->primary_key, read_set);
+      mark_index_columns_for_read(s->primary_key);
       need_signal= true;
     }
   }
@@ -7434,7 +7485,7 @@ void TABLE::mark_columns_needed_for_update()
       file->use_hidden_primary_key();
     else
     {
-      mark_columns_used_by_index_no_reset(s->primary_key, read_set);
+      mark_index_columns_for_read(s->primary_key);
       need_signal= true;
     }
   }
@@ -7594,7 +7645,7 @@ void TABLE::mark_columns_per_binlog_row_image()
           if ((my_field->flags & PRI_KEY_FLAG) ||
               (my_field->type() != MYSQL_TYPE_BLOB))
           {
-            bitmap_set_bit(read_set, my_field->field_index);
+            my_field->register_field_in_read_map();
             bitmap_set_bit(rpl_write_set, my_field->field_index);
           }
         }
@@ -7606,7 +7657,7 @@ void TABLE::mark_columns_per_binlog_row_image()
           We don't need to mark the primary key in the rpl_write_set as the
           binary log will include all columns read anyway.
         */
-        mark_columns_used_by_index_no_reset(s->primary_key, read_set);
+        mark_index_columns_for_read(s->primary_key);
         if (versioned())
         {
           // TODO: After MDEV-18432 we don't pass history rows, so remove this:
@@ -9665,6 +9716,9 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
   int error= table->file->ha_write_row(table->record[0]);
   if (unlikely(error))
     table->file->print_error(error, MYF(0));
+  /* extra() is used to apply the bulk insert operation
+  on mysql/transaction_registry table */
+  table->file->extra(HA_EXTRA_IGNORE_INSERT);
   return error;
 }
 

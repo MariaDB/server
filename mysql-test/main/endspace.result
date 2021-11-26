@@ -162,7 +162,8 @@ nothing
 teststring	
 teststring
 drop table t1;
-create table t1 (text1 varchar(32) not NULL, KEY key1 (text1)) engine=innodb;
+create table t1 (text1 varchar(32) not NULL, KEY key1 (text1)) engine=innodb
+stats_persistent=0;
 insert into t1 values ('teststring'), ('nothing'), ('teststring\t');
 check table t1;
 Table	Op	Msg_type	Msg_text

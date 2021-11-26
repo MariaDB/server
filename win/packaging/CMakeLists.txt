@@ -230,6 +230,12 @@ ADD_CUSTOM_TARGET(
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
+ADD_CUSTOM_TARGET(
+  win_package_test
+  COMMAND ${CMAKE_CPACK_COMMAND} ${CPACK_CONFIG_PARAM} --config ${CMAKE_CURRENT_SOURCE_DIR}/CPackZipTestConfig.cmake
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
 ADD_CUSTOM_TARGET(win_package DEPENDS win_package_zip win_package_debuginfo)
 SET_TARGET_PROPERTIES(
   win_package win_package_zip win_package_debuginfo

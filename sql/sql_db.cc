@@ -1363,9 +1363,7 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
   *tables= tot_list;
 
   /* and at last delete all non-table files */
-  for (uint idx=0 ;
-       idx < (uint) dirp->number_of_files && !thd->killed ;
-       idx++)
+  for (size_t idx=0; idx < dirp->number_of_files && !thd->killed; idx++)
   {
     FILEINFO *file=dirp->dir_entry+idx;
     char *extension;
@@ -1488,9 +1486,7 @@ long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path)
   DBUG_ENTER("mysql_rm_arc_files");
   DBUG_PRINT("enter", ("path: %s", org_path));
 
-  for (uint idx=0 ;
-       idx < (uint) dirp->number_of_files && !thd->killed ;
-       idx++)
+  for (size_t idx=0; idx < dirp->number_of_files && !thd->killed; idx++)
   {
     FILEINFO *file=dirp->dir_entry+idx;
     char *extension, *revision;
@@ -1970,8 +1966,8 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
   /* Step2: Move tables to the new database */
   if ((dirp = my_dir(path,MYF(MY_DONT_SORT))))
   {
-    uint nfiles= (uint) dirp->number_of_files;
-    for (uint idx=0 ; idx < nfiles && !thd->killed ; idx++)
+    size_t nfiles= dirp->number_of_files;
+    for (size_t idx=0 ; idx < nfiles && !thd->killed ; idx++)
     {
       FILEINFO *file= dirp->dir_entry + idx;
       char *extension, tname[FN_REFLEN + 1];
@@ -2060,8 +2056,8 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
 
   if ((dirp = my_dir(path,MYF(MY_DONT_SORT))))
   {
-    uint nfiles= (uint) dirp->number_of_files;
-    for (uint idx=0 ; idx < nfiles ; idx++)
+    size_t nfiles= dirp->number_of_files;
+    for (size_t idx=0 ; idx < nfiles ; idx++)
     {
       FILEINFO *file= dirp->dir_entry + idx;
       char oldname[FN_REFLEN + 1], newname[FN_REFLEN + 1];

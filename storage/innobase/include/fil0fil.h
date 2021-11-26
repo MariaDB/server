@@ -511,7 +511,9 @@ public:
 
   /** Note that operations on the tablespace must stop.
   @return whether the operations were already stopped */
-  inline bool set_stopping();
+  inline bool set_stopping_check();
+  /** Note that operations on the tablespace must stop. */
+  inline void set_stopping();
 
   /** Note that operations on the tablespace can resume after truncation */
   inline void clear_stopping();
@@ -566,9 +568,35 @@ public:
 
   /** Clear the NEEDS_FSYNC flag */
   void clear_flush()
-  { n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release); }
+  {
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
+    __asm__ __volatile__("lock btrl $29, %0" : "+m" (n_pending));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+    static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
+    _interlockedbittestandreset(reinterpret_cast<volatile long*>
+                                (&n_pending), 29);
+#else
+    n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release);
+#endif
+  }
 
 private:
+  /** Clear the CLOSING flag */
+  void clear_closing()
+  {
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    static_assert(CLOSING == 1U << 30, "compatibility");
+    __asm__ __volatile__("lock btrl $30, %0" : "+m" (n_pending));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+    static_assert(CLOSING == 1U << 30, "compatibility");
+    _interlockedbittestandreset(reinterpret_cast<volatile long*>
+                                (&n_pending), 30);
+#else
+    n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
+#endif
+  }
+
   /** @return pending operations (and flags) */
   uint32_t pending()const { return n_pending.load(std::memory_order_acquire); }
 public:
@@ -651,6 +679,15 @@ public:
   { return flags & FSP_FLAGS_FCRC32_MASK_MARKER; }
   /** @return whether innodb_checksum_algorithm=full_crc32 is active */
   bool full_crc32() const { return full_crc32(flags); }
+  /** Determine if full_crc32 is used along with PAGE_COMPRESSED */
+  static bool is_full_crc32_compressed(uint32_t flags)
+  {
+    if (!full_crc32(flags))
+      return false;
+    auto algo= FSP_FLAGS_FCRC32_GET_COMPRESSED_ALGO(flags);
+    DBUG_ASSERT(algo <= PAGE_ALGORITHM_LAST);
+    return algo != 0;
+  }
   /** Determine the logical page size.
   @param flags	tablespace flags (FSP_SPACE_FLAGS)
   @return the logical page size
@@ -699,17 +736,14 @@ public:
   unsigned zip_size() const { return zip_size(flags); }
   /** @return the physical page size */
   unsigned physical_size() const { return physical_size(flags); }
-  /** Check whether the the tablespace is PAGE_COMPRESSED.
-  @param flags	contents of FSP_SPACE_FLAGS */
+
+  /** Check whether PAGE_COMPRESSED is enabled.
+  @param[in]	flags	tablespace flags */
   static bool is_compressed(uint32_t flags)
   {
-    if (!full_crc32(flags))
-      return FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
-    const uint32_t algo= FSP_FLAGS_FCRC32_GET_COMPRESSED_ALGO(flags);
-    DBUG_ASSERT(algo <= PAGE_ALGORITHM_LAST);
-    return algo > 0;
+    return is_full_crc32_compressed(flags) ||
+      FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
   }
-
   /** @return whether the compression enabled for the tablespace. */
   bool is_compressed() const { return is_compressed(flags); }
 
@@ -1393,6 +1427,8 @@ public:
   sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
   /** number of currently open files; protected by mutex */
   ulint n_open;
+  /** last time we noted n_open exceeding the limit; protected by mutex */
+  time_t n_open_exceeded_time;
   /** maximum persistent tablespace id that has ever been assigned */
   uint32_t max_assigned_id;
   /** nonzero if fil_node_open_file_low() should avoid moving the tablespace
@@ -1450,16 +1486,49 @@ inline void fil_space_t::reacquire()
 
 /** Note that operations on the tablespace must stop.
 @return whether the operations were already stopped */
-inline bool fil_space_t::set_stopping()
+inline bool fil_space_t::set_stopping_check()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
+#if defined __clang_major__ && __clang_major__ < 10
+  /* Only clang-10 introduced support for asm goto */
   return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
+#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  __asm__ goto("lock btsl $31, %0\t\njnc %l1" : : "m" (n_pending)
+               : "cc", "memory" : not_stopped);
+  return true;
+not_stopped:
+  return false;
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  return _interlockedbittestandset(reinterpret_cast<volatile long*>
+                                   (&n_pending), 31);
+#else
+  return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
+#endif
+}
+
+/** Note that operations on the tablespace must stop.
+@return whether the operations were already stopped */
+inline void fil_space_t::set_stopping()
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  __asm__ __volatile__("lock btsl $31, %0" : "+m" (n_pending));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  _interlockedbittestandset(reinterpret_cast<volatile long*>(&n_pending), 31);
+#else
+  n_pending.fetch_or(STOPPING, std::memory_order_relaxed);
+#endif
 }
 
 inline void fil_space_t::clear_stopping()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_d(auto n=) n_pending.fetch_and(~STOPPING, std::memory_order_relaxed);
+  static_assert(STOPPING == 1U << 31, "compatibility");
+  ut_d(auto n=) n_pending.fetch_sub(STOPPING, std::memory_order_relaxed);
   ut_ad(n & STOPPING);
 }
 
@@ -1595,7 +1664,7 @@ right in it. If does not succeed, prints an error message to the .err log. This
 function is used to open a tablespace when we start up mysqld, and also in
 IMPORT TABLESPACE.
 NOTE that we assume this operation is used either at the database startup
-or under the protection of the dictionary mutex, so that two users cannot
+or under the protection of dict_sys.latch, so that two users cannot
 race here. This operation does not leave the file associated with the
 tablespace open, but closes it after we have looked at the space id in it.
 
@@ -1733,6 +1802,9 @@ inline bool fil_names_write_if_was_clean(fil_space_t* space)
 
 	return(was_clean);
 }
+
+
+bool fil_comp_algo_loaded(ulint comp_algo);
 
 /** On a log checkpoint, reset fil_names_dirty_and_write() flags
 and write out FILE_MODIFY and FILE_CHECKPOINT if needed.

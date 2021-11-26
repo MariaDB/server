@@ -29,6 +29,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-mb.h"
 
 #ifdef HAVE_CHARSET_ujis
 
@@ -210,6 +211,7 @@ static const uchar sort_order_ujis[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#define STRCOLL_MB7_TOUPPER
 #include "strcoll.ic"
 
 
@@ -219,6 +221,7 @@ static const uchar sort_order_ujis[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 
@@ -229,6 +232,7 @@ static const uchar sort_order_ujis[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#define STRCOLL_MB7_TOUPPER
 #include "strcoll.ic"
 
 
@@ -239,6 +243,7 @@ static const uchar sort_order_ujis[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 
@@ -67248,7 +67253,9 @@ static MY_COLLATION_HANDLER my_collation_ujis_japanese_ci_handler =
     my_strcasecmp_mb,
     my_instr_mb,
     my_hash_sort_simple,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -67264,7 +67271,9 @@ static MY_COLLATION_HANDLER my_collation_ujis_bin_handler =
     my_strcasecmp_mb_bin,
     my_instr_mb,
     my_hash_sort_mb_bin,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple,
+    my_max_str_mb_simple
 };
 
 
@@ -67280,7 +67289,9 @@ static MY_COLLATION_HANDLER my_collation_ujis_japanese_nopad_ci_handler =
     my_strcasecmp_mb,
     my_instr_mb,
     my_hash_sort_simple_nopad,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple_nopad,
+    my_max_str_mb_simple
 };
 
 
@@ -67296,7 +67307,9 @@ static MY_COLLATION_HANDLER my_collation_ujis_nopad_bin_handler =
     my_strcasecmp_mb_bin,
     my_instr_mb,
     my_hash_sort_mb_nopad_bin,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_mb_simple_nopad,
+    my_max_str_mb_simple
 };
 
 

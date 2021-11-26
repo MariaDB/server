@@ -517,6 +517,7 @@ enum enum_vcol_info_type
 {
   VCOL_GENERATED_VIRTUAL, VCOL_GENERATED_STORED,
   VCOL_DEFAULT, VCOL_CHECK_FIELD, VCOL_CHECK_TABLE,
+  VCOL_USING_HASH,
   /* Additional types should be added here */
   /* Following is the highest value last   */
   VCOL_TYPE_NONE = 127 // Since the 0 value is already in use
@@ -534,6 +535,8 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
   case VCOL_CHECK_FIELD:
   case VCOL_CHECK_TABLE:
     return "CHECK";
+  case VCOL_USING_HASH:
+    return "USING HASH";
   case VCOL_TYPE_NONE:
     return "UNTYPED";
   }
@@ -1651,6 +1654,8 @@ protected:
   }
   int warn_if_overflow(int op_result);
   Copy_func *get_identical_copy_func() const;
+  bool cmp_is_done_using_type_handler_of_this(const Item_bool_func *cond,
+                                              const Item *item) const;
   bool can_optimize_scalar_range(const RANGE_OPT_PARAM *param,
                                  const KEY_PART *key_part,
                                  const Item_bool_func *cond,
@@ -1800,7 +1805,7 @@ public:
 
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
 
   bool vers_update_unversioned() const
@@ -4561,7 +4566,13 @@ public:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
   void sql_type(String &str) const override;
-  inline bool copy()
+  /**
+     Copy blob buffer into internal storage "value" and update record pointer.
+
+     @retval true     Memory allocation error
+     @retval false    Success
+  */
+  bool copy()
   {
     uchar *tmp= get_ptr();
     if (value.copy((char*) tmp, get_length(), charset()))
@@ -4572,6 +4583,33 @@ public:
     tmp=(uchar*) value.ptr();
     memcpy(ptr+packlength, &tmp, sizeof(char*));
     return 0;
+  }
+  void swap(String &inout, bool set_read_value)
+  {
+    if (set_read_value)
+      read_value.swap(inout);
+    else
+      value.swap(inout);
+  }
+  /**
+     Return pointer to blob cache or NULL if not cached.
+  */
+  String * cached(bool *set_read_value)
+  {
+    char *tmp= (char *) get_ptr();
+    if (!value.is_empty() && tmp == value.ptr())
+    {
+      *set_read_value= false;
+      return &value;
+    }
+
+    if (!read_value.is_empty() && tmp == read_value.ptr())
+    {
+      *set_read_value= true;
+      return &read_value;
+    }
+
+    return NULL;
   }
   /* store value for the duration of the current read record */
   inline void swap_value_and_read_value()
@@ -5273,7 +5311,7 @@ public:
   }
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
   void create_length_to_internal_length_bit();
   void create_length_to_internal_length_newdecimal();

@@ -9,7 +9,7 @@ INSERT INTO t2 VALUES(2);
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 SELECT * FROM t1;
-ERROR 42S02: Table 'test.t1' doesn't exist in engine
+ERROR HY000: Table test/t1 is corrupted. Please drop the table and recreate.
 SELECT * FROM t2;
 a
 2

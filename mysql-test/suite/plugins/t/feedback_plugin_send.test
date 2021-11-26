@@ -38,6 +38,6 @@ perl;
   while ($_=<LOG>) {
     $logg{$&}++ if /feedback plugin:.*/;
   }
-  print "$logg{$_}: $_\n" for sort keys %logg;
+  print "$_\n" for sort keys %logg;
   close LOG;
 EOF

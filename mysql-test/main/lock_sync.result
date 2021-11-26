@@ -221,6 +221,8 @@ end|
 # called below.
 #
 connection con1;
+set @save_dbug=@@debug_dbug;
+set debug_dbug="+d,cache_sp_in_show_create";
 # Cache all functions used in the tests below so statements
 # calling them won't need to open and lock mysql.proc table
 # and we can assume that each statement locks its tables
@@ -245,6 +247,7 @@ show create function f14;
 show create function f15;
 show create function f16;
 show create function f17;
+set debug_dbug=@save_dbug;
 connection default;
 #
 # 1. Statements that read tables and do not use subqueries.

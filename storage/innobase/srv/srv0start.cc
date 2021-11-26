@@ -813,7 +813,6 @@ srv_open_tmp_tablespace(bool create_new_db)
 static void srv_shutdown_threads()
 {
 	ut_ad(!srv_undo_sources);
-	ut_d(srv_master_thread_enable());
 	srv_master_timer.reset();
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
 
@@ -1066,7 +1065,7 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	high_level_read_only = srv_read_only_mode
-		|| srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE
+		|| srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN
 		|| srv_sys_space.created_new_raw();
 
 	srv_started_redo = false;
@@ -1519,13 +1518,13 @@ file_checked:
 					RW_SX_LATCH, &mtr);
 				ulint size = mach_read_from_4(
 					FSP_HEADER_OFFSET + FSP_SIZE
-					+ block->frame);
+					+ block->page.frame);
 				ut_ad(size == fil_system.sys_space
 				      ->size_in_header);
 				size += sum_of_new_sizes;
 				mtr.write<4>(*block,
 					     FSP_HEADER_OFFSET + FSP_SIZE
-					     + block->frame, size);
+					     + block->page.frame, size);
 				fil_system.sys_space->size_in_header
 					= uint32_t(size);
 				mtr.commit();
@@ -1539,7 +1538,7 @@ file_checked:
 			buf_block_t* block = buf_page_get(page_id_t(0, 0), 0,
 							  RW_S_LATCH, &mtr);
 			ut_ad(mach_read_from_4(FSP_SIZE + FSP_HEADER_OFFSET
-					       + block->frame)
+					       + block->page.frame)
 			      == fil_system.sys_space->size_in_header);
 			mtr.commit();
 		}
@@ -1706,7 +1705,7 @@ file_checked:
 
 	if (!create_new_db) {
 		ut_ad(high_level_read_only
-		      || srv_force_recovery <= SRV_FORCE_NO_IBUF_MERGE);
+		      || srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
 
 		/* Validate a few system page types that were left
 		uninitialized before MySQL or MariaDB 5.5. */
@@ -1747,7 +1746,7 @@ file_checked:
 		should guarantee that there is at most one data
 		dictionary transaction active at a time. */
 		if (!high_level_read_only
-		    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+		    && srv_force_recovery <= SRV_FORCE_NO_TRX_UNDO) {
 			/* If the following call is ever removed, the
 			first-time ha_innobase::open() must hold (or
 			acquire and release) a table lock that
@@ -1761,7 +1760,7 @@ file_checked:
 			trx_rollback_recovered(false);
 		}
 
-		if (srv_force_recovery <= SRV_FORCE_NO_IBUF_MERGE) {
+		if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
 			/* The following call is necessary for the insert
 			buffer to work with multiple tablespaces. We must
 			know the mapping between space id's and .ibd file
@@ -1902,8 +1901,6 @@ skip_monitors:
 void srv_shutdown_bg_undo_sources()
 {
 	srv_shutdown_state = SRV_SHUTDOWN_INITIATED;
-
-	ut_d(srv_master_thread_enable());
 
 	if (srv_undo_sources) {
 		ut_ad(!srv_read_only_mode);
@@ -2051,6 +2048,10 @@ void innodb_shutdown()
 		srv_tmp_space.delete_files();
 	}
 	srv_tmp_space.shutdown();
+
+	if (srv_stats.pages_page_compression_error)
+		ib::warn() << "Page compression errors: "
+			   << srv_stats.pages_page_compression_error;
 
 	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "

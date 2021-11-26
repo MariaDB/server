@@ -31,6 +31,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 # MDEV-25200 Index count mismatch due to aborted FULLTEXT INDEX
 #
 CREATE TABLE t1(a INT, b TEXT, c TEXT, FULLTEXT INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, "test", "test_1");
 connect con1,localhost,root,,test;
 SET DEBUG_DBUG="+d,innodb_OOM_inplace_alter";
 SET DEBUG_SYNC='innodb_commit_inplace_alter_table_enter SIGNAL s2 WAIT_FOR g2';
@@ -40,6 +41,7 @@ SET DEBUG_SYNC='now WAIT_FOR s2';
 START TRANSACTION;
 SELECT * FROM t1;
 a	b	c
+1	test	test_1
 SET DEBUG_SYNC='now SIGNAL g2';
 connection con1;
 ERROR HY000: Out of memory.
@@ -55,6 +57,7 @@ DROP TABLE t1;
 # MDEV-25663 Double free of transaction during TRUNCATE
 #
 call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
+call mtr.add_suppression("InnoDB: Cannot save table statistics for table `test`\\.`t1`: Too many concurrent transactions");
 CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
 SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
 TRUNCATE t1;

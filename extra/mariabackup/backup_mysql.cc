@@ -54,7 +54,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "backup_copy.h"
 #include "backup_mysql.h"
 #include "mysqld.h"
-#include "encryption_plugin.h"
+#include "xb_plugin.h"
 #include <sstream>
 #include <sql_error.h>
 #include "page0zip.h"
@@ -918,13 +918,11 @@ bool lock_tables(MYSQL *connection)
 
   if (have_galera_enabled)
   {
-    xb_mysql_query(connection, "SET SESSION wsrep_causal_reads=0", false);
+    xb_mysql_query(connection, "SET SESSION wsrep_sync_wait=0", false);
   }
 
   xb_mysql_query(connection, "BACKUP STAGE START", true);
   DBUG_MARIABACKUP_EVENT("after_backup_stage_start", {});
-  // xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
-  // xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
   xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
   DBUG_MARIABACKUP_EVENT("after_backup_stage_block_commit", {});
   /* Set the maximum supported session value for
@@ -1623,7 +1621,7 @@ bool write_backup_config_file()
 			"innodb_buffer_pool_filename=" : "",
 		innobase_buffer_pool_filename ?
 			innobase_buffer_pool_filename : "",
-		encryption_plugin_get_config());
+		xb_plugin_get_config());
 		return rc;
 }
 

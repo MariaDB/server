@@ -110,7 +110,7 @@ v7	v8	v9	v10	v11	v12	v13	v14	v15	v16
 v17	v18	v19	v20
 12.00	12.12	12.00	12.12
 Warnings:
-Note	1265	Data truncated for column 'v20' at row 1
+Note	1265	Data truncated for column 'v20' at row 0
 CALL sp_vars_check_assignment();
 i1	i2	i3	i4
 127	-128	127	-128
@@ -130,22 +130,22 @@ SELECT sp_vars_check_ret1();
 sp_vars_check_ret1()
 127
 Warnings:
-Warning	1264	Out of range value for column 'sp_vars_check_ret1()' at row 1
+Warning	1264	Out of range value for column 'sp_vars_check_ret1()' at row 0
 SELECT sp_vars_check_ret2();
 sp_vars_check_ret2()
 127
 Warnings:
-Warning	1264	Out of range value for column 'sp_vars_check_ret2()' at row 1
+Warning	1264	Out of range value for column 'sp_vars_check_ret2()' at row 0
 SELECT sp_vars_check_ret3();
 sp_vars_check_ret3()
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 1
+Warning	1366	Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 0
 SELECT sp_vars_check_ret4();
 sp_vars_check_ret4()
 154.12
 Warnings:
-Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 1
+Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 0
 SELECT sp_vars_div_zero();
 sp_vars_div_zero()
 NULL
@@ -165,7 +165,7 @@ v7	v8	v9	v10	v11	v12	v13	v14	v15	v16
 v17	v18	v19	v20
 12.00	12.12	12.00	12.12
 Warnings:
-Note	1265	Data truncated for column 'v20' at row 1
+Note	1265	Data truncated for column 'v20' at row 0
 CALL sp_vars_check_assignment();
 i1	i2	i3	i4
 127	-128	127	-128
@@ -185,22 +185,22 @@ SELECT sp_vars_check_ret1();
 sp_vars_check_ret1()
 127
 Warnings:
-Warning	1264	Out of range value for column 'sp_vars_check_ret1()' at row 1
+Warning	1264	Out of range value for column 'sp_vars_check_ret1()' at row 0
 SELECT sp_vars_check_ret2();
 sp_vars_check_ret2()
 127
 Warnings:
-Warning	1264	Out of range value for column 'sp_vars_check_ret2()' at row 1
+Warning	1264	Out of range value for column 'sp_vars_check_ret2()' at row 0
 SELECT sp_vars_check_ret3();
 sp_vars_check_ret3()
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 1
+Warning	1366	Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 0
 SELECT sp_vars_check_ret4();
 sp_vars_check_ret4()
 154.12
 Warnings:
-Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 1
+Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 0
 SELECT sp_vars_div_zero();
 sp_vars_div_zero()
 NULL
@@ -306,20 +306,20 @@ Calling the routines, created in TRADITIONAL mode.
 ---------------------------------------------------------------
 
 CALL sp_vars_check_dflt();
-ERROR 22003: Out of range value for column 'v1' at row 1
+ERROR 22003: Out of range value for column 'v1' at row 0
 CALL sp_vars_check_assignment();
-ERROR 22003: Out of range value for column 'i1' at row 1
+ERROR 22003: Out of range value for column 'i1' at row 0
 SELECT sp_vars_check_ret1();
-ERROR 22003: Out of range value for column 'sp_vars_check_ret1()' at row 1
+ERROR 22003: Out of range value for column 'sp_vars_check_ret1()' at row 0
 SELECT sp_vars_check_ret2();
-ERROR 22003: Out of range value for column 'sp_vars_check_ret2()' at row 1
+ERROR 22003: Out of range value for column 'sp_vars_check_ret2()' at row 0
 SELECT sp_vars_check_ret3();
-ERROR 22007: Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 1
+ERROR 22007: Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 0
 SELECT sp_vars_check_ret4();
 sp_vars_check_ret4()
 154.12
 Warnings:
-Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 1
+Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 0
 SELECT sp_vars_div_zero();
 ERROR 22012: Division by 0
 SET @@sql_mode = 'ansi';
@@ -385,7 +385,7 @@ FF
 HEX(v10)
 FF
 Warnings:
-Warning	1264	Out of range value for column 'v5' at row 1
+Warning	1264	Out of range value for column 'v5' at row 0
 DROP PROCEDURE p1;
 
 ---------------------------------------------------------------
@@ -602,7 +602,7 @@ CALL p1('alpha', 'abcdef');
 x	y
 alpha	abc
 Warnings:
-Warning	1265	Data truncated for column 'y' at row 1
+Warning	1265	Data truncated for column 'y' at row 0
 DROP PROCEDURE p1;
 
 ---------------------------------------------------------------
@@ -628,7 +628,7 @@ t1	CREATE TABLE "t1" (
   "x" datetime DEFAULT NULL
 )
 Warnings:
-Warning	1265	Data truncated for column 'x' at row 1
+Warning	1265	Data truncated for column 'x' at row 0
 DROP PROCEDURE p1;
 
 ---------------------------------------------------------------
@@ -777,17 +777,17 @@ SET var := arg;
 SELECT arg, var;
 END|
 CALL p1();
-ERROR 22003: Out of range value for column 'v' at row 1
+ERROR 22003: Out of range value for column 'v' at row 0
 CALL p2();
-ERROR 22003: Out of range value for column 'v' at row 1
+ERROR 22003: Out of range value for column 'v' at row 0
 CALL p3();
-ERROR 22001: Data too long for column 'v' at row 1
+ERROR 22001: Data too long for column 'v' at row 0
 CALL p4('aaa');
-ERROR 22001: Data too long for column 'arg' at row 1
+ERROR 22001: Data too long for column 'arg' at row 0
 CALL p5('aa');
-ERROR 22001: Data too long for column 'var' at row 1
+ERROR 22001: Data too long for column 'var' at row 0
 CALL p6(10);
-ERROR 22003: Out of range value for column 'var' at row 1
+ERROR 22003: Out of range value for column 'var' at row 0
 SET @@sql_mode = 'ansi';
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -817,7 +817,7 @@ CALL p1(1929.003);
 var
 1929.00
 Warnings:
-Note	1265	Data truncated for column 'arg' at row 1
+Note	1265	Data truncated for column 'arg' at row 0
 DROP PROCEDURE p1;
 
 ---------------------------------------------------------------
@@ -950,17 +950,17 @@ CALL p1('c');
 arg
 
 Warnings:
-Warning	1265	Data truncated for column 'arg' at row 1
+Warning	1265	Data truncated for column 'arg' at row 0
 CALL p2('a');
 arg	var
 a	
 Warnings:
-Warning	1265	Data truncated for column 'var' at row 1
+Warning	1265	Data truncated for column 'var' at row 0
 SELECT f1('a');
 f1('a')
 
 Warnings:
-Warning	1265	Data truncated for column 'f1('a')' at row 1
+Warning	1265	Data truncated for column 'f1('a')' at row 0
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP FUNCTION f1;

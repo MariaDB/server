@@ -130,20 +130,18 @@ SELECT thread_id INTO @con3_id FROM threads WHERE processlist_user IN ('user3');
 --echo # Review per-thread status counts
 --echo #
 USE performance_schema;
---replace_column 1 thread_id
-SELECT * FROM status_by_thread WHERE thread_id IN (@con1_id, @con2_id, @con3_id) AND variable_name IN ('handler_delete', 'handler_rollback') ORDER BY thread_id;
 
 --echo #
 --echo # Verify expected counts for 'handler_delete' per thread
 --echo # 
---replace_column 1 connect_1
-SELECT *, IF (variable_value = 1,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con1_id AND variable_name IN ('handler_delete');
+--replace_column 1 con_1
+SELECT *, IF (variable_value = 1,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con1_id AND variable_name IN ('handler_delete', 'handler_rollback');
 --echo #
---replace_column 1 connnect_2
-SELECT *, IF (variable_value = 2,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con2_id AND variable_name IN ('handler_delete');
+--replace_column 1 con_2
+SELECT *, IF (variable_value = 2,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con2_id AND variable_name IN ('handler_delete', 'handler_rollback');
 --echo #
---replace_column 1 connnect_3
-SELECT *, IF (variable_value = 3,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con3_id AND variable_name IN ('handler_delete');
+--replace_column 1 con_3
+SELECT *, IF (variable_value = 3,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con3_id AND variable_name IN ('handler_delete', 'handler_rollback');
 
 --echo #
 --echo # STATUS_BY_THREAD vs. GLOBAL_STATUS

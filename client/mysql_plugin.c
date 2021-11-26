@@ -34,7 +34,7 @@ static uint opt_no_defaults= 0;
 static uint opt_print_defaults= 0;
 static char *opt_datadir=0, *opt_basedir=0,
             *opt_plugin_dir=0, *opt_plugin_ini=0,
-            *opt_mysqld=0, *opt_my_print_defaults=0;
+            *opt_mysqld=0, *opt_my_print_defaults=0, *opt_lc_messages_dir;
 static char bootstrap[FN_REFLEN];
 
 
@@ -69,6 +69,8 @@ static struct my_option my_long_options[] =
     0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"my-print-defaults", 'f', "Path to my_print_defaults executable. "
    "Example: /source/temp11/extra",
+    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"lc-messages-dir", 'l', "The error messages dir for the server. ",
     0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose", 'v',
     "More verbose output; you can use this multiple times to get even more "
@@ -305,6 +307,7 @@ static char *add_quotes(const char *path)
   --basedir
   --plugin-dir
   --plugin-ini
+  --lc-messages-dir
 
   These values are used if the user has not specified a value.
 
@@ -382,14 +385,20 @@ static int get_default_values()
       {
         opt_basedir= my_strdup(PSI_NOT_INSTRUMENTED, value, MYF(MY_FAE));
       }
-      if ((opt_plugin_dir == 0) && ((value= get_value(line, "--plugin_dir"))))
+      if ((opt_plugin_dir == 0) && ((value= get_value(line, "--plugin_dir")) ||
+          (value= get_value(line, "--plugin-dir"))))
       {
         opt_plugin_dir= my_strdup(PSI_NOT_INSTRUMENTED, value, MYF(MY_FAE));
       }
-      if ((opt_plugin_ini == 0) && ((value= get_value(line, "--plugin_ini"))))
+      if ((opt_lc_messages_dir == 0) &&
+          ((value= get_value(line, "--lc_messages_dir")) ||
+          (value= get_value(line, "--lc_messages-dir")) ||
+          (value= get_value(line, "--lc-messages_dir")) ||
+          (value= get_value(line, "--lc-messages-dir"))))
       {
-        opt_plugin_ini= my_strdup(PSI_NOT_INSTRUMENTED, value, MYF(MY_FAE));
+        opt_lc_messages_dir= my_strdup(PSI_NOT_INSTRUMENTED, value, MYF(MY_FAE));
       }
+
     }
   }
 exit:
@@ -429,6 +438,7 @@ static void usage(void)
   --basedir
   --plugin-dir
   --plugin-ini
+  --lc-messages-dir
 
 */
 
@@ -460,6 +470,10 @@ static void print_default_values(void)
   if (opt_my_print_defaults)
   {
     printf("--my_print_defaults=%s ", opt_my_print_defaults);
+  }
+  if (opt_lc_messages_dir)
+  {
+    printf("--lc_messages_dir=%s ", opt_lc_messages_dir);
   }
   printf("\n");
 }
@@ -515,6 +529,10 @@ get_one_option(const struct my_option *opt,
   case 'f':
     opt_my_print_defaults= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
     break;
+  case 'l':
+    opt_lc_messages_dir= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
+    break;
+
   }
   return 0;
 }
@@ -900,6 +918,8 @@ static int process_options(int argc, char *argv[], char *operation)
     printf("# plugin_dir = %s\n", opt_plugin_dir);
     printf("#    datadir = %s\n", opt_datadir);
     printf("# plugin_ini = %s\n", opt_plugin_ini);
+    if (opt_lc_messages_dir != 0)
+      printf("# lc_messages_dir = %s\n", opt_lc_messages_dir);
   }
 
 exit:
@@ -955,6 +975,12 @@ static int check_access()
   {
     fprintf(stderr, "ERROR: Cannot access my-print-defaults path '%s'.\n",
             opt_my_print_defaults);
+    goto exit;
+  }
+  if (opt_lc_messages_dir && (error= my_access(opt_lc_messages_dir, F_OK)))
+  {
+    fprintf(stderr, "ERROR: Cannot access lc-messages-dir path '%s'.\n",
+            opt_lc_messages_dir);
     goto exit;
   }
 
@@ -1186,18 +1212,33 @@ static int bootstrap_server(char *server_path, char *bootstrap_file)
     verbose_str= "";
   if (has_spaces(opt_datadir) || has_spaces(opt_basedir) ||
       has_spaces(bootstrap_file))
-    format_str= "\"%s %s --bootstrap --datadir=%s --basedir=%s < %s\"";
-  else 
-    format_str= "%s %s --bootstrap --datadir=%s --basedir=%s < %s";
-
+  {
+    if (opt_lc_messages_dir != NULL)
+      format_str= "\"%s %s --bootstrap --datadir=%s --basedir=%s --lc-messages-dir=%s <%s\"";
+    else
+    format_str= "\"%s %s --bootstrap --datadir=%s --basedir=%s <%s\"";
+  }
+  else
+  {
+    if (opt_lc_messages_dir != NULL)
+      format_str= "\"%s %s --bootstrap --datadir=%s --basedir=%s --lc-messages-dir=%s <%s\"";
+    else
+      format_str= "%s %s --bootstrap --datadir=%s --basedir=%s <%s";
+  }
   snprintf(bootstrap_cmd, sizeof(bootstrap_cmd), format_str,
            add_quotes(convert_path(server_path)), verbose_str,
            add_quotes(opt_datadir), add_quotes(opt_basedir),
            add_quotes(bootstrap_file));
 #else
-  snprintf(bootstrap_cmd, sizeof(bootstrap_cmd),
-           "%s --no-defaults --bootstrap --datadir=%s --basedir=%s"
-           " < %s", server_path, opt_datadir, opt_basedir, bootstrap_file);
+  if (opt_lc_messages_dir != NULL)
+    snprintf(bootstrap_cmd, sizeof(bootstrap_cmd),
+             "%s --no-defaults --bootstrap --datadir=%s --basedir=%s --lc-messages-dir=%s"
+             " <%s", server_path, opt_datadir, opt_basedir, opt_lc_messages_dir, bootstrap_file);
+  else
+    snprintf(bootstrap_cmd, sizeof(bootstrap_cmd),
+             "%s --no-defaults --bootstrap --datadir=%s --basedir=%s"
+             " <%s", server_path, opt_datadir, opt_basedir, bootstrap_file);
+
 #endif
 
   /* Execute the command */

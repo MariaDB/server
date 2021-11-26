@@ -432,13 +432,13 @@ longlong Item_func_json_equals::val_int()
     goto end;
   }
 
-  if (json_normalize(&a_res, a->c_ptr(), a->length(), a->charset()))
+  if (json_normalize(&a_res, a->ptr(), a->length(), a->charset()))
   {
     null_value= 1;
     goto end;
   }
 
-  if (json_normalize(&b_res, b->c_ptr(), b->length(), b->charset()))
+  if (json_normalize(&b_res, b->ptr(), b->length(), b->charset()))
   {
     null_value= 1;
     goto end;
@@ -3640,6 +3640,7 @@ LEX_CSTRING Item_func_json_format::func_name_cstring() const
 bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
+  collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   set_maybe_null();
   return FALSE;
@@ -3962,7 +3963,7 @@ String *Item_func_json_normalize::val_str(String *buf)
     goto end;
 
   if (json_normalize(&normalized_json,
-                     raw_json->c_ptr(), raw_json->length(),
+                     raw_json->ptr(), raw_json->length(),
                      raw_json->charset()))
   {
     null_value= 1;

@@ -239,6 +239,13 @@ FUNCTION(TRAVERSE_FILES dir topdir file file_comp  dir_root)
   FILE(APPEND ${file} "<DirectoryRef Id='${DirectoryRefId}'>\n")
  
   SET(NONEXEFILES)
+  FOREACH(v MAJOR_VERSION MINOR_VERSION PATCH_VERSION TINY_VERSION)
+    IF(NOT DEFINED ${v})
+      MESSAGE(FATAL_ERROR "${v} is not defined")
+    ENDIF()
+  ENDFOREACH()
+  SET(default_version "${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}.${TINY_VERSION}")
+
   FOREACH(f ${all_files})
     IF(NOT IS_DIRECTORY ${f})
       FILE(RELATIVE_PATH rel ${topdir} ${f})
@@ -258,6 +265,7 @@ FUNCTION(TRAVERSE_FILES dir topdir file file_comp  dir_root)
           FILE(APPEND ${file} "    <Condition>${${id}.COMPONENT_CONDITION}</Condition>\n")
         ENDIF()
         FILE(APPEND ${file} "    <File Id='F.${id}' KeyPath='yes' Source='${f_native}'")
+        FILE(APPEND ${file} " DefaultVersion='${default_version}' DefaultLanguage='1033'")
         IF(${id}.FILE_EXTRA)
           FILE(APPEND ${file} ">\n${${id}.FILE_EXTRA}</File>")
         ELSE()
@@ -389,7 +397,7 @@ ENDIF()
 
 EXECUTE_PROCESS(
  COMMAND ${LIGHT_EXECUTABLE} -v -ext WixUIExtension -ext WixUtilExtension
-  -ext WixFirewallExtension -sice:ICE61 ${SILENCE_VCREDIST_MSM_WARNINGS}
+  -ext WixFirewallExtension -sice:ICE61 -sw1103 ${SILENCE_VCREDIST_MSM_WARNINGS}
   mysql_server.wixobj  extra.wixobj -out  ${CPACK_PACKAGE_FILE_NAME}.msi
   ${EXTRA_LIGHT_ARGS}
 )

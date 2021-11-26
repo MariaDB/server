@@ -2524,7 +2524,7 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
 {
   MY_DIR *cur_dir;
   char *name_end_tmp;
-  uint i;
+  size_t i;
 
   /* Sort directory data, to pass mtr tests on different platforms. */
   if (!(cur_dir= my_dir(fullname, MYF(MY_WANT_STAT|MY_WANT_SORT))))

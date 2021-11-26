@@ -23,7 +23,7 @@ SET @identifier := REPEAT('a', 65);
 CALL sys.table_exists(@identifier, 't1', @exists);
 ERROR 22001: Data too long for column 'in_db' at row 1
 CALL sys.table_exists('test', @identifier, @exists);
-ERROR 22001: Data too long for column 'in_table' at row 1
+ERROR 22001: Data too long for column 'in_table' at row 0
 DROP TEMPORARY TABLE t1;
 DROP TABLE t1;
 DROP VIEW v_t1;

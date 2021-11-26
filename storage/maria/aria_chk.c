@@ -434,8 +434,8 @@ static struct my_option my_long_options[] =
     ~0UL, (long) MALLOC_OVERHEAD, (long) 1L, 0},
   { "sort_buffer_size", OPT_SORT_BUFFER_SIZE,
     "Size of sort buffer. Used by --recover",
-    &check_param.sort_buffer_length,
-    &check_param.sort_buffer_length, 0, GET_ULL, REQUIRED_ARG,
+    &check_param.orig_sort_buffer_length,
+    &check_param.orig_sort_buffer_length, 0, GET_ULL, REQUIRED_ARG,
     SORT_BUFFER_INIT, MIN_SORT_BUFFER, SIZE_T_MAX, MALLOC_OVERHEAD, 1L, 0},
   { "sort_key_blocks", OPT_SORT_KEY_BLOCKS,
     "Internal buffer for sorting keys; Don't touch :)",
@@ -1592,7 +1592,7 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
     }
     compile_time_assert((MY_UUID_STRING_LENGTH + 1) <= sizeof(buff));
     buff[MY_UUID_STRING_LENGTH]= 0;
-    my_uuid2str(share->base.uuid, buff);
+    my_uuid2str(share->base.uuid, buff, 1);
     printf("UUID:                %s\n", buff);
     if (ma_control_file_inited() &&
         memcmp(share->base.uuid, maria_uuid, MY_UUID_SIZE))

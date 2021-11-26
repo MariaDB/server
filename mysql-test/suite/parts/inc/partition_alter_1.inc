@@ -40,7 +40,7 @@ eval $insert_first_half;
 # 0
 # 1030: ER_GET_ERRNO
 # 1502: ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF
-# 1506: ER_DROP_PARTITION_NON_EXISTENT
+# 1506: ER_PARTITION_DOES_NOT_EXIST
 --disable_abort_on_error
 eval $alter;
 --enable_abort_on_error
@@ -52,10 +52,10 @@ eval SET @my_errno = $mysql_errno;
 let $run_test= `SELECT @my_errno = 0`;
 if (`SELECT @my_errno NOT IN (0,$ER_GET_ERRNO,
                               $ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF,
-                              $ER_DROP_PARTITION_NON_EXISTENT)`);
+                              $ER_PARTITION_DOES_NOT_EXIST)`);
 {
    --echo #      The last command got an unexepected error response.
-   --echo #      Expected/handled SQL codes are 0,$ER_GET_ERRNO,$ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF,$ER_DROP_PARTITION_NON_EXISTENT
+   --echo #      Expected/handled SQL codes are 0,$ER_GET_ERRNO,$ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF,$ER_PARTITION_DOES_NOT_EXIST
    SELECT '#      SQL code we got was: ' AS "", @my_errno AS "";
    --echo #      Sorry, have to abort.
    --echo #      Please check the error name to number mapping in inc/partition.pre.

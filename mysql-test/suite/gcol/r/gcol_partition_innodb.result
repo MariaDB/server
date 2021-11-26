@@ -89,6 +89,32 @@ Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 DROP TABLE t;
 #
+# MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+#
+CREATE TABLE t1 (
+a INT,
+b INT,
+c BIT(4) NOT NULL DEFAULT b'0',
+pk INTEGER AUTO_INCREMENT,
+d BIT(4) AS (c) VIRTUAL,
+PRIMARY KEY(pk),
+KEY (b,d)
+) PARTITION BY HASH(pk);
+INSERT INTO t1 () VALUES (),();
+UPDATE t1 SET a = 0 WHERE b IS NULL ORDER BY pk;
+DROP TABLE t1;
+#
+# MDEV-26220 Server crashes with indexed by prefix virtual column
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b CHAR(20), c CHAR(20) AS (b),
+KEY (c(10),a)) PARTITION BY HASH(pk);
+INSERT INTO t1 (pk,a,b) VALUES (1,10,'foo'),(2,11,'baz');
+SELECT a FROM t1;
+a
+11
+10
+DROP TABLE t1;
+#
 # MDEV-16980 Wrongly set tablename len while opening the
 #                table for purge thread
 #

@@ -7,5 +7,5 @@ Depends: mariadb-plugin-rocksdb | mariadb-server-10.7
 Restrictions: allow-stderr needs-root isolation-container
 
 Tests: upstream
-Depends: mariadb-test
+Depends: mariadb-test, eatmydata
 Restrictions: allow-stderr breaks-testbed

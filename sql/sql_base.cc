@@ -4583,13 +4583,13 @@ bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
 }
 
 
-static bool internal_table_exists(TABLE_LIST *global_list,
-                                  const char *table_name)
+static TABLE_LIST *internal_table_exists(TABLE_LIST *global_list,
+                                         const char *table_name)
 {
   do
   {
     if (global_list->table_name.str == table_name)
-      return 1;
+      return global_list;
   } while ((global_list= global_list->next_global));
   return 0;
 }
@@ -4604,13 +4604,23 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
 
   do
   {
+    TABLE_LIST *tmp __attribute__((unused));
     DBUG_PRINT("info", ("table name: %s", tables->table_name.str));
     /*
       Skip table if already in the list. Can happen with prepared statements
     */
-    if (tables->next_local &&
-        internal_table_exists(global_table_list, tables->table_name.str))
+    if ((tmp= internal_table_exists(global_table_list,
+                                    tables->table_name.str)))
+    {
+      /*
+        Use the original value for the next local, used by the
+        original prepared statement. We cannot trust the original
+        next_local value as it may have been changed by a previous
+        statement using the same table.
+      */
+      tables->next_local= tmp;
       continue;
+    }
 
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
     if (!tl)
@@ -6035,7 +6045,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
   if (field)
   {
     if (field->invisible == INVISIBLE_FULL &&
-        DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+        !DBUG_IF("test_completely_invisible"))
       DBUG_RETURN((Field*)0);
 
     if (field->invisible == INVISIBLE_SYSTEM &&
@@ -6268,7 +6278,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
           TABLE *table= field_to_set->table;
           DBUG_ASSERT(table);
           if (thd->column_usage == MARK_COLUMNS_READ)
-            bitmap_set_bit(table->read_set, field_to_set->field_index);
+            field_to_set->register_field_in_read_map();
           else
             bitmap_set_bit(table->write_set, field_to_set->field_index);
         }
@@ -6884,6 +6894,7 @@ set_new_item_local_context(THD *thd, Item_ident *item, TABLE_LIST *table_ref)
   if (!(context= new (thd->mem_root) Name_resolution_context))
     return TRUE;
   context->init();
+  context->select_lex= table_ref->select_lex;
   context->first_name_resolution_table=
     context->last_name_resolution_table= table_ref;
   item->context= context;
@@ -7558,7 +7569,7 @@ static bool setup_natural_join_row_types(THD *thd,
 ****************************************************************************/
 
 int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
-	       List<Item> *sum_func_list, SELECT_LEX *select_lex)
+	       List<Item> *sum_func_list, SELECT_LEX *select_lex, bool returning_field)
 {
   Item *item;
   List_iterator<Item> it(fields);
@@ -7598,7 +7609,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
       else if (insert_fields(thd, ((Item_field*) item)->context,
                              ((Item_field*) item)->db_name.str,
                              ((Item_field*) item)->table_name.str, &it,
-                             any_privileges, &select_lex->hidden_bit_fields))
+                             any_privileges, &select_lex->hidden_bit_fields, returning_field))
       {
 	if (arena)
 	  thd->restore_active_arena(arena, &backup);
@@ -7645,6 +7656,17 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 
   thd->column_usage= column_usage;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
+  /*
+    Followimg 2 condition always should be true (but they was added
+    due to an error present only in 10.3):
+    1) nest_level shoud be 0 or positive;
+    2) nest level of all SELECTs on the same level shoud be equal first
+       SELECT on this level (and each other).
+  */
+  DBUG_ASSERT(thd->lex->current_select->nest_level >= 0);
+  DBUG_ASSERT(thd->lex->current_select->master_unit()->first_select()
+                ->nest_level ==
+              thd->lex->current_select->nest_level);
   if (allow_sum_func)
     thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
   thd->where= THD::DEFAULT_WHERE;
@@ -7744,7 +7766,7 @@ int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
   if (!thd->lex->has_returning())
     return 0;
   return setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
-                    thd->lex->returning())
+                    thd->lex->returning(), true)
       || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
                       MARK_COLUMNS_READ, NULL, NULL, false);
 }
@@ -8071,7 +8093,7 @@ bool get_key_map_from_key_list(key_map *map, TABLE *table,
 bool
 insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 	      const char *table_name, List_iterator<Item> *it,
-              bool any_privileges, uint *hidden_bit_fields)
+              bool any_privileges, uint *hidden_bit_fields, bool returning_field)
 {
   Field_iterator_table_ref field_iterator;
   bool found;
@@ -8098,12 +8120,14 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
     else treat natural joins as leaves and do not iterate over their underlying
     tables.
   */
-  for (TABLE_LIST *tables= (table_name ? context->table_list :
-                            context->first_name_resolution_table);
-       tables;
-       tables= (table_name ? tables->next_local :
-                tables->next_name_resolution_table)
-       )
+  TABLE_LIST *first= context->first_name_resolution_table;
+  TABLE_LIST *TABLE_LIST::* next= &TABLE_LIST::next_name_resolution_table;
+  if (table_name && !returning_field)
+  {
+    first= context->table_list;
+    next= &TABLE_LIST::next_local;
+  }
+  for (TABLE_LIST *tables= first; tables; tables= tables->*next)
   {
     Field *field;
     TABLE *table= tables->table;
@@ -8841,6 +8865,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   if (!thd->is_error())
   {
     thd->abort_on_warning= FALSE;
+    if (table->default_field && table->update_default_fields(ignore_errors))
+      goto err;
     if (table->versioned())
       table->vers_update_fields();
     if (table->vfield &&
@@ -8908,7 +8934,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
 
 my_bool mysql_rm_tmp_tables(void)
 {
-  uint i, idx;
+  size_t i, idx;
   char	path[FN_REFLEN], *tmpdir, path_copy[FN_REFLEN];
   MY_DIR *dirp;
   FILEINFO *file;
@@ -8930,7 +8956,7 @@ my_bool mysql_rm_tmp_tables(void)
 
     /* Remove all SQLxxx tables from directory */
 
-    for (idx=0 ; idx < (uint) dirp->number_of_files ; idx++)
+    for (idx=0 ; idx < dirp->number_of_files ; idx++)
     {
       file=dirp->dir_entry+idx;
 

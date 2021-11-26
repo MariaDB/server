@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -784,7 +784,7 @@ int mdl_iterate(mdl_iterator_callback callback, void *arg)
 my_hash_value_type mdl_hash_function(CHARSET_INFO *cs,
                                      const uchar *key, size_t length)
 {
-  MDL_key *mdl_key= (MDL_key*) (key - my_offsetof(MDL_key, m_ptr));
+  MDL_key *mdl_key= (MDL_key*) (key - offsetof(MDL_key, m_ptr));
   return mdl_key->hash_value();
 }
 
@@ -2304,6 +2304,20 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     DBUG_RETURN(TRUE);
   }
 
+#ifdef WITH_WSREP
+  if (WSREP(get_thd()))
+  {
+    THD* requester= get_thd();
+    bool requester_toi= wsrep_thd_is_toi(requester) || wsrep_thd_is_applying(requester);
+    WSREP_DEBUG("::acquire_lock is TOI %d for %s", requester_toi,
+                wsrep_thd_query(requester));
+    if (requester_toi)
+      THD_STAGE_INFO(requester, stage_waiting_ddl);
+    else
+      THD_STAGE_INFO(requester, stage_waiting_isolation);
+  }
+#endif /* WITH_WSREP */
+
   lock->m_waiting.add_ticket(ticket);
 
   /*
@@ -2336,11 +2350,13 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   mysql_prlock_unlock(&lock->m_rwlock);
 
+#ifdef HAVE_PSI_INTERFACE
   PSI_metadata_locker_state state __attribute__((unused));
   PSI_metadata_locker *locker= NULL;
 
   if (ticket->m_psi != NULL)
     locker= PSI_CALL_start_metadata_wait(&state, ticket->m_psi, __FILE__, __LINE__);
+#endif
 
   will_wait_for(ticket);
 
@@ -2387,8 +2403,10 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   done_waiting_for();
 
+#ifdef HAVE_PSI_INTERFACE
   if (locker != NULL)
     PSI_CALL_end_metadata_wait(locker, 0);
+#endif
 
   if (wait_status != MDL_wait::GRANTED)
   {

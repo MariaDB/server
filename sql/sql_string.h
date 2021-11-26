@@ -484,6 +484,11 @@ public:
     if (str.Alloced_length)
       Alloced_length= (uint32) (str.Alloced_length - offset);
   }
+  LEX_CSTRING to_lex_cstring() const
+  {
+    LEX_CSTRING tmp= {Ptr, str_length};
+    return tmp;
+  }
   inline LEX_CSTRING *get_value(LEX_CSTRING *res)
   {
     res->str=    Ptr;
@@ -643,7 +648,7 @@ public:
       Ptr[str_length]=0;
       return Ptr;
     }
-    (void) realloc(str_length+1);               /* This will add end \0 */
+    (void) realloc(str_length);               /* This will add end \0 */
     return Ptr;
   }
   /*
@@ -666,7 +671,7 @@ public:
     if (Ptr && str_length < Alloced_length)
       Ptr[str_length]=0;
     else
-      (void) realloc(str_length + 1);
+      (void) realloc(str_length);
     return Ptr;
   }
 

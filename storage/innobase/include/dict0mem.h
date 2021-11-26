@@ -1026,8 +1026,7 @@ struct dict_index_t {
 				/*!< enum online_index_status.
 				Transitions from ONLINE_INDEX_COMPLETE (to
 				ONLINE_INDEX_CREATION) are protected
-				by dict_sys.latch and
-				dict_sys.mutex. Other changes are
+				by dict_sys.latch. Other changes are
 				protected by index->lock. */
 	unsigned	uncommitted:1;
 				/*!< a flag that is set for secondary indexes
@@ -1524,24 +1523,6 @@ struct dict_foreign_with_index {
 	const dict_index_t*	m_index;
 };
 
-#ifdef WITH_WSREP
-/** A function object to find a foreign key with the given index as the
-foreign index. Return the foreign key with matching criteria or NULL */
-struct dict_foreign_with_foreign_index {
-
-	dict_foreign_with_foreign_index(const dict_index_t*	index)
-	: m_index(index)
-	{}
-
-	bool operator()(const dict_foreign_t*	foreign) const
-	{
-		return(foreign->foreign_index == m_index);
-	}
-
-	const dict_index_t*	m_index;
-};
-#endif
-
 /* A function object to check if the foreign constraint is between different
 tables.  Returns true if foreign key constraint is between different tables,
 false otherwise. */
@@ -1953,7 +1934,7 @@ struct dict_table_t {
 	inline size_t get_overflow_field_local_len() const;
 
 	/** Parse the table file name into table name and database name.
-	@tparam		dict_locked	whether dict_sys.mutex is being held
+	@tparam		dict_locked	whether dict_sys.lock() was called
 	@param[in,out]	db_name		database name buffer
 	@param[in,out]	tbl_name	table name buffer
 	@param[out]	db_name_len	database name length
@@ -1998,11 +1979,15 @@ struct dict_table_t {
     ut_ad(lock_mutex_owner.exchange(0) == os_thread_get_curr_id());
     lock_mutex.wr_unlock();
   }
+#ifndef SUX_LOCK_GENERIC
+  /** @return whether the lock mutex is held by some thread */
+  bool lock_mutex_is_locked() const noexcept { return lock_mutex.is_locked(); }
+#endif
 
   /* stats mutex lock currently defaults to lock_mutex but in the future,
   there could be a use-case to have separate mutex for stats.
-  extra indirection (through inline so no performance hit) should
-  help simplify code and increase long-term maintainability */
+  extra indirection (through inline so no performance hit) should
+  help simplify code and increase long-term maintainability */
   void stats_mutex_init() { lock_mutex_init(); }
   void stats_mutex_destroy() { lock_mutex_destroy(); }
   void stats_mutex_lock() { lock_mutex_lock(); }
@@ -2151,7 +2136,8 @@ public:
 	UT_LIST_BASE_NODE_T(dict_index_t)	indexes;
 #ifdef BTR_CUR_HASH_ADAPT
 	/** List of detached indexes that are waiting to be freed along with
-	the last adaptive hash index entry */
+	the last adaptive hash index entry.
+	Protected by autoinc_mutex (sic!) */
 	UT_LIST_BASE_NODE_T(dict_index_t)	freed_indexes;
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -2195,7 +2181,7 @@ public:
 	dict_foreign_set			referenced_set;
 
 	/** Statistics for query optimization. Mostly protected by
-	dict_sys.mutex. @{ */
+	dict_sys.latch and stats_mutex_lock(). @{ */
 
 	/** TRUE if statistics have been calculated the first time after
 	database startup or table creation. */
@@ -2262,24 +2248,6 @@ public:
 	any latch, because this is only used for heuristics. */
 	ib_uint64_t				stat_modified_counter;
 
-	/** Background stats thread is not working on this table. */
-	#define BG_STAT_NONE			0
-
-	/** Set in 'stats_bg_flag' when the background stats code is working
-	on this table. The DROP TABLE code waits for this to be cleared before
-	proceeding. */
-	#define BG_STAT_IN_PROGRESS		(1 << 0)
-
-	/** Set in 'stats_bg_flag' when DROP TABLE starts waiting on
-	BG_STAT_IN_PROGRESS to be cleared. The background stats thread will
-	detect this and will eventually quit sooner. */
-	#define BG_STAT_SHOULD_QUIT		(1 << 1)
-
-	/** The state of the background stats thread wrt this table.
-	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
-	Writes are covered by dict_sys.mutex. Dirty reads are possible. */
-	byte					stats_bg_flag;
-
 	bool		stats_error_printed;
 				/*!< Has persistent stats error beein
 				already printed for this table ? */
@@ -2303,11 +2271,11 @@ public:
 	from a select. */
 	lock_t*					autoinc_lock;
 
-  /** Mutex protecting autoinc. */
-  srw_mutex autoinc_mutex;
+  /** Mutex protecting autoinc and freed_indexes. */
+  srw_spin_mutex autoinc_mutex;
 private:
   /** Mutex protecting locks on this table. */
-  srw_mutex lock_mutex;
+  srw_spin_mutex lock_mutex;
 #ifdef UNIV_DEBUG
   /** The owner of lock_mutex (0 if none) */
   Atomic_relaxed<os_thread_id_t> lock_mutex_owner{0};
@@ -2352,7 +2320,6 @@ public:
   lock_sys.assert_locked(page_id) and trx->mutex_is_owner() hold.
   @see trx_lock_t::trx_locks */
   Atomic_counter<uint32_t> n_rec_locks;
-
 private:
   /** Count of how many handles are opened to this table. Dropping of the
   table is NOT allowed until this count gets to zero. MySQL does NOT
@@ -2394,7 +2361,7 @@ public:
 
   /** @return whether the name is
   mysql.innodb_index_stats or mysql.innodb_table_stats */
-  inline bool is_stats_table() const;
+  bool is_stats_table() const;
 
   /** Create metadata.
   @param name     table name
@@ -2499,7 +2466,7 @@ inline void dict_index_t::clear_instant_alter()
 			      { return a.col->ind < b.col->ind; });
 	table->instant = NULL;
 	if (ai_col) {
-		auto a = std::find_if(begin, end,
+		auto a = std::find_if(fields, end,
 				      [ai_col](const dict_field_t& f)
 				      { return f.col == ai_col; });
 		table->persistent_autoinc = (a == end)

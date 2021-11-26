@@ -105,11 +105,15 @@ else {
 
 if ($opt_socket and -S $opt_socket)
 {
-    $dsn .= "${prefix}_socket=$opt_socket";
+  $dsn .= "${prefix}_socket=$opt_socket";
 }
 else
 {
-  $dsn .= "host=$sqlhost;port=$opt_port";
+  $dsn .= "host=$sqlhost";
+  if ($sqlhost ne "localhost")
+  {
+    $dsn .= ";port=$opt_port";
+  }
 }
 
 # make the connection to MariaDB
@@ -306,7 +310,6 @@ sub addall {
        $sth = $dbh->do("REVOKE ALL ON $db.* FROM \'$user\'\@\'$host\'") || die $dbh->errstr;
     }
     }
-  $dbh->do("FLUSH PRIVILEGES") || print STDERR "Can't flush privileges\n";
   print "Everything is inserted and mysql privileges have been reloaded.\n\n";
 }
 

@@ -1,5 +1,7 @@
 IF(RPM)
 
+MESSAGE(STATUS "CPackRPM building with RPM configuration: ${RPM}")
+
 SET(CPACK_GENERATOR "RPM")
 SET(CPACK_RPM_PACKAGE_DEBUG 1)
 SET(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
@@ -35,7 +37,7 @@ SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
 SET(CPACK_RPM_PACKAGE_NAME ${CPACK_PACKAGE_NAME})
 SET(CPACK_RPM_PACKAGE_VERSION ${CPACK_PACKAGE_VERSION})
 IF(CMAKE_VERSION VERSION_LESS "3.6.0")
-  SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${CPACK_RPM_PACKAGE_VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
+  SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${SERVER_VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
 ELSE()
   SET(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
   OPTION(CPACK_RPM_DEBUGINFO_PACKAGE "" ON)
@@ -49,21 +51,82 @@ SET(CPACK_RPM_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_RPM_PACKAGE_GROUP "Applications/Databases")
 SET(CPACK_RPM_PACKAGE_URL ${CPACK_PACKAGE_URL})
-SET(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
 
 SET(CPACK_RPM_shared_PACKAGE_VENDOR "MariaDB Corporation Ab")
 SET(CPACK_RPM_shared_PACKAGE_LICENSE "LGPLv2.1")
-SET(CPACK_RPM_shared_PACKAGE_SUMMARY "LGPL MariaDB client library")
-SET(CPACK_RPM_shared_PACKAGE_DESCRIPTION "
-This is LGPL MariaDB client library that can be used to connect to MySQL
+
+# Set default description for packages
+SET(CPACK_RPM_PACKAGE_DESCRIPTION "MariaDB: a very fast and robust SQL database server
+
+It is GPL v2 licensed, which means you can use the it free of charge under the
+conditions of the GNU General Public License Version 2 (http://www.gnu.org/licenses/).
+
+MariaDB documentation can be found at https://mariadb.com/kb
+MariaDB bug reports should be submitted through https://jira.mariadb.org")
+
+# Packages with default description
+SET(CPACK_RPM_client_PACKAGE_SUMMARY "MariaDB database client binaries")
+SET(CPACK_RPM_common_PACKAGE_SUMMARY "MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)")
+SET(CPACK_RPM_compat_PACKAGE_SUMMARY "MariaDB database client library MySQL compat package")
+SET(CPACK_RPM_devel_PACKAGE_SUMMARY "MariaDB database development files")
+SET(CPACK_RPM_server_PACKAGE_SUMMARY "MariaDB database server binaries")
+SET(CPACK_RPM_test_PACKAGE_SUMMARY "MariaDB database regression test suite")
+
+# libmariadb3
+SET(CPACK_RPM_shared_PACKAGE_SUMMARY "LGPL MariaDB database client library")
+SET(CPACK_RPM_shared_PACKAGE_DESCRIPTION "This is LGPL MariaDB client library that can be used to connect to MySQL
 or MariaDB.
 
 This code is based on the LGPL libmysql client library from MySQL 3.23
 and PHP's mysqlnd extension.
 
 This product includes PHP software, freely available from
-<http://www.php.net/software/>
-")
+http://www.php.net/software/")
+
+# Summary and descriptions per package
+SET(CPACK_RPM_backup_PACKAGE_SUMMARY "Backup tool for MariaDB server")
+SET(CPACK_RPM_backup_PACKAGE_DESCRIPTION "Mariabackup is an open source tool provided by MariaDB
+for performing physical online backups of InnoDB, Aria and MyISAM tables.
+For InnoDB, “hot online” backups are possible.
+It was originally forked from Percona XtraBackup 2.3.8.")
+
+SET(CPACK_RPM_cassandra-engine_PACKAGE_SUMMARY "Cassandra storage engine for MariaDB")
+SET(CPACK_RPM_cassandra-engine_PACKAGE_DESCRIPTION "The Cassandra Storage Engine allows access to data in a Cassandra cluster from
+MariaDB, combining the best of SQL and no-SQL worlds. Cassandra SE (storage
+engine) makes Cassandra's column family appear as a table in MariaDB that you
+can insert to, update, and select from. You can write joins against this table,
+it is possible to join data that's stored in MariaDB with data that's stored in
+Cassandra.")
+
+SET(CPACK_RPM_connect-engine_PACKAGE_SUMMARY "Connect storage engine for MariaDB")
+SET(CPACK_RPM_connect-engine_PACKAGE_DESCRIPTION "Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
+connections to ODBC tables and remote MySQL tables, as well as a number of
+other interesting features.")
+
+SET(CPACK_RPM_cracklib-password-check_PACKAGE_SUMMARY "CrackLib Password Validation Plugin for MariaDB")
+SET(CPACK_RPM_cracklib-password-check_PACKAGE_DESCRIPTION "This password validation plugin uses cracklib to allow only
+sufficiently secure (as defined by cracklib) user passwords in MariaDB.")
+
+SET(CPACK_RPM_gssapi-server_PACKAGE_SUMMARY "GSSAPI authentication plugin for MariaDB server")
+SET(CPACK_RPM_gssapi-server_PACKAGE_DESCRIPTION "The gssapi authentication plugin allows the user to authenticate with services
+that use the Generic Security Services Application Program Interface (GSSAPI).
+The gssapi authentication plugin is most often used for authenticating with Microsoft Active Directory.")
+
+SET(CPACK_RPM_oqgraph-engine_PACKAGE_SUMMARY "OQGraph storage engine for MariaDB")
+SET(CPACK_RPM_oqgraph-engine_PACKAGE_DESCRIPTION "The Open Query GRAPH computation engine, or OQGRAPH as the engine itself is called,
+allows you to handle hierarchies (tree structures) and complex graphs
+(nodes having many connections in several directions).
+It is intended to be used for retrieving hierarchical information, such as those used for graphs,
+routes or social relationships, in plain SQL.")
+
+SET(CPACK_RPM_rocksdb-engine_PACKAGE_SUMMARY "RocksDB storage engine for MariaDB")
+SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is a high performance storage engine, aimed
+at maximising storage efficiency while maintaining InnoDB-like performance.")
+
+SET(CPACK_RPM_tokudb-engine_PACKAGE_SUMMARY "TokuDB storage engine for MariaDB")
+SET(CPACK_RPM_tokudb-engine_PACKAGE_DESCRIPTION "The TokuDB storage engine is for use in high-performance and write-intensive
+environments, offering increased compression and better performance based
+on fractal indexes.")
 
 SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define mysql_vendor ${CPACK_PACKAGE_VENDOR}
@@ -82,7 +145,7 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %filter_provides_in \\\\.\\\\(test\\\\|result\\\\|h\\\\|cc\\\\|c\\\\|inc\\\\|opt\\\\|ic\\\\|cnf\\\\|rdiff\\\\|cpp\\\\)$
 %filter_requires_in \\\\.\\\\(test\\\\|result\\\\|h\\\\|cc\\\\|c\\\\|inc\\\\|opt\\\\|ic\\\\|cnf\\\\|rdiff\\\\|cpp\\\\)$
 %filter_from_provides /perl(\\\\(mtr\\\\|My::\\\\)/d
-%filter_from_requires /\\\\(liblzma\\\\)\\\\|\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
+%filter_from_requires /\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
 %filter_setup
 }
 ")
@@ -150,12 +213,17 @@ ENDMACRO(SETA)
 
 SETA(CPACK_RPM_client_PACKAGE_OBSOLETES
   "mysql-client"
-  "MySQL-client")
+  "MySQL-client"
+  "mytop <= 1.7")
 SETA(CPACK_RPM_client_PACKAGE_PROVIDES
   "MySQL-client"
-  "mysql-client")
+  "mysql-client"
+  "mytop")
 SETA(CPACK_RPM_client_PACKAGE_CONFLICTS
   "MariaDB-server < 10.6.0")
+
+SETA(CPACK_RPM_common_PACKAGE_CONFLICTS
+  "MariaDB-server < 10.6.1")
 
 SETA(CPACK_RPM_devel_PACKAGE_OBSOLETES
   "MySQL-devel")
@@ -181,8 +249,8 @@ SETA(CPACK_RPM_test_PACKAGE_PROVIDES
   "MySQL-test")
 
 SETA(CPACK_RPM_server_PACKAGE_REQUIRES
-  "${CPACK_RPM_PACKAGE_REQUIRES}"
-  "MariaDB-client")
+  "MariaDB-common >= 10.6.1"
+  "MariaDB-client >= 10.6.1")
 
 IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
@@ -225,7 +293,7 @@ ALTERNATIVE_NAME("test"   "mysql-test")
 IF(RPM MATCHES "(rhel|centos)6")
   ALTERNATIVE_NAME("client" "mysql")
 ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
-  SET(epoch 1:) # this is fedora
+  SET(epoch 1:)
   ALTERNATIVE_NAME("client" "mariadb")
   ALTERNATIVE_NAME("client" "mysql")
   ALTERNATIVE_NAME("devel"  "mariadb-devel")
@@ -242,6 +310,7 @@ ELSEIF(RPM MATCHES "(rhel|centos)8")
   ALTERNATIVE_NAME("server" "mariadb-server-utils")
   ALTERNATIVE_NAME("shared" "mariadb-connector-c" ${MARIADB_CONNECTOR_C_VERSION}-1)
   ALTERNATIVE_NAME("shared" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
+  ALTERNATIVE_NAME("devel" "mariadb-connector-c-devel" ${MARIADB_CONNECTOR_C_VERSION}-1)
   SETA(CPACK_RPM_client_PACKAGE_PROVIDES "mariadb-galera = 3:%{version}-%{release}")
   SETA(CPACK_RPM_common_PACKAGE_PROVIDES "mariadb-galera-common = 3:%{version}-%{release}")
   SETA(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-shared")
@@ -254,6 +323,12 @@ ELSEIF(RPM MATCHES "sles")
     "mariadb-server = %{version}-%{release}"
   )
 ENDIF()
+
+# MDEV-24629, we need it outside of ELSIFs
+IF(RPM MATCHES "fedora3[234]")
+  ALTERNATIVE_NAME("common" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
+ENDIF()
+
 SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 
 # If we want to build build MariaDB-shared-compat,
@@ -264,7 +339,7 @@ FILE(GLOB compat101 RELATIVE ${CMAKE_SOURCE_DIR}
     "${CMAKE_SOURCE_DIR}/../MariaDB-shared-10.1.*.rpm")
 IF(compat53 AND compat101)
   FOREACH(compat_rpm "${compat53}" "${compat101}")
-    MESSAGE("Using ${compat_rpm} to build MariaDB-compat")
+    MESSAGE(STATUS "Using ${compat_rpm} to build MariaDB-compat")
     INSTALL(CODE "EXECUTE_PROCESS(
                    COMMAND rpm2cpio ${CMAKE_SOURCE_DIR}/${compat_rpm}
                    COMMAND cpio --extract --make-directories */libmysqlclient*.so.* -

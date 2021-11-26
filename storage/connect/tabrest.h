@@ -5,10 +5,10 @@
 /***********************************************************************/
 #pragma once
 
-#if defined(__WIN__)
-#else // !__WIN__
+#if defined(_WIN32)
+#else // !_WIN32
 #define stricmp strcasecmp
-#endif // !__WIN__
+#endif // !_WIN32
 
 typedef int(__stdcall* XGETREST) (char*, bool, PCSZ, PCSZ, PCSZ);
 

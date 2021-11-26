@@ -279,7 +279,8 @@ LPSECURITY_ATTRIBUTES my_win_file_secattr();
 extern my_bool my_use_symdir;
 
 extern ulong	my_default_record_cache_size;
-extern my_bool  my_disable_locking, my_disable_async_io,
+extern MYSQL_PLUGIN_IMPORT my_bool my_disable_locking;
+extern my_bool  my_disable_async_io,
                 my_disable_flush_key_blocks, my_disable_symlinks;
 extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;
@@ -344,9 +345,9 @@ typedef void (*FREE_FUNC)(void *);
 typedef struct st_dynamic_array
 {
   uchar *buffer;
-  uint elements,max_element;
-  uint alloc_increment;
-  uint size_of_element;
+  size_t elements, max_element;
+  size_t alloc_increment;
+  size_t size_of_element;
   PSI_memory_key m_psi_key;
   myf malloc_flags;
 } DYNAMIC_ARRAY;
@@ -355,7 +356,7 @@ typedef struct st_my_tmpdir
 {
   DYNAMIC_ARRAY full_list;
   char **list;
-  uint cur, max;
+  size_t cur, max;
   mysql_mutex_t mutex;
 } MY_TMPDIR;
 
@@ -835,18 +836,18 @@ File create_temp_file(char *to, const char *dir, const char *pfx,
 #define my_init_dynamic_array(A,B,C,D,E,F) init_dynamic_array2(A,B,C,NULL,D,E,F)
 #define my_init_dynamic_array2(A,B,C,D,E,F,G) init_dynamic_array2(A,B,C,D,E,F,G)
 extern my_bool init_dynamic_array2(PSI_memory_key psi_key, DYNAMIC_ARRAY *array,
-                                   uint element_size, void *init_buffer,
-                                   uint init_alloc, uint alloc_increment,
+                                   size_t element_size, void *init_buffer,
+                                   size_t init_alloc, size_t alloc_increment,
                                    myf my_flags);
 extern my_bool insert_dynamic(DYNAMIC_ARRAY *array, const void* element);
 extern void *alloc_dynamic(DYNAMIC_ARRAY *array);
 extern void *pop_dynamic(DYNAMIC_ARRAY*);
 extern my_bool set_dynamic(DYNAMIC_ARRAY *array, const void *element,
-                           uint array_index);
-extern my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements);
-extern void get_dynamic(DYNAMIC_ARRAY *array, void *element, uint array_index);
+                           size_t array_index);
+extern my_bool allocate_dynamic(DYNAMIC_ARRAY *array, size_t max_elements);
+extern void get_dynamic(DYNAMIC_ARRAY *array, void *element, size_t array_index);
 extern void delete_dynamic(DYNAMIC_ARRAY *array);
-extern void delete_dynamic_element(DYNAMIC_ARRAY *array, uint array_index);
+extern void delete_dynamic_element(DYNAMIC_ARRAY *array, size_t array_index);
 extern void delete_dynamic_with_callback(DYNAMIC_ARRAY *array, FREE_FUNC f);
 extern void freeze_size(DYNAMIC_ARRAY *array);
 extern int  get_index_dynamic(DYNAMIC_ARRAY *array, void *element);
@@ -1021,14 +1022,27 @@ int my_getpagesize(void);
 int my_msync(int, void *, size_t, int);
 
 #define MY_UUID_SIZE 16
-#define MY_UUID_STRING_LENGTH (8+1+4+1+4+1+4+1+12)
-#define MY_UUID_ORACLE_STRING_LENGTH (8+4+4+4+12)
+#define MY_UUID_BARE_STRING_LENGTH (8+4+4+4+12)
+#define MY_UUID_SEPARATORS 4
+#define MY_UUID_STRING_LENGTH (MY_UUID_BARE_STRING_LENGTH + MY_UUID_SEPARATORS)
 
 void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
-void my_uuid2str(const uchar *guid, char *s);
-void my_uuid2str_oracle(const uchar *guid, char *s);
 void my_uuid_end(void);
+
+static inline void my_uuid2str(const uchar *guid, char *s, int with_separators)
+{
+  int i;
+  int mask= with_separators ? ((1 << 3) | (1 << 5) | (1 << 7) | (1 << 9)) : 0;
+  for (i=0; i < MY_UUID_SIZE; i++, mask >>= 1)
+  {
+    *s++= _dig_vec_lower[guid[i] >>4];
+    *s++= _dig_vec_lower[guid[i] & 15];
+    if (mask & 1)
+      *s++= '-';
+  }
+}
+
 
 const char *my_dlerror(const char *dlpath);
 

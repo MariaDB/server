@@ -95,7 +95,6 @@ SET(INNOBASE_SOURCES
 	include/buf0dblwr.h
 	include/buf0dump.h
 	include/buf0flu.h
-	include/buf0flu.ic
 	include/buf0lru.h
 	include/buf0rea.h
 	include/buf0types.h
@@ -148,7 +147,7 @@ SET(INNOBASE_SOURCES
 	include/fts0tokenize.h
 	include/fts0types.h
 	include/fts0types.ic
-	include/fts0vlc.ic
+	include/fts0vlc.h
 	include/fut0fut.h
 	include/fut0lst.h
 	include/gis0geo.h

@@ -98,7 +98,7 @@
 #pragma implementation        // gcc: Class implementation
 #endif
 
-#include <my_config.h>
+#include <my_global.h>
 #include <mysql/plugin.h>
 #include "ha_example.h"
 #include "sql_class.h"

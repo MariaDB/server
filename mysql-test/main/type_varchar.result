@@ -710,14 +710,14 @@ CREATE TABLE t1 (c VARCHAR(1) DEFAULT 'foo');
 ERROR 42000: Invalid default value for 'c'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1265	Data truncated for column 'c' at row 1
+Warning	1265	Data truncated for column 'c' at row 0
 Error	1067	Invalid default value for 'c'
 SET sql_mode='STRICT_ALL_TABLES';
 CREATE TABLE t1 (c VARCHAR(1) DEFAULT 'foo');
 ERROR 42000: Invalid default value for 'c'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1265	Data truncated for column 'c' at row 1
+Warning	1265	Data truncated for column 'c' at row 0
 Error	1067	Invalid default value for 'c'
 CREATE TABLE t1 (c VARCHAR(1));
 SET sql_mode='';
@@ -725,14 +725,14 @@ ALTER TABLE t1 ALTER column c SET DEFAULT 'foo';
 ERROR 42000: Invalid default value for 'c'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1265	Data truncated for column 'c' at row 1
+Warning	1265	Data truncated for column 'c' at row 0
 Error	1067	Invalid default value for 'c'
 SET sql_mode='STRICT_ALL_TABLES';
 ALTER TABLE t1 ALTER column c SET DEFAULT 'foo';
 ERROR 42000: Invalid default value for 'c'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1265	Data truncated for column 'c' at row 1
+Warning	1265	Data truncated for column 'c' at row 0
 Error	1067	Invalid default value for 'c'
 DROP TABLE t1;
 SET sql_mode=DEFAULT;

@@ -104,6 +104,7 @@ enum options_client
   OPT_SHUTDOWN_WAIT_FOR_SLAVES,
   OPT_COPY_S3_TABLES,
   OPT_PRINT_TABLE_METADATA,
+  OPT_ASOF_TIMESTAMP,
   OPT_MAX_CLIENT_OPTION /* should be always the last */
 };
 

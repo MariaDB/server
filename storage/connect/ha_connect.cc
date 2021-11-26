@@ -139,10 +139,10 @@
 //#include "reldef.h"
 #include "tabcol.h"
 #include "xindex.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include "tabwmi.h"
-#endif   // __WIN__
+#endif   // _WIN32
 #include "connect.h"
 #include "user_connect.h"
 #include "ha_connect.h"
@@ -167,16 +167,16 @@
 #define SZCONV     1024							// Default converted text size
 #define SZWORK 67108864             // Default work area size 64M
 #define SZWMIN  4194304             // Minimum work area size  4M
-#define JSONMAX      10             // JSON Default max grp size
+#define JSONMAX      50             // JSON Default max grp size
 
 extern "C" {
        char version[]= "Version 1.07.0002 March 22, 2021";
-#if defined(__WIN__)
+#if defined(_WIN32)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        static char slash= '\\';
-#else   // !__WIN__
+#else   // !_WIN32
        static char slash= '/';
-#endif  // !__WIN__
+#endif  // !_WIN32
 } // extern "C"
 
 #if MYSQL_VERSION_ID > 100200
@@ -288,15 +288,14 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 /****************************************************************************/
 static char *strz(PGLOBAL g, LEX_CSTRING &ls)
 {
-  char *str= (char*)PlugSubAlloc(g, NULL, ls.length + 1);
-
-  /*
-    ls.str can be NULL, for example when called with
-    create_info->connect_string
-  */
-  if (ls.str)
+  char* str= NULL;
+  
+  if (ls.str) {
+    str= (char*)PlugSubAlloc(g, NULL, ls.length + 1);
     memcpy(str, ls.str, ls.length);
-  str[ls.length]= 0;
+    str[ls.length] = 0;
+  } // endif str
+
   return str;
 } // end of strz
 
@@ -511,13 +510,13 @@ char *GetJsonNull(void)
 int GetDefaultDepth(void) {return THDVAR(current_thd, default_depth);}
 int GetDefaultPrec(void) {return THDVAR(current_thd, default_prec);}
 uint GetJsonGrpSize(void)
-  {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
+  {return connect_hton ? THDVAR(current_thd, json_grp_size) : 50;}
 size_t GetWorkSize(void) {return (size_t)THDVAR(current_thd, work_size);}
 void SetWorkSize(size_t) 
 {
   // Changing the session variable value seems to be impossible here
   // and should be done in a check function 
-  push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, 
+  push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, 
     "Work size too big, try setting a smaller value");
 } // end of SetWorkSize
 
@@ -720,7 +719,7 @@ void PushWarning(PGLOBAL g, THD *thd, int level)
     Sql_condition::enum_warning_level wlvl;
 
     wlvl= (Sql_condition::enum_warning_level)level;
-    push_warning(thd, wlvl, 0, g->Message);
+    push_warning(thd, wlvl, ER_UNKNOWN_ERROR, g->Message);
   } else
     htrc("%s\n", g->Message);
 
@@ -805,11 +804,11 @@ static int connect_init_func(void *p)
   }
 #endif   // 0 (LINUX)
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   sql_print_information("CONNECT: %s", compver);
-#else   // !__WIN__
+#else   // !_WIN32
   sql_print_information("CONNECT: %s", version);
-#endif  // !__WIN__
+#endif  // !_WIN32
 	pthread_mutex_init(&parmut, NULL);
 	pthread_mutex_init(&usrmut, NULL);
 	pthread_mutex_init(&tblmut, NULL);
@@ -867,9 +866,9 @@ int connect_done_func(void *)
 	JAVAConn::ResetJVM();
 #endif // JAVA_SUPPORT
 
-#if	!defined(__WIN__)
+#if	!defined(_WIN32)
 	PROFILE_End();
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 	pthread_mutex_lock(&usrmut);
 	for (pc= user_connect::to_users; pc; pc= pn) {
@@ -943,11 +942,11 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   xp= (table) ? GetUser(ha_thd(), NULL) : NULL;
   if (xp)
     xp->SetHandler(this);
-#if defined(__WIN__)
+#if defined(_WIN32)
   datapath= ".\\";
-#else   // !__WIN__
+#else   // !_WIN32
   datapath= "./";
-#endif  // !__WIN__
+#endif  // !_WIN32
   tdbp= NULL;
   sdvalin1= sdvalin2= sdvalin3= sdvalin4= NULL;
   sdvalout= NULL;
@@ -2299,7 +2298,7 @@ int ha_connect::MakeRecord(char *buf)
             fp->field_name.str,
             thd->get_stmt_da()->current_row_for_warning());
 
-          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, buf);
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, buf);
           DBUG_PRINT("MakeRecord", ("%s", buf));
           rc= 0;
         } else if (rc < 0)
@@ -3592,7 +3591,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT*)
 
 			if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, dop, dox))) {
 				if (rc == RC_INFO) {
-					push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+					push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
 					rc= 0;
 				} else
 					rc= HA_ERR_CRASHED_ON_USAGE;		// Table must be repaired
@@ -4548,11 +4547,11 @@ static bool checkPrivileges(THD *thd, TABTYPE type, PTOS options,
  					strcpy(dbpath, mysql_real_data_home);
 
 					if (db)
-#if defined(__WIN__)
+#if defined(_WIN32)
 						strcat(strcat(dbpath, db), "\\");
-#else   // !__WIN__
+#else   // !_WIN32
 						strcat(strcat(dbpath, db), "/");
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 					(void)fn_format(path, options->filename, dbpath, "",
 						MY_RELATIVE_PATH | MY_UNPACK_FILENAME);
@@ -4817,7 +4816,7 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
 	if (newmode == MODE_ANY) {
 		if (CloseTable(g)) {
 			// Make error a warning to avoid crash
-			push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+			push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
 			rc= 0;
 		} // endif Close
 
@@ -4899,18 +4898,18 @@ int ha_connect::external_lock(THD *thd, int lock_type)
                            && sqlcom != SQLCOM_BEGIN
                            && sqlcom != SQLCOM_DROP_TABLE) {
       sprintf(g->Message, "external_lock: unexpected command %d", sqlcom);
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
       DBUG_RETURN(0);
     } else if (g->Xchk) {
       if (!tdbp) {
 				if (!(tdbp= GetTDB(g))) {
 //        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);  causes assert error
-					push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+					push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
 					DBUG_RETURN(0);
 				} else if (!tdbp->GetDef()->Indexable()) {
           sprintf(g->Message, "external_lock: Table %s is not indexable", tdbp->GetName());
 //        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);  causes assert error
-          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
           DBUG_RETURN(0);
         } else if (tdbp->GetDef()->Indexable() == 1) {
           bool    oldsep= ((PCHK)g->Xchk)->oldsep;
@@ -4989,7 +4988,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
             if (tdp->MakeIndex(g, adp, true) == RC_FX) {
               // Make it a warning to avoid crash
               //push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 
-              //                  0, g->Message);
+              //             ER_UNKNOWN_ERROR, g->Message);
               //rc= 0;
 							my_message(ER_TOO_MANY_KEYS, g->Message, MYF(0));
 							rc= HA_ERR_INDEX_CORRUPT;
@@ -4999,7 +4998,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
           if (CheckVirtualIndex(NULL)) {
             // Make it a warning to avoid crash
             push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 
-                              0, g->Message);
+                         ER_UNKNOWN_ERROR, g->Message);
             rc= 0;
             } // endif Check
 
@@ -5012,7 +5011,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     if (CloseTable(g)) {
       // This is an error while builing index
       // Make it a warning to avoid crash
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
       rc= 0;
 		} // endif Close
 
@@ -5486,12 +5485,11 @@ static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
 
 	if (fmt && *fmt) {
 		switch (ttp) {
+                case TAB_MONGO:
+                case TAB_BSON:
 		case TAB_JSON: error |= sql->append(STRING_WITH_LEN(" JPATH='")); break;
-#if defined(BSON_SUPPORT)
-                case TAB_BSON: error |= sql->append(STRING_WITH_LEN(" JPATH='")); break;
-#endif   // BSON_SUPPORT
                 case TAB_XML:  error |= sql->append(STRING_WITH_LEN(" XPATH='")); break;
-		default:	     error |= sql->append(STRING_WITH_LEN(" FIELD_FORMAT='"));
+		default:       error |= sql->append(STRING_WITH_LEN(" FIELD_FORMAT='"));
 		} // endswitch ttp
 
 		error |= sql->append_for_single_quote(fmt, strlen(fmt));
@@ -5626,9 +5624,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	PCSZ     user, fn, db, host, pwd, sep, tbl, src;
 	PCSZ     col, ocl, rnk, pic, fcl, skc, zfn;
 	char    *tab, *dsn, *shm, *dpath, *url;
-#if defined(__WIN__)
+#if defined(_WIN32)
 	PCSZ     nsp= NULL, cls= NULL;
-#endif   // __WIN__
+#endif   // _WIN32
 //int      hdr, mxe;
 	int      port= 0, mxr __attribute__((unused)) = 0, rc= 0, mul= 0;
 //PCSZ     tabtyp= NULL;
@@ -5644,7 +5642,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // JAVA_SUPPORT
   uint     tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool     bif, ok= false, dbf= false;
-  TABTYPE  ttp= TAB_UNDEF;
+  TABTYPE  ttp= TAB_UNDEF, ttr=TAB_UNDEF;
   PQRYRES  qrp= NULL;
   PCOLRES  crp;
   PCONNECT xp= NULL;
@@ -5687,10 +5685,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     skc= GetListOption(g, "skipcol", topt->oplist, NULL);
     rnk= GetListOption(g, "rankcol", topt->oplist, NULL);
     pwd= GetListOption(g, "password", topt->oplist);
-#if defined(__WIN__)
+#if defined(_WIN32)
     nsp= GetListOption(g, "namespace", topt->oplist);
     cls= GetListOption(g, "class", topt->oplist);
-#endif   // __WIN__
+#endif   // _WIN32
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
 #if defined(ODBC_SUPPORT)
 //	tabtyp= GetListOption(g, "Tabtype", topt->oplist, NULL);
@@ -5724,7 +5722,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			topt->type= (src) ? "MYSQL" : (tab) ? "PROXY" : "DOS";
 			ttp= GetTypeID(topt->type);
 			sprintf(g->Message, "No table_type. Was set to %s", topt->type);
-			push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+			push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR, g->Message);
 		} else if (ttp == TAB_NIY) {
 			sprintf(g->Message, "Unsupported table type %s", topt->type);
 			rc= HA_ERR_INTERNAL_ERROR;
@@ -5732,13 +5730,13 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
 		} else if (topt->http) {
       if (ttp == TAB_UNDEF) {
-        topt->type = "JSON";
-        ttp= GetTypeID(topt->type);
-        sprintf(g->Message, "No table_type. Was set to %s", topt->type);
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
-      } // endif ttp
+        ttr= TAB_JSON;
+        strcpy(g->Message, "No table_type. Was set to JSON");
+        push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR, g->Message);
+      } else
+        ttr= ttp;
 
-      switch (ttp) {
+      switch (ttr) {
 				case TAB_JSON:
 #if defined(BSON_SUPPORT)
         case TAB_BSON:
@@ -5921,11 +5919,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					ok= false;
 
 				break;
-#if defined(__WIN__)
+#if defined(_WIN32)
 			case TAB_WMI:
 				ok= true;
 				break;
-#endif   // __WIN__
+#endif   // _WIN32
 			case TAB_PIVOT:
 				supfnc= FNC_NO;
                                 // fall through
@@ -5958,9 +5956,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 				if (!fn && !zfn && !mul && !dsn)
 					sprintf(g->Message, "Missing %s file name", topt->type);
-				else
-					ok= true;
+				else if (dsn && !topt->tabname)
+          topt->tabname= tab;
 
+				ok= true;
 				break;
 #if defined(JAVA_SUPPORT)
 			case TAB_MONGO:
@@ -5973,7 +5972,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
 			case TAB_REST:
 				if (!topt->http)
-					sprintf(g->Message, "Missing %s HTTP address", topt->type);
+					strcpy(g->Message, "Missing REST HTTP option");
 				else
 					ok = true;
 
@@ -6089,11 +6088,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case TAB_CSV:
 					qrp= CSVColumns(g, dpath, topt, fnc == FNC_COL);
 					break;
-#if defined(__WIN__)
+#if defined(_WIN32)
 				case TAB_WMI:
 					qrp= WMIColumns(g, nsp, cls, fnc == FNC_COL);
 					break;
-#endif   // __WIN__
+#endif   // _WIN32
 				case TAB_PRX:
 				case TAB_TBL:
 				case TAB_XCL:
@@ -6193,7 +6192,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 				// Restore language type
 				if (ttp == TAB_REST)
-          ttp = GetTypeID(topt->type);
+          ttp = ttr;
 
 				for (i= 0; !rc && i < qrp->Nblin; i++) {
 					typ= len= prec= dec= flg= 0;
@@ -6296,7 +6295,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 								// Skip this column
 								sprintf(g->Message, "Column %s skipped (unsupported type %d)",
 									cnm, typ);
-								push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+								push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
 								continue;
 							} else {
 								sprintf(g->Message, "Unsupported SQL type %d", typ);
@@ -6311,7 +6310,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 							case TYPE_STRING:
 								if (w) {
 									sprintf(g->Message, "Column %s is wide characters", cnm);
-									push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
+									push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR, g->Message);
 								} // endif w
 
 								break;
@@ -6338,7 +6337,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 									// Skip this column
 									sprintf(g->Message, "Column %s skipped (unsupported type %d)",
 										cnm, typ);
-									push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+									push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
 									continue;
 								} else {
 									sprintf(g->Message, "Unsupported SQL type %d", typ);
@@ -6503,7 +6502,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     sprintf(g->Message, "No table_type. Will be set to %s", options->type);
 
     if (sqlcom == SQLCOM_CREATE_TABLE)
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
 
   } else if (type == TAB_NIY) {
     sprintf(g->Message, "Unsupported table type %s", options->type);
@@ -6552,7 +6551,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case TAB_OCCUR:
         if (options->srcdef) {
           strcpy(g->Message, "Cannot check looping reference");
-          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
         } else if (options->tabname) {
           if (!stricmp(options->tabname, create_info->alias.str) &&
              (!options->dbname || 
@@ -6625,11 +6624,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     // on Windows and libxml2 otherwise
     switch (toupper(*xsup)) {
       case '*':
-#if defined(__WIN__)
+#if defined(_WIN32)
         dom= true;
-#else   // !__WIN__
+#else   // !_WIN32
         dom= false;
-#endif  // !__WIN__
+#endif  // !_WIN32
         break;
       case 'M':
       case 'D':
@@ -6848,7 +6847,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       sprintf(g->Message, "No file name. Table will use %s", buf);
   
       if (sqlcom == SQLCOM_CREATE_TABLE)
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
   
       strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
     } // endif part_info
@@ -6861,12 +6860,12 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       else
         sprintf(g->Message, "Error %d creating file %s", errno, fn);
 
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
     } else
       ::close(h);
     
     if ((type == TAB_FMT || options->readonly) && sqlcom == SQLCOM_CREATE_TABLE)
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
         "Congratulation, you just created a read-only void table!");
 
     } // endif sqlcom
@@ -6912,7 +6911,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           sqlcom == SQLCOM_CREATE_INDEX || sqlcom == SQLCOM_DROP_INDEX))  
 //         (sqlcom == SQLCOM_CREATE_INDEX && part_info) ||  
 //         (sqlcom == SQLCOM_DROP_INDEX && part_info)))  
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
         "Unexpected command in create, please contact CONNECT team");
 
     if (part_info && !inward)
@@ -6923,7 +6922,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         (!IsFileType(type) || FileExists(options->filename, false))) {
       if (part_info) {
         sprintf(g->Message, "Data repartition in %s is unchecked", partname); 
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
       } else if (sqlcom == SQLCOM_ALTER_TABLE) {
         // This is an ALTER to CONNECT from another engine.
         // It cannot be accepted because the table data would be modified
@@ -7012,11 +7011,11 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     int   n;
     struct stat info;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
     s= "\\";
-#else   // !__WIN__
+#else   // !_WIN32
     s= "/";
-#endif  // !__WIN__
+#endif  // !_WIN32
     if (IsPartitioned()) {
       sprintf(tfn, fn, GetPartName());
 
@@ -7036,7 +7035,7 @@ bool ha_connect::FileExists(const char *fn, bool bf)
         char buf[_MAX_PATH + 20];
 
         sprintf(buf, "Error %d for file %s", errno, filename);
-        push_warning(table->in_use, Sql_condition::WARN_LEVEL_WARN, 0, buf);
+        push_warning(table->in_use, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, buf);
         return true;
       } else
         return false;
@@ -7209,7 +7208,8 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     ALTER_ADD_UNIQUE_INDEX |
     ALTER_DROP_UNIQUE_INDEX |
     ALTER_ADD_PK_INDEX |
-    ALTER_DROP_PK_INDEX;
+    ALTER_DROP_PK_INDEX |
+    ALTER_INDEX_ORDER;
 
   alter_table_operations inplace_offline_operations=
     ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE |
@@ -7338,7 +7338,7 @@ fin:
     DBUG_RETURN(HA_ALTER_ERROR);
   } else if (outward) {
     if (IsFileType(type))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
         "This is an outward table, table data were not modified.");
 
     DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
@@ -7364,7 +7364,7 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *, uint)
 {
   DBUG_ENTER("ha_connect::check_if_incompatible_data");
   // TO DO: really implement and check it.
-  push_warning(ha_thd(), Sql_condition::WARN_LEVEL_WARN, 0,
+  push_warning(ha_thd(), Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
       "Unexpected call to check_if_incompatible_data.");
   DBUG_RETURN(COMPATIBLE_DATA_NO);
 } // end of check_if_incompatible_data
@@ -7533,7 +7533,7 @@ maria_declare_plugin(connect)
   0x0107,                                       /* version number (1.07) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.07.0002",                                  /* string version */
+  "1.07.0003",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;

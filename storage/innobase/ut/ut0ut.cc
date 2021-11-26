@@ -447,7 +447,7 @@ ut_strerr(
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return("Too many words in a FTS phrase or proximity search");
 	case DB_DECRYPTION_FAILED:
-		return("Table is encrypted but decrypt failed.");
+		return("Table is compressed or encrypted but uncompress or decrypt failed.");
 	case DB_IO_PARTIAL_FAILED:
 		return("Partial IO failed");
 	case DB_FORCED_ABORT:
