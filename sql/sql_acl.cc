@@ -4424,6 +4424,29 @@ static void acl_insert_db(const char *user, const char *host, const char *db,
 }
 
 
+static bool compute_acl_cache_key(const char *ip,
+                                  const char *user,
+                                  const char *db,
+                                  char *key,
+                                  size_t max_key_length,
+                                  size_t *key_length)
+{
+  char *end, *tmp_db;
+  tmp_db= strmov(strmov(key, safe_str(ip)) + 1, user) + 1;
+  end= strnmov(tmp_db, db, key + max_key_length - tmp_db);
+
+  if (end >= key + max_key_length) // db name was truncated
+    return true;
+
+  if (lower_case_table_names)
+  {
+    my_casedn_str(files_charset_info, tmp_db);
+    db=tmp_db;
+  }
+  *key_length= (size_t) (end-key);
+  return false;
+}
+
 /*
   Get privilege for a host, user and db combination
 
@@ -4437,22 +4460,12 @@ privilege_t acl_get(const char *host, const char *ip,
   privilege_t host_access(ALL_KNOWN_ACL), db_access(NO_ACL);
   uint i;
   size_t key_length;
-  char key[ACL_KEY_LENGTH],*tmp_db,*end;
+  char key[ACL_KEY_LENGTH];
   acl_entry *entry;
   DBUG_ENTER("acl_get");
 
-  tmp_db= strmov(strmov(key, safe_str(ip)) + 1, user) + 1;
-  end= strnmov(tmp_db, db, key + sizeof(key) - tmp_db);
-
-  if (end >= key + sizeof(key)) // db name was truncated
-    DBUG_RETURN(NO_ACL);        // no privileges for an invalid db name
-
-  if (lower_case_table_names)
-  {
-    my_casedn_str(files_charset_info, tmp_db);
-    db=tmp_db;
-  }
-  key_length= (size_t) (end-key);
+  if (compute_acl_cache_key(ip, user, db, key, sizeof(key), &key_length))
+    DBUG_RETURN(NO_ACL); // No rights for invalid db name.
 
   mysql_mutex_lock(&acl_cache->lock);
   if (!db_is_pattern && (entry=acl_cache->search((uchar*) key, key_length)))
