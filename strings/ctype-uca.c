@@ -30201,6 +30201,63 @@ MY_UCA_INFO my_uca_v520=
 };
 
 
+#include "ctype-uca1400.h"
+
+static MY_UCA_INFO my_uca_v1400=
+{
+  {
+    {
+      0x10FFFF,      /* maxchar           */
+      (uchar *) uca1400_length,
+      (uint16 **) uca1400_weight,
+      {              /* Contractions:     */
+        array_elements(uca1400_contractions), /* nitems */
+        uca1400_contractions,                 /* item   */
+        NULL         /*   flags           */
+      },
+      0,             /* levelno */
+      NULL,          /* weights_2bytes */
+      {0}
+    },
+
+    {
+      0x10FFFF,      /* maxchar */
+      (uchar *) uca1400_length_secondary,
+      (uint16 **) uca1400_weight_secondary,
+      {              /* Contractions: */
+        array_elements(uca1400_contractions_secondary), /* nitems */
+        uca1400_contractions_secondary,                 /* item   */
+        NULL         /*   flags */
+      },
+      1,             /* levelno */
+      NULL,          /* weights_2bytes */
+      {0}
+    },
+  },
+
+  uca1400_non_ignorable_first,
+  uca1400_non_ignorable_last,
+
+  uca1400_primary_ignorable_first,
+  uca1400_primary_ignorable_last,
+
+  uca1400_secondary_ignorable_first,
+  uca1400_secondary_ignorable_last,
+
+  uca1400_tertiary_ignorable_first,
+  uca1400_tertiary_ignorable_last,
+
+  0x0000,    /* first_trailing */
+  0x0000,    /* last_trailing  */
+
+  uca1400_variable_first,
+  uca1400_variable_last,
+
+  /* Misc */
+  uca1400_version
+};
+
+
 /******************************************************/
 
 /*
@@ -32926,6 +32983,11 @@ my_coll_parser_scan_setting(MY_COLL_RULE_PARSER *p)
     rules->version= 520;
     rules->uca= &my_uca_v520;
   }
+  else if (!lex_cmp(lexem, C_STRING_WITH_LEN("[version 14.0.0]")))
+  {
+    rules->version= 1400;
+    rules->uca= &my_uca_v1400;
+  }
   else if (!lex_cmp(lexem, C_STRING_WITH_LEN("[shift-after-method expand]")))
   {
     rules->shift_after_method= my_shift_method_expand;
@@ -33561,7 +33623,7 @@ my_charset_loader_error_for_rule(MY_CHARSET_LOADER *loader,
 */
 static uint16 *
 my_uca_init_one_contraction(MY_CONTRACTIONS *contractions,
-                            my_wc_t *str, uint length, my_bool with_context)
+                            my_wc_t *str, size_t length, my_bool with_context)
 {
   int flag;
   uint i;
@@ -33636,7 +33698,7 @@ apply_one_rule(MY_CHARSET_LOADER *loader,
   {
     MY_CONTRACTIONS *contractions= &dst->contractions;
     to= my_uca_init_one_contraction(contractions,
-                                    r->curr, (uint)nshift, r->with_context);
+                                    r->curr, nshift, r->with_context);
     /* Store weights of the "reset to" character */
     dst->contractions.nitems--; /* Temporarily hide - it's incomplete */
     rc= my_char_weight_put(dst, rules->uca,
@@ -34382,7 +34444,7 @@ init_weight_level(MY_CHARSET_LOADER *loader, CHARSET_INFO *cs,
   for (i= 0; i != src->contractions.nitems; i++)
   {
     MY_CONTRACTION *item= &src->contractions.item[i];
-    uint length= my_wstrnlen(item->ch, array_elements(item->ch));
+    size_t length= my_wstrnlen(item->ch, array_elements(item->ch));
     uint16 *weights= my_uca_init_one_contraction(&dst->contractions,
                                                  item->ch, length,
                                                  item->with_context);
@@ -34526,6 +34588,11 @@ create_tailoring(struct charset_info_st *cs,
   if (rules.version == 520)           /* Unicode-5.2.0 requested */
   {
     src_uca= &my_uca_v520;
+    cs->caseinfo= &my_unicase_unicode520;
+  }
+  else if (rules.version == 1400)     /* Unicode-14.0.0 */
+  {
+    src_uca= &my_uca_v1400;
     cs->caseinfo= &my_unicase_unicode520;
   }
   else if (rules.version == 400)      /* Unicode-4.0.0 requested */
@@ -37402,6 +37469,39 @@ struct charset_info_st my_charset_utf8mb4_unicode_520_ci=
     NULL,                /* to_upper     */
     NULL,                /* sort_order   */
     &my_uca_v520,        /* uca          */
+    NULL,                /* tab_to_uni   */
+    NULL,                /* tab_from_uni */
+    &my_unicase_unicode520,/* caseinfo   */
+    NULL,                /* state_map    */
+    NULL,                /* ident_map    */
+    8,                   /* strxfrm_multiply */
+    1,                   /* caseup_multiply  */
+    1,                   /* casedn_multiply  */
+    1,                   /* mbminlen     */
+    4,                   /* mbmaxlen     */
+    9,                   /* min_sort_char */
+    0x10FFFF,            /* max_sort_char */
+    ' ',                 /* pad char      */
+    0,                   /* escape_with_backslash_is_dangerous */
+    1,                   /* levels_for_order   */
+    &my_charset_utf8mb4_handler,
+    &my_uca_collation_handler_utf8mb4
+};
+
+
+struct charset_info_st my_charset_utf8mb4_unicode_1400_ci=
+{
+    456,0,0,             /* number       */
+    MY_CS_UTF8MB4_UCA_FLAGS,/* flags     */
+    { charset_name_utf8mb4, charset_name_utf8mb4_length }, /* csname */
+    { STRING_WITH_LEN(MY_UTF8MB4 "_unicode_1400_ci") },    /* name */
+    "",                  /* comment      */
+    "",                  /* tailoring    */
+    ctype_utf8mb3,       /* ctype        */
+    NULL,                /* to_lower     */
+    NULL,                /* to_upper     */
+    NULL,                /* sort_order   */
+    &my_uca_v1400,       /* uca          */
     NULL,                /* tab_to_uni   */
     NULL,                /* tab_from_uni */
     &my_unicase_unicode520,/* caseinfo   */

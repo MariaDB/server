@@ -172,6 +172,7 @@ extern struct charset_info_st my_charset_utf8mb4_hungarian_uca_ci;
 extern struct charset_info_st my_charset_utf8mb4_croatian_mysql561_uca_ci;
 extern struct charset_info_st my_charset_utf8mb4_sinhala_uca_ci;
 extern struct charset_info_st my_charset_utf8mb4_unicode_520_ci;
+extern struct charset_info_st my_charset_utf8mb4_unicode_1400_ci;
 extern struct charset_info_st my_charset_utf8mb4_vietnamese_ci;
 extern struct charset_info_st my_charset_utf8mb4_croatian_uca_ci;
 extern struct charset_info_st my_charset_utf8mb4_myanmar_uca_ci;
@@ -376,6 +377,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   add_compiled_collation(&my_charset_utf8mb4_croatian_mysql561_uca_ci);
   add_compiled_collation(&my_charset_utf8mb4_sinhala_uca_ci);
   add_compiled_collation(&my_charset_utf8mb4_unicode_520_ci);
+  add_compiled_collation(&my_charset_utf8mb4_unicode_1400_ci);
   add_compiled_collation(&my_charset_utf8mb4_vietnamese_ci);
   add_compiled_collation(&my_charset_utf8mb4_croatian_uca_ci);
   add_compiled_collation(&my_charset_utf8mb4_myanmar_uca_ci);
