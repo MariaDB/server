@@ -10313,9 +10313,9 @@ commit_try_norebuild(
 
 		dict_fs2utf8(ctx->new_table->name.m_name, db, sizeof db,
 			     table, sizeof table);
-
+		tmp_name[0]= (char)0xff;
 		for (size_t i = 0; error == DB_SUCCESS && i < size; i++) {
-			snprintf(tmp_name, sizeof tmp_name, "\xff%zu", i);
+			snprintf(tmp_name+1, sizeof(tmp_name)-1, "%zu", i);
 			error = dict_stats_rename_index(db, table,
 							ha_alter_info->
 							rename_keys[i].
@@ -10323,7 +10323,7 @@ commit_try_norebuild(
 							tmp_name, trx);
 		}
 		for (size_t i = 0; error == DB_SUCCESS && i < size; i++) {
-			snprintf(tmp_name, sizeof tmp_name, "\xff%zu", i);
+			snprintf(tmp_name+1, sizeof(tmp_name)-1, "%zu", i);
 			error = dict_stats_rename_index(db, table, tmp_name,
 							ha_alter_info
 							->rename_keys[i].
