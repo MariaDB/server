@@ -168,6 +168,9 @@ typedef struct uca_info_st
   my_wc_t first_variable;
   my_wc_t last_variable;
 
+  /* Unicode version */
+  uint version;
+
 } MY_UCA_INFO;
 
 
