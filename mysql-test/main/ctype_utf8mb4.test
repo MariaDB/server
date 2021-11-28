@@ -2109,4 +2109,3 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.6 tests
 --echo #
-

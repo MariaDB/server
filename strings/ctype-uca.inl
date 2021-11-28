@@ -132,12 +132,15 @@ MY_FUNCTION_NAME(strnncoll_multilevel)(CHARSET_INFO *cs,
                                        const uchar *t, size_t tlen,
                                        my_bool t_is_prefix)
 {
-  uint i, num_level= cs->levels_for_order;
-  for (i= 0; i != num_level; i++)
+  uint i, level_flags= cs->levels_for_order;
+  for (i= 0; level_flags; i++, level_flags>>= 1)
   {
-    int ret= MY_FUNCTION_NAME(strnncoll_onelevel)(cs, &cs->uca->level[i],
-                                                  s, slen, t, tlen,
-                                                  t_is_prefix);
+    int ret;
+    if (!(level_flags & 1))
+      continue;
+    ret= MY_FUNCTION_NAME(strnncoll_onelevel)(cs, &cs->uca->level[i],
+                                              s, slen, t, tlen,
+                                              t_is_prefix);
     if (ret)
        return ret;
   }
@@ -278,12 +281,14 @@ MY_FUNCTION_NAME(strnncollsp_multilevel)(CHARSET_INFO *cs,
                                          const uchar *s, size_t slen,
                                          const uchar *t, size_t tlen)
 {
-
-  uint i, num_level= cs->levels_for_order;
-  for (i= 0; i != num_level; i++)
+  uint i, level_flags= cs->levels_for_order;
+  for (i= 0; level_flags; i++, level_flags>>= 1)
   {
-    int ret= MY_FUNCTION_NAME(strnncollsp_onelevel)(cs, &cs->uca->level[i],
-                                                    s, slen, t, tlen);
+    int ret;
+    if (!(level_flags & 1))
+      continue;
+    ret= MY_FUNCTION_NAME(strnncollsp_onelevel)(cs, &cs->uca->level[i],
+                                                s, slen, t, tlen);
     if (ret)
       return ret;
   }
@@ -299,12 +304,63 @@ MY_FUNCTION_NAME(strnncollsp_nopad_multilevel)(CHARSET_INFO *cs,
                                                const uchar *s, size_t slen,
                                                const uchar *t, size_t tlen)
 {
-  uint num_level= cs->levels_for_order;
-  uint i;
-  for (i= 0; i != num_level; i++)
+  uint i, level_flags;
+  int ret;
+
+  /* Compare only the primary level using NO PAD */
+  if ((ret= MY_FUNCTION_NAME(strnncoll_onelevel)(cs, &cs->uca->level[0],
+                                                 s, slen, t, tlen, FALSE)))
+    return ret;
+
+  /*
+    Compare the other levels using PAD SPACE.
+    These are Unicode-14.0.0 DUCTET weights:
+
+0020  ; [*0209.0020.0002] # SPACE
+
+0035  ; [.2070.0020.0002] # DIGIT FIVE
+248C  ; [.2070.0020.0004][*0281.0020.0004] # DIGIT FIVE FULL STOP
+
+0041  ; [.2075.0020.0008] # LATIN CAPITAL LETTER A
+0061  ; [.2075.0020.0002] # LATIN SMALL LETTER A
+00C1  ; [.2075.0020.0008][.0000.0024.0002] # LATIN CAPITAL LETTER A WITH ACUTE
+00E1  ; [.2075.0020.0002][.0000.0024.0002] # LATIN SMALL LETTER A WITH ACUTE
+
+    Examples demonstrating that it's important to use PAD SPACE
+    on the tertiary level:
+
+    The third level weights for "SMALL LETTER A"
+    - U+0061 produces one weight 0002
+    - U+00E1 produces two weights 0002+0002
+      For _ai_cs collations these two letters must be equal.
+      Therefore, the difference in trailing 0002 should be ignored.
+
+    The third level weights for "CAPITAL LETTER A"
+    - U+0041 produces one weight 0008
+    - U+00C1 produces two weights 0008+0002
+      For _ai_cs collations these two letters must be equal.
+      Therefore, the difference in trailing 0002 should be ignored.
+
+    Examples demonstrating that it's important to use PAD SPACE
+    on the secondary level:
+
+    When we implement variable shifted alternative weighting collations,
+    U+0035 will be equal to U+248C on the primary level in these collations.
+    The second level weights for "DIGIT FIVE" are:
+    - U+0035 produces one weight 0020
+    - U+248C produces two weights 0020+0020.
+    The difference for these two characters must be found only
+    on the tertiary level. Therefore, the trailing 0020 should be ignored.
+  */
+
+  for (i= 1, level_flags= cs->levels_for_order >> 1;
+       level_flags;
+       i++, level_flags>>= 1)
   {
-    int ret= MY_FUNCTION_NAME(strnncoll_onelevel)(cs, &cs->uca->level[i],
-                                                  s, slen, t, tlen, FALSE);
+    if (!(level_flags & 1))
+      continue;
+    ret= MY_FUNCTION_NAME(strnncollsp_onelevel)(cs, &cs->uca->level[i],
+                                                s, slen, t, tlen);
     if (ret)
        return ret;
   }
@@ -464,15 +520,17 @@ MY_FUNCTION_NAME(strnncollsp_nchars_multilevel)(CHARSET_INFO *cs,
                                                 const uchar *t, size_t tlen,
                                                 size_t nchars)
 {
-  uint num_level= cs->levels_for_order;
-  uint i;
-  for (i= 0; i != num_level; i++)
+  uint i, level_flags= cs->levels_for_order;
+  for (i= 0; level_flags; i++, level_flags>>= 1)
   {
-    int ret= MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(cs,
-                                                           &cs->uca->level[i],
-                                                           s, slen,
-                                                           t, tlen,
-                                                           nchars);
+    int ret;
+    if (!(level_flags & 1))
+      continue;
+    ret= MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(cs,
+                                                       &cs->uca->level[i],
+                                                       s, slen,
+                                                       t, tlen,
+                                                       nchars);
     if (ret)
        return ret;
   }
@@ -784,13 +842,15 @@ MY_FUNCTION_NAME(strnxfrm_multilevel)(CHARSET_INFO *cs,
                                       const uchar *src, size_t srclen,
                                       uint flags)
 {
-  uint num_level= cs->levels_for_order;
+  uint level_flags= cs->levels_for_order;
   uchar *d0= dst;
   uchar *de= dst + dstlen;
   uint current_level;
 
-  for (current_level= 0; current_level != num_level; current_level++)
+  for (current_level= 0; level_flags; current_level++, level_flags>>= 1)
   {
+    if (!(level_flags & 1))
+      continue;
     if (!(flags & MY_STRXFRM_LEVEL_ALL) ||
         (flags & (MY_STRXFRM_LEVEL1 << current_level)))
       dst= cs->state & MY_CS_NOPAD ?
@@ -832,7 +892,9 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler)=
   MY_FUNCTION_NAME(hash_sort),
   my_propagate_complex,
   my_min_str_mb_simple,
-  my_max_str_mb_simple
+  my_max_str_mb_simple,
+  my_ci_get_id_uca,
+  my_ci_get_collation_name_uca
 };
 
 
@@ -856,7 +918,9 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad)=
   MY_FUNCTION_NAME(hash_sort_nopad),
   my_propagate_complex,
   my_min_str_mb_simple_nopad,
-  my_max_str_mb_simple
+  my_max_str_mb_simple,
+  my_ci_get_id_uca,
+  my_ci_get_collation_name_uca
 };
 
 
@@ -878,7 +942,9 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_multilevel)=
   MY_FUNCTION_NAME(hash_sort),
   my_propagate_complex,
   my_min_str_mb_simple,
-  my_max_str_mb_simple
+  my_max_str_mb_simple,
+  my_ci_get_id_uca,
+  my_ci_get_collation_name_uca
 };
 
 
@@ -900,7 +966,9 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad_multilevel)=
   MY_FUNCTION_NAME(hash_sort),
   my_propagate_complex,
   my_min_str_mb_simple_nopad,
-  my_max_str_mb_simple
+  my_max_str_mb_simple,
+  my_ci_get_id_uca,
+  my_ci_get_collation_name_uca
 };
 
 

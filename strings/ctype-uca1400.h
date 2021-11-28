@@ -176,4 +176,77 @@ my_uca_1400_implicit_weight_primary(my_wc_t code)
   return my_uca_implicit_weight_primary_default(0xFBC0, code);
 }
 
+
+#define MY_UCA1400_COLLATION_ID_POSSIBLE_MIN 2048
+#define MY_UCA1400_COLLATION_ID_POSSIBLE_MAX 4095
+
+static inline my_bool
+my_collation_id_is_uca1400(uint id)
+{
+  return (my_bool) (id >= MY_UCA1400_COLLATION_ID_POSSIBLE_MIN &&
+                    id <= MY_UCA1400_COLLATION_ID_POSSIBLE_MAX);
+}
+
+/*
+  UCA1400 collation ID:
+
+  1000 0000 0000   0x800  2048
+  1111 1111 1111   0xFFF  4095
+  1ccc tttt tPST
+
+  c - charset ID (utf8mb3=0, utf8mb4=1, ucs2=2, utf16=3, utf32=4)
+  p - PAD/NO PAD
+  S - secondary level is enabled
+  T - tertiary level is enabled
+*/
+
+
+static inline my_cs_encoding_t
+my_uca1400_collation_id_to_charset_id(uint id)
+{
+  return (my_cs_encoding_t) ((id >> 8) & 0x07);
+}
+
+
+static inline uint
+my_uca1400_collation_id_to_tailoring_id(uint id)
+{
+  return (id >> 3) & 0x1F;
+}
+
+
+static inline my_bool
+my_uca1400_collation_id_to_nopad_flag(uint id)
+{
+  return (my_bool) ((id >> 2) & 0x01);
+}
+
+static inline my_bool
+my_uca1400_collation_id_to_secondary_level_flag(uint id)
+{
+  return (my_bool) ((id >> 1) & 0x01);
+}
+
+static inline my_bool
+my_uca1400_collation_id_to_tertiary_level_flag(uint id)
+{
+  return (my_bool) ((id >> 0) & 0x01);
+}
+
+
+uint
+my_uca1400_make_builtin_collation_id(my_cs_encoding_t charset_id,
+                                     uint tailoring_id,
+                                     my_bool nopad,
+                                     my_bool secondary_level,
+                                     my_bool tertiary_level);
+
+my_bool
+my_uca1400_collation_definition_init(MY_CHARSET_LOADER *loader,
+                                     struct charset_info_st *dst,
+                                     uint collation_id);
+
+#define MY_UCA1400_COLLATION_DEFINITION_COUNT 26
+
+
 #endif /* CTYPE_UCA_1400_H */

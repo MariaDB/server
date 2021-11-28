@@ -1097,13 +1097,15 @@ bool Protocol_text::store_field_metadata(const THD * thd,
   if (charset_for_protocol == &my_charset_bin || thd_cs == NULL)
   {
     /* No conversion */
-    client_field->charsetnr= charset_for_protocol->number;
+    client_field->charsetnr= charset_for_protocol->
+                               get_id(MY_COLLATION_ID_TYPE_COMPAT_100800);
     client_field->length= server_field.length;
   }
   else
   {
     /* With conversion */
-    client_field->charsetnr= thd_cs->number;
+    client_field->charsetnr= thd_cs->
+                               get_id(MY_COLLATION_ID_TYPE_COMPAT_100800);
     client_field->length= server_field.max_octet_length(charset_for_protocol,
                                                         thd_cs);
   }

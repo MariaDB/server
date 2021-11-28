@@ -876,13 +876,17 @@ bool Protocol_text::store_field_metadata(const THD * thd,
     if (charset_for_protocol == &my_charset_bin || thd_charset == NULL)
     {
       /* No conversion */
-      int2store(pos, charset_for_protocol->number);
+      uint id= charset_for_protocol->get_id(MY_COLLATION_ID_TYPE_COMPAT_100800);
+      DBUG_ASSERT(id <= UINT_MAX16);
+      int2store(pos, (uint16) id);
       int4store(pos + 2, field.length);
     }
     else
     {
       /* With conversion */
-      int2store(pos, thd_charset->number);
+      uint id= thd_charset->get_id(MY_COLLATION_ID_TYPE_COMPAT_100800);
+      DBUG_ASSERT(id <= UINT_MAX16);
+      int2store(pos, (uint16) id);
       uint32 field_length= field.max_octet_length(charset_for_protocol,
                                                   thd_charset);
       int4store(pos + 2, field_length);

@@ -1837,9 +1837,10 @@ public:
 
 class Item_func_set_collation :public Item_str_func
 {
-  CHARSET_INFO *m_set_collation;
+  Lex_extended_collation_st m_set_collation;
 public:
-  Item_func_set_collation(THD *thd, Item *a, CHARSET_INFO *set_collation):
+  Item_func_set_collation(THD *thd, Item *a,
+                          const Lex_extended_collation_st &set_collation):
     Item_str_func(thd, a), m_set_collation(set_collation) {}
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;

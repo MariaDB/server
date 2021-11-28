@@ -1120,7 +1120,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL,
+  `DEFAULT_COLLATE_NAME` varchar(64) NOT NULL,
   `DESCRIPTION` varchar(60) NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3

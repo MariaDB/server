@@ -834,9 +834,9 @@ static CHARSET_INFO *find_collation_data_inheritance_source(CHARSET_INFO *cs, my
   if (cs->tailoring &&
       !strncmp(cs->tailoring, "[import ", 8) &&
       (end= strchr(cs->tailoring + 8, ']')) &&
-      (beg= cs->tailoring + 8) + MY_CS_NAME_SIZE > end)
+      (beg= cs->tailoring + 8) + MY_CS_COLLATION_NAME_SIZE > end)
   {
-    char name[MY_CS_NAME_SIZE + 1];
+    char name[MY_CS_COLLATION_NAME_SIZE + 1];
     memcpy(name, beg, end - beg);
     name[end - beg]= '\0';
     return inheritance_source_by_id(cs, get_collation_number(name,MYF(flags)));

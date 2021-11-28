@@ -3810,7 +3810,7 @@ CREATE TEMPORARY TABLE `TABLES` (
   `CREATE_TIME` datetime,
   `UPDATE_TIME` datetime,
   `CHECK_TIME` datetime,
-  `TABLE_COLLATION` varchar(32),
+  `TABLE_COLLATION` varchar(64),
   `CHECKSUM` bigint(21) unsigned,
   `CREATE_OPTIONS` varchar(2048),
   `TABLE_COMMENT` varchar(2048) NOT NULL,

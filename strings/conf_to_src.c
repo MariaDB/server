@@ -407,7 +407,7 @@ void dispcset(FILE *f,CHARSET_INFO *cs)
   fprintf(f,"  255,                        /* max_sort_char */\n");
   fprintf(f,"  ' ',                        /* pad_char      */\n");
   fprintf(f,"  0,                          /* escape_with_backslash_is_dangerous */\n");
-  fprintf(f,"  1,                          /* levels_for_order   */\n");
+  fprintf(f,"  MY_CS_COLL_LEVELS_S1,\n");
   fprintf(f,"  &my_charset_8bit_handler,\n");
 
   if (cs->state & MY_CS_BINSORT)

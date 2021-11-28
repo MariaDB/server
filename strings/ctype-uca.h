@@ -106,6 +106,18 @@ my_uca_520_implicit_weight_primary(my_wc_t code)
 }
 
 
+typedef enum my_cs_encoding_enum
+{
+  MY_CS_ENCODING_UTF8MB3= 0,
+  MY_CS_ENCODING_UTF8MB4= 1,
+  MY_CS_ENCODING_UCS2= 2,
+  MY_CS_ENCODING_UTF16= 3,
+  MY_CS_ENCODING_UTF32= 4,
+} my_cs_encoding_t;
+
+#define MY_CS_ENCODING_LAST MY_CS_ENCODING_UTF32
+
+
 #include "ctype-uca1400.h"
 
 
@@ -163,6 +175,13 @@ my_uca_implicit_weight_on_level(uint version, my_wc_t code, uint level)
   }
   return my_uca_implicit_weight_quaternary();
 }
+
+uint
+my_ci_get_id_uca(CHARSET_INFO *cs, my_collation_id_type_t type);
+
+
+LEX_CSTRING
+my_ci_get_collation_name_uca(CHARSET_INFO *cs, my_collation_name_mode_t mode);
 
 
 #endif /* CTYPE_UCA_H */
