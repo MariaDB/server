@@ -4593,7 +4593,9 @@ void User_var_log_event::pack_info(Protocol* protocol)
     case STRING_RESULT:
     {
       /* 15 is for 'COLLATE' and other chars */
-      char buf_mem[FN_REFLEN + 512 + 1 + 2*MY_CS_NAME_SIZE+15];
+      char buf_mem[FN_REFLEN + 512 + 1 + 15 +
+                   MY_CS_CHARACTER_SET_NAME_SIZE +
+                   MY_CS_COLLATION_NAME_SIZE];
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       CHARSET_INFO *cs;
       buf.length(0);
@@ -4613,7 +4615,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
           return;
         old_len= buf.length();
         if (buf.reserve(old_len + val_len * 2 + 3 + sizeof(" COLLATE ") +
-                        MY_CS_NAME_SIZE))
+                        MY_CS_COLLATION_NAME_SIZE))
           return;
         beg= const_cast<char *>(buf.ptr()) + old_len;
         end= str_to_hex(beg, val, val_len);

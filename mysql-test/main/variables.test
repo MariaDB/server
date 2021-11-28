@@ -1484,23 +1484,23 @@ drop function t1_max;
 --echo #
 
 --error ER_UNKNOWN_CHARACTER_SET
-set session character_set_results = 2048;
+set session character_set_results = 4096;
 --error ER_UNKNOWN_CHARACTER_SET
-set session character_set_client=2048;
+set session character_set_client=4096;
 --error ER_UNKNOWN_CHARACTER_SET
-set session character_set_connection=2048;
+set session character_set_connection=4096;
 --error ER_UNKNOWN_CHARACTER_SET
-set session character_set_server=2048;
+set session character_set_server=4096;
 --error ER_UNKNOWN_COLLATION
-set session collation_server=2048;
+set session collation_server=4096;
 --error ER_UNKNOWN_CHARACTER_SET
-set session character_set_filesystem=2048;
+set session character_set_filesystem=4096;
 --error ER_UNKNOWN_CHARACTER_SET
-set session character_set_database=2048;
+set session character_set_database=4096;
 --error ER_UNKNOWN_COLLATION
-set session collation_connection=2048;
+set session collation_connection=4096;
 --error ER_UNKNOWN_COLLATION
-set session collation_database=2048;
+set session collation_database=4096;
 
 #
 # Bug #16044655 CRASH: SETTING DEFAULT VALUE FOR SOME VARIABLES

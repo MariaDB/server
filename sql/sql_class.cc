@@ -8316,3 +8316,21 @@ THD::charset_collation_context_alter_table(const TABLE_SHARE *s)
   return Charset_collation_context(get_default_db_collation(this, s->db.str),
                                    s->table_charset);
 }
+
+
+void Charset_loader_server::raise_unknown_collation_error(const char *name) const
+{
+  ErrConvString err(name, &my_charset_utf8mb4_general_ci);
+  my_error(ER_UNKNOWN_COLLATION, MYF(0), err.ptr());
+  if (error[0])
+    push_warning_printf(current_thd,
+                        Sql_condition::WARN_LEVEL_WARN,
+                        ER_UNKNOWN_COLLATION, "%s", error);
+}
+
+
+void Charset_loader_server::raise_not_applicable_error(const char *cs,
+                                                       const char *cl) const
+{
+  my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl, cs);
+}

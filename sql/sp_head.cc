@@ -3079,17 +3079,17 @@ sp_head::show_create_routine_get_fields(THD *thd, const Sp_handler *sph,
 
   fields->push_back(new (mem_root)
                    Item_empty_string(thd, "character_set_client",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_CHARACTER_SET_NAME_SIZE),
                    mem_root);
 
   fields->push_back(new (mem_root)
                    Item_empty_string(thd, "collation_connection",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_COLLATION_NAME_SIZE),
                    mem_root);
 
   fields->push_back(new (mem_root)
                    Item_empty_string(thd, "Database Collation",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_COLLATION_NAME_SIZE),
                    mem_root);
 }
 
@@ -3155,17 +3155,17 @@ sp_head::show_create_routine(THD *thd, const Sp_handler *sph)
 
   fields.push_back(new (mem_root)
                    Item_empty_string(thd, "character_set_client",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_CHARACTER_SET_NAME_SIZE),
                    thd->mem_root);
 
   fields.push_back(new (mem_root)
                    Item_empty_string(thd, "collation_connection",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_COLLATION_NAME_SIZE),
                    thd->mem_root);
 
   fields.push_back(new (mem_root)
                    Item_empty_string(thd, "Database Collation",
-                                     MY_CS_NAME_SIZE),
+                                     MY_CS_CHARACTER_SET_NAME_SIZE),
                    thd->mem_root);
 
   if (protocol->send_result_set_metadata(&fields,

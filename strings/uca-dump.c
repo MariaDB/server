@@ -845,12 +845,12 @@ int main(int ac, char **av)
 
   for (w=0; w < options.levels; w++)
   {
-    size_t page;
+    my_wc_t page;
     int pagemaxlen[MY_UCA_NPAGES];
 
     for (page=0; page < MY_UCA_NPAGES; page++)
     {
-      size_t offs;
+      my_wc_t offs;
       size_t maxnum= 0;
       size_t nchars= 0;
       size_t mchars;

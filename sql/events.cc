@@ -720,15 +720,16 @@ send_show_create_event(THD *thd, Event_timed *et, Protocol *protocol)
 
   field_list.push_back(new (mem_root)
                        Item_empty_string(thd, "character_set_client",
-                                         MY_CS_NAME_SIZE), mem_root);
+                                         MY_CS_CHARACTER_SET_NAME_SIZE),
+                                         mem_root);
 
   field_list.push_back(new (mem_root)
                        Item_empty_string(thd, "collation_connection",
-                                         MY_CS_NAME_SIZE), mem_root);
+                                         MY_CS_COLLATION_NAME_SIZE), mem_root);
 
   field_list.push_back(new (mem_root)
                        Item_empty_string(thd, "Database Collation",
-                                         MY_CS_NAME_SIZE), mem_root);
+                                         MY_CS_COLLATION_NAME_SIZE), mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

@@ -2581,7 +2581,7 @@ static uint dump_events_for_db(char *db)
   MYSQL_RES  *event_res, *event_list_res;
   MYSQL_ROW  row, event_list_row;
 
-  char       db_cl_name[MY_CS_NAME_SIZE];
+  char       db_cl_name[MY_CS_COLLATION_NAME_SIZE];
   int        db_cl_altered= FALSE;
 
   DBUG_ENTER("dump_events_for_db");
@@ -2801,7 +2801,7 @@ static uint dump_routines_for_db(char *db)
   FILE       *sql_file= md_result_file;
   MYSQL_ROW  row, routine_list_row;
 
-  char       db_cl_name[MY_CS_NAME_SIZE];
+  char       db_cl_name[MY_CS_COLLATION_NAME_SIZE];
   int        db_cl_altered= FALSE;
   // before 10.3 packages are not supported
   uint upper_bound= mysql_get_server_version(mysql) >= 100300 ?
@@ -3844,7 +3844,7 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
   MYSQL_ROW  row;
   FILE      *sql_file= md_result_file;
 
-  char       db_cl_name[MY_CS_NAME_SIZE];
+  char       db_cl_name[MY_CS_COLLATION_NAME_SIZE];
   int        ret= TRUE;
   /* Servers below 5.1.21 do not support SHOW CREATE TRIGGER */
   const int  use_show_create_trigger= mysql_get_server_version(mysql) >= 50121;

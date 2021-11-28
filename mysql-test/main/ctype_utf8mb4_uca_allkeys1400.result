@@ -1,0 +1,120 @@
+#
+# Start of 10.8 tests
+#
+#
+# MDEV-27009 Add UCA-14.0.0 collations
+#
+SET NAMES utf8mb4 COLLATE utf8mb4_bin;
+CREATE TABLE allchars AS SELECT 1 AS code, ' ' AS str LIMIT 0;
+SHOW CREATE TABLE allchars;
+Table	Create Table
+allchars	CREATE TABLE `allchars` (
+  `code` int(1) NOT NULL,
+  `str` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE TABLE t1tmp (a INT NOT NULL);
+FOR i IN 0..0xFFF
+DO
+INSERT INTO t1tmp VALUES (i);
+END FOR;
+$$
+INSERT INTO allchars SELECT
+t1.a*0x1000+t2.a,
+CHAR(t1.a*0x1000+t2.a USING utf32)
+FROM t1tmp t1, t1tmp t2
+WHERE t1.a BETWEEN 0 AND 0x10F;
+DROP TABLE t1tmp;
+SELECT COUNT(*) FROM allchars;
+COUNT(*)
+1114112
+#
+# Load allkeys.txt from Unicode-14.0.0
+#
+CREATE TABLE allkeys_txt (a TEXT, b TEXT, c TEXT) ENGINE=MyISAM;
+LOAD DATA INFILE '../../std_data/unicode/allkeys1400.txt'
+INTO TABLE allkeys_txt FIELDS TERMINATED BY ';' (@a,@b,@qq)
+SET a=TRIM(@a), b=TRIM(REGEXP_SUBSTR(@b,'^[^#]*')), c=TRIM(REGEXP_SUBSTR(@b, '#.*$'));
+CREATE TABLE allkeys AS
+SELECT
+a,
+CONVERT(CAST(UNHEX(regexp_replace(regexp_replace(regexp_replace(a,'(\\b[0-9A-Z]{4}\\b)','-0000\\1-'),'(\\b[0-9A-Z]{5}\\b)','-000\\1-'),'[ -]','')) AS CHAR CHARACTER SET utf32) USING utf8mb4) COLLATE utf8mb4_bin AS str,
+HEX(WEIGHT_STRING(CONVERT(CAST(UNHEX(regexp_replace(regexp_replace(regexp_replace(a,'(\\b[0-9A-Z]{4}\\b)','-0000\\1-'),'(\\b[0-9A-Z]{5}\\b)','-000\\1-'),'[ -]','')) AS CHAR CHARACTER SET utf32) USING utf8mb4) COLLATE utf8mb4_uca1400_ai_ci)) as ws,
+REPLACE(REPLACE(REGEXP_REPLACE(b,'[[][.*](....)[.]....[.]....]','-\\1-'),'-0000-',''),'-','') AS wd,
+c
+FROM allkeys_txt
+WHERE a RLIKE '^[0-9A-Z]';
+ALTER TABLE allkeys ADD KEY(str(3));
+#
+# Test explicit weights for individual characters
+# U+FDFA is the only character that has a different weight than allkeys.txt
+#
+SELECT COUNT(*), SUM(ws<>wd) FROM allkeys WHERE a NOT LIKE '% %';
+COUNT(*)	SUM(ws<>wd)
+32958	1
+SELECT a, ws, wd FROM allkeys WHERE ws<>wd AND a NOT LIKE '% %';
+a	ws	wd
+FDFA	27C22802282D02092762280228022819	27C22802282D02092762280228022819020927CE2802282E28190209281F27B72802280A
+#
+# Test explicit weights for built-in contractions
+#
+SELECT COUNT(*), SUM(ws<>wd) FROM allkeys WHERE a LIKE '% %';
+COUNT(*)	SUM(ws<>wd)
+939	0
+SELECT a, ws, wd FROM allkeys WHERE ws<>wd AND a LIKE '% %';
+a	ws	wd
+#
+# Test implicit weights.
+#
+SELECT
+HEX(code),
+HEX(WEIGHT_STRING(str COLLATE utf8mb4_uca1400_ai_ci)) AS ws,
+CASE
+/* Core Han Unified Ideograms */
+WHEN (code >= 0x4E00 AND code <= 0x9FFF) OR
+(code >= 0xFA0E AND code <= 0xFA0F) OR
+(code = 0xFA11) OR
+(code >= 0xFA13 AND code <= 0xFA14) OR
+(code = 0xFA1F) OR
+(code = 0xFA21) OR
+(code >= 0xFA23 AND code <= 0xFA24) OR
+(code >= 0xFA27 AND code <= 0xFA29) THEN
+CONCAT(LPAD(HEX(0xFB40 + (code >> 15)),4,'0'),
+LPAD(HEX(0x8000 | (code & 0x7FFF)),4,'0'))
+/* All other Han Unified Ideographs */
+WHEN (code >= 0x3400  AND code <= 0x4DBF)  OR
+(code >= 0x20000 AND code <= 0x2A6DF) OR
+(code >= 0x2A700 AND code <= 0x2B738) OR
+(code >= 0x2B740 AND code <= 0x2B81D) OR
+(code >= 0x2B820 AND code <= 0x2CEA1) OR
+(code >= 0x2CEB0 AND code <= 0x2EBE0) OR
+(code >= 0x30000 AND code <= 0x3134A) THEN
+CONCAT(LPAD(HEX(0xFB80 + (code >> 15)),4,'0'),
+LPAD(HEX(0x8000 | (code & 0x7FFF)),4,'0'))
+/* Siniform: Tangut */
+WHEN (code >= 0x17000 AND code <= 0x187FF) OR
+(code >= 0x18800 AND code <= 0x18AFF) OR
+(code >= 0x18D00 AND code <= 0x18D7F) THEN
+CONCAT('FB00', LPAD(HEX(0x8000 | (code - 0x17000)),4,'0'))
+/* Siniform: Nushu */
+WHEN (code >= 0x1B170 AND code <= 0x1B2FF) THEN
+CONCAT('FB01', LPAD(HEX(0x8000 | (code - 0x1B170)),4,'0'))
+/* Siniform: Khitan */
+WHEN (code >= 0x18B00 AND code <= 0x18CFF) THEN
+CONCAT('FB02', LPAD(HEX(0x8000 | (code - 0x18B00)),4,'0'))
+/* Unassigned: Any other code point */
+ELSE
+CONCAT(LPAD(HEX(0xFBC0 + (code >> 15)),4,'0'),
+LPAD(HEX(0x8000 | (code & 0x7FFF)),4,'0'))
+END AS wd
+FROM allchars
+LEFT OUTER JOIN allkeys USING (str)
+WHERE allkeys.str IS NULL
+HAVING ws<>wd
+ORDER BY HEX(str);
+HEX(code)	ws	wd
+DROP TABLE allkeys_txt;
+DROP TABLE allkeys;
+DROP TABLE allchars;
+#
+# End of 10.8 tests
+#
