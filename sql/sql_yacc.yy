@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@
 /* warning C4102: 'yyexhaustedlab': unreferenced label */
 #pragma warning (disable : 4065 4102)
 #endif
-#ifdef __GNUC__
+#if defined (__GNUC__) || defined (__clang__)
 #pragma GCC diagnostic ignored "-Wunused-label" /* yyexhaustedlab: */
 #endif
 
@@ -4365,10 +4365,13 @@ create_like:
 
 opt_create_select:
           /* empty */ {}
-        | opt_duplicate opt_as create_select_query_expression opt_versioning_option
-        {
-           Lex->create_info.add(DDL_options_st::OPT_CREATE_SELECT);
-        }
+        | opt_duplicate opt_as create_select_query_expression
+        opt_versioning_option
+          {
+            Lex->create_info.add(DDL_options_st::OPT_CREATE_SELECT);
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 create_select_query_expression:
@@ -13295,7 +13298,10 @@ delete:
             lex->first_select_lex()->order_list.empty();
           }
           delete_part2
-          { }
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
           ;
 
 opt_delete_system_time:

@@ -3641,7 +3641,7 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
     if (!cache)
     {
       cache= val_item->get_cache(thd);
-      switch (val_item->result_type()) {
+      switch (val_item->cmp_type()) {
       case REAL_RESULT:
 	op= &select_max_min_finder_subselect::cmp_real;
 	break;
@@ -3654,8 +3654,13 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
       case DECIMAL_RESULT:
         op= &select_max_min_finder_subselect::cmp_decimal;
         break;
-      case ROW_RESULT:
       case TIME_RESULT:
+        if (val_item->field_type() == MYSQL_TYPE_TIME)
+          op= &select_max_min_finder_subselect::cmp_time;
+        else
+          op= &select_max_min_finder_subselect::cmp_str;
+        break;
+      case ROW_RESULT:
         // This case should never be chosen
 	DBUG_ASSERT(0);
 	op= 0;
@@ -3700,6 +3705,23 @@ bool select_max_min_finder_subselect::cmp_int()
   return (val1 < val2);
 }
 
+bool select_max_min_finder_subselect::cmp_time()
+{
+  Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
+  THD *thd= current_thd;
+  auto val1= cache->val_time_packed(thd), val2= maxmin->val_time_packed(thd);
+
+  /* Ignore NULLs for ANY and keep them for ALL subqueries */
+  if (cache->null_value)
+    return (is_all && !maxmin->null_value) || (!is_all && maxmin->null_value);
+  if (maxmin->null_value)
+    return !is_all;
+
+  if (fmax)
+    return(val1 > val2);
+  return (val1 < val2);
+}
+
 bool select_max_min_finder_subselect::cmp_decimal()
 {
   Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
@@ -3723,7 +3745,7 @@ bool select_max_min_finder_subselect::cmp_str()
     but added for safety
   */
   val1= cache->val_str(&buf1);
-  val2= maxmin->val_str(&buf1);
+  val2= maxmin->val_str(&buf2);
 
   /* Ignore NULLs for ANY and keep them for ALL subqueries */
   if (cache->null_value)
