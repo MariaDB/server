@@ -1086,6 +1086,9 @@ extern char *get_tty_password(const char *opt_message);
 #define BACKSLASH_MBTAIL
 /* File system character set */
 extern CHARSET_INFO *fs_character_set(void);
+extern int my_set_console_cp(const char *name);
+#else
+#define my_set_console_cp(A) do {} while (0)
 #endif
 extern const char *my_default_csname(void);
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
