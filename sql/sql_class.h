@@ -4557,12 +4557,10 @@ inline void add_to_active_threads(THD *thd)
 /*
   This should be called when you want to delete a thd that was not
   running any queries.
-  This function will assert that the THD is linked.
 */
 
 inline void unlink_not_visible_thd(THD *thd)
 {
-  thd->assert_linked();
   mysql_mutex_lock(&LOCK_thread_count);
   thd->unlink();
   mysql_mutex_unlock(&LOCK_thread_count);
