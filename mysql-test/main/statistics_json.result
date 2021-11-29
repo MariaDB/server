@@ -3,7 +3,7 @@
 #
 set @SINGLE_PREC_TYPE='single_prec_hb';
 set @DOUBLE_PREC_TYPE='double_prec_hb';
-set @DEFAULT_HIST_TYPE=@@histogram_type;
+set @DEFAULT_HIST_TYPE='double_prec_hb';
 set @SINGLE_PREC_TYPE='JSON_HB';
 set @DOUBLE_PREC_TYPE='JSON_HB';
 set @DEFAULT_HIST_TYPE='JSON_HB';
@@ -4244,15 +4244,15 @@ test	t1_json	a	a-0	a-9	0.0000	3.0000	1.0000	10	JSON_HB	{
 }
 explain extended select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	58.71	Using where
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	68.71	Using where
 Warnings:
 Note	1003	select `test`.`t1_json`.`a` AS `a` from `test`.`t1_json` where `test`.`t1_json`.`a` between 'a-3a' and 'zzzzzzzzz'
 analyze select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	58.71	60.00	Using where
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	68.71	60.00	Using where
 explain extended select * from t1_json where a < 'b-1a';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	90.00	Using where
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1_json`.`a` AS `a` from `test`.`t1_json` where `test`.`t1_json`.`a` < 'b-1a'
 analyze select * from t1_json where a > 'zzzzzzzzz';
@@ -7529,7 +7529,7 @@ test.t1	analyze	status	OK
 analyze
 select c from t1 where c > '1';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	16.00	75.00	75.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	16.00	80.47	75.00	Using where
 drop table t1;
 #
 # MDEV-26849: JSON Histograms: point selectivity estimates are off for non-existent values

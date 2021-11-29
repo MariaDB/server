@@ -1,6 +1,6 @@
 set @SINGLE_PREC_TYPE='single_prec_hb';
 set @DOUBLE_PREC_TYPE='double_prec_hb';
-set @DEFAULT_HIST_TYPE=@@histogram_type;
+set @DEFAULT_HIST_TYPE='double_prec_hb';
 drop table if exists t1,t2;
 set @save_use_stat_tables=@@use_stat_tables;
 set @save_histogram_size=@@global.histogram_size;

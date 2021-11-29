@@ -6499,7 +6499,7 @@ static Sys_var_enum Sys_histogram_type(
        "DOUBLE_PREC_HB - double precision height-balanced, "
        "JSON_HB - height-balanced, stored as JSON.",
        SESSION_VAR(histogram_type), CMD_LINE(REQUIRED_ARG),
-       histogram_types, DEFAULT(1));
+       histogram_types, DEFAULT(2));
 
 static Sys_var_mybool Sys_no_thread_alarm(
        "debug_no_thread_alarm",

@@ -1,6 +1,6 @@
 set @SINGLE_PREC_TYPE='single_prec_hb';
 set @DOUBLE_PREC_TYPE='double_prec_hb';
-set @DEFAULT_HIST_TYPE=@@histogram_type;
+set @DEFAULT_HIST_TYPE='double_prec_hb';
 
 if ($histogram_type_override) {
     eval set @SINGLE_PREC_TYPE=$histogram_type_override;

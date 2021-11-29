@@ -136,7 +136,7 @@ public:
       We may end up producing a histogram with fewer buckets than intended, but
       this is considered tolerable.
     */
-    bucket_capacity= round(rows2double(records) / histogram->get_width() + 0.5);
+    bucket_capacity= (longlong)round(rows2double(records) / histogram->get_width() + 0.5);
     if (bucket_capacity == 0)
       bucket_capacity= 1;
     hist_width= histogram->get_width();

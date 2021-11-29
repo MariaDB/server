@@ -2802,7 +2802,7 @@ test.t3	analyze	status	OK
 explain extended select * from t1 left join t3 on t1.a=t3.b and t3.a<5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
-1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.a	1000	1.96	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.a	1000	0.50	Using where; Using join buffer (flat, BNLH join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5 and `test`.`t1`.`a` is not null) where 1
 # t3.filtered must less than 100%, too:
@@ -2810,7 +2810,7 @@ explain extended select * from t1 left join (t3 join t2) on t1.a=t3.b and t3.a<5
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.a	1000	1.96	Using where; Using join buffer (incremental, BNLH join)
+1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.a	1000	0.50	Using where; Using join buffer (incremental, BNLH join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b`,`test`.`t2`.`a` AS `a` from `test`.`t1` left join (`test`.`t3` join `test`.`t2`) on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5 and `test`.`t1`.`a` is not null) where 1
 drop table t1,t2,t3;

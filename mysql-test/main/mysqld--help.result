@@ -1551,7 +1551,7 @@ gtid-pos-auto-engines
 gtid-strict-mode FALSE
 help TRUE
 histogram-size 254
-histogram-type DOUBLE_PREC_HB
+histogram-type JSON_HB
 host-cache-size 279
 idle-readonly-transaction-timeout 0
 idle-transaction-timeout 0
