@@ -60,6 +60,9 @@ C_MODE_END
 
 ulong pagecache_division_limit, pagecache_age_threshold, pagecache_file_hash_size;
 ulonglong pagecache_buffer_size;
+static void update_pagecache_buffer_size(MYSQL_THD thd,
+                                 struct st_mysql_sys_var *var,
+                                 void *var_ptr, const void *save);
 const char *zerofill_error_msg=
   "Table is probably from another system and must be zerofilled or repaired ('REPAIR TABLE table_name') to be usable on this system";
 
@@ -237,11 +240,11 @@ static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
        300, 100, ~ (ulong) 0L, 100);
 
 static MYSQL_SYSVAR_ULONGLONG(pagecache_buffer_size, pagecache_buffer_size,
-       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+       PLUGIN_VAR_RQCMDARG,
        "The size of the buffer used for index blocks for Aria tables. "
        "Increase this to get better index handling (for all reads and "
-       "multiple writes) to as much as you can afford.", 0, 0,
-       KEY_CACHE_SIZE, 8192*16L, ~(ulonglong) 0, 1);
+       "multiple writes) to as much as you can afford.", 0, update_pagecache_buffer_size,
+       KEY_CACHE_SIZE, MARIA_MIN_PAGE_CACHE_SIZE, ~(ulonglong) 0, 1);
 
 static MYSQL_SYSVAR_ULONG(pagecache_division_limit, pagecache_division_limit,
        PLUGIN_VAR_RQCMDARG,
@@ -3952,6 +3955,33 @@ static struct st_mysql_sys_var *system_variables[]= {
   NULL
 };
 
+
+/**
+   @brief Updates the pagecache buffer size.
+*/
+
+static void update_pagecache_buffer_size(MYSQL_THD thd,
+                                        struct st_mysql_sys_var *var,
+                                        void *var_ptr, const void *save)
+{
+  DBUG_ASSERT(&pagecache_buffer_size == var_ptr);
+  DBUG_ENTER("update_pagecache_buffer_size");
+  DBUG_PRINT("enter", ("old value: %llu  new value %llu",
+          *(ulonglong *)var_ptr, *(ulonglong const *)save));
+  fprintf(stderr, "old value: %llu  new value %llu",
+          *(ulonglong *)var_ptr, *(ulonglong const *)save);
+  *(ulonglong *)var_ptr = *(ulonglong *)save;
+  size_t const blocks = resize_pagecache(maria_pagecache, *(ulonglong *)save,
+                                         pagecache_division_limit,
+                                         pagecache_age_threshold,
+                                         pagecache_file_hash_size);
+  pagecache_buffer_size = blocks*maria_block_size;
+  if (pagecache_buffer_size < MARIA_MIN_PAGE_CACHE_SIZE) {
+    //memory allocation error etc.
+    DBUG_ASSERT(0);
+  }
+  DBUG_VOID_RETURN;
+}
 
 /**
    @brief Updates the checkpoint interval and restarts the background thread.

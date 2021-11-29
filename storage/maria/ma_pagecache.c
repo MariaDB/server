@@ -941,11 +941,16 @@ err:
 }
 
 
+static int flush_pagecache_blocks_int(PAGECACHE *pagecache,
+                                      PAGECACHE_FILE *file,
+                                      enum flush_type type,
+                                      PAGECACHE_FLUSH_FILTER filter,
+                                      void *filter_arg);
+
 /*
   Flush all blocks in the key cache to disk
 */
 
-#ifdef NOT_USED
 static int flush_all_key_blocks(PAGECACHE *pagecache)
 {
 #if defined(PAGECACHE_DEBUG)
@@ -973,7 +978,6 @@ static int flush_all_key_blocks(PAGECACHE *pagecache)
   }
   return 0;
 }
-#endif /* NOT_USED */
 
 /*
   Resize a key cache
@@ -1009,7 +1013,7 @@ static int flush_all_key_blocks(PAGECACHE *pagecache)
      resizing, due to the page locking specific to this page cache.
      So we disable it for now.
 */
-#ifdef NOT_USED /* keep disabled until code is fixed see above !! */
+
 size_t resize_pagecache(PAGECACHE *pagecache,
                        size_t use_mem, uint division_limit,
                        uint age_threshold, uint changed_blocks_hash_size)
@@ -1058,8 +1062,9 @@ size_t resize_pagecache(PAGECACHE *pagecache,
 
   end_pagecache(pagecache, 0);			/* Don't free mutex */
   /* The following will work even if use_mem is 0 */
-  blocks= init_pagecache(pagecache, pagecache->block_size, use_mem,
-			 division_limit, age_threshold, changed_blocks_hash_size,
+  blocks= init_pagecache(pagecache, use_mem,
+                         division_limit, age_threshold, pagecache->block_size,
+                         changed_blocks_hash_size,
                          pagecache->readwrite_flags);
 
 finish:
@@ -1075,7 +1080,6 @@ finish:
   pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
   DBUG_RETURN(blocks);
 }
-#endif /* 0 */
 
 
 /*
