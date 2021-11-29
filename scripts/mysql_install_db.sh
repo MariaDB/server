@@ -582,8 +582,7 @@ then
   fi
 
   echo
-  echo "See the MariaDB Knowledgebase at http://mariadb.com/kb or the"
-  echo "MySQL manual for more instructions."
+  echo "See the MariaDB Knowledgebase at http://mariadb.com/kb"
 
   if test "$in_rpm" -eq 0
   then
@@ -599,8 +598,7 @@ then
   echo "Please report any problems at http://mariadb.org/jira"
   echo
   echo "The latest information about MariaDB is available at http://mariadb.org/."
-  echo "You can find additional information about the MySQL part at:"
-  echo "http://dev.mysql.com"
+  echo
   echo "Consider joining MariaDB's strong and vibrant community:"
   echo "https://mariadb.org/get-involved/"
   echo

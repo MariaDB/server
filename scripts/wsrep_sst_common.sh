@@ -44,6 +44,7 @@ WSREP_SST_OPT_HOST_ESCAPED=""
 INNODB_DATA_HOME_DIR="${INNODB_DATA_HOME_DIR:-}"
 INNODB_LOG_GROUP_HOME="${INNODB_LOG_GROUP_HOME:-}"
 INNODB_UNDO_DIR="${INNODB_UNDO_DIR:-}"
+INNODB_FORCE_RECOVERY=""
 INNOEXTRA=""
 
 while [ $# -gt 0 ]; do
@@ -229,7 +230,7 @@ case "$1" in
         shift
         ;;
     '--binlog-index'|'--log-bin-index')
-        readonly WSREP_SST_OPT_BINLOG_INDEX="$2"
+        WSREP_SST_OPT_BINLOG_INDEX="$2"
         shift
         ;;
     '--log-basename')
@@ -382,6 +383,14 @@ case "$1" in
                        fi
                        skip_mysqld_arg=1
                        ;;
+                   '--innodb-force-recovery')
+                       if [ -n "$value" ]; then
+                           if [ "$value" -ne 0 ]; then
+                               INNODB_FORCE_RECOVERY="$value"
+                           fi
+                       fi
+                       skip_mysqld_arg=1
+                       ;;
                    '--log-bin')
                        if [ -z "$WSREP_SST_OPT_BINLOG" ]; then
                            MYSQLD_OPT_LOG_BIN="$value"
@@ -444,7 +453,7 @@ if [ -n "${MYSQLD_OPT_LOG_BIN:-}" -a \
 fi
 if [ -n "${MYSQLD_OPT_LOG_BIN_INDEX:-}" -a \
      -z "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
-    readonly WSREP_SST_OPT_BINLOG_INDEX="$MYSQLD_OPT_LOG_BIN_INDEX"
+    WSREP_SST_OPT_BINLOG_INDEX="$MYSQLD_OPT_LOG_BIN_INDEX"
 fi
 if [ -n "${MYSQLD_OPT_DATADIR:-}" -a \
      -z "$WSREP_SST_OPT_DATA" ]; then
@@ -499,6 +508,7 @@ if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     fi
 fi
 
+readonly INNODB_FORCE_RECOVERY
 readonly WSREP_SST_OPT_MYSQLD
 
 get_binlog()
@@ -552,6 +562,16 @@ get_binlog()
                 # the default name (note that base of this name
                 # is already defined above):
                 readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_BINLOG.index"
+            fi
+        else
+            # Remove all directories from the index file path:
+            local filename="${WSREP_SST_OPT_BINLOG_INDEX##*/}"
+            # Check if the index file name contains the extension:
+            if [ "${filename%.*}" = "$filename" ]; then
+                # Let's add the default extension (".index"):
+                readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_BINLOG_INDEX.index"
+            else
+                readonly WSREP_SST_OPT_BINLOG_INDEX
             fi
         fi
     fi

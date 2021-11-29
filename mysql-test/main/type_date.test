@@ -647,6 +647,15 @@ INSERT INTO t1 VALUES ('2020-01-01'),('2020-01-02');
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '2012-12-12';
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-27072 Subquery using the ALL keyword on date columns produces a wrong result
+--echo #
+
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('2021-11-17'), ('2021-10-17'),('2022-11-17'), ('2020-10-17');
+SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
+SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.2 tests
