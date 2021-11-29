@@ -1361,6 +1361,52 @@ Select view_definition from information_schema.views where table_schema='test' a
 drop view v1;
 
 --echo #
+--echo # Start of 10.2 tests
+--echo #
+--echo #
+
+--echo # MDEV-27066 Fixed scientific notation parser
+--echo #
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e*1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e/1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e^1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e%1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e&1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e|1;
+
+--error ER_PARSE_ERROR
+SELECT 1.e(1);
+
+--error ER_PARSE_ERROR
+SELECT (1 1.e);
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e, 1;
+
+CREATE TABLE scientific_notation (test int);
+
+--error ER_PARSE_ERROR
+SELECT tmp 1.e.test FROM scientific_notation AS tmp;
+
+DROP TABLE scientific_notation;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
 --echo # MDEV-10343 Providing compatibility for basic SQL data types
 --echo #
 CREATE TABLE clob (clob int);

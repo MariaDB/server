@@ -1,0 +1,123 @@
+#
+# The definer of Add/DropGeometryColumn procedures should be updated to mariadb.sys during upgrade
+#
+use mysql;
+create table save_proc like proc;
+insert into save_proc select * from proc;
+set @save_sql_mode= @@sql_mode;
+#
+# If the definer is root before the upgrade:
+# Drop the procedures if exists and recreate with root definer
+#
+DROP PROCEDURE IF EXISTS AddGeometryColumn;
+DROP PROCEDURE IF EXISTS DropGeometryColumn;
+CREATE DEFINER=`root`@`localhost` PROCEDURE AddGeometryColumn(catalog varchar(64), t_schema varchar(64),
+t_name varchar(64), geometry_column varchar(64), t_srid int) SQL SECURITY INVOKER
+begin
+set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' ADD ', geometry_column,' GEOMETRY REF_SYSTEM_ID=', t_srid); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end |
+CREATE DEFINER=`root`@`localhost` PROCEDURE DropGeometryColumn(catalog varchar(64), t_schema varchar(64),
+t_name varchar(64), geometry_column varchar(64)) SQL SECURITY INVOKER
+begin
+set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' DROP ', geometry_column); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end |
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'root@localhost';
+count(*)
+1
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'root@localhost';
+count(*)
+1
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
+count(*)
+0
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
+count(*)
+0
+#
+# Run mysql_upgrade
+#
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.save_proc                                    OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+
+Repairing tables
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+#
+# check new definers of Add/DropGeometryColumn
+#
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'root@localhost';
+count(*)
+0
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'root@localhost';
+count(*)
+0
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
+count(*)
+1
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
+count(*)
+1
+#
+# restore environment
+#
+delete from proc;
+rename table proc to bad_proc;
+rename table save_proc to proc;
+drop table bad_proc;
+flush privileges;
