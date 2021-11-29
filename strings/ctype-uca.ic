@@ -48,7 +48,7 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
   {
     const uint16 *wpage;
     int mblen;
-    my_wc_t currwc;
+    my_wc_t currwc= 0;
     const uint16 *cweight;
 
     /* Get next character */
