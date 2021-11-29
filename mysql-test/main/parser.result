@@ -1336,6 +1336,37 @@ view_definition
 select 1 not between 2 like 3 and 4 AS `1 not between (2 like 3) and 4`
 drop view v1;
 #
+# Start of 10.2 tests
+#
+#
+# MDEV-27066 Fixed scientific notation parser
+#
+SELECT 1 1.e*1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e*1' at line 1
+SELECT 1 1.e/1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e/1' at line 1
+SELECT 1 1.e^1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e^1' at line 1
+SELECT 1 1.e%1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e%1' at line 1
+SELECT 1 1.e&1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e&1' at line 1
+SELECT 1 1.e|1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e|1' at line 1
+SELECT 1.e(1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e(1)' at line 1
+SELECT (1 1.e);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e)' at line 1
+SELECT 1 1.e, 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e, 1' at line 1
+CREATE TABLE scientific_notation (test int);
+SELECT tmp 1.e.test FROM scientific_notation AS tmp;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e.test FROM scientific_notation AS tmp' at line 1
+DROP TABLE scientific_notation;
+#
+# End of 10.2 tests
+#
+#
 # MDEV-10343 Providing compatibility for basic SQL data types
 #
 CREATE TABLE clob (clob int);

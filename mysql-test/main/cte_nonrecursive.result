@@ -1693,7 +1693,9 @@ disconnect con1;
 #
 # MDEV-22781: create view with CTE without default database
 #
-drop database test;
+create database db;
+use db;
+drop database db;
 create database db1;
 create table db1.t1 (a int);
 insert into db1.t1 values (3),(7),(1);
@@ -1723,7 +1725,6 @@ a
 drop view db1.v1;
 drop table db1.t1;
 drop database db1;
-create database test;
 use test;
 #
 # MDEV-24597: CTE with union used multiple times in query
@@ -2136,6 +2137,54 @@ drop procedure sp1;
 drop function g;
 drop function f;
 drop table t1;
+#
+# MDEV-27086: union using CTEs in CREATE TABLE
+#
+create or replace temporary table tmp as
+with cte1 as (select 1 as a), cte2 as (select 2 as a)
+select * from cte1 union select * from cte2;
+select * from tmp;
+a
+1
+2
+create table t1 as
+with cte1 as (select 1 as a), cte2 as (select 2 as a)
+select * from cte1 union select * from cte2;
+select * from t1;
+a
+1
+2
+insert into t1 values (3);
+create table t2 as
+with cte1 as (select * from t1 where a <2), cte2 as (select * from t1 where a > 2)
+select * from cte1 union select * from cte2;
+select * from t2;
+a
+1
+3
+drop table t1,t2;
+#
+# MDEV-26470: CTE in WITH clause of subquery used in DELETE
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (5);
+create table t2 (b int);
+insert into t2 values (4), (1), (3), (2);
+delete from t1
+where a in (with cte(a) as (select * from t2 where b <=2) select a from cte);
+select * from t1;
+a
+3
+7
+5
+insert into t1 values (1), (3);
+delete t1 from t1, t2
+where t1.a=t2.b or
+t1.a in (with cte(a) as (select b+1 from t2) select * from cte);
+select * from t1;
+a
+7
+drop table t1,t2;
 # End of 10.2 tests
 #
 # MDEV-21673: several references to CTE that uses
