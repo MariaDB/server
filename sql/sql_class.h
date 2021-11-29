@@ -6682,6 +6682,7 @@ public:
   bool cmp_int();
   bool cmp_decimal();
   bool cmp_str();
+  bool cmp_time();
 };
 
 /* EXISTS subselect interface class */

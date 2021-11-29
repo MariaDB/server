@@ -541,6 +541,11 @@ ALTER TABLE proc MODIFY comment
 ALTER TABLE proc ADD aggregate enum('NONE', 'GROUP') DEFAULT 'NONE' NOT NULL
                      AFTER body_utf8;
 
+# Update definer of Add/DropGeometryColumn procedures to 'mariadb.sys'
+# To consider the scenarios in MDEV-23102, only update the definer when it's 'root'
+UPDATE proc SET Definer = 'mariadb.sys@localhost' WHERE Definer = 'root@localhost' AND Name = 'AddGeometryColumn';
+UPDATE proc SET Definer = 'mariadb.sys@localhost' WHERE Definer = 'root@localhost' AND Name = 'DropGeometryColumn';
+
 #
 # EVENT privilege
 #
