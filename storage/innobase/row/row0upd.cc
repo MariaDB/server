@@ -2617,7 +2617,8 @@ row_upd_clust_rec(
 	the same transaction do not modify the record in the meantime.
 	Therefore we can assert that the restoration of the cursor succeeds. */
 
-	ut_a(btr_pcur_restore_position(BTR_MODIFY_TREE, pcur, mtr));
+	ut_a(btr_pcur_restore_position(BTR_MODIFY_TREE, pcur, mtr) ==
+	    btr_pcur_t::SAME_ALL);
 
 	ut_ad(!rec_get_deleted_flag(btr_pcur_get_rec(pcur),
 				    dict_table_is_comp(index->table)));
@@ -2761,7 +2762,6 @@ row_upd_clust_step(
 {
 	dict_index_t*	index;
 	btr_pcur_t*	pcur;
-	ibool		success;
 	dberr_t		err;
 	mtr_t		mtr;
 	rec_t*		rec;
@@ -2821,9 +2821,8 @@ row_upd_clust_step(
 		mode = BTR_MODIFY_LEAF;
 	}
 
-	success = btr_pcur_restore_position(mode, pcur, &mtr);
-
-	if (!success) {
+	if (btr_pcur_restore_position(mode, pcur, &mtr) !=
+	    btr_pcur_t::SAME_ALL) {
 		err = DB_RECORD_NOT_FOUND;
 		goto exit_func;
 	}
@@ -2844,9 +2843,8 @@ row_upd_clust_step(
 		mtr.start();
 		index->set_modified(mtr);
 
-		success = btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur,
-						    &mtr);
-		if (!success) {
+		if (btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur, &mtr) !=
+		    btr_pcur_t::SAME_ALL) {
 			err = DB_ERROR;
 
 			mtr.commit();
