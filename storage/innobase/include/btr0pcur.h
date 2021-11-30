@@ -253,31 +253,9 @@ btr_pcur_store_position(
 /*====================*/
 	btr_pcur_t*	cursor, /*!< in: persistent cursor */
 	mtr_t*		mtr);	/*!< in: mtr */
-/**************************************************************//**
-Restores the stored position of a persistent cursor bufferfixing the page and
-obtaining the specified latches. If the cursor position was saved when the
-(1) cursor was positioned on a user record: this function restores the position
-to the last record LESS OR EQUAL to the stored record;
-(2) cursor was positioned on a page infimum record: restores the position to
-the last record LESS than the user record which was the successor of the page
-infimum;
-(3) cursor was positioned on the page supremum: restores to the first record
-GREATER than the user record which was the predecessor of the supremum.
-(4) cursor was positioned before the first or after the last in an empty tree:
-restores to before first or after the last in the tree.
-@return TRUE if the cursor position was stored when it was on a user
-record and it can be restored on a user record whose ordering fields
-are identical to the ones of the original user record */
-ibool
-btr_pcur_restore_position_func(
-/*===========================*/
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
-	btr_pcur_t*	cursor,		/*!< in: detached persistent cursor */
-	const char*	file,		/*!< in: file name */
-	unsigned	line,		/*!< in: line where called */
-	mtr_t*		mtr);		/*!< in: mtr */
+
 #define btr_pcur_restore_position(l,cur,mtr)				\
-	btr_pcur_restore_position_func(l,cur,__FILE__,__LINE__,mtr)
+	(cur)->restore_position(l,__FILE__,__LINE__,mtr)
 /*********************************************************//**
 Gets the rel_pos field for a cursor whose position has been stored.
 @return BTR_PCUR_ON, ... */
@@ -482,6 +460,18 @@ enum pcur_pos_t {
 selects, updates, and deletes. */
 
 struct btr_pcur_t{
+	/** Return value of restore_position() */
+	enum restore_status {
+		/** cursor position on user rec and points on the record with
+		the same field values as in the stored record */
+		SAME_ALL,
+		/** cursor position is on user rec and points on the record with
+		the same unique field values as in the stored record */
+		SAME_UNIQ,
+		/** cursor position is not on user rec or points on the record
+		with not the same uniq field values as in the stored record */
+		NOT_SAME
+	};
 	/** a B-tree cursor */
 	btr_cur_t	btr_cur;
 	/** see TODO note below!
@@ -538,6 +528,31 @@ struct btr_pcur_t{
 
 	/** Return the index of this persistent cursor */
 	dict_index_t*	index() const { return(btr_cur.index); }
+	/** Restores the stored position of a persistent cursor bufferfixing
+	the page and obtaining the specified latches. If the cursor position
+	was saved when the
+	(1) cursor was positioned on a user record: this function restores the
+	position to the last record LESS OR EQUAL to the stored record;
+	(2) cursor was positioned on a page infimum record: restores the
+	position to the last record LESS than the user record which was the
+	successor of the page infimum;
+	(3) cursor was positioned on the page supremum: restores to the first
+	record GREATER than the user record which was the predecessor of the
+	supremum.
+	(4) cursor was positioned before the first or after the last in an
+	empty tree: restores to before first or after the last in the tree.
+	@param latch_mode BTR_SEARCH_LEAF, ...
+	@param file file name
+	@param line line where called
+	@param mtr mtr
+	@return btr_pcur_t::SAME_ALL cursor position on user rec and points on
+	the record with the same field values as in the stored record,
+	btr_pcur_t::SAME_UNIQ cursor position is on user rec and points on the
+	record with the same unique field values as in the stored record,
+	btr_pcur_t::NOT_SAME cursor position is not on user rec or points on
+	the record with not the samebuniq field values as in the stored */
+	restore_status restore_position(ulint latch_mode, const char *file,
+	                                unsigned line, mtr_t *mtr);
 };
 
 #include "btr0pcur.ic"
