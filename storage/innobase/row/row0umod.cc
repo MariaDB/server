@@ -94,19 +94,14 @@ row_undo_mod_clust_low(
 	btr_pcur_t*	pcur;
 	btr_cur_t*	btr_cur;
 	dberr_t		err;
-#ifdef UNIV_DEBUG
-	ibool		success;
-#endif /* UNIV_DEBUG */
 
 	pcur = &node->pcur;
 	btr_cur = btr_pcur_get_btr_cur(pcur);
 
-#ifdef UNIV_DEBUG
-	success =
-#endif /* UNIV_DEBUG */
+	ut_d(btr_pcur_t::restore_status pcur_restore_result =)
 	btr_pcur_restore_position(mode, pcur, mtr);
 
-	ut_ad(success);
+	ut_ad(pcur_restore_result == btr_pcur_t::SAME_ALL);
 	ut_ad(rec_get_trx_id(btr_cur_get_rec(btr_cur),
 			     btr_cur_get_index(btr_cur))
 	      == thr_get_trx(thr)->id
@@ -170,7 +165,8 @@ row_undo_mod_remove_clust_low(
 	/* Find out if the record has been purged already
 	or if we can remove it. */
 
-	if (!btr_pcur_restore_position(mode, &node->pcur, mtr)) {
+	if (btr_pcur_restore_position(mode, &node->pcur, mtr) !=
+	    btr_pcur_t::SAME_ALL) {
 		return DB_SUCCESS;
 	}
 
@@ -430,7 +426,6 @@ row_undo_mod_del_mark_or_remove_sec_low(
 {
 	btr_pcur_t		pcur;
 	btr_cur_t*		btr_cur;
-	ibool			success;
 	dberr_t			err	= DB_SUCCESS;
 	mtr_t			mtr;
 	mtr_t			mtr_vers;
@@ -502,9 +497,8 @@ row_undo_mod_del_mark_or_remove_sec_low(
 
 	mtr_vers.start();
 
-	success = btr_pcur_restore_position(BTR_SEARCH_LEAF, &(node->pcur),
-					    &mtr_vers);
-	ut_a(success);
+	ut_a(btr_pcur_restore_position(BTR_SEARCH_LEAF, &node->pcur, &mtr_vers)
+	    == btr_pcur_t::SAME_ALL);
 
 	/* For temporary table, we can skip to check older version of
 	clustered index entry. Because the purge won't process
@@ -531,8 +525,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		}
 
 		if (modify_leaf) {
-			success = btr_cur_optimistic_delete(btr_cur, 0, &mtr);
-			if (success) {
+			if (btr_cur_optimistic_delete(btr_cur, 0, &mtr)) {
 				err = DB_SUCCESS;
 			} else {
 				err = DB_FAIL;

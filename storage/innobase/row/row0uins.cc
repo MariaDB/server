@@ -66,7 +66,6 @@ row_undo_ins_remove_clust_rec(
 	undo_node_t*	node)	/*!< in: undo node */
 {
 	btr_cur_t*	btr_cur;
-	ibool		success;
 	dberr_t		err;
 	ulint		n_tries	= 0;
 	mtr_t		mtr;
@@ -97,11 +96,10 @@ row_undo_ins_remove_clust_rec(
 		mtr_s_lock(dict_index_get_lock(index), &mtr);
 	}
 
-	success = btr_pcur_restore_position(
+	ut_a(btr_pcur_restore_position(
 		online
 		? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-		: BTR_MODIFY_LEAF, &node->pcur, &mtr);
-	ut_a(success);
+		: BTR_MODIFY_LEAF, &node->pcur, &mtr) == btr_pcur_t::SAME_ALL);
 
 	btr_cur = btr_pcur_get_btr_cur(&node->pcur);
 
@@ -133,9 +131,9 @@ row_undo_ins_remove_clust_rec(
 
 		mtr.start();
 
-		success = btr_pcur_restore_position(
-			BTR_MODIFY_LEAF, &node->pcur, &mtr);
-		ut_a(success);
+		ut_a(btr_pcur_restore_position(
+			BTR_MODIFY_LEAF, &node->pcur, &mtr)
+		    == btr_pcur_t::SAME_ALL);
 	}
 
 	if (btr_cur_optimistic_delete(btr_cur, 0, &mtr)) {
@@ -152,11 +150,8 @@ retry:
 	} else {
 		mtr.set_named_space(index->space);
 	}
-
-	success = btr_pcur_restore_position(
-			BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-			&node->pcur, &mtr);
-	ut_a(success);
+	ut_a(btr_pcur_restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
+	      &node->pcur, &mtr) == btr_pcur_t::SAME_ALL);
 
 	btr_cur_pessimistic_delete(&err, FALSE, btr_cur, 0, true, &mtr);
 
