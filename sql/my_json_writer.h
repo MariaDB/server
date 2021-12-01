@@ -17,7 +17,6 @@
 #define JSON_WRITER_INCLUDED
 
 #include "my_base.h"
-#include "sql_select.h"
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST) || defined ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
 #include <set>
@@ -32,6 +31,7 @@ constexpr uint FAKE_SELECT_LEX_ID= UINT_MAX;
 // Also, mock objects are defined in my_json_writer-t.cc
 #define VALIDITY_ASSERT(x) if (!(x)) this->invalid_json= true;
 #else
+#include "sql_select.h"
 #define VALIDITY_ASSERT(x) DBUG_ASSERT(x)
 #endif
 
@@ -40,8 +40,11 @@ constexpr uint FAKE_SELECT_LEX_ID= UINT_MAX;
 class Opt_trace_stmt;
 class Opt_trace_context;
 class Json_writer;
+struct TABLE;
 struct TABLE_LIST;
 
+struct st_join_table;
+using JOIN_TAB= struct st_join_table;
 
 /*
   Single_line_formatting_helper is used by Json_writer to do better formatting
@@ -387,10 +390,7 @@ protected:
     named_items_expectation.push_back(expect_named_children);
 #endif
   }
-  explicit Json_writer_struct(THD *thd)
-  : Json_writer_struct(thd->opt_trace.get_current_json())
-  {
-  }
+  explicit Json_writer_struct(THD *thd);
 
 public:
 
@@ -446,10 +446,7 @@ public:
     }
   }
 
-  explicit Json_writer_object(THD* thd, const char *str= nullptr)
-  : Json_writer_object(thd->opt_trace.get_current_json(), str)
-  {
-  }
+  explicit Json_writer_object(THD* thd, const char *str= nullptr);
 
   ~Json_writer_object()
   {
@@ -619,10 +616,7 @@ public:
     }
   }
 
-  explicit Json_writer_array(THD *thd, const char *str= nullptr)
-    : Json_writer_array(thd->opt_trace.get_current_json(), str)
-  {
-  }
+  explicit Json_writer_array(THD *thd, const char *str= nullptr);
 
   ~Json_writer_array()
   {

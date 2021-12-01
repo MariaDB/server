@@ -6794,3 +6794,9 @@ static Sys_var_ulonglong Sys_max_rowid_filter_size(
        SESSION_VAR(max_rowid_filter_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(128*1024),
        BLOCK_SIZE(1));
+
+bool Sys_var_mybool::session_update(THD *thd, set_var *var)
+{
+    session_var(thd, my_bool)= var->save_result.ulonglong_value != 0;
+    return false;
+}

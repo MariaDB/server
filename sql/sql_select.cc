@@ -12569,6 +12569,13 @@ inline void JOIN::eval_select_list_used_tables()
   }
 }
 
+JOIN_TAB *JOIN::get_sort_by_join_tab()
+{
+  return (need_tmp || !sort_by_table || skip_sort_order
+      || ((group || tmp_table_param.sum_func_count) && !group_list))
+            ? nullptr : join_tab+const_tables;
+}
+
 
 /*
   Determine {after which table we'll produce ordered set} 
@@ -13989,6 +13996,17 @@ bool JOIN_TAB::pfs_batch_update(JOIN *join)
   return join->join_tab + join->table_count - 1 == this &&              // 1
          type != JT_EQ_REF && type != JT_CONST  && type != JT_SYSTEM && // 2
          (!select_cond || !select_cond->with_subquery());               // 3
+}
+
+int st_join_table::get_non_merged_semijoin_select() const
+{
+  Item_in_subselect *subq;
+  if (table->pos_in_table_list &&
+      (subq= table->pos_in_table_list->jtbm_subselect))
+  {
+    return subq->unit->first_select()->select_number;
+  }
+  return 0; /* Not a merged semi-join */
 }
 
 
@@ -30240,3 +30258,48 @@ static bool process_direct_rownum_comparison(THD *thd, SELECT_LEX_UNIT *unit,
 /**
   @} (end of group Query_Optimizer)
 */
+
+store_key::store_key_result store_key_item::copy_inner()
+{
+  TABLE *table= to_field->table;
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table,
+                                               &table->write_set);
+  int res= FALSE;
+
+  /*
+    It looks like the next statement is needed only for a simplified
+    hash function over key values used now in BNLH join.
+    When the implementation of this function will be replaced for a proper
+    full version this statement probably should be removed.
+  */
+  to_field->reset();
+
+  if (use_value)
+     item->save_val(to_field);
+  else
+    res= item->save_in_field(to_field, 1);
+  /*
+   Item::save_in_field() may call Item::val_xxx(). And if this is a subquery
+   we need to check for errors executing it and react accordingly
+  */
+  if (!res && table->in_use->is_error())
+    res= 1; /* STORE_KEY_FATAL */
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
+  null_key= to_field->is_null() || item->null_value;
+  return ((err != 0 || res < 0 || res > 2)
+        ? STORE_KEY_FATAL : (store_key_result) res);
+}
+
+store_key::store_key_result store_key::copy(THD *thd)
+{
+  enum store_key_result result;
+  enum_check_fields org_count_cuted_fields= thd->count_cuted_fields;
+  sql_mode_t org_sql_mode= thd->variables.sql_mode;
+  thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
+  thd->variables.sql_mode|= MODE_INVALID_DATES;
+  thd->count_cuted_fields= CHECK_FIELD_IGNORE;
+  result= copy_inner();
+  thd->count_cuted_fields= org_count_cuted_fields;
+  thd->variables.sql_mode= org_sql_mode;
+  return result;
+}

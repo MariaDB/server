@@ -17,6 +17,9 @@
 #define MY_DIR_H
 
 #include <sys/stat.h>
+#include <stddef.h>
+
+#include "my_global.h"
 
 #ifdef	__cplusplus
 extern "C" {
