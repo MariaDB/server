@@ -3350,16 +3350,8 @@ sub do_before_run_mysqltest($)
       push @cmd, '--binary';
     }
     push @cmd, (qw/-r - -f -s -o/, $dest, $base_result, $resfile);
-    if (-w $resdir) {
-      # don't rebuild a file if it's up to date
-      unless (-e $dest and -M $dest < -M $resfile
-                       and -M $dest < -M $base_result) {
-        run_system(@cmd);
-      }
-    } else {
-      $cmd[-3] = $dest = $opt_tmpdir . '/' . basename($dest);
-      run_system(@cmd);
-    }
+    $cmd[-3] = $dest = $opt_tmpdir . '/' . basename($dest);
+    run_system(@cmd);
     $tinfo->{result_file} = $dest;
   }
 

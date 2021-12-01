@@ -2227,18 +2227,9 @@ void check_result()
 
     dirname_part(reject_file, result_file_name, &reject_length);
 
-    if (access(reject_file, W_OK) == 0)
-    {
-      /* Result file directory is writable, save reject file there */
-      fn_format(reject_file, result_file_name, "",
-                ".reject", MY_REPLACE_EXT);
-    }
-    else
-    {
-      /* Put reject file in opt_logdir */
-      fn_format(reject_file, result_file_name, opt_logdir,
-                ".reject", MY_REPLACE_DIR | MY_REPLACE_EXT);
-    }
+    /* Put reject file in opt_logdir */
+    fn_format(reject_file, result_file_name, opt_logdir,
+              ".reject", MY_REPLACE_DIR | MY_REPLACE_EXT);
 
     if (my_copy(log_file.file_name(), reject_file, MYF(0)) != 0)
       die("Failed to copy '%s' to '%s', errno: %d",
