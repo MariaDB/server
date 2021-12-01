@@ -210,7 +210,7 @@ public:
 	@param	space_id	space id to validate for recovery
 	@retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 	m_is_valid is also set true on success, else false. */
-	dberr_t validate_for_recovery(ulint *space_id=nullptr)
+	dberr_t validate_for_recovery(uint32_t space_id=0)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Checks the consistency of the first page of a datafile when the

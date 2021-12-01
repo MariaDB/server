@@ -391,7 +391,7 @@ reopen it in write mode and ry to restore that page.
 @retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 m_is_valid is also set true on success, else false. */
 dberr_t
-Datafile::validate_for_recovery(ulint *space_id)
+Datafile::validate_for_recovery(uint32_t space_id)
 {
 	dberr_t err;
 
@@ -438,7 +438,7 @@ Datafile::validate_for_recovery(ulint *space_id)
 		if (empty_tablespace && space_id) {
 			/* Set space id to find out whether
 			the page exist in double write buffer */
-			m_space_id = *space_id;
+			m_space_id = space_id;
 		}
 
 		if (restore_from_doublewrite()) {
