@@ -241,6 +241,11 @@ const uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   return global_var_ptr();
 }
 
+uchar *sys_var::session_var_ptr(THD *thd) const
+{
+  return ((uchar*)&(thd->variables)) + offset;
+}
+
 bool sys_var::check(THD *thd, set_var *var)
 {
   if (unlikely((var->value && do_check(thd, var)) ||

@@ -36,8 +36,9 @@
 #include "sql_class.h"                          // set_var.h: THD
 #include "set_var.h"                            /* Item */
 
-class JOIN;
 class Item_sum;
+class JOIN;
+class Unique;
 
 struct KEY_PART {
   uint16           key,part;
@@ -389,30 +390,7 @@ public:
   {
     return sel_cmp(field,max_value, arg->min_value, max_flag, arg->min_flag);
   }
-  SEL_ARG *clone_and(THD *thd, SEL_ARG* arg)
-  {						// Get overlapping range
-    uchar *new_min,*new_max;
-    uint8 flag_min,flag_max;
-    if (cmp_min_to_min(arg) >= 0)
-    {
-      new_min=min_value; flag_min=min_flag;
-    }
-    else
-    {
-      new_min=arg->min_value; flag_min=arg->min_flag; /* purecov: deadcode */
-    }
-    if (cmp_max_to_max(arg) <= 0)
-    {
-      new_max=max_value; flag_max=max_flag;
-    }
-    else
-    {
-      new_max=arg->max_value; flag_max=arg->max_flag;
-    }
-    return new (thd->mem_root) SEL_ARG(field, part, new_min, new_max, flag_min,
-                                       flag_max,
-                                       MY_TEST(maybe_flag && arg->maybe_flag));
-  }
+  SEL_ARG *clone_and(THD *thd, SEL_ARG* arg);
   SEL_ARG *clone_first(SEL_ARG *arg)
   {						// min <= X < arg->min
     return new SEL_ARG(field,part, min_value, arg->min_value,
@@ -733,14 +711,7 @@ public:
   bool force_default_mrr;
   KEY_PART *key[MAX_KEY]; /* First key parts of keys used in the query */
 
-  bool statement_should_be_aborted() const
-  {
-    return
-      thd->killed ||
-      thd->is_fatal_error ||
-      thd->is_error() ||
-      alloced_sel_args > SEL_ARG::MAX_SEL_ARGS;
-  }
+  bool statement_should_be_aborted() const;
 };
 
 
@@ -763,21 +734,9 @@ class QUICK_RANGE :public Sql_alloc {
   QUICK_RANGE();				/* Full range */
   QUICK_RANGE(THD *thd, const uchar *min_key_arg, uint min_length_arg,
               key_part_map min_keypart_map_arg,
-	      const uchar *max_key_arg, uint max_length_arg,
+              const uchar *max_key_arg, uint max_length_arg,
               key_part_map max_keypart_map_arg,
-	      uint flag_arg)
-    : min_key((uchar*) thd->memdup(min_key_arg, min_length_arg + 1)),
-      max_key((uchar*) thd->memdup(max_key_arg, max_length_arg + 1)),
-      min_length((uint16) min_length_arg),
-      max_length((uint16) max_length_arg),
-      flag((uint16) flag_arg),
-      min_keypart_map(min_keypart_map_arg),
-      max_keypart_map(max_keypart_map_arg)
-    {
-#ifdef HAVE_valgrind
-      dummy=0;
-#endif
-    }
+              uint flag_arg);
 
   /**
      Initalizes a key_range object for communication with storage engine. 
@@ -1724,13 +1683,7 @@ class SQL_SELECT :public Sql_alloc {
      -1   if error
       1   otherwise
   */   
-  inline int skip_record(THD *thd)
-  {
-    int rc= MY_TEST(!cond || cond->val_int());
-    if (thd->is_error())
-      rc= -1;
-    return rc;
-  }
+  int skip_record(THD *thd);
   int test_quick_select(THD *thd, key_map keys, table_map prev_tables,
 			ha_rows limit, bool force_quick_range, 
                         bool ordered_output, bool remove_false_parts_of_where,

@@ -38,18 +38,15 @@ public:
   Json_writer *get_current_json() { return nullptr; }
 };
 
-class THD 
+class THD
 {
 public:
   Opt_trace opt_trace;
 };
 
-constexpr uint FAKE_SELECT_LEX_ID= UINT_MAX;
-
-#define sql_print_error printf
-
+#ifndef JSON_WRITER_UNIT_TEST
 #define JSON_WRITER_UNIT_TEST
-#include "../sql/my_json_writer.h"
+#endif
 #include "../sql/my_json_writer.cc"
 
 int main(int args, char **argv)
@@ -127,7 +124,6 @@ int main(int args, char **argv)
     w.start_object();
     w.add_member("name").add_ll(1);
     w.add_member("name").add_ll(2);
-    w.end_object();
     ok(w.invalid_json, "JSON object member name collision");
   }
 
@@ -136,7 +132,7 @@ int main(int args, char **argv)
     w.start_object();
     w.add_member("name").start_object();
     w.add_member("name").add_ll(2);
-    ok(!w.invalid_json, "Valid JSON: nested object member name is the same");
+    ok(!w.invalid_json, "This must be valid JSON: nested object member has the same name");
   }
 
   diag("Done");

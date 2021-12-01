@@ -17,7 +17,7 @@
 #define JSON_WRITER_INCLUDED
 
 #include "my_base.h"
-#include "sql_string.h"
+#include "sql_class.h"
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST) || defined ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
 #include <set>
@@ -389,10 +389,7 @@ protected:
     named_items_expectation.push_back(expect_named_children);
 #endif
   }
-  explicit Json_writer_struct(THD *thd)
-  : Json_writer_struct(thd->opt_trace.get_current_json())
-  {
-  }
+  explicit Json_writer_struct(THD *thd);
 
 public:
 
@@ -448,10 +445,7 @@ public:
     }
   }
 
-  explicit Json_writer_object(THD* thd, const char *str= nullptr)
-  : Json_writer_object(thd->opt_trace.get_current_json(), str)
-  {
-  }
+  explicit Json_writer_object(THD* thd, const char *str= nullptr);
 
   ~Json_writer_object()
   {
@@ -621,10 +615,7 @@ public:
     }
   }
 
-  explicit Json_writer_array(THD *thd, const char *str= nullptr)
-    : Json_writer_array(thd->opt_trace.get_current_json(), str)
-  {
-  }
+  explicit Json_writer_array(THD *thd, const char *str= nullptr);
 
   ~Json_writer_array()
   {
