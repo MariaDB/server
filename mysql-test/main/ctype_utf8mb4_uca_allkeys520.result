@@ -1,0 +1,72 @@
+#
+# Start of 10.8 tests
+#
+SET NAMES utf8mb4 COLLATE utf8mb4_bin;
+CREATE TABLE allchars AS SELECT 1 AS code, ' ' AS str LIMIT 0;
+SHOW CREATE TABLE allchars;
+Table	Create Table
+allchars	CREATE TABLE `allchars` (
+  `code` int(1) NOT NULL,
+  `str` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE TABLE t1tmp (a INT NOT NULL);
+FOR i IN 0..0xFFF
+DO
+INSERT INTO t1tmp VALUES (i);
+END FOR;
+$$
+INSERT INTO allchars SELECT
+t1.a*0x1000+t2.a,
+CHAR(t1.a*0x1000+t2.a USING utf32)
+FROM t1tmp t1, t1tmp t2
+WHERE t1.a BETWEEN 0 AND 0x10F;
+DROP TABLE t1tmp;
+SELECT COUNT(*) FROM allchars;
+COUNT(*)
+1114112
+CREATE TABLE allkeys_txt (a TEXT, b TEXT, c TEXT) ENGINE=MyISAM;
+LOAD DATA INFILE '../../std_data/unicode/allkeys520.txt'
+INTO TABLE allkeys_txt FIELDS TERMINATED BY ';' (@a,@b,@qq)
+SET a=TRIM(@a), b=TRIM(REGEXP_SUBSTR(@b,'^[^#]*')), c=TRIM(REGEXP_SUBSTR(@b, '#.*$'));
+CREATE TABLE allkeys AS
+SELECT
+a,
+CONVERT(CAST(UNHEX(regexp_replace(regexp_replace(regexp_replace(a,'(\\b[0-9A-Z]{4}\\b)','-0000\\1-'),'(\\b[0-9A-Z]{5}\\b)','-000\\1-'),'[ -]','')) AS CHAR CHARACTER SET utf32) USING utf8mb4) COLLATE utf8mb4_bin AS str,
+HEX(WEIGHT_STRING(CONVERT(CAST(UNHEX(regexp_replace(regexp_replace(regexp_replace(a,'(\\b[0-9A-Z]{4}\\b)','-0000\\1-'),'(\\b[0-9A-Z]{5}\\b)','-000\\1-'),'[ -]','')) AS CHAR CHARACTER SET utf32) USING utf8mb4) COLLATE utf8mb4_unicode_520_ci)) as ws,
+REPLACE(REPLACE(REGEXP_REPLACE(b,'[[][.*](....)[.]....[.]....[.].{4,5}]','-\\1-'),'-0000-',''),'-','') AS wd,
+c
+FROM allkeys_txt
+WHERE a RLIKE '^[0-9A-Z]';
+ALTER TABLE allkeys ADD KEY(str(3));
+SELECT COUNT(*), SUM(ws<>wd) FROM allkeys WHERE a NOT LIKE '% %';
+COUNT(*)	SUM(ws<>wd)
+21807	1
+SELECT a, ws, wd FROM allkeys WHERE ws<>wd AND a NOT LIKE '% %';
+a	ws	wd
+FDFA	18FC192B194F020A18AD192B192B193D	18FC192B194F020A18AD192B192B193D020A1904192B1950193D020A194318F1192B1931
+SELECT
+HEX(code),
+HEX(WEIGHT_STRING(str COLLATE utf8mb4_unicode_520_ci)) AS ws,
+CASE
+WHEN code >= 0x3400 AND code <= 0x4DB5 THEN
+CONCAT(LPAD(HEX(0xFB80 + (code >> 15)),4,'0'),
+LPAD(HEX(0x8000 | (code & 0x7FFF)),4,'0'))
+WHEN code >= 0x4E00 AND code <= 0x9FA5 THEN
+CONCAT(LPAD(HEX(0xFB40 + (code >> 15)),4,'0'),
+LPAD(HEX(0x8000 | (code & 0x7FFF)),4,'0'))
+ELSE
+CONCAT(LPAD(HEX(0xFBC0 + (code >> 15)),4,'0'),
+LPAD(HEX(0x8000 | (code & 0x7FFF)),4,'0'))
+END AS wd
+FROM allchars
+LEFT OUTER JOIN allkeys USING (str)
+WHERE allkeys.str IS NULL
+HAVING ws<>wd
+ORDER BY HEX(str);
+HEX(code)	ws	wd
+DROP TABLE allkeys_txt;
+DROP TABLE allkeys;
+DROP TABLE allchars;
+#
+# End of 10.8 tests
+#
