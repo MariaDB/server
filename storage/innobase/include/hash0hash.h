@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,8 +29,43 @@ Created 5/20/1997 Heikki Tuuri
 #include "ut0new.h"
 
 struct hash_table_t;
-struct hash_cell_t{
-	void*	node;	/*!< hash chain node, NULL if none */
+struct hash_cell_t
+{
+  /** singly-linked, nullptr terminated list of hash buckets */
+  void *node;
+
+  /** Append an element.
+  @tparam T      type of the element
+  @param insert  the being-inserted element
+  @param next    the next-element pointer in T */
+  template<typename T>
+  void append(T &insert, T *T::*next)
+  {
+    void **after;
+    for (after= &node; *after;
+         after= reinterpret_cast<void**>(&(static_cast<T*>(*after)->*next)));
+    insert.*next= nullptr;
+    *after= &insert;
+  }
+
+  /** Insert an element after another.
+  @tparam T  type of the element
+  @param after   the element after which to insert
+  @param insert  the being-inserted element
+  @param next    the next-element pointer in T */
+  template<typename T>
+  void insert_after(T &after, T &insert, T *T::*next)
+  {
+#ifdef UNIV_DEBUG
+    for (const T *c= static_cast<const T*>(node); c; c= c->*next)
+      if (c == &after)
+        goto found;
+    ut_error;
+  found:
+#endif
+    insert.*next= after.*next;
+    after.*next= &insert;
+  }
 };
 
 /*******************************************************************//**
