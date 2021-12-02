@@ -2054,7 +2054,7 @@ static bool innodb_init_param()
         changes the value so that it becomes the number of database pages. */
 
 	srv_buf_pool_size = (ulint) xtrabackup_use_memory;
-	srv_buf_pool_chunk_unit = (ulong)srv_buf_pool_size;
+	srv_buf_pool_chunk_unit = srv_buf_pool_size;
 
 	srv_n_file_io_threads = (uint) innobase_file_io_threads;
 	srv_n_read_io_threads = (uint) innobase_read_io_threads;

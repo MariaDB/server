@@ -151,7 +151,7 @@ ulint
 buf_pool_size_align(
 	ulint	size)
 {
-	const ulong	m = srv_buf_pool_chunk_unit;
+	const size_t m = srv_buf_pool_chunk_unit;
 	size = ut_max(size, srv_buf_pool_min_size);
 
 	if (size % m == 0) {
