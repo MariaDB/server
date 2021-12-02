@@ -696,6 +696,10 @@ err:
                       ER_THD(thd, ER_JSON_HISTOGRAM_PARSE_FAILED),
                       db_name, table_name,
                       err, (je.s.c_str - (const uchar*)hist_data));
+  sql_print_error(ER_THD(thd, ER_JSON_HISTOGRAM_PARSE_FAILED),
+                  db_name, table_name, err,
+                  (je.s.c_str - (const uchar*)hist_data));
+
   DBUG_RETURN(true);
 }
 

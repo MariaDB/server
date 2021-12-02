@@ -16,6 +16,7 @@ drop table if exists t1;
 set @save_histogram_type=@@histogram_type;
 set @save_histogram_size=@@histogram_size;
 
+call mtr.add_suppression("Failed to parse histogram for table .*");
 create table ten(a int primary key);
 insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
