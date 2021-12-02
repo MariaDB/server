@@ -1910,7 +1910,7 @@ calc_buf_pool_size:
   read_ahead_area= s >= READ_AHEAD_PAGES
     ? READ_AHEAD_PAGES
     : my_round_up_to_next_power(static_cast<uint32_t>(s));
-  curr_pool_size= n_chunks * srv_buf_pool_chunk_unit;
+  curr_pool_size= (ulint) n_chunks * srv_buf_pool_chunk_unit;
   srv_buf_pool_curr_size= curr_pool_size;/* FIXME: remove*/
   extern ulonglong innobase_buffer_pool_size;
   innobase_buffer_pool_size= buf_pool_size_align(srv_buf_pool_curr_size);
