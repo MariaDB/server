@@ -207,9 +207,10 @@ public:
 	However, if the first page is corrupt and needs to be restored
 	from the doublewrite buffer, we will reopen it in write mode and
 	ry to restore that page.
+	@param	space_id	space id to validate for recovery
 	@retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 	m_is_valid is also set true on success, else false. */
-	dberr_t validate_for_recovery()
+	dberr_t validate_for_recovery(uint32_t space_id=0)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Checks the consistency of the first page of a datafile when the
