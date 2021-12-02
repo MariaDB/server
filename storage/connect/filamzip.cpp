@@ -1,11 +1,11 @@
 /*********** File AM Zip C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMZIP                                              */
 /* -------------                                                       */
-/*  Version 1.3                                                        */
+/*  Version 1.4                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2016-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2016-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #if defined(UNIX)
 #include <fnmatch.h>
 #include <errno.h>
@@ -27,7 +27,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 #include <time.h>
 
 /***********************************************************************/
@@ -44,6 +44,62 @@
 #include "filamzip.h"
 
 #define WRITEBUFFERSIZE (16384)
+
+/****************************************************************************/
+/*  Definitions used for DBF tables.                                        */
+/****************************************************************************/
+#define HEADLEN       32            /* sizeof ( mainhead or thisfield )     */
+//efine MEMOLEN       10            /* length of memo field in .dbf         */
+#define DBFTYPE        3            /* value of bits 0 and 1 if .dbf        */
+#define EOH         0x0D            /* end-of-header marker in .dbf file    */
+
+/****************************************************************************/
+/*  First 32 bytes of a DBF table.                                          */
+/*  Note: some reserved fields are used here to store info (Fields)         */
+/****************************************************************************/
+typedef struct _dbfheader {
+	uchar  Version;                   /*  Version information flags           */
+	char   Filedate[3];               /*  date, YYMMDD, binary. YY=year-1900  */
+private:
+	/* The following four members are stored in little-endian format on disk  */
+	char   m_RecordsBuf[4];           /*  records in the file                 */
+	char   m_HeadlenBuf[2];           /*  bytes in the header                 */
+	char   m_ReclenBuf[2];            /*  bytes in a record                   */
+	char   m_FieldsBuf[2];            /*  Reserved but used to store fields   */
+public:
+	char   Incompleteflag;            /*  01 if incomplete, else 00           */
+	char   Encryptflag;               /*  01 if encrypted, else 00            */
+	char   Reserved2[12];             /*  for LAN use                         */
+	char   Mdxflag;                   /*  01 if production .mdx, else 00      */
+	char   Language;                  /*  Codepage                            */
+	char   Reserved3[2];
+
+	uint   Records(void) const { return uint4korr(m_RecordsBuf); }
+	ushort Headlen(void) const { return uint2korr(m_HeadlenBuf); }
+	ushort Reclen(void)  const { return uint2korr(m_ReclenBuf); }
+	ushort Fields(void)  const { return uint2korr(m_FieldsBuf); }
+
+	void   SetHeadlen(ushort num) { int2store(m_HeadlenBuf, num); }
+	void   SetReclen(ushort num) { int2store(m_ReclenBuf, num); }
+	void   SetFields(ushort num) { int2store(m_FieldsBuf, num); }
+} DBFHEADER;
+
+/****************************************************************************/
+/*  Column field descriptor of a .dbf file.                                 */
+/****************************************************************************/
+typedef struct _descriptor {
+	char  Name[11];                   /*  field name, in capitals, null filled*/
+	char  Type;                       /*  field type, C, D, F, L, M or N      */
+	uint  Offset;                     /*  used in memvars, not in files.      */
+	uchar Length;                     /*  field length                        */
+	uchar Decimals;                   /*  number of decimal places            */
+	short Reserved4;
+	char  Workarea;                   /*  ???                                 */
+	char  Reserved5[2];
+	char  Setfield;                   /*  ???                                 */
+	char  Reserved6[7];
+	char  Mdxfield;                   /* 01 if tag field in production .mdx   */
+} DESCRIPTOR;
 
 bool ZipLoadFile(PGLOBAL g, PCSZ zfn, PCSZ fn, PCSZ entry, bool append, bool mul);
 
@@ -91,14 +147,14 @@ static bool ZipFile(PGLOBAL g, ZIPUTIL *zutp, PCSZ fn, PCSZ entry, char *buf)
 static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 {
 	char filename[_MAX_PATH];
-	int  rc;
 
 	/*********************************************************************/
 	/*  pat is a multiple file name with wildcard characters             */
 	/*********************************************************************/
 	strcpy(filename, pat);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
+	int  rc;
 	char   drive[_MAX_DRIVE], direc[_MAX_DIR];
 	WIN32_FIND_DATA FileData;
 	HANDLE hSearch;
@@ -154,7 +210,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 		return true;
 	} // endif FindClose
 
-#else   // !__WIN__
+#else   // !_WIN32
 	struct stat fileinfo;
 	char   fn[FN_REFLEN], direc[FN_REFLEN], pattern[FN_HEADLEN], ftype[FN_EXTLEN];
 	DIR   *dir;
@@ -195,7 +251,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 
 	// Close the dir handle.
 	closedir(dir);
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 	return false;
 }	// end of ZipFiles
@@ -214,10 +270,21 @@ bool ZipLoadFile(PGLOBAL g, PCSZ zfn, PCSZ fn, PCSZ entry, bool append, bool mul
 
 	buf = (char*)PlugSubAlloc(g, NULL, WRITEBUFFERSIZE);
 
-	if (mul)
-		err = ZipFiles(g, zutp, fn, buf);
-	else
-	  err = ZipFile(g, zutp, fn, entry, buf);
+	if (!mul) {
+		PCSZ entp;
+
+		if (!entry) {    // entry defaults to the file name
+			char* p = strrchr((char*)fn, '/');
+#if defined(_WIN32)
+			if (!p) p = strrchr((char*)fn, '\\');
+#endif  //  _WIN32
+			entp = (p) ? p + 1 : entry;
+		} else
+			entp = entry;
+
+		err = ZipFile(g, zutp, fn, entp, buf);
+	} else
+	  err = ZipFiles(g, zutp, fn, buf);
 
 	zutp->close();
 	return err;
@@ -232,6 +299,7 @@ ZIPUTIL::ZIPUTIL(PCSZ tgt)
 {
 	zipfile = NULL;
 	target = tgt;
+	pwd = NULL;
 	fp = NULL;
 	entryopen = false;
 } // end of ZIPUTIL standard constructor
@@ -241,6 +309,7 @@ ZIPUTIL::ZIPUTIL(ZIPUTIL *zutp)
 {
 	zipfile = zutp->zipfile;
 	target = zutp->target;
+	pwd = zutp->pwd;
 	fp = zutp->fp;
 	entryopen = zutp->entryopen;
 } // end of UNZIPUTL copy constructor
@@ -385,11 +454,11 @@ void ZIPUTIL::closeEntry()
 /***********************************************************************/
 /*  Constructors.                                                      */
 /***********************************************************************/
-UNZIPUTL::UNZIPUTL(PCSZ tgt, bool mul)
+UNZIPUTL::UNZIPUTL(PCSZ tgt, PCSZ pw, bool mul)
 {
 	zipfile = NULL;
 	target = tgt;
-	pwd = NULL;
+	pwd = pw;
 	fp = NULL;
 	memory = NULL;
 	size = 0;
@@ -398,7 +467,7 @@ UNZIPUTL::UNZIPUTL(PCSZ tgt, bool mul)
 	memset(fn, 0, sizeof(fn));
 
 	// Init the case mapping table.
-#if defined(__WIN__)
+#if defined(_WIN32)
 	for (int i = 0; i < 256; ++i) mapCaseTable[i] = toupper(i);
 #else
 	for (int i = 0; i < 256; ++i) mapCaseTable[i] = i;
@@ -418,7 +487,7 @@ UNZIPUTL::UNZIPUTL(PDOSDEF tdp)
 	memset(fn, 0, sizeof(fn));
 
 	// Init the case mapping table.
-#if defined(__WIN__)
+#if defined(_WIN32)
 	for (int i = 0; i < 256; ++i) mapCaseTable[i] = toupper(i);
 #else
 	for (int i = 0; i < 256; ++i) mapCaseTable[i] = i;
@@ -700,7 +769,7 @@ bool UNZIPUTL::openEntry(PGLOBAL g)
 	} // endif rc
 
 	if (trace(1))
-		htrc("Openning entry%s %s\n", fn, (entryopen) ? "oked" : "failed");
+		htrc("Opening entry%s %s\n", fn, (entryopen) ? "oked" : "failed");
 
 	return !entryopen;
 }	// end of openEntry
@@ -959,7 +1028,7 @@ int UZXFAM::Cardinality(PGLOBAL g)
 } // end of Cardinality
 
 /***********************************************************************/
-/*  OpenTableFile: Open a DOS/UNIX table file from a ZIP file.         */
+/*  OpenTableFile: Open a FIX/UNIX table file from a ZIP file.         */
 /***********************************************************************/
 bool UZXFAM::OpenTableFile(PGLOBAL g)
 {
@@ -1015,6 +1084,197 @@ int UZXFAM::GetNext(PGLOBAL g)
 	return RC_OK;
 } // end of GetNext
 
+/* -------------------------- class UZDFAM --------------------------- */
+
+/***********************************************************************/
+/*  Constructors.                                                      */
+/***********************************************************************/
+UZDFAM::UZDFAM(PDOSDEF tdp) : DBMFAM(tdp)
+{
+	zutp = NULL;
+	tdfp = tdp;
+	//target = tdp->GetEntry();
+	//mul = tdp->GetMul();
+	//Lrecl = tdp->GetLrecl();
+} // end of UZXFAM standard constructor
+
+UZDFAM::UZDFAM(PUZDFAM txfp) : DBMFAM(txfp)
+{
+	zutp = txfp->zutp;
+	tdfp = txfp->tdfp;
+	//target = txfp->target;
+	//mul = txfp->mul;
+	//Lrecl = txfp->Lrecl;
+} // end of UZXFAM copy constructor
+
+#if 0
+/****************************************************************************/
+/*  dbfhead: Routine to analyze a DBF header.                               */
+/*  Parameters:                                                             */
+/*      PGLOBAL g       -- pointer to the CONNECT Global structure          */
+/*      DBFHEADER *hdrp -- pointer to _dbfheader structure                  */
+/*  Returns:                                                                */
+/*      RC_OK, RC_NF, RC_INFO, or RC_FX if error.                           */
+/*  Side effects:                                                           */
+/*      Set the fields number in the header.                                */
+/****************************************************************************/
+int UZDFAM::dbfhead(PGLOBAL g, void* buf)
+{
+	char *endmark;
+	int   dbc = 2, rc = RC_OK;
+	DBFHEADER* hdrp = (DBFHEADER*)buf;
+
+	*g->Message = '\0';
+
+	// Check first byte to be sure of .dbf type
+	if ((hdrp->Version & 0x03) != DBFTYPE) {
+		strcpy(g->Message, MSG(NOT_A_DBF_FILE));
+		rc = RC_INFO;
+
+		if ((hdrp->Version & 0x30) == 0x30) {
+			strcpy(g->Message, MSG(FOXPRO_FILE));
+			dbc = 264;             // FoxPro database container
+		} // endif Version
+
+	} else
+		strcpy(g->Message, MSG(DBASE_FILE));
+
+	// Check last byte(s) of header
+	endmark = (char*)hdrp + hdrp->Headlen() - dbc;
+
+	// Some headers just have 1D others have 1D00 following fields
+	if (endmark[0] != EOH && endmark[1] != EOH) {
+		sprintf(g->Message, MSG(NO_0DH_HEAD), dbc);
+
+		if (rc == RC_OK)
+			return RC_FX;
+
+	} // endif endmark
+
+	// Calculate here the number of fields while we have the dbc info
+	hdrp->SetFields((hdrp->Headlen() - dbc - 1) / 32);
+	return rc;
+} // end of dbfhead
+
+/****************************************************************************/
+/*  ScanHeader: scan the DBF file header for number of records, record size,*/
+/*  and header length. Set Records, check that Reclen is equal to lrecl and */
+/*  return the header length or 0 in case of error.                         */
+/****************************************************************************/
+int UZDFAM::ScanHeader(PGLOBAL g, int* rln)
+{
+	int       rc;
+	DBFHEADER header;
+
+	/************************************************************************/
+	/*  Get the first 32 bytes of the header.                               */
+	/************************************************************************/
+	rc = dbfhead(g, &header);
+
+	if (rc == RC_FX)
+		return -1;
+
+	*rln = (int)header.Reclen();
+	Records = (int)header.Records();
+	return (int)header.Headlen();
+} // end of ScanHeader
+#endif // 0
+
+/***********************************************************************/
+/*  ZIP GetFileLength: returns file size in number of bytes.           */
+/***********************************************************************/
+int UZDFAM::GetFileLength(PGLOBAL g)
+{
+	int len;
+
+	if (!zutp && OpenTableFile(g))
+		return 0;
+
+	if (zutp->entryopen)
+		len = zutp->size;
+	else
+		len = 0;
+
+	return len;
+} // end of GetFileLength
+
+/***********************************************************************/
+/*  ZIP Cardinality: return the number of rows if possible.            */
+/***********************************************************************/
+int UZDFAM::Cardinality(PGLOBAL g)
+{
+	if (!g)
+		return 1;
+
+	int card = -1;
+	GetFileLength(g);
+
+	card = Records;
+
+	// Set number of blocks for later use
+	Block = (card > 0) ? (card + Nrec - 1) / Nrec : 0;
+	return card;
+} // end of Cardinality
+
+/***********************************************************************/
+/*  OpenTableFile: Open a DBF table file from a ZIP file.              */
+/***********************************************************************/
+bool UZDFAM::OpenTableFile(PGLOBAL g)
+{
+	// May have been already opened in GetFileLength
+	if (!zutp || !zutp->zipfile) {
+		char    filename[_MAX_PATH];
+		MODE    mode = Tdbp->GetMode();
+
+		/*********************************************************************/
+		/*  Allocate the ZIP utility class.                                  */
+		/*********************************************************************/
+		if (!zutp)
+			zutp = new(g)UNZIPUTL(tdfp);
+
+		//  We used the file name relative to recorded datapath
+		PlugSetPath(filename, To_File, Tdbp->GetPath());
+
+		if (!zutp->OpenTable(g, mode, filename)) {
+			// The pseudo "buffer" is here the entire real buffer
+			Memory = zutp->memory;
+			Top = Memory + zutp->size;
+			To_Fb = zutp->fp;                           // Useful when closing
+			return AllocateBuffer(g);
+		} else
+			return true;
+
+	} else
+		Reset();
+
+	return false;
+} // end of OpenTableFile
+
+/***********************************************************************/
+/*  GetNext: go to next entry.                                         */
+/***********************************************************************/
+int UZDFAM::GetNext(PGLOBAL g)
+{
+	int rc = zutp->nextEntry(g);
+
+	if (rc != RC_OK)
+		return rc;
+
+	int len = zutp->size;
+
+#if 0
+	if (len % Lrecl) {
+		sprintf(g->Message, MSG(NOT_FIXED_LEN), zutp->fn, len, Lrecl);
+		return RC_FX;
+	}	// endif size
+#endif // 0
+
+	Memory = zutp->memory;
+	Top = Memory + len;
+	Rewind();
+	return RC_OK;
+} // end of GetNext
+
 /* -------------------------- class ZIPFAM --------------------------- */
 
 /***********************************************************************/
@@ -1045,7 +1305,7 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 		strcpy(g->Message, "No insert into existing zip file");
 		return true;
 	} else if (append && len > 0) {
-		UNZIPUTL *zutp = new(g) UNZIPUTL(target, false);
+		UNZIPUTL *zutp = new(g) UNZIPUTL(target, NULL, false);
 
 		if (!zutp->IsInsertOk(g, filename)) {
 			strcpy(g->Message, "No insert into existing entry");
@@ -1129,7 +1389,7 @@ bool ZPXFAM::OpenTableFile(PGLOBAL g)
 		strcpy(g->Message, "No insert into existing zip file");
 		return true;
 	} else if (append && len > 0) {
-		UNZIPUTL *zutp = new(g) UNZIPUTL(target, false);
+		UNZIPUTL *zutp = new(g) UNZIPUTL(target, NULL, false);
 
 		if (!zutp->IsInsertOk(g, filename)) {
 			strcpy(g->Message, "No insert into existing entry");

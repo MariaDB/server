@@ -1719,6 +1719,11 @@ SELECT STRAIGHT_JOIN * FROM t1, t2 AS t2_1, t2 AS t2_2
 
 DROP TABLE t1,t2;
 
+#
+# MDEV-20330 Combination of "," (comma), cross join and left join fails to parse
+#
+select a.a from (select 1 as a) a, (select 2 as b) b cross join (select 3 as c) c left join (select 4 as d) d on 1;
+
 --echo #
 --echo # MDEV-19600: The optimizer should be able to produce rows=1 estimate for unique index with NULLable columns
 --echo #
@@ -1744,7 +1749,73 @@ analyze table t1;
 set myisam_stats_method=@tmp1;
 show keys from t1;
 
---echo # t1 must use ref(t1.a=t0.a) and rows must be 1 (and not 45):
+--echo # t1 must use eq_ref(t1.a=t0.a) and rows must be 1 (and not 45):
 explain select * from t0,t1 where t0.a=t1.a;
 
 drop table t0,t1;
+
+--echo # 
+--echo # MDEV-21383: Possible range plan is not used under certain conditions
+--echo # 
+
+--disable_warnings
+drop table if exists t10, t1000, t03;
+--enable_warnings
+
+create table t10(a int);
+insert into t10 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1000(a int);
+insert into t1000 select A.a + B.a* 10 + C.a * 100 from t10 A, t10 B, t10 C;
+
+create table t03(a int);
+insert into t03 values (0),(1),(2);
+
+
+create table t1 (
+  stationid int
+);
+insert into t1 select a from t10;
+
+CREATE TABLE t2 (
+  stationId int,
+  startTime int,
+  filler char(100),
+  key1 int,
+  key2 int,
+  key(key1),
+  key(key2),
+  PRIMARY KEY (`stationId`,`startTime`)
+);
+
+insert into t2 select
+  A.a, 
+  B.a,
+  repeat('filler=data-', 4),
+  B.a,
+  1
+from 
+  t03 A,
+  t1000 B;
+analyze table t2;
+
+create table t3(a int, filler char(100), key(a));
+insert into t3 select A.a+1000*B.a, 'filler-data' from t1000 A, t10 B;
+
+--echo # This should produce a join order of t1,t2,t3
+--echo #  t2 should have type=range, key=PRIMARY key_len=8 (not type=ALL or key_len<8)
+explain
+SELECT *
+FROM
+   t1,t2,t3
+WHERE   
+  t2.startTime <= 100 and
+  t2.stationId = t1.stationId and
+  (t1.stationid = 1 or t1.stationid = 2 or t1.stationid = 3) and
+  key1 >0 and
+  t2.key2=t3.a;
+
+drop table t1,t2,t3;
+drop table t1000,t10,t03;
+
+--echo # End of 10.3 tests

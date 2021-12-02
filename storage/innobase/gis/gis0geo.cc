@@ -434,26 +434,6 @@ pick_seeds(
 	}
 }
 
-/*********************************************************//**
-Generates a random iboolean value.
-@return the random value */
-static
-ibool
-ut_rnd_gen_ibool(void)
-/*=================*/
-{
-	ulint    x;
-
-	x = ut_rnd_gen_ulint();
-
-	if (((x >> 20) + (x >> 15)) & 1) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
-}
-
 /*************************************************************//**
 Select next node and group where to add. */
 static
@@ -490,8 +470,7 @@ pick_next(
 			/* Introduce some randomness if the record
 			is identical */
 			if (diff == 0) {
-				diff = static_cast<double>(
-					ut_rnd_gen_ibool());
+				diff = static_cast<double>(ut_rnd_gen() & 1);
 			}
 
 			*n_group = 1 + (diff > 0);
@@ -790,36 +769,4 @@ rtree_area_overlapping(
 	}
 
 	return(area);
-}
-
-/** Get the wkb of default POINT value, which represents POINT(0 0)
-if it's of dimension 2, etc.
-@param[in]	n_dims		dimensions
-@param[out]	wkb		wkb buffer for default POINT
-@param[in]	len		length of wkb buffer
-@return non-0 indicate the length of wkb of the default POINT,
-0 if the buffer is too small */
-uint
-get_wkb_of_default_point(
-	uint	n_dims,
-	uchar*	wkb,
-	uint	len)
-{
-  // JAN: TODO: MYSQL 5.7 GIS
-  #define GEOM_HEADER_SIZE 16
-	if (len < GEOM_HEADER_SIZE + sizeof(double) * n_dims) {
-		return(0);
-	}
-
-	/** POINT wkb comprises SRID, wkb header(byte order and type)
-	and coordinates of the POINT */
-	len = GEOM_HEADER_SIZE + sizeof(double) * n_dims;
-	/** We always use 0 as default coordinate */
-	memset(wkb, 0, len);
-	/** We don't need to write SRID, write 0x01 for Byte Order */
-	mach_write_to_n_little_endian(wkb + SRID_SIZE, 1, 0x01);
-	/** Write wkbType::wkbPoint for the POINT type */
-	mach_write_to_n_little_endian(wkb + SRID_SIZE + 1, 4, wkbPoint);
-
-	return(len);
 }

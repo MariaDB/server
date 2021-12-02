@@ -1,4 +1,5 @@
 --source include/long_test.inc
+--source include/have_sequence.inc
 
 #
 # Test of update statement that uses many tables.
@@ -40,25 +41,9 @@ if (`SELECT '$BIG_TEST' = '' AND $need_big = 1`)
 # Bug#1820 Rows not deleted from second table on multi-table delete
 #
 
---disable_warnings
-DROP TABLE IF EXISTS t1,t2;
---enable_warnings
-
 CREATE TABLE t1 ( a INT NOT NULL, b INT NOT NULL) ;
---echo # The protocolling of many inserts into t1 is suppressed.
---disable_query_log
-INSERT INTO t1 VALUES (1,1),(2,2),(3,3),(4,4);
-let $1=19;
-set @d=4;
-begin;
-while ($1)
-{
-  eval INSERT INTO t1 SELECT a+@d,b+@d FROM t1;
-  eval SET @d=@d*2;
-  dec $1;
-}
-commit;
---enable_query_log
+INSERT INTO t1 SELECT seq,seq FROM seq_1_to_2097152;
+
 ALTER TABLE t1 ADD INDEX i1(a);
 DELETE FROM t1 WHERE a > 2000000;
 CREATE TABLE t2 LIKE t1;

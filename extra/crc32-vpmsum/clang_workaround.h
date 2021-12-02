@@ -39,7 +39,12 @@ __vector unsigned long long  __builtin_pack_vector (unsigned long __a,
 	return __v;
 }
 
-#ifndef vec_xxpermdi
+/*
+ * Clang 7 changed the behavior of vec_xxpermdi in order to provide the same
+ * behavior of GCC. That means code adapted to Clang >= 7 does not work on
+ * Clang <= 6.  So, fallback to __builtin_unpack_vector() on Clang <= 6.
+ */
+#if !defined vec_xxpermdi || __clang_major__ <= 6
 
 static inline
 unsigned long __builtin_unpack_vector (__vector unsigned long long __v,
@@ -62,9 +67,9 @@ static inline
 unsigned long __builtin_unpack_vector_0 (__vector unsigned long long __v)
 {
 	#if defined(__BIG_ENDIAN__)
-	return vec_xxpermdi(__v, __v, 0x0)[1];
-	#else
 	return vec_xxpermdi(__v, __v, 0x0)[0];
+	#else
+	return vec_xxpermdi(__v, __v, 0x3)[0];
 	#endif
 }
 
@@ -72,9 +77,9 @@ static inline
 unsigned long __builtin_unpack_vector_1 (__vector unsigned long long __v)
 {
 	#if defined(__BIG_ENDIAN__)
-	return vec_xxpermdi(__v, __v, 0x3)[1];
-	#else
 	return vec_xxpermdi(__v, __v, 0x3)[0];
+	#else
+	return vec_xxpermdi(__v, __v, 0x0)[0];
 	#endif
 }
 #endif /* vec_xxpermdi */

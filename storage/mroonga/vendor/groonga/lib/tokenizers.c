@@ -797,6 +797,36 @@ grn_db_init_mecab_tokenizer(grn_ctx *ctx)
   }
 }
 
+void
+grn_db_fin_mecab_tokenizer(grn_ctx *ctx)
+{
+  switch (GRN_CTX_GET_ENCODING(ctx)) {
+  case GRN_ENC_EUC_JP :
+  case GRN_ENC_UTF8 :
+  case GRN_ENC_SJIS :
+#if defined(GRN_EMBEDDED) && defined(GRN_WITH_MECAB)
+    {
+      GRN_PLUGIN_DECLARE_FUNCTIONS(tokenizers_mecab);
+      GRN_PLUGIN_IMPL_NAME_TAGGED(fin, tokenizers_mecab)(ctx);
+    }
+#else /* defined(GRN_EMBEDDED) && defined(GRN_WITH_MECAB) */
+    {
+      const char *mecab_plugin_name = "tokenizers/mecab";
+      char *path;
+      path = grn_plugin_find_path(ctx, mecab_plugin_name);
+      if (path) {
+        GRN_FREE(path);
+        grn_plugin_unregister(ctx, mecab_plugin_name);
+      }
+    }
+#endif /* defined(GRN_EMBEDDED) && defined(GRN_WITH_MECAB) */
+    break;
+  default :
+    break;
+  }
+  return;
+}
+
 #define DEF_TOKENIZER(name, init, next, fin, vars)\
   (grn_proc_create(ctx, (name), (sizeof(name) - 1),\
                    GRN_PROC_TOKENIZER, (init), (next), (fin), 3, (vars)))

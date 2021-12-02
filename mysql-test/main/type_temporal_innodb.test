@@ -66,3 +66,22 @@ CREATE TABLE t1 (d DATE) ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('2012-12-21');
 SELECT * FROM t1 WHERE LEAST( UTC_TIME(), d );
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17969 Assertion `name' failed in THD::push_warning_truncated_value_for_field
+--echo #
+
+CREATE TABLE t1 (c1 DATE , c2 TIMESTAMP) ENGINE=InnoDB;
+INSERT INTO t1  VALUES ('2006-07-17','0000-00-00 00:00:00');
+CREATE TABLE t2 (pk INT, a1 TIME) Engine=InnoDB;
+INSERT INTO t2 VALUES (6,'00:00:00');
+SET SESSION sql_mode= 'strict_all_tables,no_zero_date';
+--error ER_TRUNCATED_WRONG_VALUE
+CREATE TABLE tbl SELECT * FROM t1 WHERE t1.c1 = (SELECT c2 FROM t2 WHERE pk = 6);
+# ^^^ there is no column c2 in table t2
+DROP TABLE t1,t2;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

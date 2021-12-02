@@ -71,10 +71,6 @@ static my_bool non_blocking_api_enabled= 0;
 #include "../tests/nonblock-wrappers.h"
 #endif
 
-/* Use cygwin for --exec and --system before 5.0 */
-#if MYSQL_VERSION_ID < 50000
-#define USE_CYGWIN
-#endif
 
 #define MAX_VAR_NAME_LENGTH    256
 #define MAX_COLUMNS            256
@@ -89,6 +85,8 @@ static my_bool non_blocking_api_enabled= 0;
 #define QUERY_REAP_FLAG  2
 
 #define QUERY_PRINT_ORIGINAL_FLAG 4
+
+#define CLOSED_CONNECTION "-closed_connection-"
 
 #ifndef HAVE_SETENV
 static int setenv(const char *name, const char *value, int overwrite);
@@ -146,7 +144,7 @@ struct property {
   my_bool *var;			/* Actual variable */
   my_bool set;			/* Has been set for ONE command */
   my_bool old;			/* If set, thus is the old value */
-  my_bool reverse;		/* Varible is true if disabled */
+  my_bool reverse;		/* Variable is true if disabled */
   const char *env_name;		/* Env. variable name */
 };
 
@@ -185,7 +183,7 @@ static uint opt_tail_lines= 0;
 
 static uint opt_connect_timeout= 0;
 static uint opt_wait_for_pos_timeout= 0;
-
+static const  uint default_wait_for_pos_timeout= 300;
 static char delimiter[MAX_DELIMITER_LENGTH]= ";";
 static size_t delimiter_length= 1;
 
@@ -566,7 +564,7 @@ DYNAMIC_ARRAY regex_arr; /* stores a list of st_regex subsitutions */
 Temporary storage areas for substitutions. To reduce unnessary copying
 and memory freeing/allocation, we pre-allocate two buffers, and alternate
 their use, one for input/one for output, the roles changing on the next
-st_regex substition. At the end of substitutions  buf points to the
+st_regex substitution. At the end of substitutions  buf points to the
 one containing the final result.
 */
 char* buf;
@@ -587,10 +585,10 @@ ATTRIBUTE_NORETURN
 static void cleanup_and_exit(int exit_code);
 
 ATTRIBUTE_NORETURN
-void really_die(const char *msg);
-void report_or_die(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
-ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
-void die(const char *fmt, ...);
+static void really_die(const char *msg);
+void report_or_die(const char *fmt, ...);
+ATTRIBUTE_NORETURN
+static void die(const char *fmt, ...);
 static void make_error_message(char *buf, size_t len, const char *fmt, va_list args);
 ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
 void abort_not_supported_test(const char *fmt, ...);
@@ -617,7 +615,6 @@ const char *get_errname_from_code (uint error_code);
 int multi_reg_replace(struct st_replace_regex* r,char* val);
 
 #ifdef _WIN32
-void free_tmp_sh_file();
 void free_win_path_patterns();
 #endif
 
@@ -718,7 +715,7 @@ public:
     DBUG_ASSERT(ds->str);
 
 #ifdef EXTRA_DEBUG
-    DBUG_PRINT("extra", ("str: %*s", (int) ds->length, ds->str));
+    DBUG_DUMP("extra", (uchar*) ds->str, ds->length);
 #endif
 
     if (fwrite(ds->str, 1, ds->length, m_file) != ds->length)
@@ -1156,71 +1153,6 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
 
 
 /*
-  Run query and dump the result to stderr in vertical format
-
-  NOTE! This function should be safe to call when an error
-  has occurred and thus any further errors will be ignored (although logged)
-
-  SYNOPSIS
-  show_query
-  mysql - connection to use
-  query - query to run
-
-*/
-
-static void show_query(MYSQL* mysql, const char* query)
-{
-  MYSQL_RES* res;
-  DBUG_ENTER("show_query");
-
-  if (!mysql)
-    DBUG_VOID_RETURN;
-
-  if (mysql_query(mysql, query))
-  {
-    log_msg("Error running query '%s': %d %s",
-            query, mysql_errno(mysql), mysql_error(mysql));
-    DBUG_VOID_RETURN;
-  }
-
-  if ((res= mysql_store_result(mysql)) == NULL)
-  {
-    /* No result set returned */
-    DBUG_VOID_RETURN;
-  }
-
-  {
-    MYSQL_ROW row;
-    unsigned int i;
-    unsigned int row_num= 0;
-    unsigned int num_fields= mysql_num_fields(res);
-    MYSQL_FIELD *fields= mysql_fetch_fields(res);
-
-    fprintf(stderr, "=== %s ===\n", query);
-    while ((row= mysql_fetch_row(res)))
-    {
-      unsigned long *lengths= mysql_fetch_lengths(res);
-      row_num++;
-
-      fprintf(stderr, "---- %d. ----\n", row_num);
-      for(i= 0; i < num_fields; i++)
-      {
-        fprintf(stderr, "%s\t%.*s\n",
-                fields[i].name,
-                (int)lengths[i], row[i] ? row[i] : "NULL");
-      }
-    }
-    for (i= 0; i < strlen(query)+8; i++)
-      fprintf(stderr, "=");
-    fprintf(stderr, "\n\n");
-  }
-  mysql_free_result(res);
-
-  DBUG_VOID_RETURN;
-}
-
-
-/*
   Show any warnings just before the error. Since the last error
   is added to the warning stack, only print @@warning_count-1 warnings.
 
@@ -1378,7 +1310,7 @@ void check_command_args(struct st_command *command,
 
     /* Check required arg */
     if (arg->ds->length == 0 && arg->required)
-      die("Missing required argument '%s' to command '%.*s'", arg->argname,
+      die("Missing required argument '%s' to command '%.*b'", arg->argname,
           command->first_word_len, command->query);
 
   }
@@ -1387,7 +1319,7 @@ void check_command_args(struct st_command *command,
   while(ptr <= command->end && *ptr != '#')
   {
     if (*ptr && *ptr != ' ')
-      die("Extra argument '%s' passed to '%.*s'",
+      die("Extra argument '%s' passed to '%.*b'",
           ptr, command->first_word_len, command->query);
     ptr++;
   }
@@ -1407,7 +1339,7 @@ void handle_command_error(struct st_command *command, uint error,
 
     if (command->abort_on_error)
     {
-      report_or_die("command \"%.*s\" failed with error: %u  my_errno: %d  "
+      report_or_die("command \"%.*b\" failed with error: %u  my_errno: %d  "
                     "errno: %d",
           command->first_word_len, command->query, error, my_errno,
           sys_errno);
@@ -1425,7 +1357,7 @@ void handle_command_error(struct st_command *command, uint error,
       DBUG_VOID_RETURN;
     }
     if (command->expected_errors.count > 0)
-      report_or_die("command \"%.*s\" failed with wrong error: %u  "
+      report_or_die("command \"%.*b\" failed with wrong error: %u  "
                     "my_errno: %d  errno: %d",
                     command->first_word_len, command->query, error, my_errno,
                     sys_errno);
@@ -1434,7 +1366,7 @@ void handle_command_error(struct st_command *command, uint error,
            command->expected_errors.err[0].code.errnum != 0)
   {
     /* Error code we wanted was != 0, i.e. not an expected success */
-    report_or_die("command \"%.*s\" succeeded - should have failed with "
+    report_or_die("command \"%.*b\" succeeded - should have failed with "
                   "errno %d...",
         command->first_word_len, command->query,
         command->expected_errors.err[0].code.errnum);
@@ -1535,7 +1467,6 @@ void free_used_memory()
   free_re();
   my_free(read_command_buf);
 #ifdef _WIN32
-  free_tmp_sh_file();
   free_win_path_patterns();
 #endif
   DBUG_VOID_RETURN;
@@ -1621,7 +1552,7 @@ static void make_error_message(char *buf, size_t len, const char *fmt, va_list a
   s+= my_snprintf(s, end -s, "\n");
 }
 
-void die(const char *fmt, ...)
+static void die(const char *fmt, ...)
 {
   char buff[DIE_BUFF_SIZE];
   va_list args;
@@ -1630,7 +1561,7 @@ void die(const char *fmt, ...)
   really_die(buff);
 }
 
-void really_die(const char *msg)
+static void really_die(const char *msg)
 {
   static int dying= 0;
   fflush(stdout);
@@ -2387,7 +2318,7 @@ static int strip_surrounding(char* str, char c1, char c2)
 static void strip_parentheses(struct st_command *command)
 {
   if (strip_surrounding(command->first_argument, '(', ')'))
-    die("%.*s - argument list started with '%c' must be ended with '%c'",
+    die("%.*b - argument list started with '%c' must be ended with '%c'",
         command->first_word_len, command->query, '(', ')');
 }
 
@@ -3043,7 +2974,7 @@ void eval_expr(VAR *v, const char *p, const char **p_end,
     /* Make sure there was just a $variable and nothing else */
     const char* end= *p_end + 1;
     if (end < expected_end && !open_end)
-      die("Found junk '%.*s' after $variable in expression",
+      die("Found junk '%.*b' after $variable in expression",
           (int)(expected_end - end - 1), end);
 
     DBUG_VOID_RETURN;
@@ -3175,7 +3106,7 @@ void open_file(const char *name)
       strxnmov(buff, sizeof(buff), opt_overlay_dir, suffix, name, NullS);
 
       /*
-        Overlayed rty/include/thing.inc can contain the line
+        Overlaid rty/include/thing.inc can contain the line
         --source thing.inc
         which would mean to include qwe/include/thing.inc.
         But it looks like including "itself", so don't try to open the file,
@@ -3265,33 +3196,6 @@ void do_source(struct st_command *command)
   dynstr_free(&ds_filename);
   DBUG_VOID_RETURN;
 }
-
-
-#if defined _WIN32
-
-#ifdef USE_CYGWIN
-/* Variables used for temporary sh files used for emulating Unix on Windows */
-char tmp_sh_name[64], tmp_sh_cmd[70];
-#endif
-
-void init_tmp_sh_file()
-{
-#ifdef USE_CYGWIN
-  /* Format a name for the tmp sh file that is unique for this process */
-  my_snprintf(tmp_sh_name, sizeof(tmp_sh_name), "tmp_%d.sh", getpid());
-  /* Format the command to execute in order to run the script */
-  my_snprintf(tmp_sh_cmd, sizeof(tmp_sh_cmd), "sh %s", tmp_sh_name);
-#endif
-}
-
-
-void free_tmp_sh_file()
-{
-#ifdef USE_CYGWIN
-  my_delete(tmp_sh_name, MYF(0));
-#endif
-}
-#endif
 
 
 static void init_builtin_echo(void)
@@ -3409,14 +3313,12 @@ void do_exec(struct st_command *command)
   }
 
 #ifdef _WIN32
-#ifndef USE_CYGWIN
   /* Replace /dev/null with NUL */
   while(replace(&ds_cmd, "/dev/null", 9, "NUL", 3) == 0)
     ;
   /* Replace "closed stdout" with non existing output fd */
   while(replace(&ds_cmd, ">&-", 3, ">&4", 3) == 0)
     ;
-#endif
 #endif
 
   if (disable_result_log)
@@ -3537,10 +3439,10 @@ int do_modify_var(struct st_command *command,
   const char *p= command->first_argument;
   VAR* v;
   if (!*p)
-    die("Missing argument to %.*s", command->first_word_len,
+    die("Missing argument to %.*b", command->first_word_len,
         command->query);
   if (*p != '$')
-    die("The argument to %.*s must be a variable (start with $)",
+    die("The argument to %.*b must be a variable (start with $)",
         command->first_word_len, command->query);
   v= var_get(p, &p, 1, 0);
   if (! v->is_int)
@@ -3575,13 +3477,7 @@ int do_modify_var(struct st_command *command,
 
 int my_system(DYNAMIC_STRING* ds_cmd)
 {
-#if defined _WIN32 && defined USE_CYGWIN
-  /* Dump the command into a sh script file and execute with system */
-  str_to_file(tmp_sh_name, ds_cmd->str, ds_cmd->length);
-  return system(tmp_sh_cmd);
-#else
   return system(ds_cmd->str);
-#endif
 }
 
 
@@ -3615,11 +3511,9 @@ void do_system(struct st_command *command)
   do_eval(&ds_cmd, command->first_argument, command->end, !is_windows);
 
 #ifdef _WIN32
-#ifndef USE_CYGWIN
    /* Replace /dev/null with NUL */
    while(replace(&ds_cmd, "/dev/null", 9, "NUL", 3) == 0)
      ;
-#endif
 #endif
 
 
@@ -4807,9 +4701,6 @@ void do_sync_with_master2(struct st_command *command, long offset,
   if (!result_str || result < 0)
   {
     /* master_pos_wait returned NULL or < 0 */
-    show_query(mysql, "SHOW MASTER STATUS");
-    show_query(mysql, "SHOW SLAVE STATUS");
-    show_query(mysql, "SHOW PROCESSLIST");
     fprintf(stderr, "analyze: sync_with_master\n");
 
     if (!result_str)
@@ -4820,18 +4711,18 @@ void do_sync_with_master2(struct st_command *command, long offset,
         information is not initialized, the arguments are
         incorrect, or an error has occurred
       */
-      die("%.*s failed: '%s' returned NULL "          \
+      die("%.*b failed: '%s' returned NULL "          \
           "indicating slave SQL thread failure",
           command->first_word_len, command->query, query_buf);
 
     }
 
     if (result == -1)
-      die("%.*s failed: '%s' returned -1 "            \
+      die("%.*b failed: '%s' returned -1 "            \
           "indicating timeout after %d seconds",
           command->first_word_len, command->query, query_buf, timeout);
     else
-      die("%.*s failed: '%s' returned unknown result :%d",
+      die("%.*b failed: '%s' returned unknown result :%d",
           command->first_word_len, command->query, query_buf, result);
   }
 
@@ -4886,7 +4777,7 @@ int do_save_master_pos()
 	mysql_errno(mysql), mysql_error(mysql));
 
   if (!(res = mysql_store_result(mysql)))
-    die("mysql_store_result() retuned NULL for '%s'", query);
+    die("mysql_store_result() returned NULL for '%s'", query);
   if (!(row = mysql_fetch_row(res)))
     die("empty result in show master status");
   strnmov(master_pos.file, row[0], sizeof(master_pos.file)-1);
@@ -4996,17 +4887,17 @@ int do_sleep(struct st_command *command, my_bool real_sleep)
   while (my_isspace(charset_info, *p))
     p++;
   if (!*p)
-    die("Missing argument to %.*s", command->first_word_len,
+    die("Missing argument to %.*b", command->first_word_len,
         command->query);
   sleep_start= p;
   /* Check that arg starts with a digit, not handled by my_strtod */
   if (!my_isdigit(charset_info, *sleep_start))
-    die("Invalid argument to %.*s \"%s\"", command->first_word_len,
+    die("Invalid argument to %.*b \"%s\"", command->first_word_len,
         command->query, sleep_start);
   sleep_val= my_strtod(sleep_start, &sleep_end, &error);
   check_eol_junk_line(sleep_end);
   if (error)
-    die("Invalid argument to %.*s \"%s\"", command->first_word_len,
+    die("Invalid argument to %.*b \"%s\"", command->first_word_len,
         command->query, command->first_argument);
   dynstr_free(&ds_sleep);
 
@@ -5092,13 +4983,34 @@ int query_get_string(MYSQL* mysql, const char* query,
 }
 
 
+#ifdef _WIN32
+#define SIGKILL 9
+#include <my_minidump.h>
 static int my_kill(int pid, int sig)
 {
-  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
-#ifdef _WIN32
-#define SIGKILL 9 /* ignored anyway, see below */
   HANDLE proc;
-  if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
+  if (sig == SIGABRT)
+  {
+    /*
+     Create a minidump. If process is being debugged, debug break
+     Otherwise, terminate.
+    */
+    verbose_msg("Aborting %d",pid);
+    my_create_minidump(pid,TRUE);
+    proc= OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    if(!proc)
+      return -1;
+    BOOL debugger_present;
+    if (CheckRemoteDebuggerPresent(proc,&debugger_present) && debugger_present)
+    {
+      if (DebugBreakProcess(proc))
+      {
+        CloseHandle(proc);
+        return 0;
+      }
+    }
+  }
+  else if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
     return -1;
   if (sig == 0)
   {
@@ -5109,12 +5021,30 @@ static int my_kill(int pid, int sig)
   (void)TerminateProcess(proc, 201);
   CloseHandle(proc);
   return 1;
-#else
-  return kill(pid, sig);
-#endif
 }
 
 
+/* Wait until process is gone, with timeout */
+static int wait_until_dead(int pid, int timeout)
+{
+  HANDLE proc= OpenProcess(SYNCHRONIZE, FALSE, pid);
+  if (!proc)
+    return 0; /* already dead */
+  DBUG_ASSERT(timeout >= 0);
+  DBUG_ASSERT(timeout <= UINT_MAX/1000);
+  DWORD wait_result= WaitForSingleObject(proc, (DWORD)timeout*1000);
+  CloseHandle(proc);
+  return (int)wait_result;
+}
+
+#else /* !_WIN32 */
+
+
+static int my_kill(int pid, int sig)
+{
+  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
+  return kill(pid, sig);
+}
 
 /*
   Shutdown the server of current connection and
@@ -5149,6 +5079,7 @@ static int wait_until_dead(int pid, int timeout)
   }
   DBUG_RETURN(1);                               // Did not die
 }
+#endif /* _WIN32 */
 
 
 void do_shutdown_server(struct st_command *command)
@@ -5163,6 +5094,8 @@ void do_shutdown_server(struct st_command *command)
   };
   DBUG_ENTER("do_shutdown_server");
 
+  /* the wait-for-pos' default based value of 'timeout' must fit to MDEV-23511 */
+  compile_time_assert(default_wait_for_pos_timeout / 5 >= 60);
   check_command_args(command, command->first_argument, shutdown_args,
                      sizeof(shutdown_args)/sizeof(struct command_arg),
                      ' ');
@@ -5433,7 +5366,7 @@ void do_get_errcodes(struct st_command *command)
         p++;
       }
 
-      /* Convert the sting to int */
+      /* Convert the string to int */
       if (!str2int(start, 10, (long) INT_MIN, (long) INT_MAX, &val))
 	die("Invalid argument to error: '%s'", command->first_argument);
 
@@ -5663,11 +5596,12 @@ void do_close_connection(struct st_command *command)
   my_free(con->name);
 
   /*
-    When the connection is closed set name to "-closed_connection-"
+    When the connection is closed set name to CLOSED_CONNECTION
     to make it possible to reuse the connection name.
   */
-  if (!(con->name = my_strdup("-closed_connection-", MYF(MY_WME))))
+  if (!(con->name = my_strdup(CLOSED_CONNECTION, MYF(MY_WME))))
     die("Out of memory");
+  con->name_len= sizeof(CLOSED_CONNECTION)-1;
 
   if (con == cur_con)
   {
@@ -5825,7 +5759,7 @@ int connect_n_handle_errors(struct st_command *command,
     dynstr_append_mem(ds, delimiter, delimiter_length);
     dynstr_append_mem(ds, "\n", 1);
   }
-  /* Simlified logging if enabled */
+  /* Simplified logging if enabled */
   if (!disable_connect_log && !disable_query_log)
   {
     replace_dynstr_append(ds, command->query);
@@ -6038,7 +5972,7 @@ void do_connect(struct st_command *command)
       csname= strdup(con_options + sizeof("CHARSET=") - 1);
     }
     else
-      die("Illegal option to connect: %.*s", 
+      die("Illegal option to connect: %.*b",
           (int) (end - con_options), con_options);
     /* Process next option */
     con_options= end;
@@ -6051,7 +5985,7 @@ void do_connect(struct st_command *command)
     con_slot= next_con;
   else
   {
-    if (!(con_slot= find_connection_by_name("-closed_connection-")))
+    if (!(con_slot= find_connection_by_name(CLOSED_CONNECTION)))
       die("Connection limit exhausted, you can have max %d connections",
           opt_max_connections);
     my_free(con_slot->name);
@@ -6365,7 +6299,7 @@ void do_block(enum block_cmd cmd, struct st_command* command)
 
     enum block_op operand= find_operand(curr_ptr);
     if (operand == ILLEG_OP)
-      die("Found junk '%.*s' after $variable in condition",
+      die("Found junk '%.*b' after $variable in condition",
           (int)(expr_end - curr_ptr), curr_ptr);
 
     /* We could silently allow this, but may be confusing */
@@ -7155,7 +7089,7 @@ static struct my_option my_long_options[] =
   {"wait_for_pos_timeout", 0,
    "Number of seconds to wait for master_pos_wait",
    &opt_wait_for_pos_timeout, &opt_wait_for_pos_timeout, 0, GET_UINT,
-   REQUIRED_ARG, 300, 0, 3600 * 12, 0, 0, 0},
+   REQUIRED_ARG, default_wait_for_pos_timeout, 0, 3600 * 12, 0, 0, 0},
   {"plugin_dir", 0, "Directory for client-side plugins.",
     &opt_plugin_dir, &opt_plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -8290,7 +8224,7 @@ void handle_no_error(struct st_command *command)
   SYNPOSIS
   run_query_stmt
   mysql - mysql handle
-  command - currrent command pointer
+  command - current command pointer
   query - query string to execute
   query_len - length query string to execute
   ds - output buffer where to store result form query
@@ -8530,7 +8464,7 @@ end:
 /*
   Create a util connection if one does not already exists
   and use that to run the query
-  This is done to avoid implict commit when creating/dropping objects such
+  This is done to avoid implicit commit when creating/dropping objects such
   as view, sp etc.
 */
 
@@ -8571,7 +8505,7 @@ int util_query(MYSQL* org_mysql, const char* query){
   SYNPOSIS
     run_query()
      mysql	mysql handle
-     command	currrent command pointer
+     command	current command pointer
 
   flags control the phased/stages of query execution to be performed
   if QUERY_SEND_FLAG bit is on, the query will be sent. If QUERY_REAP_FLAG
@@ -8666,7 +8600,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   log_file.flush();
   dynstr_set(&ds_res, 0);
 
-  if (view_protocol_enabled &&
+  if (view_protocol_enabled && mysql &&
       complete_query &&
       match_re(&view_re, query))
   {
@@ -8712,7 +8646,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     dynstr_free(&query_str);
   }
 
-  if (sp_protocol_enabled &&
+  if (sp_protocol_enabled && mysql &&
       complete_query &&
       match_re(&sp_re, query))
   {
@@ -9075,7 +9009,7 @@ static void dump_backtrace(void)
   struct st_connection *conn= cur_con;
 
   fprintf(stderr, "read_command_buf (%p): ", read_command_buf);
-  my_safe_print_str(read_command_buf, sizeof(read_command_buf));
+  fprintf(stderr, "%.*s\n", (int)read_command_buflen, read_command_buf);
   fputc('\n', stderr);
 
   if (conn)
@@ -9158,10 +9092,6 @@ static void init_signal_handling(void)
 {
   struct sigaction sa;
   DBUG_ENTER("init_signal_handling");
-
-#ifdef HAVE_STACKTRACE
-  my_init_stacktrace();
-#endif
 
   sa.sa_flags = SA_RESETHAND | SA_NODEFER;
   sigemptyset(&sa.sa_mask);
@@ -9248,10 +9178,7 @@ int main(int argc, char **argv)
 
   init_builtin_echo();
 #ifdef _WIN32
-#ifndef USE_CYGWIN
   is_windows= 1;
-#endif
-  init_tmp_sh_file();
   init_win_path_patterns();
 #endif
 
@@ -9563,6 +9490,7 @@ int main(int argc, char **argv)
       case Q_LET: do_let(command); break;
       case Q_EVAL_RESULT:
         die("'eval_result' command  is deprecated");
+	break; // never called but keep compiler calm
       case Q_EVAL:
       case Q_EVALP:
       case Q_QUERY_VERTICAL:
@@ -10246,7 +10174,7 @@ void append_replace_regex(char* expr, char *expr_end, struct st_replace_regex* r
     /* Allow variable for the *entire* list of replacements */
     if (*p == '$')
     {
-      const char *v_end;
+      const char *v_end= 0;
       VAR *val= var_get(p, &v_end, 0, 1);
 
       if (val)
@@ -10285,6 +10213,7 @@ void append_replace_regex(char* expr, char *expr_end, struct st_replace_regex* r
   return;
 
 err:
+  my_free(res->regex_arr.buffer);
   my_free(res);
   die("Error parsing replace_regex \"%s\"", expr);
 }
@@ -10330,7 +10259,7 @@ int multi_reg_replace(struct st_replace_regex* r,char* val)
     if (!reg_replace(&out_buf, buf_len_p, re.pattern, re.replace,
                      in_buf, re.icase))
     {
-      /* if the buffer has been reallocated, make adjustements */
+      /* if the buffer has been reallocated, make adjustments */
       if (save_out_buf != out_buf)
       {
         if (save_out_buf == r->even_buf)
@@ -10597,7 +10526,7 @@ typedef struct st_rep_set {
   uint	found_len;			/* Best match to date */
   int	found_offset;
   uint	table_offset;
-  uint	size_of_bits;			/* For convinience */
+  uint	size_of_bits;			/* For convenience */
 } REP_SET;
 
 typedef struct st_rep_sets {
@@ -10700,7 +10629,7 @@ REPLACE *init_replace(char * *from, char * *to,uint count,
     DBUG_RETURN(0);
   }
   (void) make_new_set(&sets);			/* Set starting set */
-  make_sets_invisible(&sets);			/* Hide previus sets */
+  make_sets_invisible(&sets);			/* Hide previous sets */
   used_sets=-1;
   word_states=make_new_set(&sets);		/* Start of new word */
   start_states=make_new_set(&sets);		/* This is first state */
@@ -10886,7 +10815,7 @@ REPLACE *init_replace(char * *from, char * *to,uint count,
     for (i=1 ; i <= found_sets ; i++)
     {
       pos=from[found_set[i-1].table_offset];
-      rep_str[i].found= !memcmp(pos, "\\^", 3) ? 2 : 1;
+      rep_str[i].found= !strncmp(pos, "\\^", 3) ? 2 : 1;
       rep_str[i].replace_string=to_array[found_set[i-1].table_offset];
       rep_str[i].to_offset=found_set[i-1].found_offset-start_at_word(pos);
       rep_str[i].from_offset=found_set[i-1].found_offset-replace_len(pos)+
@@ -11198,13 +11127,16 @@ void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val, size_t len)
     {
       /* Convert to lower case, and do this first */
       char *c= lower;
-      for (const char *v= val;  *v;  v++)
+      for (const char *v= val, *end_v= v + len;  v < end_v;  v++)
         *c++= my_tolower(charset_info, *v);
       *c= '\0';
       /* Copy from this buffer instead */
     }
     else
-      memcpy(lower, val, len+1);
+    {
+      memcpy(lower, val, len);
+      lower[len]= 0;
+    }
     fix_win_paths(lower, len);
     val= lower;
   }

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2017 MariaDB
+   Copyright (c) 2017, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -236,6 +236,8 @@ public:
   SplM_field_info *spl_fields;
   /* The number of elements in the above list */
   uint spl_field_cnt;
+  /* The list of equalities injected into WHERE for split optimization */
+  List<Item> inj_cond_list;
   /* Contains the structures to generate all KEYUSEs for pushable equalities */
   List<KEY_FIELD> added_key_fields;
   /* The cache of evaluated execution plans for 'join' with pushed equalities */
@@ -307,7 +309,7 @@ struct SplM_field_ext_info: public SplM_field_info
     8. P contains some references on the columns of the joined tables C
        occurred also in the select list of this join
     9. There are defined some keys usable for ref access of fields from C
-       with available statistics. 
+       with available statistics.
 
   @retval
     true   if the answer is positive
@@ -477,6 +479,15 @@ bool JOIN::check_for_splittable_materialized()
   /* Attach this info to the table T */
   derived->table->set_spl_opt_info(spl_opt_info);
 
+  /*
+    If this is specification of a materialized derived table T that is
+    potentially splittable and is used in the from list of the right operand
+    of an IN predicand transformed to a semi-join then the embedding semi-join
+    nest is not allowed to be materialized.
+  */
+  if (derived && derived->is_materialized_derived() &&
+      derived->embedding && derived->embedding->sj_subq_pred)
+    derived->embedding->sj_subq_pred->types_allow_materialization= FALSE;
   return true;
 }
 
@@ -742,13 +753,13 @@ void JOIN::add_keyuses_for_splitting()
                        added_keyuse_count))
     goto err;
 
-  memcpy(keyuse.buffer,
-         save_qep->keyuse.buffer,
-         (size_t) save_qep->keyuse.elements * keyuse.size_of_element);
-  keyuse.elements= save_qep->keyuse.elements;
+  idx= keyuse.elements= save_qep->keyuse.elements;
+  if (keyuse.elements)
+    memcpy(keyuse.buffer,
+           save_qep->keyuse.buffer,
+           (size_t) keyuse.elements * keyuse.size_of_element);
 
   keyuse_ext= &ext_keyuses_for_splitting->at(0);
-  idx= save_qep->keyuse.elements;
   for (i=0; i < added_keyuse_count; i++, keyuse_ext++, idx++)
   {
     set_dynamic(&keyuse, (KEYUSE *) keyuse_ext, idx);
@@ -949,20 +960,37 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       in the cache
     */
     spl_plan= spl_opt_info->find_plan(best_table, best_key, best_key_parts);
-    if (!spl_plan &&
-	(spl_plan= (SplM_plan_info *) thd->alloc(sizeof(SplM_plan_info))) &&
-	(spl_plan->best_positions=
-	   (POSITION *) thd->alloc(sizeof(POSITION) * join->table_count)) &&
-	!spl_opt_info->plan_cache.push_back(spl_plan))
+    if (!spl_plan)
     {
       /*
         The plan for the chosen key has not been found in the cache.
         Build a new plan and save info on it in the cache
       */
-      table_map all_table_map= (1 << join->table_count) - 1;
+      table_map all_table_map= (((table_map) 1) << join->table_count) - 1;
       reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                       best_key, remaining_tables, true);
       choose_plan(join, all_table_map & ~join->const_table_map);
+
+      /*
+        Check that the chosen plan is really a splitting plan.
+        If not or if there is not enough memory to save the plan in the cache
+        then just return with no splitting plan.
+      */
+      POSITION *first_non_const_pos= join->best_positions + join->const_tables;
+      TABLE *table= first_non_const_pos->table->table;
+      key_map spl_keys= table->keys_usable_for_splitting;
+      if (!(first_non_const_pos->key &&
+            spl_keys.is_set(first_non_const_pos->key->key)) ||
+          !(spl_plan= (SplM_plan_info *) thd->alloc(sizeof(SplM_plan_info))) ||
+	  !(spl_plan->best_positions=
+	     (POSITION *) thd->alloc(sizeof(POSITION) * join->table_count)) ||
+	  spl_opt_info->plan_cache.push_back(spl_plan))
+      {
+        reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
+                                        best_key, remaining_tables, false);
+        return 0;
+      }
+
       spl_plan->keyuse_ext_start= best_key_keyuse_ext_start;
       spl_plan->table= best_table;
       spl_plan->key= best_key;
@@ -1038,22 +1066,22 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
 bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
 {
   Item *inj_cond= 0;
-  List<Item> inj_cond_list;
+  List<Item> *inj_cond_list= &spl_opt_info->inj_cond_list;
   List_iterator<KEY_FIELD> li(spl_opt_info->added_key_fields);
   KEY_FIELD *added_key_field;
   while ((added_key_field= li++))
   {
     if (remaining_tables & added_key_field->val->used_tables())
       continue;
-    if (inj_cond_list.push_back(added_key_field->cond, thd->mem_root))
+    if (inj_cond_list->push_back(added_key_field->cond, thd->mem_root))
       return true;
   }
-  DBUG_ASSERT(inj_cond_list.elements);
-  switch (inj_cond_list.elements) {
+  DBUG_ASSERT(inj_cond_list->elements);
+  switch (inj_cond_list->elements) {
   case 1:
-    inj_cond= inj_cond_list.head(); break;
+    inj_cond= inj_cond_list->head(); break;
   default:
-    inj_cond= new (thd->mem_root) Item_cond_and(thd, inj_cond_list);
+    inj_cond= new (thd->mem_root) Item_cond_and(thd, *inj_cond_list);
     if (!inj_cond)
       return true;
   }
@@ -1067,6 +1095,40 @@ bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
   st_select_lex_unit *unit= select_lex->master_unit();
   unit->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
 
+  return false;
+}
+
+
+/**
+  @brief
+    Test if equality is injected for split optimization
+
+  @param
+    eq_item   equality to to test
+
+  @retval
+    true    eq_item is equality injected for split optimization
+    false   otherwise
+*/
+
+bool is_eq_cond_injected_for_split_opt(Item_func_eq *eq_item)
+{
+  Item *left_item= eq_item->arguments()[0]->real_item();
+  if (left_item->type() != Item::FIELD_ITEM)
+    return false;
+  Field *field= ((Item_field *) left_item)->field;
+  if (!field->table->reginfo.join_tab)
+    return false;
+  JOIN *join= field->table->reginfo.join_tab->join;
+  if (!join->spl_opt_info)
+    return false;
+  List_iterator_fast<Item> li(join->spl_opt_info->inj_cond_list);
+  Item *item;
+  while ((item= li++))
+  {
+    if (item == eq_item)
+        return true;
+  }
   return false;
 }
 
@@ -1140,7 +1202,7 @@ bool JOIN_TAB::fix_splitting(SplM_plan_info *spl_plan,
 bool JOIN::fix_all_splittings_in_plan()
 {
   table_map prev_tables= 0;
-  table_map all_tables= (1 << table_count) - 1;
+  table_map all_tables= (table_map(1) << table_count) - 1;
   for (uint tablenr= 0; tablenr < table_count; tablenr++)
   {
     POSITION *cur_pos= &best_positions[tablenr];

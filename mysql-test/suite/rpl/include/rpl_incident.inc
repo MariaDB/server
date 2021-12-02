@@ -20,7 +20,7 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
 SELECT * FROM t1;
 
-let $debug_save= `SELECT @@GLOBAL.debug`;
+set @saved_dbug = @@global.debug_dbug;
 SET GLOBAL debug_dbug= '+d,incident_database_resync_on_replace,*';
 
 # This will generate an incident log event and store it in the binary
@@ -29,9 +29,7 @@ REPLACE INTO t1 VALUES (4);
 --save_master_pos
 SELECT * FROM t1;
 
---disable_query_log
-eval SET GLOBAL debug_dbug= '$debug_save';
---enable_query_log
+set @@global.debug_dbug = @saved_dbug;
 
 connection slave;
 # Wait until SQL thread stops with error LOST_EVENT on master

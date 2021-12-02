@@ -170,10 +170,23 @@ UPDATE t1 SET a = 'new'
 WHERE COLUMN_CREATE( 1, 'v', 1, 'w' ) IS NULL;
 ERROR 22007: Illegal value used as argument of dynamic column function
 drop table t1;
+set @max_session_mem_used_save= @@max_session_mem_used;
 set max_session_mem_used = 50000;
 select * from seq_1_to_1000;
 set max_session_mem_used = 8192;
 select * from seq_1_to_1000;
+set max_session_mem_used = @max_session_mem_used_save;
+#
+# MDEV-20604: Duplicate key value is silently truncated to 64
+# characters in print_keydup_error
+#
+create table t1 (a varchar(100), UNIQUE KEY akey (a));
+insert into t1 values ("1234567890123456789012345678901234567890123456789012345678901234567890_end");
+# The value in the error message should show truncation with "..."
+insert into t1 values ("1234567890123456789012345678901234567890123456789012345678901234567890_end");
+ERROR 23000: Duplicate entry '1234567890123456789012345678901234567890123456789012345678901...' for key 'akey'
+drop table t1;
+# End of 10.2 tests
 #
 # MDEV-14269 errors.test fails with valgrind (Conditional jump or move depends on uninitialised value)
 #
@@ -182,3 +195,4 @@ SELECT UPDATEXML(-73 * -2465717823867977728,@@global.auto_increment_increment,nu
 ERROR 22003: BIGINT value is out of range in '-73 * -2465717823867977728'
 SELECT UPDATEXML(-73 * -2465717823867977728,@@global.long_query_time,null);
 ERROR 22003: BIGINT value is out of range in '-73 * -2465717823867977728'
+# End of 10.3 tests

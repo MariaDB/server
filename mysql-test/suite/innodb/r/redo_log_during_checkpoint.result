@@ -4,8 +4,8 @@ SET GLOBAL innodb_master_thread_disabled_debug = 1;
 SET GLOBAL innodb_log_checkpoint_now = 1;
 CREATE DATABASE very_long_database_name;
 USE very_long_database_name;
-set debug_dbug = '+d,increase_mtr_checkpoint_size';
-set debug_dbug = '+d,crash_after_checkpoint';
+SET debug_dbug = '+d,increase_mtr_checkpoint_size';
+SET debug_dbug = '+d,crash_after_checkpoint';
 set global innodb_log_checkpoint_now = 1;
 ERROR HY000: Lost connection to MySQL server during query
 # Skip MLOG_FILE_NAME redo records during recovery
@@ -18,7 +18,7 @@ SET GLOBAL innodb_log_checkpoint_now = 1;
 # exceeds LOG_CHECKPOINT_FREE_PER_THREAD size during checkpoint.
 CREATE DATABASE very_long_database_name;
 USE very_long_database_name;
-set debug_dbug = '+d,crash_after_checkpoint';
+SET debug_dbug = '+d,crash_after_checkpoint';
 set global innodb_log_checkpoint_now = 1;
 ERROR HY000: Lost connection to MySQL server during query
 # Skip MLOG_FILE_NAME redo records during recovery

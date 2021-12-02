@@ -242,7 +242,6 @@ include(build/ac_macros/check_functions.m4)
 ac_check_symbols(fpclassify math.h)
 ac_check_lib(m fpclassify)
 
-ac_check_lib(dl dlopen)
 ac_check_lib(execinfo backtrace)
 if(HAVE_LIBEXECINFO)
   set(HAVE_BACKTRACE TRUE)
@@ -591,14 +590,13 @@ else()
   set(GRN_WITH_MESSAGE_PACK FALSE)
 endif()
 
-find_program(RUBY NAMES
-  "ruby2.3" "ruby23"
-  "ruby2.2" "ruby22"
-  "ruby2.1" "ruby21"
-  "ruby")
-
 option(GRN_WITH_MRUBY "use mruby" OFF)
 if(GRN_WITH_MRUBY)
+  find_program(RUBY NAMES
+    "ruby2.3" "ruby23"
+    "ruby2.2" "ruby22"
+    "ruby2.1" "ruby21"
+    "ruby")
   set(MRUBY_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/mruby-source/include")
   set(MRUBY_LIBS mruby)

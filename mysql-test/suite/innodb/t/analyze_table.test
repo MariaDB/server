@@ -1,23 +1,11 @@
-#
-# BUG#22385442 - INNODB: DIFFICULT TO FIND FREE BLOCKS IN THE BUFFER POOL
-#
-
 --source include/have_innodb.inc
---source include/big_test.inc
+--source include/have_sequence.inc
 
-DELIMITER |;
-CREATE PROCEDURE populate_t1()
-BEGIN
-        DECLARE i int DEFAULT 1;
+#
+# MDEV-22073 MSAN use-of-uninitialized-value in collect_statistics_for_table()
+#
 
-        START TRANSACTION;
-        WHILE (i <= 1000000) DO
-                INSERT INTO t1 VALUES (i, i, CONCAT('a', i));
-                SET i = i + 1;
-        END WHILE;
-        COMMIT;
-END|
-DELIMITER ;|
+set use_stat_tables='preferably';
 
 CREATE TABLE t1(
         class   INT,
@@ -25,18 +13,11 @@ CREATE TABLE t1(
         title   VARCHAR(100)
 ) ENGINE=InnoDB;
 
--- disable_query_log
-CALL populate_t1();
--- enable_query_log
+insert into t1 select seq, seq, concat('a', seq) from seq_1_to_500;
 
 SELECT COUNT(*) FROM t1;
 
-SET GLOBAL innodb_stats_persistent_sample_pages=2000;
-
+set @@max_heap_table_size=16384;
 ANALYZE TABLE t1;
 
 DROP TABLE t1;
-
-DROP PROCEDURE populate_t1;
-
-SET GLOBAL innodb_stats_persistent_sample_pages=default;

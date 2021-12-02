@@ -1583,6 +1583,8 @@ int mi_repair(HA_CHECK *param, register MI_INFO *info,
   sort_param.filepos=new_header_length;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(info->dfile, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
   sort_info.dupp=0;
   sort_param.fix_datafile= (my_bool) (! rep_quick);
   sort_param.master=1;
@@ -2288,6 +2290,8 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
   sort_info.buff=0;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(param->read_cache.file, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
 
   sort_param.wordlist=NULL;
   init_alloc_root(&sort_param.wordroot, "sort", FTPARSER_MEMROOT_ALLOC_SIZE, 0,
@@ -2608,7 +2612,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
 			const char * name, int rep_quick)
 {
   int got_error;
-  uint i,key, total_key_length, istep;
+  uint i,key, istep;
   ulong rec_length;
   ha_rows start_records;
   my_off_t new_header_length,del;
@@ -2755,6 +2759,8 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   sort_info.buff=0;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(param->read_cache.file, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
 
   if (share->data_file_type == DYNAMIC_RECORD)
     rec_length=MY_MAX(share->base.min_pack_length+1,share->base.min_block_length);
@@ -2792,7 +2798,9 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
     mi_check_print_error(param,"Not enough memory for key!");
     goto err;
   }
-  total_key_length=0;
+#ifdef USING_SECOND_APPROACH
+  uint total_key_length=0;
+#endif
   rec_per_key_part= param->rec_per_key_part;
   info->state->records=info->state->del=share->state.split=0;
   info->state->empty=0;
@@ -2861,7 +2869,9 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
       if (keyseg->flag & HA_NULL_PART)
         sort_param[i].key_length++;
     }
+#ifdef USING_SECOND_APPROACH
     total_key_length+=sort_param[i].key_length;
+#endif
 
     if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
     {

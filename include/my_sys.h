@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -283,7 +283,8 @@ extern int my_umask_dir,
 extern my_bool my_use_symdir;
 
 extern ulong	my_default_record_cache_size;
-extern my_bool  my_disable_locking, my_disable_async_io,
+extern MYSQL_PLUGIN_IMPORT my_bool my_disable_locking;
+extern my_bool  my_disable_async_io,
                 my_disable_flush_key_blocks, my_disable_symlinks;
 extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;
@@ -480,18 +481,19 @@ typedef struct st_io_cache		/* Used when caching files */
     partial.
   */
   int	seek_not_done,error;
-  /* buffer_length is memory size allocated for buffer or write_buffer */
+  /* length of the buffer used for storing un-encrypted data */
   size_t	buffer_length;
   /* read_length is the same as buffer_length except when we use async io */
   size_t  read_length;
   myf	myflags;			/* Flags used to my_read/my_write */
   /*
-    alloced_buffer is 1 if the buffer was allocated by init_io_cache() and
-    0 if it was supplied by the user.
+    alloced_buffer is set to the size of the buffer allocated for the IO_CACHE.
+    Includes the overhead(storing key to ecnrypt and decrypt) for encryption.
+    Set to 0 if nothing is allocated.
     Currently READ_NET is the only one that will use a buffer allocated
     somewhere else
   */
-  my_bool alloced_buffer;
+  size_t alloced_buffer;
 #ifdef HAVE_AIOWAIT
   /*
     As inidicated by ifdef, this is for async I/O, which is not currently
@@ -535,10 +537,14 @@ static inline int my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
 static inline int my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 {
+  MEM_CHECK_DEFINED(Buffer, Count);
   if (info->write_pos + Count <= info->write_end)
   {
-    memcpy(info->write_pos, Buffer, Count);
-    info->write_pos+= Count;
+    if (Count)
+    {
+      memcpy(info->write_pos, Buffer, Count);
+      info->write_pos+= Count;
+    }
     return 0;
   }
   return _my_b_write(info, Buffer, Count);
@@ -556,6 +562,7 @@ static inline int my_b_get(IO_CACHE *info)
 
 static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 {
+  MEM_CHECK_DEFINED(&chr, 1);
   if (info->write_pos >= info->write_end)
     if (my_b_flush_io_cache(info, 1))
       return 1;

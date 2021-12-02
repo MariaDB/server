@@ -48,21 +48,50 @@ SET(CPACK_RPM_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_RPM_PACKAGE_GROUP "Applications/Databases")
 SET(CPACK_RPM_PACKAGE_URL ${CPACK_PACKAGE_URL})
-SET(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
 
 SET(CPACK_RPM_shared_PACKAGE_VENDOR "MariaDB Corporation Ab")
 SET(CPACK_RPM_shared_PACKAGE_LICENSE "LGPLv2.1")
-SET(CPACK_RPM_shared_PACKAGE_SUMMARY "LGPL MariaDB client library")
-SET(CPACK_RPM_shared_PACKAGE_DESCRIPTION "
-This is LGPL MariaDB client library that can be used to connect to MySQL
+
+# Set default description for packages
+SET(CPACK_RPM_PACKAGE_DESCRIPTION "MariaDB: a very fast and robust SQL database server
+
+It is GPL v2 licensed, which means you can use the it free of charge under the
+conditions of the GNU General Public License Version 2 (http://www.gnu.org/licenses/).
+
+MariaDB documentation can be found at https://mariadb.com/kb
+MariaDB bug reports should be submitted through https://jira.mariadb.org")
+
+# mariabackup
+SET(CPACK_RPM_backup_PACKAGE_SUMMARY "Backup tool for MariaDB server")
+SET(CPACK_RPM_backup_PACKAGE_DESCRIPTION "Mariabackup is an open source tool provided by MariaDB
+for performing physical online backups of InnoDB, Aria and MyISAM tables.
+For InnoDB, “hot online” backups are possible.
+It was originally forked from Percona XtraBackup 2.3.8.")
+
+# Packages with default description
+SET(CPACK_RPM_client_PACKAGE_SUMMARY "MariaDB database client binaries")
+SET(CPACK_RPM_client_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
+SET(CPACK_RPM_common_PACKAGE_SUMMARY "MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)")
+SET(CPACK_RPM_common_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
+SET(CPACK_RPM_compat_PACKAGE_SUMMARY "MariaDB database client library MySQL compat package")
+SET(CPACK_RPM_compat_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
+SET(CPACK_RPM_devel_PACKAGE_SUMMARY "MariaDB database development files")
+SET(CPACK_RPM_devel_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
+SET(CPACK_RPM_server_PACKAGE_SUMMARY "MariaDB database server binaries")
+SET(CPACK_RPM_server_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
+SET(CPACK_RPM_test_PACKAGE_SUMMARY "MariaDB database regression test suite")
+SET(CPACK_RPM_test_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
+
+# libmariadb3
+SET(CPACK_RPM_shared_PACKAGE_SUMMARY "LGPL MariaDB database client library")
+SET(CPACK_RPM_shared_PACKAGE_DESCRIPTION "This is LGPL MariaDB client library that can be used to connect to MySQL
 or MariaDB.
 
 This code is based on the LGPL libmysql client library from MySQL 3.23
 and PHP's mysqlnd extension.
 
 This product includes PHP software, freely available from
-<http://www.php.net/software/>
-")
+http://www.php.net/software/")
 
 SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define mysql_vendor ${CPACK_PACKAGE_VENDOR}
@@ -100,8 +129,13 @@ SET(ignored
   "%ignore /etc"
   "%ignore /etc/init.d"
   "%ignore /etc/logrotate.d"
+  "%ignore /etc/security"
   "%ignore /etc/systemd"
   "%ignore /etc/systemd/system"
+  "%ignore /lib"
+  "%ignore /lib/security"
+  "%ignore /lib64"
+  "%ignore /lib64/security"
   "%ignore ${CMAKE_INSTALL_PREFIX}"
   "%ignore ${CMAKE_INSTALL_PREFIX}/bin"
   "%ignore ${CMAKE_INSTALL_PREFIX}/include"
@@ -109,18 +143,24 @@ SET(ignored
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib/systemd"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib/systemd/system"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib/tmpfiles.d"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/lib/sysusers.d"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib64"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig"
   "%ignore ${CMAKE_INSTALL_PREFIX}/sbin"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/aclocal"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/doc"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man"
-  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man1*"
-  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man8*"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man1"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man8"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/pkgconfig"
   )
 
-SET(CPACK_RPM_server_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
+SET(CPACK_RPM_server_USER_FILELIST
+    ${ignored}
+    "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*"
+    "%config(noreplace) ${INSTALL_SYSCONFDIR}/logrotate.d/mysql"
+    )
 SET(CPACK_RPM_common_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONFDIR}/my.cnf")
 SET(CPACK_RPM_shared_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
 SET(CPACK_RPM_client_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
@@ -187,15 +227,16 @@ SET(CPACK_RPM_compat_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/
 SET(CPACK_RPM_compat_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
 
 MACRO(ALTERNATIVE_NAME real alt)
-  SET(ver "%{version}-%{release}")
-  IF (${epoch})
-    SET(ver "${epoch}:${ver}")
+  IF(${ARGC} GREATER 2)
+    SET(ver ${ARGV2})
+  ELSE()
+    SET(ver "${epoch}%{version}-%{release}")
   ENDIF()
 
   SET(p "CPACK_RPM_${real}_PACKAGE_PROVIDES")
   SET(${p} "${${p}} ${alt} = ${ver} ${alt}%{?_isa} = ${ver} config(${alt}) = ${ver}")
   SET(o "CPACK_RPM_${real}_PACKAGE_OBSOLETES")
-  SET(${o} "${${o}} ${alt} ${alt}%{?_isa}")
+  SET(${o} "${${o}} ${alt}")
 ENDMACRO(ALTERNATIVE_NAME)
 
 ALTERNATIVE_NAME("devel"  "mysql-devel")
@@ -204,11 +245,13 @@ ALTERNATIVE_NAME("test"   "mysql-test")
 
 # Argh! Different distributions call packages differently, to be a drop-in
 # replacement we have to fake distribution-specific dependencies
+# NOTE, use ALTERNATIVE_NAME when a package has a different name
+# in some distribution, it's not for adding new PROVIDES
 
 IF(RPM MATCHES "(rhel|centos)6")
   ALTERNATIVE_NAME("client" "mysql")
 ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
-  SET(epoch 1) # this is fedora
+  SET(epoch 1:) # this is fedora
   ALTERNATIVE_NAME("client" "mariadb")
   ALTERNATIVE_NAME("client" "mysql")
   ALTERNATIVE_NAME("devel"  "mariadb-devel")
@@ -216,7 +259,30 @@ ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
   ALTERNATIVE_NAME("server" "mysql-compat-server")
   ALTERNATIVE_NAME("test"   "mariadb-test")
 ELSEIF(RPM MATCHES "(rhel|centos)8")
-  SET(PYTHON_SHEBANG "/usr/bin/python3")
+  SET(epoch 3:)
+  ALTERNATIVE_NAME("backup" "mariadb-backup")
+  ALTERNATIVE_NAME("client" "mariadb")
+  ALTERNATIVE_NAME("common" "mariadb-common")
+  ALTERNATIVE_NAME("common" "mariadb-errmsg")
+  ALTERNATIVE_NAME("server" "mariadb-server")
+  ALTERNATIVE_NAME("server" "mariadb-server-utils")
+  ALTERNATIVE_NAME("shared" "mariadb-connector-c" ${MARIADB_CONNECTOR_C_VERSION}-1)
+  ALTERNATIVE_NAME("shared" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
+  ALTERNATIVE_NAME("devel" "mariadb-connector-c-devel" ${MARIADB_CONNECTOR_C_VERSION}-1)
+  SETA(CPACK_RPM_client_PACKAGE_PROVIDES "mariadb-galera = 3:%{version}-%{release}")
+  SETA(CPACK_RPM_common_PACKAGE_PROVIDES "mariadb-galera-common = 3:%{version}-%{release}")
+  SETA(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-shared")
+ELSEIF(RPM MATCHES "sles")
+  ALTERNATIVE_NAME("server" "mariadb")
+  SETA(CPACK_RPM_server_PACKAGE_PROVIDES
+    "mysql = %{version}-%{release}"
+    "mariadb_${MAJOR_VERSION}${MINOR_VERSION} = %{version}-%{release}"
+    "mariadb-${MAJOR_VERSION}${MINOR_VERSION} = %{version}-%{release}"
+    "mariadb-server = %{version}-%{release}"
+  )
+ENDIF()
+IF(RPM MATCHES "fedora31" OR RPM MATCHES "(rhel|centos)8")
+  SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 ENDIF()
 
 # If we want to build build MariaDB-shared-compat,
@@ -249,6 +315,7 @@ IF(compat53 AND compat101)
 
   STRING(REPLACE "\n" " " compat_provides "${compat_provides}")
   STRING(REPLACE "\n" " " compat_obsoletes "${compat_obsoletes}")
+  STRING(REGEX REPLACE "[^ ]+\\([^ ]+ *" "" compat_obsoletes "${compat_obsoletes}")
   SETA(CPACK_RPM_compat_PACKAGE_PROVIDES "${compat_provides}")
   SETA(CPACK_RPM_compat_PACKAGE_OBSOLETES "${compat_obsoletes}")
 

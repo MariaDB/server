@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -115,19 +115,22 @@ operator<<(
 	return(s << ut_get_name(NULL, table_name.m_name));
 }
 
-/**********************************************************************//**
-Creates a table memory object.
+/** Create a table memory object.
+@param name     table name
+@param space    tablespace
+@param n_cols   total number of columns (both virtual and non-virtual)
+@param n_v_cols number of virtual columns
+@param flags    table flags
+@param flags2   table flags2
 @return own: table object */
 dict_table_t*
 dict_mem_table_create(
-/*==================*/
-	const char*	name,	/*!< in: table name */
-	fil_space_t*	space,	/*!< in: tablespace */
-	ulint		n_cols,	/*!< in: total number of columns including
-				virtual and non-virtual columns */
-	ulint		n_v_cols,/*!< in: number of virtual columns */
-	ulint		flags,	/*!< in: table flags */
-	ulint		flags2)	/*!< in: table flags2 */
+	const char*	name,
+	fil_space_t*	space,
+	ulint		n_cols,
+	ulint		n_v_cols,
+	ulint		flags,
+	ulint		flags2)
 {
 	dict_table_t*	table;
 	mem_heap_t*	heap;
@@ -148,6 +151,9 @@ dict_mem_table_create(
 	lock_table_lock_list_init(&table->locks);
 
 	UT_LIST_INIT(table->indexes, &dict_index_t::indexes);
+#ifdef BTR_CUR_HASH_ADAPT
+	UT_LIST_INIT(table->freed_indexes, &dict_index_t::indexes);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	table->heap = heap;
 
@@ -168,15 +174,8 @@ dict_mem_table_create(
 	table->v_cols = static_cast<dict_v_col_t*>(
 		mem_heap_alloc(heap, n_v_cols * sizeof(*table->v_cols)));
 
-	/* true means that the stats latch will be enabled -
-	dict_table_stats_lock() will not be noop. */
-	dict_table_stats_latch_create(table, true);
-
 	table->autoinc_lock = static_cast<ib_lock_t*>(
 		mem_heap_alloc(heap, lock_get_size()));
-
-	/* lazy creation of table autoinc latch */
-	dict_table_autoinc_create_lazy(table);
 
 	/* If the table has an FTS index or we are in the process
 	of building one, create the table->fts */
@@ -204,6 +203,10 @@ dict_mem_table_free(
 {
 	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+	ut_ad(UT_LIST_GET_LEN(table->indexes) == 0);
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(UT_LIST_GET_LEN(table->freed_indexes) == 0);
+#endif /* BTR_CUR_HASH_ADAPT */
 	ut_d(table->cached = FALSE);
 
 	if (dict_table_has_fts_index(table)
@@ -216,9 +219,7 @@ dict_mem_table_free(
 		}
 	}
 
-	dict_table_autoinc_destroy(table);
 	dict_mem_table_free_foreign_vcol_set(table);
-	dict_table_stats_latch_destroy(table);
 
 	table->foreign_set.~dict_foreign_set();
 	table->referenced_set.~dict_foreign_set();
@@ -592,15 +593,14 @@ dict_mem_table_col_rename_low(
 				}
 			}
 
-			dict_index_t* new_index = dict_foreign_find_index(
+			/* New index can be null if InnoDB already dropped
+			the foreign index when FOREIGN_KEY_CHECKS is
+			disabled */
+			foreign->foreign_index = dict_foreign_find_index(
 				foreign->foreign_table, NULL,
 				foreign->foreign_col_names,
 				foreign->n_fields, NULL, true, false,
 				NULL, NULL, NULL);
-			/* There must be an equivalent index in this case. */
-			ut_ad(new_index != NULL);
-
-			foreign->foreign_index = new_index;
 
 		} else {
 
@@ -623,7 +623,41 @@ dict_mem_table_col_rename_low(
 
 		foreign = *it;
 
-		ut_ad(foreign->referenced_index != NULL);
+		if (!foreign->referenced_index) {
+			/* Referenced index could have been dropped
+			when foreign_key_checks is disabled. In that case,
+			rename the corresponding referenced_col_names and
+			find the equivalent referenced index also */
+			for (unsigned f = 0; f < foreign->n_fields; f++) {
+
+				const char*& rc =
+					foreign->referenced_col_names[f];
+				if (strcmp(rc, from)) {
+					continue;
+				}
+
+				if (to_len <= strlen(rc)) {
+					memcpy(const_cast<char*>(rc), to,
+					       to_len + 1);
+				} else {
+					rc = static_cast<char*>(
+						mem_heap_dup(
+							foreign->heap,
+							to, to_len + 1));
+				}
+			}
+
+			/* New index can be null if InnoDB already dropped
+			the referenced index when FOREIGN_KEY_CHECKS is
+			disabled */
+			foreign->referenced_index = dict_foreign_find_index(
+				foreign->referenced_table, NULL,
+				foreign->referenced_col_names,
+				foreign->n_fields, NULL, true, false,
+				NULL, NULL, NULL);
+			return;
+		}
+
 
 		for (unsigned f = 0; f < foreign->n_fields; f++) {
 			/* foreign->referenced_col_names[] need to be
@@ -738,10 +772,9 @@ dict_mem_index_create(
 
 	dict_mem_fill_index_struct(index, heap, index_name, type, n_fields);
 
-	dict_index_zip_pad_mutex_create_lazy(index);
+	mysql_mutex_init(0, &index->zip_pad.mutex, NULL);
 
 	if (type & DICT_SPATIAL) {
-		mutex_create(LATCH_ID_RTR_SSN_MUTEX, &index->rtr_ssn.mutex);
 		index->rtr_track = static_cast<rtr_info_track_t*>(
 					mem_heap_alloc(
 						heap,
@@ -898,7 +931,7 @@ dict_mem_fill_vcol_from_v_indexes(
 		Later virtual column set will be
 		refreshed during loading of table. */
 		if (!dict_index_has_virtual(index)
-		    || index->has_new_v_col) {
+		    || index->has_new_v_col()) {
 			continue;
 		}
 
@@ -1054,7 +1087,7 @@ dict_mem_index_free(
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	dict_index_zip_pad_mutex_destroy(index);
+	mysql_mutex_destroy(&index->zip_pad.mutex);
 
 	if (dict_index_is_spatial(index)) {
 		rtr_info_active::iterator	it;
@@ -1067,7 +1100,6 @@ dict_mem_index_free(
 			rtr_info->index = NULL;
 		}
 
-		mutex_destroy(&index->rtr_ssn.mutex);
 		mutex_destroy(&index->rtr_track->rtr_active_mutex);
 		UT_DELETE(index->rtr_track->rtr_active);
 	}
@@ -1157,6 +1189,24 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 	std::for_each(fk_set.begin(), fk_set.end(), dict_foreign_print(out));
 	out << "]" << std::endl;
 	return(out);
+}
+
+/** Check whether fulltext index gets affected by foreign
+key constraint. */
+bool dict_foreign_t::affects_fulltext() const
+{
+  if (foreign_table == referenced_table || !foreign_table->fts)
+    return false;
+
+  for (ulint i= 0; i < n_fields; i++)
+  {
+    const dict_col_t *col= dict_index_get_nth_col(foreign_index, i);
+    if (dict_table_is_fts_column(foreign_table->fts->indexes, col->ind,
+                                 col->is_virtual()) != ULINT_UNDEFINED)
+      return true;
+  }
+
+  return false;
 }
 
 /** Adjust clustered index metadata for instant ADD COLUMN.
@@ -1453,7 +1503,7 @@ void dict_table_t::rollback_instant(unsigned n)
 bool
 dict_index_t::vers_history_row(
 	const rec_t*		rec,
-	const ulint*		offsets)
+	const rec_offs*		offsets)
 {
 	ut_ad(is_primary());
 
@@ -1484,8 +1534,8 @@ dict_index_t::vers_history_row(
 	bool error = false;
 	mem_heap_t* heap = NULL;
 	dict_index_t* clust_index = NULL;
-	ulint offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint* offsets = offsets_;
+	rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs* offsets = offsets_;
 	rec_offs_init(offsets_);
 
 	mtr_t mtr;
@@ -1494,7 +1544,8 @@ dict_index_t::vers_history_row(
 	rec_t* clust_rec =
 	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, this, &clust_index, &mtr);
 	if (clust_rec) {
-		offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
+		offsets = rec_get_offsets(clust_rec, clust_index, offsets,
+					  clust_index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 
 		history_row = clust_index->vers_history_row(clust_rec, offsets);

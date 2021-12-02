@@ -10,7 +10,7 @@ sub PUSHED
   open($copyfh, '>', "$::opt_vardir/log/stdout.log")
     or die "open(>$::opt_vardir/log/stdout.log): $!"
       unless $copyfh;
- bless { }, shift;
+  bless { }, shift;
 }
 
 sub WRITE

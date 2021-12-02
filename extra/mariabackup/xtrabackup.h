@@ -25,6 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "datasink.h"
 #include "xbstream.h"
 #include "changed_page_bitmap.h"
+#include <set>
 
 struct xb_delta_info_t
 {
@@ -33,6 +34,32 @@ struct xb_delta_info_t
 
 	page_size_t	page_size;
 	ulint		space_id;
+};
+
+class CorruptedPages
+{
+public:
+  CorruptedPages();
+  ~CorruptedPages();
+  void add_page(const char *file_name, ulint space_id, ulint page_no);
+  bool contains(ulint space_id, ulint page_no) const;
+  void drop_space(ulint space_id);
+  void rename_space(ulint space_id, const std::string &new_name);
+  bool print_to_file(const char *file_name) const;
+  void read_from_file(const char *file_name);
+  bool empty() const;
+  void zero_out_free_pages();
+
+private:
+  void add_page_no_lock(const char *space_name, ulint space_id, ulint page_no,
+                        bool convert_space_name);
+  struct space_info_t {
+    std::string space_name;
+    std::set<ulint> pages;
+  };
+  typedef std::map<ulint, space_info_t> container_t;
+  mutable pthread_mutex_t m_mutex;
+  container_t m_spaces;
 };
 
 /* value of the --incremental option */
@@ -110,6 +137,7 @@ extern my_bool		opt_remove_original;
 extern my_bool		opt_extended_validation;
 extern my_bool		opt_encrypted_backup;
 extern my_bool		opt_lock_ddl_per_table;
+extern my_bool    opt_log_innodb_page_corruption;
 
 extern char		*opt_incremental_history_name;
 extern char		*opt_incremental_history_uuid;
@@ -144,6 +172,8 @@ enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_ON,
 			BINLOG_INFO_AUTO};
 
 extern ulong opt_binlog_info;
+
+extern ulong xtrabackup_innodb_force_recovery;
 
 void xtrabackup_io_throttling(void);
 my_bool xb_write_delta_metadata(const char *filename,
@@ -194,4 +224,14 @@ void mdl_lock_init();
 void mdl_lock_table(ulint space_id);
 void mdl_unlock_all();
 bool ends_with(const char *str, const char *suffix);
+
+typedef void (*insert_entry_func_t)(const char*);
+
+/* Scan string and load filter entries from it.
+@param[in] list string representing a list
+@param[in] delimiters delimiters of entries
+@param[in] ins callback to add entry */
+void xb_load_list_string(char *list, const char *delimiters,
+                         insert_entry_func_t ins);
+void register_ignore_db_dirs_filter(const char *name);
 #endif /* XB_XTRABACKUP_H */

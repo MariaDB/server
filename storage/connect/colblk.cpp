@@ -79,7 +79,7 @@ COLBLK::COLBLK(PCOL col1, PTDB tdbp)
   if (trace(2))
     htrc(" copying COLBLK %s from %p to %p\n", Name, col1, this);
 
-  if (tdbp)
+  if (tdbp) {
     // Attach the new column to the table block
     if (!tdbp->GetColumns())
       tdbp->SetColumns(this);
@@ -88,6 +88,7 @@ COLBLK::COLBLK(PCOL col1, PTDB tdbp)
 
       colp->Next = this;
       } // endelse
+  }
 
   } // end of COLBLK copy constructor
 
@@ -297,9 +298,9 @@ FIDBLK::FIDBLK(PCOLUMN cp, OPVAL op) : SPCBLK(cp), Op(op)
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
-#if defined(__WIN__)
+#if defined(_WIN32)
   Format.Prec = 1;          // Case insensitive
-#endif   // __WIN__
+#endif   // _WIN32
   Constant = (!To_Tdb->GetDef()->GetMultiple() &&
               To_Tdb->GetAmType() != TYPE_AM_PLG &&
               To_Tdb->GetAmType() != TYPE_AM_PLM);

@@ -185,18 +185,18 @@ in default connection
 disconnect proxy_admin_con;
 SHOW GRANTS FOR grant_plug;
 Grants for grant_plug@%
-GRANT ALL PRIVILEGES ON *.* TO 'grant_plug'@'%' IDENTIFIED VIA test_plugin_server USING 'grant_plug_dest'
+GRANT ALL PRIVILEGES ON *.* TO `grant_plug`@`%` IDENTIFIED VIA test_plugin_server USING 'grant_plug_dest'
 GRANT PROXY ON 'future_user'@'%' TO 'grant_plug'@'%'
 REVOKE PROXY ON future_user FROM grant_plug;
 SHOW GRANTS FOR grant_plug;
 Grants for grant_plug@%
-GRANT ALL PRIVILEGES ON *.* TO 'grant_plug'@'%' IDENTIFIED VIA test_plugin_server USING 'grant_plug_dest'
+GRANT ALL PRIVILEGES ON *.* TO `grant_plug`@`%` IDENTIFIED VIA test_plugin_server USING 'grant_plug_dest'
 ## testing drop user
 CREATE USER test_drop@localhost;
 GRANT PROXY ON future_user TO test_drop@localhost;
 SHOW GRANTS FOR test_drop@localhost;
 Grants for test_drop@localhost
-GRANT USAGE ON *.* TO 'test_drop'@'localhost'
+GRANT USAGE ON *.* TO `test_drop`@`localhost`
 GRANT PROXY ON 'future_user'@'%' TO 'test_drop'@'localhost'
 DROP USER test_drop@localhost;
 SELECT * FROM mysql.proxies_priv WHERE Host = 'test_drop' AND User = 'localhost';

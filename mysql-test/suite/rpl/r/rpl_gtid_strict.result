@@ -27,16 +27,17 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 SET server_id= 3;
 SET gtid_seq_no= 3;
 ERROR HY000: An attempt was made to binlog GTID 0-3-3 which would create an out-of-order sequence number with existing GTID 0-1-3, and gtid strict mode is enabled
-SET SESSION debug_dbug="+d,ignore_set_gtid_seq_no_check";
+SET @old_dbug = @@session.debug_dbug;
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
 SET gtid_seq_no= 3;
-SET SESSION debug_dbug="-d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug=@old_dbug;
 INSERT INTO t1 VALUES (2);
 ERROR HY000: An attempt was made to binlog GTID 0-3-3 which would create an out-of-order sequence number with existing GTID 0-1-3, and gtid strict mode is enabled
 SET gtid_seq_no= 2;
 ERROR HY000: An attempt was made to binlog GTID 0-3-2 which would create an out-of-order sequence number with existing GTID 0-1-3, and gtid strict mode is enabled
-SET SESSION debug_dbug="+d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
 SET gtid_seq_no= 2;
-SET SESSION debug_dbug="-d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug=@old_dbug;
 INSERT INTO t1 VALUES (3);
 ERROR HY000: An attempt was made to binlog GTID 0-3-2 which would create an out-of-order sequence number with existing GTID 0-1-3, and gtid strict mode is enabled
 SET server_id= 1;
@@ -62,9 +63,9 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 SET server_id= 3;
 SET gtid_seq_no= 1;
 ERROR HY000: An attempt was made to binlog GTID 0-3-1 which would create an out-of-order sequence number with existing GTID 0-1-4, and gtid strict mode is enabled
-SET SESSION debug_dbug="+d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
 SET gtid_seq_no= 1;
-SET SESSION debug_dbug="-d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug=@old_dbug;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
 ERROR HY000: An attempt was made to binlog GTID 0-3-1 which would create an out-of-order sequence number with existing GTID 0-1-4, and gtid strict mode is enabled
 SET sql_log_bin= 0;
@@ -73,9 +74,9 @@ SET sql_log_bin= 1;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
 SET gtid_seq_no= 1;
 ERROR HY000: An attempt was made to binlog GTID 0-3-1 which would create an out-of-order sequence number with existing GTID 0-3-5, and gtid strict mode is enabled
-SET SESSION debug_dbug="+d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
 SET gtid_seq_no= 1;
-SET SESSION debug_dbug="-d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug=@old_dbug;
 INSERT INTO t2 VALUES (1);
 ERROR HY000: An attempt was made to binlog GTID 0-3-1 which would create an out-of-order sequence number with existing GTID 0-3-5, and gtid strict mode is enabled
 SET server_id= 1;

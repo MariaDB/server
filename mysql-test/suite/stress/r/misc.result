@@ -1,0 +1,9 @@
+#
+# MDEV-22339 - Assertion `str_length < len' failed in
+#              Binary_string::realloc_raw
+#
+CREATE TABLE t1(a INT) ENGINE=MyISAM;
+connect con1, localhost, root;
+disconnect con1;
+connection default;
+DROP TABLE t1;

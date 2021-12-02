@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -770,7 +770,6 @@ DECLARE_THREAD(fts_parallel_tokenization)(
 	row_merge_block_t**	crypt_block;
 	pfs_os_file_t		tmpfd[FTS_NUM_AUX_INDEX];
 	ulint			mycount[FTS_NUM_AUX_INDEX];
-	ib_uint64_t		total_rec = 0;
 	ulint			num_doc_processed = 0;
 	doc_id_t		last_doc_id = 0;
 	mem_heap_t*		blob_heap = NULL;
@@ -865,7 +864,8 @@ loop:
 
 		num_doc_processed++;
 
-		if (fts_enable_diag_print && num_doc_processed % 10000 == 1) {
+		if (UNIV_UNLIKELY(fts_enable_diag_print)
+		    && num_doc_processed % 10000 == 1) {
 			ib::info() << "Number of documents processed: "
 				<< num_doc_processed;
 #ifdef FTS_INTERNAL_DIAG_PRINT
@@ -903,7 +903,7 @@ loop:
 			goto func_exit;
 		}
 
-		UNIV_MEM_INVALID(block[t_ctx.buf_used], srv_sort_buf_size);
+		MEM_UNDEFINED(block[t_ctx.buf_used], srv_sort_buf_size);
 		buf[t_ctx.buf_used] = row_merge_buf_empty(buf[t_ctx.buf_used]);
 		mycount[t_ctx.buf_used] += t_ctx.rows_added[t_ctx.buf_used];
 		t_ctx.rows_added[t_ctx.buf_used] = 0;
@@ -924,7 +924,7 @@ loop:
 				<< " records, the sort queue has "
 				<< UT_LIST_GET_LEN(psort_info->fts_doc_list)
 				<< " records. But sort cannot get the next"
-				" records";
+				" records during alter table " << table->name;
 			goto exit;
 		}
 	} else if (psort_info->state == FTS_PARENT_EXITING) {
@@ -997,12 +997,14 @@ exit:
 					goto func_exit;
 				}
 
-				UNIV_MEM_INVALID(block[i], srv_sort_buf_size);
+#ifdef HAVE_valgrind
+				MEM_UNDEFINED(block[i], srv_sort_buf_size);
 
 				if (crypt_block[i]) {
-					UNIV_MEM_INVALID(crypt_block[i],
-							 srv_sort_buf_size);
+					MEM_UNDEFINED(crypt_block[i],
+						      srv_sort_buf_size);
 				}
+#endif /* HAVE_valgrind */
 			}
 
 			buf[i] = row_merge_buf_empty(buf[i]);
@@ -1010,7 +1012,7 @@ exit:
 		}
 	}
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		DEBUG_FTS_SORT_PRINT("  InnoDB_FTS: start merge sort\n");
 	}
 
@@ -1036,12 +1038,11 @@ exit:
 			goto func_exit;
 		}
 
-		total_rec += merge_file[i]->n_rec;
 		os_file_close(tmpfd[i]);
 	}
 
 func_exit:
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		DEBUG_FTS_SORT_PRINT("  InnoDB_FTS: complete merge sort\n");
 	}
 
@@ -1216,11 +1217,11 @@ row_merge_write_fts_word(
 
 		error = row_merge_write_fts_node(ins_ctx, &word->text, fts_node);
 
-		if (error != DB_SUCCESS) {
-			ib::error() << "Failed to write word "
-				<< word->text.f_str << " to FTS auxiliary"
-				" index table, error (" << ut_strerr(error)
-				<< ")";
+		if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+			ib::error() << "Failed to write word to FTS auxiliary"
+				" index table "
+				<< ins_ctx->btr_bulk->table_name()
+				<< ", error " << error;
 			ret = error;
 		}
 
@@ -1372,7 +1373,7 @@ row_fts_sel_tree_propagate(
 	ulint		propogated,	/*<! in: tree node propagated */
 	int*		sel_tree,	/*<! in: selection tree */
 	const mrec_t**	mrec,		/*<! in: sort record */
-	ulint**		offsets,	/*<! in: record offsets */
+	rec_offs**	offsets,	/*<! in: record offsets */
 	dict_index_t*	index)		/*<! in/out: FTS index */
 {
 	ulint	parent;
@@ -1422,7 +1423,7 @@ row_fts_sel_tree_update(
 	ulint		propagated,	/*<! in: node to propagate up */
 	ulint		height,		/*<! in: tree height */
 	const mrec_t**	mrec,		/*<! in: sort record */
-	ulint**		offsets,	/*<! in: record offsets */
+	rec_offs**	offsets,	/*<! in: record offsets */
 	dict_index_t*	index)		/*<! in: index dictionary */
 {
 	ulint	i;
@@ -1444,7 +1445,7 @@ row_fts_build_sel_tree_level(
 	int*		sel_tree,	/*<! in/out: selection tree */
 	ulint		level,		/*<! in: selection tree level */
 	const mrec_t**	mrec,		/*<! in: sort record */
-	ulint**		offsets,	/*<! in: record offsets */
+	rec_offs**	offsets,	/*<! in: record offsets */
 	dict_index_t*	index)		/*<! in: index dictionary */
 {
 	ulint	start;
@@ -1504,7 +1505,7 @@ row_fts_build_sel_tree(
 /*===================*/
 	int*		sel_tree,	/*<! in/out: selection tree */
 	const mrec_t**	mrec,		/*<! in: sort record */
-	ulint**		offsets,	/*<! in: record offsets */
+	rec_offs**	offsets,	/*<! in: record offsets */
 	dict_index_t*	index)		/*<! in: index dictionary */
 {
 	ulint	treelevel = 1;
@@ -1528,10 +1529,11 @@ row_fts_build_sel_tree(
 		sel_tree[i + start] = int(i);
 	}
 
-	for (i = treelevel; --i; ) {
+	i = treelevel;
+	do {
 		row_fts_build_sel_tree_level(
-			sel_tree, i, mrec, offsets, index);
-	}
+			sel_tree, --i, mrec, offsets, index);
+	} while (i > 0);
 
 	return(treelevel);
 }
@@ -1554,7 +1556,7 @@ row_fts_merge_insert(
 	mem_heap_t*		heap;
 	dberr_t			error = DB_SUCCESS;
 	ulint*			foffs;
-	ulint**			offsets;
+	rec_offs**		offsets;
 	fts_tokenizer_word_t	new_word;
 	ib_vector_t*		positions;
 	doc_id_t		last_doc_id;
@@ -1593,7 +1595,7 @@ row_fts_merge_insert(
 		heap, sizeof (*b) * fts_sort_pll_degree);
 	foffs = (ulint*) mem_heap_alloc(
 		heap, sizeof(*foffs) * fts_sort_pll_degree);
-	offsets = (ulint**) mem_heap_alloc(
+	offsets = (rec_offs**) mem_heap_alloc(
 		heap, sizeof(*offsets) * fts_sort_pll_degree);
 	buf = (mrec_buf_t**) mem_heap_alloc(
 		heap, sizeof(*buf) * fts_sort_pll_degree);
@@ -1617,10 +1619,10 @@ row_fts_merge_insert(
 
 		num = 1 + REC_OFFS_HEADER_SIZE
 			+ dict_index_get_n_fields(index);
-		offsets[i] = static_cast<ulint*>(mem_heap_zalloc(
+		offsets[i] = static_cast<rec_offs*>(mem_heap_zalloc(
 			heap, num * sizeof *offsets[i]));
-		offsets[i][0] = num;
-		offsets[i][1] = dict_index_get_n_fields(index);
+		rec_offs_set_n_alloc(offsets[i], num);
+		rec_offs_set_n_fields(offsets[i], dict_index_get_n_fields(index));
 		block[i] = psort_info[i].merge_block[id];
 		crypt_block[i] = psort_info[i].crypt_block[id];
 		b[i] = psort_info[i].merge_block[id];
@@ -1633,7 +1635,7 @@ row_fts_merge_insert(
 		count_diag += psort_info[i].merge_file[id]->n_rec;
 	}
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "InnoDB_FTS: to insert " << count_diag
 			<< " records";
 	}
@@ -1663,7 +1665,6 @@ row_fts_merge_insert(
 	aux_table = dict_table_open_on_name(aux_table_name, FALSE, FALSE,
 					    DICT_ERR_IGNORE_NONE);
 	ut_ad(aux_table != NULL);
-	dict_table_close(aux_table, FALSE, FALSE);
 	aux_index = dict_table_get_first_index(aux_table);
 
 	ut_ad(!aux_index->is_instant());
@@ -1722,7 +1723,6 @@ row_fts_merge_insert(
 	corresponding FTS index auxiliary tables */
 	for (;;) {
 		dtuple_t*	dtuple;
-		ulint		n_ext;
 		int		min_rec = 0;
 
 		if (fts_sort_pll_degree <= 2) {
@@ -1765,7 +1765,7 @@ row_fts_merge_insert(
 		}
 
 		dtuple = row_rec_to_index_entry_low(
-			mrec[min_rec], index, offsets[min_rec], &n_ext,
+			mrec[min_rec], index, offsets[min_rec],
 			tuple_heap);
 
 		row_fts_insert_tuple(
@@ -1800,11 +1800,13 @@ exit:
 	error = ins_ctx.btr_bulk->finish(error);
 	UT_DELETE(ins_ctx.btr_bulk);
 
-	trx_free(trx);
+	dict_table_close(aux_table, FALSE, FALSE);
+
+	trx->free();
 
 	mem_heap_free(heap);
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "InnoDB_FTS: inserted " << count << " records";
 	}
 

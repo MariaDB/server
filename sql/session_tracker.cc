@@ -189,7 +189,13 @@ bool sysvartrack_validate_value(THD *thd, const char *str, size_t len)
   char *token, *lasts= NULL;
   size_t rest= var_list.length;
 
-  if (!var_list.str || var_list.length == 0 ||
+  if (!var_list.str)
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0),
+             "session_track_system_variables", "NULL");
+    return false;
+  }
+  if (var_list.length == 0 ||
       !strcmp(var_list.str, "*"))
   {
     return false;
@@ -380,9 +386,10 @@ bool Session_sysvars_tracker::enable(THD *thd)
 bool Session_sysvars_tracker::update(THD *thd, set_var *var)
 {
   vars_list tool_list;
+  size_t length= 1;
   void *copy= var->save_result.string_value.str ?
               my_memdup(var->save_result.string_value.str,
-                        var->save_result.string_value.length + 1,
+                        length= var->save_result.string_value.length + 1,
                         MYF(MY_WME | MY_THREAD_SPECIFIC)) :
               my_strdup("", MYF(MY_WME | MY_THREAD_SPECIFIC));
 
@@ -402,7 +409,7 @@ bool Session_sysvars_tracker::update(THD *thd, set_var *var)
   m_parsed= true;
   orig_list.copy(&tool_list, thd);
   orig_list.construct_var_list(thd->variables.session_track_system_variables,
-                               var->save_result.string_value.length + 1);
+                               length);
   return false;
 }
 
@@ -436,8 +443,11 @@ bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
     show.name= svar->name.str;
     show.value= (char *) svar;
 
+    mysql_mutex_lock(&LOCK_global_system_variables);
     const char *value= get_one_variable(thd, &show, OPT_SESSION, SHOW_SYS, NULL,
                                         &charset, val_buf, &val_length);
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+
     if (is_plugin)
       mysql_mutex_unlock(&LOCK_plugin);
 
@@ -810,7 +820,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
         statement even for a transaction that isn't the first in an
         ongoing chain. Consider
 
-          SET TRANSACTION ISOLATION LEVEL READ UNCOMMITED;
+          SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
           START TRANSACTION READ ONLY, WITH CONSISTENT SNAPSHOT;
           # work
           COMMIT AND CHAIN;
@@ -818,7 +828,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
         If we switch away at this point, the replay in the new session
         needs to be
 
-          SET TRANSACTION ISOLATION LEVEL READ UNCOMMITED;
+          SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
           START TRANSACTION READ ONLY;
 
         When a transaction ends (COMMIT/ROLLBACK sans CHAIN), all
@@ -1221,18 +1231,27 @@ void Session_tracker::store(THD *thd, String *buf)
   }
 
   size_t length= buf->length() - start;
-  uchar *data= (uchar *)(buf->ptr() + start);
+  uchar *data;
   uint size;
 
   if ((size= net_length_size(length)) != 1)
   {
-    if (buf->reserve(size - 1, EXTRA_ALLOC))
+    if (buf->reserve(size - 1, 0))
     {
       buf->length(start); // it is safer to have 0-length block in case of error
       return;
     }
+
+    /*
+      The 'buf->reserve()' can change the buf->ptr() so we cannot
+      calculate the 'data' earlier.
+    */
+    buf->length(buf->length() + (size - 1));
+    data= (uchar *)(buf->ptr() + start);
     memmove(data + (size - 1), data, length);
   }
+  else
+    data= (uchar *)(buf->ptr() + start);
 
   net_store_length(data - 1, length);
 }

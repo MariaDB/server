@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2016, 2018, MariaDB Corporation
+   Copyright (c) 2016, 2020, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -69,6 +69,10 @@ bool Alter_info::set_requested_algorithm(const LEX_CSTRING *str)
   return false;
 }
 
+void Alter_info::set_requested_algorithm(enum_alter_table_algorithm algo_val)
+{
+  requested_algorithm= algo_val;
+}
 
 bool Alter_info::set_requested_lock(const LEX_CSTRING *str)
 {
@@ -86,13 +90,16 @@ bool Alter_info::set_requested_lock(const LEX_CSTRING *str)
   return false;
 }
 
-const char* Alter_info::algorithm() const
+const char* Alter_info::algorithm_clause(THD *thd) const
 {
-  switch (requested_algorithm) {
+  switch (algorithm(thd)) {
   case ALTER_TABLE_ALGORITHM_INPLACE:
     return "ALGORITHM=INPLACE";
   case ALTER_TABLE_ALGORITHM_COPY:
     return "ALGORITHM=COPY";
+  case ALTER_TABLE_ALGORITHM_NONE:
+    DBUG_ASSERT(0);
+    /* Fall through */
   case ALTER_TABLE_ALGORITHM_DEFAULT:
     return "ALGORITHM=DEFAULT";
   case ALTER_TABLE_ALGORITHM_NOCOPY:
@@ -120,13 +127,10 @@ const char* Alter_info::lock() const
 }
 
 
-bool Alter_info::supports_algorithm(THD *thd, enum_alter_inplace_result result,
+bool Alter_info::supports_algorithm(THD *thd,
                                     const Alter_inplace_info *ha_alter_info)
 {
-  if (requested_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
-    requested_algorithm = (Alter_info::enum_alter_table_algorithm) thd->variables.alter_algorithm;
-
-  switch (result) {
+  switch (ha_alter_info->inplace_supported) {
   case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
   case HA_ALTER_INPLACE_SHARED_LOCK:
   case HA_ALTER_INPLACE_NO_LOCK:
@@ -134,16 +138,16 @@ bool Alter_info::supports_algorithm(THD *thd, enum_alter_inplace_result result,
      return false;
   case HA_ALTER_INPLACE_COPY_NO_LOCK:
   case HA_ALTER_INPLACE_COPY_LOCK:
-    if (requested_algorithm >= Alter_info::ALTER_TABLE_ALGORITHM_NOCOPY)
+    if (algorithm(thd) >= Alter_info::ALTER_TABLE_ALGORITHM_NOCOPY)
     {
-      ha_alter_info->report_unsupported_error(algorithm(),
+      ha_alter_info->report_unsupported_error(algorithm_clause(thd),
                                               "ALGORITHM=INPLACE");
       return true;
     }
     return false;
   case HA_ALTER_INPLACE_NOCOPY_NO_LOCK:
   case HA_ALTER_INPLACE_NOCOPY_LOCK:
-    if (requested_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_INSTANT)
+    if (algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_INSTANT)
     {
       ha_alter_info->report_unsupported_error("ALGORITHM=INSTANT",
                                               "ALGORITHM=NOCOPY");
@@ -151,9 +155,9 @@ bool Alter_info::supports_algorithm(THD *thd, enum_alter_inplace_result result,
     }
     return false;
   case HA_ALTER_INPLACE_NOT_SUPPORTED:
-    if (requested_algorithm >= Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
+    if (algorithm(thd) >= Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
     {
-      ha_alter_info->report_unsupported_error(algorithm(),
+      ha_alter_info->report_unsupported_error(algorithm_clause(thd),
 					      "ALGORITHM=COPY");
       return true;
     }
@@ -167,14 +171,14 @@ bool Alter_info::supports_algorithm(THD *thd, enum_alter_inplace_result result,
 }
 
 
-bool Alter_info::supports_lock(THD *thd, enum_alter_inplace_result result,
+bool Alter_info::supports_lock(THD *thd,
                                const Alter_inplace_info *ha_alter_info)
 {
-  switch (result) {
+  switch (ha_alter_info->inplace_supported) {
   case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
     // If SHARED lock and no particular algorithm was requested, use COPY.
     if (requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED &&
-        requested_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
+        algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
         thd->variables.alter_algorithm ==
                 Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
          return false;
@@ -237,6 +241,14 @@ bool Alter_info::vers_prohibited(THD *thd) const
   return false;
 }
 
+Alter_info::enum_alter_table_algorithm
+Alter_info::algorithm(const THD *thd) const
+{
+  if (requested_algorithm == ALTER_TABLE_ALGORITHM_NONE)
+   return (Alter_info::enum_alter_table_algorithm) thd->variables.alter_algorithm;
+  return requested_algorithm;
+}
+
 
 Alter_table_ctx::Alter_table_ctx()
   : datetime_field(NULL), error_if_not_empty(false),
@@ -244,7 +256,7 @@ Alter_table_ctx::Alter_table_ctx()
     db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
     new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str),
     fk_error_if_delete_row(false), fk_error_id(NULL),
-    fk_error_table(NULL)
+    fk_error_table(NULL), modified_primary_key(false)
 #ifdef DBUG_ASSERT_EXISTS
     , tmp_table(false)
 #endif
@@ -264,7 +276,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
     tables_opened(tables_opened_arg),
     new_db(*new_db_arg), new_name(*new_name_arg),
     fk_error_if_delete_row(false), fk_error_id(NULL),
-    fk_error_table(NULL)
+    fk_error_table(NULL), modified_primary_key(false)
 #ifdef DBUG_ASSERT_EXISTS
     , tmp_table(false)
 #endif

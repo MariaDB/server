@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 # Copyright (c) 2002, 2003, 2005, 2006 MySQL AB
 #   Use is subject to license terms

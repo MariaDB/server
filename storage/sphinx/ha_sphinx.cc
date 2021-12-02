@@ -3048,7 +3048,7 @@ int ha_sphinx::get_rec ( byte * buf, const byte *, uint )
 	}
 
 	#if MYSQL_VERSION_ID>50100
-	my_bitmap_map * org_bitmap = dbug_tmp_use_all_columns ( table, table->write_set );
+	MY_BITMAP * org_bitmap = dbug_tmp_use_all_columns ( table, &table->write_set );
 	#endif
 	Field ** field = table->field;
 
@@ -3194,7 +3194,7 @@ int ha_sphinx::get_rec ( byte * buf, const byte *, uint )
 	m_iCurrentPos++;
 
 	#if MYSQL_VERSION_ID > 50100
-	dbug_tmp_restore_column_map ( table->write_set, org_bitmap );
+	dbug_tmp_restore_column_map ( &table->write_set, org_bitmap );
 	#endif
 
 	SPH_RET(0);
@@ -3351,7 +3351,7 @@ int ha_sphinx::delete_table ( const char * )
 // Renames a table from one name to another from alter table call.
 //
 // If you do not implement this, the default rename_table() is called from
-// handler.cc and it will delete all files with the file extentions returned
+// handler.cc and it will delete all files with the file extensions returned
 // by bas_ext().
 //
 // Called from sql_table.cc by mysql_rename_table().

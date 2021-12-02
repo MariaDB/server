@@ -36,14 +36,6 @@ explain extended select - a from t1;
 drop table t1;
 
 #
-# Wrong usage of functions
-#
-
-select 5 between 0 and 10 between 0 and 1,(5 between 0 and 10) between 0 and 1;
-select 1 and 2 between 2 and 10, 2 between 2 and 10 and 1;
-select 1 and 0 or 2, 2 or 1 and 0;
-
-#
 # Coercibility
 #
 select _koi8r'a' = _koi8r'A';
@@ -140,15 +132,6 @@ select mod(12.0, NULL)      as 'NULL';
 select mod(NULL, 2)         as 'NULL';
 select mod(NULL, 2.0)       as 'NULL';
 
-
-#
-# Bug#6726: NOT BETWEEN parse failure
-#
-create table t1 (a int, b int);
-insert into t1 values (1,2), (2,3), (3,4), (4,5);
-select * from t1 where a not between 1 and 2;
-select * from t1 where a not between 1 and 2 and b not between 3 and 4;
-drop table t1;
 
 #
 # Test for bug #12791: one of the arguments of LEAST/GREATEST is NULL

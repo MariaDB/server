@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -97,7 +97,7 @@ fts_config_get_value(
 
 	fts_table->suffix = "CONFIG";
 	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, true, "table_name", table_name);
+	pars_info_bind_id(info, "table_name", table_name);
 
 	graph = fts_parse_sql(
 		fts_table,
@@ -148,9 +148,7 @@ fts_config_create_index_param_name(
 	::strcpy(name, param);
 	name[len] = '_';
 
-	fts_write_object_id(index->id, name + len + 1,
-			    DICT_TF2_FLAG_IS_SET(index->table,
-						 DICT_TF2_FTS_AUX_HEX_NAME));
+	fts_write_object_id(index->id, name + len + 1);
 
 	return(name);
 }
@@ -219,7 +217,7 @@ fts_config_set_value(
 
 	fts_table->suffix = "CONFIG";
 	fts_get_table_name(fts_table, table_name, dict_locked);
-	pars_info_bind_id(info, true, "table_name", table_name);
+	pars_info_bind_id(info, "table_name", table_name);
 
 	graph = fts_parse_sql(
 		fts_table, info,
@@ -247,7 +245,7 @@ fts_config_set_value(
 			info, "value", value->f_str, value->f_len);
 
 		fts_get_table_name(fts_table, table_name, dict_locked);
-		pars_info_bind_id(info, true, "table_name", table_name);
+		pars_info_bind_id(info, "table_name", table_name);
 
 		graph = fts_parse_sql(
 			fts_table, info,
@@ -317,9 +315,7 @@ fts_config_get_index_ulint(
 	error = fts_config_get_index_value(trx, index, name, &value);
 
 	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-
-		ib::error() << "(" << ut_strerr(error) << ") reading `"
-			<< name << "'";
+		ib::error() << "(" << error << ") reading `" << name << "'";
 	} else {
 		*int_value = strtoul((char*) value.f_str, NULL, 10);
 	}
@@ -357,9 +353,7 @@ fts_config_set_index_ulint(
 	error = fts_config_set_index_value(trx, index, name, &value);
 
 	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-
-		ib::error() << "(" << ut_strerr(error) << ") writing `"
-			<< name << "'";
+		ib::error() << "(" << error << ") writing `" << name << "'";
 	}
 
 	ut_free(value.f_str);
@@ -391,8 +385,7 @@ fts_config_get_ulint(
 	error = fts_config_get_value(trx, fts_table, name, &value);
 
 	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-		ib::error() <<  "(" << ut_strerr(error) << ") reading `"
-			<< name << "'";
+		ib::error() <<  "(" << error << ") reading `" << name << "'";
 	} else {
 		*int_value = strtoul((char*) value.f_str, NULL, 10);
 	}
@@ -430,8 +423,7 @@ fts_config_set_ulint(
 	error = fts_config_set_value(trx, fts_table, name, &value);
 
 	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-		ib::error() <<  "(" << ut_strerr(error) << ") writing `"
-			<< name << "'";
+		ib::error() <<  "(" << error << ") writing `" << name << "'";
 	}
 
 	ut_free(value.f_str);

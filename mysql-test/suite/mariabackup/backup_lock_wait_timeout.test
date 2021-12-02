@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+CREATE TABLE t(i INT) ENGINE INNODB;
+
+connect (con1,localhost,root,,);
+BEGIN;
+LOCK TABLES t WRITE;
+
+--connection default
+
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--disable_result_log
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --ftwrl-wait-timeout=1 --target-dir=$targetdir;
+--enable_result_log
+
+--connection con1
+COMMIT;
+
+--connection default
+--disconnect con1
+
+DROP TABLE t;
+rmdir $targetdir;
+--source include/wait_until_count_sessions.inc

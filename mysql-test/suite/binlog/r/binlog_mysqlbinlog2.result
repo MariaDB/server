@@ -34,7 +34,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -43,7 +43,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -52,7 +52,7 @@ insert into t1 values(null, "b")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 SET TIMESTAMP=1773144/*!*/;
@@ -61,7 +61,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -70,7 +70,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -91,7 +91,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 use `test`/*!*/;
@@ -109,7 +109,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -118,7 +118,7 @@ insert into t1 values(null, "b")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 SET TIMESTAMP=1773144/*!*/;
@@ -127,7 +127,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -136,7 +136,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -157,7 +157,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 use `test`/*!*/;
@@ -175,7 +175,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -184,7 +184,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -217,7 +217,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -226,7 +226,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -247,7 +247,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 use `test`/*!*/;
@@ -274,7 +274,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 use `test`/*!*/;
@@ -292,7 +292,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -301,7 +301,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -334,7 +334,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -343,7 +343,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -377,7 +377,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -386,7 +386,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -395,7 +395,7 @@ insert into t1 values(null, "b")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 SET TIMESTAMP=1773144/*!*/;
@@ -404,7 +404,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -413,7 +413,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -424,7 +424,7 @@ COMMIT
 /*!*/;
 DELIMITER ;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=6/*!*/;
 use `test`/*!*/;
@@ -454,7 +454,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 use `test`/*!*/;
@@ -472,7 +472,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -481,7 +481,7 @@ insert into t1 values(null, "b")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 SET TIMESTAMP=1773144/*!*/;
@@ -490,7 +490,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -499,7 +499,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -510,7 +510,7 @@ COMMIT
 /*!*/;
 DELIMITER ;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=6/*!*/;
 use `test`/*!*/;
@@ -540,7 +540,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 use `test`/*!*/;
@@ -558,7 +558,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -567,7 +567,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -578,7 +578,7 @@ COMMIT
 /*!*/;
 DELIMITER ;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=6/*!*/;
 use `test`/*!*/;
@@ -620,7 +620,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -629,7 +629,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -638,7 +638,7 @@ insert into t1 values(null, "b")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 SET TIMESTAMP=1773144/*!*/;
@@ -647,7 +647,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -656,7 +656,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -667,7 +667,7 @@ COMMIT
 /*!*/;
 DELIMITER ;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 DELIMITER ;
 # End of log file
@@ -681,7 +681,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 use `test`/*!*/;
@@ -699,7 +699,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -708,7 +708,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -719,7 +719,7 @@ COMMIT
 /*!*/;
 DELIMITER ;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=6/*!*/;
 use `test`/*!*/;
@@ -761,7 +761,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -770,7 +770,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -803,7 +803,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -812,7 +812,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -821,7 +821,7 @@ insert into t1 values(null, "b")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 SET TIMESTAMP=1773144/*!*/;
@@ -830,7 +830,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -839,7 +839,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -860,7 +860,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 use `test`/*!*/;
@@ -878,7 +878,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -887,7 +887,7 @@ insert into t1 values(null, "b")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 SET TIMESTAMP=1773144/*!*/;
@@ -896,7 +896,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -905,7 +905,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -925,7 +925,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 use `test`/*!*/;
@@ -943,7 +943,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -952,7 +952,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -985,7 +985,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -994,7 +994,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1014,7 +1014,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 use `test`/*!*/;
@@ -1041,7 +1041,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 use `test`/*!*/;
@@ -1059,7 +1059,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1068,7 +1068,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1101,7 +1101,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1110,7 +1110,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1143,7 +1143,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1152,7 +1152,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1161,7 +1161,7 @@ insert into t1 values(null, "b")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 SET TIMESTAMP=1773144/*!*/;
@@ -1170,7 +1170,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1179,7 +1179,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1190,7 +1190,7 @@ COMMIT
 /*!*/;
 DELIMITER ;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=6/*!*/;
 use `test`/*!*/;
@@ -1220,7 +1220,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 use `test`/*!*/;
@@ -1238,7 +1238,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1247,7 +1247,7 @@ insert into t1 values(null, "b")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 SET TIMESTAMP=1773144/*!*/;
@@ -1256,7 +1256,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1265,7 +1265,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1276,7 +1276,7 @@ COMMIT
 /*!*/;
 DELIMITER ;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=6/*!*/;
 use `test`/*!*/;
@@ -1305,7 +1305,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 use `test`/*!*/;
@@ -1323,7 +1323,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1332,7 +1332,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1343,7 +1343,7 @@ COMMIT
 /*!*/;
 DELIMITER ;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=6/*!*/;
 use `test`/*!*/;
@@ -1385,7 +1385,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1394,7 +1394,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1403,7 +1403,7 @@ insert into t1 values(null, "b")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 SET TIMESTAMP=1773144/*!*/;
@@ -1412,7 +1412,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1421,7 +1421,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1444,7 +1444,7 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 use `test`/*!*/;
@@ -1462,7 +1462,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1471,7 +1471,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1482,7 +1482,7 @@ COMMIT
 /*!*/;
 DELIMITER ;
 DELIMITER /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=6/*!*/;
 use `test`/*!*/;
@@ -1524,7 +1524,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1533,7 +1533,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1566,7 +1566,7 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a int auto_increment not null primary key, b char(3))
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1575,7 +1575,7 @@ insert into t1 values(null, "a")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=2/*!*/;
 SET TIMESTAMP=1773142/*!*/;
@@ -1584,7 +1584,7 @@ insert into t1 values(null, "b")
 SET TIMESTAMP=1773142/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=3/*!*/;
 SET TIMESTAMP=1773144/*!*/;
@@ -1593,7 +1593,7 @@ insert into t1 values(null, "c")
 SET TIMESTAMP=1773144/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=4/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1602,7 +1602,7 @@ insert into t1 values(null, "d")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=5/*!*/;
 SET TIMESTAMP=1773146/*!*/;
@@ -1611,7 +1611,7 @@ insert into t1 values(null, "e")
 SET TIMESTAMP=1773146/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET INSERT_ID=6/*!*/;
 SET TIMESTAMP=1773143/*!*/;

@@ -244,5 +244,30 @@ SET NAMES utf8;
 
 
 --echo #
+--echo # MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
+--echo # 10.2 tests
+--echo #
+
+SET NAMES utf8, COLLATION_CONNECTION=utf16_hungarian_ci;
+CREATE TABLE t1(c ENUM('aaaaaaaa') CHARACTER SET 'Binary',d JSON);   # ERROR 1064 (42000): You have an error in your SQL syntax
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (c) VALUES (1);
+SELECT HEX(c) FROM t1;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1(c ENUM('aaaaaaaaa') CHARACTER SET 'Binary',d JSON);   # ERROR 1033 (HY000): Incorrect information in file: './test/t.frm'
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (c) VALUES (1);
+SELECT HEX(c) FROM t1;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1(c ENUM('aaaaaaaaaa') CHARACTER SET 'Binary',d JSON);   # Sig 11
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (c) VALUES (1);
+SELECT HEX(c) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

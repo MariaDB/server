@@ -307,7 +307,7 @@ TRN *trnman_new_trn(WT_THD *wt)
   if (!(trn= tmp.trn))
   {
     /*
-      trn should be completely initalized at create time to allow
+      trn should be completely initialized at create time to allow
       one to keep a known state on it.
       (Like redo_lns, which is assumed to be 0 at start of row handling
       and reset to zero before end of row handling)

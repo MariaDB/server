@@ -32,8 +32,7 @@ SET GLOBAL innodb_file_per_table=1;
 
 SET GLOBAL innodb_file_per_table=ON;
 create table t1 (a int not null, d varchar(15) not null, b
-varchar(198) not null, c char(156),
-fulltext ftsic(c)) engine=InnoDB
+varchar(198) not null, c char(156)) engine=InnoDB
 row_format=redundant;
 
 insert into t1 values(123, 'abcdef', 'jghikl', 'mnop');

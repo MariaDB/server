@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -79,6 +79,10 @@ public:
   Well_formed_prefix(CHARSET_INFO *cs, const char *str, size_t length)
    :Well_formed_prefix_status(cs, str, str + length, length), m_str(str)
   { }
+  Well_formed_prefix(CHARSET_INFO *cs, LEX_CSTRING str, size_t nchars)
+   :Well_formed_prefix_status(cs, str.str, str.str + str.length, nchars),
+    m_str(str.str)
+  { }
   size_t length() const { return m_source_end_pos - m_str; }
 };
 
@@ -126,6 +130,24 @@ size_t my_copy_with_hex_escaping(CHARSET_INFO *cs,
 uint convert_to_printable(char *to, size_t to_len,
                           const char *from, size_t from_len,
                           CHARSET_INFO *from_cs, size_t nbytes= 0);
+
+class Charset
+{
+  CHARSET_INFO *m_charset;
+public:
+  Charset() :m_charset(&my_charset_bin) { }
+  Charset(CHARSET_INFO *cs) :m_charset(cs) { }
+
+  CHARSET_INFO *charset() const { return m_charset; }
+  /*
+    Collation name without the character set name.
+    For example, in case of "latin1_swedish_ci",
+    this method returns "_swedish_ci".
+  */
+  LEX_CSTRING collation_specific_name() const;
+  bool encoding_allows_reinterpret_as(CHARSET_INFO *cs) const;
+  bool eq_collation_specific_names(CHARSET_INFO *cs) const;
+};
 
 class String : public Sql_alloc
 {
@@ -484,6 +506,10 @@ public:
   }
   bool append(const char *s, size_t size);
   bool append(const char *s, size_t arg_length, CHARSET_INFO *cs);
+  bool append(const LEX_CSTRING &s, CHARSET_INFO *cs)
+  {
+    return append(s.str, s.length, cs);
+  }
   bool append_ulonglong(ulonglong val);
   bool append_longlong(longlong val);
   bool append(IO_CACHE* file, uint32 arg_length);
@@ -568,7 +594,8 @@ public:
   }
   void q_append(const char *data, size_t data_len)
   {
-    memcpy(Ptr + str_length, data, data_len);
+    if (data_len)
+      memcpy(Ptr + str_length, data, data_len);
     DBUG_ASSERT(str_length <= UINT_MAX32 - data_len);
     str_length += (uint)data_len;
   }

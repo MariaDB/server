@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -277,7 +277,7 @@ protected:
   };
 
 
-  // String-to-number convertion methods for the old code compatibility
+  // String-to-number conversion methods for the old code compatibility
   longlong longlong_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
                                            const char *end) const
   {
@@ -358,7 +358,7 @@ public:
   /*
     Item context attributes.
     Comparison functions pass their attributes to propagate_equal_fields().
-    For exmple, for string comparison, the collation of the comparison
+    For example, for string comparison, the collation of the comparison
     operation is important inside propagate_equal_fields().
   */
   class Context
@@ -469,7 +469,7 @@ inline bool is_temporal_type_with_date(enum_field_types type)
 
 
 /**
-  Convert temporal real types as retuned by field->real_type()
+  Convert temporal real types as returned by field->real_type()
   to field type as returned by field->type().
   
   @param real_type  Real type.
@@ -825,6 +825,19 @@ public:
     DBUG_ASSERT(ls.length < UINT_MAX32);
     return store(ls.str, (uint) ls.length, cs);
   }
+
+#ifdef HAVE_valgrind
+  /**
+    Mark unused memory in the field as defined. Mainly used to ensure
+    that if we write full field to disk (for example in
+    Count_distinct_field::add(), we don't write unitalized data to
+    disk which would confuse valgrind or MSAN.
+  */
+  virtual void mark_unused_memory_as_defined() {}
+#else
+  void mark_unused_memory_as_defined() {}
+#endif
+
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
   /*
@@ -967,8 +980,9 @@ public:
   virtual void reset_fields() {}
   const uchar *ptr_in_record(const uchar *record) const
   {
-    my_ptrdiff_t l_offset= (my_ptrdiff_t) (record -  table->record[0]);
-    return ptr + l_offset;
+    my_ptrdiff_t l_offset= (my_ptrdiff_t) (ptr -  table->record[0]);
+    DBUG_ASSERT(l_offset >= 0 && table->s->rec_buff_length - l_offset > 0);
+    return record + l_offset;
   }
   virtual int set_default();
 
@@ -1068,9 +1082,13 @@ public:
     return type();
   }
   inline  int cmp(const uchar *str) { return cmp(ptr,str); }
-  virtual int cmp_max(const uchar *a, const uchar *b, uint max_len)
-    { return cmp(a, b); }
   virtual int cmp(const uchar *,const uchar *)=0;
+  /*
+    The following method is used for comparing prefix keys.
+    Currently it's only used in partitioning.
+  */
+  virtual int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len)
+  { return cmp(a, b); }
   virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U)
   { return memcmp(a,b,pack_length()); }
   virtual int cmp_offset(uint row_offset)
@@ -1241,6 +1259,13 @@ public:
 
   void make_sort_key(uchar *buff, uint length);
   virtual void make_send_field(Send_field *);
+
+  /*
+    Some implementations actually may write up to 8 bytes regardless of what
+    size was requested. This is due to the minimum value of the system variable
+    max_sort_length.
+  */
+
   virtual void sort_string(uchar *buff,uint length)=0;
   virtual bool optimize_range(uint idx, uint part) const;
   virtual void free() {}
@@ -1474,7 +1499,7 @@ public:
 
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
 
   bool vers_update_unversioned() const
@@ -1738,7 +1763,7 @@ public:
 	    uchar null_bit_arg, utype unireg_check_arg,
 	    const LEX_CSTRING *field_name_arg,
 	    const DTCollation &collation);
-  uint decimals() const { return NOT_FIXED_DEC; }
+  uint decimals() const { return is_created_from_null_item ? 0 : NOT_FIXED_DEC; }
   int  save_in_field(Field *to) { return save_in_field_str(to); }
   bool memcpy_field_possible(const Field *from) const
   {
@@ -3443,23 +3468,18 @@ public:
                                     length_bytes : 0);
   }
   Copy_func *get_copy_func(const Field *from) const;
-  bool memcpy_field_possible(const Field *from) const
-  {
-    return Field_str::memcpy_field_possible(from) &&
-           !compression_method() == !from->compression_method() &&
-           length_bytes == ((Field_varstring*) from)->length_bytes;
-  }
+  bool memcpy_field_possible(const Field *from) const;
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   using Field_str::store;
+#ifdef HAVE_valgrind
+  void mark_unused_memory_as_defined();
+#endif
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
   my_decimal *val_decimal(my_decimal *);
-  int cmp_max(const uchar *, const uchar *, uint max_length);
-  int cmp(const uchar *a,const uchar *b)
-  {
-    return cmp_max(a, b, ~0U);
-  }
+  int cmp(const uchar *a,const uchar *b);
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len);
   void sort_string(uchar *buff,uint length);
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
@@ -3523,7 +3543,7 @@ private:
   {
     return (field_length - 1) / field_charset->mbmaxlen;
   }
-  int cmp_max(const uchar *a_ptr, const uchar *b_ptr, uint max_len);
+  int cmp(const uchar *a_ptr, const uchar *b_ptr);
 
   /*
     Compressed fields can't have keys as two rows may have different
@@ -3689,9 +3709,8 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   my_decimal *val_decimal(my_decimal *);
-  int cmp_max(const uchar *, const uchar *, uint max_length);
-  int cmp(const uchar *a,const uchar *b)
-    { return cmp_max(a, b, ~0U); }
+  int cmp(const uchar *a,const uchar *b);
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len);
   int cmp(const uchar *a, uint32 a_length, const uchar *b, uint32 b_length);
   int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U);
   int key_cmp(const uchar *,const uchar*);
@@ -3765,6 +3784,12 @@ public:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
   void sql_type(String &str) const;
+  /**
+     Copy blob buffer into internal storage "value" and update record pointer.
+
+     @retval true     Memory allocation error
+     @retval false    Success
+  */
   inline bool copy()
   {
     uchar *tmp= get_ptr();
@@ -3776,6 +3801,33 @@ public:
     tmp=(uchar*) value.ptr();
     memcpy(ptr+packlength, &tmp, sizeof(char*));
     return 0;
+  }
+  void swap(String &inout, bool set_read_value)
+  {
+    if (set_read_value)
+      read_value.swap(inout);
+    else
+      value.swap(inout);
+  }
+  /**
+     Return pointer to blob cache or NULL if not cached.
+  */
+  String * cached(bool *set_read_value)
+  {
+    char *tmp= (char *) get_ptr();
+    if (!value.is_empty() && tmp == value.ptr())
+    {
+      *set_read_value= false;
+      return &value;
+    }
+
+    if (!read_value.is_empty() && tmp == read_value.ptr())
+    {
+      *set_read_value= true;
+      return &read_value;
+    }
+
+    return NULL;
   }
   /* store value for the duration of the current read record */
   inline void swap_value_and_read_value()
@@ -4088,7 +4140,7 @@ private:
     This is the reason:
     - Field_bit::cmp_binary() is only implemented in the base class
       (Field::cmp_binary()).
-    - Field::cmp_binary() currenly use pack_length() to calculate how
+    - Field::cmp_binary() currently uses pack_length() to calculate how
       long the data is.
     - pack_length() includes size of the bits stored in the NULL bytes
       of the record.
@@ -4147,7 +4199,7 @@ public:
   }
   int cmp_binary_offset(uint row_offset)
   { return cmp_offset(row_offset); }
-  int cmp_max(const uchar *a, const uchar *b, uint max_length);
+  int cmp_prefix(const uchar *a, const uchar *b, size_t prefix_len);
   int key_cmp(const uchar *a, const uchar *b)
   { return cmp_binary((uchar *) a, (uchar *) b); }
   int key_cmp(const uchar *str, uint length);
@@ -4377,7 +4429,8 @@ public:
    :Type_handler_hybrid_field_type(&type_handler_null),
     compression_method_ptr(0),
     comment(null_clex_str),
-    on_update(NULL), length(0), invisible(VISIBLE), decimals(0),
+    on_update(NULL), length(0), invisible(VISIBLE), char_length(0),
+    decimals(0),
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
@@ -4416,7 +4469,7 @@ public:
   }
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
   void create_length_to_internal_length_bit();
   void create_length_to_internal_length_newdecimal();
@@ -4760,6 +4813,15 @@ public:
   }
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;
+
+  bool is_some_bigint() const
+  {
+    return type_handler() == &type_handler_longlong ||
+           type_handler() == &type_handler_vers_trx_id;
+  }
+
+  bool vers_check_timestamp(const Lex_table_name &table_name) const;
+  bool vers_check_bigint(const Lex_table_name &table_name) const;
 };
 
 

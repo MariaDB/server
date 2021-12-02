@@ -357,16 +357,14 @@ Decrypt a page.
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	page_size		Page size
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or error
-@return true if page decrypted, false if not.*/
+@return DB_SUCCESS or error */
 UNIV_INTERN
-bool
+dberr_t
 fil_space_decrypt(
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	const page_size_t&	page_size,
-	byte*			src_frame,
-	dberr_t*		err);
+	byte*			src_frame);
 
 /******************************************************************
 Decrypt a page
@@ -496,5 +494,11 @@ encrypted, or corrupted.
 bool
 fil_space_verify_crypt_checksum(const byte* page, const page_size_t& page_size)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Add the tablespace to the rotation list if
+innodb_encrypt_rotate_key_age is 0 or encryption plugin does
+not do key version rotation
+@return whether the tablespace should be added to rotation list */
+bool fil_crypt_must_default_encrypt();
 
 #endif /* fil0crypt_h */

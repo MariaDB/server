@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -450,18 +450,9 @@ buf_flush_insert_into_flush_list(
 
 	incr_flush_list_size_in_bytes(block, buf_pool);
 
-#ifdef UNIV_DEBUG_VALGRIND
-	void*	p;
-
-	if (block->page.size.is_compressed()) {
-		p = block->page.zip.data;
-	} else {
-		p = block->frame;
-	}
-
-	UNIV_MEM_ASSERT_RW(p, block->page.size.physical());
-#endif /* UNIV_DEBUG_VALGRIND */
-
+	MEM_CHECK_DEFINED(block->page.size.is_compressed()
+			  ? block->page.zip.data : block->frame,
+			  block->page.size.physical());
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 	ut_a(buf_flush_validate_skip(buf_pool));
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
@@ -511,17 +502,9 @@ buf_flush_insert_sorted_into_flush_list(
 	ut_d(block->page.in_flush_list = TRUE);
 	block->page.oldest_modification = lsn;
 
-#ifdef UNIV_DEBUG_VALGRIND
-	void*	p;
-
-	if (block->page.size.is_compressed()) {
-		p = block->page.zip.data;
-	} else {
-		p = block->frame;
-	}
-
-	UNIV_MEM_ASSERT_RW(p, block->page.size.physical());
-#endif /* UNIV_DEBUG_VALGRIND */
+	MEM_CHECK_DEFINED(block->page.size.is_compressed()
+			  ? block->page.zip.data : block->frame,
+			  block->page.size.physical());
 
 	prev_b = NULL;
 
@@ -579,18 +562,11 @@ buf_flush_ready_for_replace(
 #endif /* UNIV_DEBUG */
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(bpage->in_LRU_list);
+	ut_a(buf_page_in_file(bpage));
 
-	if (buf_page_in_file(bpage)) {
-
-		return(bpage->oldest_modification == 0
-		       && bpage->buf_fix_count == 0
-		       && buf_page_get_io_fix(bpage) == BUF_IO_NONE);
-	}
-
-	ib::fatal() << "Buffer block " << bpage << " state " <<  bpage->state
-		<< " in the LRU list!";
-
-	return(FALSE);
+	return bpage->oldest_modification == 0
+		&& bpage->buf_fix_count == 0
+		&& buf_page_get_io_fix(bpage) == BUF_IO_NONE;
 }
 
 /********************************************************************//**
@@ -1071,10 +1047,8 @@ buf_flush_write_block_low(
 	case BUF_BLOCK_ZIP_DIRTY:
 		frame = bpage->zip.data;
 
-		mach_write_to_8(frame + FIL_PAGE_LSN,
-				bpage->newest_modification);
-
-		ut_a(page_zip_verify_checksum(frame, bpage->size.physical()));
+		buf_flush_update_zip_checksum(frame, bpage->size.physical(),
+					      bpage->newest_modification);
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		frame = bpage->zip.data;
@@ -1419,9 +1393,11 @@ buf_flush_try_neighbors(
 		}
 	}
 
-	const ulint	space_size = fil_space_get_size(page_id.space());
-	if (high > space_size) {
-		high = space_size;
+	if (fil_space_t *s = fil_space_acquire_for_io(page_id.space())) {
+		high = s->max_page_number_for_io(high);
+		s->release_for_io();
+	} else {
+		return 0;
 	}
 
 	DBUG_PRINT("ib_buf", ("flush %u:%u..%u",
@@ -3134,7 +3110,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 	ulint	last_activity = srv_get_activity_count();
 	ulint	last_pages = 0;
 
-	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+	while (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		ulint	curr_time = ut_time_ms();
 
 		/* The page_cleaner skips sleep if the server is
@@ -3152,7 +3128,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 			ret_sleep = 0;
 		}
 
-		if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+		if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 			break;
 		}
 
@@ -3319,7 +3295,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 		ut_d(buf_flush_page_cleaner_disabled_loop());
 	}
 
-	ut_ad(srv_shutdown_state > 0);
+	ut_ad(srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
 	if (srv_fast_shutdown == 2
 	    || srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS) {
 		/* In very fast shutdown or when innodb failed to start, we

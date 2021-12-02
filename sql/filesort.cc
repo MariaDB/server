@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -242,7 +242,8 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     while (memory_available >= min_sort_memory)
     {
       ulonglong keys= memory_available / (param.rec_length + sizeof(char*));
-      param.max_keys_per_buffer= (uint) MY_MIN(num_rows, keys);
+      param.max_keys_per_buffer= (uint) MY_MAX(MERGEBUFF2,
+                                               MY_MIN(num_rows, keys));
       if (sort->alloc_sort_buffer(param.max_keys_per_buffer, param.rec_length))
         break;
       size_t old_memory_available= memory_available;
@@ -315,6 +316,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     param.max_keys_per_buffer=((param.max_keys_per_buffer *
                                 (param.rec_length + sizeof(char*))) /
                                param.rec_length - 1);
+    set_if_bigger(param.max_keys_per_buffer, 1);
     maxbuffer--;				// Offset from 0
     if (merge_many_buff(&param,
                         (uchar*) sort->get_sort_keys(),
@@ -476,7 +478,14 @@ uint Filesort::make_sortorder(THD *thd, JOIN *join, table_map first_table_bit)
     if (item->type() == Item::FIELD_ITEM)
       pos->field= ((Item_field*) item)->field;
     else if (item->type() == Item::SUM_FUNC_ITEM && !item->const_item())
-      pos->field= ((Item_sum*) item)->get_tmp_table_field();
+    {
+      // Aggregate, or Item_aggregate_ref
+      DBUG_ASSERT(first->type() == Item::SUM_FUNC_ITEM ||
+                  (first->type() == Item::REF_ITEM &&
+                   static_cast<Item_ref*>(first)->ref_type() ==
+                   Item_ref::AGGREGATE_REF));
+      pos->field= first->get_tmp_table_field();
+    }
     else if (item->type() == Item::COPY_STR_ITEM)
     {						// Blob patch
       pos->item= ((Item_copy*) item)->get_item();
@@ -591,6 +600,15 @@ const char* dbug_print_table_row(TABLE *table)
   output.append(")");
   
   return output.c_ptr_safe();
+}
+
+
+const char* dbug_print_row(TABLE *table, uchar *rec)
+{
+  table->move_fields(table->field, rec, table->record[0]);
+  const char* ret= dbug_print_table_row(table);
+  table->move_fields(table->field, table->record[0], rec);
+  return ret;
 }
 
 
@@ -853,12 +871,12 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   }
   if (!quick_select)
   {
-    (void) file->extra(HA_EXTRA_NO_CACHE);	/* End cacheing of records */
+    (void) file->extra(HA_EXTRA_NO_CACHE);	/* End caching of records */
     if (!next_pos)
       file->ha_rnd_end();
   }
 
-  /* Signal we should use orignal column read and write maps */
+  /* Signal we should use original column read and write maps */
   sort_form->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
 
   if (unlikely(thd->is_error()))

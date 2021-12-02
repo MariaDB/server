@@ -129,7 +129,7 @@ bool Events::check_if_system_tables_error()
 
 /**
   Reconstructs interval expression from interval type and expression
-  value that is in form of a value of the smalles entity:
+  value that is in form of a value of the smallest entity:
   For
     YEAR_MONTH - expression is in months
     DAY_MINUTE - expression is in minutes
@@ -1202,9 +1202,9 @@ Events::load_events_from_db(THD *thd)
 
 #ifdef WITH_WSREP
     /**
-      IF SST is done from a galera node that is also acting as MASTER
-      newly synced node in galera eco-system will also copy-over the event state
-      enabling duplicate event in galera eco-system.
+      If SST is done from a galera node that is also acting as MASTER
+      newly synced node in galera eco-system will also copy-over the
+      event state enabling duplicate event in galera eco-system.
       DISABLE such events if the current node is not event orginator.
       (Also, make sure you skip disabling it if is already disabled to avoid
        creation of redundant action)
@@ -1214,7 +1214,7 @@ Events::load_events_from_db(THD *thd)
       Infact, based on galera use-case it seems like it recommends to have each
       node with different server-id.
     */
-    if (et->originator != thd->variables.server_id)
+    if (WSREP(thd) && et->originator != thd->variables.server_id)
     {
         if (et->status == Event_parse_data::SLAVESIDE_DISABLED)
           continue;

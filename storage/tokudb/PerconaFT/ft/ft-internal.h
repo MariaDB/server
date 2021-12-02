@@ -76,11 +76,30 @@ enum ft_type {
     FT_CHECKPOINT_INPROGRESS
 };
 
+extern "C" {
+extern uint force_recovery;
+}
+
+extern int writing_rollback;
+
 // The ft_header is not managed by the cachetable.  Instead, it hangs off the cachefile as userdata.
 struct ft_header {
     enum ft_type type;
 
-    int dirty;
+    int dirty_;
+
+    void set_dirty() {
+        if(force_recovery) assert(writing_rollback);
+        dirty_ = 1;
+    }
+
+    void clear_dirty() {
+        dirty_ = 0;
+    }
+
+    bool dirty() {
+        return dirty_;
+    }
 
     // Free-running counter incremented once per checkpoint (toggling LSB).
     // LSB indicates which header location is used on disk so this

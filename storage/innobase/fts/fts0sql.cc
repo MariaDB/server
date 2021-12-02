@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -55,28 +55,23 @@ fts_get_table_id(
 					long */
 {
 	int		len;
-	bool		hex_name = DICT_TF2_FLAG_IS_SET(fts_table->table,
-						DICT_TF2_FTS_AUX_HEX_NAME);
 
 	ut_a(fts_table->table != NULL);
 
 	switch (fts_table->type) {
 	case FTS_COMMON_TABLE:
-		len = fts_write_object_id(fts_table->table_id, table_id,
-					  hex_name);
+		len = fts_write_object_id(fts_table->table_id, table_id);
 		break;
 
 	case FTS_INDEX_TABLE:
 
-		len = fts_write_object_id(fts_table->table_id, table_id,
-					  hex_name);
+		len = fts_write_object_id(fts_table->table_id, table_id);
 
 		table_id[len] = '_';
 		++len;
 		table_id += len;
 
-		len += fts_write_object_id(fts_table->index_id, table_id,
-					   hex_name);
+		len += fts_write_object_id(fts_table->index_id, table_id);
 		break;
 
 	default:
@@ -253,7 +248,7 @@ fts_get_select_columns_str(
 		sel_str = mem_heap_printf(heap, "sel%lu", (ulong) i);
 
 		/* Set copy_name to TRUE since it's dynamic. */
-		pars_info_bind_id(info, TRUE, sel_str, field->name);
+		pars_info_bind_id(info, sel_str, field->name);
 
 		str = mem_heap_printf(
 			heap, "%s%s$%s", str, (*str) ? ", " : "", sel_str);

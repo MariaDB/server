@@ -2344,6 +2344,14 @@ static int initialize_variables_for_repair(HA_CHECK *param,
 {
   MARIA_SHARE *share= info->s;
 
+  /*
+    We have to clear these variables first, as the cleanup-in-case-of-error
+    handling may touch these.
+  */
+  bzero((char*) sort_info,  sizeof(*sort_info));
+  bzero((char*) sort_param, sizeof(*sort_param));
+  bzero(&info->rec_cache, sizeof(info->rec_cache));
+
   if (share->data_file_type == NO_RECORD)
   {
     _ma_check_print_error(param,
@@ -2357,9 +2365,6 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   /* Repair code relies on share->state.state so we have to update it here */
   if (share->lock.update_status)
     (*share->lock.update_status)(info);
-
-  bzero((char*) sort_info,  sizeof(*sort_info));
-  bzero((char*) sort_param, sizeof(*sort_param));
 
   param->testflag|= T_REP;                     /* for easy checking */
   if (share->options & (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD))
@@ -2388,7 +2393,6 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   set_data_file_type(sort_info, info->s);
   sort_info->org_data_file_type= share->data_file_type;
 
-  bzero(&info->rec_cache, sizeof(info->rec_cache));
   info->rec_cache.file= info->dfile.file;
   info->update= (short) (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
 
@@ -2869,9 +2873,13 @@ err:
   _ma_reset_state(info);
 
   end_io_cache(&param->read_cache);
-  end_io_cache(&sort_info.new_info->rec_cache);
+  if (sort_info.new_info)
+  {
+    end_io_cache(&sort_info.new_info->rec_cache);
+    sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
+  }
   info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
-  sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
+
   sort_param.sort_info->info->in_check_table= 0;
   /* this below could fail, shouldn't we detect error? */
   if (got_error)
@@ -3199,6 +3207,7 @@ static int write_page(MARIA_SHARE *share, File file,
   args.page= buff;
   args.pageno= (pgcache_page_no_t) (pos / share->block_size);
   args.data= (uchar*) share;
+  args.crypt_buf= NULL;
   (* share->kfile.pre_write_hook)(&args);
   res= (int)my_pwrite(file, args.page, block_size, pos, myf_rw);
   (* share->kfile.post_write_hook)(res, &args);
@@ -4085,10 +4094,13 @@ err:
     maria_scan_end(sort_info.info);
   _ma_reset_state(info);
 
-  end_io_cache(&sort_info.new_info->rec_cache);
+  if (sort_info.new_info)
+  {
+    end_io_cache(&sort_info.new_info->rec_cache);
+    sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
+  }
   end_io_cache(&param->read_cache);
   info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
-  sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
   if (got_error)
   {
     if (! param->error_printed)
@@ -4190,7 +4202,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 			const char * name, my_bool rep_quick)
 {
   int got_error;
-  uint i,key, total_key_length, istep;
+  uint i,key, istep;
   ha_rows start_records;
   my_off_t new_header_length,del;
   File new_file;
@@ -4352,7 +4364,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     _ma_check_print_error(param,"Not enough memory for key!");
     goto err;
   }
-  total_key_length=0;
+#ifdef USING_SECOND_APPROACH
+  uint total_key_length=0;
+#endif
   rec_per_key_part= param->new_rec_per_key_part;
   share->state.state.records=share->state.state.del=share->state.split=0;
   share->state.state.empty=0;
@@ -4421,7 +4435,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
       if (keyseg->flag & HA_NULL_PART)
         sort_param[i].key_length++;
     }
+#ifdef USING_SECOND_APPROACH
     total_key_length+=sort_param[i].key_length;
+#endif
 
     if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
     {
@@ -4617,10 +4633,13 @@ err:
     the share by remove_io_thread() or it was not yet started (if the
     error happend before creating the thread).
   */
-  end_io_cache(&sort_info.new_info->rec_cache);
+  if (sort_info.new_info)
+  {
+    end_io_cache(&sort_info.new_info->rec_cache);
+    sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
+  }
   end_io_cache(&param->read_cache);
   info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
-  sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
   /*
     Destroy the new data cache in case of non-quick repair. All slave
     threads did either detach from the share by remove_io_thread()
@@ -6183,7 +6202,7 @@ end:
 }
 
 
-	/* write suffix to data file if neaded */
+/* Write suffix to data file if needed */
 
 int maria_write_data_suffix(MARIA_SORT_INFO *sort_info, my_bool fix_datafile)
 {

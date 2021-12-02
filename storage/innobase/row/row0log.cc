@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -351,7 +351,7 @@ row_log_online_op(
 	row_merge_buf_encode(), because here we do not encode
 	extra_size+1 (and reserve 0 as the end-of-chunk marker). */
 
-	size = rec_get_converted_size_temp(
+	size = rec_get_converted_size_temp<false>(
 		index, tuple->fields, tuple->n_fields, &extra_size);
 	ut_ad(size >= extra_size);
 	ut_ad(size <= sizeof log->tail.buf);
@@ -372,7 +372,7 @@ row_log_online_op(
 		goto err_exit;
 	}
 
-	UNIV_MEM_INVALID(log->tail.buf, sizeof log->tail.buf);
+	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
 
 	ut_ad(log->tail.bytes < srv_sort_buf_size);
 	avail_size = srv_sort_buf_size - log->tail.bytes;
@@ -399,7 +399,7 @@ row_log_online_op(
 		*b++ = (byte) extra_size;
 	}
 
-	rec_convert_dtuple_to_temp(
+	rec_convert_dtuple_to_temp<false>(
 		b + extra_size, index, tuple->fields, tuple->n_fields);
 	b += size;
 
@@ -422,7 +422,7 @@ row_log_online_op(
 			       log->tail.buf, avail_size);
 		}
 
-		UNIV_MEM_ASSERT_RW(buf, srv_sort_buf_size);
+		MEM_CHECK_DEFINED(buf, srv_sort_buf_size);
 
 		if (row_log_tmpfile(log) == OS_FILE_CLOSED) {
 			log->error = DB_OUT_OF_MEMORY;
@@ -457,8 +457,8 @@ write_failed:
 			index->type |= DICT_CORRUPT;
 		}
 
-		UNIV_MEM_INVALID(log->tail.block, srv_sort_buf_size);
-		UNIV_MEM_INVALID(buf, srv_sort_buf_size);
+		MEM_UNDEFINED(log->tail.block, srv_sort_buf_size);
+		MEM_UNDEFINED(buf, srv_sort_buf_size);
 
 		memcpy(log->tail.block, log->tail.buf + avail_size,
 		       mrec_size - avail_size);
@@ -468,7 +468,7 @@ write_failed:
 		ut_ad(b == log->tail.block + log->tail.bytes);
 	}
 
-	UNIV_MEM_INVALID(log->tail.buf, sizeof log->tail.buf);
+	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
 err_exit:
 	mutex_exit(&log->mutex);
 }
@@ -500,7 +500,7 @@ row_log_table_open(
 {
 	mutex_enter(&log->mutex);
 
-	UNIV_MEM_INVALID(log->tail.buf, sizeof log->tail.buf);
+	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
 
 	if (log->error != DB_SUCCESS) {
 err_exit:
@@ -560,7 +560,7 @@ row_log_table_close_func(
 			memcpy(buf + log->tail.bytes, log->tail.buf, avail);
 		}
 
-		UNIV_MEM_ASSERT_RW(buf, srv_sort_buf_size);
+		MEM_CHECK_DEFINED(buf, srv_sort_buf_size);
 
 		if (row_log_tmpfile(log) == OS_FILE_CLOSED) {
 			log->error = DB_OUT_OF_MEMORY;
@@ -592,8 +592,9 @@ row_log_table_close_func(
 write_failed:
 			log->error = DB_ONLINE_LOG_TOO_BIG;
 		}
-		UNIV_MEM_INVALID(log->tail.block, srv_sort_buf_size);
-		UNIV_MEM_INVALID(buf, srv_sort_buf_size);
+
+		MEM_UNDEFINED(log->tail.block, srv_sort_buf_size);
+		MEM_UNDEFINED(buf, srv_sort_buf_size);
 		memcpy(log->tail.block, log->tail.buf + avail, size - avail);
 		log->tail.bytes = size - avail;
 	} else {
@@ -602,7 +603,7 @@ write_failed:
 	}
 
 	log->tail.total += size;
-	UNIV_MEM_INVALID(log->tail.buf, sizeof log->tail.buf);
+	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
 err_exit:
 	mutex_exit(&log->mutex);
 
@@ -643,7 +644,7 @@ row_log_table_delete(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	const byte*	sys)	/*!< in: DB_TRX_ID,DB_ROLL_PTR that should
 				be logged, or NULL to use those in rec */
 {
@@ -740,7 +741,7 @@ row_log_table_delete(
 		      old_pk, old_pk->n_fields - 2)->len);
 	ut_ad(DATA_ROLL_PTR_LEN == dtuple_get_nth_field(
 		      old_pk, old_pk->n_fields - 1)->len);
-	old_pk_size = rec_get_converted_size_temp(
+	old_pk_size = rec_get_converted_size_temp<false>(
 		new_index, old_pk->fields, old_pk->n_fields,
 		&old_pk_extra_size);
 	ut_ad(old_pk_extra_size < 0x100);
@@ -753,7 +754,7 @@ row_log_table_delete(
 		*b++ = ROW_T_DELETE;
 		*b++ = static_cast<byte>(old_pk_extra_size);
 
-		rec_convert_dtuple_to_temp(
+		rec_convert_dtuple_to_temp<false>(
 			b + old_pk_extra_size, new_index,
 			old_pk->fields, old_pk->n_fields);
 
@@ -853,7 +854,7 @@ row_log_table_low_redundant(
 	rec_comp_status_t status = is_instant
 		? REC_STATUS_COLUMNS_ADDED : REC_STATUS_ORDINARY;
 
-	size = rec_get_converted_size_temp(
+	size = rec_get_converted_size_temp<true>(
 		index, tuple->fields, tuple->n_fields, &extra_size, status);
 	if (is_instant) {
 		size++;
@@ -873,7 +874,7 @@ row_log_table_low_redundant(
 		ut_ad(DATA_ROLL_PTR_LEN == dtuple_get_nth_field(
 			      old_pk, old_pk->n_fields - 1)->len);
 
-		old_pk_size = rec_get_converted_size_temp(
+		old_pk_size = rec_get_converted_size_temp<false>(
 			new_index, old_pk->fields, old_pk->n_fields,
 			&old_pk_extra_size);
 		ut_ad(old_pk_extra_size < 0x100);
@@ -890,7 +891,7 @@ row_log_table_low_redundant(
 			if (old_pk_size) {
 				*b++ = static_cast<byte>(old_pk_extra_size);
 
-				rec_convert_dtuple_to_temp(
+				rec_convert_dtuple_to_temp<false>(
 					b + old_pk_extra_size, new_index,
 					old_pk->fields, old_pk->n_fields);
 				b += old_pk_size;
@@ -913,7 +914,7 @@ row_log_table_low_redundant(
 			*b = status;
 		}
 
-		rec_convert_dtuple_to_temp(
+		rec_convert_dtuple_to_temp<true>(
 			b + extra_size, index, tuple->fields, tuple->n_fields,
 			status);
 		b += size;
@@ -934,7 +935,7 @@ row_log_table_low(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	bool		insert,	/*!< in: true if insert, false if update */
 	const dtuple_t*	old_pk)	/*!< in: old PRIMARY KEY value (if !insert
 				and a PRIMARY KEY is being created) */
@@ -1035,7 +1036,7 @@ row_log_table_low(
 		ut_ad(DATA_ROLL_PTR_LEN == dtuple_get_nth_field(
 			      old_pk, old_pk->n_fields - 1)->len);
 
-		old_pk_size = rec_get_converted_size_temp(
+		old_pk_size = rec_get_converted_size_temp<false>(
 			new_index, old_pk->fields, old_pk->n_fields,
 			&old_pk_extra_size);
 		ut_ad(old_pk_extra_size < 0x100);
@@ -1051,7 +1052,7 @@ row_log_table_low(
 			if (old_pk_size) {
 				*b++ = static_cast<byte>(old_pk_extra_size);
 
-				rec_convert_dtuple_to_temp(
+				rec_convert_dtuple_to_temp<false>(
 					b + old_pk_extra_size, new_index,
 					old_pk->fields, old_pk->n_fields);
 				b += old_pk_size;
@@ -1103,7 +1104,7 @@ row_log_table_update(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	const dtuple_t*	old_pk)	/*!< in: row_log_table_get_pk()
 				before the update */
 {
@@ -1153,7 +1154,7 @@ row_log_table_get_pk_col(
 	dfield_t*		dfield,
 	mem_heap_t*		heap,
 	const rec_t*		rec,
-	const ulint*		offsets,
+	const rec_offs*		offsets,
 	ulint			i,
 	const page_size_t&	page_size,
 	ulint			max_len,
@@ -1173,14 +1174,15 @@ row_log_table_get_pk_col(
 			return(DB_INVALID_NULL);
 		}
 
-		ulint n_default_cols = i - DATA_N_SYS_COLS;
+		unsigned col_no= ifield->col->ind;
+		ut_ad(col_no < log->defaults->n_fields);
 
 		field = static_cast<const byte*>(
-			log->defaults->fields[n_default_cols].data);
+			log->defaults->fields[col_no].data);
 		if (!field) {
 			return(DB_INVALID_NULL);
 		}
-		len = log->defaults->fields[i - DATA_N_SYS_COLS].len;
+		len = log->defaults->fields[col_no].len;
 	}
 
 	if (rec_offs_nth_extern(offsets, i)) {
@@ -1223,7 +1225,7 @@ row_log_table_get_pk(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	byte*		sys,	/*!< out: DB_TRX_ID,DB_ROLL_PTR for
 				row_log_table_delete(), or NULL */
 	mem_heap_t**	heap)	/*!< in/out: memory heap where allocated */
@@ -1256,7 +1258,8 @@ row_log_table_get_pk(
 
 				if (!offsets) {
 					offsets = rec_get_offsets(
-						rec, index, NULL, true,
+						rec, index, NULL,
+						index->n_core_fields,
 						pos + 1, heap);
 				}
 
@@ -1306,7 +1309,8 @@ row_log_table_get_pk(
 		}
 
 		if (!offsets) {
-			offsets = rec_get_offsets(rec, index, NULL, true,
+			offsets = rec_get_offsets(rec, index, NULL,
+						  index->n_core_fields,
 						  ULINT_UNDEFINED, heap);
 		}
 
@@ -1430,7 +1434,7 @@ row_log_table_insert(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets)/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets)/*!< in: rec_get_offsets(rec,index) */
 {
 	row_log_table_low(rec, index, offsets, true, NULL);
 }
@@ -1521,7 +1525,7 @@ row_log_table_apply_convert_mrec(
 /*=============================*/
 	const mrec_t*		mrec,		/*!< in: merge record */
 	dict_index_t*		index,		/*!< in: index of mrec */
-	const ulint*		offsets,	/*!< in: offsets of mrec */
+	const rec_offs*		offsets,	/*!< in: offsets of mrec */
 	row_log_t*		log,		/*!< in: rebuild context */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	dberr_t*		error)		/*!< out: DB_SUCCESS or
@@ -1659,10 +1663,12 @@ blob_done:
 
 			const dfield_t& default_field
 				= log->defaults->fields[col_no];
-			Field* field = log->old_table->field[col_no];
+
+			Field* field = log->old_table->field[col->ind];
 
 			field->set_warning(Sql_condition::WARN_LEVEL_WARN,
-					   WARN_DATA_TRUNCATED, 1, ulong(log->n_rows));
+					   WARN_DATA_TRUNCATED, 1,
+					   ulong(log->n_rows));
 
 			if (!log->allow_not_null) {
 				/* We got a NULL value for a NOT NULL column. */
@@ -1767,7 +1773,7 @@ row_log_table_apply_insert(
 /*=======================*/
 	que_thr_t*		thr,		/*!< in: query graph */
 	const mrec_t*		mrec,		/*!< in: record to insert */
-	const ulint*		offsets,	/*!< in: offsets of mrec */
+	const rec_offs*		offsets,	/*!< in: offsets of mrec */
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
@@ -1819,7 +1825,7 @@ row_log_table_apply_delete_low(
 /*===========================*/
 	btr_pcur_t*		pcur,		/*!< in/out: B-tree cursor,
 						will be trashed */
-	const ulint*		offsets,	/*!< in: offsets on pcur */
+	const rec_offs*		offsets,	/*!< in: offsets on pcur */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	mtr_t*			mtr)		/*!< in/out: mini-transaction,
 						will be committed */
@@ -1912,7 +1918,7 @@ row_log_table_apply_delete(
 						DB_TRX_ID in the new
 						clustered index */
 	const mrec_t*		mrec,		/*!< in: merge record */
-	const ulint*		moffsets,	/*!< in: offsets of mrec */
+	const rec_offs*		moffsets,	/*!< in: offsets of mrec */
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
@@ -1923,7 +1929,7 @@ row_log_table_apply_delete(
 	dtuple_t*	old_pk;
 	mtr_t		mtr;
 	btr_pcur_t	pcur;
-	ulint*		offsets;
+	rec_offs*	offsets;
 
 	ut_ad(rec_offs_n_fields(moffsets)
 	      == dict_index_get_n_unique(index) + 2);
@@ -1976,7 +1982,8 @@ all_done:
 		return(DB_SUCCESS);
 	}
 
-	offsets = rec_get_offsets(btr_pcur_get_rec(&pcur), index, NULL, true,
+	offsets = rec_get_offsets(btr_pcur_get_rec(&pcur), index, NULL,
+				  index->n_core_fields,
 				  ULINT_UNDEFINED, &offsets_heap);
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 	ut_a(!rec_offs_any_null_extern(btr_pcur_get_rec(&pcur), offsets));
@@ -2035,7 +2042,7 @@ row_log_table_apply_update(
 						DB_TRX_ID in the new
 						clustered index */
 	const mrec_t*		mrec,		/*!< in: new value */
-	const ulint*		offsets,	/*!< in: offsets of mrec */
+	const rec_offs*		offsets,	/*!< in: offsets of mrec */
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
@@ -2173,8 +2180,8 @@ func_exit_committed:
 	}
 
 	/* Prepare to update (or delete) the record. */
-	ulint*		cur_offsets	= rec_get_offsets(
-		btr_pcur_get_rec(&pcur), index, NULL, true,
+	rec_offs*		cur_offsets	= rec_get_offsets(
+		btr_pcur_get_rec(&pcur), index, NULL, index->n_core_fields,
 		ULINT_UNDEFINED, &offsets_heap);
 
 	if (!log->same_pk) {
@@ -2411,7 +2418,7 @@ row_log_table_apply_op(
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	const mrec_t*		mrec,		/*!< in: merge record */
 	const mrec_t*		mrec_end,	/*!< in: end of buffer */
-	ulint*			offsets)	/*!< in/out: work area
+	rec_offs*		offsets)	/*!< in/out: work area
 						for parsing mrec */
 {
 	row_log_t*	log	= dup->index->online_log;
@@ -2745,7 +2752,7 @@ row_log_table_apply_ops(
 	const mrec_t*	next_mrec_end;
 	mem_heap_t*	heap;
 	mem_heap_t*	offsets_heap;
-	ulint*		offsets;
+	rec_offs*	offsets;
 	bool		has_index_lock;
 	dict_index_t*	index		= const_cast<dict_index_t*>(
 		dup->index);
@@ -2770,11 +2777,11 @@ row_log_table_apply_ops(
 	ut_ad(new_trx_id_col > 0);
 	ut_ad(new_trx_id_col != ULINT_UNDEFINED);
 
-	UNIV_MEM_INVALID(&mrec_end, sizeof mrec_end);
+	MEM_UNDEFINED(&mrec_end, sizeof mrec_end);
 
-	offsets = static_cast<ulint*>(ut_malloc_nokey(i * sizeof *offsets));
-	offsets[0] = i;
-	offsets[1] = dict_index_get_n_fields(index);
+	offsets = static_cast<rec_offs*>(ut_malloc_nokey(i * sizeof *offsets));
+	rec_offs_set_n_alloc(offsets, i);
+	rec_offs_set_n_fields(offsets, dict_index_get_n_fields(index));
 
 	heap = mem_heap_create(srv_page_size);
 	offsets_heap = mem_heap_create(srv_page_size);
@@ -3231,7 +3238,6 @@ row_log_allocate(
 	}
 
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
-	index->online_log = log;
 
 	if (log_tmp_is_encrypted()) {
 		ulint size = srv_sort_buf_size;
@@ -3244,6 +3250,7 @@ row_log_allocate(
 		}
 	}
 
+	index->online_log = log;
 	/* While we might be holding an exclusive data dictionary lock
 	here, in row_log_abort_sec() we will not always be holding it. Use
 	atomic operations in both cases. */
@@ -3257,7 +3264,7 @@ Free the row log for an index that was being created online. */
 void
 row_log_free(
 /*=========*/
-	row_log_t*&	log)	/*!< in,own: row log */
+	row_log_t*	log)	/*!< in,own: row log */
 {
 	MONITOR_ATOMIC_DEC(MONITOR_ONLINE_CREATE_INDEX);
 
@@ -3277,7 +3284,6 @@ row_log_free(
 
 	mutex_free(&log->mutex);
 	ut_free(log);
-	log = NULL;
 }
 
 /******************************************************//**
@@ -3318,7 +3324,7 @@ row_log_apply_op_low(
 {
 	mtr_t		mtr;
 	btr_cur_t	cursor;
-	ulint*		offsets = NULL;
+	rec_offs*	offsets = NULL;
 
 	ut_ad(!dict_index_is_clust(index));
 
@@ -3552,14 +3558,13 @@ row_log_apply_op(
 					in exclusive mode */
 	const mrec_t*	mrec,		/*!< in: merge record */
 	const mrec_t*	mrec_end,	/*!< in: end of buffer */
-	ulint*		offsets)	/*!< in/out: work area for
+	rec_offs*	offsets)	/*!< in/out: work area for
 					rec_init_offsets_temp() */
 
 {
 	enum row_op	op;
 	ulint		extra_size;
 	ulint		data_size;
-	ulint		n_ext;
 	dtuple_t*	entry;
 	trx_id_t	trx_id;
 
@@ -3637,10 +3642,10 @@ corrupted:
 	}
 
 	entry = row_rec_to_index_entry_low(
-		mrec - data_size, index, offsets, &n_ext, heap);
+		mrec - data_size, index, offsets, heap);
 	/* Online index creation is only implemented for secondary
 	indexes, which never contain off-page columns. */
-	ut_ad(n_ext == 0);
+	ut_ad(dtuple_get_n_ext(entry) == 0);
 
 	row_log_apply_op_low(index, dup, error, offsets_heap,
 			     has_index_lock, op, trx_id, entry);
@@ -3671,7 +3676,7 @@ row_log_apply_ops(
 	const mrec_t*	next_mrec_end;
 	mem_heap_t*	offsets_heap;
 	mem_heap_t*	heap;
-	ulint*		offsets;
+	rec_offs*	offsets;
 	bool		has_index_lock;
 	const ulint	i	= 1 + REC_OFFS_HEADER_SIZE
 		+ dict_index_get_n_fields(index);
@@ -3680,11 +3685,12 @@ row_log_apply_ops(
 	ut_ad(!index->is_committed());
 	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
 	ut_ad(index->online_log);
-	UNIV_MEM_INVALID(&mrec_end, sizeof mrec_end);
 
-	offsets = static_cast<ulint*>(ut_malloc_nokey(i * sizeof *offsets));
-	offsets[0] = i;
-	offsets[1] = dict_index_get_n_fields(index);
+	MEM_UNDEFINED(&mrec_end, sizeof mrec_end);
+
+	offsets = static_cast<rec_offs*>(ut_malloc_nokey(i * sizeof *offsets));
+	rec_offs_set_n_alloc(offsets, i);
+	rec_offs_set_n_fields(offsets, dict_index_get_n_fields(index));
 
 	offsets_heap = mem_heap_create(srv_page_size);
 	heap = mem_heap_create(srv_page_size);
@@ -4036,4 +4042,10 @@ row_log_apply(
 	row_log_free(log);
 
 	DBUG_RETURN(error);
+}
+
+unsigned row_log_get_n_core_fields(const dict_index_t *index)
+{
+  ut_ad(index->online_log);
+  return index->online_log->n_core_fields;
 }

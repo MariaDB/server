@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2014, 2019, MariaDB Corporation.
+# Copyright (c) 2014, 2021, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ SET(INNOBASE_SOURCES
 	btr/btr0scrub.cc
 	btr/btr0sea.cc
 	btr/btr0defragment.cc
+	buf/buf0block_hint.cc
 	buf/buf0buddy.cc
 	buf/buf0buf.cc
 	buf/buf0dblwr.cc
@@ -193,4 +194,8 @@ ENDIF()
 
 IF(NOT (PLUGIN_INNOBASE STREQUAL DYNAMIC))
   ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
+ENDIF()
+
+IF(WITH_UNIT_TESTS)
+  ADD_SUBDIRECTORY(unittest)
 ENDIF()

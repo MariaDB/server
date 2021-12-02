@@ -1441,11 +1441,19 @@ public:
       /*
         Conversion from and to "binary" is safe.
         Conversion to Unicode is safe.
+        Conversion from an expression with the ASCII repertoire
+        to any character set that can store characters U+0000..U+007F
+        is safe:
+        - All supported multibyte character sets can store U+0000..U+007F
+        - All supported 7bit character sets can store U+0000..U+007F
+          except those marked with MY_CS_NONASCII (e.g. swe7).
         Other kind of conversions are potentially lossy.
       */
       safe= (args[0]->collation.collation == &my_charset_bin ||
              cs == &my_charset_bin ||
-             (cs->state & MY_CS_UNICODE));
+             (cs->state & MY_CS_UNICODE) ||
+             (args[0]->collation.repertoire == MY_REPERTOIRE_ASCII &&
+              (cs->mbmaxlen > 1 || !(cs->state & MY_CS_NONASCII))));
     }
   }
   bool is_json_type() { return args[0]->is_json_type(); }

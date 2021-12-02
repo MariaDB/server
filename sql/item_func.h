@@ -754,11 +754,11 @@ class Item_num_op :public Item_func_numhybrid
     decimals= 0;
     set_handler(type_handler_long_or_longlong());
   }
-  void fix_length_and_dec_temporal()
+  void fix_length_and_dec_temporal(bool downcast_decimal_to_int)
   {
     set_handler(&type_handler_newdecimal);
     fix_length_and_dec_decimal();
-    if (decimals == 0)
+    if (decimals == 0 && downcast_decimal_to_int)
       set_handler(type_handler_long_or_longlong());
   }
   bool need_parentheses_in_default() { return true; }

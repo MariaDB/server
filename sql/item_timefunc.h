@@ -170,28 +170,13 @@ public:
 };
 
 
-class Item_func_month :public Item_func
+class Item_func_month :public Item_long_func
 {
 public:
-  Item_func_month(THD *thd, Item *a): Item_func(thd, a)
-  { collation.set_numeric(); }
+  Item_func_month(THD *thd, Item *a): Item_long_func(thd, a)
+  { }
   longlong val_int();
-  double val_real()
-  { DBUG_ASSERT(fixed == 1); return (double) Item_func_month::val_int(); }
-  String *val_str(String *str)
-  {
-    longlong nr= val_int();
-    if (null_value)
-      return 0;
-    str->set(nr, collation.collation);
-    return str;
-  }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
-  {
-    return get_date_from_int(ltime, fuzzydate);
-  }
   const char *func_name() const { return "month"; }
-  const Type_handler *type_handler() const { return &type_handler_long; }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -441,20 +426,13 @@ public:
 };
 
 
-class Item_func_weekday :public Item_func
+class Item_func_weekday :public Item_long_func
 {
   bool odbc_type;
 public:
   Item_func_weekday(THD *thd, Item *a, bool type_arg):
-    Item_func(thd, a), odbc_type(type_arg) { collation.set_numeric(); }
+    Item_long_func(thd, a), odbc_type(type_arg) { }
   longlong val_int();
-  double val_real() { DBUG_ASSERT(fixed == 1); return (double) val_int(); }
-  String *val_str(String *str)
-  {
-    DBUG_ASSERT(fixed == 1);
-    str->set(val_int(), &my_charset_bin);
-    return null_value ? 0 : str;
-  }
   const char *func_name() const
   {
      return (odbc_type ? "dayofweek" : "weekday");
@@ -463,7 +441,6 @@ public:
   {
     return type_handler()->Item_get_date(this, ltime, fuzzydate);
   }
-  const Type_handler *type_handler() const { return &type_handler_long; }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -481,11 +458,11 @@ public:
   { return get_item_copy<Item_func_weekday>(thd, this); }
 };
 
-class Item_func_dayname :public Item_func_weekday
+class Item_func_dayname :public Item_str_func
 {
   MY_LOCALE *locale;
  public:
-  Item_func_dayname(THD *thd, Item *a): Item_func_weekday(thd, a, 0) {}
+  Item_func_dayname(THD *thd, Item *a): Item_str_func(thd, a) {}
   const char *func_name() const { return "dayname"; }
   String *val_str(String *str);
   const Type_handler *type_handler() const { return &type_handler_varchar; }
@@ -495,6 +472,12 @@ class Item_func_dayname :public Item_func_weekday
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
+  bool check_valid_arguments_processor(void *int_arg)
+  {
+    return !has_date_args();
+  }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_dayname>(thd, this); }
 };
 
 
@@ -918,6 +901,10 @@ class Item_func_from_unixtime :public Item_datetimefunc
   const char *func_name() const { return "from_unixtime"; }
   bool fix_length_and_dec();
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_from_unixtime>(thd, this); }
 };
@@ -1002,7 +989,7 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
-  enum precedence precedence() const { return ADDINTERVAL_PRECEDENCE; }
+  enum precedence precedence() const { return INTERVAL_PRECEDENCE; }
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_date_add_interval>(thd, this); }

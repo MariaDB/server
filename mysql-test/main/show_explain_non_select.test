@@ -38,7 +38,7 @@ let $wait_condition= select State='show_explain_trap' from information_schema.pr
 --echo # Test SHOW EXPLAIN for single-table DELETE
 --echo #
 connection con2;
-set debug_dbug='+d,show_explain_probe_delete_exec_start';
+SET debug_dbug='+d,show_explain_probe_delete_exec_start';
 send delete from t1 where a<10 and b+1>1000;
 
 connection default;
@@ -51,7 +51,7 @@ reap;
 --echo # Test SHOW EXPLAIN for multi-table DELETE
 --echo #
 set @show_explain_probe_select_id=1;
-set debug_dbug='+d,show_explain_probe_do_select';
+SET debug_dbug='+d,show_explain_probe_do_select';
 send delete t1 from t1, t0 where t0.a=t1.a and t1.b +1 > 1000;
 connection default;
 --source include/wait_condition.inc
@@ -63,7 +63,7 @@ reap;
 --echo # Test SHOW EXPLAIN for single-table UPDATE
 --echo #
 connection con2;
-set debug_dbug='+d,show_explain_probe_update_exec_start';
+SET debug_dbug='+d,show_explain_probe_update_exec_start';
 send update t1 set filler='filler-data-2' where a<10 and b+1>1000;
 
 connection default;
@@ -74,5 +74,5 @@ reap;
 
 drop table t0,t1;
 
-set debug_dbug=@old_debug;
+SET debug_dbug=@old_debug;
 set debug_sync='RESET';

@@ -320,7 +320,7 @@ select plugin_name from information_schema.plugins where plugin_library like 'ha
 plugin_name
 set names utf8;
 select convert('admin𝌆' using utf8);
-convert('admin𝌆' using utf8)
+convert('admin\xF0\x9D\x8C\x86' using utf8)
 admin????
 Warnings:
 Warning	1300	Invalid utf8 character string: '\xF0\x9D\x8C\x86'
@@ -341,3 +341,16 @@ RENAME TABLE t1 TO t2;
 ERROR 42S02: Table 'test.t1' doesn't exist
 DROP TABLE t1;
 # End of 10.1 test
+#
+# MDEV-21258: Can't uninstall plugin if the library file doesn't exist
+#
+insert into  mysql.plugin values ("unexisting_plugin", "soname");
+select * from mysql.plugin WHERE name='unexisting_plugin';
+name	dl
+unexisting_plugin	soname
+UNINSTALL PLUGIN unexisting_plugin;
+select * from mysql.plugin WHERE name='unexisting_plugin';
+name	dl
+UNINSTALL PLUGIN unexisting_plugin;
+ERROR 42000: PLUGIN unexisting_plugin does not exist
+# End of 10.2 tests

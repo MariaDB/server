@@ -196,9 +196,9 @@ static void ft_set_dirty(FT ft, bool for_checkpoint) {
     invariant(ft->h->type == FT_CURRENT);
     if (for_checkpoint) {
         invariant(ft->checkpoint_header->type == FT_CHECKPOINT_INPROGRESS);
-        ft->checkpoint_header->dirty = 1;
+        ft->checkpoint_header->set_dirty();
     } else {
-        ft->h->dirty = 1;
+        ft->h->set_dirty();
     }
 }
 

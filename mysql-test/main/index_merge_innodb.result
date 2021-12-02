@@ -807,4 +807,30 @@ sum(col1)
 33632261
 drop table t1;
 set optimizer_switch=@tmp_optimizer_switch;
+#
+# MDEV-22728: SIGFPE in Unique::get_cost_calc_buff_size from prepare_search_best_index_intersect
+# on optimized builds
+#
+SET @save_sort_buffer_size=@@sort_buffer_size;
+SET @save_innodb_file_format= @@innodb_file_format;
+SET @save_innodb_large_prefix= @@innodb_large_prefix;
+SET sort_buffer_size=2048;
+CREATE TABLE t1 (
+a VARCHAR(1024) CHARACTER SET UTF8 PRIMARY KEY,
+b INT,
+c INT,
+INDEX (b)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
+EXPLAIN SELECT * FROM t1 WHERE a='1' OR b < 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	PRIMARY,b	b,PRIMARY	5,3074	NULL	5	Using sort_union(b,PRIMARY); Using where
+SELECT * FROM t1 WHERE a='1' OR b < 5;
+a	b	c
+2	2	2
+3	3	3
+4	4	4
+1	1	1
+DROP TABLE t1;
+SET sort_buffer_size= @save_sort_buffer_size;
 disconnect disable_purge;

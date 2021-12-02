@@ -289,3 +289,51 @@ pk	f
 5	a
 6	<===
 drop table t1;
+#
+# MDEV-21842: auto_increment does not increment with compound primary
+# key on partitioned table
+#
+create or replace table `t` (
+`id` bigint(20) unsigned not null auto_increment,
+`a` int(10) not null ,
+`dt` date not null,
+primary key (`id`, `dt`) ,
+unique key (`a`, `dt`)
+)
+partition by range  columns(`dt`)
+(
+partition `p202002` values less than ('2020-03-01'),
+partition `P202003` values less than ('2020-04-01')
+);
+connect  con1, localhost, root,,;
+connect  con2, localhost, root,,;
+connection con1;
+start transaction;
+insert into t (a, dt) values (1, '2020-02-29');
+connection con2;
+start transaction;
+insert into t (a, dt) values (1, '2020-02-29');
+connection con1;
+insert into t (a, dt) values (2, '2020-02-29');
+select auto_increment from information_schema.tables where table_name='t';
+auto_increment
+4
+commit;
+connection con2;
+ERROR 23000: Duplicate entry '1-2020-02-29' for key 'a'
+connection con1;
+select auto_increment from information_schema.tables where table_name='t';
+auto_increment
+4
+insert into t (a, dt) values (3, '2020-02-29');
+insert into t (a, dt) values (4, '2020-02-29');
+disconnect con1;
+disconnect con2;
+connection default;
+select * from t;
+id	a	dt
+1	1	2020-02-29
+3	2	2020-02-29
+4	3	2020-02-29
+5	4	2020-02-29
+drop table t;

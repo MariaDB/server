@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -302,7 +302,7 @@ UNIV_INLINE
 void
 dict_table_autoinc_initialize(dict_table_t* table, ib_uint64_t value)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	mysql_mutex_assert_owner(&table->autoinc_mutex);
 	table->autoinc = value;
 }
 
@@ -315,7 +315,7 @@ UNIV_INLINE
 ib_uint64_t
 dict_table_autoinc_read(const dict_table_t* table)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	mysql_mutex_assert_owner(&table->autoinc_mutex);
 	return(table->autoinc);
 }
 
@@ -329,7 +329,7 @@ UNIV_INLINE
 bool
 dict_table_autoinc_update_if_greater(dict_table_t* table, ib_uint64_t value)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	mysql_mutex_assert_owner(&table->autoinc_mutex);
 
 	if (value > table->autoinc) {
 
@@ -971,14 +971,6 @@ dict_tf_get_page_size(
 	ulint	flags)
 MY_ATTRIBUTE((const));
 
-/** Determine the extent size (in pages) for the given table
-@param[in]	table	the table whose extent size is being
-			calculated.
-@return extent size in pages (256, 128 or 64) */
-ulint
-dict_table_extent_size(
-	const dict_table_t*	table);
-
 /** Get the table page size. */
 #define dict_table_page_size(table) page_size_t(table->space->flags)
 
@@ -1356,21 +1348,6 @@ dict_index_build_node_ptr(
 	ulint			level)	/*!< in: level of rec in tree:
 					0 means leaf level */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/**********************************************************************//**
-Copies an initial segment of a physical record, long enough to specify an
-index entry uniquely.
-@return pointer to the prefix record */
-rec_t*
-dict_index_copy_rec_order_prefix(
-/*=============================*/
-	const dict_index_t*	index,	/*!< in: index */
-	const rec_t*		rec,	/*!< in: record for which to
-					copy prefix */
-	ulint*			n_fields,/*!< out: number of fields copied */
-	byte**			buf,	/*!< in/out: memory buffer for the
-					copied prefix, or NULL */
-	ulint*			buf_size)/*!< in/out: buffer size */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Convert a physical record into a search tuple.
 @param[in]	rec		index record (not necessarily in an index page)
 @param[in]	index		index
@@ -1403,7 +1380,7 @@ UNIV_INLINE
 rw_lock_t*
 dict_index_get_lock(
 /*================*/
-	dict_index_t*	index)	/*!< in: index */
+	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /********************************************************************//**
 Returns free space reserved for future updates of records. This is
@@ -1467,41 +1444,6 @@ Releases the dictionary system mutex for MySQL. */
 void
 dict_mutex_exit_for_mysql(void);
 /*===========================*/
-
-/** Create a dict_table_t's stats latch or delay for lazy creation.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to create
-@param[in]	enabled	if false then the latch is disabled
-and dict_table_stats_lock()/unlock() become noop on this table. */
-void
-dict_table_stats_latch_create(
-	dict_table_t*	table,
-	bool		enabled);
-
-/** Destroy a dict_table_t's stats latch.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to destroy */
-void
-dict_table_stats_latch_destroy(
-	dict_table_t*	table);
-
-/** Lock the appropriate latch to protect a given table's statistics.
-@param[in]	table		table whose stats to lock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_lock(
-	dict_table_t*	table,
-	ulint		latch_mode);
-
-/** Unlock the latch that has been locked by dict_table_stats_lock().
-@param[in]	table		table whose stats to unlock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_unlock(
-	dict_table_t*	table,
-	ulint		latch_mode);
 
 /********************************************************************//**
 Checks if the database name in two table names is the same.
@@ -1861,20 +1803,6 @@ table and index objects.
 UNIV_INTERN
 ulint
 dict_sys_get_size();
-
-/** Look for any dictionary objects that are found in the given tablespace.
-@param[in]	space_id	Tablespace ID to search for.
-@return true if tablespace is empty. */
-bool
-dict_space_is_empty(
-	ulint	space_id);
-
-/** Find the space_id for the given name in sys_tablespaces.
-@param[in]	name	Tablespace name to search for.
-@return the tablespace ID. */
-ulint
-dict_space_get_id(
-	const char*	name);
 
 /** Free the virtual column template
 @param[in,out]	vc_templ	virtual column template */

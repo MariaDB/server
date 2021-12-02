@@ -1,13 +1,11 @@
 connection node_1;
+SET SESSION wsrep_on=OFF;
 RESET MASTER;
+SET SESSION wsrep_on=ON;
 SET SESSION binlog_format = 'STATEMENT';
-Warnings:
-Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 SET SESSION binlog_format = 'MIXED';
-Warnings:
-Warning	1105	MariaDB Galera and flashback do not support binlog format: MIXED
 INSERT INTO t1 VALUES (2);
 SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
@@ -38,8 +36,8 @@ GRANT ALL PRIVILEGES ON testdb_9401.t1 TO dummy@localhost;
 FLUSH PRIVILEGES;
 SHOW GRANTS FOR dummy@localhost;
 Grants for dummy@localhost
-GRANT USAGE ON *.* TO 'dummy'@'localhost'
-GRANT ALL PRIVILEGES ON `testdb_9401`.`t1` TO 'dummy'@'localhost'
+GRANT USAGE ON *.* TO `dummy`@`localhost`
+GRANT ALL PRIVILEGES ON `testdb_9401`.`t1` TO `dummy`@`localhost`
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM dummy@localhost;
 DROP USER dummy@localhost;
 DROP DATABASE testdb_9401;

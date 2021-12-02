@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB Corporation
+   Copyright (c) 2011, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -291,6 +291,8 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
   {
     for (tbl= sl->get_table_list(); tbl; tbl= tbl->next_local)
     {
+      if (!tbl->with && tbl->select_lex)
+        tbl->with= tbl->select_lex->find_table_def_in_with_clauses(tbl);
       /*
         Ensure that we have some privileges on this table, more strict check
         will be done on column level after preparation,
@@ -429,12 +431,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
 
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-  {
-    res= TRUE;
-    goto err;
-  }
-
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /*
@@ -449,9 +445,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   if (thd->open_temporary_tables(lex->query_tables) ||
       open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
   {
-    view= lex->unlink_first_table(&link_to_local);
     res= TRUE;
-    goto err;
+    goto err_no_relink;
   }
 
   view= lex->unlink_first_table(&link_to_local);
@@ -714,9 +709,11 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
 WSREP_ERROR_LABEL:
   res= TRUE;
+  goto err_no_relink;
 
 err:
   lex->link_first_table_back(view, link_to_local);
+err_no_relink:
   unit->cleanup();
   DBUG_RETURN(res || thd->is_error());
 }
@@ -839,7 +836,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
        if ((view->md5.str= (char *)thd->alloc(32 + 1)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
-    view->calc_md5(view->md5.str);
+    view->calc_md5(const_cast<char*>(view->md5.str));
     view->md5.length= 32;
   }
   view->mariadb_version= MYSQL_VERSION_ID;
@@ -885,6 +882,13 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
 			       enum_view_create_mode mode)
 {
   LEX *lex= thd->lex;
+
+  /*
+    Ensure character set number != 17 (character set = filename) and mbminlen=1
+    because these character sets are not parser friendly, which can give weird
+    sequence in .frm file of view and later give parsing error.
+  */
+  DBUG_ASSERT(thd->charset()->mbminlen == 1 && thd->charset()->number != 17);
 
   /*
     View definition query -- a SELECT statement that fully defines view. It
@@ -1407,9 +1411,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     TABLE_LIST *view_tables_tail= 0;
     TABLE_LIST *tbl;
     Security_context *security_ctx= 0;
-
-    if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-      goto err;
 
     /*
       Check rights to run commands (ANALYZE SELECT, EXPLAIN SELECT &

@@ -22,7 +22,7 @@ INSERT INTO t VALUES (REPEAT('a', 16000), REPEAT('b', 16000), DEFAULT, "mm", 2);
 
 CREATE INDEX idx ON t(c(100));
 
-SET global debug_dbug="+d,ib_purge_virtual_index_callback";
+SET global debug_dbug="d,ib_purge_virtual_index_callback";
 UPDATE t SET a = REPEAT('m', 16000) WHERE a like "aaa%";
 --source ../../innodb/include/wait_all_purged.inc
 SET global debug_dbug=@old_dbug;
@@ -41,7 +41,7 @@ INSERT INTO t VALUES (REPEAT('a', 100), REPEAT('b', 100), DEFAULT, "mm", 2);
 
 CREATE INDEX idx ON t(c(100));
 
-SET global debug_dbug="+d,ib_purge_virtual_index_callback";
+SET global debug_dbug="d,ib_purge_virtual_index_callback";
 UPDATE t SET a = REPEAT('m', 100) WHERE a like "aaa%";
 --source ../../innodb/include/wait_all_purged.inc
 SET global debug_dbug=@old_dbug;
@@ -68,7 +68,7 @@ insert into t1 values(4, 18, default);
 
 CREATE INDEX idx ON t1(x);
 
-SET global debug_dbug="+d,ib_purge_virtual_index_callback";
+SET global debug_dbug="d,ib_purge_virtual_index_callback";
 UPDATE t1 SET id = 10 WHERE id = 1;
 --source ../../innodb/include/wait_all_purged.inc
 SET global debug_dbug=@old_dbug;
@@ -179,7 +179,7 @@ DROP TABLE t0, t1;
 create table t (a blob, b blob, c blob as (concat(a,b)), h varchar(10), index (c(100)));
 insert t(a,b,h) values (repeat('g', 16000), repeat('x', 16000), "kk");
 insert t(a,b,h) values (repeat('a', 16000), repeat('b', 16000), "mm");
-set global debug_dbug="+d,ib_purge_virtual_index_callback";
+set global debug_dbug="d,ib_purge_virtual_index_callback";
 connect(prevent_purge, localhost, root);
 start transaction with consistent snapshot;
 connection default;
@@ -228,7 +228,7 @@ ENGINE=InnoDB;
 INSERT INTO t1 (pk,y) VALUES (1,2022);
 CREATE TABLE t2(f1 INT NOT NULL, PRIMARY KEY(f1))ENGINE=InnoDB;
 
-SET GLOBAL debug_dbug = '+d,ib_purge_virtual_index_callback';
+SET GLOBAL debug_dbug = 'd,ib_purge_virtual_index_callback';
 
 BEGIN;
 INSERT INTO t2(f1) VALUES(1);
@@ -264,9 +264,10 @@ DROP TABLE t1, t2;
 --echo # on table with virtual columns and indexes
 --echo #
 
+--source suite/innodb/include/wait_all_purged.inc
 --let $datadir= `select @@datadir`
-set @saved_dbug= @@global.debug_dbug;
-set global debug_dbug= "+d,ib_purge_virtual_mdev_16222_1,ib_purge_virtual_mdev_16222_2";
+SET @saved_dbug= @@GLOBAL.debug_dbug;
+set global debug_dbug= "d,ib_purge_virtual_mdev_16222_1,ib_purge_virtual_mdev_16222_2";
 
 create table t1 (
   pk serial, vb tinyblob as (b) virtual, b tinyblob,
@@ -279,7 +280,7 @@ select * into outfile 'load.data' from t1;
 load data infile 'load.data' replace into table t1;
 
 set debug_sync= "now WAIT_FOR latch_released";
-set global debug_dbug= "-d,ib_purge_virtual_mdev_16222_1";
+set global debug_dbug= @saved_dbug;
 drop table t1;
 --remove_file $datadir/test/load.data
 
@@ -309,7 +310,6 @@ drop table t1;
 
 --source include/wait_until_count_sessions.inc
 set debug_sync=reset;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 
 --echo #
 --echo # MDEV-18546 ASAN heap-use-after-free
@@ -336,8 +336,7 @@ SET GLOBAL innodb_debug_sync = "ib_open_after_dict_open "
 
 # In 10.2 trx_undo_roll_ptr_is_insert(t_roll_ptr) condition never pass in purge,
 # so this condition is forced to pass in row_vers_old_has_index_entry
-set @saved_dbug= @@global.debug_dbug;
-set global debug_dbug= "+d,ib_purge_virtual_index_callback";
+set global debug_dbug= "d,ib_purge_virtual_index_callback";
 
 # The purge starts from REPLACE command. To avoid possible race, separate
 # connection is used.
@@ -373,4 +372,53 @@ SELECT * FROM t1;
 # Cleanup
 DROP TABLE t1;
 SET debug_sync= reset;
-set global debug_dbug= @saved_dbug;
+set global debug_dbug= @old_dbug;
+
+
+--echo # MDEV-16962 Assertion '!error || !ot_ctx.can_recover_from_failed_open()'
+--echo # failed in open_purge_table upon concurrent ALTER and FLUSH
+
+CREATE TABLE t1 (
+  pk SERIAL,
+  c VARCHAR(128),
+  d DATE,
+  vd DATE AS (d) VIRTUAL,
+  PRIMARY KEY(pk),
+  KEY(vd,c)
+) ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (pk,c) VALUES (1,'foo');
+
+--send
+set debug_sync="now WAIT_FOR purge";
+--connect (con1,localhost,root,,test)
+# Will break innodb purge thread inside open_purge_table after mdl
+# acquired, but before tdc->flushed check
+SET GLOBAL innodb_debug_sync="after_open_table_mdl_shared SIGNAL purge WAIT_FOR flush";
+
+# Workaround to pass trx_undo_roll_ptr_is_insert() in 10.2
+SET global debug_dbug="d,ib_purge_virtual_index_callback";
+
+REPLACE INTO t1 (pk,c) VALUES (1,'bar');
+
+--connection default
+# wait for MDL acquired by purge
+--reap
+# MDL_SHARED will be acquired, but will hang before MDL upgrade started.
+SET debug_sync="alter_table_before_rename_result_table WAIT_FOR flush";
+--send
+ALTER TABLE t1 ADD FULLTEXT KEY(c), ALGORITHM=COPY;
+--connection con1
+# Will hang after tdc->flushed is set, but before emptying tdc cache.
+SET debug_sync="after_flush_unlock SIGNAL flush ";
+FLUSH TABLES;
+
+# Cleanup
+--disconnect con1
+--connection default
+--reap
+--source ../../innodb/include/wait_all_purged.inc
+DROP TABLE t1;
+SET debug_sync= reset;
+SET global debug_dbug=@old_dbug;
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

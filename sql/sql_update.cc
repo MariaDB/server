@@ -52,8 +52,9 @@
    compare_record(TABLE*).
  */
 bool records_are_comparable(const TABLE *table) {
-  return ((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) == 0) ||
-    bitmap_is_subset(table->write_set, table->read_set);
+  return !table->versioned(VERS_TRX_ID) &&
+          (((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) == 0) ||
+           bitmap_is_subset(table->write_set, table->read_set));
 }
 
 
@@ -184,10 +185,10 @@ static bool check_fields(THD *thd, List<Item> &items, bool update_view)
   return FALSE;
 }
 
-static bool check_has_vers_fields(TABLE *table, List<Item> &items)
+bool TABLE::vers_check_update(List<Item> &items)
 {
   List_iterator<Item> it(items);
-  if (!table->versioned())
+  if (!versioned_write())
     return false;
 
   while (Item *item= it++)
@@ -195,8 +196,11 @@ static bool check_has_vers_fields(TABLE *table, List<Item> &items)
     if (Item_field *item_field= item->field_for_view_update())
     {
       Field *field= item_field->field;
-      if (field->table == table && !field->vers_update_unversioned())
+      if (field->table == this && !field->vers_update_unversioned())
+      {
+        no_cache= true;
         return true;
+      }
     }
   }
   return false;
@@ -240,7 +244,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
 
   /* Create unique_map with all fields used by that index. */
   my_bitmap_init(&unique_map, unique_map_buf, table->s->fields, FALSE);
-  table->mark_columns_used_by_index(keynr, &unique_map);
+  table->mark_index_columns(keynr, &unique_map);
 
   /* Subtract read_set and write_set. */
   bitmap_subtract(&unique_map, table->read_set);
@@ -395,6 +399,8 @@ int mysql_update(THD *thd,
   want_privilege= (table_list->view ? UPDATE_ACL :
                    table_list->grant.want_privilege);
 #endif
+  promote_select_describe_flag_if_needed(thd->lex);
+
   if (mysql_prepare_update(thd, table_list, &conds, order_num, order))
     DBUG_RETURN(1);
 
@@ -415,7 +421,7 @@ int mysql_update(THD *thd,
   {
     DBUG_RETURN(1);
   }
-  bool has_vers_fields= check_has_vers_fields(table, fields);
+  bool has_vers_fields= table->vers_check_update(fields);
   if (check_key_in_view(thd, table_list))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
@@ -474,6 +480,8 @@ int mysql_update(THD *thd,
     query_plan.set_no_partitions();
     if (thd->lex->describe || thd->lex->analyze_stmt)
       goto produce_explain_and_leave;
+    if (thd->is_error())
+      DBUG_RETURN(1);
 
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
@@ -643,15 +651,20 @@ int mysql_update(THD *thd,
       !table->check_virtual_columns_marked_for_write())
   {
     DBUG_PRINT("info", ("Trying direct update"));
-    if (select && select->cond &&
-        (select->cond->used_tables() == table->map))
+    bool use_direct_update= !select || !select->cond;
+    if (!use_direct_update &&
+        (select->cond->used_tables() & ~RAND_TABLE_BIT) == table->map)
     {
       DBUG_ASSERT(!table->file->pushed_cond);
       if (!table->file->cond_push(select->cond))
+      {
+        use_direct_update= TRUE;
         table->file->pushed_cond= select->cond;
+      }
     }
 
-    if (!table->file->info_push(INFO_KIND_UPDATE_FIELDS, &fields) &&
+    if (use_direct_update &&
+        !table->file->info_push(INFO_KIND_UPDATE_FIELDS, &fields) &&
         !table->file->info_push(INFO_KIND_UPDATE_VALUES, &values) &&
         !table->file->direct_update_rows_init(&fields))
     {
@@ -878,11 +891,6 @@ update_begin:
   THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record()) && !thd->killed)
   {
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
-
     explain->tracker.on_record_read();
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
@@ -960,25 +968,27 @@ update_begin:
         }
         else if (likely(!error))
         {
-          if (has_vers_fields && table->versioned())
-          {
-            if (table->versioned(VERS_TIMESTAMP))
-            {
-              store_record(table, record[2]);
-              table->mark_columns_per_binlog_row_image();
-              error= vers_insert_history_row(table);
-              restore_record(table, record[2]);
-            }
-            if (likely(!error))
-              updated_sys_ver++;
-          }
-          if (likely(!error))
-            updated++;
+          if (has_vers_fields && table->versioned(VERS_TRX_ID))
+            updated_sys_ver++;
+          updated++;
         }
 
         if (unlikely(error) &&
             (!ignore || table->file->is_fatal_error(error, HA_CHECK_ALL)))
         {
+          goto error;
+        }
+      }
+
+      if (likely(!error) && has_vers_fields && table->versioned(VERS_TIMESTAMP))
+      {
+        store_record(table, record[2]);
+        table->mark_columns_per_binlog_row_image();
+        error= vers_insert_history_row(table);
+        restore_record(table, record[2]);
+        if (unlikely(error))
+        {
+error:
           /*
             If (ignore && error is ignorable) we don't have to
             do anything; otherwise...
@@ -989,10 +999,11 @@ update_begin:
             flags|= ME_FATALERROR; /* Other handler errors are fatal */
 
           prepare_record_for_error_message(error, table);
-	  table->file->print_error(error,MYF(flags));
-	  error= 1;
-	  break;
-	}
+          table->file->print_error(error,MYF(flags));
+          error= 1;
+          break;
+        }
+        updated_sys_ver++;
       }
 
       if (table->triggers &&
@@ -1266,6 +1277,15 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 
   thd->lex->allow_sum_func.clear_all();
 
+  DBUG_ASSERT(table_list->table);
+  // conds could be cached from previous SP call
+  DBUG_ASSERT(!table_list->vers_conditions.need_setup() ||
+              !*conds || thd->stmt_arena->is_stmt_execute());
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(TRUE);
+
+  *conds= select_lex->where;
+
   /*
     We do not call DT_MERGE_FOR_INSERT because it has no sense for simple
     (not multi-) update
@@ -1274,8 +1294,7 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);
 
   if (setup_tables_and_check_access(thd, &select_lex->context, 
-                                    &select_lex->top_join_list,
-                                    table_list,
+                                    &select_lex->top_join_list, table_list,
                                     select_lex->leaf_tables,
                                     FALSE, UPDATE_ACL, SELECT_ACL, TRUE) ||
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||
@@ -1560,11 +1579,8 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
   */
 
   if (setup_tables_and_check_access(thd, &select_lex->context,
-        &select_lex->top_join_list, table_list, select_lex->leaf_tables,
-        FALSE, UPDATE_ACL, SELECT_ACL, FALSE))
-    DBUG_RETURN(1);
-
-  if (select_lex->handle_derived(thd->lex, DT_MERGE))
+      &select_lex->top_join_list, table_list, select_lex->leaf_tables,
+      FALSE, UPDATE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(1);
 
   List<Item> *fields= &lex->select_lex.item_list;
@@ -1702,7 +1718,11 @@ int mysql_multi_update_prepare(THD *thd)
     During prepare phase acquire only S metadata locks instead of SW locks to
     keep prepare of multi-UPDATE compatible with concurrent LOCK TABLES WRITE
     and global read lock.
+
+    Don't evaluate any subqueries even if constant, because
+    tables aren't locked yet.
   */
+  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI)
   {
     if (open_tables(thd, &table_list, &table_count,
@@ -1725,6 +1745,9 @@ int mysql_multi_update_prepare(THD *thd)
   {
     DBUG_RETURN(TRUE);
   }
+
+  lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
+
   (void) read_statistics_for_tables_if_needed(thd, table_list);
   /* @todo: downgrade the metadata locks here. */
 
@@ -1733,6 +1756,7 @@ int mysql_multi_update_prepare(THD *thd)
     skip all tables of UPDATE SELECT itself
   */
   lex->select_lex.exclude_from_table_unique_test= TRUE;
+
   /* We only need SELECT privilege for columns in the values list */
   List_iterator<TABLE_LIST> ti(lex->select_lex.leaf_tables);
   while ((tl= ti++))
@@ -1783,8 +1807,18 @@ bool mysql_multi_update(THD *thd, TABLE_LIST *table_list, List<Item> *fields,
     DBUG_RETURN(TRUE);
   }
 
+  if ((*result)->init(thd))
+    DBUG_RETURN(1);
+
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
+
+  if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
+                   table_list, select_lex->leaf_tables, FALSE, FALSE))
+    DBUG_RETURN(1);
+
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(1);
 
   res= mysql_select(thd,
                     table_list, select_lex->with_wild, total_list, conds,
@@ -1824,6 +1858,24 @@ multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
 }
 
 
+bool multi_update::init(THD *thd)
+{
+  table_map tables_to_update= get_table_map(fields);
+  List_iterator_fast<TABLE_LIST> li(*leaves);
+  TABLE_LIST *tbl;
+  while ((tbl =li++))
+  {
+    if (tbl->is_jtbm())
+      continue;
+    if (!(tbl->table->map & tables_to_update))
+      continue;
+    if (updated_leaves.push_back(tbl, thd->mem_root))
+      return true;
+  }
+  return false;
+}
+
+
 /*
   Connect fields with tables and create list of tables that are updated
 */
@@ -1840,7 +1892,7 @@ int multi_update::prepare(List<Item> &not_used_values,
   List_iterator_fast<Item> value_it(*values);
   uint i, max_fields;
   uint leaf_table_count= 0;
-  List_iterator<TABLE_LIST> ti(*leaves);
+  List_iterator<TABLE_LIST> ti(updated_leaves);
   DBUG_ENTER("multi_update::prepare");
 
   if (prepared)
@@ -2126,7 +2178,7 @@ multi_update::initialize_tables(JOIN *join)
       if (safe_update_on_fly(thd, join->join_tab, table_ref, all_tables))
       {
 	table_to_update= table;			// Update table on the fly
-        has_vers_fields= check_has_vers_fields(table, *fields);
+        has_vers_fields= table->vers_check_update(*fields);
 	continue;
       }
     }
@@ -2328,6 +2380,7 @@ int multi_update::send_data(List<Item> &not_used_values)
 
   for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
   {
+    int error= 0;
     TABLE *table= cur_table->table;
     uint offset= cur_table->shared;
     /*
@@ -2344,11 +2397,6 @@ int multi_update::send_data(List<Item> &not_used_values)
     */
     if (table->status & (STATUS_NULL_ROW | STATUS_UPDATED))
       continue;
-
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
 
     if (table == table_to_update)
     {
@@ -2376,7 +2424,6 @@ int multi_update::send_data(List<Item> &not_used_values)
       found++;
       if (!can_compare_record || compare_record(table))
       {
-	int error;
 
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
@@ -2403,20 +2450,7 @@ int multi_update::send_data(List<Item> &not_used_values)
           updated--;
           if (!ignore ||
               table->file->is_fatal_error(error, HA_CHECK_ALL))
-          {
-            /*
-              If (ignore && error == is ignorable) we don't have to
-              do anything; otherwise...
-            */
-            myf flags= 0;
-
-            if (table->file->is_fatal_error(error, HA_CHECK_ALL))
-              flags|= ME_FATALERROR; /* Other handler errors are fatal */
-
-            prepare_record_for_error_message(error, table);
-            table->file->print_error(error,MYF(flags));
-            DBUG_RETURN(1);
-          }
+            goto error;
         }
         else
         {
@@ -2425,19 +2459,8 @@ int multi_update::send_data(List<Item> &not_used_values)
             error= 0;
             updated--;
           }
-          else if (has_vers_fields && table->versioned())
+          else if (has_vers_fields && table->versioned(VERS_TRX_ID))
           {
-            if (table->versioned(VERS_TIMESTAMP))
-            {
-              store_record(table, record[2]);
-              if (vers_insert_history_row(table))
-              {
-                restore_record(table, record[2]);
-                error= 1;
-                break;
-              }
-              restore_record(table, record[2]);
-            }
             updated_sys_ver++;
           }
           /* non-transactional or transactional table got modified   */
@@ -2451,6 +2474,17 @@ int multi_update::send_data(List<Item> &not_used_values)
           }
         }
       }
+      if (has_vers_fields && table->versioned(VERS_TIMESTAMP))
+      {
+        store_record(table, record[2]);
+        if (unlikely(error= vers_insert_history_row(table)))
+        {
+          restore_record(table, record[2]);
+          goto error;
+        }
+        restore_record(table, record[2]);
+        updated_sys_ver++;
+      }
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_AFTER, TRUE)))
@@ -2458,10 +2492,12 @@ int multi_update::send_data(List<Item> &not_used_values)
     }
     else
     {
-      int error;
       TABLE *tmp_table= tmp_tables[offset];
       if (copy_funcs(tmp_table_param[offset].items_to_copy, thd))
         DBUG_RETURN(1);
+      /* rowid field is NULL if join tmp table has null row from outer join */
+      if (tmp_table->field[0]->is_null())
+        continue;
       /* Store regular updated fields in the row. */
       DBUG_ASSERT(1 + unupdated_check_opt_tables.elements ==
                   tmp_table_param[offset].func_count);
@@ -2490,7 +2526,22 @@ int multi_update::send_data(List<Item> &not_used_values)
         }
       }
     }
-  }
+    continue;
+error:
+    DBUG_ASSERT(error > 0);
+    /*
+      If (ignore && error == is ignorable) we don't have to
+      do anything; otherwise...
+    */
+    myf flags= 0;
+
+    if (table->file->is_fatal_error(error, HA_CHECK_ALL))
+      flags|= ME_FATALERROR; /* Other handler errors are fatal */
+
+    prepare_record_for_error_message(error, table);
+    table->file->print_error(error,MYF(flags));
+    DBUG_RETURN(1);
+  } // for (cur_table)
   DBUG_RETURN(0);
 }
 
@@ -2607,7 +2658,7 @@ int multi_update::do_updates()
     if (table->vfield)
       empty_record(table);
 
-    has_vers_fields= check_has_vers_fields(table, *fields);
+    has_vers_fields= table->vers_check_update(*fields);
 
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)
@@ -2666,6 +2717,7 @@ int multi_update::do_updates()
       uint field_num= 0;
       do
       {
+        DBUG_ASSERT(!tmp_table->field[field_num]->is_null());
         if (unlikely((local_error=
                       tbl->file->ha_rnd_pos(tbl->record[0],
                                             (uchar *) tmp_table->

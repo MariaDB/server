@@ -276,3 +276,23 @@ RENAME TABLE t1 TO t2;
 DROP TABLE t1;
 
 --echo # End of 10.1 test
+
+--echo #
+--echo # MDEV-21258: Can't uninstall plugin if the library file doesn't exist
+--echo #
+
+insert into  mysql.plugin values ("unexisting_plugin", "soname");
+
+# check that we have the plugin installed
+select * from mysql.plugin WHERE name='unexisting_plugin';
+
+# make attempt to uninstall the plugin
+UNINSTALL PLUGIN unexisting_plugin;
+
+# check that we have the plugin uninstalled
+select * from mysql.plugin WHERE name='unexisting_plugin';
+
+--error ER_SP_DOES_NOT_EXIST
+UNINSTALL PLUGIN unexisting_plugin;
+
+--echo # End of 10.2 tests

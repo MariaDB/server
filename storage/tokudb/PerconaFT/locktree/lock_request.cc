@@ -93,6 +93,10 @@ void lock_request::destroy(void) {
     toku_cond_destroy(&m_wait_cond);
 }
 
+void lock_request::clearmem(char c) {
+     memset(this, c, sizeof(* this));
+}
+
 // set the lock request parameters. this API allows a lock request to be reused.
 void lock_request::set(locktree *lt, TXNID txnid, const DBT *left_key, const DBT *right_key, lock_request::type lock_type, bool big_txn, void *extra) {
     invariant(m_state != state::PENDING);

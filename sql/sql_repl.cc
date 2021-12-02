@@ -32,6 +32,7 @@
 #include "semisync_master.h"
 #include "semisync_slave.h"
 
+
 enum enum_gtid_until_state {
   GTID_UNTIL_NOT_DONE,
   GTID_UNTIL_STOP_AFTER_STANDALONE,
@@ -374,11 +375,15 @@ static int send_file(THD *thd)
     We need net_flush here because the client will not know it needs to send
     us the file name until it has processed the load event entry
   */
-  if (unlikely(net_flush(net) || (packet_len = my_net_read(net)) == packet_error))
+  if (unlikely(net_flush(net)))
   {
+  read_error:
     errmsg = "while reading file name";
     goto err;
   }
+  packet_len= my_net_read(net);
+  if (unlikely(packet_len == packet_error))
+    goto read_error;
 
   // terminate with \0 for fn_format
   *((char*)net->read_pos +  packet_len) = 0;
@@ -809,7 +814,7 @@ get_slave_until_gtid(THD *thd, String *out_str)
   @param event_coordinates  binlog file name and position of the last
                             real event master sent from binlog
 
-  @note 
+  @note
     Among three essential pieces of heartbeat data Log_event::when
     is computed locally.
     The  error to send is serious and should force terminating
@@ -823,6 +828,8 @@ static int send_heartbeat_event(binlog_send_info *info,
   DBUG_ENTER("send_heartbeat_event");
 
   ulong ev_offset;
+  char sub_header_buf[HB_SUB_HEADER_LEN];
+  bool sub_header_in_use=false;
   if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
     DBUG_RETURN(1);
 
@@ -843,18 +850,38 @@ static int send_heartbeat_event(binlog_send_info *info,
   size_t event_len = ident_len + LOG_EVENT_HEADER_LEN +
     (do_checksum ? BINLOG_CHECKSUM_LEN : 0);
   int4store(header + SERVER_ID_OFFSET, global_system_variables.server_id);
+  DBUG_EXECUTE_IF("simulate_pos_4G",
+  {
+    const_cast<event_coordinates *>(coord)->pos= (UINT_MAX32 + (ulong)1);
+    DBUG_SET("-d, simulate_pos_4G");
+  };);
+  if (coord->pos <= UINT_MAX32)
+  {
+    int4store(header + LOG_POS_OFFSET, coord->pos);  // log_pos
+  }
+  else
+  {
+    // Set common_header.log_pos=0 to indicate its overflow
+    int4store(header + LOG_POS_OFFSET, 0);
+    sub_header_in_use= true;
+    int8store(sub_header_buf, coord->pos);
+    event_len+= HB_SUB_HEADER_LEN;
+  }
+
   int4store(header + EVENT_LEN_OFFSET, event_len);
   int2store(header + FLAGS_OFFSET, 0);
 
-  int4store(header + LOG_POS_OFFSET, coord->pos);  // log_pos
-
   packet->append(header, sizeof(header));
-  packet->append(p, ident_len);             // log_file_name
+  if (sub_header_in_use)
+    packet->append(sub_header_buf, sizeof(sub_header_buf));
+  packet->append(p, ident_len);                    // log_file_name
 
   if (do_checksum)
   {
     char b[BINLOG_CHECKSUM_LEN];
     ha_checksum crc= my_checksum(0, (uchar*) header, sizeof(header));
+    if (sub_header_in_use)
+      crc= my_checksum(crc, (uchar*) sub_header_buf, sizeof(sub_header_buf));
     crc= my_checksum(crc, (uchar*) p, ident_len);
     int4store(b, crc);
     packet->append(b, sizeof(b));
@@ -1958,7 +1985,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
 
   pos= my_b_tell(log);
   if (repl_semisync_master.update_sync_header(info->thd,
-                                              (uchar*) packet->c_ptr(),
+                                              (uchar*) packet->c_ptr_safe(),
                                               info->log_file_name + info->dirlen,
                                               pos, &need_sync))
   {
@@ -1982,7 +2009,8 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     }
   }
 
-  if (need_sync && repl_semisync_master.flush_net(info->thd, packet->c_ptr()))
+  if (need_sync && repl_semisync_master.flush_net(info->thd,
+                                                  packet->c_ptr_safe()))
   {
     info->error= ER_UNKNOWN_ERROR;
     return "Failed to run hook 'after_send_event'";
@@ -2072,9 +2100,13 @@ static int init_binlog_sender(binlog_send_info *info,
     });
 
   if (global_system_variables.log_warnings > 1)
+  {
     sql_print_information(
-        "Start binlog_dump to slave_server(%lu), pos(%s, %lu)",
-        thd->variables.server_id, log_ident, (ulong)*pos);
+        "Start binlog_dump to slave_server(%lu), pos(%s, %lu), "
+        "using_gtid(%d), gtid('%s')", thd->variables.server_id,
+        log_ident, (ulong)*pos, info->using_gtid_state,
+        connect_gtid_state.c_ptr_quick());
+  }
 
 #ifndef DBUG_OFF
   if (opt_sporadic_binlog_dump_fail && (binlog_dump_count++ % 2))
@@ -3289,7 +3321,7 @@ int reset_slave(THD *thd, Master_info* mi)
   char fname[FN_REFLEN];
   int thread_mask= 0, error= 0;
   uint sql_errno=ER_UNKNOWN_ERROR;
-  const char* errmsg= "Unknown error occurred while reseting slave";
+  const char* errmsg= "Unknown error occurred while resetting slave";
   char master_info_file_tmp[FN_REFLEN];
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("reset_slave");
@@ -3850,6 +3882,16 @@ err:
   mi->unlock_slave_threads();
   if (ret == FALSE)
     my_ok(thd);
+  else
+  {
+    /*
+      Depending on where CHANGE MASTER failed, the logs may be waiting to be
+      reopened. This would break future log updates and CHANGE MASTER calls.
+      `try_fix_log_state()` allows the relay log to fix its state to no longer
+      expect to be reopened.
+    */
+    mi->rli.relay_log.try_fix_log_state();
+  }
   DBUG_RETURN(ret);
 }
 
@@ -3875,7 +3917,7 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
   }
 
   bool ret= 0;
-  /* Temporarily disable master semisync before reseting master. */
+  /* Temporarily disable master semisync before resetting master. */
   repl_semisync_master.before_reset_master();
   ret= mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
                                 next_log_number);
@@ -3897,8 +3939,14 @@ bool mysql_show_binlog_events(THD* thd)
 {
   Protocol *protocol= thd->protocol;
   List<Item> field_list;
+  char errmsg_buf[MYSYS_ERRMSG_SIZE];
   const char *errmsg = 0;
   bool ret = TRUE;
+  /*
+     Using checksum validate the correctness of event pos specified in show
+     binlog events command.
+  */
+  bool verify_checksum_once= false;
   IO_CACHE log;
   File file = -1;
   MYSQL_BIN_LOG *binary_log= NULL;
@@ -3906,6 +3954,9 @@ bool mysql_show_binlog_events(THD* thd)
   Master_info *mi= 0;
   LOG_INFO linfo;
   LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
+  enum enum_binlog_checksum_alg checksum_alg;
+  my_off_t binlog_size;
+  MY_STAT s;
 
   DBUG_ENTER("mysql_show_binlog_events");
 
@@ -3977,6 +4028,17 @@ bool mysql_show_binlog_events(THD* thd)
     if ((file=open_binlog(&log, linfo.log_file_name, &errmsg)) < 0)
       goto err;
 
+    my_stat(linfo.log_file_name, &s, MYF(0));
+    binlog_size= s.st_size;
+    if (lex_mi->pos > binlog_size)
+    {
+      sprintf(errmsg_buf, "Invalid pos specified. Requested from pos:%llu is "
+              "greater than actual file size:%lu\n", lex_mi->pos,
+              (ulong)s.st_size);
+      errmsg= errmsg_buf;
+      goto err;
+    }
+
     /*
       to account binlog event header size
     */
@@ -4028,20 +4090,57 @@ bool mysql_show_binlog_events(THD* thd)
       }
     }
 
-    my_b_seek(&log, pos);
+    if (lex_mi->pos > BIN_LOG_HEADER_SIZE)
+    {
+      checksum_alg= description_event->checksum_alg;
+      /* Validate user given position using checksum */
+      if (checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+          checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+      {
+        if (!opt_master_verify_checksum)
+          verify_checksum_once= true;
+        my_b_seek(&log, pos);
+      }
+      else
+      {
+        my_off_t cur_pos= my_b_tell(&log);
+        ulong next_event_len= 0;
+        uchar buff[IO_SIZE];
+        while (cur_pos < pos)
+        {
+          my_b_seek(&log, cur_pos + EVENT_LEN_OFFSET);
+          if (my_b_read(&log, (uchar *)buff, sizeof(next_event_len)))
+          {
+            mysql_mutex_unlock(log_lock);
+            errmsg = "Could not read event_length";
+            goto err;
+          }
+          next_event_len= uint4korr(buff);
+          cur_pos= cur_pos + next_event_len;
+        }
+        if (cur_pos > pos)
+        {
+          mysql_mutex_unlock(log_lock);
+          errmsg= "Invalid input pos specified please provide valid one.";
+          goto err;
+        }
+        my_b_seek(&log, cur_pos);
+      }
+    }
 
     for (event_count = 0;
          (ev = Log_event::read_log_event(&log,
                                          description_event,
-                                         opt_master_verify_checksum)); )
+                                         (opt_master_verify_checksum ||
+                                          verify_checksum_once))); )
     {
       if (event_count >= limit_start &&
-	  ev->net_send(protocol, linfo.log_file_name, pos))
+          ev->net_send(protocol, linfo.log_file_name, pos))
       {
-	errmsg = "Net error";
-	delete ev;
+        errmsg = "Net error";
+        delete ev;
         mysql_mutex_unlock(log_lock);
-	goto err;
+        goto err;
       }
 
       if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
@@ -4067,10 +4166,11 @@ bool mysql_show_binlog_events(THD* thd)
         delete ev;
       }
 
+      verify_checksum_once= false;
       pos = my_b_tell(&log);
 
       if (++event_count >= limit_end)
-	break;
+        break;
     }
 
     if (unlikely(event_count < limit_end && log.error))
@@ -4518,5 +4618,22 @@ rpl_gtid_pos_update(THD *thd, char *str, size_t len)
     return false;
 }
 
+int compare_log_name(const char *log_1, const char *log_2) {
+  int res= 1;
+  const char *ext1_str= strrchr(log_1, '.');
+  const char *ext2_str= strrchr(log_2, '.');
+  char file_name_1[255], file_name_2[255];
+  strmake(file_name_1, log_1, (ext1_str - log_1));
+  strmake(file_name_2, log_2, (ext2_str - log_2));
+  char *endptr = NULL;
+  res= strcmp(file_name_1, file_name_2);
+  if (!res)
+  {
+    ulong ext1= strtoul(++ext1_str, &endptr, 10);
+    ulong ext2= strtoul(++ext2_str, &endptr, 10);
+    res= (ext1 > ext2 ? 1 : ((ext1 == ext2) ? 0 : -1));
+  }
+  return res;
+}
 
 #endif /* HAVE_REPLICATION */

@@ -1,6 +1,8 @@
 #
 # MDEV-11369: Instant ADD COLUMN for InnoDB
 #
+SET @saved_allowance = @@GLOBAL.innodb_instant_alter_column_allowed;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
 call mtr.add_suppression("Cannot add field `.*` in table `test`.`.*` because after adding it, the row size is");
 CREATE TABLE t(a INT UNIQUE)ENGINE=InnoDB ROW_FORMAT=COMPACT;
 ALTER TABLE t ADD e INT, ROW_FORMAT=COMPRESSED;
@@ -306,10 +308,14 @@ id	c2	c3	c4	c5	c6
 affected rows: 3
 ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'c7' at row 1
 ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'c8' at row 1
 SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
 id	c2	c3	c4	c5	c6	c7	c8
 1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
@@ -512,6 +518,29 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+SET innodb_strict_mode = ON;
+CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 ADD d TEXT;
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -763,10 +792,14 @@ id	c2	c3	c4	c5	c6
 affected rows: 3
 ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'c7' at row 1
 ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'c8' at row 1
 SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
 id	c2	c3	c4	c5	c6	c7	c8
 1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
@@ -969,6 +1002,29 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+SET innodb_strict_mode = ON;
+CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 ADD d TEXT;
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -1220,10 +1276,14 @@ id	c2	c3	c4	c5	c6
 affected rows: 3
 ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'c7' at row 1
 ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'c8' at row 1
 SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
 id	c2	c3	c4	c5	c6	c7	c8
 1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
@@ -1426,10 +1486,34 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+SET innodb_strict_mode = ON;
+CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 ADD d TEXT;
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
 disconnect analyze;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-54
+60
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
+SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;

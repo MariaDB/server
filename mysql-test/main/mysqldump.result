@@ -1,14 +1,10 @@
 call mtr.add_suppression("@003f.frm' \\(errno: 22\\)");
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 # Bug#37938 Test "mysqldump" lacks various insert statements
 # Turn off concurrent inserts to avoid random errors
 # NOTE:  We reset the variable back to saved value at the end of test
 SET @OLD_CONCURRENT_INSERT = @@GLOBAL.CONCURRENT_INSERT;
 SET @@GLOBAL.CONCURRENT_INSERT = 0;
-DROP TABLE IF EXISTS t1, `"t"1`, t1aa, t2, t2aa, t3;
-drop database if exists mysqldump_test_db;
-drop database if exists db1;
-drop database if exists db2;
-drop view if exists v1, v2, v3;
 CREATE TABLE t1(a INT, KEY (a)) KEY_BLOCK_SIZE=1024;
 INSERT INTO t1 VALUES (1), (2);
 <?xml version="1.0"?>
@@ -5420,8 +5416,9 @@ proc
 one
 DROP DATABASE bug25717383;
 Usage: mysqldump [OPTIONS] database [tables]
-OR     mysqldump [OPTIONS] --databases [OPTIONS] DB1 [DB2 DB3...]
-OR     mysqldump [OPTIONS] --all-databases [OPTIONS]
+OR     mysqldump [OPTIONS] --databases DB1 [DB2 DB3...]
+OR     mysqldump [OPTIONS] --all-databases
+OR     mysqldump [OPTIONS] --system=[SYSTEMOPTIONS]]
 For more options, use mysqldump --help
 #
 # MDEV-9001 - [PATCH] Fix DB name quoting in mysqldump --routine
@@ -5657,9 +5654,27 @@ count(*)
 2
 drop tables t2, t1;
 #
+# MDEV-22037: Add ability to skip content of some tables
+# (work around for MDEV-20939)
+#
+use mysql;
+# check that all tables we need are not empty
+select count(*) >=  1 from  mysql.proc;
+count(*) >=  1
+1
+select count(*) >=  1 from  mysql.db;
+count(*) >=  1
+1
+# for proc we have CREATE and INSERT for all other only CREATE
+FOUND 1 /INSERT INTO `proc`/ in MDEV-20939.sql
+NOT FOUND /INSERT INTO `db`/ in MDEV-20939.sql
+FOUND 1 /CREATE TABLE `db`/ in MDEV-20939.sql
+FOUND 1 /CREATE TABLE `proc`/ in MDEV-20939.sql
+use test;
+# End of 10.1 tests
+#
 # Test for --add-drop-trigger
 #
-use test;
 CREATE TABLE t1 (a int, b int);
 CREATE TRIGGER tt1_t1 BEFORE INSERT ON t1 FOR EACH ROW 
 SET NEW.b=NEW.a + 10;
@@ -5705,6 +5720,316 @@ DELIMITER ;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 DROP TABLE t1;
+#
+# MDEV-20939: Race condition between mysqldump import and InnoDB
+#             persistent statistics calculation
+#
+#
+# Without --replace and --insert-ignore
+#
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+DROP TABLE IF EXISTS `innodb_index_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_index_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `stat_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `stat_value` bigint(20) unsigned NOT NULL,
+  `sample_size` bigint(20) unsigned DEFAULT NULL,
+  `stat_description` varchar(1024) COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `innodb_table_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_table_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `n_rows` bigint(20) unsigned NOT NULL,
+  `clustered_index_size` bigint(20) unsigned NOT NULL,
+  `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `general_log` (
+  `event_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `command_type` varchar(64) NOT NULL,
+  `argument` mediumtext NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `slow_log` (
+  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `query_time` time(6) NOT NULL,
+  `lock_time` time(6) NOT NULL,
+  `rows_sent` int(11) NOT NULL,
+  `rows_examined` int(11) NOT NULL,
+  `db` varchar(512) NOT NULL,
+  `last_insert_id` int(11) NOT NULL,
+  `insert_id` int(11) NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `rows_affected` int(11) NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `transaction_registry` (
+  `transaction_id` bigint(20) unsigned NOT NULL,
+  `commit_id` bigint(20) unsigned NOT NULL,
+  `begin_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `commit_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `isolation_level` enum('READ-UNCOMMITTED','READ-COMMITTED','REPEATABLE-READ','SERIALIZABLE') COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`transaction_id`),
+  UNIQUE KEY `commit_id` (`commit_id`),
+  KEY `begin_timestamp` (`begin_timestamp`),
+  KEY `commit_timestamp` (`commit_timestamp`,`transaction_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+#
+# With --replace
+#
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+DROP TABLE IF EXISTS `innodb_index_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_index_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `stat_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `stat_value` bigint(20) unsigned NOT NULL,
+  `sample_size` bigint(20) unsigned DEFAULT NULL,
+  `stat_description` varchar(1024) COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `innodb_index_stats` WRITE;
+/*!40000 ALTER TABLE `innodb_index_stats` DISABLE KEYS */;
+/*!40000 ALTER TABLE `innodb_index_stats` ENABLE KEYS */;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS `innodb_table_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_table_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `n_rows` bigint(20) unsigned NOT NULL,
+  `clustered_index_size` bigint(20) unsigned NOT NULL,
+  `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `innodb_table_stats` WRITE;
+/*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
+/*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `general_log` (
+  `event_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `command_type` varchar(64) NOT NULL,
+  `argument` mediumtext NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `slow_log` (
+  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `query_time` time(6) NOT NULL,
+  `lock_time` time(6) NOT NULL,
+  `rows_sent` int(11) NOT NULL,
+  `rows_examined` int(11) NOT NULL,
+  `db` varchar(512) NOT NULL,
+  `last_insert_id` int(11) NOT NULL,
+  `insert_id` int(11) NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `rows_affected` int(11) NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `transaction_registry` (
+  `transaction_id` bigint(20) unsigned NOT NULL,
+  `commit_id` bigint(20) unsigned NOT NULL,
+  `begin_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `commit_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `isolation_level` enum('READ-UNCOMMITTED','READ-COMMITTED','REPEATABLE-READ','SERIALIZABLE') COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`transaction_id`),
+  UNIQUE KEY `commit_id` (`commit_id`),
+  KEY `begin_timestamp` (`begin_timestamp`),
+  KEY `commit_timestamp` (`commit_timestamp`,`transaction_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+#
+# With --insert-ignore
+#
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+DROP TABLE IF EXISTS `innodb_index_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_index_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `stat_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `stat_value` bigint(20) unsigned NOT NULL,
+  `sample_size` bigint(20) unsigned DEFAULT NULL,
+  `stat_description` varchar(1024) COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `innodb_index_stats` WRITE;
+/*!40000 ALTER TABLE `innodb_index_stats` DISABLE KEYS */;
+/*!40000 ALTER TABLE `innodb_index_stats` ENABLE KEYS */;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS `innodb_table_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_table_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `n_rows` bigint(20) unsigned NOT NULL,
+  `clustered_index_size` bigint(20) unsigned NOT NULL,
+  `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `innodb_table_stats` WRITE;
+/*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
+/*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `general_log` (
+  `event_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `command_type` varchar(64) NOT NULL,
+  `argument` mediumtext NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `slow_log` (
+  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `query_time` time(6) NOT NULL,
+  `lock_time` time(6) NOT NULL,
+  `rows_sent` int(11) NOT NULL,
+  `rows_examined` int(11) NOT NULL,
+  `db` varchar(512) NOT NULL,
+  `last_insert_id` int(11) NOT NULL,
+  `insert_id` int(11) NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `rows_affected` int(11) NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `transaction_registry` (
+  `transaction_id` bigint(20) unsigned NOT NULL,
+  `commit_id` bigint(20) unsigned NOT NULL,
+  `begin_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `commit_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `isolation_level` enum('READ-UNCOMMITTED','READ-COMMITTED','REPEATABLE-READ','SERIALIZABLE') COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`transaction_id`),
+  UNIQUE KEY `commit_id` (`commit_id`),
+  KEY `begin_timestamp` (`begin_timestamp`),
+  KEY `commit_timestamp` (`commit_timestamp`,`transaction_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+# End of 10.2 tests
 #
 # Test for Invisible columns
 #
@@ -5885,3 +6210,122 @@ invisible	int(11)	YES		NULL
 a  b c & $!@#$%^&*( )	int(11)	YES		4	INVISIBLE
 ds=~!@ \# $% ^ & * ( ) _ - = +	int(11)	YES		5	INVISIBLE
 drop database d;
+#
+# MDEV-21786:
+# mysqldump will forget sequence definition details on --no-data dump
+#
+create database d;
+CREATE SEQUENCE d.s1 START WITH 100 INCREMENT BY 10 MINVALUE=100 MAXVALUE=1100 CYCLE;
+CREATE SEQUENCE d.s2 START WITH 200 INCREMENT BY 20 MINVALUE=200 MAXVALUE=1200 CYCLE;
+CREATE SEQUENCE d.s3 START WITH 300 INCREMENT BY 30 MINVALUE=300 MAXVALUE=1300 CYCLE;
+CREATE SEQUENCE d.s4 START WITH 400 INCREMENT BY 40 MINVALUE=400 MAXVALUE=1400 CYCLE;
+SELECT NEXTVAL(d.s1),NEXTVAL(d.s2),NEXTVAL(d.s3), NEXTVAL(d.s4);
+NEXTVAL(d.s1)	NEXTVAL(d.s2)	NEXTVAL(d.s3)	NEXTVAL(d.s4)
+100	200	300	400
+# Show create before dump
+show create sequence d.s1;
+Table	Create Table
+s1	CREATE SEQUENCE `s1` start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
+show create sequence d.s2;
+Table	Create Table
+s2	CREATE SEQUENCE `s2` start with 200 minvalue 200 maxvalue 1200 increment by 20 cache 1000 cycle ENGINE=MyISAM
+show create sequence d.s3;
+Table	Create Table
+s3	CREATE SEQUENCE `s3` start with 300 minvalue 300 maxvalue 1300 increment by 30 cache 1000 cycle ENGINE=MyISAM
+show create sequence d.s4;
+Table	Create Table
+s4	CREATE SEQUENCE `s4` start with 400 minvalue 400 maxvalue 1400 increment by 40 cache 1000 cycle ENGINE=MyISAM
+# Dump sequence without `--no-data`
+# Restore from mysqldump
+SETVAL(`s1`, 1101, 0)
+1101
+SETVAL(`s2`, 1201, 0)
+1201
+SETVAL(`s3`, 1301, 0)
+1301
+SETVAL(`s4`, 1401, 0)
+1401
+# Show create after restore
+show create sequence d.s1;
+Table	Create Table
+s1	CREATE SEQUENCE `s1` start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
+show create sequence d.s2;
+Table	Create Table
+s2	CREATE SEQUENCE `s2` start with 200 minvalue 200 maxvalue 1200 increment by 20 cache 1000 cycle ENGINE=MyISAM
+show create sequence d.s3;
+Table	Create Table
+s3	CREATE SEQUENCE `s3` start with 300 minvalue 300 maxvalue 1300 increment by 30 cache 1000 cycle ENGINE=MyISAM
+show create sequence d.s4;
+Table	Create Table
+s4	CREATE SEQUENCE `s4` start with 400 minvalue 400 maxvalue 1400 increment by 40 cache 1000 cycle ENGINE=MyISAM
+SELECT NEXTVAL(d.s1),NEXTVAL(d.s2),NEXTVAL(d.s3), NEXTVAL(d.s4);
+NEXTVAL(d.s1)	NEXTVAL(d.s2)	NEXTVAL(d.s3)	NEXTVAL(d.s4)
+100	200	300	400
+# Dump sequence with `--no-data`
+# Restore from mysqldump
+SETVAL(`s1`, 1101, 0)
+1101
+SETVAL(`s2`, 1201, 0)
+1201
+SETVAL(`s3`, 1301, 0)
+1301
+SETVAL(`s4`, 1401, 0)
+1401
+# Show create after restore `--no-data`
+show create sequence d.s1;
+Table	Create Table
+s1	CREATE SEQUENCE `s1` start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
+show create sequence d.s2;
+Table	Create Table
+s2	CREATE SEQUENCE `s2` start with 200 minvalue 200 maxvalue 1200 increment by 20 cache 1000 cycle ENGINE=MyISAM
+show create sequence d.s3;
+Table	Create Table
+s3	CREATE SEQUENCE `s3` start with 300 minvalue 300 maxvalue 1300 increment by 30 cache 1000 cycle ENGINE=MyISAM
+show create sequence d.s4;
+Table	Create Table
+s4	CREATE SEQUENCE `s4` start with 400 minvalue 400 maxvalue 1400 increment by 40 cache 1000 cycle ENGINE=MyISAM
+SELECT NEXTVAL(d.s1),NEXTVAL(d.s2),NEXTVAL(d.s3), NEXTVAL(d.s4);
+NEXTVAL(d.s1)	NEXTVAL(d.s2)	NEXTVAL(d.s3)	NEXTVAL(d.s4)
+100	200	300	400
+# Restore to different database than original
+create database d2;
+SETVAL(`s1`, 1101, 0)
+1101
+SETVAL(`s2`, 1201, 0)
+1201
+SETVAL(`s3`, 1301, 0)
+1301
+SETVAL(`s4`, 1401, 0)
+1401
+show create sequence d2.s1;
+Table	Create Table
+s1	CREATE SEQUENCE `s1` start with 100 minvalue 100 maxvalue 1100 increment by 10 cache 1000 cycle ENGINE=MyISAM
+drop sequence d.s1, d.s2, d.s3, d.s4;
+drop database d;
+drop database d2;
+#
+# MDEV-20070
+# mysqldump won't work correct on sequences
+#
+DROP DATABASE IF EXISTS test1;
+Warnings:
+Note	1008	Can't drop database 'test1'; database doesn't exist
+DROP DATABASE IF EXISTS test2;
+Warnings:
+Note	1008	Can't drop database 'test2'; database doesn't exist
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+USE test1;
+CREATE SEQUENCE seq_t_i INCREMENT 5 START WITH 1;
+CREATE TABLE t(
+i integer DEFAULT nextval(seq_t_i),
+j integer
+);
+INSERT INTO t VALUES (1,1),(2,2),(3,3),(4,4);
+# Dump database 1
+# Restore from database 1 to database 2
+SETVAL(`seq_t_i`, 1, 0)
+1
+DROP DATABASE IF EXISTS test1;
+DROP DATABASE IF EXISTS test2;
+# End of 10.3 tests

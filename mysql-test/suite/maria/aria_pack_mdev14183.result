@@ -1,0 +1,22 @@
+CREATE TABLE `t` (
+`col_1` varchar(255) NOT NULL DEFAULT '',
+`col_2` varchar(255) NOT NULL,
+`col_3` int(11) NOT NULL DEFAULT '0',
+`col_4` int(11) NOT NULL DEFAULT '0'
+) ENGINE=Aria TRANSACTIONAL=0 PAGE_CHECKSUM=0;
+insert into t values
+('foobar','qux',0,0),('abcdef','qux',0,0);
+Compressing test/t.MAD: (2 records)
+- Calculating statistics
+
+normal:      0  empty-space:       0  empty-zero:         0  empty-fill:   0
+pre-space:   0  end-space:         0  intervall-fields:   0  zero:         2
+Original trees:  4  After join: 1
+- Compressing file
+Min record length:      5   Max length:      5   Mean total length:     35
+99.57%     
+SELECT * FROM t;
+col_1	col_2	col_3	col_4
+foobar	qux	0	0
+abcdef	qux	0	0
+DROP TABLE t;

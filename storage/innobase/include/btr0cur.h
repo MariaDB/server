@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,6 +30,7 @@ Created 10/16/1994 Heikki Tuuri
 #include "dict0dict.h"
 #include "page0cur.h"
 #include "btr0types.h"
+#include "rem0types.h"
 #include "gis0type.h"
 #include "my_base.h"
 
@@ -271,7 +272,7 @@ btr_cur_optimistic_insert(
 				specified */
 	btr_cur_t*	cursor,	/*!< in: cursor on page after which to insert;
 				cursor stays valid */
-	ulint**		offsets,/*!< out: offsets on *rec */
+	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap */
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
 	rec_t**		rec,	/*!< out: pointer to inserted record if
@@ -307,7 +308,7 @@ btr_cur_pessimistic_insert(
 				insertion will certainly succeed */
 	btr_cur_t*	cursor,	/*!< in: cursor after which to insert;
 				cursor stays valid */
-	ulint**		offsets,/*!< out: offsets on *rec */
+	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap
 				that can be emptied */
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
@@ -341,7 +342,7 @@ btr_cur_update_alloc_zip_func(
 	page_cur_t*	cursor,	/*!< in/out: B-tree page cursor */
 	dict_index_t*	index,	/*!< in: the index corresponding to cursor */
 #ifdef UNIV_DEBUG
-	ulint*		offsets,/*!< in/out: offsets of the cursor record */
+	rec_offs*	offsets,/*!< in/out: offsets of the cursor record */
 #endif /* UNIV_DEBUG */
 	ulint		length,	/*!< in: size needed */
 	bool		create,	/*!< in: true=delete-and-insert,
@@ -368,7 +369,7 @@ btr_cur_update_in_place(
 	btr_cur_t*	cursor,	/*!< in: cursor on the record to update;
 				cursor stays valid and positioned on the
 				same record */
-	ulint*		offsets,/*!< in/out: offsets on cursor->page_cur.rec */
+	rec_offs*	offsets,/*!< in/out: offsets on cursor->page_cur.rec */
 	const upd_t*	update,	/*!< in: update vector */
 	ulint		cmpl_info,/*!< in: compiler info on secondary index
 				updates */
@@ -410,7 +411,7 @@ btr_cur_optimistic_update(
 	btr_cur_t*	cursor,	/*!< in: cursor on the record to update;
 				cursor stays valid and positioned on the
 				same record */
-	ulint**		offsets,/*!< out: offsets on cursor->page_cur.rec */
+	rec_offs**	offsets,/*!< out: offsets on cursor->page_cur.rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to NULL or memory heap */
 	const upd_t*	update,	/*!< in: update vector; this must also
 				contain trx id and roll ptr fields */
@@ -437,7 +438,7 @@ btr_cur_pessimistic_update(
 	btr_cur_t*	cursor,	/*!< in/out: cursor on the record to update;
 				cursor may become invalid if *big_rec == NULL
 				|| !(flags & BTR_KEEP_POS_FLAG) */
-	ulint**		offsets,/*!< out: offsets on cursor->page_cur.rec */
+	rec_offs**	offsets,/*!< out: offsets on cursor->page_cur.rec */
 	mem_heap_t**	offsets_heap,
 				/*!< in/out: pointer to memory heap
 				that can be emptied */
@@ -469,7 +470,7 @@ btr_cur_del_mark_set_clust_rec(
 	buf_block_t*	block,	/*!< in/out: buffer block of the record */
 	rec_t*		rec,	/*!< in/out: record */
 	dict_index_t*	index,	/*!< in: clustered index of the record */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec) */
 	que_thr_t*	thr,	/*!< in: query thread */
 	const dtuple_t*	entry,	/*!< in: dtuple for the deleting record */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
@@ -613,8 +614,24 @@ btr_estimate_n_rows_in_range(
 	const dtuple_t*	tuple2,
 	page_cur_mode_t	mode2);
 
-/*******************************************************************//**
-Estimates the number of different key values in a given index, for
+
+/** Statistics for one field of an index. */
+struct index_field_stats_t
+{
+  ib_uint64_t n_diff_key_vals;
+  ib_uint64_t n_sample_sizes;
+  ib_uint64_t n_non_null_key_vals;
+
+  index_field_stats_t(ib_uint64_t n_diff_key_vals= 0,
+                      ib_uint64_t n_sample_sizes= 0,
+                      ib_uint64_t n_non_null_key_vals= 0)
+      : n_diff_key_vals(n_diff_key_vals), n_sample_sizes(n_sample_sizes),
+        n_non_null_key_vals(n_non_null_key_vals)
+  {
+  }
+};
+
+/** Estimates the number of different key values in a given index, for
 each n-column prefix of the index where 1 <= n <= dict_index_get_n_unique(index).
 The estimates are stored in the array index->stat_n_diff_key_vals[] (indexed
 0..n_uniq-1) and the number of pages that were sampled is saved in
@@ -622,12 +639,11 @@ index->stat_n_sample_sizes[].
 If innodb_stats_method is nulls_ignored, we also record the number of
 non-null values for each prefix and stored the estimates in
 array index->stat_n_non_null_key_vals.
-@return true if the index is available and we get the estimated numbers,
-false if the index is unavailable. */
-bool
-btr_estimate_number_of_different_key_vals(
-/*======================================*/
-	dict_index_t*	index);	/*!< in: index */
+@param[in]	index	index
+@return stat vector if the index is available and we get the estimated numbers,
+empty vector if the index is unavailable. */
+std::vector<index_field_stats_t>
+btr_estimate_number_of_different_key_vals(dict_index_t* index);
 
 /** Gets the externally stored size of a record, in units of a database page.
 @param[in]	rec	record
@@ -636,7 +652,7 @@ btr_estimate_number_of_different_key_vals(
 ulint
 btr_rec_get_externally_stored_len(
 	const rec_t*	rec,
-	const ulint*	offsets);
+	const rec_offs*	offsets);
 
 /*******************************************************************//**
 Marks non-updated off-page fields as disowned by this record. The ownership
@@ -650,7 +666,7 @@ btr_cur_disown_inherited_fields(
 				part will be updated, or NULL */
 	rec_t*		rec,	/*!< in/out: record in a clustered index */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	const upd_t*	update,	/*!< in: update vector */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull(2,3,4,5,6)));
@@ -689,7 +705,7 @@ btr_store_big_rec_extern_fields(
 	btr_pcur_t*	pcur,		/*!< in/out: a persistent cursor. if
 					btr_mtr is restarted, then this can
 					be repositioned. */
-	ulint*		offsets,	/*!< in/out: rec_get_offsets() on
+	rec_offs*	offsets,	/*!< in/out: rec_get_offsets() on
 					pcur. the "external storage" flags
 					in offsets will correctly correspond
 					to rec when this function returns */
@@ -720,7 +736,7 @@ btr_free_externally_stored_field(
 	byte*		field_ref,	/*!< in/out: field reference */
 	const rec_t*	rec,		/*!< in: record containing field_ref, for
 					page_zip_write_blob_ptr(), or NULL */
-	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index),
+	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec, index),
 					or NULL */
 	page_zip_des_t*	page_zip,	/*!< in: compressed page corresponding
 					to rec, or NULL if rec == NULL */
@@ -777,24 +793,12 @@ protected by a lock or a page latch
 byte*
 btr_rec_copy_externally_stored_field(
 	const rec_t*		rec,
-	const ulint*		offsets,
+	const rec_offs*		offsets,
 	const page_size_t&	page_size,
 	ulint			no,
 	ulint*			len,
 	mem_heap_t*		heap);
 
-/*******************************************************************//**
-Flags the data tuple fields that are marked as extern storage in the
-update vector.  We use this function to remember which fields we must
-mark as extern storage in a record inserted for an update.
-@return number of flagged external columns */
-ulint
-btr_push_update_extern_fields(
-/*==========================*/
-	dtuple_t*	tuple,	/*!< in/out: data tuple */
-	const upd_t*	update,	/*!< in: update vector */
-	mem_heap_t*	heap)	/*!< in: memory heap */
-	MY_ATTRIBUTE((nonnull));
 /***********************************************************//**
 Sets a secondary index record's delete mark to the given value. This
 function is only used by the insert buffer merge mechanism. */

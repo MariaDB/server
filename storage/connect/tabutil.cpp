@@ -14,7 +14,7 @@
 #include "sql_class.h"
 #include "table.h"
 #include "field.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -59,10 +59,22 @@ int GetConvSize(void);
 /*  Used by MYSQL tables to get MySQL parameters from the calling proxy */
 /*  table (PROXY, TBL, XCL, or OCCUR) when used by one of these.        */
 /************************************************************************/
-void Remove_tshp(PCATLG cat)
+TABLE_SHARE *Remove_tshp(PCATLG cat)
 {
-  ((MYCAT*)cat)->GetHandler()->tshp = NULL;
+  TABLE_SHARE *s = ((MYCAT*)cat)->GetHandler()->tshp;
+
+	((MYCAT*)cat)->GetHandler()->tshp = NULL;
+	return s;
 } // end of Remove_thsp
+
+/************************************************************************/
+/*  Used by MYSQL tables to get MySQL parameters from the calling proxy */
+/*  table (PROXY, TBL, XCL, or OCCUR) when used by one of these.        */
+/************************************************************************/
+void Restore_tshp(PCATLG cat, TABLE_SHARE *s)
+{
+	((MYCAT*)cat)->GetHandler()->tshp = s;
+} // end of Restore_thsp
 
 /************************************************************************/
 /*  GetTableShare: allocates and open a table share.                    */

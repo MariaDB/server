@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -676,13 +677,18 @@ SysTablespace::file_not_found(
 {
 	file.m_exists = false;
 
-	if (srv_read_only_mode && !m_ignore_read_only) {
+	if (m_ignore_read_only) {
+	} else if (srv_read_only_mode) {
 		ib::error() << "Can't create file '" << file.filepath()
 			<< "' when --innodb-read-only is set";
-
 		return(DB_ERROR);
+	} else if (srv_force_recovery && space_id() == TRX_SYS_SPACE) {
+		ib::error() << "Can't create file '" << file.filepath()
+			<< "' when --innodb-force-recovery is set";
+		return DB_ERROR;
+	}
 
-	} else if (&file == &m_files.front()) {
+	if (&file == &m_files.front()) {
 
 		/* First data file. */
 		ut_a(!*create_new_db);
@@ -904,18 +910,26 @@ SysTablespace::open_or_create(
 		} else if (is_temp) {
 			ut_ad(!fil_system.temp_space);
 			ut_ad(space_id() == SRV_TMP_SPACE_ID);
-			space = fil_system.temp_space = fil_space_create(
+			space = fil_space_create(
 				name(), SRV_TMP_SPACE_ID, flags(),
 				FIL_TYPE_TEMPORARY, NULL);
+
+			mutex_enter(&fil_system.mutex);
+			fil_system.temp_space = space;
+			mutex_exit(&fil_system.mutex);
 			if (!space) {
 				return DB_ERROR;
 			}
 		} else {
 			ut_ad(!fil_system.sys_space);
 			ut_ad(space_id() == TRX_SYS_SPACE);
-			space = fil_system.sys_space = fil_space_create(
+			space = fil_space_create(
 				name(), TRX_SYS_SPACE, flags(),
 				FIL_TYPE_TABLESPACE, NULL);
+
+			mutex_enter(&fil_system.mutex);
+			fil_system.sys_space = space;
+			mutex_exit(&fil_system.mutex);
 			if (!space) {
 				return DB_ERROR;
 			}

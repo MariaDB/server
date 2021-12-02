@@ -29,9 +29,6 @@ IF(WIN32)
 
   MYSQL_ADD_PLUGIN(authentication_windows_client ${PLUGIN_SOURCES} ${HEADERS}
     LINK_LIBRARIES Secur32
-    MODULE_ONLY COMPONENT ClientPlugins)
+    MODULE_ONLY COMPONENT ClientPlugins CLIENT)
 
-  #IF(MSVC)
-  #   INSTALL_DEBUG_TARGET(auth_win_client DESTINATION ${INSTALL_LIBDIR}/debug)
-  #ENDIF()
 ENDIF(WIN32)

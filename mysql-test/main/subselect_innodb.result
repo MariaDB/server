@@ -615,3 +615,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t3`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` semi join (`test`.`t4`) join `test`.`t3` where `test`.`t4`.`f4` = 1 and `test`.`t1`.`f1` >= `test`.`t2`.`f2`
 DROP TABLE t1,t2,t3,t4;
+#
+# MDEV-23535: SIGSEGV, SIGABRT and SIGILL in typeinfo for Item_func_set_collation (on optimized builds)
+#
+set @save_character_set_connection=@@character_set_connection;
+set character_set_connection='utf8';
+CREATE TABLE t1(a DATETIME, b VARCHAR(50)) ENGINE=INNODB;
+INSERT INTO t1 VALUES ('2019-03-10 02:55:05', '2019-03-10 02:55:05');
+CREATE TABLE t2(a VARCHAR(50)) ENGINE=INNODB;
+INSERT INTO t2 VALUES ('2019-03-10 02:55:05');
+SELECT * FROM t1 WHERE (SELECT 1,CONCAT(a) FROM t1) = (SELECT 1,CONCAT(a) FROM t2);
+a	b
+2019-03-10 02:55:05	2019-03-10 02:55:05
+DROP TABLE t1,t2;
+set character_set_connection=@save_character_set_connection;

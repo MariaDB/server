@@ -337,7 +337,7 @@ static void test_prefetching(void) {
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 1;
     sn.n_children = 3;
-    sn.dirty = 1;
+    sn.set_dirty();
     sn.oldest_referenced_xid_known = TXNID_NONE;
 
     uint64_t key1 = 100;

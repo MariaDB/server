@@ -92,3 +92,31 @@ a
 STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI
 drop table t1;
+set time_zone='+00:00';
+create table t1 (a int, b datetime default from_unixtime(a), c datetime);
+insert t1 (a, c) values (1569495327, from_unixtime(1569495327));
+set time_zone='+01:00';
+insert t1 (a, c) values (1569495327, from_unixtime(1569495327));
+flush tables;
+insert t1 (a, c) values (1569495327, from_unixtime(1569495327));
+select * from t1;
+a	b	c
+1569495327	2019-09-26 10:55:27	2019-09-26 10:55:27
+1569495327	2019-09-26 11:55:27	2019-09-26 11:55:27
+1569495327	2019-09-26 11:55:27	2019-09-26 11:55:27
+drop table t1;
+set time_zone = "+00:00";
+create table t1 (a int, b timestamp as (from_unixtime(a)) virtual);
+insert into t1 (a) value (1569495327);
+select a, b, from_unixtime(a) from t1;
+a	b	from_unixtime(a)
+1569495327	2019-09-26 10:55:27	2019-09-26 10:55:27
+set time_zone = "+01:00";
+select a, b, from_unixtime(a) from t1;
+a	b	from_unixtime(a)
+1569495327	2019-09-26 11:55:27	2019-09-26 11:55:27
+flush tables;
+select a, b, from_unixtime(a) from t1;
+a	b	from_unixtime(a)
+1569495327	2019-09-26 11:55:27	2019-09-26 11:55:27
+drop table t1;

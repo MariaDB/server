@@ -607,6 +607,7 @@ let $wait_condition= SELECT @id:=QUERY_ID FROM INFORMATION_SCHEMA.PROCESSLIST WH
 source include/wait_condition.inc;
 KILL QUERY ID @id;
 connection default;
+--error ER_QUERY_INTERRUPTED
 reap;
 
 --error ER_NO_SUCH_QUERY
@@ -633,6 +634,7 @@ connection con1;
 KILL QUERY ID @id;
 
 connection default;
+--error ER_QUERY_INTERRUPTED
 reap;
 disconnect con5;
 DROP USER u1@localhost;
@@ -662,3 +664,9 @@ ALTER TABLE t2 DROP c;
 UNLOCK TABLES;
 DROP VIEW v1;
 DROP TABLE t1, t2;
+
+--echo #
+--echo # KILL QUERY ID USER
+--echo #
+--error ER_PARSE_ERROR
+kill query id user 'foo';

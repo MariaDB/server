@@ -10,4 +10,5 @@
 #
 ##############################################################################
 
-foreign_key : Sporadic failure "WSREP has not yet prepared node for application use"
+
+mdev_6832: wsrep_provider is read-only for security reasons

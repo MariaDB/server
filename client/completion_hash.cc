@@ -205,7 +205,8 @@ Bucket *find_longest_match(HashTable *ht, char *str, uint length,
 void completion_hash_clean(HashTable *ht)
 {
   free_root(&ht->mem_root,MYF(0));
-  bzero((char*) ht->arBuckets,ht->nTableSize*sizeof(Bucket *));
+  if (size_t s= ht->nTableSize)
+    bzero((char*) ht->arBuckets, s * sizeof(Bucket *));
 }
 
 

@@ -29,6 +29,7 @@ Created 9/30/1995 Heikki Tuuri
 #ifdef HAVE_LINUX_LARGE_PAGES
 # include "mysqld.h"
 #endif
+#include "my_valgrind.h"
 
 /* FreeBSD for example has only MAP_ANON, Linux has MAP_ANONYMOUS and
 MAP_ANON but MAP_ANON is marked as deprecated */
@@ -101,7 +102,7 @@ os_mem_alloc_large(
 		my_atomic_addlint(
 			&os_total_large_mem_allocated, size);
 
-		UNIV_MEM_ALLOC(ptr, size);
+		MEM_UNDEFINED(ptr, size);
 		return(ptr);
 	}
 
@@ -125,7 +126,7 @@ skip:
 	} else {
 		my_atomic_addlint(
 			&os_total_large_mem_allocated, size);
-		UNIV_MEM_ALLOC(ptr, size);
+		MEM_UNDEFINED(ptr, size);
 	}
 #else
 	size = getpagesize();
@@ -141,7 +142,7 @@ skip:
 	} else {
 		my_atomic_addlint(
 			&os_total_large_mem_allocated, size);
-		UNIV_MEM_ALLOC(ptr, size);
+		MEM_UNDEFINED(ptr, size);
 	}
 #endif
 	return(ptr);
@@ -156,6 +157,14 @@ os_mem_free_large(
 	ulint	size)
 {
 	ut_a(os_total_large_mem_allocated >= size);
+
+#ifdef __SANITIZE_ADDRESS__
+	// We could have manually poisoned that memory for ASAN.
+	// And we must unpoison it by ourself as specified in documentation
+	// for __asan_poison_memory_region() in sanitizer/asan_interface.h
+	// munmap() doesn't do it for us automatically.
+	MEM_MAKE_ADDRESSABLE(ptr, size);
+#endif /* __SANITIZE_ADDRESS__ */
 
 #ifdef HAVE_LINUX_LARGE_PAGES
 	if (my_use_large_pages && opt_large_page_size && !shmdt(ptr)) {

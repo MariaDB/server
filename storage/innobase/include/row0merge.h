@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -167,18 +167,20 @@ row_merge_drop_indexes_dict(
 	table_id_t	table_id)/*!< in: table identifier */
 	MY_ATTRIBUTE((nonnull));
 
-/*********************************************************************//**
-Drop those indexes which were created before an error occurred.
+/** Drop indexes that were created before an error occurred.
 The data dictionary must have been locked exclusively by the caller,
-because the transaction will not be committed. */
+because the transaction will not be committed.
+@param trx              dictionary transaction
+@param table            table containing the indexes
+@param locked           True if table is locked,
+                        false - may need to do lazy drop
+@param alter_trx        Alter table transaction */
 void
 row_merge_drop_indexes(
-/*===================*/
-	trx_t*		trx,	/*!< in/out: transaction */
-	dict_table_t*	table,	/*!< in/out: table containing the indexes */
-	ibool		locked)	/*!< in: TRUE=table locked,
-				FALSE=may need to do a lazy drop */
-	MY_ATTRIBUTE((nonnull));
+        trx_t*          trx,
+        dict_table_t*   table,
+        bool            locked,
+        const trx_t*    alter_trx=NULL);
 
 /*********************************************************************//**
 Drop all partially created indexes during crash recovery. */
@@ -201,18 +203,6 @@ void
 row_merge_file_destroy_low(
 /*=======================*/
 	const pfs_os_file_t&	fd);	/*!< in: merge file descriptor */
-
-/*********************************************************************//**
-Provide a new pathname for a table that is being renamed if it belongs to
-a file-per-table tablespace.  The caller is responsible for freeing the
-memory allocated for the return value.
-@return new pathname of tablespace file, or NULL if space = 0 */
-char*
-row_make_new_pathname(
-/*==================*/
-	dict_table_t*	table,		/*!< in: table to be renamed */
-	const char*	new_name)	/*!< in: new name */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
 Rename the tables in the data dictionary.  The data dictionary must
@@ -489,7 +479,7 @@ row_merge_read_rec(
 	const mrec_t**		mrec,	/*!< out: pointer to merge record,
 					or NULL on end of list
 					(non-NULL on I/O error) */
-	ulint*			offsets,/*!< out: offsets of mrec */
+	rec_offs*		offsets,/*!< out: offsets of mrec */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space)	   /*!< in: space id */
 	MY_ATTRIBUTE((warn_unused_result));

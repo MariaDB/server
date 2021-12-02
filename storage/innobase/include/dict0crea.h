@@ -224,16 +224,6 @@ dict_replace_tablespace_in_dictionary(
 	const char*	path,
 	trx_t*		trx);
 
-/** Delete records from SYS_TABLESPACES and SYS_DATAFILES associated
-with a particular tablespace ID.
-@param[in]	space	Tablespace ID
-@param[in,out]	trx	Current transaction
-@return DB_SUCCESS if OK, dberr_t if the operation failed */
-dberr_t
-dict_delete_tablespace_and_datafiles(
-	ulint		space,
-	trx_t*		trx);
-
 /********************************************************************//**
 Add a foreign key definition to the data dictionary tables.
 @return error code or DB_SUCCESS */

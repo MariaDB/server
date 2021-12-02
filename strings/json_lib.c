@@ -895,7 +895,7 @@ int json_read_keyname_chr(json_engine_t *j)
     case S_QUOTE:
       for (;;)  /* Skip spaces until ':'. */
       {
-        if ((c_len= json_next_char(&j->s) > 0))
+        if ((c_len= json_next_char(&j->s)) > 0)
         {
           if (j->s.c_next == ':')
           {

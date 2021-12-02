@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -55,12 +55,6 @@ step which modifies the database, is started */
 
 #define LOG_CHECKPOINT_FREE_PER_THREAD	(4U << srv_page_size_shift)
 #define LOG_CHECKPOINT_EXTRA_FREE	(8U << srv_page_size_shift)
-
-typedef ulint (*log_checksum_func_t)(const byte* log_block);
-
-/** Pointer to the log checksum calculation function. Protected with
-log_sys.mutex. */
-extern log_checksum_func_t log_checksum_algorithm_ptr;
 
 /** Append a string to the log.
 @param[in]	str		string
@@ -180,9 +174,15 @@ log_write_up_to(
 /** write to the log file up to the last log entry.
 @param[in]	sync	whether we want the written log
 also to be flushed to disk. */
-void
-log_buffer_flush_to_disk(
-	bool sync = true);
+void log_buffer_flush_to_disk(bool sync= true);
+
+
+/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
+#define log_write_and_flush_prepare() log_write_mutex_enter()
+
+/** Durably write the log up to log_sys.lsn and release log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush();
+
 /****************************************************************//**
 This functions writes the log buffer to the log file and if 'flush'
 is set it forces a flush of the log file as well. This is meant to be
@@ -266,14 +266,6 @@ log_block_set_data_len(
 /*===================*/
 	byte*	log_block,	/*!< in/out: log block */
 	ulint	len);		/*!< in: data length */
-/************************************************************//**
-Calculates the checksum for a log block.
-@return checksum */
-UNIV_INLINE
-ulint
-log_block_calc_checksum(
-/*====================*/
-	const byte*	block);	/*!< in: log block */
 
 /** Calculates the checksum for a log block using the CRC32 algorithm.
 @param[in]	block	log block
@@ -282,12 +274,6 @@ UNIV_INLINE
 ulint
 log_block_calc_checksum_crc32(
 	const byte*	block);
-
-/** Calculates the checksum for a log block using the "no-op" algorithm.
-@return		the calculated checksum value */
-UNIV_INLINE
-ulint
-log_block_calc_checksum_none(const byte*);
 
 /************************************************************//**
 Gets a log block checksum field value.
@@ -365,7 +351,7 @@ void
 log_refresh_stats(void);
 /*===================*/
 
-/** Whether to generate and require checksums on the redo log pages */
+/** Whether to require checksums on the redo log pages */
 extern my_bool	innodb_log_checksums;
 
 /* Values used as flags */
@@ -524,19 +510,11 @@ struct log_t{
 					mtr_commit and still ensure that
 					insertions in the flush_list happen
 					in the LSN order. */
-	byte*		buf;		/*!< Memory of double the
-					srv_log_buffer_size is
-					allocated here. This pointer will change
-					however to either the first half or the
-					second half in turns, so that log
-					write/flush to disk don't block
-					concurrent mtrs which will write
-					log to this buffer. Care to switch back
-					to the first half before freeing/resizing
-					must be undertaken. */
-	bool		first_in_use;	/*!< true if buf points to the first
-					half of the buffer, false
-					if the second half */
+	/** log_buffer, append data here */
+	byte*		buf;
+	/** log_buffer, writing data to file from this buffer.
+	Before flushing write_buf is swapped with flush_buf */
+	byte*		flush_buf;
 	ulong		max_buf_free;	/*!< recommended maximum value of
 					buf_free for the buffer in use, after
 					which the buffer is flushed */

@@ -11,8 +11,7 @@ SELECT a from t into @a;
 FLUSH LOGS;
 DELETE FROM t;
 
-# Todo: MDEV-10362 to test multi-row Rows_log_event:s in verbose mode
---exec $MYSQL_BINLOG -vv --debug-binlog-row-event-max-encoded-size=256 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--exec $MYSQL_BINLOG --verbose --debug-binlog-row-event-max-encoded-size=256 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
 
 --let SEARCH_PATTERN= BINLOG @binlog_fragment_0, @binlog_fragment_1
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
@@ -40,6 +39,11 @@ BINLOG @binlog_fragment_0, @binlog_fragment_1;
 SET @binlog_fragment_0='012345';
 --error ER_WRONG_TYPE_FOR_VAR
 BINLOG @binlog_fragment_0, @binlog_fragment_not_exist;
+
+# MDEV-22520
+SET @a= '42';
+--error ER_SYNTAX_ERROR
+BINLOG @a, @a;
 
 --echo # Cleanup
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql

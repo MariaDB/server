@@ -451,6 +451,8 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
     const char *error_string;
     if (part_type == RANGE_PARTITION)
       error_string= "RANGE";
+    else if (part_type == VERSIONING_PARTITION)
+      error_string= "SYSTEM_TIME";
     else
       error_string= "LIST";
     my_error(ER_PARTITIONS_MUST_BE_DEFINED_ERROR, MYF(0), error_string);
@@ -873,7 +875,6 @@ void partition_info::vers_set_hist_part(THD *thd)
       if (next->range_value > thd->query_start())
         return;
     }
-    goto warn;
   }
   return;
 warn:
@@ -1448,13 +1449,13 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
       buf_ptr= (char*)"from column_list";
     else
     {
-      my_bitmap_map *old_map= dbug_tmp_use_all_columns(table_arg, table_arg->read_set);
+      MY_BITMAP *old_map= dbug_tmp_use_all_columns(table_arg, &table_arg->read_set);
       if (part_expr->null_value)
         buf_ptr= (char*)"NULL";
       else
         longlong10_to_str(err_value, buf,
                      part_expr->unsigned_flag ? 10 : -10);
-      dbug_tmp_restore_column_map(table_arg->read_set, old_map);
+      dbug_tmp_restore_column_map(&table_arg->read_set, old_map);
     }
     my_error(ER_NO_PARTITION_FOR_GIVEN_VALUE, errflag, buf_ptr);
   }

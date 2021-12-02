@@ -329,6 +329,7 @@ sub start_mysqlds()
     $mysqld_found= 1; # The default
     $mysqld_found= 0 if (!length($mysqld));
     $com= "$mysqld";
+
     for ($j = 0, $tmp= ""; defined($options[$j]); $j++)
     {
       if ("--mysqladmin=" eq substr($options[$j], 0, 13))

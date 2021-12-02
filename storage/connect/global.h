@@ -1,7 +1,7 @@
 /***********************************************************************/
 /*  GLOBAL.H: Declaration file used by all CONNECT implementations.    */
 /*  (C) Copyright MariaDB Corporation Ab                 							 */
-/*  Author Olivier Bertrand                              1993-2018     */
+/*  Author Olivier Bertrand                              1993-2020     */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -14,11 +14,11 @@
 #include <time.h>                   /* time_t type declaration         */
 #include <setjmp.h>                 /* Long jump   declarations        */
 
-#if defined(__WIN__) && !defined(NOEX)
+#if defined(_WIN32) && !defined(NOEX)
 #define DllExport  __declspec( dllexport )
-#else   // !__WIN__
+#else   // !_WIN32
 #define DllExport
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #if defined(DOMDOC_SUPPORT) || defined(LIBXML2_SUPPORT)
 #define XML_SUPPORT 1
@@ -43,11 +43,11 @@
 #define STEP(I)                    MSG_##I
 #endif  // !XMSG and !NEWMSG
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #define CRLF  2
-#else    // !__WIN__
+#else    // !_WIN32
 #define CRLF  1
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Define access to the thread based trace value.                     */
@@ -89,14 +89,10 @@ extern "C" {
 #define PAT_LOG       "log"
 
 #if defined(UNIX) || defined(LINUX) || defined(UNIV_LINUX)
-  /*********************************************************************/
-  /*  printf does not accept null pointer for %s target.               */
-  /*********************************************************************/
+  // printf does not accept null pointer for %s target
   #define SVP(S)  ((S) ? S : "<null>")
 #else
-  /*********************************************************************/
-  /*  printf accepts null pointer for %s target.                       */
-  /*********************************************************************/
+  //  printf accepts null pointer for %s target
   #define SVP(S)  S
 #endif
 
@@ -112,9 +108,6 @@ extern "C" {
 /***********************************************************************/
 #include "os.h"
 
-typedef uint  OFFSET;
-typedef char  NAME[9];
-
 typedef struct {
   ushort Length;
   char   String[2];
@@ -127,6 +120,7 @@ typedef struct _global   *PGLOBAL;
 typedef struct _globplg  *PGS;
 typedef struct _activity *PACTIVITY;
 typedef struct _parm     *PPARM;
+typedef char   NAME[9];
 
 /***********************************************************************/
 /* Segment Sub-Allocation block structure declares.                    */
@@ -135,8 +129,8 @@ typedef struct _parm     *PPARM;
 /* restore them if needed. This scheme implies that no SubFree be used */
 /***********************************************************************/
 typedef struct {               /* Plug Area SubAlloc header            */
-  OFFSET To_Free;              /* Offset of next free block            */
-  uint   FreeBlk;              /* Size of remaining free memory        */
+  size_t To_Free;              /* Offset of next free block            */
+  size_t FreeBlk;              /* Size of remaining free memory        */
   } POOLHEADER, *PPOOLHEADER;
 
 /***********************************************************************/
@@ -188,11 +182,12 @@ typedef struct _parm {
 /***********************************************************************/
 typedef struct _global {            /* Global structure                */
   void     *Sarea;                  /* Points to work area             */
-  uint      Sarea_Size;             /* Work area size                  */
+  size_t    Sarea_Size;             /* Work area size                  */
 	PACTIVITY Activityp;
-  char      Message[MAX_STR];
-	ulong     More;										/* Used by jsonudf                 */
-	int       Createas;               /* To pass multi to ext tables     */
+  char      Message[MAX_STR];				/* Message (result, error, trace)  */
+	size_t    More;										/* Used by jsonudf                 */
+	size_t    Saved_Size;             /* Saved work area to_free         */
+	bool      Createas;               /* To pass multi to ext tables     */
   void     *Xchk;                   /* indexes in create/alter         */
   short     Alchecked;              /* Checked for ALTER               */
   short     Mrr;                    /* True when doing mrr             */
@@ -209,31 +204,27 @@ DllExport char   *PlugReadMessage(PGLOBAL, int, char *);
 #elif defined(NEWMSG)
 DllExport char   *PlugGetMessage(PGLOBAL, int);
 #endif   // XMSG  || NEWMSG
-#if defined(__WIN__)
-DllExport short   GetLineLength(PGLOBAL);  // Console line length
-#endif   // __WIN__
-DllExport PGLOBAL PlugInit(LPCSTR, uint);  // Plug global initialization
-DllExport int     PlugExit(PGLOBAL);       // Plug global termination
+#if defined(_WIN32)
+DllExport short   GetLineLength(PGLOBAL);   // Console line length
+#endif   // _WIN32
+DllExport PGLOBAL PlugInit(LPCSTR, size_t); // Plug global initialization
+DllExport PGLOBAL PlugExit(PGLOBAL);        // Plug global termination
 DllExport LPSTR   PlugRemoveType(LPSTR, LPCSTR);
 DllExport LPCSTR  PlugSetPath(LPSTR to, LPCSTR prefix, LPCSTR name, LPCSTR dir);
 DllExport BOOL    PlugIsAbsolutePath(LPCSTR path);
-DllExport bool    AllocSarea(PGLOBAL, uint);
+DllExport bool    AllocSarea(PGLOBAL, size_t);
 DllExport void    FreeSarea(PGLOBAL);
-DllExport BOOL    PlugSubSet(void *, uint);
+DllExport BOOL    PlugSubSet(void *, size_t);
 DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
 DllExport char   *PlugDup(PGLOBAL g, const char *str);
-DllExport void   *MakePtr(void *, OFFSET);
 DllExport void    htrc(char const *fmt, ...);
 DllExport void    xtrc(uint, char const* fmt, ...);
 DllExport uint    GetTraceValue(void);
+DllExport void*   MakePtr(void* memp, size_t offset);
+DllExport size_t  MakeOff(void* memp, void* ptr);
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-
-/***********************************************************************/
-/*  Non exported routine declarations.                                 */
-/***********************************************************************/
-//void *PlugSubAlloc(PGLOBAL, void *, size_t);	 // Does throw
 
 /*-------------------------- End of Global.H --------------------------*/

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -508,7 +508,7 @@ the pass value == 0. */
 bool
 rw_lock_own(
 /*========*/
-	rw_lock_t*	lock,		/*!< in: rw-lock */
+	const rw_lock_t*lock,		/*!< in: rw-lock */
 	ulint		lock_type)	/*!< in: lock type: RW_LOCK_S,
 					RW_LOCK_X */
 	MY_ATTRIBUTE((warn_unused_result));
@@ -576,12 +576,6 @@ struct rw_lock_t
 
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;
-
-	/** This is TRUE if the writer field is RW_LOCK_X_WAIT; this field
-	is located far from the memory update hotspot fields which are at
-	the start of this struct, thus we can peek this field without
-	causing much memory bus traffic */
-	bool		writer_is_wait_ex;
 
 	/** The value is typically set to thread id of a writer thread making
 	normal rw_locks recursive. In case of asynchronous IO, when a non-zero

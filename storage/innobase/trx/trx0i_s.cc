@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -46,6 +46,7 @@ Created July 17, 2007 Vasil Dimov
 #include "trx0sys.h"
 #include "que0que.h"
 #include "trx0purge.h"
+#include "sql_class.h"
 
 /** Initial number of rows in the table cache */
 #define TABLE_CACHE_INITIAL_ROWSNUM	1024
@@ -450,7 +451,6 @@ fill_trx_row(
 						which to copy volatile
 						strings */
 {
-	size_t		stmt_len;
 	const char*	s;
 
 	ut_ad(lock_mutex_own());
@@ -485,16 +485,14 @@ fill_trx_row(
 	row->trx_mysql_thread_id = thd_get_thread_id(trx->mysql_thd);
 
 	char	query[TRX_I_S_TRX_QUERY_MAX_LEN + 1];
-	stmt_len = innobase_get_stmt_safe(trx->mysql_thd, query, sizeof(query));
-
-	if (stmt_len > 0) {
-
+	if (size_t stmt_len = thd_query_safe(trx->mysql_thd, query,
+					     sizeof query)) {
 		row->trx_query = static_cast<const char*>(
 			ha_storage_put_memlim(
 				cache->storage, query, stmt_len + 1,
 				MAX_ALLOWED_FOR_STORAGE(cache)));
 
-		row->trx_query_cs = innobase_get_charset(trx->mysql_thd);
+		row->trx_query_cs = thd_charset(trx->mysql_thd);
 
 		if (row->trx_query == NULL) {
 
@@ -580,7 +578,7 @@ thd_done:
 
 	row->trx_is_read_only = trx->read_only;
 
-	row->trx_is_autocommit_non_locking = trx_is_autocommit_non_locking(trx);
+	row->trx_is_autocommit_non_locking = trx->is_autocommit_non_locking();
 
 	return(TRUE);
 }
@@ -599,7 +597,7 @@ put_nth_field(
 	ulint			n,	/*!< in: number of field */
 	const dict_index_t*	index,	/*!< in: index */
 	const rec_t*		rec,	/*!< in: record */
-	const ulint*		offsets)/*!< in: record offsets, returned
+	const rec_offs*		offsets)/*!< in: record offsets, returned
 					by rec_get_offsets() */
 {
 	const byte*	data;
@@ -680,8 +678,8 @@ fill_lock_data(
 	const dict_index_t*	index;
 	ulint			n_fields;
 	mem_heap_t*		heap;
-	ulint			offsets_onstack[REC_OFFS_NORMAL_SIZE];
-	ulint*			offsets;
+	rec_offs		offsets_onstack[REC_OFFS_NORMAL_SIZE];
+	rec_offs*		offsets;
 	char			buf[TRX_I_S_LOCK_DATA_MAX_LEN];
 	ulint			buf_used;
 	ulint			i;
@@ -715,7 +713,8 @@ fill_lock_data(
 	ut_a(n_fields > 0);
 
 	heap = NULL;
-	offsets = rec_get_offsets(rec, index, offsets, true, n_fields, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
+				  n_fields, &heap);
 
 	/* format and store the data */
 
@@ -1234,7 +1233,24 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 {
   i_s_locks_row_t *requested_lock_row;
 
-  assert_trx_nonlocking_or_in_list(trx);
+#ifdef UNIV_DEBUG
+  {
+    const trx_state_t state= trx->state;
+
+    if (trx->is_autocommit_non_locking())
+    {
+      ut_ad(trx->read_only);
+      ut_ad(!trx->is_recovered);
+      ut_ad(trx->mysql_thd);
+      ut_ad(state == TRX_STATE_NOT_STARTED || state == TRX_STATE_ACTIVE);
+    }
+    else
+      ut_ad(state == TRX_STATE_ACTIVE ||
+            state == TRX_STATE_PREPARED ||
+            state == TRX_STATE_PREPARED_RECOVERED ||
+            state == TRX_STATE_COMMITTED_IN_MEMORY);
+  }
+#endif /* UNIV_DEBUG */
 
   if (add_trx_relevant_locks_to_cache(cache, trx, &requested_lock_row))
   {
@@ -1264,13 +1280,16 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
 
   /* Capture the state of transactions */
   mutex_enter(&trx_sys.mutex);
-  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
+  for (trx_t *trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
        trx != NULL;
        trx= UT_LIST_GET_NEXT(trx_list, trx))
   {
-    if (trx_is_started(trx) && trx != purge_sys.query->trx)
+    if (trx->state != TRX_STATE_NOT_STARTED && trx != purge_sys.query->trx)
     {
-      fetch_data_into_cache_low(cache, trx);
+      mutex_enter(&trx->mutex);
+      if (trx->state != TRX_STATE_NOT_STARTED)
+        fetch_data_into_cache_low(cache, trx);
+      mutex_exit(&trx->mutex);
       if (cache->is_truncated)
         break;
      }

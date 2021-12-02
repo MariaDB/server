@@ -618,7 +618,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 USE test;
 SHOW GRANTS FOR CURRENT_USER;
 Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 SET GLOBAL event_scheduler = ON;
 CREATE TABLE events_test.event_log
@@ -632,9 +632,9 @@ GRANT create, insert, select, event ON events_test.* TO evtest1@localhost;
 GRANT select,insert ON test.* TO evtest1@localhost;
 SHOW GRANTS FOR evtest1@localhost;
 Grants for evtest1@localhost
-GRANT USAGE ON *.* TO 'evtest1'@'localhost' IDENTIFIED BY PASSWORD '*3170F3644E31580C25DE4A08F4C07CC9A2D40C32'
-GRANT SELECT, INSERT ON `test`.* TO 'evtest1'@'localhost'
-GRANT SELECT, INSERT, CREATE, EVENT ON `events_test`.* TO 'evtest1'@'localhost'
+GRANT USAGE ON *.* TO `evtest1`@`localhost` IDENTIFIED BY PASSWORD '*3170F3644E31580C25DE4A08F4C07CC9A2D40C32'
+GRANT SELECT, INSERT ON `test`.* TO `evtest1`@`localhost`
+GRANT SELECT, INSERT, CREATE, EVENT ON `events_test`.* TO `evtest1`@`localhost`
 connect  e1,localhost,evtest1,ev1,events_test,$MASTER_MYPORT,$MASTER_MYSOCK;
 CREATE EVENT ev_sched_1823 ON SCHEDULE EVERY 2 SECOND
 DO BEGIN
@@ -692,7 +692,7 @@ SET GLOBAL READ_ONLY = 1;
 
 connect u1_con,localhost,mysqltest_u1,,events_test;
 
-CREATE EVENT e1 ON SCHEDULE AT '2020-01-01 00:00:00' DO SET @a = 1;
+CREATE EVENT e1 ON SCHEDULE AT '2038-01-01 00:00:00' DO SET @a = 1;
 ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
 
 ALTER EVENT e1 COMMENT 'comment';
@@ -703,7 +703,7 @@ ERROR HY000: The MariaDB server is running with the --read-only option so it can
 
 connect root_con,localhost,root,,events_test;
 
-CREATE EVENT e1 ON SCHEDULE AT '2020-01-01 00:00:00' DO SET @a = 1;
+CREATE EVENT e1 ON SCHEDULE AT '2038-01-01 00:00:00' DO SET @a = 1;
 Warnings:
 Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 

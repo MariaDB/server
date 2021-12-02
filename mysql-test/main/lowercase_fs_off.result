@@ -158,3 +158,13 @@ show triggers like '%T1%';
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 drop table t1;
 set GLOBAL sql_mode=default;
+#
+# MDEV-19632 Replication aborts with ER_SLAVE_CONVERSION_FAILED upon CREATE ... SELECT in ORACLE mode
+#
+# Compatibility schema names respect the filesystem case sensitivity
+CREATE TABLE t1 (a MARIADB_SCHEMA.date);
+ERROR HY000: Unknown data type: 'MARIADB_SCHEMA.date'
+CREATE TABLE t1 (a Mariadb_schema.date);
+ERROR HY000: Unknown data type: 'Mariadb_schema.date'
+CREATE TABLE t1 (a mariadb_schema.date);
+DROP TABLE t1;

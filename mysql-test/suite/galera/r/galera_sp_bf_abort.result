@@ -1,0 +1,360 @@
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+CREATE PROCEDURE proc_update_insert()
+BEGIN
+UPDATE t1 SET f2 = 'b';
+INSERT INTO t1 VALUES (4, 'd');
+END|
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, 'c');
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+connection node_1;
+CALL proc_update_insert;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+connection node_1;
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+f1	f2
+1	b
+2	c
+3	b
+4	d
+wsrep_local_replays
+1
+DELETE FROM t1;
+connection node_1;
+CREATE PROCEDURE proc_update_insert_with_exit_handler()
+BEGIN
+DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN END;
+UPDATE t1 SET f2 = 'b';
+INSERT INTO t1 VALUES (4, 'd');
+END|
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, 'c');
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+connection node_1;
+CALL proc_update_insert_with_exit_handler;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+connection node_1;
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+f1	f2
+1	b
+2	c
+3	b
+4	d
+wsrep_local_replays
+1
+DELETE FROM t1;
+connection node_1;
+CREATE PROCEDURE proc_update_insert_with_continue_handler()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+UPDATE t1 SET f2 = 'b';
+INSERT INTO t1 VALUES (4, 'd');
+END|
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, 'c');
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+connection node_1;
+CALL proc_update_insert_with_continue_handler;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+connection node_1;
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+f1	f2
+1	b
+2	c
+3	b
+4	d
+wsrep_local_replays
+1
+DELETE FROM t1;
+connection node_1;
+CREATE PROCEDURE proc_update_insert_transaction()
+BEGIN
+START TRANSACTION;
+UPDATE t1 SET f2 = 'b';
+INSERT INTO t1 VALUES (4, 'd');
+COMMIT;
+END|
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, 'c');
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+connection node_1;
+CALL proc_update_insert_transaction;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+connection node_1;
+Warnings:
+Error	1317	Query execution was interrupted
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+f1	f2
+1	b
+2	c
+3	b
+4	d
+wsrep_local_replays
+1
+DELETE FROM t1;
+connection node_1;
+CREATE PROCEDURE proc_update_insert_transaction_with_continue_handler()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'b';
+INSERT INTO t1 VALUES (4, 'd');
+COMMIT;
+END|
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, 'c');
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+connection node_1;
+CALL proc_update_insert_transaction_with_continue_handler;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+connection node_1;
+Warnings:
+Error	1317	Query execution was interrupted
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+f1	f2
+1	b
+2	c
+3	b
+4	d
+wsrep_local_replays
+1
+DELETE FROM t1;
+connection node_1;
+CREATE PROCEDURE proc_update_insert_transaction_with_exit_handler()
+BEGIN
+DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN END;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'b';
+INSERT INTO t1 VALUES (4, 'd');
+COMMIT;
+END|
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, 'c');
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+connection node_1;
+CALL proc_update_insert_transaction_with_exit_handler;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+connection node_1;
+Warnings:
+Error	1317	Query execution was interrupted
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+f1	f2
+1	b
+2	c
+3	b
+4	d
+wsrep_local_replays
+1
+DELETE FROM t1;
+connection node_1;
+CREATE PROCEDURE proc_insert_insert_conflict()
+BEGIN
+INSERT INTO t1 VALUES (2, 'd');
+INSERT INTO t1 VALUES (4, 'd');
+END|
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, 'c');
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+connection node_1;
+CALL proc_insert_insert_conflict;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+connection node_1;
+Got one of the listed errors
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	c
+3	a
+wsrep_local_replays
+1
+DELETE FROM t1;
+connection node_1;
+CREATE PROCEDURE proc_insert_insert_conflict_with_exit_handler()
+BEGIN
+DECLARE EXIT HANDLER FOR SQLEXCEPTION SELECT "Conflict exit handler";
+INSERT INTO t1 VALUES (2, 'd');
+INSERT INTO t1 VALUES (4, 'd');
+END|
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, 'c');
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+connection node_1;
+CALL proc_insert_insert_conflict_with_exit_handler;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+connection node_1;
+Conflict exit handler
+Conflict exit handler
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	c
+3	a
+wsrep_local_replays
+1
+DELETE FROM t1;
+connection node_1;
+CREATE PROCEDURE proc_insert_insert_conflict_with_continue_handler()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION SELECT "Conflict continue handler";
+INSERT INTO t1 VALUES (2, 'd');
+INSERT INTO t1 VALUES (4, 'd');
+END|
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, 'c');
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+connection node_1;
+CALL proc_insert_insert_conflict_with_continue_handler;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+connection node_1;
+Conflict continue handler
+Conflict continue handler
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	c
+3	a
+4	d
+wsrep_local_replays
+1
+DELETE FROM t1;
+DROP PROCEDURE proc_update_insert;
+DROP PROCEDURE proc_update_insert_with_continue_handler;
+DROP PROCEDURE proc_update_insert_with_exit_handler;
+DROP PROCEDURE proc_update_insert_transaction;
+DROP PROCEDURE proc_update_insert_transaction_with_continue_handler;
+DROP PROCEDURE proc_update_insert_transaction_with_exit_handler;
+DROP PROCEDURE proc_insert_insert_conflict;
+DROP PROCEDURE proc_insert_insert_conflict_with_exit_handler;
+DROP PROCEDURE proc_insert_insert_conflict_with_continue_handler;
+DROP TABLE t1;

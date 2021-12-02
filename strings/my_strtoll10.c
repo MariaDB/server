@@ -98,18 +98,25 @@ longlong my_strtoll10(const char *nptr, char **endptr, int *error)
   if (endptr)
   {
     end= *endptr;
-    while (s != end && (*s == ' ' || *s == '\t'))
+    /* Skip leading spaces */
+    for ( ; s < end && my_isspace(&my_charset_latin1, *s) ; )
       s++;
+
     if (s == end)
       goto no_conv;
   }
   else
   {
     endptr= &dummy;				/* Easier end test */
-    while (*s == ' ' || *s == '\t')
-      s++;
-    if (!*s)
-      goto no_conv;
+    /* Skip leading spaces */
+    for ( ; ; s++)
+    {
+      if (!*s)
+        goto no_conv;
+      if (!my_isspace(&my_charset_latin1, *s))
+        break;
+    }
+
     /* This number must be big to guard against a lot of pre-zeros */
     end= s+65535;				/* Can't be longer than this */
   }

@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -721,6 +721,8 @@ cli_advanced_command(MYSQL *mysql, enum enum_server_command command,
       set_mysql_error(mysql, CR_NET_PACKET_TOO_LARGE, unknown_sqlstate);
       goto end;
     }
+    if (net->last_errno == ER_NET_ERROR_ON_WRITE && command == COM_BINLOG_DUMP)
+      goto end;
     end_server(mysql);
     if (mysql_reconnect(mysql) || stmt_skip)
       goto end;
@@ -1398,9 +1400,23 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
     {
       if (field >= result + fields)
         goto err;
+
+      /*
+       If any of the row->data[] below is NULL, it can result in a
+       crash. Error out early as it indicates a malformed packet.
+       For data[0], data[1] and data[5], strmake_root will handle
+       NULL values.
+      */
+      if (!row->data[2] || !row->data[3] || !row->data[4])
+      {
+        free_rows(data);
+        set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
+        DBUG_RETURN(0);
+      }
+
       cli_fetch_lengths(&lengths[0], row->data, default_value ? 6 : 5);
-      field->org_table= field->table=  strdup_root(alloc,(char*) row->data[0]);
-      field->name=   strdup_root(alloc,(char*) row->data[1]);
+      field->org_table= field->table=  strmake_root(alloc,(char*) row->data[0], lengths[0]);
+      field->name=   strmake_root(alloc,(char*) row->data[1], lengths[1]);
       field->length= (uint) uint3korr(row->data[2]);
       field->type=   (enum enum_field_types) (uchar) row->data[3][0];
 
@@ -1425,7 +1441,7 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
         field->flags|= NUM_FLAG;
       if (default_value && row->data[5])
       {
-        field->def=strdup_root(alloc,(char*) row->data[5]);
+        field->def= strmake_root(alloc,(char*) row->data[5], lengths[5]);
 	field->def_length= lengths[5];
       }
       else
@@ -3272,7 +3288,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     /* New protocol with 16 bytes to describe server characteristics */
     mysql->server_language=end[2];
     mysql->server_status=uint2korr(end+3);
-    mysql->server_capabilities|= uint2korr(end+5) << 16;
+    mysql->server_capabilities|= ((unsigned) uint2korr(end+5)) << 16;
     pkt_scramble_len= end[7];
     if (pkt_scramble_len < 0)
     {
@@ -3341,7 +3357,10 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
       scramble_data_len= pkt_scramble_len;
       scramble_plugin= scramble_data + scramble_data_len;
       if (scramble_data + scramble_data_len > pkt_end)
-        scramble_data_len= (int)(pkt_end - scramble_data);
+      {
+        set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
+        goto error;
+      }
     }
     else
     {
@@ -3527,7 +3546,7 @@ my_bool mysql_reconnect(MYSQL *mysql)
   if (ctxt)
     my_context_install_suspend_resume_hook(ctxt, NULL, NULL);
 
-  DBUG_PRINT("info", ("reconnect succeded"));
+  DBUG_PRINT("info", ("reconnect succeeded"));
   tmp_mysql.reconnect= 1;
   tmp_mysql.free_me= mysql->free_me;
 

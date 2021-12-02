@@ -66,6 +66,8 @@ VARIABLE_VALUE <= 29
 1
 set global innodb_encrypt_tables=OFF;
 # wait until tables are decrypted
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
 # result should be actual number of tables except remote tables could be read twice
 # i.e. < 23 + 3*2 = 29
 SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'innodb_pages0_read';

@@ -31,6 +31,7 @@
 #include <string.h>
 #include <ctype.h>
 
+static unsigned int sole_mecab_init_counter = 0;
 static mecab_t *sole_mecab = NULL;
 static grn_plugin_mutex *sole_mecab_mutex = NULL;
 static grn_encoding sole_mecab_encoding = GRN_ENC_NONE;
@@ -563,6 +564,11 @@ check_mecab_dictionary_encoding(grn_ctx *ctx)
 grn_rc
 GRN_PLUGIN_INIT(grn_ctx *ctx)
 {
+  ++sole_mecab_init_counter;
+  if (sole_mecab_init_counter > 1)
+  {
+    return GRN_SUCCESS;
+  }
   {
     char env[GRN_ENV_BUFFER_SIZE];
 
@@ -636,6 +642,11 @@ GRN_PLUGIN_REGISTER(grn_ctx *ctx)
 grn_rc
 GRN_PLUGIN_FIN(grn_ctx *ctx)
 {
+  --sole_mecab_init_counter;
+  if (sole_mecab_init_counter > 0)
+  {
+    return GRN_SUCCESS;
+  }
   if (sole_mecab) {
     mecab_destroy(sole_mecab);
     sole_mecab = NULL;

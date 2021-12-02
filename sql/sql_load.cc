@@ -2031,8 +2031,8 @@ int READ_INFO::read_xml(THD *thd)
       
     case '=': /* attribute name end - read the value */
       //check for tag field and attribute name
-      if(!memcmp(tag.c_ptr_safe(), STRING_WITH_LEN("field")) &&
-         !memcmp(attribute.c_ptr_safe(), STRING_WITH_LEN("name")))
+      if(!strcmp(tag.c_ptr_safe(), "field") &&
+         !strcmp(attribute.c_ptr_safe(), "name"))
       {
         /*
           this is format <field name="xx">xx</field>

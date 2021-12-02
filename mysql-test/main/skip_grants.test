@@ -17,24 +17,6 @@ use test;
 
 # Prepare.
 
---disable_warnings
-
-DROP VIEW IF EXISTS v1;
-DROP VIEW IF EXISTS v2;
-DROP VIEW IF EXISTS v3;
-
-DROP TABLE IF EXISTS t1;
-
-DROP PROCEDURE IF EXISTS p1;
-DROP PROCEDURE IF EXISTS p2;
-DROP PROCEDURE IF EXISTS p3;
-
-DROP FUNCTION IF EXISTS f1;
-DROP FUNCTION IF EXISTS f2;
-DROP FUNCTION IF EXISTS f3;
-
---enable_warnings
-
 # Test case.
 
 CREATE TABLE t1(c INT);
@@ -109,20 +91,23 @@ DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP FUNCTION f3;
 
-#
-# Bug #26807 "set global event_scheduler=1" and --skip-grant-tables crashes server
-#
+--echo #
+--echo # Bug #26807 "set global event_scheduler=1" and --skip-grant-tables crashes server
+--echo #
 set global event_scheduler=1;
 set global event_scheduler=0;
 
-#
-# Bug#26285 Selecting information_schema crahes server
-#
+--echo #
+--echo # Bug#26285 Selecting information_schema crahes server
+--echo #
 select count(*) from information_schema.COLUMN_PRIVILEGES;
 select count(*) from information_schema.SCHEMA_PRIVILEGES;
 select count(*) from information_schema.TABLE_PRIVILEGES;
 select count(*) from information_schema.USER_PRIVILEGES;
---echo End of 5.0 tests
+
+--echo #
+--echo # End of 5.0 tests
+--echo #
 
 --echo #
 --echo # Bug#29817 Queries with UDF fail with non-descriptive error
@@ -131,9 +116,26 @@ select count(*) from information_schema.USER_PRIVILEGES;
 --error ER_SP_DOES_NOT_EXIST
 select no_such_function(1);
 
---echo End of 5.1 tests
+--echo #
+--echo # End of 5.1 tests
+--echo #
 
-#
-# MDEV-8280 crash in 'show global status' with --skip-grant-tables
-#
+--echo #
+--echo # MDEV-8280 crash in 'show global status' with --skip-grant-tables
+--echo #
 show global status like 'Acl%';
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-22966 Server crashes or hangs with SET ROLE when started with skip-grant-tables
+--echo #
+
+--error ER_OPTION_PREVENTS_STATEMENT
+set role x;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

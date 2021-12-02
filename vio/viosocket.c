@@ -896,7 +896,7 @@ static my_bool socket_peek_read(Vio *vio, uint *bytes)
   @param timeout  Interval (in milliseconds) to wait for an I/O event.
                   A negative timeout value means an infinite timeout.
 
-  @remark sock_errno is set to SOCKET_ETIMEDOUT on timeout.
+  @remark socket_errno is set to SOCKET_ETIMEDOUT on timeout.
 
   @return A three-state value which indicates the operation status.
   @retval -1  Failure, socket_errno indicates the error.
@@ -1214,7 +1214,6 @@ my_bool vio_is_connected(Vio *vio)
   DBUG_RETURN(bytes ? TRUE : FALSE);
 }
 
-#ifndef DBUG_OFF
 
 /**
   Number of bytes in the read or socket buffer
@@ -1233,22 +1232,34 @@ ssize_t vio_pending(Vio *vio)
     return vio->read_end - vio->read_pos;
 
   /* Skip non-socket based transport types. */
-  if (vio->type == VIO_TYPE_TCPIP || vio->type == VIO_TYPE_SOCKET)
+  switch (vio->type)
   {
+  case VIO_TYPE_TCPIP:
+    /* fallthrough */
+  case VIO_TYPE_SOCKET:
     /* Obtain number of readable bytes in the socket buffer. */
     if (socket_peek_read(vio, &bytes))
       return -1;
+    return bytes;
+
+  case VIO_TYPE_SSL:
+    bytes= (uint) SSL_pending(vio->ssl_arg);
+    if (bytes)
+      return bytes;
+    if (socket_peek_read(vio, &bytes))
+      return -1;
+    return bytes;
+
+#ifdef _WIN32
+  case VIO_TYPE_NAMEDPIPE:
+    bytes= vio_pending_pipe(vio);
+    return bytes;
+#endif
+  default:
+    return -1;
   }
-
-  /*
-    SSL not checked due to a yaSSL bug in SSL_pending that
-    causes it to attempt to read from the socket.
-  */
-
-  return (ssize_t) bytes;
 }
 
-#endif /* DBUG_OFF */
 
 /**
   Checks if the error code, returned by vio_getnameinfo(), means it was the

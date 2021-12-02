@@ -607,5 +607,39 @@ ERROR HY000: Unknown system variable 'password'
 SELECT @@GLOBAL.role;
 ERROR HY000: Unknown system variable 'role'
 #
+# MDEV-22822 sql_mode="oracle" cannot declare without variable errors
+#
+# It's OK to have no declarations between DECLARE and BEGIN.
+#
+BEGIN
+DECLARE
+BEGIN
+NULL;
+END;
+EXCEPTION
+WHEN OTHERS THEN
+NULL;
+END;
+//
+DECLARE
+BEGIN
+NULL;
+EXCEPTION
+WHEN OTHERS THEN
+NULL;
+END;
+//
+BEGIN
+<<lab>>
+DECLARE
+BEGIN
+NULL;
+END;
+EXCEPTION
+WHEN OTHERS THEN
+NULL;
+END;
+//
+#
 # End of 10.3 tests
 #

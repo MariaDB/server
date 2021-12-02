@@ -27,6 +27,7 @@ current_user()
 root@localhost
 disconnect con1;
 connection default;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_error";
 ERROR HY000: Can't get hostname for your address
 connection default;
@@ -50,7 +51,7 @@ Connection_errors_peer_address	2
 Connection_errors_select	0
 Connection_errors_tcpwrap	0
 "Dumping performance_schema.host_cache"
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 flush status;
 show global status like "connection_errors_%";
 Variable_name	Value

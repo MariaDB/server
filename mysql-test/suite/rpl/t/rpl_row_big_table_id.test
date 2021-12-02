@@ -7,6 +7,7 @@
 # Verify row-based events applying when table map id value is about and greater
 # than 1 << 32.
 ##################################################################
+--source include/not_valgrind.inc
 --source include/word_size.inc
 --source include/have_debug.inc
 --source include/have_binlog_format_row.inc
@@ -17,6 +18,7 @@
 --let $rpl_server_number= 1
 --source include/rpl_restart_server.inc
 
+SET @saved_dbug = @@SESSION.debug_dbug;
 SET @@debug_dbug="d,simulate_big_table_id";
 CREATE TABLE t (a int);
 
@@ -51,7 +53,7 @@ if (`SELECT sum(a) != 6 FROM t`)
 
 --connection master
 DROP TABLE t;
-
+SET debug_dbug= @saved_dbug;
 --sync_slave_with_master
 
 --source include/rpl_end.inc

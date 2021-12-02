@@ -398,7 +398,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
   pos+= reclength;
   int2store(pos, create_info->connect_string.length);
   pos+= 2;
-  memcpy(pos, create_info->connect_string.str, create_info->connect_string.length);
+  if (create_info->connect_string.length)
+    memcpy(pos, create_info->connect_string.str, create_info->connect_string.length);
   pos+= create_info->connect_string.length;
   int2store(pos, str_db_type.length);
   pos+= 2;
@@ -435,8 +436,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
     pos+= create_info->comment.length;
   }
 
-  memcpy(frm_ptr + filepos, forminfo, 288);
-  pos= frm_ptr + filepos + 288;
+  memcpy(frm_ptr + filepos, forminfo, FRM_FORMINFO_SIZE);
+  pos= frm_ptr + filepos + FRM_FORMINFO_SIZE;
   if (pack_fields(&pos, create_fields, create_info, data_offset))
     goto err;
 
@@ -679,6 +680,18 @@ static bool pack_vcols(String *buf, List<Create_field> &create_fields,
 }
 
 
+static uint typelib_values_packed_length(const TYPELIB *t)
+{
+  uint length= 0;
+  for (uint i= 0; t->type_names[i]; i++)
+  {
+    length+= t->type_lengths[i];
+    length++; /* Separator */
+  }
+  return length;
+}
+
+
 /* Make formheader */
 
 static bool pack_header(THD *thd, uchar *forminfo,
@@ -772,9 +785,8 @@ static bool pack_header(THD *thd, uchar *forminfo,
       field->interval_id=get_interval_id(&int_count,create_fields,field);
       if (old_int_count != int_count)
       {
-	for (const char **pos=field->interval->type_names ; *pos ; pos++)
-	  int_length+=(uint) strlen(*pos)+1;	// field + suffix prefix
-	int_parts+=field->interval->count+1;
+        int_length+= typelib_values_packed_length(field->interval);
+        int_parts+= field->interval->count + 1;
       }
     }
     if (f_maybe_null(field->pack_flag))
@@ -863,11 +875,7 @@ static size_t packed_fields_length(List<Create_field> &create_fields)
     {
       int_count= field->interval_id;
       length++;
-      for (int i=0; field->interval->type_names[i]; i++)
-      {
-        length+= field->interval->type_lengths[i];
-        length++;
-      }
+      length+= typelib_values_packed_length(field->interval);
       length++;
     }
 
@@ -1001,8 +1009,11 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
     it.rewind();
     while ((field=it++))
     {
-      memcpy(buff, field->comment.str, field->comment.length);
-      buff+= field->comment.length;
+      if (size_t l= field->comment.length)
+      {
+        memcpy(buff, field->comment.str, l);
+        buff+= l;
+      }
     }
   }
   *buff_arg= buff;
@@ -1021,7 +1032,8 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   TABLE table;
   TABLE_SHARE share;
   Create_field *field;
-  enum_check_fields old_count_cuted_fields= thd->count_cuted_fields;
+  Check_level_instant_set old_count_cuted_fields(thd, CHECK_FIELD_WARN);
+  Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
   DBUG_ENTER("make_empty_rec");
 
   /* We need a table to generate columns for default values */
@@ -1040,7 +1052,6 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   null_pos= buff;
 
   List_iterator<Create_field> it(create_fields);
-  thd->count_cuted_fields= CHECK_FIELD_WARN;    // To find wrong default values
   while ((field=it++))
   {
     /* regfield don't have to be deleted as it's allocated on THD::mem_root */
@@ -1078,6 +1089,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
       null_count+= field->length & 7;
 
     if (field->default_value && !field->default_value->flags &&
+        !field->vers_sys_field() &&
         (!(field->flags & BLOB_FLAG) ||
          field->real_field_type() == MYSQL_TYPE_GEOMETRY))
     {
@@ -1100,6 +1112,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
       delete regfield; //To avoid memory leak
     }
     else if (regfield->real_type() == MYSQL_TYPE_ENUM &&
+             !field->vers_sys_field() &&
 	     (field->flags & NOT_NULL_FLAG))
     {
       regfield->set_notnull();
@@ -1118,6 +1131,5 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     *(null_pos + null_count / 8)|= ~(((uchar) 1 << (null_count & 7)) - 1);
 
 err:
-  thd->count_cuted_fields= old_count_cuted_fields;
   DBUG_RETURN(error);
 } /* make_empty_rec */

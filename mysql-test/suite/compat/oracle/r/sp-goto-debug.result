@@ -1,0 +1,236 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-20667 Server crash on pop_cursor
+#
+CREATE PROCEDURE p1() IS
+BEGIN
+IF 1=2 THEN
+BEGIN
+DECLARE
+CURSOR cur1 IS SELECT a FROM t1 ;
+BEGIN
+GOTO iac_err;
+END;
+END;
+END IF;
+IF 1=1 THEN
+GOTO iac_err;
+END IF;
+<< iac_err >>
+RETURN;
+END//
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump_if_not 5(5) 1 = 2
+1	cpush cur1@0
+2	jump 3
+3	cpop 1
+4	jump 7
+5	jump_if_not 7(7) 1 = 1
+6	jump 7
+7	preturn
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() IS
+BEGIN
+IF 1=2 THEN
+BEGIN
+DECLARE
+CURSOR cur1 IS SELECT a FROM t1 ;
+BEGIN
+GOTO iac_err;
+END;
+END;
+END IF;
+IF 1=1 THEN
+GOTO iac_err;
+END IF;
+<< iac_err >>
+RETURN ;
+END//
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump_if_not 5(5) 1 = 2
+1	cpush cur1@0
+2	jump 3
+3	cpop 1
+4	jump 7
+5	jump_if_not 7(7) 1 = 1
+6	jump 7
+7	preturn
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() IS
+BEGIN
+IF 1=2 THEN
+BEGIN
+DECLARE
+CURSOR cur1 IS SELECT a FROM t1 ;
+BEGIN
+GOTO iac_err;
+END;
+END;
+END IF;
+GOTO iac_err;
+<< iac_err >>
+RETURN ;
+END//
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump_if_not 5(5) 1 = 2
+1	cpush cur1@0
+2	jump 3
+3	cpop 1
+4	jump 5
+5	preturn
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() IS
+BEGIN
+IF 1=1 THEN
+DECLARE
+CURSOR cur2 IS SELECT 'cur2' FROM DUAL;
+BEGIN
+SELECT 'cur2';
+IF 1=1 THEN
+DECLARE
+CURSOR cur3 IS SELECT 'cur3' FROM DUAL;
+BEGIN
+SELECT 'cur3';
+IF 1=1 THEN
+DECLARE
+CURSOR cur4 IS SELECT 'cur4' FROM DUAL;
+BEGIN
+SELECT 'cur4';
+GOTO ret;
+END;
+END IF;
+GOTO ret;
+END;
+END IF;
+GOTO ret;
+END;
+END IF;
+<<ret>>
+RETURN;
+END;
+//
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump_if_not 15(15) 1 = 1
+1	cpush cur2@0
+2	stmt 0 "SELECT 'cur2'"
+3	jump_if_not 13(13) 1 = 1
+4	cpush cur3@1
+5	stmt 0 "SELECT 'cur3'"
+6	jump_if_not 11(11) 1 = 1
+7	cpush cur4@2
+8	stmt 0 "SELECT 'cur4'"
+9	cpop 3
+10	jump 15
+11	cpop 2
+12	jump 15
+13	cpop 1
+14	jump 15
+15	preturn
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(lab VARCHAR(32)) IS
+BEGIN
+IF 1=1 THEN
+DECLARE
+CURSOR cur2 IS SELECT 'cur2' FROM DUAL;
+BEGIN
+IF 1=1 THEN
+DECLARE
+CURSOR cur3 IS SELECT 'cur3' FROM DUAL;
+BEGIN
+IF 1=1 THEN
+DECLARE
+CURSOR cur4 IS SELECT 'cur4' FROM DUAL;
+BEGIN
+IF lab = 'cur4' THEN
+SELECT 'goto from cur4' AS comment;
+GOTO ret;
+END IF;
+END;
+END IF;
+IF lab = 'cur3' THEN
+SELECT 'goto from cur3' AS comment;
+GOTO ret;
+END IF;
+END;
+END IF;
+IF lab = 'cur2' THEN
+SELECT 'goto from cur2' AS comment;
+GOTO ret;
+END IF;
+END;
+END IF;
+<<ret>>
+RETURN;
+END;
+//
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump_if_not 21(21) 1 = 1
+1	cpush cur2@0
+2	jump_if_not 16(16) 1 = 1
+3	cpush cur3@1
+4	jump_if_not 11(11) 1 = 1
+5	cpush cur4@2
+6	jump_if_not 10(10) lab@0 = 'cur4'
+7	stmt 0 "SELECT 'goto from cur4' AS comment"
+8	cpop 3
+9	jump 21
+10	cpop 1
+11	jump_if_not 15(15) lab@0 = 'cur3'
+12	stmt 0 "SELECT 'goto from cur3' AS comment"
+13	cpop 2
+14	jump 21
+15	cpop 1
+16	jump_if_not 20(20) lab@0 = 'cur2'
+17	stmt 0 "SELECT 'goto from cur2' AS comment"
+18	cpop 1
+19	jump 21
+20	cpop 1
+21	preturn
+CALL p1('');
+CALL p1('cur2');
+comment
+goto from cur2
+CALL p1('cur3');
+comment
+goto from cur3
+CALL p1('cur4');
+comment
+goto from cur4
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() IS 
+BEGIN 
+IF 1=2 THEN 
+BEGIN 
+DECLARE
+CONTINUE HANDLER FOR SQLSTATE '23000' SET @x2 = 1;
+BEGIN
+GOTO iac_err;
+END; 
+END; 
+END IF; 
+IF 1=1 THEN
+GOTO iac_err;
+END IF; 
+<<iac_err >>
+RETURN; 
+END//
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump_if_not 9(9) 1 = 2
+1	hpush_jump 4 0 CONTINUE
+2	stmt 31 "SET @x2 = 1"
+3	hreturn 0
+4	hpop 1
+5	jump 11
+6	jump 11
+7	hpop 1
+8	jump 9
+9	jump_if_not 11(11) 1 = 1
+10	jump 11
+11	preturn
+DROP PROCEDURE p1;

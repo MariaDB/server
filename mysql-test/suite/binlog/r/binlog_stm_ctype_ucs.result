@@ -15,7 +15,7 @@ flush logs;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET @`v`:=_ucs2 X'006100620063' COLLATE `ucs2_general_ci`/*!*/;
 use `test`/*!*/;
@@ -106,7 +106,7 @@ CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8)
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
@@ -121,7 +121,7 @@ COMMIT
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
@@ -136,7 +136,7 @@ COMMIT
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
@@ -151,7 +151,7 @@ COMMIT
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
@@ -166,7 +166,7 @@ COMMIT
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
@@ -181,7 +181,7 @@ COMMIT
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0

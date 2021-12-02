@@ -84,10 +84,12 @@ public:
   void    SetNext(PTABDEF tdfp) {Next = tdfp;}
   int     GetMultiple(void) {return Multiple;}
   int     GetPseudo(void) {return Pseudo;}
-  PCSZ    GetPath(void);
+	RECFM   GetRecfm(void) {return Recfm;}
+	PCSZ    GetPath(void);
 //PSZ     GetPath(void)
 //          {return (Database) ? (PSZ)Database : Cat->GetDataPath();}
-  bool    SepIndex(void) {return GetBoolCatInfo("SepIndex", false);}
+	RECFM   GetTableFormat(const char* type);
+	bool    SepIndex(void) {return GetBoolCatInfo("SepIndex", false);}
   bool    IsReadOnly(void) {return Read_Only;}
   virtual AMT    GetDefType(void) {return TYPE_AM_TAB;}
   virtual PIXDEF GetIndx(void) {return NULL;}
@@ -108,7 +110,8 @@ public:
   // Members
   PCSZ    Schema;               /* Table schema (for ODBC)             */
   PCSZ    Desc;                 /* Table description                   */
-  uint    Catfunc;              /* Catalog function ID                 */
+	RECFM   Recfm;                /* File or table format                */
+	uint    Catfunc;              /* Catalog function ID                 */
   int     Card;                 /* (max) number of rows in table       */
   int     Elemt;                /* Number of rows in blocks or rowset  */
   int     Sort;                 /* Table already sorted ???            */
@@ -143,11 +146,11 @@ class DllExport OEMDEF : public TABDEF {                  /* OEM table */
   PTABDEF GetXdef(PGLOBAL g);
 
   // Members
-#if defined(__WIN__)
+#if defined(_WIN32)
   HANDLE  Hdll;               /* Handle to the external DLL            */
-#else   // !__WIN__
+#else   // !_WIN32
   void   *Hdll;               /* Handle for the loaded shared library  */
-#endif  // !__WIN__
+#endif  // !_WIN32
   PTABDEF Pxdef;              /* Pointer to the external TABDEF class  */
   char   *Module;             /* Path/Name of the DLL implenting it    */
   char   *Subtype;            /* The name of the OEM table sub type    */

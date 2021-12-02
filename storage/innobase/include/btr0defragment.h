@@ -64,8 +64,6 @@ is a synchronized defragmentation. */
 os_event_t
 btr_defragment_add_index(
 	dict_index_t*	index,	/*!< index to be added  */
-	bool		async,	/*!< whether this is an async
-				defragmentation */
 	dberr_t*	err);	/*!< out: error code */
 /******************************************************************//**
 When table is dropped, this function is called to mark a table as removed in

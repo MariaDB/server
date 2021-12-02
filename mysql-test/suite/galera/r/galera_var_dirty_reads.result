@@ -1,3 +1,4 @@
+call mtr.add_suppression("WSREP has not yet prepared node for application use");
 connection node_1;
 connection node_2;
 connection node_2;
@@ -16,9 +17,9 @@ SHOW STATUS LIKE 'wsrep_cluster_status';
 Variable_name	Value
 wsrep_cluster_status	non-Primary
 SELECT * FROM t1;
-ERROR 08S01: WSREP has not yet prepared node for application use
+Got one of the listed errors
 SELECT 1 FROM t1;
-ERROR 08S01: WSREP has not yet prepared node for application use
+Got one of the listed errors
 SET @@session.wsrep_dirty_reads=ON;
 SELECT * FROM t1;
 i
@@ -31,7 +32,7 @@ i	variable_name	variable_value
 1	WSREP_DIRTY_READS	ON
 SET @@session.wsrep_dirty_reads=OFF;
 SELECT i, variable_name, variable_value FROM t1, information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads" AND i = 1;
-ERROR 08S01: WSREP has not yet prepared node for application use
+Got one of the listed errors
 SELECT 1;
 1
 1

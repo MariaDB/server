@@ -763,18 +763,20 @@ col2	col	col
 2	2	2
 1	3	3
 drop table t1, t2;
-create table t1 (a char(25));
+create table t1 (a char(70));
 insert into t1 set a = repeat('x', 20);
-insert into t1 set a = concat(repeat('x', 19), 'z');
-insert into t1 set a = concat(repeat('x', 19), 'ab');
-insert into t1 set a = concat(repeat('x', 19), 'aa');
+insert into t1 set a = concat(repeat('x', 63), 'z');
+insert into t1 set a = concat(repeat('x', 63), 'ab');
+insert into t1 set a = concat(repeat('x', 63), 'aa');
 set max_sort_length=20;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '20'
 select a from t1 order by a;
 a
-xxxxxxxxxxxxxxxxxxxab
-xxxxxxxxxxxxxxxxxxxaa
 xxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxz
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxab
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxaa
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxz
 drop table t1;
 create table t1 (
 `sid` decimal(8,0) default null,
@@ -1515,7 +1517,7 @@ WHERE t2.b=14 AND t2.a=t1.a AND 5.1<t2.c AND t1.b='DE'
 ORDER BY t2.c LIMIT 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	range	a,b,c	c	5	NULL	420	Using where
-1	SIMPLE	t1	ref	a	a	39	test.t2.a,const	1	Using where; Using index
+1	SIMPLE	t1	eq_ref	a	a	39	test.t2.a,const	1	Using where; Using index
 SELECT d FROM t3 AS t1, t2 AS t2 
 WHERE t2.b=14 AND t2.a=t1.a AND 5.1<t2.c AND t1.b='DE'
 ORDER BY t2.c LIMIT 1;
@@ -3206,6 +3208,176 @@ pk
 3
 DROP TABLE t1;
 #
+# MDEV-21044: Wrong result when using a smaller size for sort buffer
+#
+create table t1(a varchar(765),b int);
+insert into t1 values ("a",1),("b",2),("c",3),("e",4);
+insert into t1 values ("d",5),("f",6),("g",7),("h",8);
+insert into t1 values ("k",11),("l",12),("i",9),("j",10);
+insert into t1 values ("m",13),("n",14),("o",15),("p",16);
+set @save_sort_buffer_size= @@sort_buffer_size;
+set sort_buffer_size=1024;
+select * from t1 order  by b;
+a	b
+a	1
+b	2
+c	3
+e	4
+d	5
+f	6
+g	7
+h	8
+i	9
+j	10
+k	11
+l	12
+m	13
+n	14
+o	15
+p	16
+set @@sort_buffer_size= @save_sort_buffer_size;
+drop table t1;
+#
+# MDEV-22715: SIGSEGV in radixsort_for_str_ptr and in native_compare/my_qsort2 (optimized builds)
+#
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_sort_length= @@max_sort_length;
+SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
+SET sort_buffer_size=1024;
+CREATE TABLE t1(a INT, b DECIMAL(65), c BLOB);
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+SELECT * FROM t1 ORDER BY a,b;
+a	b	c
+1	1	1
+1	1	1
+2	2	2
+2	2	2
+3	3	3
+3	3	3
+4	4	4
+4	4	4
+5	5	5
+5	5	5
+6	6	6
+6	6	6
+7	7	7
+7	7	7
+8	8	8
+8	8	8
+9	9	9
+9	9	9
+10	10	10
+10	10	10
+11	11	11
+11	11	11
+12	12	12
+12	12	12
+13	13	13
+13	13	13
+14	14	14
+14	14	14
+15	15	15
+15	15	15
+16	16	16
+16	16	16
+17	17	17
+17	17	17
+18	18	18
+18	18	18
+19	19	19
+19	19	19
+20	20	20
+20	20	20
+21	21	21
+21	21	21
+22	22	22
+22	22	22
+23	23	23
+23	23	23
+24	24	24
+24	24	24
+25	25	25
+25	25	25
+SET @@sort_buffer_size= @save_sort_buffer_size;
+SET @@max_sort_length= @save_max_sort_length;
+DROP TABLE t1;
+#
+# MDEV-22390: Assertion `m_next_rec_ptr >= m_rawmem' failed in Filesort_buffer::spaceleft |
+# SIGSEGV in __memmove_avx_unaligned_erms from my_b_write (on optimized)
+#
+SET @save_max_sort_length= @@max_sort_length;
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_length_for_sort_data= @@max_length_for_sort_data;
+SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
+SET sort_buffer_size=1024;
+SET max_length_for_sort_data=7000;
+CREATE TABLE t1(a VARCHAR(64), b VARCHAR(2048))DEFAULT CHARSET=utf8;
+INSERT INTO t1 SELECT seq,seq from seq_1_to_100;
+ANALYZE FORMAT=JSON SELECT * FROM t1 ORDER BY a LIMIT 5;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 5,
+      "filesort": {
+        "sort_key": "t1.a",
+        "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
+        "r_limit": 5,
+        "r_used_priority_queue": false,
+        "r_output_rows": 35,
+        "r_sort_passes": 1,
+        "r_buffer_size": "REPLACED",
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 100,
+          "r_rows": 100,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+SELECT * FROM t1 ORDER BY a LIMIT 5;
+a	b
+1	1
+10	10
+100	100
+11	11
+12	12
+SET max_sort_length= @save_max_sort_length;
+SET sort_buffer_size= @save_sort_buffer_size;
+SET max_length_for_sort_data= @save_max_length_for_sort_data;
+DROP TABLE t1;
+#
+# MDEV-23596: Assertion `tab->ref.use_count' failed in join_read_key_unlock_row
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY(b));
+INSERT INTO t1 VALUES (0, 1),(1, 2);
+CREATE TABLE t2 SELECT * FROM t1;
+EXPLAIN SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+2	DEPENDENT SUBQUERY	t1	index	PRIMARY	b	5	NULL	1	Using where
+SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
+c
+1
+NULL
+DROP TABLE t1,t2;
+# end of 10.1 tests
+#
 # MDEV-13994: Bad join results with orderby_uses_equalities=on
 #
 CREATE TABLE books (
@@ -3267,6 +3439,54 @@ C
 B
 DROP TABLE t1;
 #
+# MDEV-24033: SIGSEGV in __memcmp_avx2_movbe from queue_insert | SIGSEGV in __memcmp_avx2_movbe from native_compare
+#
+SET @save_max_length_for_sort_data=@@max_length_for_sort_data;
+SET @save_max_sort_length= @@max_sort_length;
+SET @save_sql_select_limit= @@sql_select_limit;
+CREATE TABLE t1 (a DECIMAL(64,0), b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4);
+SET max_length_for_sort_data= 30;
+SET sql_select_limit = 3;
+SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
+SELECT * FROM t1 ORDER BY a+1;
+a	b
+1	1
+2	2
+3	3
+SET max_length_for_sort_data=@save_max_length_for_sort_data;
+SET max_sort_length= @save_max_sort_length;
+SET sql_select_limit= @save_sql_select_limit;
+DROP TABLE t1;
+#
+# MDEV-25682: EXPLAIN for SELECT with ORDER BY after [ORDER BY] LIMIT
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+explain (select a from t1 limit 2) order by a desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
+NULL	UNIT RESULT	<unit1>	ALL	NULL	NULL	NULL	NULL	NULL	Using filesort
+(select a from t1 limit 2) order by a desc;
+a
+7
+3
+create table t2 (a int, b int);
+insert into t2 values (3,70), (7,10), (1,40), (4,30);
+explain (select b,a from t2 order by a limit 3) order by b desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	Using filesort
+NULL	UNIT RESULT	<unit1>	ALL	NULL	NULL	NULL	NULL	NULL	Using filesort
+(select b,a from t2 order by a limit 3) order by b desc;
+b	a
+70	3
+40	1
+30	4
+drop table t1,t2;
+# End of 10.2 tests
+#
 # MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY
 #
 create table t1(a int);
@@ -3323,3 +3543,4 @@ LIMIT 1)
 908-8-123456
 909-9-123456
 drop table t1,t2;
+# End of 10.3 tests

@@ -1,4 +1,5 @@
 /* Copyright (c) 2013, Kristian Nielsen and MariaDB Services Ab.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -432,7 +433,7 @@ rpl_slave_state::truncate_state_table(THD *thd)
       close_thread_tables(thd);
       ha_commit_trans(thd, TRUE);
     }
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   }
 
   reenable_binlog(thd);
@@ -863,7 +864,7 @@ end:
     }
     else
     {
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
 #ifdef HAVE_REPLICATION
       rpl_group_info::pending_gtid_deletes_free(delete_list);
 #endif
@@ -2065,7 +2066,7 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
       push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BINLOG_CANT_DELETE_GTID_DOMAIN,
                           "The gtid domain being deleted ('%lu') is not in "
-                          "the current binlog state", *ptr_domain_id);
+                          "the current binlog state", (unsigned long) *ptr_domain_id);
       continue;
     }
 
@@ -2432,7 +2433,8 @@ gtid_waiting::wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us)
       /* fall through */
     case 0:
       status_var_add(thd->status_var.master_gtid_wait_time,
-                     microsecond_interval_timer() - before);
+                     static_cast<ulong>
+                     (microsecond_interval_timer() - before));
   }
   my_free(wait_pos);
   return err;

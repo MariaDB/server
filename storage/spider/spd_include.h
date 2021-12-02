@@ -18,6 +18,8 @@
 
 #if MYSQL_VERSION_ID < 50500
 #define spider_my_free(A,B) my_free(A,B)
+#define pthread_mutex_assert_owner(A)
+#define pthread_mutex_assert_not_owner(A)
 #else
 #define spider_my_free(A,B) my_free(A)
 #ifdef pthread_mutex_t
@@ -40,6 +42,8 @@
 #undef pthread_mutex_destroy
 #endif
 #define pthread_mutex_destroy mysql_mutex_destroy
+#define pthread_mutex_assert_owner(A) mysql_mutex_assert_owner(A)
+#define pthread_mutex_assert_not_owner(A) mysql_mutex_assert_not_owner(A)
 #ifdef pthread_cond_t
 #undef pthread_cond_t
 #endif

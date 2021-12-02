@@ -528,6 +528,7 @@ DROP TABLE merge_t;
 
 SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '{"c":"d"}');
 SELECT JSON_MERGE_PATCH(NULL, '[1,2,3]');
+SELECT JSON_MERGE_PATCH(NULL, 'a');
 SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}');
 
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
@@ -536,6 +537,25 @@ SELECT JSON_MERGE_PATCH();
 SELECT JSON_MERGE_PATCH('{}');
 SELECT JSON_MERGE_PATCH('{', '[1,2,3]');
 SELECT JSON_MERGE_PATCH('{"a":"b"}', '[1,');
+
+--echo #
+--echo # MDEV-22976 CAST(JSON_EXTRACT() AS DECIMAL) does not handle boolean values
+--echo #
+
+SELECT
+  CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DOUBLE) AS cf,
+  CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DECIMAL) AS cd;
+
+SELECT
+  CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DOUBLE) AS cf,
+  CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
+
+
+--echo #
+--echo # MDEV-24585 Assertion `je->s.cs == nice_js->charset()' failed in json_nice.
+--echo #
+
+SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
 
 --echo #
 --echo # End of 10.2 tests

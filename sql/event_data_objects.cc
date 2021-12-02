@@ -159,7 +159,7 @@ Event_creation_ctx::load_from_db(THD *thd,
 /*************************************************************************/
 
 /*
-  Initiliazes dbname and name of an Event_queue_element_for_exec
+  Initializes dbname and name of an Event_queue_element_for_exec
   object
 
   SYNOPSIS
@@ -178,6 +178,7 @@ Event_queue_element_for_exec::init(const LEX_CSTRING *db, const LEX_CSTRING *n)
   if (!(name.str= my_strndup(n->str, name.length= n->length, MYF(MY_WME))))
   {
     my_free(const_cast<char*>(dbname.str));
+    dbname.str= NULL;
     return TRUE;
   }
   return FALSE;

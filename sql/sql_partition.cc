@@ -2840,14 +2840,34 @@ bool partition_key_modified(TABLE *table, const MY_BITMAP *fields)
 
 static inline int part_val_int(Item *item_expr, longlong *result)
 {
-  *result= item_expr->val_int();
+  switch (item_expr->cmp_type())
+  {
+  case DECIMAL_RESULT:
+  {
+    my_decimal buf;
+    my_decimal *val= item_expr->val_decimal(&buf);
+    if (val && my_decimal2int(E_DEC_FATAL_ERROR, val, item_expr->unsigned_flag,
+                              result, FLOOR) != E_DEC_OK)
+      return true;
+    break;
+  }
+  case INT_RESULT:
+    *result= item_expr->val_int();
+    break;
+  case STRING_RESULT:
+  case REAL_RESULT:
+  case ROW_RESULT:
+  case TIME_RESULT:
+    DBUG_ASSERT(0);
+    break;
+  }
   if (item_expr->null_value)
   {
     if (unlikely(current_thd->is_error()))
-      return TRUE;
+      return true;
     *result= LONGLONG_MIN;
   }
-  return FALSE;
+  return false;
 }
 
 
@@ -3717,6 +3737,17 @@ uint32 get_partition_id_range_for_endpoint(partition_info *part_info,
     if (part_func_value >= part_end_val &&
         (loc_part_id < max_partition || !part_info->defined_max_value))
       loc_part_id++;
+    if (part_info->part_type == VERSIONING_PARTITION &&
+        part_func_value < INT_MAX32 &&
+        loc_part_id > part_info->vers_info->hist_part->id)
+    {
+      /*
+        Historical query with AS OF point after the last history partition must
+        include last history partition because it can be overflown (contain
+        history rows out of right endpoint).
+      */
+      loc_part_id= part_info->vers_info->hist_part->id;
+    }
   }
   else 
   {
@@ -5017,7 +5048,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         {
           *fast_alter_table= true;
           /* Force table re-open for consistency with the main case. */
-          table->m_needs_reopen= true;
+          table->mark_table_for_reopen();
         }
         else
         {
@@ -5065,7 +5096,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         must be reopened.
       */
       *fast_alter_table= true;
-      table->m_needs_reopen= true;
+      table->mark_table_for_reopen();
     }
     else
     {
@@ -5115,7 +5146,8 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
             my_error(ER_PARTITION_WRONG_VALUES_ERROR, MYF(0),
                      "LIST", "IN");
           }
-          else if (thd->work_part_info->part_type == VERSIONING_PARTITION)
+          else if (thd->work_part_info->part_type == VERSIONING_PARTITION ||
+                   tab_part_info->part_type == VERSIONING_PARTITION)
           {
             my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
           }
@@ -5965,6 +5997,37 @@ the generated partition syntax in a correct manner.
           *partition_changed= TRUE;
         }
       }
+      /*
+        Prohibit inplace when partitioned by primary key and the primary key is changed.
+      */
+      if (!*partition_changed &&
+          tab_part_info->part_field_array &&
+          !tab_part_info->part_field_list.elements &&
+          table->s->primary_key != MAX_KEY)
+      {
+
+        if (alter_info->flags & (ALTER_DROP_SYSTEM_VERSIONING |
+                                 ALTER_ADD_SYSTEM_VERSIONING))
+        {
+          *partition_changed= true;
+        }
+        else
+        {
+          KEY *primary_key= table->key_info + table->s->primary_key;
+          List_iterator_fast<Alter_drop> drop_it(alter_info->drop_list);
+          const char *primary_name= primary_key->name.str;
+          const Alter_drop *drop;
+          drop_it.rewind();
+          while ((drop= drop_it++))
+          {
+            if (drop->type == Alter_drop::KEY &&
+                0 == my_strcasecmp(system_charset_info, primary_name, drop->name))
+              break;
+          }
+          if (drop)
+            *partition_changed= TRUE;
+        }
+      }
     }
     if (thd->work_part_info)
     {
@@ -5988,7 +6051,7 @@ the generated partition syntax in a correct manner.
         */
         if (alter_info->partition_flags != ALTER_PARTITION_INFO ||
             !table->part_info ||
-            alter_info->requested_algorithm !=
+            alter_info->algorithm(thd) !=
               Alter_info::ALTER_TABLE_ALGORITHM_INPLACE ||
             !table->part_info->has_same_partitioning(part_info))
         {
@@ -5996,6 +6059,7 @@ the generated partition syntax in a correct manner.
           *partition_changed= true;
         }
       }
+
       /*
         Set up partition default_engine_type either from the create_info
         or from the previus table
@@ -6910,7 +6974,7 @@ void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
   THD *thd= lpt->thd;
   TABLE *table= lpt->table;
   DBUG_ENTER("handle_alter_part_error");
-  DBUG_ASSERT(table->m_needs_reopen);
+  DBUG_ASSERT(table->needs_reopen());
 
   if (close_table)
   {
@@ -7129,7 +7193,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   bool frm_install= FALSE;
   MDL_ticket *mdl_ticket= table->mdl_ticket;
   DBUG_ENTER("fast_alter_partition_table");
-  DBUG_ASSERT(table->m_needs_reopen);
+  DBUG_ASSERT(table->needs_reopen());
 
   part_info= table->part_info;
   lpt->thd= thd;
@@ -7434,11 +7498,11 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         ERROR_INJECT_CRASH("crash_change_partition_2") ||
         ERROR_INJECT_ERROR("fail_change_partition_2") ||
-        (close_table_on_failure= TRUE, FALSE) ||
         write_log_add_change_partition(lpt) ||
         ERROR_INJECT_CRASH("crash_change_partition_3") ||
         ERROR_INJECT_ERROR("fail_change_partition_3") ||
         mysql_change_partitions(lpt) ||
+        (close_table_on_failure= TRUE, FALSE) ||
         ERROR_INJECT_CRASH("crash_change_partition_4") ||
         ERROR_INJECT_ERROR("fail_change_partition_4") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||

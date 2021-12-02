@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -854,7 +854,7 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   if (parse_sql(thd, & parser_state, creation_ctx) || thd->lex == NULL)
   {
     sp= thd->lex->sphead;
-    delete sp;
+    sp_head::destroy(sp);
     sp= 0;
   }
   else
@@ -1180,8 +1180,6 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
 
   CHARSET_INFO *db_cs= get_default_db_collation(thd, sp->m_db.str);
 
-  enum_check_fields saved_count_cuted_fields;
-
   bool store_failed= FALSE;
   DBUG_ENTER("sp_create_routine");
   DBUG_PRINT("enter", ("type: %s  name: %.*s",
@@ -1215,8 +1213,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
   /* Reset sql_mode during data dictionary operations. */
   thd->variables.sql_mode= 0;
 
-  saved_count_cuted_fields= thd->count_cuted_fields;
-  thd->count_cuted_fields= CHECK_FIELD_WARN;
+  Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
 
   if (!(table= open_proc_table_for_update(thd)))
   {
@@ -1233,20 +1230,20 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
         switch (type()) {
         case TYPE_ENUM_PACKAGE:
           // Drop together with its PACKAGE BODY mysql.proc record
-          ret= sp_handler_package_spec.sp_find_and_drop_routine(thd, table, sp);
+          if (sp_handler_package_spec.sp_find_and_drop_routine(thd, table, sp))
+            goto done;
           break;
         case TYPE_ENUM_PACKAGE_BODY:
         case TYPE_ENUM_FUNCTION:
         case TYPE_ENUM_PROCEDURE:
-          ret= sp_drop_routine_internal(thd, sp, table);
+          if (sp_drop_routine_internal(thd, sp, table))
+            goto done;
           break;
         case TYPE_ENUM_TRIGGER:
         case TYPE_ENUM_PROXY:
           DBUG_ASSERT(0);
           ret= SP_OK;
         }
-        if (ret != SP_OK)
-          goto done;
       }
       else if (lex->create_info.if_not_exists())
       {
@@ -1476,7 +1473,6 @@ log:
   ret= FALSE;
 
 done:
-  thd->count_cuted_fields= saved_count_cuted_fields;
   thd->variables.sql_mode= saved_mode;
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
   DBUG_RETURN(ret);
@@ -1894,8 +1890,6 @@ bool
 Sp_handler::sp_show_create_routine(THD *thd,
                                    const Database_qualified_name *name) const
 {
-  sp_head *sp;
-
   DBUG_ENTER("sp_show_create_routine");
   DBUG_PRINT("enter", ("type: %s name: %.*s",
                        type_str(),
@@ -1908,20 +1902,28 @@ Sp_handler::sp_show_create_routine(THD *thd,
     It is "safe" to do as long as it doesn't affect the results
     of the binary log or the query cache, which currently it does not.
   */
-  if (sp_cache_routine(thd, name, false, &sp))
-    DBUG_RETURN(TRUE);
+  sp_head *sp= 0;
 
-  if (sp == NULL || sp->show_create_routine(thd, this))
+  DBUG_EXECUTE_IF("cache_sp_in_show_create",
+    /* Some tests need just need a way to cache SP without other side-effects.*/
+    sp_cache_routine(thd, name, false, &sp);
+    sp->show_create_routine(thd, this);
+    DBUG_RETURN(false);
+  );
+
+  bool free_sp= db_find_routine(thd, name, &sp) == SP_OK;
+  bool ret= !sp || sp->show_create_routine(thd, this);
+  if (ret)
   {
     /*
       If we have insufficient privileges, pretend the routine
       does not exist.
     */
     my_error(ER_SP_DOES_NOT_EXIST, MYF(0), type_str(), name->m_name.str);
-    DBUG_RETURN(TRUE);
   }
-
-  DBUG_RETURN(FALSE);
+  if (free_sp)
+    sp_head::destroy(sp);
+  DBUG_RETURN(ret);
 }
 
 
@@ -2952,7 +2954,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
       buf->append(STRING_WITH_LEN(" RETURN "));
     else
       buf->append(STRING_WITH_LEN(" RETURNS "));
-    buf->append(&returns);
+    buf->append(returns.str, returns.length);   // Not \0 terminated
   }
   buf->append('\n');
   switch (chistics.daccess) {

@@ -108,6 +108,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_explain.cc ../sql/sql_explain.h
            ../sql/sql_analyze_stmt.cc ../sql/sql_analyze_stmt.h
            ../sql/compat56.cc
+           ../sql/sql_schema.cc
            ../sql/sql_type.cc ../sql/sql_type.h
            ../sql/sql_mode.cc
            ../sql/table_cache.cc ../sql/mf_iocache_encr.cc
@@ -147,7 +148,7 @@ ENDIF()
 SET(LIBS 
   dbug strings mysys mysys_ssl pcre vio 
   ${ZLIB_LIBRARY} ${SSL_LIBRARIES} 
-  ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
+  ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS}
   ${MYSQLD_STATIC_PLUGIN_LIBS}
   sql_embedded
 )
@@ -445,9 +446,9 @@ IF(NOT DISABLE_SHARED)
     # Clean direct output flags, as 2 targets have the same base name
     # libmysqld
     SET_TARGET_PROPERTIES(libmysqld PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-    TARGET_LINK_LIBRARIES(libmysqld ${CRC32_LIBRARY})
+    TARGET_LINK_LIBRARIES(libmysqld LINK_PRIVATE ${CRC32_LIBRARY})
     SET_TARGET_PROPERTIES(mysqlserver PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-    TARGET_LINK_LIBRARIES(mysqlserver ${CRC32_LIBRARY})
+    TARGET_LINK_LIBRARIES(mysqlserver LINK_PRIVATE ${CRC32_LIBRARY})
     IF(LIBMYSQLD_SO_EXTRA_LIBS)
        TARGET_LINK_LIBRARIES(libmysqld ${LIBMYSQLD_SO_EXTRA_LIBS})
     ENDIF()

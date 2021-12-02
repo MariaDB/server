@@ -79,7 +79,7 @@ IF(UNIX)
         INSTALL(FILES ${out} DESTINATION ${inst_location}/policy/selinux COMPONENT SupportFiles)
       ENDFOREACH()
       IF(RPM)
-        EXECUTE_PROCESS(COMMAND rpm -q --qf "%{VERSION}-%{RELEASE}" libsepol
+        EXECUTE_PROCESS(COMMAND rpm -q --qf "%{VERSION}" libsepol
                         OUTPUT_VARIABLE LIBSEPOL_VERSION RESULT_VARIABLE err)
         IF (NOT err)
           SET(CPACK_RPM_server_PACKAGE_REQUIRES
@@ -91,7 +91,7 @@ IF(UNIX)
   ENDIF()
 
   CONFIGURE_FILE(mariadb.pc.in ${CMAKE_CURRENT_BINARY_DIR}/mariadb.pc @ONLY)
-  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.pc DESTINATION ${INSTALL_SHAREDIR}/pkgconfig COMPONENT Development)
+  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.pc DESTINATION ${INSTALL_LIBDIR}/pkgconfig COMPONENT Development)
 
   INSTALL(FILES mysql.m4 DESTINATION ${INSTALL_SHAREDIR}/aclocal COMPONENT Development)
   
@@ -113,21 +113,6 @@ IF(UNIX)
     INSTALL(FILES use_galera_new_cluster.conf
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
             DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
-
-    IF(INSTALL_SYSTEMD_SYSUSERSDIR)
-      CONFIGURE_FILE(sysusers.conf.in
-              ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf @ONLY)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf
-              DESTINATION ${INSTALL_SYSTEMD_SYSUSERSDIR} COMPONENT Server)
-    ENDIF()
-
-    IF(INSTALL_SYSTEMD_TMPFILESDIR)
-      get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
-      CONFIGURE_FILE(tmpfiles.conf.in
-              ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf @ONLY)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf
-              DESTINATION ${INSTALL_SYSTEMD_TMPFILESDIR} COMPONENT Server)
-    ENDIF()
 
     # @ in directory name broken between CMake version 2.8.12.2 and 3.3
     # http://public.kitware.com/Bug/view.php?id=14782
@@ -153,6 +138,26 @@ IF(UNIX)
       ENDIF()
 
     ENDIF()
+  ENDIF()
+
+  # Allow installing sysusers and tmpusers without requiring SYSTEMD on the
+  # system. This is useful for distributions running other init systems to
+  # parse these files and create appropriate users & tmpfiles.
+  IF((HAVE_SYSTEMD OR INSTALL_SYSTEMD_SYSUSERS) AND INSTALL_SYSTEMD_SYSUSERSDIR)
+    CONFIGURE_FILE(sysusers.conf.in
+            ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf @ONLY)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf
+            DESTINATION ${INSTALL_SYSTEMD_SYSUSERSDIR}
+            RENAME mariadb.conf COMPONENT Server)
+  ENDIF()
+
+  IF((HAVE_SYSTEMD OR INSTALL_SYSTEMD_TMPUSERS) AND INSTALL_SYSTEMD_TMPFILESDIR)
+    get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+    CONFIGURE_FILE(tmpfiles.conf.in
+            ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf @ONLY)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf
+            DESTINATION ${INSTALL_SYSTEMD_TMPFILESDIR}
+            RENAME mariadb.conf COMPONENT Server)
   ENDIF()
 
   IF (INSTALL_SYSCONFDIR)

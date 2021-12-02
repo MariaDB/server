@@ -1,0 +1,58 @@
+SET @start_global_value = @@global.alter_algorithm;
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL alter_algorithm=1.1;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL alter_algorithm=-1;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL alter_algorithm=weird;
+SET GLOBAL alter_algorithm=4;
+SELECT @@global.alter_algorithm;
+SET GLOBAL alter_algorithm=3;
+SELECT @@global.alter_algorithm;
+SET GLOBAL alter_algorithm=0;
+SELECT @@global.alter_algorithm;
+SET GLOBAL alter_algorithm=1;
+SELECT @@global.alter_algorithm;
+SET GLOBAL alter_algorithm=2;
+SELECT @@global.alter_algorithm;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL alter_algorithm=5;
+SELECT @@global.alter_algorithm;
+
+SET GLOBAL alter_algorithm=NOCOPY;
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET alter_algorithm=1.1;
+--error ER_WRONG_VALUE_FOR_VAR
+SET alter_algorithm=-1;
+--error ER_WRONG_VALUE_FOR_VAR
+SET alter_algorithm=weird;
+SET alter_algorithm=4;
+SELECT @@alter_algorithm;
+SET alter_algorithm=3;
+SELECT @@alter_algorithm;
+SET alter_algorithm=0;
+SELECT @@alter_algorithm;
+SET alter_algorithm=1;
+SELECT @@alter_algorithm;
+SET alter_algorithm=2;
+SELECT @@alter_algorithm;
+--error ER_WRONG_VALUE_FOR_VAR
+SET alter_algorithm=5;
+SELECT @@alter_algorithm;
+
+SET SESSION alter_algorithm=INSTANT;
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+SET SESSION alter_algorithm=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+SET SESSION alter_algorithm='DEFAULT';
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+SET SESSION alter_algorithm=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+SET GLOBAL alter_algorithm=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+SET SESSION alter_algorithm=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+
+SET GLOBAL alter_algorithm = @start_global_value;

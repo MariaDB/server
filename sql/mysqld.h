@@ -189,14 +189,16 @@ enum vers_system_time_t
   SYSTEM_TIME_AS_OF,
   SYSTEM_TIME_FROM_TO,
   SYSTEM_TIME_BETWEEN,
-  SYSTEM_TIME_BEFORE,
+  SYSTEM_TIME_BEFORE,  // used for DELETE HISTORY ... BEFORE
+  SYSTEM_TIME_HISTORY, // used for DELETE HISTORY
   SYSTEM_TIME_ALL
 };
 
 struct vers_asof_timestamp_t
 {
   ulong type;
-  MYSQL_TIME ltime;
+  my_time_t unix_time;
+  ulong second_part;
 };
 
 enum vers_alter_history_enum
@@ -581,7 +583,7 @@ extern ulonglong my_pcre_frame_size;
  */
 extern my_bool opt_large_pages;
 extern uint opt_large_page_size;
-extern char lc_messages_dir[FN_REFLEN];
+extern MYSQL_PLUGIN_IMPORT char lc_messages_dir[FN_REFLEN];
 extern char *lc_messages_dir_ptr, *log_error_file_ptr;
 extern MYSQL_PLUGIN_IMPORT char reg_ext[FN_EXTLEN];
 extern MYSQL_PLUGIN_IMPORT uint reg_ext_length;
@@ -614,8 +616,7 @@ extern mysql_mutex_t
        LOCK_error_log, LOCK_delayed_insert, LOCK_short_uuid_generator,
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
        LOCK_slave_list, LOCK_active_mi, LOCK_manager, LOCK_user_conn,
-       LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count,
-       LOCK_slave_background;
+       LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count,
   LOCK_global_system_variables;
 extern mysql_mutex_t LOCK_start_thread;
@@ -629,7 +630,6 @@ extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 extern mysql_prlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_thread_count, COND_start_thread;
 extern mysql_cond_t COND_manager;
-extern mysql_cond_t COND_slave_background;
 extern int32 thread_count, service_thread_count;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,

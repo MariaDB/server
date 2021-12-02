@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -108,8 +108,8 @@ row_purge_remove_clust_if_poss_low(
 	mtr_t			mtr;
 	rec_t*			rec;
 	mem_heap_t*		heap		= NULL;
-	ulint*			offsets;
-	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*		offsets;
+	rec_offs		offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 
 	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_S)
@@ -128,8 +128,8 @@ row_purge_remove_clust_if_poss_low(
 
 	rec = btr_pcur_get_rec(&node->pcur);
 
-	offsets = rec_get_offsets(
-		rec, index, offsets_, true, ULINT_UNDEFINED, &heap);
+	offsets = rec_get_offsets(rec, index, offsets_, index->n_core_fields,
+				  ULINT_UNDEFINED, &heap);
 
 	if (node->roll_ptr != row_get_rec_roll_ptr(rec, index, offsets)) {
 		/* Someone else has modified the record later: do not remove */
@@ -730,7 +730,7 @@ row_purge_skip_uncommitted_virtual_index(
 	not support LOCK=NONE when adding an index on newly
 	added virtual column.*/
 	while (index != NULL && dict_index_has_virtual(index)
-	       && !index->is_committed() && index->has_new_v_col) {
+	       && !index->is_committed() && index->has_new_v_col()) {
 		index = dict_table_get_next_index(index);
 	}
 }
@@ -801,10 +801,11 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 		mem_heap_t*	heap = NULL;
 		/* Reserve enough offsets for the PRIMARY KEY and 2 columns
 		so that we can access DB_TRX_ID, DB_ROLL_PTR. */
-		ulint	offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+		rec_offs offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 		rec_offs_init(offsets_);
-		ulint*	offsets = rec_get_offsets(
-			rec, index, offsets_, true, trx_id_pos + 2, &heap);
+		rec_offs*	offsets = rec_get_offsets(
+			rec, index, offsets_, index->n_core_fields,
+			trx_id_pos + 2, &heap);
 		ut_ad(heap == NULL);
 
 		ut_ad(dict_index_get_nth_field(index, trx_id_pos)
@@ -1095,7 +1096,7 @@ try_again:
 
 			dict_table_close(node->table, FALSE, FALSE);
 			rw_lock_s_unlock(&dict_operation_lock);
-			if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+			if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 				return(false);
 			}
 			os_thread_sleep(1000000);
@@ -1194,8 +1195,7 @@ row_purge_record_func(
 			if (node->table->stat_initialized
 			    && srv_stats_include_delete_marked) {
 				dict_stats_update_if_needed(
-					node->table,
-					thr->graph->trx->mysql_thd);
+					node->table, *thr->graph->trx);
 			}
 			MONITOR_INC(MONITOR_N_DEL_ROW_PURGE);
 		}
@@ -1266,7 +1266,7 @@ row_purge(
 			ut_ad(!rw_lock_own(&dict_operation_lock, RW_LOCK_S));
 
 			if (purged
-			    || srv_shutdown_state != SRV_SHUTDOWN_NONE
+			    || srv_shutdown_state > SRV_SHUTDOWN_INITIATED
 			    || node->vcol_op_failed()) {
 				return;
 			}
@@ -1315,10 +1315,9 @@ row_purge_step(
 	while (UT_LIST_GET_LEN(slot->debug_sync)) {
 		srv_slot_t::debug_sync_t *sync =
 					UT_LIST_GET_FIRST(slot->debug_sync);
-		const char* sync_str = reinterpret_cast<char*>(&sync[1]);
 		bool result = debug_sync_set_action(current_thd,
-						    sync_str,
-						    strlen(sync_str));
+						    sync->str,
+						    strlen(sync->str));
 		ut_a(!result);
 
 		UT_LIST_REMOVE(slot->debug_sync, sync);
@@ -1381,8 +1380,8 @@ purge_node_t::validate_pcur()
 
 	dict_index_t*	clust_index = pcur.btr_cur.index;
 
-	ulint*	offsets = rec_get_offsets(
-		pcur.old_rec, clust_index, NULL, true,
+	rec_offs* offsets = rec_get_offsets(
+		pcur.old_rec, clust_index, NULL, pcur.old_n_core_fields,
 		pcur.old_n_fields, &heap);
 
 	/* Here we are comparing the purge ref record and the stored initial

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -136,6 +136,10 @@ struct mtr_t {
 
 	/** Commit the mini-transaction. */
 	void commit();
+
+	/** Commit a mini-transaction that is shrinking a tablespace.
+	@param space   tablespace that is being shrunk */
+	ATTRIBUTE_COLD void commit_shrink(fil_space_t &space);
 
 	/** Commit a mini-transaction that did not modify any pages,
 	but generated some redo log on a higher level, such as
@@ -307,7 +311,8 @@ struct mtr_t {
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
 		      || space->purpose == FIL_TYPE_TABLESPACE);
-		x_lock(&space->latch, file, line);
+		memo_push(space, MTR_MEMO_SPACE_X_LOCK);
+		rw_lock_x_lock_inline(&space->latch, 0, file, line);
 	}
 
 	/** Release an object in the memo stack.
@@ -436,6 +441,9 @@ struct mtr_t {
 	static inline bool is_block_dirtied(const buf_block_t* block)
 		MY_ATTRIBUTE((warn_unused_result));
 
+	/** Check if we are holding a block latch in exclusive mode
+	@param block  buffer pool block to search for */
+	bool have_x_latch(const buf_block_t& block) const;
 private:
 	/** Prepare to write the mini-transaction log to the redo log buffer.
 	@return number of bytes to write in finish_write() */

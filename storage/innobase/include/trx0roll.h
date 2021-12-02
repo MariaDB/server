@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,15 +34,6 @@ Created 3/26/1996 Heikki Tuuri
 extern bool		trx_rollback_is_active;
 extern const trx_t*	trx_roll_crash_recv_trx;
 
-/*******************************************************************//**
-Determines if this transaction is rolling back an incomplete transaction
-in crash recovery.
-@return TRUE if trx is an incomplete transaction that is being rolled
-back in crash recovery */
-ibool
-trx_is_recv(
-/*========*/
-	const trx_t*	trx);	/*!< in: transaction */
 /*******************************************************************//**
 Returns a transaction savepoint taken at this point in time.
 @return savepoint */

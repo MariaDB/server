@@ -5,7 +5,15 @@ sys_trx_start bigint(20) unsigned as row start invisible,
 sys_trx_end bigint(20) unsigned as row end invisible,
 period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning;
+# No history inside the transaction
+start transaction;
 insert into t1 (x) values (1);
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+commit;
+select *, sys_trx_start > 1, sys_trx_end from t1 for system_time all;
+x	sys_trx_start > 1	sys_trx_end
+3	1	18446744073709551615
 # ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
 set @@system_versioning_alter_history=keep;
 create or replace table t1 (x int);
@@ -197,17 +205,17 @@ EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION @ts;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,@`ts`) and trt_trx_sees_eq(@`ts`,`test`.`t1`.`sys_trx_start`)
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TRANSACTION @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,@`ts`) and trt_trx_sees_eq(@`ts`,`test`.`t1`.`sys_trx_start`)
 EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TIMESTAMP @ts;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
 EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF @ts;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
 DROP TABLE t1;
 #
 # Testing AS OF with expressions of various kinds and data types
@@ -476,3 +484,31 @@ SET @@SYSTEM_VERSIONING_ALTER_HISTORY=ERROR;
 SELECT count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
 count(*)
 0
+# MDEV-18875 Assertion `thd->transaction.stmt.ha_list == __null ||
+# trans == &thd->transaction.stmt' failed or bogus ER_DUP_ENTRY upon
+# ALTER TABLE with versioning
+create or replace table t (x int) engine=innodb;
+set autocommit= 0;
+alter table t
+algorithm=copy,
+add column row_start bigint unsigned as row start,
+add column row_end bigint unsigned as row end,
+add period for system_time(row_start,row_end),
+with system versioning;
+set autocommit= 1;
+# MDEV-18865 Assertion `t->first->versioned_by_id()'
+# failed in innodb_prepare_commit_versioned
+create or replace table t (x int) engine=innodb;
+insert into t values (0);
+alter table t add `row_start` bigint unsigned as row start,
+add `row_end` bigint unsigned as row end,
+add period for system_time(`row_start`,`row_end`),
+modify x int after row_start,
+with system versioning;
+drop table t;
+#
+# MDEV-20842 Crash using versioning plugin functions after plugin was removed from server
+#
+uninstall plugin test_versioning;
+select trt_begin_ts(0);
+ERROR 42000: FUNCTION test.trt_begin_ts does not exist

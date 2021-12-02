@@ -1193,9 +1193,6 @@ get_options(int *argc,char ***argv)
   if (debug_check_flag)
     my_end_arg= MY_CHECK_ERROR;
 
-  if (!user)
-    user= (char *)"root";
-
   /*
     If something is created and --no-drop is not specified, we drop the
     schema.
@@ -2299,7 +2296,7 @@ slap_connect(MYSQL *mysql)
                            opt_mysql_unix_port,
                            connect_flags))
     {
-      /* Connect suceeded */
+      /* Connect succeeded */
       connect_error= 0;
       break;
     }

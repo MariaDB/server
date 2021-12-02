@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -50,29 +50,15 @@ sym_tab_t*	pars_sym_tab_global;
 /* Global variables used to denote certain reserved words, used in
 constructing the parsing tree */
 
-pars_res_word_t	pars_to_char_token = {PARS_TO_CHAR_TOKEN};
-pars_res_word_t	pars_to_number_token = {PARS_TO_NUMBER_TOKEN};
 pars_res_word_t	pars_to_binary_token = {PARS_TO_BINARY_TOKEN};
-pars_res_word_t	pars_binary_to_number_token = {PARS_BINARY_TO_NUMBER_TOKEN};
 pars_res_word_t	pars_substr_token = {PARS_SUBSTR_TOKEN};
-pars_res_word_t	pars_replstr_token = {PARS_REPLSTR_TOKEN};
 pars_res_word_t	pars_concat_token = {PARS_CONCAT_TOKEN};
 pars_res_word_t	pars_instr_token = {PARS_INSTR_TOKEN};
 pars_res_word_t	pars_length_token = {PARS_LENGTH_TOKEN};
-pars_res_word_t	pars_sysdate_token = {PARS_SYSDATE_TOKEN};
-pars_res_word_t	pars_printf_token = {PARS_PRINTF_TOKEN};
-pars_res_word_t	pars_assert_token = {PARS_ASSERT_TOKEN};
-pars_res_word_t	pars_rnd_token = {PARS_RND_TOKEN};
-pars_res_word_t	pars_rnd_str_token = {PARS_RND_STR_TOKEN};
 pars_res_word_t	pars_count_token = {PARS_COUNT_TOKEN};
-pars_res_word_t	pars_sum_token = {PARS_SUM_TOKEN};
-pars_res_word_t	pars_distinct_token = {PARS_DISTINCT_TOKEN};
-pars_res_word_t	pars_binary_token = {PARS_BINARY_TOKEN};
-pars_res_word_t	pars_blob_token = {PARS_BLOB_TOKEN};
 pars_res_word_t	pars_int_token = {PARS_INT_TOKEN};
 pars_res_word_t	pars_bigint_token = {PARS_BIGINT_TOKEN};
 pars_res_word_t	pars_char_token = {PARS_CHAR_TOKEN};
-pars_res_word_t	pars_float_token = {PARS_FLOAT_TOKEN};
 pars_res_word_t	pars_update_token = {PARS_UPDATE_TOKEN};
 pars_res_word_t	pars_asc_token = {PARS_ASC_TOKEN};
 pars_res_word_t	pars_desc_token = {PARS_DESC_TOKEN};
@@ -195,24 +181,15 @@ pars_func_get_class(
 	case PARS_AND_TOKEN: case PARS_OR_TOKEN: case PARS_NOT_TOKEN:
 		return(PARS_FUNC_LOGICAL);
 
-	case PARS_COUNT_TOKEN: case PARS_SUM_TOKEN:
+	case PARS_COUNT_TOKEN:
 		return(PARS_FUNC_AGGREGATE);
 
-	case PARS_TO_CHAR_TOKEN:
-	case PARS_TO_NUMBER_TOKEN:
 	case PARS_TO_BINARY_TOKEN:
-	case PARS_BINARY_TO_NUMBER_TOKEN:
 	case PARS_SUBSTR_TOKEN:
 	case PARS_CONCAT_TOKEN:
 	case PARS_LENGTH_TOKEN:
 	case PARS_INSTR_TOKEN:
-	case PARS_SYSDATE_TOKEN:
 	case PARS_NOTFOUND_TOKEN:
-	case PARS_PRINTF_TOKEN:
-	case PARS_ASSERT_TOKEN:
-	case PARS_RND_TOKEN:
-	case PARS_RND_STR_TOKEN:
-	case PARS_REPLSTR_TOKEN:
 		return(PARS_FUNC_PREDEFINED);
 
 	default:
@@ -499,7 +476,6 @@ pars_resolve_func_data_type(
 	arg = node->args;
 
 	switch (node->func) {
-	case PARS_SUM_TOKEN:
 	case '+': case '-': case '*': case '/':
 		/* Inherit the data type from the first argument (which must
 		not be the SQL null literal whose type is DATA_ERROR) */
@@ -516,13 +492,6 @@ pars_resolve_func_data_type(
 		dtype_set(que_node_get_data_type(node), DATA_INT, 0, 4);
 		break;
 
-	case PARS_TO_CHAR_TOKEN:
-	case PARS_RND_STR_TOKEN:
-		ut_a(dtype_get_mtype(que_node_get_data_type(arg)) == DATA_INT);
-		dtype_set(que_node_get_data_type(node), DATA_VARCHAR,
-			  DATA_ENGLISH, 0);
-		break;
-
 	case PARS_TO_BINARY_TOKEN:
 		if (dtype_get_mtype(que_node_get_data_type(arg)) == DATA_INT) {
 			dtype_set(que_node_get_data_type(node), DATA_VARCHAR,
@@ -533,16 +502,9 @@ pars_resolve_func_data_type(
 		}
 		break;
 
-	case PARS_TO_NUMBER_TOKEN:
-	case PARS_BINARY_TO_NUMBER_TOKEN:
 	case PARS_LENGTH_TOKEN:
 	case PARS_INSTR_TOKEN:
 		ut_a(pars_is_string_type(que_node_get_data_type(arg)->mtype));
-		dtype_set(que_node_get_data_type(node), DATA_INT, 0, 4);
-		break;
-
-	case PARS_SYSDATE_TOKEN:
-		ut_a(arg == NULL);
 		dtype_set(que_node_get_data_type(node), DATA_INT, 0, 4);
 		break;
 
@@ -563,11 +525,6 @@ pars_resolve_func_data_type(
 	case PARS_NOTFOUND_TOKEN:
 
 		/* We currently have no iboolean type: use integer type */
-		dtype_set(que_node_get_data_type(node), DATA_INT, 0, 4);
-		break;
-
-	case PARS_RND_TOKEN:
-		ut_a(dtype_get_mtype(que_node_get_data_type(arg)) == DATA_INT);
 		dtype_set(que_node_get_data_type(node), DATA_INT, 0, 4);
 		break;
 
@@ -1262,6 +1219,7 @@ pars_update_statement(
 		sel_node->row_lock_mode = LOCK_X;
 	} else {
 		node->has_clust_rec_x_lock = sel_node->set_x_locks;
+		ut_ad(node->has_clust_rec_x_lock);
 	}
 
 	ut_a(sel_node->n_tables == 1);
@@ -1355,19 +1313,13 @@ pars_set_dfield_type(
 	pars_res_word_t*	type,		/*!< in: pointer to a type
 						token */
 	ulint			len,		/*!< in: length, or 0 */
-	ibool			is_unsigned,	/*!< in: if TRUE, column is
-						UNSIGNED. */
-	ibool			is_not_null)	/*!< in: if TRUE, column is
+	bool			is_not_null)	/*!< in: whether the column is
 						NOT NULL. */
 {
 	ulint flags = 0;
 
 	if (is_not_null) {
 		flags |= DATA_NOT_NULL;
-	}
-
-	if (is_unsigned) {
-		flags |= DATA_UNSIGNED;
 	}
 
 	if (type == &pars_bigint_token) {
@@ -1384,16 +1336,6 @@ pars_set_dfield_type(
 
 		dtype_set(dfield_get_type(dfield), DATA_VARCHAR,
 			  DATA_ENGLISH | flags, len);
-	} else if (type == &pars_binary_token) {
-		ut_a(len != 0);
-
-		dtype_set(dfield_get_type(dfield), DATA_FIXBINARY,
-			  DATA_BINARY_TYPE | flags, len);
-	} else if (type == &pars_blob_token) {
-		ut_a(len == 0);
-
-		dtype_set(dfield_get_type(dfield), DATA_BLOB,
-			  DATA_BINARY_TYPE | flags, 0);
 	} else {
 		ut_error;
 	}
@@ -1414,28 +1356,7 @@ pars_variable_declaration(
 
 	node->param_type = PARS_NOT_PARAM;
 
-	pars_set_dfield_type(que_node_get_val(node), type, 0, FALSE, FALSE);
-
-	return(node);
-}
-
-/*********************************************************************//**
-Parses a procedure parameter declaration.
-@return own: symbol table node of type SYM_VAR */
-sym_node_t*
-pars_parameter_declaration(
-/*=======================*/
-	sym_node_t*	node,	/*!< in: symbol table node allocated for the
-				id of the parameter */
-	ulint		param_type,
-				/*!< in: PARS_INPUT or PARS_OUTPUT */
-	pars_res_word_t* type)	/*!< in: pointer to a type token */
-{
-	ut_a((param_type == PARS_INPUT) || (param_type == PARS_OUTPUT));
-
-	pars_variable_declaration(node, type);
-
-	node->param_type = param_type;
+	pars_set_dfield_type(que_node_get_val(node), type, 0, false);
 
 	return(node);
 }
@@ -1821,8 +1742,6 @@ pars_column_def(
 	pars_res_word_t*	type,		/*!< in: data type */
 	sym_node_t*		len,		/*!< in: length of column, or
 						NULL */
-	void*			is_unsigned,	/*!< in: if not NULL, column
-						is of type UNSIGNED. */
 	void*			is_not_null)	/*!< in: if not NULL, column
 						is of type NOT NULL. */
 {
@@ -1835,7 +1754,7 @@ pars_column_def(
 	}
 
 	pars_set_dfield_type(que_node_get_val(sym_node), type, len2,
-			     is_unsigned != NULL, is_not_null != NULL);
+			     is_not_null != NULL);
 
 	return(sym_node);
 }
@@ -1848,9 +1767,7 @@ pars_create_table(
 /*==============*/
 	sym_node_t*	table_sym,	/*!< in: table name node in the symbol
 					table */
-	sym_node_t*	column_defs,	/*!< in: list of column names */
-	sym_node_t*	compact,	/* in: non-NULL if COMPACT table. */
-	sym_node_t*	block_size)	/* in: block size (can be NULL) */
+	sym_node_t*	column_defs)	/*!< in: list of column names */
 {
 	dict_table_t*	table;
 	sym_node_t*	column;
@@ -1858,56 +1775,10 @@ pars_create_table(
 	const dtype_t*	dtype;
 	ulint		n_cols;
 	ulint		flags = 0;
-	ulint		flags2 = 0;
+	ulint		flags2 = DICT_TF2_FTS_AUX_HEX_NAME;
 
-	if (compact != NULL) {
-
-		/* System tables currently only use the REDUNDANT row
-		format therefore the check for srv_file_per_table should be
-		safe for now. */
-
-		flags |= DICT_TF_COMPACT;
-
-		/* FIXME: Ideally this should be part of the SQL syntax
-		or use some other mechanism. We want to reduce dependency
-		on global variables. There is an inherent race here but
-		that has always existed around this variable. */
-		if (srv_file_per_table) {
-			flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
-		}
-	}
-
-	if (block_size != NULL) {
-		ulint		size;
-		dfield_t*	dfield;
-
-		dfield = que_node_get_val(block_size);
-
-		ut_a(dfield_get_len(dfield) == 4);
-		size = mach_read_from_4(static_cast<byte*>(
-			dfield_get_data(dfield)));
-
-
-		switch (size) {
-		case 0:
-			break;
-
-		case 1: case 2: case 4: case 8: case 16:
-			flags |= DICT_TF_COMPACT;
-			/* FTS-FIXME: needs the zip changes */
-			/* flags |= size << DICT_TF_COMPRESSED_SHIFT; */
-			break;
-
-		default:
-			ut_error;
-		}
-	}
-
-	/* Set the flags2 when create table or alter tables */
-	flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
 	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
 			flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
-
 
 	n_cols = que_node_list_get_len(column_defs);
 
@@ -2005,7 +1876,6 @@ pars_procedure_definition(
 /*======================*/
 	sym_node_t*	sym_node,	/*!< in: procedure id node in the symbol
 					table */
-	sym_node_t*	param_list,	/*!< in: parameter declaration list */
 	que_node_t*	stat_list)	/*!< in: statement list */
 {
 	proc_node_t*	node;
@@ -2030,7 +1900,6 @@ pars_procedure_definition(
 	sym_node->resolved = TRUE;
 
 	node->proc_id = sym_node;
-	node->param_list = param_list;
 	node->stat_list = stat_list;
 
 	pars_set_parent_in_list(stat_list, node);
@@ -2487,7 +2356,6 @@ void
 pars_info_bind_id(
 /*==============*/
 	pars_info_t*	info,		/*!< in: info struct */
-	ibool		copy_name,	/* in: copy name if TRUE */
 	const char*	name,		/*!< in: name */
 	const char*	id)		/*!< in: id */
 {
@@ -2510,8 +2378,7 @@ pars_info_bind_id(
 		bid = static_cast<pars_bound_id_t*>(
 			ib_vector_push(info->bound_ids, NULL));
 
-		bid->name = (copy_name)
-		    ? mem_heap_strdup(info->heap, name) : name;
+		bid->name = name;
 	}
 
 	bid->id = id;

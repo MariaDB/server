@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -120,9 +120,8 @@ srv_conc_enter_innodb_with_atomics(
 	for (;;) {
 		ulint	sleep_in_us;
 #ifdef WITH_WSREP
-		if (wsrep_on(trx->mysql_thd) &&
-		    wsrep_trx_is_aborting(trx->mysql_thd)) {
-			if (wsrep_debug) {
+		if (trx->is_wsrep() && wsrep_trx_is_aborting(trx->mysql_thd)) {
+			if (UNIV_UNLIKELY(wsrep_debug)) {
 				ib::info() <<
 					"srv_conc_enter due to MUST_ABORT";
 			}
@@ -316,14 +315,14 @@ wsrep_srv_conc_cancel_wait(
 	   srv_conc_enter_innodb_with_atomics(). No need to cancel here,
 	   thr will wake up after os_sleep and let to enter innodb
 	*/
-	if (wsrep_debug) {
+	if (UNIV_UNLIKELY(wsrep_debug)) {
 		ib::info() << "WSREP: conc slot cancel, no atomics";
 	}
 #else
 	// JAN: TODO: MySQL 5.7
 	//os_fast_mutex_lock(&srv_conc_mutex);
 	if (trx->wsrep_event) {
-		if (wsrep_debug) {
+		if (UNIV_UNLIKELY(wsrep_debug)) {
 			ib::info() << "WSREP: conc slot cancel";
 		}
 		os_event_set(trx->wsrep_event);

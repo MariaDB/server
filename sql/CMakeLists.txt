@@ -127,6 +127,7 @@ SET (SQL_SOURCE
                rpl_gtid.cc rpl_parallel.cc
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
+               sql_schema.cc
                sql_type.cc sql_mode.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
@@ -166,7 +167,7 @@ ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
   mysys mysys_ssl dbug strings vio pcre
-  ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
+  ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
   ${WSREP_LIB}
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})
@@ -306,7 +307,6 @@ IF(WITH_MYSQLD_LDFLAGS)
      "${MYSQLD_LINK_FLAGS} ${WITH_MYSQLD_LDFLAGS}")
 ENDIF()
 
-
 FIND_PACKAGE(BISON 2.0)
 
 
@@ -406,15 +406,18 @@ IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
   ENDIF()
   MAKE_DIRECTORY(${CMAKE_CURRENT_BINARY_DIR}/data)
   ADD_CUSTOM_COMMAND(
-     OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
-     COMMAND ${CMAKE_COMMAND} ${CONFIG_PARAM}
-       -DTOP_SRCDIR="${CMAKE_SOURCE_DIR}"
-       -DBINDIR="${CMAKE_CURRENT_BINARY_DIR}"
-       -DMYSQLD_EXECUTABLE="$<TARGET_FILE:mysqld>"
-       -DCMAKE_CFG_INTDIR="${CMAKE_CFG_INTDIR}"
-       -P ${CMAKE_SOURCE_DIR}/cmake/create_initial_db.cmake
+     OUTPUT initdb.dep
+     COMMAND ${CMAKE_COMMAND} -E remove_directory data
+     COMMAND ${CMAKE_COMMAND} -E make_directory data
+     COMMAND ${CMAKE_COMMAND} -E chdir data ${CMAKE_COMMAND}
+     ${CONFIG_PARAM}
+     -DTOP_SRCDIR="${CMAKE_SOURCE_DIR}"
+     -DBINDIR="${CMAKE_CURRENT_BINARY_DIR}"
+     -DMYSQLD_EXECUTABLE="$<TARGET_FILE:mysqld>"
+     -DCMAKE_CFG_INTDIR="${CMAKE_CFG_INTDIR}"
+     -P ${CMAKE_SOURCE_DIR}/cmake/create_initial_db.cmake
      COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
-     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
+     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/
      DEPENDS mysqld
   )
   ADD_CUSTOM_TARGET(initial_database  

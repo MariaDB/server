@@ -510,7 +510,7 @@ void Rdb_sst_info::set_error_msg(const std::string &sst_file_name,
 void Rdb_sst_info::report_error_msg(const rocksdb::Status &s,
                                     const char *sst_file_name) {
   if (s.IsInvalidArgument() &&
-      strcmp(s.getState(), "Keys must be added in order") == 0) {
+      strcmp(s.getState(), "Keys must be added in strict ascending order.") == 0) {
     my_printf_error(ER_KEYS_OUT_OF_ORDER,
                     "Rows must be inserted in primary key order "
                     "during bulk load operation",

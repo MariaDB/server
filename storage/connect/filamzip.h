@@ -1,7 +1,7 @@
 /************** filamzip H Declares Source Code File (.H) **************/
-/*  Name: filamzip.h   Version 1.2                                     */
+/*  Name: filamzip.h   Version 1.3                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2016-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2016-2020    */
 /*                                                                     */
 /*  This file contains the ZIP file access method classes declares.    */
 /***********************************************************************/
@@ -11,6 +11,7 @@
 #include "block.h"
 #include "filamap.h"
 #include "filamfix.h"
+#include "filamdbf.h"
 #include "zip.h"
 #include "unzip.h"
 
@@ -18,6 +19,7 @@
 
 typedef class UNZFAM *PUNZFAM;
 typedef class UZXFAM *PUZXFAM;
+typedef class UZDFAM* PUZDFAM;
 typedef class ZIPFAM *PZIPFAM;
 typedef class ZPXFAM *PZPXFAM;
 
@@ -53,7 +55,7 @@ class DllExport ZIPUTIL : public BLOCK {
 class DllExport UNZIPUTL : public BLOCK {
  public:
 	// Constructor
-  UNZIPUTL(PCSZ tgt, bool mul);
+  UNZIPUTL(PCSZ tgt, PCSZ pw, bool mul);
   UNZIPUTL(PDOSDEF tdp);
 
 	// Implementation
@@ -142,6 +144,36 @@ class DllExport UZXFAM : public MPXFAM {
 	UNZIPUTL *zutp;
 	PDOSDEF   tdfp;
 }; // end of UZXFAM
+
+/***********************************************************************/
+/*  This is the fixed unzip file access method.                        */
+/***********************************************************************/
+class DllExport UZDFAM : public DBMFAM {
+	//friend class UNZFAM;
+public:
+	// Constructors
+	UZDFAM(PDOSDEF tdp);
+	UZDFAM(PUZDFAM txfp);
+
+	// Implementation
+	virtual AMT  GetAmType(void) { return TYPE_AM_ZIP; }
+	virtual PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)UZDFAM(this); }
+
+	// Methods
+	virtual int  GetFileLength(PGLOBAL g);
+	virtual int  Cardinality(PGLOBAL g);
+	virtual bool OpenTableFile(PGLOBAL g);
+	virtual int  GetNext(PGLOBAL g);
+	//virtual int  ReadBuffer(PGLOBAL g);
+
+protected:
+	int dbfhead(PGLOBAL g, void* buf);
+	int ScanHeader(PGLOBAL g, int* rln);
+
+	// Members
+	UNZIPUTL* zutp;
+	PDOSDEF   tdfp;
+}; // end of UZDFAM
 
 /***********************************************************************/
 /*  This is the zip file access method.                                */

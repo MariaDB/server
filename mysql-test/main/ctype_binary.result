@@ -3172,5 +3172,147 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a' and weight_string(`test`.`t1`.`a`,0,0,1) = 'a'
 DROP TABLE t1;
 #
+# MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
+#
+CREATE TABLE t1(a ENUM(0x6100,0x6200,0x6300) CHARACTER SET 'Binary');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('a\0','b\0','c\0') CHARACTER SET binary DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT HEX(a) FROM t1 ORDER BY a;
+HEX(a)
+6100
+6200
+6300
+DROP TABLE t1;
+0x00 in the middle or in the end of a value
+CREATE TABLE t1 (a ENUM(0x6100));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('a\0') DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (1);
+SELECT HEX(a) FROM t1;
+HEX(a)
+6100
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM(0x610062));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('a\0b') DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (1);
+SELECT HEX(a) FROM t1;
+HEX(a)
+610062
+DROP TABLE t1;
+0x00 in the beginning of the first value:
+CREATE TABLE t1 (a ENUM(0x0061));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('\0a') DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES(1);
+SELECT HEX(a) FROM t1;
+HEX(a)
+0061
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM(0x0061), b ENUM('b'));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('\0a') DEFAULT NULL,
+  `b` enum('b') DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (1,1);
+SELECT HEX(a), HEX(b) FROM t1;
+HEX(a)	HEX(b)
+0061	62
+DROP TABLE t1;
+# 0x00 in the beginning of the second (and following) value of the *last* ENUM/SET in the table:
+CREATE TABLE t1 (a ENUM('a',0x0061));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('a','\0a') DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (1),(2);
+SELECT HEX(a) FROM t1 ORDER BY a;
+HEX(a)
+61
+0061
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('a'), b ENUM('b',0x0061));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('a') DEFAULT NULL,
+  `b` enum('b','\0a') DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (1,2);
+SELECT HEX(a), HEX(b) FROM t1 ORDER BY a, b;
+HEX(a)	HEX(b)
+61	62
+61	0061
+DROP TABLE t1;
+0x00 in the beginning of a value of a non-last ENUM/SET causes an error:
+CREATE TABLE t1 (a ENUM('a',0x0061), b ENUM('b'));
+ERROR HY000: Incorrect information in file: 'DIR/t1.frm'
+#
 # End of 10.1 tests
+#
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
+# 10.2 tests
+#
+SET NAMES latin1;
+CREATE TABLE t1(c ENUM(0x0061) CHARACTER SET 'Binary', d JSON);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` enum('\0a') CHARACTER SET binary DEFAULT NULL,
+  `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 (c) VALUES (1);
+SELECT HEX(c) FROM t1;
+HEX(c)
+0061
+DROP TABLE t1;
+CREATE TABLE t1(
+c ENUM(0x0061) CHARACTER SET 'Binary',
+d INT DEFAULT NULL CHECK (d>0)
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` enum('\0a') CHARACTER SET binary DEFAULT NULL,
+  `d` int(11) DEFAULT NULL CHECK (`d` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (1,1);
+SELECT HEX(c), d FROM t1;
+HEX(c)	d
+0061	1
+DROP TABLE t1;
+CREATE TABLE t1(c ENUM(0x0061) CHARACTER SET 'Binary' CHECK (c>0));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` enum('\0a') CHARACTER SET binary DEFAULT NULL CHECK (`c` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (1);
+SELECT HEX(c) FROM t1;
+HEX(c)
+0061
+DROP TABLE t1;
+#
+# End of 10.2 tests
 #

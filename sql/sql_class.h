@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -254,8 +254,9 @@ class Key_part_spec :public Sql_alloc {
 public:
   LEX_CSTRING field_name;
   uint length;
-  Key_part_spec(const LEX_CSTRING *name, uint len)
-    : field_name(*name), length(len)
+  bool generated;
+  Key_part_spec(const LEX_CSTRING *name, uint len, bool gen= false)
+    : field_name(*name), length(len), generated(gen)
   {}
   bool operator==(const Key_part_spec& other) const;
   /**
@@ -567,7 +568,6 @@ typedef struct system_variables
   ulonglong bulk_insert_buff_size;
   ulonglong join_buff_size;
   ulonglong sortbuff_size;
-  ulonglong group_concat_max_len;
   ulonglong default_regex_flags;
   ulonglong max_mem_used;
 
@@ -658,6 +658,8 @@ typedef struct system_variables
   */
   uint32     gtid_domain_id;
   uint64     gtid_seq_no;
+
+  uint group_concat_max_len;
 
   /**
     Default transaction access mode. READ ONLY (true) or READ WRITE (false).
@@ -842,9 +844,9 @@ typedef struct system_status_var
   ulong feature_window_functions;   /* +1 when window functions are used */
 
   /* From MASTER_GTID_WAIT usage */
-  ulonglong master_gtid_wait_timeouts;          /* Number of timeouts */
-  ulonglong master_gtid_wait_time;              /* Time in microseconds */
-  ulonglong master_gtid_wait_count;
+  ulong master_gtid_wait_timeouts;          /* Number of timeouts */
+  ulong master_gtid_wait_time;              /* Time in microseconds */
+  ulong master_gtid_wait_count;
 
   ulong empty_queries;
   ulong access_denied_errors;
@@ -900,11 +902,24 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                         STATUS_VAR *dec_var);
 
+uint calc_sum_of_all_status(STATUS_VAR *to);
+static inline void calc_sum_of_all_status_if_needed(STATUS_VAR *to)
+{
+  if (to->local_memory_used == 0)
+  {
+    mysql_mutex_lock(&LOCK_status);
+    *to= global_status_var;
+    mysql_mutex_unlock(&LOCK_status);
+    calc_sum_of_all_status(to);
+    DBUG_ASSERT(to->local_memory_used);
+  }
+}
+
 /*
   Update global_memory_used. We have to do this with atomic_add as the
   global value can change outside of LOCK_status.
 */
-inline void update_global_memory_status(int64 size)
+static inline void update_global_memory_status(int64 size)
 {
   DBUG_PRINT("info", ("global memory_used: %lld  size: %lld",
                       (longlong) global_status_var.global_memory_used,
@@ -922,7 +937,7 @@ inline void update_global_memory_status(int64 size)
   @retval         NULL on error
   @retval         Pointter to CHARSET_INFO with the given name on success
 */
-inline CHARSET_INFO *
+static inline CHARSET_INFO *
 mysqld_collation_get_by_name(const char *name,
                              CHARSET_INFO *name_cs= system_charset_info)
 {
@@ -941,9 +956,9 @@ mysqld_collation_get_by_name(const char *name,
   return cs;
 }
 
-inline bool is_supported_parser_charset(CHARSET_INFO *cs)
+static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
-  return MY_TEST(cs->mbminlen == 1);
+  return MY_TEST(cs->mbminlen == 1 && cs->number != 17 /* filename */);
 }
 
 #ifdef MYSQL_SERVER
@@ -990,7 +1005,7 @@ public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
   {
-    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE
+    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE, TABLE_ARENA
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
@@ -1873,20 +1888,23 @@ private:
   TABLE_LIST *m_locked_tables;
   TABLE_LIST **m_locked_tables_last;
   /** An auxiliary array used only in reopen_tables(). */
-  TABLE **m_reopen_array;
+  TABLE_LIST **m_reopen_array;
   /**
     Count the number of tables in m_locked_tables list. We can't
     rely on thd->lock->table_count because it excludes
     non-transactional temporary tables. We need to know
     an exact number of TABLE objects.
   */
-  size_t m_locked_tables_count;
+  uint m_locked_tables_count;
 public:
+  bool some_table_marked_for_reopen;
+
   Locked_tables_list()
     :m_locked_tables(NULL),
     m_locked_tables_last(&m_locked_tables),
     m_reopen_array(NULL),
-    m_locked_tables_count(0)
+    m_locked_tables_count(0),
+    some_table_marked_for_reopen(0)
   {
     init_sql_alloc(&m_locked_tables_root, "Locked_tables_list",
                    MEM_ROOT_BLOCK_SIZE, 0,
@@ -1910,6 +1928,7 @@ public:
   bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
                     MYSQL_LOCK *lock);
   void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
+  void mark_table_for_reopen(THD *thd, TABLE *table);
 };
 
 
@@ -3418,7 +3437,7 @@ public:
   {
     return !MY_TEST(variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
   }
-  const Type_handler *type_handler_for_date() const;
+  const Type_handler *type_handler_for_datetime() const;
   bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
                          ulong sec_part, ulonglong fuzzydate);
   inline my_time_t query_start() { return start_time; }
@@ -3616,10 +3635,6 @@ public:
   inline bool in_active_multi_stmt_transaction()
   {
     return server_status & SERVER_STATUS_IN_TRANS;
-  }
-  inline bool fill_derived_tables()
-  {
-    return !stmt_arena->is_stmt_prepare() && !lex->only_view_structure();
   }
   inline bool fill_information_schema_tables()
   {
@@ -3924,13 +3939,20 @@ public:
     return 0;
   }
 
+
+  bool is_item_tree_change_register_required()
+  {
+    return !stmt_arena->is_conventional()
+           || stmt_arena->type() == Query_arena::TABLE_ARENA;
+  }
+
   void change_item_tree(Item **place, Item *new_value)
   {
     DBUG_ENTER("THD::change_item_tree");
     DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
                        *place, place, new_value));
     /* TODO: check for OOM condition here */
-    if (!stmt_arena->is_conventional())
+    if (is_item_tree_change_register_required())
       nocheck_register_item_tree_change(place, *place, mem_root);
     *place= new_value;
     DBUG_VOID_RETURN;
@@ -3999,7 +4021,8 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        if (likely((killed_err= (err_info*) alloc(sizeof(*killed_err)))))
+        killed_err= (err_info*) alloc_root(&main_mem_root, sizeof(*killed_err));
+        if (likely(killed_err))
         {
           killed_err->no= killed_errno_arg;
           ::strmake((char*) killed_err->msg, killed_err_msg_arg,
@@ -4203,15 +4226,9 @@ public:
         to resolve all CTE names as we don't need this message to be thrown
         for any CTE references.
       */
-      if (!lex->with_clauses_list)
-      {
+      if (!lex->with_cte_resolution)
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-        return TRUE;
-      }
-      /* This will allow to throw an error later for non-CTE references */
-      to->str= NULL;
-      to->length= 0;
-      return FALSE;
+      return TRUE;
     }
 
     to->str= strmake(db.str, db.length);
@@ -4456,6 +4473,13 @@ public:
     locked_tables_mode= mode_arg;
   }
   void leave_locked_tables_mode();
+  /* Relesae transactional locks if there are no active transactions */
+  void release_transactional_locks()
+  {
+    if (!(server_status &
+          (SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY)))
+      mdl_context.release_transactional_locks();
+  }
   int decide_logging_format(TABLE_LIST *tables);
   /*
    In Some cases when decide_logging_format is called it does not have all
@@ -4792,8 +4816,10 @@ public:
       transaction.all.modified_non_trans_table= TRUE;
     transaction.all.m_unsafe_rollback_flags|=
       (transaction.stmt.m_unsafe_rollback_flags &
-       (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
-        THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL));
+       (THD_TRANS::MODIFIED_NON_TRANS_TABLE |
+        THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
+        THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL |
+        THD_TRANS::EXECUTED_TABLE_ADMIN_CMD));
   }
   /*
     Reset current_linfo
@@ -4807,6 +4833,9 @@ public:
     current_linfo= 0;
     mysql_mutex_unlock(&LOCK_thread_count);
   }
+
+  bool sql_parser(LEX *old_lex, LEX *lex,
+                  char *str, uint str_len, bool stmt_prepare_mode);
 
 
   uint get_net_wait_timeout()
@@ -4870,12 +4899,10 @@ inline void add_to_active_threads(THD *thd)
 /*
   This should be called when you want to delete a thd that was not
   running any queries.
-  This function will assert that the THD is linked.
 */
 
 inline void unlink_not_visible_thd(THD *thd)
 {
-  thd->assert_linked();
   mysql_mutex_lock(&LOCK_thread_count);
   thd->unlink();
   mysql_mutex_unlock(&LOCK_thread_count);
@@ -5616,10 +5643,15 @@ class select_union_recursive :public select_unit
  public:
   /* The temporary table with the new records generated by one iterative step */
   TABLE *incr_table;
+  /* The TMP_TABLE_PARAM structure used to create incr_table */
+  TMP_TABLE_PARAM incr_table_param;
   /* One of tables from the list rec_tables (determined dynamically) */
   TABLE *first_rec_table_to_update;
-  /* The temporary tables used for recursive table references */
-  List<TABLE> rec_tables;
+  /*
+    The list of all recursive table references to the CTE for whose
+    specification this select_union_recursive was created
+ */
+  List<TABLE_LIST> rec_table_refs;
   /*
     The count of how many times cleanup() was called with cleaned==false
     for the unit specifying the recursive CTE for which this object was created
@@ -5629,7 +5661,8 @@ class select_union_recursive :public select_unit
 
   select_union_recursive(THD *thd_arg):
     select_unit(thd_arg),
-    incr_table(0), first_rec_table_to_update(0), cleanup_count(0) {};
+    incr_table(0), first_rec_table_to_update(0), cleanup_count(0)
+  { incr_table_param.init(); };
 
   int send_data(List<Item> &items);
   bool create_result_table(THD *thd, List<Item> *column_types,
@@ -5846,6 +5879,7 @@ public:
   bool cmp_int();
   bool cmp_decimal();
   bool cmp_str();
+  bool cmp_time();
 };
 
 /* EXISTS subselect interface class */
@@ -6077,7 +6111,8 @@ public:
 class multi_update :public select_result_interceptor
 {
   TABLE_LIST *all_tables; /* query/update command tables */
-  List<TABLE_LIST> *leaves;     /* list of leves of join table tree */
+  List<TABLE_LIST> *leaves;     /* list of leaves of join table tree */
+  List<TABLE_LIST> updated_leaves;  /* list of of updated leaves */
   TABLE_LIST *update_tables;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;
@@ -6115,6 +6150,7 @@ public:
 	       List<Item> *fields, List<Item> *values,
 	       enum_duplicates handle_duplicates, bool ignore);
   ~multi_update();
+  bool init(THD *thd);
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
@@ -6324,11 +6360,11 @@ public:
 /**
   SP Bulk execution safe
 */
-#define CF_SP_BULK_SAFE (1U << 20)
+#define CF_PS_ARRAY_BINDING_SAFE (1U << 20)
 /**
   SP Bulk execution optimized
 */
-#define CF_SP_BULK_OPTIMIZED (1U << 21)
+#define CF_PS_ARRAY_BINDING_OPTIMIZED (1U << 21)
 /**
   If command creates or drops a table
 */
@@ -6549,6 +6585,22 @@ class Sql_mode_save
   sql_mode_t old_mode; // SQL mode saved at construction time.
 };
 
+class Abort_on_warning_instant_set
+{
+  THD *m_thd;
+  bool m_save_abort_on_warning;
+public:
+  Abort_on_warning_instant_set(THD *thd, bool temporary_value)
+   :m_thd(thd), m_save_abort_on_warning(thd->abort_on_warning)
+  {
+    thd->abort_on_warning= temporary_value;
+  }
+  ~Abort_on_warning_instant_set()
+  {
+    m_thd->abort_on_warning= m_save_abort_on_warning;
+  }
+};
+
 class Switch_to_definer_security_ctx
 {
  public:
@@ -6563,6 +6615,23 @@ class Switch_to_definer_security_ctx
  private:
   THD *m_thd;
   Security_context *m_sctx;
+};
+
+
+class Check_level_instant_set
+{
+  THD *m_thd;
+  enum_check_fields m_check_level;
+public:
+  Check_level_instant_set(THD *thd, enum_check_fields temporary_value)
+   :m_thd(thd), m_check_level(thd->count_cuted_fields)
+  {
+    thd->count_cuted_fields= temporary_value;
+  }
+  ~Check_level_instant_set()
+  {
+    m_thd->count_cuted_fields= m_check_level;
+  }
 };
 
 

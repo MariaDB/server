@@ -55,6 +55,10 @@ ALTER TABLE t1 ROW_FORMAT=COMPRESSED;
 --error $error_code
 ALTER TABLE t1 ENGINE=INNODB;
 
+# Irrespective of alter_algorithm value, the following command
+# should succeed because of explicitly mentioning ALGORTHM=DEFAULT
+ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
+
 DROP TABLE t1;
 --disable_info
 

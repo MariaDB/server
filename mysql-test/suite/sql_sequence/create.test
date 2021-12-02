@@ -270,6 +270,48 @@ CREATE OR REPLACE TABLE t1 (
   key key1 (next_not_cached_value)
 ) sequence=1;
 
+# Check constraint
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE TABLE t1 (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL,
+  CHECK (start_value < minimum_value)
+) sequence=1;
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE TABLE t1 (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL CHECK (start_value < minimum_value),
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) sequence=1;
+
+
+# Virtual field
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE TABLE t1 (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) generated always as (1) virtual
+) sequence=1;
+
 drop sequence if exists t1;
 
 #
@@ -447,7 +489,7 @@ drop table s;
 create temporary sequence s;
 drop temporary table s;
 create temporary table s (i int);
---error ER_UNKNOWN_SEQUENCES
+--error ER_NOT_SEQUENCE2
 drop temporary sequence s;
 drop table s;
 

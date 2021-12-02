@@ -20,7 +20,9 @@
 # same name.
 
 package mtr_report;
+
 use strict;
+use Sys::Hostname;
 
 use base qw(Exporter);
 our @EXPORT= qw(report_option mtr_print_line mtr_print_thick_line
@@ -35,8 +37,20 @@ use My::Platform;
 use POSIX qw[ _exit ];
 use IO::Handle qw[ flush ];
 use mtr_results;
-
 use Term::ANSIColor;
+use English;
+
+my $tot_real_time= 0;
+my $tests_done= 0;
+my $tests_failed= 0;
+
+our $timestamp= 0;
+our $timediff= 0;
+our $name;
+our $verbose;
+our $verbose_restart= 0;
+our $timer= 1;
+our $tests_total;
 
 my %color_map = qw/pass green
                    retry-pass green
@@ -45,20 +59,39 @@ my %color_map = qw/pass green
                    disabled bright_black
                    skipped yellow
                    reset reset/;
-sub xterm_color {
-  if (-t STDOUT and defined $ENV{TERM} and $ENV{TERM} =~ /xterm/) {
-    syswrite STDOUT, color($color_map{$_[0]});
+
+my $set_titlebar;
+my $set_color= sub { };
+
+if (-t STDOUT) {
+  if (IS_WINDOWS) {
+    eval {
+      require Win32::Console;
+      $set_titlebar = sub { &Win32::Console::Title($_[0]);};
+    }
+  } elsif ($ENV{TERM} =~ /xterm/) {
+    $set_titlebar = sub { syswrite STDOUT, "\e]0;$_[0]\a"; };
+    $set_color = sub { syswrite STDOUT, color($color_map{$_[0]}); }
   }
 }
 
-my $tot_real_time= 0;
+sub titlebar_stat($) {
 
-our $timestamp= 0;
-our $timediff= 0;
-our $name;
-our $verbose;
-our $verbose_restart= 0;
-our $timer= 1;
+  sub time_format($) {
+    sprintf '%d:%02d:%02d', $_[0]/3600, ($_[0]/60)%60, $_[0]%60;
+  }
+
+  $tests_done++;
+  $tests_failed++ if $_[0] =~ /fail/;
+  $tests_total++ if $_[0] =~ /retry/;
+
+  my $spent = time - $BASETIME;
+  my $left = $tests_total - $tests_done;
+
+  &$set_titlebar(sprintf "mtr: spent %s on %d tests. %s (%d tests) left, %d failed",
+           time_format($spent), $tests_done,
+           time_format($spent/$tests_done * $left), $left, $tests_failed);
+}
 
 sub report_option {
   my ($opt, $value)= @_;
@@ -253,6 +286,7 @@ sub mtr_report_stats ($$$$) {
   # Find out how we where doing
   # ----------------------------------------------------------------------
 
+  my $tot_disabled = 0;
   my $tot_skipped= 0;
   my $tot_skipdetect= 0;
   my $tot_passed= 0;
@@ -273,6 +307,7 @@ sub mtr_report_stats ($$$$) {
     {
       # Test was skipped (disabled not counted)
       $tot_skipped++ unless $tinfo->{'disable'};
+      $tot_disabled++ if $tinfo->{'disable'};
       $tot_skipdetect++ if $tinfo->{'skip_detected_by_test'};
     }
     elsif ( $tinfo->{'result'} eq 'MTR_RES_PASSED' )
@@ -317,8 +352,6 @@ sub mtr_report_stats ($$$$) {
 
   if ( $timer )
   {
-    use English;
-
     mtr_report("Spent", sprintf("%.3f", $tot_real_time),"of",
 	       time - $BASETIME, "seconds executing testcases");
   }
@@ -402,6 +435,108 @@ sub mtr_report_stats ($$$$) {
     print "All $tot_tests tests were successful.\n\n";
   }
 
+  if ($::opt_xml_report) {
+    my $xml_report = "";
+    my @sorted_tests = sort {$a->{'name'} cmp $b->{'name'}} @$tests;
+    my $last_suite = "";
+    my $current_suite = "";
+    my $timest = isotime(time);
+    my %suite_totals;
+    my %suite_time;
+    my %suite_tests;
+    my %suite_failed;
+    my %suite_disabled;
+    my %suite_skipped;
+    my $host = hostname;
+    my $suiteNo = 0;
+
+    # loop through test results to count totals
+    foreach my $test ( @sorted_tests ) {
+      $current_suite = $test->{'suite'}->{'name'};
+
+      if ($test->{'timer'} eq "") {
+        $test->{'timer'} = 0;
+      }
+
+      $suite_time{$current_suite} = $suite_time{$current_suite} + $test->{'timer'};
+      $suite_tests{$current_suite} = $suite_tests{$current_suite} + 1;
+
+      if ($test->{'result'} eq "MTR_RES_FAILED") {
+        $suite_failed{$current_suite} = $suite_failed{$current_suite} + 1;
+      } elsif ($test->{'result'} eq "MTR_RES_SKIPPED" && $test->{'disable'}) {
+        $suite_disabled{$current_suite} = $suite_disabled{$current_suite} + 1;
+      } elsif ($test->{'result'} eq "MTR_RES_SKIPPED") {
+        $suite_skipped{$current_suite} = $suite_skipped{$current_suite} + 1;
+      }
+
+      $suite_totals{"all_time"} = $suite_totals{"all_time"} + $test->{'timer'};
+    }
+
+    my $all_time = sprintf("%.3f", $suite_totals{"all_time"} / 1000);
+    my $suite_time = 0;
+    my $test_time = 0;
+
+    # generate xml
+    $xml_report = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    $xml_report .= qq(<testsuites disabled="$tot_disabled" errors="" failures="$tot_failed" name="" tests="$tot_tests" time="$all_time">\n);
+
+    foreach my $test ( @sorted_tests ) {
+      $current_suite = $test->{'suite'}->{'name'};
+
+      if ($current_suite ne $last_suite) {
+        if ($last_suite ne "") {
+          $xml_report .= "\t</testsuite>\n";
+          $suiteNo++;
+        }
+
+        $suite_time = sprintf("%.3f", $suite_time{$current_suite} / 1000);
+        $xml_report .= qq(\t<testsuite disabled="$suite_disabled{$current_suite}" errors="" failures="$suite_failed{$current_suite}" hostname="$host" id="$suiteNo" name="$current_suite" package="" skipped="$suite_skipped{$current_suite}" tests="$suite_tests{$current_suite}" time="$suite_time" timestamp="$timest">\n);
+        $last_suite = $current_suite;
+      }
+
+      $test_time = sprintf("%.3f", $test->{timer} / 1000);
+      $test->{'name'} =~ s/$current_suite\.//;
+
+      my $combinations;
+      if (defined($test->{combinations})){
+        $combinations = join ',', sort @{$test->{combinations}};
+      } else {
+        $combinations = "";
+      }
+
+      $xml_report .= qq(\t\t<testcase assertions="" classname="$current_suite" name="$test->{'name'}" ).
+                     qq(status="$test->{'result'}" time="$test_time" combinations="$combinations");
+
+      my $comment= replace_special_symbols($test->{'comment'});
+
+      if ($test->{'result'} eq "MTR_RES_FAILED") {
+        my $logcontents = $test->{'logfile-failed'} || $test->{'logfile'};
+        $logcontents= $logcontents.$test->{'warnings'}."\n";
+        # remove any double ] that would end the cdata
+        $logcontents =~ s/]]/\x{fffd}/g;
+        # replace wide characters that aren't allowed in XML 1.0
+        $logcontents =~ s/[\x00-\x08\x0B\x0C\x0E-\x1F]/\x{fffd}/g;
+
+        $xml_report .= qq(>\n\t\t\t<failure message="" type="MTR_RES_FAILED">\n<![CDATA[$logcontents]]>\n\t\t\t</failure>\n\t\t</testcase>\n);
+      } elsif ($test->{'result'} eq "MTR_RES_SKIPPED" && $test->{'disable'}) {
+        $xml_report .= qq(>\n\t\t\t<disabled message="$comment" type="MTR_RES_SKIPPED"/>\n\t\t</testcase>\n);
+      } elsif ($test->{'result'} eq "MTR_RES_SKIPPED") {
+        $xml_report .= qq(>\n\t\t\t<skipped message="$comment" type="MTR_RES_SKIPPED"/>\n\t\t</testcase>\n);
+      } else {
+        $xml_report .= " />\n";
+      }
+    }
+
+    $xml_report .= "\t</testsuite>\n</testsuites>\n";
+
+    # save to file
+    my $xml_file = $::opt_xml_report;
+
+    open (my $XML_UFILE, '>:encoding(UTF-8)', $xml_file) or die 'Cannot create file $xml_file: $!';
+    print $XML_UFILE $xml_report;
+    close $XML_UFILE or warn "File close failed!";
+  }
+
   if (@$extra_warnings)
   {
     print <<MSG;
@@ -437,6 +572,16 @@ MSG
 
 sub mtr_print_line () {
   print '-' x 74 . "\n";
+}
+
+sub replace_special_symbols($) {
+  my $text= shift;
+  $text =~ s/&/&#38;/g;
+  $text =~ s/'/&#39;/g;
+  $text =~ s/"/&#34;/g;
+  $text =~ s/</&lt;/g;
+  $text =~ s/>/&gt;/g;
+  return $text;
 }
 
 
@@ -516,10 +661,11 @@ sub mtr_report (@) {
     my @s = split /\[ (\S+) \]/, _name() . "@_\n";
     if (@s > 1) {
       print $s[0];
-      xterm_color($s[1]);
+      &$set_color($s[1]);
       print "[ $s[1] ]";
-      xterm_color('reset');
+      &$set_color('reset');
       print $s[2];
+      titlebar_stat($s[1]) if $set_titlebar;
     } else {
       print $s[0];
     }
@@ -545,6 +691,8 @@ sub mtr_error (@) {
   }
   else
   {
+    use Carp qw(cluck);
+    cluck "Error happened" if $verbose > 0;
     exit(1);
   }
 }

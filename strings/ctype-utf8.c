@@ -5159,8 +5159,8 @@ static size_t my_caseup_utf8(CHARSET_INFO *cs, const char *src, size_t srclen,
 }
 
 
-static void my_hash_sort_utf8_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                                    ulong *nr1, ulong *nr2)
+static void my_hash_sort_utf8mb3_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
+                                       ulong *nr1, ulong *nr2)
 {
   my_wc_t wc;
   int res;
@@ -5179,17 +5179,15 @@ static void my_hash_sort_utf8_nopad(CHARSET_INFO *cs, const uchar *s, size_t sle
 }
 
 
-static void my_hash_sort_utf8(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                              ulong *nr1, ulong *nr2)
+static void my_hash_sort_utf8mb3(CHARSET_INFO *cs, const uchar *s, size_t slen,
+                                 ulong *nr1, ulong *nr2)
 {
-  const uchar *e= s+slen;
   /*
     Remove end space. We have to do this to be able to compare
     'A ' and 'A' as identical
   */
-  while (e > s && e[-1] == ' ')
-    e--;
-  my_hash_sort_utf8_nopad(cs, s, e - s, nr1, nr2);
+  const uchar *e= skip_trailing_space(s, slen);
+  my_hash_sort_utf8mb3_nopad(cs, s, e - s, nr1, nr2);
 }
 
 
@@ -5540,7 +5538,7 @@ static MY_COLLATION_HANDLER my_collation_utf8_general_ci_handler =
     my_wildcmp_utf8,
     my_strcasecmp_utf8,
     my_instr_mb,
-    my_hash_sort_utf8,
+    my_hash_sort_utf8mb3,
     my_propagate_complex
 };
 
@@ -5556,7 +5554,7 @@ static MY_COLLATION_HANDLER my_collation_utf8_general_mysql500_ci_handler =
     my_wildcmp_utf8,
     my_strcasecmp_utf8,
     my_instr_mb,
-    my_hash_sort_utf8,
+    my_hash_sort_utf8mb3,
     my_propagate_complex
 };
 
@@ -5588,7 +5586,7 @@ static MY_COLLATION_HANDLER my_collation_utf8_general_nopad_ci_handler =
   my_wildcmp_utf8,
   my_strcasecmp_utf8,
   my_instr_mb,
-  my_hash_sort_utf8_nopad,
+  my_hash_sort_utf8mb3_nopad,
   my_propagate_complex
 };
 
@@ -7224,7 +7222,7 @@ static MY_COLLATION_HANDLER my_collation_filename_handler =
     my_wildcmp_utf8,
     my_strcasecmp_utf8,
     my_instr_mb,
-    my_hash_sort_utf8,
+    my_hash_sort_utf8mb3,
     my_propagate_complex
 };
 
@@ -7625,13 +7623,11 @@ static void
 my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
                      ulong *nr1, ulong *nr2)
 {
-  const uchar *e= s + slen;
   /*
     Remove end space. We do this to be able to compare
     'A ' and 'A' as identical
   */
-  while (e > s && e[-1] == ' ')
-    e--;
+  const uchar *e= skip_trailing_space(s, slen);
   my_hash_sort_utf8mb4_nopad(cs, s, e - s, nr1, nr2);
 }
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -218,6 +218,13 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   case MTR_MEMO_SX_LOCK:
     rw_lock_sx_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
+  case MTR_MEMO_SPACE_X_LOCK:
+    {
+      fil_space_t *space= static_cast<fil_space_t*>(slot->object);
+      space->committed_size= space->size;
+      rw_lock_x_unlock(&space->latch);
+    }
+    break;
   case MTR_MEMO_X_LOCK:
     rw_lock_x_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
@@ -226,8 +233,8 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   case MTR_MEMO_PAGE_SX_FIX:
   case MTR_MEMO_PAGE_X_FIX:
     buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-    buf_block_unfix(block);
     buf_page_release_latch(block, slot->type);
+    buf_block_unfix(block);
     break;
   }
   slot->object= NULL;
@@ -251,6 +258,13 @@ struct ReleaseLatches {
     case MTR_MEMO_S_LOCK:
       rw_lock_s_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
       break;
+    case MTR_MEMO_SPACE_X_LOCK:
+      {
+        fil_space_t *space= static_cast<fil_space_t*>(slot->object);
+        space->committed_size= space->size;
+        rw_lock_x_unlock(&space->latch);
+      }
+      break;
     case MTR_MEMO_X_LOCK:
       rw_lock_x_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
       break;
@@ -262,8 +276,8 @@ struct ReleaseLatches {
     case MTR_MEMO_PAGE_SX_FIX:
     case MTR_MEMO_PAGE_X_FIX:
       buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-      buf_block_unfix(block);
       buf_page_release_latch(block, slot->type);
+      buf_block_unfix(block);
       break;
     }
     slot->object= NULL;
@@ -378,7 +392,7 @@ mtr_write_log(
 /** Start a mini-transaction. */
 void mtr_t::start()
 {
-  UNIV_MEM_INVALID(this, sizeof *this);
+  MEM_UNDEFINED(this, sizeof *this);
 
   new(&m_memo) mtr_buf_t();
   new(&m_log) mtr_buf_t();
@@ -445,6 +459,89 @@ mtr_t::commit()
   }
   else
     m_memo.for_each_block_in_reverse(CIterate<ReleaseAll>());
+
+  release_resources();
+}
+
+#ifdef UNIV_DEBUG
+/** Check that all pages belong to a shrunk tablespace. */
+struct Shrink
+{
+  const fil_space_t &space;
+  Shrink(const fil_space_t &space) : space(space) {}
+
+  bool operator()(const mtr_memo_slot_t *slot) const
+  {
+    if (!slot->object)
+      return true;
+    switch (slot->type) {
+    default:
+      ut_ad("invalid type" == 0);
+      return false;
+    case MTR_MEMO_MODIFY:
+      break;
+    case MTR_MEMO_SPACE_X_LOCK:
+      ut_ad(&space == slot->object);
+      return true;
+    case MTR_MEMO_PAGE_X_FIX:
+    case MTR_MEMO_PAGE_SX_FIX:
+      const buf_page_t &bpage= static_cast<buf_block_t*>(slot->object)->page;
+      const page_id_t &id= bpage.id;
+      if (id.space() == 0 && id.page_no() == TRX_SYS_PAGE_NO)
+      {
+        ut_ad(srv_is_undo_tablespace(space.id));
+        break;
+      }
+      ut_ad(id.space() == space.id);
+      ut_ad(id.page_no() < space.size);
+      ut_ad(bpage.state == BUF_BLOCK_FILE_PAGE);
+      ut_ad(!bpage.oldest_modification);
+      break;
+    }
+    return true;
+  }
+};
+#endif
+
+/** Commit a mini-transaction that is shrinking a tablespace.
+@param space   tablespace that is being shrunk */
+void mtr_t::commit_shrink(fil_space_t &space)
+{
+  ut_ad(is_active());
+  ut_ad(!is_inside_ibuf());
+  ut_ad(!high_level_read_only);
+  ut_ad(m_modifications);
+  ut_ad(m_made_dirty);
+  ut_ad(!recv_recovery_is_on());
+  ut_ad(m_log_mode == MTR_LOG_ALL);
+  ut_ad(UT_LIST_GET_LEN(space.chain) == 1);
+
+  log_write_and_flush_prepare();
+
+  const lsn_t start_lsn= finish_write(prepare_write());
+
+  log_flush_order_mutex_enter();
+  /* Durably write the reduced FSP_SIZE before truncating the data file. */
+  log_write_and_flush();
+
+  os_file_truncate(space.chain.start->name, space.chain.start->handle,
+                   os_offset_t(space.size) << srv_page_size_shift, true);
+
+  ut_d(m_memo.for_each_block_in_reverse(CIterate<Shrink>(space)));
+
+  m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
+                                   (ReleaseBlocks(start_lsn, m_commit_lsn,
+                                                  m_flush_observer)));
+  log_flush_order_mutex_exit();
+
+  mutex_enter(&fil_system.mutex);
+  ut_ad(space.is_being_truncated);
+  space.is_being_truncated= false;
+  space.set_stopping(false);
+  mutex_exit(&fil_system.mutex);
+
+  m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
+  srv_stats.log_write_requests.inc();
 
   release_resources();
 }
@@ -722,6 +819,50 @@ inline lsn_t mtr_t::finish_write(ulint len)
 	return start_lsn;
 }
 
+/** Find out whether a block was not X-latched by the mini-transaction */
+struct FindBlockX
+{
+  const buf_block_t &block;
+
+  FindBlockX(const buf_block_t &block): block(block) {}
+
+  /** @return whether the block was not found x-latched */
+  bool operator()(const mtr_memo_slot_t *slot) const
+  {
+    return slot->object != &block || slot->type != MTR_MEMO_PAGE_X_FIX;
+  }
+};
+
+#ifdef UNIV_DEBUG
+/** Assert that the block is not present in the mini-transaction */
+struct FindNoBlock
+{
+  const buf_block_t &block;
+
+  FindNoBlock(const buf_block_t &block): block(block) {}
+
+  /** @return whether the block was not found */
+  bool operator()(const mtr_memo_slot_t *slot) const
+  {
+    return slot->object != &block;
+  }
+};
+#endif /* UNIV_DEBUG */
+
+bool mtr_t::have_x_latch(const buf_block_t &block) const
+{
+  if (m_memo.for_each_block(CIterate<FindBlockX>(FindBlockX(block))))
+  {
+    ut_ad(m_memo.for_each_block(CIterate<FindNoBlock>(FindNoBlock(block))));
+    ut_ad(!memo_contains_flagged(&block,
+                                 MTR_MEMO_PAGE_S_FIX | MTR_MEMO_PAGE_SX_FIX |
+                                 MTR_MEMO_BUF_FIX | MTR_MEMO_MODIFY));
+    return false;
+  }
+  ut_ad(rw_lock_own(&block.lock, RW_LOCK_X));
+  return true;
+}
+
 #ifdef UNIV_DEBUG
 /** Check if memo contains the given item.
 @return	true if contains */
@@ -736,15 +877,17 @@ mtr_t::memo_contains(
 		return(false);
 	}
 
+	const rw_lock_t *lock = static_cast<const rw_lock_t*>(object);
+
 	switch (type) {
 	case MTR_MEMO_X_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_X));
+		ut_ad(rw_lock_own(lock, RW_LOCK_X));
 		break;
 	case MTR_MEMO_SX_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_SX));
+		ut_ad(rw_lock_own(lock, RW_LOCK_SX));
 		break;
 	case MTR_MEMO_S_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_S));
+		ut_ad(rw_lock_own(lock, RW_LOCK_S));
 		break;
 	}
 

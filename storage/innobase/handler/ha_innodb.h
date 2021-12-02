@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -46,7 +46,7 @@ struct ha_table_option_struct
 	uint		atomic_writes;		/*!< Use atomic writes for this
 						table if this options is ON or
 						in DEFAULT if
-						srv_use_atomic_writes=1.
+						innodb_use_atomic_writes.
 						Atomic writes are not used if
 						value OFF.*/
 	uint		encryption;		/*!<  DEFAULT, ON, OFF */
@@ -217,10 +217,8 @@ public:
 	int delete_table(const char *name);
 
 	int rename_table(const char* from, const char* to);
-	int defragment_table(const char* name, const char* index_name,
-						bool async);
+	inline int defragment_table(const char* name);
 	int check(THD* thd, HA_CHECK_OPT* check_opt);
-	char* update_table_comment(const char* comment);
 
 	char* get_foreign_key_create_info();
 
@@ -513,12 +511,7 @@ the definitions are bracketed with #ifdef INNODB_COMPATIBILITY_HOOKS */
 #error InnoDB needs MySQL to be built with #define INNODB_COMPATIBILITY_HOOKS
 #endif
 
-LEX_STRING* thd_query_string(MYSQL_THD thd);
-size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
-
 extern "C" {
-
-struct charset_info_st *thd_charset(MYSQL_THD thd);
 
 /** Check if a user thread is a replication slave thread
 @param thd user thread
@@ -690,9 +683,11 @@ public:
 	void allocate_trx();
 
 	/** Checks that every index have sane size. Depends on strict mode */
-	bool row_size_is_acceptable(const dict_table_t& table) const;
+	bool row_size_is_acceptable(const dict_table_t& table,
+				    bool strict) const;
 	/** Checks that given index have sane size. Depends on strict mode */
-	bool row_size_is_acceptable(const dict_index_t& index) const;
+	bool row_size_is_acceptable(const dict_index_t& index,
+				    bool strict) const;
 
 	/** Determines InnoDB table flags.
 	If strict_mode=OFF, this will adjust the flags to what should be assumed.
@@ -967,3 +962,12 @@ ib_push_frm_error(
 @return true if index column length exceeds limit */
 MY_ATTRIBUTE((warn_unused_result))
 bool too_big_key_part_length(size_t max_field_len, const KEY& key);
+
+/** This function is used to rollback one X/Open XA distributed transaction
+which is in the prepared state
+
+@param[in] hton InnoDB handlerton
+@param[in] xid X/Open XA transaction identification
+
+@return 0 or error number */
+int innobase_rollback_by_xid(handlerton* hton, XID* xid);

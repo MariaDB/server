@@ -324,7 +324,35 @@ static void DbugVfprintf(FILE *stream, const char* format, va_list args);
 */
 
 #include <my_pthread.h>
+/*
+** Protects writing to all file descriptors, init_settings.keywords
+** pointer and it's pointee - a linked list with keywords.
+*/
 static pthread_mutex_t THR_LOCK_dbug;
+
+static void LockMutex(CODE_STATE *cs)
+{
+  if (!cs->locked)
+    pthread_mutex_lock(&THR_LOCK_dbug);
+  cs->locked++;
+}
+static void UnlockMutex(CODE_STATE *cs)
+{
+  --cs->locked;
+  assert(cs->locked >= 0);
+  if (cs->locked == 0)
+    pthread_mutex_unlock(&THR_LOCK_dbug);
+}
+static void LockIfInitSettings(CODE_STATE *cs)
+{
+  if (cs->stack == &init_settings)
+    LockMutex(cs);
+}
+static void UnlockIfInitSettings(CODE_STATE *cs)
+{
+  if (cs->stack == &init_settings)
+    UnlockMutex(cs);
+}
 
 static CODE_STATE *code_state(void)
 {
@@ -453,15 +481,8 @@ static int DbugParse(CODE_STATE *cs, const char *control)
   const char *end;
   int rel, f_used=0;
   struct settings *stack;
-  int org_cs_locked;
 
   stack= cs->stack;
-
-  if (!(org_cs_locked= cs->locked))
-  {
-    pthread_mutex_lock(&THR_LOCK_dbug);
-    cs->locked= 1;
-  }
 
   if (control[0] == '-' && control[1] == '#')
     control+=2;
@@ -469,6 +490,7 @@ static int DbugParse(CODE_STATE *cs, const char *control)
   rel= control[0] == '+' || control[0] == '-';
   if ((!rel || (!stack->out_file && !stack->next)))
   {
+    LockIfInitSettings(cs);
     FreeState(cs, 0);
     stack->flags= 0;
     stack->delay= 0;
@@ -478,6 +500,7 @@ static int DbugParse(CODE_STATE *cs, const char *control)
     stack->functions= NULL;
     stack->keywords= NULL;
     stack->processes= NULL;
+    UnlockIfInitSettings(cs);
   }
   else if (!stack->out_file)
   {
@@ -492,7 +515,9 @@ static int DbugParse(CODE_STATE *cs, const char *control)
     {
       /* never share with the global parent - it can change under your feet */
       stack->functions= ListCopy(init_settings.functions);
+      LockMutex(cs);
       stack->keywords= ListCopy(init_settings.keywords);
+      UnlockMutex(cs);
       stack->processes= ListCopy(init_settings.processes);
     }
     else
@@ -516,21 +541,31 @@ static int DbugParse(CODE_STATE *cs, const char *control)
     case 'd':
       if (sign < 0 && control == end)
       {
+        LockIfInitSettings(cs);
         if (!is_shared(stack, keywords))
           FreeList(stack->keywords);
         stack->keywords=NULL;
+        UnlockIfInitSettings(cs);
         stack->flags &= ~DEBUG_ON;
         break;
       }
+      LockIfInitSettings(cs);
       if (rel && is_shared(stack, keywords))
         stack->keywords= ListCopy(stack->keywords);
+      UnlockIfInitSettings(cs);
       if (sign < 0)
       {
         if (DEBUGGING)
+        {
+          LockIfInitSettings(cs);
           stack->keywords= ListDel(stack->keywords, control, end);
+          UnlockIfInitSettings(cs);
+        }
         break;
       }
+      LockIfInitSettings(cs);
       stack->keywords= ListAdd(stack->keywords, control, end);
+      UnlockIfInitSettings(cs);
       stack->flags |= DEBUG_ON;
       break;
     case 'D':
@@ -664,11 +699,6 @@ static int DbugParse(CODE_STATE *cs, const char *control)
       break;
     control=end+1;
     end= DbugStrTok(control);
-  }
-  if (!org_cs_locked)
-  {
-    cs->locked= 0;
-    pthread_mutex_unlock(&THR_LOCK_dbug);
   }
   return !rel || f_used;
 }
@@ -1002,7 +1032,9 @@ int _db_explain_ (CODE_STATE *cs, char *buf, size_t len)
 
   get_code_state_if_not_set_or_return *buf=0;
 
+  LockIfInitSettings(cs);
   op_list_to_buf('d', cs->stack->keywords, DEBUGGING);
+  UnlockIfInitSettings(cs);
   op_int_to_buf ('D', cs->stack->delay, 0);
   op_list_to_buf('f', cs->stack->functions, cs->stack->functions);
   op_bool_to_buf('F', cs->stack->flags & FILE_ON);
@@ -1097,7 +1129,6 @@ int _db_explain_init_(char *buf, size_t len)
 void _db_enter_(const char *_func_, const char *_file_,
                 uint _line_, struct _db_stack_frame_ *_stack_frame_)
 {
-  int save_errno, org_cs_locked;
   CODE_STATE *cs;
   if (!((cs=code_state())))
   {
@@ -1105,7 +1136,6 @@ void _db_enter_(const char *_func_, const char *_file_,
     _stack_frame_->prev= 0;
     return;
   }
-  save_errno= errno;
 
   _stack_frame_->line= -1;
   _stack_frame_->func= cs->func;
@@ -1126,20 +1156,14 @@ void _db_enter_(const char *_func_, const char *_file_,
       cs->stack->flags &= ~SANITY_CHECK_ON;
     if (TRACING)
     {
-      if (!(org_cs_locked= cs->locked))
-      {
-        pthread_mutex_lock(&THR_LOCK_dbug);
-        cs->locked= 1;
-      }
+      int save_errno= errno;
+      LockMutex(cs);
       DoPrefix(cs, _line_);
       Indent(cs, cs->level);
       (void) fprintf(cs->stack->out_file->file, ">%s\n", cs->func);
-      DbugFlush(cs);                       /* This does a unlock */
-      if (!org_cs_locked)
-      {
-        cs->locked= 0;
-        pthread_mutex_unlock(&THR_LOCK_dbug);
-      }
+      UnlockMutex(cs);
+      DbugFlush(cs);
+      errno=save_errno;
     }
     break;
   case DISABLE_TRACE:
@@ -1148,7 +1172,6 @@ void _db_enter_(const char *_func_, const char *_file_,
   case DONT_TRACE:
     break;
   }
-  errno=save_errno;
 }
 
 /*
@@ -1173,7 +1196,6 @@ void _db_enter_(const char *_func_, const char *_file_,
 
 void _db_return_(struct _db_stack_frame_ *_stack_frame_)
 {
-  int save_errno=errno;
   uint _slevel_= _stack_frame_->level & ~TRACE_ON;
   CODE_STATE *cs;
   get_code_state_or_return;
@@ -1190,25 +1212,18 @@ void _db_return_(struct _db_stack_frame_ *_stack_frame_)
 
   if (DoTrace(cs) & DO_TRACE)
   {
-    int org_cs_locked;
     if ((cs->stack->flags & SANITY_CHECK_ON) && (*dbug_sanity)())
       cs->stack->flags &= ~SANITY_CHECK_ON;
     if (TRACING)
     {
-      if (!(org_cs_locked= cs->locked))
-      {
-        pthread_mutex_lock(&THR_LOCK_dbug);
-        cs->locked= 1;
-      }
+      int save_errno=errno;
+      LockMutex(cs);
       DoPrefix(cs, _stack_frame_->line);
       Indent(cs, cs->level);
       (void) fprintf(cs->stack->out_file->file, "<%s\n", cs->func);
+      UnlockMutex(cs);
       DbugFlush(cs);
-      if (!org_cs_locked)
-      {
-        cs->locked= 0;
-        pthread_mutex_unlock(&THR_LOCK_dbug);
-      }
+      errno=save_errno;
     }
   }
   /*
@@ -1220,7 +1235,6 @@ void _db_return_(struct _db_stack_frame_ *_stack_frame_)
   cs->file= _stack_frame_->file;
   if (cs->framep != NULL)
     cs->framep= cs->framep->prev;
-  errno=save_errno;
 }
 
 
@@ -1285,18 +1299,14 @@ void _db_doprnt_(const char *format,...)
 {
   va_list args;
   CODE_STATE *cs;
-  int save_errno, org_cs_locked;
+  int save_errno;
 
   get_code_state_or_return;
 
   va_start(args,format);
 
-  if (!(org_cs_locked= cs->locked))
-  {
-    pthread_mutex_lock(&THR_LOCK_dbug);
-    cs->locked= 1;
-  }
   save_errno=errno;
+  LockMutex(cs);
   DoPrefix(cs, cs->u_line);
   if (TRACING)
     Indent(cs, cs->level + 1);
@@ -1304,12 +1314,8 @@ void _db_doprnt_(const char *format,...)
     (void) fprintf(cs->stack->out_file->file, "%s: ", cs->func);
   (void) fprintf(cs->stack->out_file->file, "%s: ", cs->u_keyword);
   DbugVfprintf(cs->stack->out_file->file, format, args);
+  UnlockMutex(cs);
   DbugFlush(cs);
-  if (!org_cs_locked)
-  {
-    cs->locked= 0;
-    pthread_mutex_unlock(&THR_LOCK_dbug);
-  }
   errno=save_errno;
 
   va_end(args);
@@ -1349,17 +1355,13 @@ static void DbugVfprintf(FILE *stream, const char* format, va_list args)
 void _db_dump_(uint _line_, const char *keyword,
                const unsigned char *memory, size_t length)
 {
-  int pos, org_cs_locked;
+  int pos;
   CODE_STATE *cs;
   get_code_state_or_return;
 
-  if (!(org_cs_locked= cs->locked))
-  {
-    pthread_mutex_lock(&THR_LOCK_dbug);
-    cs->locked= 1;
-  }
   if (_db_keyword_(cs, keyword, 0))
   {
+    LockMutex(cs);
     DoPrefix(cs, _line_);
     if (TRACING)
     {
@@ -1387,12 +1389,8 @@ void _db_dump_(uint _line_, const char *keyword,
       fputc(' ',cs->stack->out_file->file);
     }
     (void) fputc('\n',cs->stack->out_file->file);
+    UnlockMutex(cs);
     DbugFlush(cs);
-  }
-  if (!org_cs_locked)
-  {
-    cs->locked= 0;
-    pthread_mutex_unlock(&THR_LOCK_dbug);
   }
 }
 
@@ -1621,8 +1619,13 @@ static void PushState(CODE_STATE *cs)
 static void FreeState(CODE_STATE *cs, int free_state)
 {
   struct settings *state= cs->stack;
+  LockIfInitSettings(cs);
   if (!is_shared(state, keywords))
+  {
     FreeList(state->keywords);
+    state->keywords= NULL;
+  }
+  UnlockIfInitSettings(cs);
   if (!is_shared(state, functions))
     FreeList(state->functions);
   if (!is_shared(state, processes))
@@ -1701,8 +1704,6 @@ void _db_end_()
 static int DoTrace(CODE_STATE *cs)
 {
   int res= DONT_TRACE;
-  if (!cs->locked)
-    pthread_mutex_lock(&THR_LOCK_dbug);
   if ((cs->stack->maxdepth == 0 || cs->level <= cs->stack->maxdepth) &&
       InList(cs->stack->processes, cs->process, 0) & (MATCHED|INCLUDE))
   {
@@ -1727,8 +1728,6 @@ static int DoTrace(CODE_STATE *cs)
       break;
     }
   }
-  if (!cs->locked)
-    pthread_mutex_unlock(&THR_LOCK_dbug);
   return res;
 }
 
@@ -1768,11 +1767,9 @@ BOOLEAN _db_keyword_(CODE_STATE *cs, const char *keyword, int strict)
 
   if (!(DEBUGGING && (DoTrace(cs) & DO_TRACE)))
     return 0;
-  if (!cs->locked)
-    pthread_mutex_lock(&THR_LOCK_dbug);
+  LockIfInitSettings(cs);
   res= (InList(cs->stack->keywords, keyword, strict) & match);
-  if (!cs->locked)
-    pthread_mutex_unlock(&THR_LOCK_dbug);
+  UnlockIfInitSettings(cs);
   return res != 0;
 }
 
@@ -1999,16 +1996,16 @@ static void DBUGCloseFile(CODE_STATE *cs, sFILE *new_value)
   sFILE *fp;
   if (!cs || !cs->stack || !cs->stack->out_file)
     return;
-  if (!cs->locked)
-    pthread_mutex_lock(&THR_LOCK_dbug);
 
   fp= cs->stack->out_file;
   if (--fp->used == 0)
   {
     if (fclose(fp->file) == EOF)
     {
+      LockMutex(cs);
       (void) fprintf(stderr, ERR_CLOSE, cs->process);
       perror("");
+      UnlockMutex(cs);
     }
     else
     {
@@ -2016,8 +2013,6 @@ static void DBUGCloseFile(CODE_STATE *cs, sFILE *new_value)
     }
   }
   cs->stack->out_file= new_value;
-  if (!cs->locked)
-    pthread_mutex_unlock(&THR_LOCK_dbug);
 }
 
 
@@ -2200,9 +2195,7 @@ void _db_flush_()
   get_code_state_or_return;
   if (DEBUGGING)
   {
-    pthread_mutex_lock(&THR_LOCK_dbug);
     (void) fflush(cs->stack->out_file->file);
-    pthread_mutex_unlock(&THR_LOCK_dbug);
   }
 }
 
@@ -2230,16 +2223,14 @@ void _db_lock_file_()
 {
   CODE_STATE *cs;
   get_code_state_or_return;
-  pthread_mutex_lock(&THR_LOCK_dbug);
-  cs->locked=1;
+  LockMutex(cs);
 }
 
 void _db_unlock_file_()
 {
   CODE_STATE *cs;
   get_code_state_or_return;
-  cs->locked=0;
-  pthread_mutex_unlock(&THR_LOCK_dbug);
+  UnlockMutex(cs);
 }
 
 const char* _db_get_func_(void)

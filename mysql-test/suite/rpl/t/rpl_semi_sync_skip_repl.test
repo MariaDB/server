@@ -32,7 +32,7 @@ source include/start_slave.inc;
 CREATE TABLE t1 (a INT) ENGINE=innodb;
 
 # Make the following events as if they offset over 2GB from the beginning of binlog
---let $sav_debug_dbug=@@GLOBAL.debug_dbug
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 SET @@GLOBAL.debug_dbug="d,dbug_master_binlog_over_2GB";
 SET @@SESSION.skip_replication=1;
 INSERT INTO t1 SET a=1;
@@ -50,7 +50,7 @@ FLUSH LOGS;
 # Clean up
 #
 --connection master
---eval SET @@GLOBAL.debug_dbug=$sav_debug_dbug
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 --eval SET @@GLOBAL.rpl_semi_sync_master_timeout = $sav_timeout_master
 --eval SET @@GLOBAL.rpl_semi_sync_master_enabled = $sav_enabled_master
 

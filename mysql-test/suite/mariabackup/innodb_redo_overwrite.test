@@ -1,0 +1,70 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t(i INT) ENGINE=INNODB;
+
+INSERT INTO t VALUES
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+--echo # Generate enough data to overwrite innodb redo log
+--echo # on the next "INSERT INTO t SELECT * FROM t" execution.
+--let $i = 0
+while ($i < 9) {
+INSERT INTO t SELECT * FROM t;
+--inc $i
+}
+
+--echo # xtrabackup backup
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+--let $backuplog=$MYSQLTEST_VARDIR/tmp/backup.log
+
+--let before_innodb_log_copy_thread_started=INSERT INTO test.t SELECT * FROM test.t
+
+--disable_result_log
+--error 1
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --dbug=+d,mariabackup_events > $backuplog
+--enable_result_log
+
+--let SEARCH_PATTERN=failed: redo log block is overwritten
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+--remove_file $backuplog
+--rmdir $targetdir
+
+--let before_innodb_log_copy_thread_started=INSERT INTO test.t VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9)
+
+--disable_result_log
+--error 1
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --dbug=+d,mariabackup_events,log_checksum_mismatch > $backuplog
+--enable_result_log
+
+--let SEARCH_PATTERN=failed: redo log block checksum does not match
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+--remove_file $backuplog
+--rmdir $targetdir
+
+--let before_innodb_log_copy_thread_started=INSERT INTO test.t SELECT * FROM test.t LIMIT 50000
+
+--disable_result_log
+--error 1
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --innodb-log-checksums=0 --dbug=+d,mariabackup_events  > $backuplog
+--enable_result_log
+
+--let SEARCH_PATTERN=failed: unknown reason
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+--remove_file $backuplog
+--rmdir $targetdir
+
+--let before_innodb_log_copy_thread_started=
+
+DROP TABLE t;

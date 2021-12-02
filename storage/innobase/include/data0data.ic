@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -51,10 +51,6 @@ dfield_set_len(
 	ulint		len)	/*!< in: length or UNIV_SQL_NULL */
 {
 	ut_ad(len != UNIV_SQL_DEFAULT);
-#ifdef UNIV_VALGRIND_DEBUG
-	if (len != UNIV_SQL_NULL) UNIV_MEM_ASSERT_RW(field->data, len);
-#endif /* UNIV_VALGRIND_DEBUG */
-
 	field->ext = 0;
 	field->len = static_cast<unsigned int>(len);
 }
@@ -97,9 +93,6 @@ dfield_set_data(
 	const void*	data,	/*!< in: data */
 	ulint		len)	/*!< in: length or UNIV_SQL_NULL */
 {
-#ifdef UNIV_VALGRIND_DEBUG
-	if (len != UNIV_SQL_NULL) UNIV_MEM_ASSERT_RW(data, len);
-#endif /* UNIV_VALGRIND_DEBUG */
 	field->data = (void*) data;
 	field->ext = 0;
 	field->len = static_cast<unsigned int>(len);
@@ -114,9 +107,7 @@ dfield_write_mbr(
 	dfield_t*	field,	/*!< in: field */
 	const double*	mbr)	/*!< in: data */
 {
-#ifdef UNIV_VALGRIND_DEBUG
-	if (len != UNIV_SQL_NULL) UNIV_MEM_ASSERT_RW(data, len);
-#endif /* UNIV_VALGRIND_DEBUG */
+	MEM_CHECK_DEFINED(mbr, sizeof *mbr);
 	field->ext = 0;
 
 	for (unsigned i = 0; i < SPDIMS * 2; i++) {
@@ -178,7 +169,7 @@ dfield_dup(
 	mem_heap_t*	heap)	/*!< in: memory heap where allocated */
 {
 	if (!dfield_is_null(field)) {
-		UNIV_MEM_ASSERT_RW(field->data, field->len);
+		MEM_CHECK_DEFINED(field->data, field->len);
 		field->data = mem_heap_dup(heap, field->data, field->len);
 	}
 }
@@ -336,8 +327,9 @@ dtuple_create_from_mem(
 		}
 	}
 #endif
-	UNIV_MEM_ASSERT_W(tuple->fields, n_t_fields * sizeof *tuple->fields);
-	UNIV_MEM_INVALID(tuple->fields, n_t_fields * sizeof *tuple->fields);
+	MEM_CHECK_ADDRESSABLE(tuple->fields, n_t_fields
+			      * sizeof *tuple->fields);
+	MEM_UNDEFINED(tuple->fields, n_t_fields * sizeof *tuple->fields);
 	return(tuple);
 }
 

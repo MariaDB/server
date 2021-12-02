@@ -35,6 +35,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "common.h"
 #include "read_filt.h"
 #include "xtrabackup.h"
+#include "backup_debug.h"
 
 /* Size of read buffer in pages (640 pages = 10M for 16K sized pages) */
 #define XB_FIL_CUR_PAGES 640
@@ -371,16 +372,15 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 	return buf_page_is_corrupted(true, page, cursor->page_size, space);
 }
 
-/************************************************************************
-Reads and verifies the next block of pages from the source
+/** Reads and verifies the next block of pages from the source
 file. Positions the cursor after the last read non-corrupted page.
-
+@param[in,out] cursor source file cursor
+@param[out] corrupted_pages adds corrupted pages if
+opt_log_innodb_page_corruption is set
 @return XB_FIL_CUR_SUCCESS if some have been read successfully, XB_FIL_CUR_EOF
 if there are no more pages to read and XB_FIL_CUR_ERROR on error. */
-xb_fil_cur_result_t
-xb_fil_cur_read(
-/*============*/
-	xb_fil_cur_t*	cursor)	/*!< in/out: source file cursor */
+xb_fil_cur_result_t xb_fil_cur_read(xb_fil_cur_t*	cursor,
+                                    CorruptedPages &corrupted_pages)
 {
 	byte*			page;
 	ulint			i;
@@ -454,20 +454,40 @@ read_retry:
 			retry_count--;
 
 			if (retry_count == 0) {
+				const char *ignore_corruption_warn = opt_log_innodb_page_corruption ?
+					" WARNING!!! The corruption is ignored due to"
+					" log-innodb-page-corruption option, the backup can contain"
+					" corrupted data." : "";
 				msg(cursor->thread_n,
 				    "Error: failed to read page after "
 				    "10 retries. File %s seems to be "
-				    "corrupted.", cursor->abs_path);
-				ret = XB_FIL_CUR_ERROR;
+				    "corrupted.%s", cursor->abs_path, ignore_corruption_warn);
 				buf_page_print(page, cursor->page_size);
-				break;
+				if (opt_log_innodb_page_corruption) {
+					corrupted_pages.add_page(cursor->node->name, cursor->node->space->id,
+						page_no);
+					retry_count = 1;
+				}
+				else {
+					ret = XB_FIL_CUR_ERROR;
+					break;
+				}
 			}
-			msg(cursor->thread_n, "Database page corruption detected at page "
-			    ULINTPF ", retrying...", 
-			    page_no);
-			os_thread_sleep(100000);
-			goto read_retry;
+			else {
+				msg(cursor->thread_n, "Database page corruption detected at page "
+				    ULINTPF ", retrying...",
+				    page_no);
+				os_thread_sleep(100000);
+				goto read_retry;
+			}
 		}
+		DBUG_EXECUTE_FOR_KEY("add_corrupted_page_for", cursor->node->space->name,
+			{
+				ulint corrupted_page_no = strtoul(dbug_val, NULL, 10);
+				if (page_no == corrupted_page_no)
+					corrupted_pages.add_page(cursor->node->name, cursor->node->space->id,
+						corrupted_page_no);
+			});
 		cursor->buf_read += page_size;
 		cursor->buf_npages++;
 	}

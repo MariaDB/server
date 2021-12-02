@@ -86,9 +86,17 @@ eval KILL QUERY $con1_id;
 eval KILL QUERY $con2_id;
 
 connection default;
+--error ER_QUERY_INTERRUPTED
 --reap
 connection con2;
+--error ER_QUERY_INTERRUPTED
 --reap
 
 connection extracon;
 --reap
+
+# Check if compression works OK
+connect (comp_con,localhost,root,,,,,COMPRESS);
+SELECT 1;
+disconnect comp_con;
+

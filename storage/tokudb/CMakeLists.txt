@@ -1,4 +1,9 @@
-SET(TOKUDB_VERSION 5.6.41-84.1)
+SET(CPACK_RPM_tokudb-engine_PACKAGE_SUMMARY "TokuDB storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_tokudb-engine_PACKAGE_DESCRIPTION "The TokuDB storage engine is for use in high-performance and write-intensive
+environments, offering increased compression and better performance based
+on fractal indexes." PARENT_SCOPE)
+
+SET(TOKUDB_VERSION 5.6.49-89.0)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(WIN32)
   # tokudb never worked there
@@ -136,6 +141,7 @@ IF(DEFINED TOKUDB_NOPATCH_CONFIG)
     ADD_DEFINITIONS("-DTOKUDB_NOPATCH_CONFIG=${TOKUDB_NOPATCH_CONFIG}")
 ENDIF()
 
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-missing-format-attribute)
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-missing-field-initializers)
 
 IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/PerconaFT/")
@@ -168,3 +174,5 @@ TARGET_LINK_LIBRARIES(tokudb tokufractaltree_static tokuportability_static
 
 SET(CMAKE_MODULE_LINKER_FLAGS_RELEASE "${CMAKE_MODULE_LINKER_FLAGS_RELEASE} -flto -fuse-linker-plugin")
 SET(CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO} -flto -fuse-linker-plugin")
+
+ADD_SUBDIRECTORY(man)

@@ -212,6 +212,17 @@ public:
 
   bool is_available() { return get_size() > 0 && get_values(); }
 
+  /*
+    This function checks that histograms should be usable only when
+      1) the level of optimizer_use_condition_selectivity > 3
+      2) histograms have been collected
+  */
+  bool is_usable(THD *thd)
+  {
+    return thd->variables.optimizer_use_condition_selectivity > 3 &&
+           is_available();
+  }
+
   void set_value(uint i, double val)
   {
     switch (type) {
@@ -267,8 +278,9 @@ public:
   uchar *min_max_record_buffers;    /* Record buffers for min/max values  */
   Column_statistics *column_stats;  /* Array of statistical data for columns */
   Index_statistics *index_stats;    /* Array of statistical data for indexes */
-  ulong *idx_avg_frequency;   /* Array of records per key for index prefixes */
-  ulong total_hist_size;            /* Total size of all histograms */
+
+  /* Array of records per key for index prefixes */
+  ulonglong *idx_avg_frequency;
   uchar *histograms;                /* Sequence of histograms       */                    
 };
 
@@ -320,7 +332,7 @@ private:
     CHAR values are stripped of trailing spaces.
     Flexible values are stripped of their length prefixes.
   */
-  ulong avg_length;
+  ulonglong avg_length;
 
   /*
     The ratio N/D multiplied by the scale factor Scale_factor_avg_frequency,
@@ -328,7 +340,7 @@ private:
        N is the number of rows with not null value in the column,
        D the number of distinct values among them
   */
-  ulong avg_frequency;
+  ulonglong avg_frequency;
 
 public:
 
@@ -378,12 +390,12 @@ public:
 
   void set_avg_length (double val)
   {
-    avg_length= (ulong) (val * Scale_factor_avg_length);
+    avg_length= (ulonglong) (val * Scale_factor_avg_length);
   }
 
   void set_avg_frequency (double val)
   {
-    avg_frequency= (ulong) (val * Scale_factor_avg_frequency);
+    avg_frequency= (ulonglong) (val * Scale_factor_avg_frequency);
   }
 
   bool min_max_values_are_provided()
@@ -422,11 +434,11 @@ private:
     in the first k components, and D is the number of distinct
     k-component prefixes among them 
   */
-  ulong *avg_frequency;
+  ulonglong *avg_frequency;
 
 public:
 
-  void init_avg_frequency(ulong *ptr) { avg_frequency= ptr; }
+  void init_avg_frequency(ulonglong *ptr) { avg_frequency= ptr; }
 
   bool avg_frequency_is_inited() { return avg_frequency != NULL; }
 
@@ -437,7 +449,7 @@ public:
 
   void set_avg_frequency(uint i, double val)
   {
-    avg_frequency[i]= (ulong) (val * Scale_factor_avg_frequency);
+    avg_frequency[i]= (ulonglong) (val * Scale_factor_avg_frequency);
   }
 
 };

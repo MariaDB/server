@@ -1,0 +1,45 @@
+CALL mtr.add_suppression("Found 1 prepared XA transactions");
+RESET MASTER;
+CREATE TABLE t1 (a INT) ENGINE=INNODB;
+XA START 'test1';
+INSERT t1 VALUES (10);
+XA END 'test1';
+XA PREPARE 'test1';
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	5	0	test1
+# xtrabackup backup
+XA ROLLBACK 'test1';
+# xtrabackup prepare and rollback prepared XA
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+# xtrabackup prepare and DO NOT rollback prepared XA
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	5	0	test1
+XA ROLLBACK 'test1';
+# xtrabackup prepare for export and rollback prepared XA
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+# xtrabackup prepare for export and DO NOT rollback prepared XA
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	5	0	test1
+XA ROLLBACK 'test1';
+DROP TABLE t1;

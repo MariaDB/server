@@ -195,14 +195,14 @@ grant insert on t1 to usera@localhost;
 grant execute on procedure sptest.p1 to usera@localhost;
 show grants for usera@localhost;
 Grants for usera@localhost
-GRANT USAGE ON *.* TO 'usera'@'localhost'
-GRANT INSERT ON `test`.`t1` TO 'usera'@'localhost'
-GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO 'usera'@'localhost'
+GRANT USAGE ON *.* TO `usera`@`localhost`
+GRANT INSERT ON `test`.`t1` TO `usera`@`localhost`
+GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO `usera`@`localhost`
 grant execute on procedure sptest.p1 to userc@localhost with grant option;
 show grants for userc@localhost;
 Grants for userc@localhost
-GRANT USAGE ON *.* TO 'userc'@'localhost'
-GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO 'userc'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `userc`@`localhost`
+GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO `userc`@`localhost` WITH GRANT OPTION
 connect  con2usera,localhost,usera,,;
 connect  con3userb,localhost,userb,,;
 connect  con4userc,localhost,userc,,;
@@ -239,18 +239,18 @@ userb@localhost	4
 grant all privileges on procedure sptest.p1 to userc@localhost;
 show grants for userc@localhost;
 Grants for userc@localhost
-GRANT USAGE ON *.* TO 'userc'@'localhost'
-GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `sptest`.`p1` TO 'userc'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `userc`@`localhost`
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `sptest`.`p1` TO `userc`@`localhost` WITH GRANT OPTION
 show grants for userb@localhost;
 Grants for userb@localhost
-GRANT USAGE ON *.* TO 'userb'@'localhost'
-GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO 'userb'@'localhost'
+GRANT USAGE ON *.* TO `userb`@`localhost`
+GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO `userb`@`localhost`
 connection con4userc;
 revoke all privileges on procedure sptest.p1 from userb@localhost;
 connection con1root;
 show grants for userb@localhost;
 Grants for userb@localhost
-GRANT USAGE ON *.* TO 'userb'@'localhost'
+GRANT USAGE ON *.* TO `userb`@`localhost`
 disconnect con4userc;
 disconnect con3userb;
 disconnect con2usera;
@@ -723,14 +723,14 @@ user()	current_user()
 foo@localhost	foo@local_ost
 show grants;
 Grants for foo@local_ost
-GRANT USAGE ON *.* TO 'foo'@'local_ost'
-GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'local_ost'
+GRANT USAGE ON *.* TO `foo`@`local_ost`
+GRANT CREATE ROUTINE ON `foodb`.* TO `foo`@`local_ost`
 create procedure fooproc() select 'i am fooproc';
 show grants;
 Grants for foo@local_ost
-GRANT USAGE ON *.* TO 'foo'@'local_ost'
-GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'local_ost'
-GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO 'foo'@'local_ost'
+GRANT USAGE ON *.* TO `foo`@`local_ost`
+GRANT CREATE ROUTINE ON `foodb`.* TO `foo`@`local_ost`
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO `foo`@`local_ost`
 disconnect con1;
 connection default;
 drop user foo@local_ost;
@@ -772,13 +772,13 @@ set password=password('foobar');
 create procedure sp1() select 1;
 show grants;
 Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY PASSWORD '*9B500343BC52E2911172EB52AE5CF4847604C6E5' WITH GRANT OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` IDENTIFIED BY PASSWORD '*9B500343BC52E2911172EB52AE5CF4847604C6E5' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 grant execute on procedure sp1 to current_user() identified by 'barfoo';
 show grants;
 Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY PASSWORD '*343915A8181B5728EADBDC73E1F7E6B0C3998483' WITH GRANT OPTION
-GRANT EXECUTE ON PROCEDURE `test`.`sp1` TO 'root'@'localhost'
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` IDENTIFIED BY PASSWORD '*343915A8181B5728EADBDC73E1F7E6B0C3998483' WITH GRANT OPTION
+GRANT EXECUTE ON PROCEDURE `test`.`sp1` TO `root`@`localhost`
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 drop procedure sp1;
 set password='';

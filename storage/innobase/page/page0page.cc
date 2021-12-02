@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,6 +36,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "fut0lst.h"
 #include "btr0sea.h"
 #include "trx0sys.h"
+#include <algorithm>
 
 /*			THE INDEX PAGE
 			==============
@@ -248,43 +249,6 @@ page_set_autoinc(
 	} else {
 		mlog_write_ull(field, autoinc, mtr);
 	}
-}
-
-/************************************************************//**
-Allocates a block of memory from the heap of an index page.
-@return pointer to start of allocated buffer, or NULL if allocation fails */
-byte*
-page_mem_alloc_heap(
-/*================*/
-	page_t*		page,	/*!< in/out: index page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page with enough
-				space available for inserting the record,
-				or NULL */
-	ulint		need,	/*!< in: total number of bytes needed */
-	ulint*		heap_no)/*!< out: this contains the heap number
-				of the allocated record
-				if allocation succeeds */
-{
-	byte*	block;
-	ulint	avl_space;
-
-	ut_ad(page && heap_no);
-
-	avl_space = page_get_max_insert_size(page, 1);
-
-	if (avl_space >= need) {
-		block = page_header_get_ptr(page, PAGE_HEAP_TOP);
-
-		page_header_set_ptr(page, page_zip, PAGE_HEAP_TOP,
-				    block + need);
-		*heap_no = page_dir_get_n_heap(page);
-
-		page_dir_set_n_heap(page, page_zip, 1 + *heap_no);
-
-		return(block);
-	}
-
-	return(NULL);
 }
 
 /**********************************************************//**
@@ -581,8 +545,8 @@ page_copy_rec_list_end_no_locks(
 	page_cur_t	cur1;
 	rec_t*		cur2;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	page_cur_position(rec, block, &cur1);
@@ -596,7 +560,8 @@ page_copy_rec_list_end_no_locks(
 	ut_a(page_is_comp(new_page) == page_rec_is_comp(rec));
 	ut_a(mach_read_from_2(new_page + srv_page_size - 10) == (ulint)
 	     (page_is_comp(new_page) ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
-	const bool is_leaf = page_is_leaf(block->frame);
+	const ulint n_core = page_is_leaf(block->frame)
+		? index->n_core_fields : 0;
 
 	cur2 = page_get_infimum_rec(buf_block_get_frame(new_block));
 
@@ -604,7 +569,7 @@ page_copy_rec_list_end_no_locks(
 
 	while (!page_cur_is_after_last(&cur1)) {
 		rec_t*	ins_rec;
-		offsets = rec_get_offsets(cur1.rec, index, offsets, is_leaf,
+		offsets = rec_get_offsets(cur1.rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 		ins_rec = page_cur_insert_rec_low(cur2, index,
 						  cur1.rec, offsets, mtr);
@@ -814,8 +779,8 @@ page_copy_rec_list_start(
 	rtr_rec_move_t*	rec_move	= NULL;
 	rec_t*		ret
 		= page_rec_get_prev(page_get_supremum_rec(new_page));
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	/* Here, "ret" may be pointing to a user record or the
@@ -836,7 +801,7 @@ page_copy_rec_list_start(
 
 	cur2 = ret;
 
-	const bool is_leaf = page_rec_is_leaf(rec);
+	const ulint n_core = page_rec_is_leaf(rec) ? index->n_core_fields : 0;
 
 	/* Copy records from the original page to the new page */
 	if (index->is_spatial()) {
@@ -858,7 +823,7 @@ page_copy_rec_list_start(
 	} else {
 		while (page_cur_get_rec(&cur1) != rec) {
 			offsets = rec_get_offsets(cur1.rec, index, offsets,
-						  is_leaf,
+						  n_core,
 						  ULINT_UNDEFINED, &heap);
 			cur2 = page_cur_insert_rec_low(cur2, index,
 						       cur1.rec, offsets, mtr);
@@ -878,7 +843,7 @@ page_copy_rec_list_start(
 	same temp-table in parallel.
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
-	if (is_leaf && dict_index_is_sec_or_ibuf(index)
+	if (n_core && dict_index_is_sec_or_ibuf(index)
 	    && !index->table->is_temporary()) {
 		page_update_max_trx_id(new_block, NULL,
 				       page_get_max_trx_id(page_align(rec)),
@@ -1051,8 +1016,8 @@ page_delete_rec_list_end(
 	page_zip_des_t*	page_zip	= buf_block_get_page_zip(block);
 	page_t*		page		= page_align(rec);
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(size == ULINT_UNDEFINED || size < srv_page_size);
@@ -1109,7 +1074,7 @@ delete_all:
 				       ? MLOG_COMP_LIST_END_DELETE
 				       : MLOG_LIST_END_DELETE, mtr);
 
-	const bool is_leaf = page_is_leaf(page);
+	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
 
 	if (page_zip) {
 		mtr_log_t	log_mode;
@@ -1123,7 +1088,7 @@ delete_all:
 			page_cur_t	cur;
 			page_cur_position(rec, block, &cur);
 
-			offsets = rec_get_offsets(rec, index, offsets, is_leaf,
+			offsets = rec_get_offsets(rec, index, offsets, n_core,
 						  ULINT_UNDEFINED, &heap);
 			rec = rec_get_next_ptr(rec, TRUE);
 #ifdef UNIV_ZIP_DEBUG
@@ -1156,8 +1121,7 @@ delete_all:
 
 		do {
 			ulint	s;
-			offsets = rec_get_offsets(rec2, index, offsets,
-						  is_leaf,
+			offsets = rec_get_offsets(rec2, index, offsets, n_core,
 						  ULINT_UNDEFINED, &heap);
 			s = rec_offs_size(offsets);
 			ut_ad(ulint(rec2 - page) + s
@@ -1253,8 +1217,8 @@ page_delete_rec_list_start(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	page_cur_t	cur1;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	mem_heap_t*	heap		= NULL;
 
 	rec_offs_init(offsets_);
@@ -1303,11 +1267,12 @@ page_delete_rec_list_start(
 	/* Individual deletes are not logged */
 
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
-	const bool	is_leaf = page_rec_is_leaf(rec);
+	const ulint	n_core = page_rec_is_leaf(rec)
+		? index->n_core_fields : 0;
 
 	while (page_cur_get_rec(&cur1) != rec) {
 		offsets = rec_get_offsets(page_cur_get_rec(&cur1), index,
-					  offsets, is_leaf,
+					  offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 		page_cur_delete_rec(&cur1, index, offsets, mtr);
 	}
@@ -1741,7 +1706,7 @@ void
 page_rec_print(
 /*===========*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: record descriptor */
+	const rec_offs*	offsets)/*!< in: record descriptor */
 {
 	ut_a(!page_rec_is_comp(rec) == !rec_offs_comp(offsets));
 	rec_print_new(stderr, rec, offsets);
@@ -1816,8 +1781,8 @@ page_print_list(
 	ulint		count;
 	ulint		n_recs;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_a((ibool)!!page_is_comp(page) == dict_table_is_comp(index->table));
@@ -1927,7 +1892,7 @@ ibool
 page_rec_validate(
 /*==============*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint		n_owned;
 	ulint		heap_no;
@@ -2022,10 +1987,9 @@ page_simple_validate_old(
 
 	n_slots = page_dir_get_n_slots(page);
 
-	if (UNIV_UNLIKELY(n_slots > srv_page_size / 4)) {
-		ib::error() << "Nonsensical number " << n_slots
-			<< " of page dir slots";
-
+	if (UNIV_UNLIKELY(n_slots < 2 || n_slots > srv_page_size / 4)) {
+		ib::error() << "Nonsensical number of page dir slots: "
+			    << n_slots;
 		goto func_exit;
 	}
 
@@ -2222,10 +2186,9 @@ page_simple_validate_new(
 
 	n_slots = page_dir_get_n_slots(page);
 
-	if (UNIV_UNLIKELY(n_slots > srv_page_size / 4)) {
-		ib::error() << "Nonsensical number " << n_slots
-			<< " of page dir slots";
-
+	if (UNIV_UNLIKELY(n_slots < 2 || n_slots > srv_page_size / 4)) {
+		ib::error() << "Nonsensical number of page dir slots: "
+			    << n_slots;
 		goto func_exit;
 	}
 
@@ -2408,12 +2371,17 @@ bool page_validate(const page_t* page, const dict_index_t* index)
 	const rec_t*		rec;
 	const rec_t*		old_rec		= NULL;
 	const rec_t*		first_rec	= NULL;
-	ulint			offs;
+	ulint			offs = 0;
 	ulint			n_slots;
 	ibool			ret		= TRUE;
 	ulint			i;
-	ulint*			offsets		= NULL;
-	ulint*			old_offsets	= NULL;
+	rec_offs		offsets_1[REC_OFFS_NORMAL_SIZE];
+	rec_offs		offsets_2[REC_OFFS_NORMAL_SIZE];
+	rec_offs*		offsets		= offsets_1;
+	rec_offs*		old_offsets	= offsets_2;
+
+	rec_offs_init(offsets_1);
+	rec_offs_init(offsets_2);
 
 #ifdef UNIV_GIS_DEBUG
 	if (dict_index_is_spatial(index)) {
@@ -2432,6 +2400,7 @@ func_exit2:
 			    << " of table " << index->table->name;
 		return FALSE;
 	}
+
 	if (page_is_comp(page)) {
 		if (UNIV_UNLIKELY(!page_simple_validate_new(page))) {
 			goto func_exit2;
@@ -2508,14 +2477,16 @@ wrong_page_type:
 	/* Validate the record list in a loop checking also that
 	it is consistent with the directory. */
 	ulint count = 0, data_size = 0, own_count = 1, slot_no = 0;
+	ulint info_bits;
 	slot_no = 0;
 	slot = page_dir_get_nth_slot(page, slot_no);
 
 	rec = page_get_infimum_rec(page);
 
+	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
+
 	for (;;) {
-		offsets = rec_get_offsets(rec, index, offsets,
-					  page_is_leaf(page),
+		offsets = rec_get_offsets(rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 
 		if (page_is_comp(page) && page_rec_is_user_rec(rec)
@@ -2531,9 +2502,16 @@ wrong_page_type:
 			goto next_rec;
 		}
 
+		info_bits = rec_get_info_bits(rec, page_is_comp(page));
+		if (info_bits
+		    & ~(REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)) {
+			ib::error() << "info_bits has an incorrect value "
+				    << info_bits;
+			ret = false;
+		}
+
 		if (rec == first_rec) {
-			if ((rec_get_info_bits(rec, page_is_comp(page))
-			     & REC_INFO_MIN_REC_FLAG)) {
+			if (info_bits & REC_INFO_MIN_REC_FLAG) {
 				if (page_has_prev(page)) {
 					ib::error() << "REC_INFO_MIN_REC_FLAG "
 						"is set on non-left page";
@@ -2544,8 +2522,7 @@ wrong_page_type:
 					ib::error() << "REC_INFO_MIN_REC_FLAG "
 						"is set in a leaf-page record";
 					ret = false;
-				} else if (rec_get_deleted_flag(
-						   rec, page_is_comp(page))) {
+				} else if (info_bits & REC_INFO_DELETED_FLAG) {
 					/* If this were a 10.4 metadata
 					record for index->table->instant
 					we should not get here in 10.3, because
@@ -2561,11 +2538,49 @@ wrong_page_type:
 				ib::error() << "Metadata record is missing";
 				ret = false;
 			}
-		} else if (rec_get_info_bits(rec, page_is_comp(page))
-			   & REC_INFO_MIN_REC_FLAG) {
+		} else if (info_bits & REC_INFO_MIN_REC_FLAG) {
 			ib::error() << "REC_INFO_MIN_REC_FLAG record is not "
 				       "first in page";
 			ret = false;
+		}
+
+		if (page_is_comp(page)) {
+			const rec_comp_status_t status = rec_get_status(rec);
+			if (status != REC_STATUS_ORDINARY
+			    && status != REC_STATUS_NODE_PTR
+			    && status != REC_STATUS_INFIMUM
+			    && status != REC_STATUS_SUPREMUM
+			    && status != REC_STATUS_COLUMNS_ADDED) {
+				ib::error() << "impossible record status "
+					    << status;
+				ret = false;
+			} else if (page_rec_is_infimum(rec)) {
+				if (status != REC_STATUS_INFIMUM) {
+					ib::error()
+						<< "infimum record has status "
+						<< status;
+					ret = false;
+				}
+			} else if (page_rec_is_supremum(rec)) {
+				if (status != REC_STATUS_SUPREMUM) {
+					ib::error() << "supremum record has "
+						       "status "
+						    << status;
+					ret = false;
+				}
+			} else if (!page_is_leaf(page)) {
+				if (status != REC_STATUS_NODE_PTR) {
+					ib::error() << "node ptr record has "
+						       "status "
+						    << status;
+					ret = false;
+				}
+			} else if (!index->is_instant()
+				   && status == REC_STATUS_COLUMNS_ADDED) {
+				ib::error() << "instantly added record in a "
+					       "non-instant index";
+				ret = false;
+			}
 		}
 
 		/* Check that the records are in the ascending order */
@@ -2680,11 +2695,7 @@ next_rec:
 		}
 
 		/* set old_offsets to offsets; recycle offsets */
-		{
-			ulint* offs = old_offsets;
-			old_offsets = offsets;
-			offsets = offs;
-		}
+		std::swap(old_offsets, offsets);
 	}
 
 	if (page_is_comp(page)) {
@@ -2723,8 +2734,7 @@ n_owned_zero:
 	rec = page_header_get_ptr(page, PAGE_FREE);
 
 	while (rec != NULL) {
-		offsets = rec_get_offsets(rec, index, offsets,
-					  page_is_leaf(page),
+		offsets = rec_get_offsets(rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 		if (UNIV_UNLIKELY(!page_rec_validate(rec, offsets))) {
 			ret = FALSE;
@@ -2845,7 +2855,7 @@ page_delete_rec(
 		page_zip/*!< in: compressed page descriptor */
 #endif
 	,
-	const ulint*		offsets)/*!< in: offsets for record */
+	const rec_offs*		offsets)/*!< in: offsets for record */
 {
 	bool		no_compress_needed;
 	buf_block_t*	block = pcur->block;

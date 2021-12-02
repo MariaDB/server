@@ -779,7 +779,7 @@ CREATE TABLE t1 AS SELECT repeat('a',2) as s1 LIMIT 0;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES ('ab'),('AE'),('ab'),('AE');
 SELECT * FROM t1 ORDER BY s1;
-SET max_sort_length=4;
+SET max_sort_length=8;
 SELECT * FROM t1 ORDER BY s1;
 DROP TABLE t1;
 SET max_sort_length=DEFAULT;
@@ -1034,6 +1034,19 @@ let $coll_pad='utf32_general_ci';
 let $coll='utf32_nopad_bin';
 let $coll_pad='utf32_bin';
 --source include/ctype_pad_all_engines.inc
+
+
+--echo #
+--echo # MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
+--echo # 10.2 tests
+--echo #
+
+SET NAMES utf8, COLLATION_CONNECTION=utf32_bin;
+CREATE TABLE t1(c1 ENUM('a','b','ac') CHARACTER SET 'Binary',c2 JSON,c3 INT);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (c1) VALUES (1),(2),(3);
+SELECT HEX(c1) FROM t1 ORDER BY c1;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.2 tests

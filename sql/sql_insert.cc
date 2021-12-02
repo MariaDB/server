@@ -1266,7 +1266,18 @@ values_loop_end:
 abort:
 #ifndef EMBEDDED_LIBRARY
   if (lock_type == TL_WRITE_DELAYED)
+  {
     end_delayed_insert(thd);
+    /*
+      In case of an error (e.g. data truncation), the data type specific data
+      in fields (e.g. Field_blob::value) was not taken over
+      by the delayed writer thread. All fields in table_list->table
+      will be freed by free_root() soon. We need to free the specific
+      data before free_root() to avoid a memory leak.
+    */
+    for (Field **ptr= table_list->table->field ; *ptr ; ptr++)
+      (*ptr)->free();
+  }
 #endif
   if (table != NULL)
     table->file->ha_release_auto_increment();
@@ -1646,6 +1657,8 @@ static int last_uniq_key(TABLE *table,uint keynr)
 int vers_insert_history_row(TABLE *table)
 {
   DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
+  if (!table->vers_write)
+    return 0;
   restore_record(table,record[1]);
 
   // Set Sys_end to now()
@@ -1655,6 +1668,10 @@ int vers_insert_history_row(TABLE *table)
   Field *row_end= table->vers_end_field();
   if (row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
     return 0;
+
+  if (table->vfield &&
+      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ))
+    return HA_ERR_GENERIC;
 
   return table->file->ha_write_row(table->record[0]);
 }
@@ -1691,7 +1708,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
   int error, trg_error= 0;
   char *key=0;
   MY_BITMAP *save_read_set, *save_write_set;
-  table->file->store_auto_increment();
+  ulonglong prev_insert_id= table->file->next_insert_id;
   ulonglong insert_id_for_cur_row= 0;
   ulonglong prev_insert_id_for_cur_row= 0;
   DBUG_ENTER("write_record");
@@ -1787,16 +1804,15 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
       }
       if (table->vfield)
       {
-        my_bool abort_on_warning= thd->abort_on_warning;
         /*
           We have not yet called update_virtual_fields(VOL_UPDATE_FOR_READ)
           in handler methods for the just read row in record[1].
         */
         table->move_fields(table->field, table->record[1], table->record[0]);
-        thd->abort_on_warning= 0;
-        table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
-        thd->abort_on_warning= abort_on_warning;
+        int verr = table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
         table->move_fields(table->field, table->record[0], table->record[1]);
+        if (verr)
+          goto err;
       }
       if (info->handle_duplicates == DUP_UPDATE)
       {
@@ -1844,7 +1860,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         if (res == VIEW_CHECK_ERROR)
           goto before_trg_err;
 
-        table->file->restore_auto_increment();
+        table->file->restore_auto_increment(prev_insert_id);
         info->touched++;
         if (different_records)
         {
@@ -1955,6 +1971,8 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (likely(!error))
           {
             info->deleted++;
+            if (!table->file->has_transactions())
+              thd->transaction.stmt.modified_non_trans_table= TRUE;
             if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
@@ -2038,7 +2056,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
     if (!(thd->variables.old_behavior &
           OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
       table->file->print_error(error, MYF(ME_JUST_WARNING));
-    table->file->restore_auto_increment();
+    table->file->restore_auto_increment(prev_insert_id);
     goto ok_or_after_trg_err;
   }
 
@@ -2061,7 +2079,7 @@ err:
   table->file->print_error(error,MYF(0));
   
 before_trg_err:
-  table->file->restore_auto_increment();
+  table->file->restore_auto_increment(prev_insert_id);
   if (key)
     my_safe_afree(key, table->s->max_unique_length);
   table->column_bitmaps_set(save_read_set, save_write_set);
@@ -2113,11 +2131,15 @@ public:
   ulong auto_increment_offset;
   LEX_STRING query;
   Time_zone *time_zone;
+  char *user, *host, *ip;
+  query_id_t query_id;
+  my_thread_id thread_id;
 
   delayed_row(LEX_STRING const query_arg, enum_duplicates dup_arg,
               bool ignore_arg, bool log_query_arg)
     : record(0), dup(dup_arg), ignore(ignore_arg), log_query(log_query_arg),
-      forced_insert_id(0), query(query_arg), time_zone(0)
+      forced_insert_id(0), query(query_arg), time_zone(0),
+      user(0), host(0), ip(0)
     {}
   ~delayed_row()
   {
@@ -2165,7 +2187,6 @@ public:
     passed from connection thread to the handler thread.
   */
   MDL_request grl_protection;
-
   Delayed_insert(SELECT_LEX *current_select)
     :locks_in_memory(0), thd(next_thread_id()),
      table(0),tables_in_use(0), stacked_inserts(0),
@@ -2174,6 +2195,8 @@ public:
     DBUG_ENTER("Delayed_insert constructor");
     thd.security_ctx->user=(char*) delayed_user;
     thd.security_ctx->host=(char*) my_localhost;
+    thd.security_ctx->ip= NULL;
+    thd.query_id= 0;
     strmake_buf(thd.security_ctx->priv_user, thd.security_ctx->user);
     thd.current_tablenr=0;
     thd.set_command(COM_DELAYED_INSERT);
@@ -2603,6 +2626,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     if (!(*field= (*org_field)->make_new_field(client_thd->mem_root, copy, 1)))
       goto error;
     (*field)->unireg_check= (*org_field)->unireg_check;
+    (*field)->invisible= (*org_field)->invisible;
     (*field)->orig_table= copy;			// Remove connection
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
     memdup_vcol(client_thd, (*field)->vcol_info);
@@ -2680,6 +2704,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
   delayed_row *row= 0;
   Delayed_insert *di=thd->di;
   const Discrete_interval *forced_auto_inc;
+  size_t user_len, host_len, ip_length;
   DBUG_ENTER("write_delayed");
   DBUG_PRINT("enter", ("query = '%s' length %lu", query.str,
                        (ulong) query.length));
@@ -2713,11 +2738,45 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     goto err;
   }
 
+  user_len= host_len= ip_length= 0;
+  row->user= row->host= row->ip= NULL;
+  if (thd->security_ctx)
+  {
+    if (thd->security_ctx->user)
+      user_len= strlen(thd->security_ctx->user) + 1;
+    if (thd->security_ctx->host)
+      host_len= strlen(thd->security_ctx->host) + 1;
+    if (thd->security_ctx->ip)
+      ip_length= strlen(thd->security_ctx->ip) + 1;
+  }
   /* This can't be THREAD_SPECIFIC as it's freed in delayed thread */
-  if (!(row->record= (char*) my_malloc(table->s->reclength,
+  if (!(row->record= (char*) my_malloc(table->s->reclength +
+                                       user_len + host_len + ip_length,
                                        MYF(MY_WME))))
     goto err;
   memcpy(row->record, table->record[0], table->s->reclength);
+
+  if (thd->security_ctx)
+  {
+    if (thd->security_ctx->user)
+    {
+      row->user= row->record + table->s->reclength;
+      memcpy(row->user, thd->security_ctx->user, user_len);
+    }
+    if (thd->security_ctx->host)
+    {
+      row->host= row->record + table->s->reclength + user_len;
+      memcpy(row->host, thd->security_ctx->host, host_len);
+    }
+    if (thd->security_ctx->ip)
+    {
+      row->ip= row->record + table->s->reclength + user_len + host_len;
+      memcpy(row->ip, thd->security_ctx->ip, ip_length);
+    }
+  }
+  row->query_id= thd->query_id;
+  row->thread_id= thd->thread_id;
+
   row->start_time=                thd->start_time;
   row->start_time_sec_part=       thd->start_time_sec_part;
   row->query_start_sec_part_used= thd->query_start_sec_part_used;
@@ -3005,7 +3064,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
     if (thd->mdl_context.clone_ticket(&di->grl_protection) ||
         thd->mdl_context.clone_ticket(&di->table_list.mdl_request))
     {
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
       di->handler_thread_initialized= TRUE;
       goto err;
     }
@@ -3135,6 +3194,20 @@ pthread_handler_t handle_delayed_insert(void *arg)
       }
       if (di->stacked_inserts)
       {
+        delayed_row *row;
+        I_List_iterator<delayed_row> it(di->rows);
+        my_thread_id cur_thd= di->thd.thread_id;
+
+        while ((row= it++))
+        {
+          if (cur_thd != row->thread_id)
+          {
+            mysql_audit_external_lock_ex(&di->thd, row->thread_id,
+                row->user, row->host, row->ip, row->query_id,
+                di->table->s, F_WRLCK);
+            cur_thd= row->thread_id;
+          }
+        }
         if (di->handle_inserts())
         {
           /* Some fatal error */
@@ -3187,7 +3260,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
     thd->set_killed(KILL_CONNECTION_HARD);	        // If error
 
     close_thread_tables(thd);			// Free the table
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     mysql_cond_broadcast(&di->cond_client);       // Safety
 
     mysql_mutex_lock(&LOCK_delayed_create);    // Because of delayed_get_table
@@ -4463,8 +4536,17 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   DEBUG_SYNC(thd,"create_table_select_before_check_if_exists");
 
   if (!(table= create_table_from_items(thd, &values, &extra_lock, hook_ptr)))
+  {
+    if (create_info->or_replace())
+    {
+      /* Original table was deleted. We have to log it */
+      log_drop_table(thd, &create_table->db, &create_table->table_name,
+                     thd->lex->tmp_table());
+    }
+
     /* abort() deletes table */
     DBUG_RETURN(-1);
+  }
 
   if (create_info->tmp_table())
   {
@@ -4663,7 +4745,8 @@ bool select_create::send_eof()
         WSREP_ERROR("Appending table key for CTAS failed: %s, %d",
                     (wsrep_thd_query(thd)) ?
                     wsrep_thd_query(thd) : "void", rcode);
-        return true;
+        abort_result_set();
+        DBUG_RETURN(true);
       }
       /* If commit fails, we should be able to reset the OK status. */
       thd->get_stmt_da()->set_overwrite_status(TRUE);
@@ -4766,12 +4849,6 @@ void select_create::abort_result_set()
   /* possible error of writing binary log is ignored deliberately */
   (void) thd->binlog_flush_pending_rows_event(TRUE, TRUE);
 
-  if (create_info->table_was_deleted)
-  {
-    /* Unlock locked table that was dropped by CREATE */
-    thd->locked_tables_list.unlock_locked_table(thd,
-                                                create_info->mdl_ticket);
-  }
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
@@ -4810,5 +4887,13 @@ void select_create::abort_result_set()
                        tmp_table);
     }
   }
+
+  if (create_info->table_was_deleted)
+  {
+    /* Unlock locked table that was dropped by CREATE. */
+    (void) trans_rollback_stmt(thd);
+    thd->locked_tables_list.unlock_locked_table(thd, create_info->mdl_ticket);
+  }
+
   DBUG_VOID_RETURN;
 }

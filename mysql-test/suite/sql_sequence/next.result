@@ -534,3 +534,17 @@ select next value for s;
 next value for s
 -999
 drop sequence s;
+#
+# MDEV-23823 NEXT VALUE crash on locked view
+#
+CREATE VIEW v AS SELECT 1;
+LOCK TABLE v READ;
+SELECT NEXT VALUE FOR v;
+ERROR 42S02: 'test.v' is not a SEQUENCE
+#
+# MDEV-24018: SIGSEGV in Item_func_nextval::update_table on SELECT SETVAL
+#
+SELECT SETVAL (v,0);
+ERROR 42S02: 'test.v' is not a SEQUENCE
+UNLOCK TABLES;
+DROP VIEW v;

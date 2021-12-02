@@ -1,0 +1,14 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=rsync
+
+[sst]
+tkey=@ENV.MYSQL_TEST_DIR/std_data/server-key.pem
+tcert=@ENV.MYSQL_TEST_DIR/std_data/server-cert.pem
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
+
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore_sb=true'

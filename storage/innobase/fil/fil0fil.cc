@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 1995, 2021, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -155,7 +155,7 @@ current working directory ".", but in the MySQL Embedded Server Library
 it is an absolute path. */
 const char*	fil_path_to_mysql_datadir;
 
-/** Common InnoDB file extentions */
+/** Common InnoDB file extensions */
 const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg" };
 
 /** The number of fsyncs done to the log */
@@ -365,34 +365,6 @@ fil_space_get(
 	return(space);
 }
 
-/** Returns the latch of a file space.
-@param[in]	id	space id
-@param[out]	flags	tablespace flags
-@return latch protecting storage allocation */
-rw_lock_t*
-fil_space_get_latch(
-	ulint	id,
-	ulint*	flags)
-{
-	fil_space_t*	space;
-
-	ut_ad(fil_system.is_initialised());
-
-	mutex_enter(&fil_system.mutex);
-
-	space = fil_space_get_by_id(id);
-
-	ut_a(space);
-
-	if (flags) {
-		*flags = space->flags;
-	}
-
-	mutex_exit(&fil_system.mutex);
-
-	return(&(space->latch));
-}
-
 /** Note that the tablespace has been imported.
 Initially, purpose=FIL_TYPE_IMPORT so that no redo log is
 written while the space ID is being updated in each page. */
@@ -563,13 +535,21 @@ bool fil_node_t::read_page0(bool first)
 		}
 
 		this->size = ulint(size_bytes / psize);
-		space->size += this->size;
+		space->committed_size = space->size += this->size;
+
+		if (block_size == 0) {
+			block_size = os_file_get_block_size(handle, name);
+		}
 	} else if (space->id != TRX_SYS_SPACE || space->size_in_header) {
 		/* If this is not the first-time open, do nothing.
 		For the system tablespace, we always get invoked as
 		first=false, so we detect the true first-time-open based
-		on size_in_header and proceed to initiailze the data. */
+		on size_in_header and proceed to initialize the data. */
 		return true;
+	} else {
+		/* Initialize the size of predefined tablespaces
+		to FSP_SIZE. */
+		space->committed_size = size;
 	}
 
 	ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
@@ -598,6 +578,17 @@ static bool fil_node_open_file(fil_node_t* node)
 
 	const bool first_time_open = node->size == 0;
 
+	ulint type;
+	compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
+	}
+
 	if (first_time_open
 	    || (space->purpose == FIL_TYPE_TABLESPACE
 		&& node == UT_LIST_GET_FIRST(space->chain)
@@ -616,7 +607,10 @@ retry:
 			node->is_raw_disk
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
-			OS_FILE_AIO, OS_DATA_FILE, read_only_mode, &success);
+			OS_FILE_AIO,
+			type,
+			read_only_mode,
+			&success);
 
 		if (!success) {
 			/* The following call prints an error message */
@@ -647,7 +641,10 @@ retry:
 			node->is_raw_disk
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
-			OS_FILE_AIO, OS_DATA_FILE, read_only_mode, &success);
+			OS_FILE_AIO,
+			type,
+			read_only_mode,
+			&success);
 	}
 
 	if (space->purpose != FIL_TYPE_LOG) {
@@ -787,14 +784,13 @@ fil_try_to_close_file_in_LRU(
 static void fil_flush_low(fil_space_t* space, bool metadata = false)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
-	ut_ad(space);
-	ut_ad(!space->stop_new_ops);
+	ut_ad(!space->is_stopping());
 
 	if (fil_buffering_disabled(space)) {
 
 		/* No need to flush. User has explicitly disabled
 		buffering. */
-		ut_ad(!space->is_in_unflushed_spaces());
+		ut_ad(!space->is_in_unflushed_spaces);
 		ut_ad(fil_space_is_flushed(space));
 		ut_ad(space->n_pending_flushes == 0);
 
@@ -858,12 +854,11 @@ static void fil_flush_low(fil_space_t* space, bool metadata = false)
 skip_flush:
 #endif /* _WIN32 */
 		if (!node->needs_flush) {
-			if (space->is_in_unflushed_spaces()
+			if (space->is_in_unflushed_spaces
 			    && fil_space_is_flushed(space)) {
 
-				UT_LIST_REMOVE(
-					fil_system.unflushed_spaces,
-					space);
+				fil_system.unflushed_spaces.remove(*space);
+				space->is_in_unflushed_spaces = false;
 			}
 		}
 
@@ -947,10 +942,15 @@ fil_space_extend_must_retry(
 	const page_size_t	pageSize(space->flags);
 	const ulint		page_size = pageSize.physical();
 
-	/* fil_read_first_page() expects srv_page_size bytes.
-	fil_node_open_file() expects at least 4 * srv_page_size bytes.*/
+	/* fil_read_first_page() expects innodb_page_size bytes.
+	fil_node_open_file() expects at least 4 * innodb_page_size bytes.
+	os_file_set_size() expects multiples of 4096 bytes.
+	For ROW_FORMAT=COMPRESSED tables using 1024-byte or 2048-byte
+	pages, we will preallocate up to an integer multiple of 4096 bytes,
+	and let normal writes append 1024, 2048, or 3072 bytes to the file. */
 	os_offset_t new_size = std::max(
-		os_offset_t(size - file_start_page_no) * page_size,
+		(os_offset_t(size - file_start_page_no) * page_size)
+		& ~os_offset_t(4095),
 		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
 
 	*success = os_file_set_size(node->name, node->handle, new_size,
@@ -1008,15 +1008,14 @@ fil_space_extend_must_retry(
 
 }
 
-/*******************************************************************//**
-Reserves the fil_system.mutex and tries to make sure we can open at least one
+/** Reserves the fil_system.mutex and tries to make sure we can open at least one
 file while holding it. This should be called before calling
-fil_node_prepare_for_io(), because that function may need to open a file. */
+fil_node_prepare_for_io(), because that function may need to open a file.
+@param[in]	space_id	tablespace id
+@return whether the tablespace is usable for io */
 static
-void
-fil_mutex_enter_and_prepare_for_io(
-/*===============================*/
-	ulint	space_id)	/*!< in: space id */
+bool
+fil_mutex_enter_and_prepare_for_io(ulint space_id)
 {
 	for (ulint count = 0;;) {
 		mutex_enter(&fil_system.mutex);
@@ -1029,7 +1028,7 @@ fil_mutex_enter_and_prepare_for_io(
 		fil_space_t*	space = fil_space_get_by_id(space_id);
 
 		if (space == NULL) {
-			break;
+			return false;
 		}
 
 		fil_node_t*	node = UT_LIST_GET_LAST(space->chain);
@@ -1044,6 +1043,10 @@ fil_mutex_enter_and_prepare_for_io(
 			the insert buffer. The insert buffer is in
 			tablespace 0, and we cannot end up waiting in
 			this function. */
+		} else if (space->is_stopping() && !space->is_being_truncated) {
+			/* If the tablespace is being deleted then InnoDB
+			shouldn't prepare the tablespace for i/o */
+			return false;
 		} else if (!node || node->is_open()) {
 			/* If the file is already open, no need to do
 			anything; if the space does not exist, we handle the
@@ -1091,6 +1094,9 @@ fil_mutex_enter_and_prepare_for_io(
 			ut_a(success);
 			/* InnoDB data files cannot shrink. */
 			ut_a(space->size >= size);
+			if (size > space->committed_size) {
+				space->committed_size = size;
+			}
 
 			/* There could be multiple concurrent I/O requests for
 			this tablespace (multiple threads trying to extend
@@ -1112,6 +1118,8 @@ fil_mutex_enter_and_prepare_for_io(
 
 		break;
 	}
+
+	return true;
 }
 
 /** Try to extend a tablespace if it is smaller than the specified size.
@@ -1128,7 +1136,10 @@ fil_space_extend(
 	bool	success;
 
 	do {
-		fil_mutex_enter_and_prepare_for_io(space->id);
+		if (!fil_mutex_enter_and_prepare_for_io(space->id)) {
+			success = false;
+			break;
+		}
 	} while (fil_space_extend_must_retry(
 			 space, UT_LIST_GET_LAST(space->chain), size,
 			 &success));
@@ -1159,13 +1170,14 @@ fil_node_close_to_free(
 
 		if (fil_buffering_disabled(space)) {
 
-			ut_ad(!space->is_in_unflushed_spaces());
+			ut_ad(!space->is_in_unflushed_spaces);
 			ut_ad(fil_space_is_flushed(space));
 
-		} else if (space->is_in_unflushed_spaces()
+		} else if (space->is_in_unflushed_spaces
 			   && fil_space_is_flushed(space)) {
 
-			UT_LIST_REMOVE(fil_system.unflushed_spaces, space);
+			fil_system.unflushed_spaces.remove(*space);
+			space->is_in_unflushed_spaces = false;
 		}
 
 		node->close();
@@ -1185,16 +1197,16 @@ fil_space_detach(
 
 	HASH_DELETE(fil_space_t, hash, fil_system.spaces, space->id, space);
 
-	if (space->is_in_unflushed_spaces()) {
+	if (space->is_in_unflushed_spaces) {
 
 		ut_ad(!fil_buffering_disabled(space));
-
-		UT_LIST_REMOVE(fil_system.unflushed_spaces, space);
+		fil_system.unflushed_spaces.remove(*space);
+		space->is_in_unflushed_spaces = false;
 	}
 
-	if (space->is_in_rotation_list()) {
-
-		UT_LIST_REMOVE(fil_system.rotation_list, space);
+	if (space->is_in_default_encrypt) {
+		fil_system.default_encrypt_tables.remove(*space);
+		space->is_in_default_encrypt = false;
 	}
 
 	UT_LIST_REMOVE(fil_system.space_list, space);
@@ -1401,19 +1413,25 @@ fil_space_create(
 		fil_system.max_assigned_id = id;
 	}
 
+	const bool rotate =
+		(purpose == FIL_TYPE_TABLESPACE
+		 && (mode == FIL_ENCRYPTION_ON
+		     || mode == FIL_ENCRYPTION_OFF || srv_encrypt_tables)
+		 && fil_crypt_must_default_encrypt());
+
 	/* Inform key rotation that there could be something
 	to do */
-	if (purpose == FIL_TYPE_TABLESPACE
-	    && !srv_fil_crypt_rotate_key_age && fil_crypt_threads_event &&
-	    (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF ||
-		    srv_encrypt_tables)) {
+	if (rotate) {
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
-		UT_LIST_ADD_LAST(fil_system.rotation_list, space);
-		mutex_exit(&fil_system.mutex);
+		fil_system.default_encrypt_tables.push_back(*space);
+		space->is_in_default_encrypt = true;
+	}
+
+	mutex_exit(&fil_system.mutex);
+
+	if (rotate && srv_n_fil_crypt_threads_started) {
 		os_event_set(fil_crypt_threads_event);
-	} else {
-		mutex_exit(&fil_system.mutex);
 	}
 
 	return(space);
@@ -1481,7 +1499,9 @@ fil_space_t* fil_system_t::read_page0(ulint id)
 
 	/* It is possible that the tablespace is dropped while we are
 	not holding the mutex. */
-	fil_mutex_enter_and_prepare_for_io(id);
+	if (!fil_mutex_enter_and_prepare_for_io(id)) {
+		return NULL;
+	}
 
 	fil_space_t* space = fil_space_get_by_id(id);
 
@@ -1707,7 +1727,7 @@ void fil_system_t::close()
 {
 	ut_ad(this == &fil_system);
 	ut_a(!UT_LIST_GET_LEN(LRU));
-	ut_a(!UT_LIST_GET_LEN(unflushed_spaces));
+	ut_a(unflushed_spaces.empty());
 	ut_a(!UT_LIST_GET_LEN(space_list));
 	ut_ad(!sys_space);
 	ut_ad(!temp_space);
@@ -1954,10 +1974,8 @@ fil_space_acquire_low(ulint id, bool silent)
 			ib::warn() << "Trying to access missing"
 				" tablespace " << id;
 		}
-	} else if (space->is_stopping()) {
+	} else if (!space->acquire()) {
 		space = NULL;
-	} else {
-		space->acquire();
 	}
 
 	mutex_exit(&fil_system.mutex);
@@ -2274,13 +2292,14 @@ fil_check_pending_ops(const fil_space_t* space, ulint count)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
 
-	if (space == NULL) {
+	if (!space) {
 		return 0;
 	}
 
-	if (ulint n_pending_ops = my_atomic_loadlint(&space->n_pending_ops)) {
+	if (uint32_t n_pending_ops = space->referenced()) {
 
-		if (count > 5000) {
+		/* Give a warning every 10 second, starting after 1 second */
+		if ((count % 500) == 50) {
 			ib::warn() << "Trying to close/delete/truncate"
 				" tablespace '" << space->name
 				<< "' but there are " << n_pending_ops
@@ -2366,14 +2385,13 @@ fil_check_pending_operations(
 	fil_space_t* sp = fil_space_get_by_id(id);
 
 	if (sp) {
-		sp->stop_new_ops = true;
-		if (sp->crypt_data) {
-			sp->acquire();
+		if (sp->crypt_data && sp->acquire()) {
 			mutex_exit(&fil_system.mutex);
 			fil_space_crypt_close_tablespace(sp);
 			mutex_enter(&fil_system.mutex);
 			sp->release();
 		}
+		sp->set_stopping(true);
 	}
 
 	/* Check for pending operations. */
@@ -2513,14 +2531,9 @@ bool fil_table_accessible(const dict_table_t* table)
 
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
+@param[in]	if_exists	whether to ignore missing tablespace
 @return	DB_SUCCESS or error */
-dberr_t
-fil_delete_tablespace(
-	ulint id
-#ifdef BTR_CUR_HASH_ADAPT
-	, bool drop_ahi /*!< whether to drop the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
-	)
+dberr_t fil_delete_tablespace(ulint id, bool if_exists)
 {
 	char*		path = 0;
 	fil_space_t*	space = 0;
@@ -2531,10 +2544,11 @@ fil_delete_tablespace(
 		id, FIL_OPERATION_DELETE, &space, &path);
 
 	if (err != DB_SUCCESS) {
-
-		ib::error() << "Cannot delete tablespace " << id
-			<< " because it is not found in the tablespace"
-			" memory cache.";
+		if (!if_exists) {
+			ib::error() << "Cannot delete tablespace " << id
+				    << " because it is not found"
+				       " in the tablespace memory cache.";
+		}
 
 		return(err);
 	}
@@ -2898,7 +2912,7 @@ fil_rename_tablespace(
 	multiple datafiles per tablespace. */
 	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
 	node = UT_LIST_GET_FIRST(space->chain);
-	space->n_pending_ops++;
+	ut_a(space->acquire());
 
 	mutex_exit(&fil_system.mutex);
 
@@ -2913,15 +2927,13 @@ fil_rename_tablespace(
 	ut_ad(strchr(new_file_name, OS_PATH_SEPARATOR) != NULL);
 
 	if (!recv_recovery_is_on()) {
-		fil_name_write_rename(id, old_file_name, new_file_name);
 		log_mutex_enter();
 	}
 
 	/* log_sys.mutex is above fil_system.mutex in the latching order */
 	ut_ad(log_mutex_own());
 	mutex_enter(&fil_system.mutex);
-	ut_ad(space->n_pending_ops);
-	space->n_pending_ops--;
+	space->release();
 	ut_ad(space->name == old_space_name);
 	ut_ad(node->name == old_file_name);
 	bool success;
@@ -3006,11 +3018,22 @@ fil_ibd_create(
 		return NULL;
 	}
 
+	ulint type;
+	compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
+	}
+
 	file = os_file_create(
 		innodb_data_file_key, path,
 		OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
 		OS_FILE_NORMAL,
-		OS_DATA_FILE,
+		type,
 		srv_read_only_mode,
 		&success);
 
@@ -3684,6 +3707,7 @@ fil_ibd_discover(
 		case SRV_OPERATION_RESTORE_DELTA:
 			ut_ad(0);
 			break;
+		case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 		case SRV_OPERATION_RESTORE_EXPORT:
 		case SRV_OPERATION_RESTORE:
 			break;
@@ -3763,7 +3787,7 @@ fil_ibd_load(
 	space = fil_space_get_by_id(space_id);
 	mutex_exit(&fil_system.mutex);
 
-	if (space != NULL) {
+	if (space) {
 		/* Compare the filename we are trying to open with the
 		filename from the first node of the tablespace we opened
 		previously. Fail if it is different. */
@@ -3775,13 +3799,13 @@ fil_ibd_load(
 				<< "' with space ID " << space->id
 				<< ". Another data file called " << node->name
 				<< " exists with the same space ID.";
-				space = NULL;
-				return(FIL_LOAD_ID_CHANGED);
+			space = NULL;
+			return(FIL_LOAD_ID_CHANGED);
 		}
 		return(FIL_LOAD_OK);
 	}
 
-	if (srv_operation == SRV_OPERATION_RESTORE) {
+	if (is_mariabackup_restore()) {
 		/* Replace absolute DATA DIRECTORY file paths with
 		short names relative to the backup directory. */
 		if (const char* name = strrchr(filename, OS_PATH_SEPARATOR)) {
@@ -3813,13 +3837,6 @@ fil_ibd_load(
 		os_offset_t	minimum_size;
 	case DB_SUCCESS:
 		if (file.space_id() != space_id) {
-			ib::info()
-				<< "Ignoring data file '"
-				<< file.filepath()
-				<< "' with space ID " << file.space_id()
-				<< ", since the redo log references "
-				<< file.filepath() << " with space ID "
-				<< space_id << ".";
 			return(FIL_LOAD_ID_CHANGED);
 		}
 		/* Get and test the file size. */
@@ -4081,15 +4098,16 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 			/* We don't need to keep track of unflushed
 			changes as user has explicitly disabled
 			buffering. */
-			ut_ad(!node->space->is_in_unflushed_spaces());
+			ut_ad(!node->space->is_in_unflushed_spaces);
 			ut_ad(node->needs_flush == false);
 
 		} else {
 			node->needs_flush = true;
 
-			if (!node->space->is_in_unflushed_spaces()) {
-				UT_LIST_ADD_FIRST(fil_system.unflushed_spaces,
-						  node->space);
+			if (!node->space->is_in_unflushed_spaces) {
+				node->space->is_in_unflushed_spaces = true;
+				fil_system.unflushed_spaces.push_front(
+					*node->space);
 			}
 		}
 	}
@@ -4101,27 +4119,30 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 	}
 }
 
-/** Report information about an invalid page access. */
-static
-void
-fil_report_invalid_page_access(
-	ulint		block_offset,	/*!< in: block offset */
-	ulint		space_id,	/*!< in: space id */
-	const char*	space_name,	/*!< in: space name */
-	ulint		byte_offset,	/*!< in: byte offset */
-	ulint		len,		/*!< in: I/O length */
-	bool		is_read)	/*!< in: I/O type */
+/** Compose error message about an invalid page access.
+@param[in]	block_offset	block offset
+@param[in]	space_id	space id
+@param[in]	space_name	space name
+@param[in]	byte_offset	byte offset
+@param[in]	len		I/O length
+@param[in]	is_read		I/O type
+@return	std::string with error message */
+static std::string fil_invalid_page_access_msg(size_t block_offset,
+                                               size_t space_id,
+                                               const char *space_name,
+                                               size_t byte_offset, size_t len,
+                                               bool is_read)
 {
-	ib::fatal()
-		<< "Trying to " << (is_read ? "read" : "write")
-		<< " page number " << block_offset << " in"
-		" space " << space_id << ", space name " << space_name << ","
-		" which is outside the tablespace bounds. Byte offset "
-		<< byte_offset << ", len " << len <<
-		(space_id == 0 && !srv_was_started
-		? "Please check that the configuration matches"
-		" the InnoDB system tablespace location (ibdata files)"
-		: "");
+  std::stringstream ss;
+  ss << "Trying to " << (is_read ? "read" : "write") << " page number "
+     << block_offset << " in space " << space_id << ", space name "
+     << space_name << ", which is outside the tablespace bounds. Byte offset "
+     << byte_offset << ", len " << len
+     << (space_id == 0 && !srv_was_started
+             ? "Please check that the configuration matches"
+               " the InnoDB system tablespace location (ibdata files)"
+             : "");
+  return ss.str();
 }
 
 /** Reads or writes data. This operation could be asynchronous (aio).
@@ -4225,7 +4246,7 @@ fil_io(
 	if (space == NULL
 	    || (req_type.is_read()
 		&& !sync
-		&& space->stop_new_ops
+		&& space->is_stopping()
 		&& !space->is_being_truncated)) {
 
 		mutex_exit(&fil_system.mutex);
@@ -4256,7 +4277,17 @@ fil_io(
 				return(DB_ERROR);
 			}
 
-			fil_report_invalid_page_access(
+			if (space->purpose == FIL_TYPE_IMPORT) {
+				mutex_exit(&fil_system.mutex);
+				ib::error() << fil_invalid_page_access_msg(
+					page_id.page_no(), page_id.space(),
+					space->name, byte_offset, len,
+					req_type.is_read());
+
+				return DB_IO_ERROR;
+			}
+
+			ib::fatal() << fil_invalid_page_access_msg(
 				page_id.page_no(), page_id.space(),
 				space->name, byte_offset, len,
 				req_type.is_read());
@@ -4336,7 +4367,7 @@ fil_io(
 			return(DB_ERROR);
 		}
 
-		fil_report_invalid_page_access(
+		ib::fatal() << fil_invalid_page_access_msg(
 			page_id.page_no(), page_id.space(),
 			space->name, byte_offset, len, req_type.is_read());
 	}
@@ -4516,7 +4547,7 @@ fil_aio_wait(
 				ib::error() << "Failed to read file '"
 					    << node->name
 					    << "' at offset " << offset
-					    << ": " << ut_strerr(err);
+					    << ": " << err;
 			}
 
 			space->release_for_io();
@@ -4573,7 +4604,6 @@ void
 fil_flush_file_spaces(
 	fil_type_t	purpose)
 {
-	fil_space_t*	space;
 	ulint*		space_ids;
 	ulint		n_space_ids;
 
@@ -4581,30 +4611,25 @@ fil_flush_file_spaces(
 
 	mutex_enter(&fil_system.mutex);
 
-	n_space_ids = UT_LIST_GET_LEN(fil_system.unflushed_spaces);
+	n_space_ids = fil_system.unflushed_spaces.size();
 	if (n_space_ids == 0) {
 
 		mutex_exit(&fil_system.mutex);
 		return;
 	}
 
-	/* Assemble a list of space ids to flush.  Previously, we
-	traversed fil_system.unflushed_spaces and called UT_LIST_GET_NEXT()
-	on a space that was just removed from the list by fil_flush().
-	Thus, the space could be dropped and the memory overwritten. */
 	space_ids = static_cast<ulint*>(
 		ut_malloc_nokey(n_space_ids * sizeof(*space_ids)));
 
 	n_space_ids = 0;
 
-	for (space = UT_LIST_GET_FIRST(fil_system.unflushed_spaces);
-	     space;
-	     space = UT_LIST_GET_NEXT(unflushed_spaces, space)) {
+	for (sized_ilist<fil_space_t, unflushed_spaces_tag_t>::iterator it
+	     = fil_system.unflushed_spaces.begin(),
+	     end = fil_system.unflushed_spaces.end();
+	     it != end; ++it) {
 
-		if (space->purpose == purpose
-		    && !space->is_stopping()) {
-
-			space_ids[n_space_ids++] = space->id;
+		if (it->purpose == purpose && !it->is_stopping()) {
+			space_ids[n_space_ids++] = it->id;
 		}
 	}
 
@@ -4648,10 +4673,20 @@ struct	Check {
 		Check	check;
 		ut_list_validate(space->chain, check);
 		ut_a(space->size == check.size);
-		ut_ad(space->id != TRX_SYS_SPACE
-		      || space == fil_system.sys_space);
-		ut_ad(space->id != SRV_TMP_SPACE_ID
-		      || space == fil_system.temp_space);
+
+		switch (space->id) {
+		case TRX_SYS_SPACE:
+			ut_ad(fil_system.sys_space == NULL
+			      || fil_system.sys_space == space);
+			break;
+		case SRV_TMP_SPACE_ID:
+			ut_ad(fil_system.temp_space == NULL
+			      || fil_system.temp_space == space);
+			break;
+		default:
+			break;
+		}
+
 		return(check.n_open);
 	}
 };
@@ -4663,24 +4698,15 @@ bool
 fil_validate(void)
 /*==============*/
 {
-	fil_space_t*	space;
 	fil_node_t*	fil_node;
 	ulint		n_open		= 0;
 
 	mutex_enter(&fil_system.mutex);
 
-	/* Look for spaces in the hash table */
-
-	for (ulint i = 0; i < hash_get_n_cells(fil_system.spaces); i++) {
-
-		for (space = static_cast<fil_space_t*>(
-				HASH_GET_FIRST(fil_system.spaces, i));
-		     space != 0;
-		     space = static_cast<fil_space_t*>(
-				HASH_GET_NEXT(hash, space))) {
-
-			n_open += Check::validate(space);
-		}
+	for (fil_space_t *space = UT_LIST_GET_FIRST(fil_system.space_list);
+	     space != NULL;
+	     space = UT_LIST_GET_NEXT(space_list, space)) {
+		n_open += Check::validate(space);
 	}
 
 	ut_a(fil_system.n_open == n_open);
@@ -4870,7 +4896,7 @@ fil_space_validate_for_mtr_commit(
 	fil_space_acquire() before mtr_start() and
 	fil_space_t::release() after mtr_commit(). This is why
 	n_pending_ops should not be zero if stop_new_ops is set. */
-	ut_ad(!space->stop_new_ops
+	ut_ad(!space->is_stopping()
 	      || space->is_being_truncated /* fil_truncate_prepare() */
 	      || space->referenced());
 }
@@ -5096,7 +5122,7 @@ truncate_t::truncate(
 		err = DB_ERROR;
 	}
 
-	space->stop_new_ops = false;
+	space->set_stopping(false);
 
 	/* If we opened the file in this function, close it. */
 	if (!already_open) {
@@ -5167,127 +5193,6 @@ test_make_filepath()
 #endif /* UNIV_ENABLE_UNIT_TEST_MAKE_FILEPATH */
 /* @} */
 
-/** Return the next fil_space_t.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_t::acquire() and fil_space_t::release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system.space_list.
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last*/
-fil_space_t*
-fil_space_next(fil_space_t* prev_space)
-{
-	fil_space_t*		space=prev_space;
-
-	mutex_enter(&fil_system.mutex);
-
-	if (!space) {
-		space = UT_LIST_GET_FIRST(fil_system.space_list);
-	} else {
-		ut_a(space->referenced());
-
-		/* Move on to the next fil_space_t */
-		space->release();
-		space = UT_LIST_GET_NEXT(space_list, space);
-	}
-
-	/* Skip spaces that are being created by
-	fil_ibd_create(), or dropped, or !tablespace. */
-	while (space != NULL
-	       && (UT_LIST_GET_LEN(space->chain) == 0
-		   || space->is_stopping()
-		   || space->purpose != FIL_TYPE_TABLESPACE)) {
-		space = UT_LIST_GET_NEXT(space_list, space);
-	}
-
-	if (space != NULL) {
-		space->acquire();
-	}
-
-	mutex_exit(&fil_system.mutex);
-
-	return(space);
-}
-
-/**
-Remove space from key rotation list if there are no more
-pending operations.
-@param[in,out]	space		Tablespace */
-static
-void
-fil_space_remove_from_keyrotation(fil_space_t* space)
-{
-	ut_ad(mutex_own(&fil_system.mutex));
-	ut_ad(space);
-
-	if (!space->referenced() && space->is_in_rotation_list()) {
-		ut_a(UT_LIST_GET_LEN(fil_system.rotation_list) > 0);
-		UT_LIST_REMOVE(fil_system.rotation_list, space);
-	}
-}
-
-
-/** Return the next fil_space_t from key rotation list.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_t::acquire() and fil_space_t::release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system.space_list.
-@param[in]	recheck		recheck of the tablespace is needed or
-				still encryption thread does write page0 for it
-@param[in]	key_version	key version of the key state thread
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last */
-fil_space_t*
-fil_system_t::keyrotate_next(
-	fil_space_t*	prev_space,
-	bool		recheck,
-	uint		key_version)
-{
-	mutex_enter(&fil_system.mutex);
-
-	/* If one of the encryption threads already started the encryption
-	of the table then don't remove the unencrypted spaces from
-	rotation list
-
-	If there is a change in innodb_encrypt_tables variables value then
-	don't remove the last processed tablespace from the rotation list. */
-	const bool remove = ((!recheck || prev_space->crypt_data)
-			     && (!key_version == !srv_encrypt_tables));
-
-	fil_space_t* space = prev_space;
-
-	if (prev_space == NULL) {
-		space = UT_LIST_GET_FIRST(fil_system.rotation_list);
-
-		/* We can trust that space is not NULL because we
-		checked list length above */
-	} else {
-		/* Move on to the next fil_space_t */
-		space->release();
-
-		space = UT_LIST_GET_NEXT(rotation_list, space);
-
-		while (space != NULL
-		       && (UT_LIST_GET_LEN(space->chain) == 0
-			   || space->is_stopping())) {
-			space = UT_LIST_GET_NEXT(rotation_list, space);
-		}
-
-		if (remove) {
-			fil_space_remove_from_keyrotation(prev_space);
-		}
-	}
-
-	if (space != NULL) {
-		space->acquire();
-	}
-
-	mutex_exit(&fil_system.mutex);
-	return(space);
-}
-
 /** Determine the block size of the data file.
 @param[in]	space		tablespace
 @param[in]	offset		page number
@@ -5318,26 +5223,6 @@ fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 	return block_size;
 }
 
-/*******************************************************************//**
-Returns the table space by a given id, NULL if not found. */
-fil_space_t*
-fil_space_found_by_id(
-/*==================*/
-	ulint	id)	/*!< in: space id */
-{
-	fil_space_t* space = NULL;
-	mutex_enter(&fil_system.mutex);
-	space = fil_space_get_by_id(id);
-
-	/* Not found if space is being deleted */
-	if (space && space->stop_new_ops) {
-		space = NULL;
-	}
-
-	mutex_exit(&fil_system.mutex);
-	return space;
-}
-
 /**
 Get should we punch hole to tablespace.
 @param[in]	node		File node
@@ -5359,22 +5244,4 @@ fil_space_set_punch_hole(
 	bool			val)
 {
 	node->space->punch_hole = val;
-}
-
-/** Checks that this tablespace in a list of unflushed tablespaces.
-@return true if in a list */
-bool fil_space_t::is_in_unflushed_spaces() const {
-	ut_ad(mutex_own(&fil_system.mutex));
-
-	return fil_system.unflushed_spaces.start == this
-	       || unflushed_spaces.next || unflushed_spaces.prev;
-}
-
-/** Checks that this tablespace needs key rotation.
-@return true if in a rotation list */
-bool fil_space_t::is_in_rotation_list() const {
-	ut_ad(mutex_own(&fil_system.mutex));
-
-	return fil_system.rotation_list.start == this || rotation_list.next
-	       || rotation_list.prev;
 }

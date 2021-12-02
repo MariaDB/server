@@ -851,7 +851,7 @@ partition x2 values in (3, 11, 5, 7) tablespace ts2,
 partition x3 values in (16, 8, 5+19, 70-43) tablespace ts3);
 ERROR 42000: Partitioning can not be used stand-alone in query near 'partition by list (a)
 partitions 3
-(partition x1 values in (1,2,9,4) tablespace ' at line 1
+(partition x1 values in (1,2,9,4) tablespa...' at line 1
 CREATE TABLE t1 (
 a int not null,
 b int not null,
@@ -885,7 +885,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 partitions 3
 (partition x1 tablespace ts1,
 partition x2 tablespace ts2,
-part' at line 6
+p...' at line 6
 CREATE TABLE t1 (
 a int not null,
 b int not null,
@@ -965,7 +965,7 @@ partitions 2
 (partition x1 values less than (0), partition x2 values less than (2));
 ERROR 42000: Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed near ')
 partitions 2
-(partition x1 values less than (0), partition x2 values less than' at line 6
+(partition x1 values less than (0), partition x2 values less t...' at line 6
 CREATE TABLE t1 (
 a int not null,
 b int not null,
@@ -1114,7 +1114,7 @@ subpartition by key (a+b)
 partition x2 values less than (2) (subpartition x21, subpartition x22));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '+b)
 (partition x1 values less than (1) (subpartition x11, subpartition x12),
-par' at line 7
+...' at line 7
 CREATE TABLE t1 (
 a int not null,
 b int not null,
@@ -1284,7 +1284,7 @@ subpartition x22 nodegroup 1)
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near '),
 partition x2 values in (3,5,6)
 ( subpartition x21 nodegroup 0,
-subpartition x' at line 11
+subpartitio...' at line 11
 CREATE TABLE t1 (
 a int not null,
 b int not null,
@@ -1319,7 +1319,7 @@ subpartition x22 engine myisam)
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'list (a+b)
 ( partition x1
 ( subpartition x11 engine myisam,
-subpartition x12 eng' at line 7
+subpartition x12 ...' at line 7
 CREATE TABLE t1 (
 a int not null,
 b int not null,
@@ -1337,7 +1337,7 @@ subpartition x22 engine myisam values in (1))
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'list (a+b)
 ( partition x1
 ( subpartition x11 engine myisam values in (0),
-subpar' at line 7
+sub...' at line 7
 CREATE TABLE t1 (
 a int not null,
 b int not null,

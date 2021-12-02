@@ -1,6 +1,6 @@
 # ==== Usage ====
 #
-# [--let $shutdown_timeout= 30]
+# [--let $shutdown_timeout= 60]
 # [--let $allow_rpl_inited= 1]
 # --source include/restart_mysqld.inc
 

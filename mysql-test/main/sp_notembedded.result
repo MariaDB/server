@@ -8,11 +8,11 @@ show grants for 'root'@'localhost';
 end|
 call bug4902()|
 Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 call bug4902()|
 Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 drop procedure bug4902|
 drop procedure if exists bug4902_2|
@@ -159,11 +159,11 @@ create procedure 15298_2 () sql security definer show grants;
 connect  con1,localhost,mysqltest_1,,test;
 call 15298_1();
 Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 call 15298_2();
 Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 connection default;
 disconnect con1;
@@ -330,21 +330,21 @@ update mysql.user set password = replace(password, '*', '-') where user='foo1';
 connect  foo,localhost,foo1,foo;
 show grants;
 Grants for foo1@localhost
-GRANT USAGE ON *.* TO 'foo1'@'localhost' IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
-GRANT CREATE ROUTINE ON `test`.* TO 'foo1'@'localhost'
+GRANT USAGE ON *.* TO `foo1`@`localhost` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT CREATE ROUTINE ON `test`.* TO `foo1`@`localhost`
 connection default;
 flush privileges;
 connection foo;
 show grants;
 Grants for foo1@localhost
-GRANT USAGE ON *.* TO 'foo1'@'localhost' IDENTIFIED BY PASSWORD '-F3A2A51A9B0F2BE2468926B4132313728C250DBF'
-GRANT CREATE ROUTINE ON `test`.* TO 'foo1'@'localhost'
+GRANT USAGE ON *.* TO `foo1`@`localhost` IDENTIFIED BY PASSWORD '-F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT CREATE ROUTINE ON `test`.* TO `foo1`@`localhost`
 create procedure spfoo() select 1;
 show grants;
 Grants for foo1@localhost
-GRANT USAGE ON *.* TO 'foo1'@'localhost' IDENTIFIED BY PASSWORD '-F3A2A51A9B0F2BE2468926B4132313728C250DBF'
-GRANT CREATE ROUTINE ON `test`.* TO 'foo1'@'localhost'
-GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`spfoo` TO 'foo1'@'localhost'
+GRANT USAGE ON *.* TO `foo1`@`localhost` IDENTIFIED BY PASSWORD '-F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT CREATE ROUTINE ON `test`.* TO `foo1`@`localhost`
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`spfoo` TO `foo1`@`localhost`
 connection default;
 disconnect foo;
 drop procedure spfoo;

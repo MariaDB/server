@@ -54,7 +54,7 @@ add column trx_end timestamp(6) not null as row end invisible,
 add period for system_time(trx_start, trx_end),
 add system versioning;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'as row start invisible,
-add column trx_end timestamp(6) not null as row end invi' at line 2
+add column trx_end timestamp(6) not null as row end i...' at line 2
 alter table t
 add column trx_start timestamp(6) as row start invisible,
 add column trx_end timestamp(6) as row end invisible,
@@ -80,7 +80,7 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t add column trx_start timestamp(6) as row start;
-ERROR HY000: Duplicate ROW START column `trx_start`
+ERROR HY000: Table `t` is not system-versioned
 alter table t add system versioning;
 show create table t;
 Table	Create Table
@@ -528,9 +528,9 @@ ERROR HY000: Table `t` is already system-versioned
 #
 use mysql;
 create or replace table t (x int) with system versioning;
-ERROR HY000: System versioning tables in the `mysql` database are not suported
+ERROR HY000: System versioning tables in the `mysql` database are not supported
 alter table user add system versioning;
-ERROR HY000: System versioning tables in the `mysql` database are not suported
+ERROR HY000: System versioning tables in the `mysql` database are not supported
 use test;
 # MDEV-15956 Strange ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN upon ALTER on versioning column
 create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
@@ -684,3 +684,97 @@ add column c int without system versioning,
 change column c c int,
 change column b b int without system versioning;
 drop table t;
+#
+# MDEV-21688 Assertion or ER_WARN_DATA_OUT_OF_RANGE upon ALTER on previously versioned table
+#
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (128);
+delete from t1;
+set statement system_versioning_alter_history=keep for
+alter table t1 drop system versioning, modify column a tinyint;
+drop table t1;
+#
+# MDEV-24690 Dropping primary key column from versioned table always fails with 1072
+#
+create table t1 (a int, b int primary key) with system versioning;
+alter table t1 drop column b;
+create or replace table t1 (
+a int, b int primary key,
+row_start timestamp(6) as row start,
+row_end timestamp(6) as row end,
+period for system_time(row_start, row_end)
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PRIMARY KEY (`b`,`row_end`),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t1 drop column b;
+ERROR 42000: Key column 'b' doesn't exist in table
+create or replace table t1 (
+a int, b int primary key,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PRIMARY KEY (`b`,`row_end`),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t1 drop column b;
+ERROR 42000: Key column 'b' doesn't exist in table
+drop table t1;
+#
+# MDEV-25172 Wrong error message for ADD COLUMN .. AS ROW START
+#
+create or replace table t1 (x int);
+alter table t1 add column y timestamp(6) as row start;
+ERROR HY000: Table `t1` is not system-versioned
+drop table t1;
+#
+# MDEV-25327 Unexpected ER_DUP_ENTRY upon dropping PK column from system-versioned table
+#
+create table t1 (pk int, a int, primary key (pk), key (a))
+with system versioning;
+insert into t1 values (1, 1), (2, 2);
+delete from t1;
+set system_versioning_alter_history= keep;
+alter table t1 drop pk;
+drop table t1;
+create table t1 (pk int, a int, primary key (pk), key (a))
+with system versioning;
+insert into t1 values (1, 2), (2, 8), (3, 4), (4, 4), (5, 0);
+delete from t1;
+set system_versioning_alter_history= keep;
+alter ignore table t1 drop pk;
+drop table t1;
+#
+# MDEV-22660 SIGSEGV on adding system versioning and modifying system column
+#
+create or replace table t1 (a int);
+alter table t1
+add row_start timestamp(6) as row start,
+add row_end timestamp(6) as row end,
+add period for system_time(row_start, row_end),
+with system versioning,
+modify row_end varchar(8);
+ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `row_start` and `row_end`
+alter table t1
+add row_start timestamp(6) as row start,
+add row_end timestamp(6) as row end,
+add period for system_time(row_start, row_end),
+with system versioning,
+modify row_start varchar(8);
+ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `row_start` and `row_end`
+drop table t1;

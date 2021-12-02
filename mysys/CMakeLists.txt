@@ -48,7 +48,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
                                 file_logger.c my_dlerror.c)
 
 IF (WIN32)
- SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_winthread.c my_wincond.c my_winerr.c my_winfile.c my_windac.c my_conio.c)
+ SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_winthread.c my_wincond.c my_winerr.c my_winfile.c my_windac.c my_conio.c my_minidump.cc)
 ENDIF()
 
 IF(UNIX)
@@ -75,15 +75,19 @@ ENDIF()
 
 ADD_CONVENIENCE_LIBRARY(mysys ${MYSYS_SOURCES})
 TARGET_LINK_LIBRARIES(mysys dbug strings ${ZLIB_LIBRARY}
- ${LIBNSL} ${LIBM} ${LIBRT} ${LIBDL} ${LIBSOCKET} ${LIBEXECINFO} ${CRC32_LIBRARY})
+ ${LIBNSL} ${LIBM} ${LIBRT} ${CMAKE_DL_LIBS} ${LIBSOCKET} ${LIBEXECINFO} ${CRC32_LIBRARY})
 DTRACE_INSTRUMENT(mysys)
+
+IF (HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
+  TARGET_LINK_LIBRARIES(mysys atomic)
+ENDIF()
 
 IF(HAVE_BFD_H)
   TARGET_LINK_LIBRARIES(mysys bfd)  
 ENDIF(HAVE_BFD_H)
 
 IF (WIN32)
-  TARGET_LINK_LIBRARIES(mysys IPHLPAPI)  
+  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp)
 ENDIF(WIN32)
 
 # Need explicit pthread for gcc -fsanitize=address
@@ -102,7 +106,3 @@ SET_TARGET_PROPERTIES(thr_timer PROPERTIES COMPILE_FLAGS "-DMAIN")
 ADD_EXECUTABLE(test_hash hash.c)
 TARGET_LINK_LIBRARIES(test_hash mysys)
 SET_TARGET_PROPERTIES(test_hash PROPERTIES COMPILE_FLAGS "-DMAIN")
-
-IF(MSVC)
-   INSTALL_DEBUG_TARGET(mysys DESTINATION ${INSTALL_LIBDIR}/debug)
-ENDIF()

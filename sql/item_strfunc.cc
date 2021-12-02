@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -359,6 +359,8 @@ String *Item_aes_crypt::val_str(String *str2)
                  rkey, AES_KEY_LENGTH / 8, 0, 0))
       {
         str2->length((uint) aes_length);
+        DBUG_ASSERT(collation.collation == &my_charset_bin);
+        str2->set_charset(&my_charset_bin);
         return str2;
       }
     }
@@ -500,7 +502,7 @@ err:
 
 const char *histogram_types[] =
            {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
-static TYPELIB hystorgam_types_typelib=
+static TYPELIB histogram_types_typelib=
   { array_elements(histogram_types),
     "histogram_types",
     histogram_types, NULL};
@@ -516,7 +518,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   tmp.length(0);
   if (!(res= args[0]->val_str(&tmp)) ||
       (type= find_type(res->c_ptr_safe(),
-                       &hystorgam_types_typelib, MYF(0))) <= 0)
+                       &histogram_types_typelib, MYF(0))) <= 0)
   {
     null_value= 1;
     return 0;
@@ -601,7 +603,7 @@ bool Item_func_concat::realloc_result(String *str, uint length) const
     as str was initially set by args[0]->val_str(str).
     So multiplication by 2 can overflow, if args[0] for some reasons
     did not limit the result to max_alloced_packet. But it's not harmful,
-    "str" will be realloced exactly to "length" bytes in case of overflow.
+    "str" will be reallocated exactly to "length" bytes in case of overflow.
   */
   uint new_length= MY_MAX(str->alloced_length() * 2, length);
   return str->realloc(new_length);
@@ -646,7 +648,7 @@ String *Item_func_concat_operator_oracle::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   THD *thd= current_thd;
-  String *res;
+  String *res= NULL;
   uint i;
 
   null_value=0;
@@ -656,7 +658,7 @@ String *Item_func_concat_operator_oracle::val_str(String *str)
     if ((res= args[i]->val_str(str)))
       break;
   }
-  if (i == arg_count)
+  if (!res)
     goto null;
 
   if (res != str)
@@ -990,7 +992,7 @@ String *Item_func_concat_ws::val_str(String *str)
 	goto null; // Must be a blob
     }
     else if (res2 == &tmp_value)
-    {						// This can happend only 1 time
+    {						// This can happen only 1 time
       if (tmp_value.replace(0,0,*sep_str) || tmp_value.replace(0,0,*res))
 	goto null;
       res= &tmp_value;
@@ -1141,7 +1143,7 @@ bool Item_func_reverse::fix_length_and_dec()
 }
 
 /**
-  Replace all occurences of string2 in string1 with string3.
+  Replace all occurrences of string2 in string1 with string3.
 
   Don't reallocate val_str() if not needed.
 
@@ -1529,7 +1531,7 @@ String *Item_func_insert::val_str(String *str)
     length= res->length();
 
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -2404,7 +2406,7 @@ String *Item_func_sqlerrm::val_str(String *str)
               system_charset_info);
     return str;
   }
-  str->copy(STRING_WITH_LEN("normal, successful completition"),
+  str->copy(STRING_WITH_LEN("normal, successful completion"),
             system_charset_info);
   return str;
 }
@@ -3192,6 +3194,14 @@ err:
 }
 
 
+static String *default_pad_str(String *pad_str, CHARSET_INFO *collation)
+{
+  pad_str->set_charset(collation);
+  pad_str->length(0);
+  pad_str->append(" ", 1);
+  return pad_str;
+}
+
 bool Item_func_pad::fix_length_and_dec()
 {
   if (arg_count == 3)
@@ -3207,9 +3217,7 @@ bool Item_func_pad::fix_length_and_dec()
   {
     if (agg_arg_charsets_for_string_result(collation, &args[0], 1, 1))
       return TRUE;
-    pad_str.set_charset(collation.collation);
-    pad_str.length(0);
-    pad_str.append(" ", 1);
+    default_pad_str(&pad_str, collation.collation);
   }
 
   DBUG_ASSERT(collation.collation->mbmaxlen > 0);
@@ -3232,9 +3240,9 @@ bool Item_func_pad::fix_length_and_dec()
 Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
 {
   DBUG_ASSERT(fixed);
-  DBUG_ASSERT(arg_count == 3);
+  DBUG_ASSERT(arg_count >= 2);
   if (!args[1]->value_depends_on_sql_mode_const_item() ||
-      !args[2]->value_depends_on_sql_mode_const_item())
+          (arg_count == 3 && !args[2]->value_depends_on_sql_mode_const_item()))
     return Item_func::value_depends_on_sql_mode();
   Longlong_hybrid len= args[1]->to_longlong_hybrid();
   if (args[1]->null_value || len.neg())
@@ -3242,7 +3250,8 @@ Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
   if (len.abs() > 0 && len.abs() < args[0]->max_char_length())
     return Item_func::value_depends_on_sql_mode();
   StringBuffer<64> padstrbuf;
-  String *padstr= args[2]->val_str(&padstrbuf);
+  String *padstr= arg_count == 3 ? args[2]->val_str(&padstrbuf) :
+                               default_pad_str(&padstrbuf, collation.collation);
   if (!padstr || !padstr->length())
     return Sql_mode_dependency();                  // will return NULL
   if (padstr->lengthsp() != 0)
@@ -3282,7 +3291,7 @@ String *Item_func_rpad::val_str(String *str)
   if ((ulonglong) count > INT_MAX32)
     count= INT_MAX32;
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -3375,7 +3384,7 @@ String *Item_func_lpad::val_str(String *str)
     count= INT_MAX32;
 
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -3997,7 +4006,7 @@ bool Item_func_export_set::fix_length_and_dec()
   using in a SQL statement.
 
   Adds a \\ before all characters that needs to be escaped in a SQL string.
-  We also escape '^Z' (END-OF-FILE in windows) to avoid probelms when
+  We also escape '^Z' (END-OF-FILE in windows) to avoid problems when
   running commands from a file in windows.
 
   This function is very useful when you want to generate SQL statements.
@@ -4184,7 +4193,7 @@ longlong Item_func_uncompressed_length::val_int()
     5 bytes long.
     res->c_ptr() is not used because:
       - we do not need \0 terminated string to get first 4 bytes
-      - c_ptr() tests simbol after string end (uninitialiozed memory) which
+      - c_ptr() tests simbol after string end (uninitialized memory) which
         confuse valgrind
   */
   return uint4korr(res->ptr()) & 0x3FFFFFFF;

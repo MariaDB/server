@@ -962,6 +962,41 @@ double Item_func_json_extract::val_real()
 }
 
 
+my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
+{
+  json_value_types type;
+  char *value;
+  int value_len;
+
+  if (read_json(NULL, &type, &value, &value_len) != NULL)
+  {
+    switch (type)
+    {
+      case JSON_VALUE_STRING:
+      case JSON_VALUE_NUMBER:
+      {
+        my_decimal *res= decimal_from_string_with_check(to, collation.collation,
+                                                        value,
+                                                        value + value_len);
+        null_value= res == NULL;
+        return res;
+      }
+      case JSON_VALUE_TRUE:
+        int2my_decimal(E_DEC_FATAL_ERROR, 1, false/*unsigned_flag*/, to);
+        return to;
+      case JSON_VALUE_OBJECT:
+      case JSON_VALUE_ARRAY:
+      case JSON_VALUE_FALSE:
+      case JSON_VALUE_NULL:
+        break;
+    };
+  }
+  int2my_decimal(E_DEC_FATAL_ERROR, 0, false/*unsigned_flag*/, to);
+  return to;
+}
+
+
+
 bool Item_func_json_contains::fix_length_and_dec()
 {
   a2_constant= args[1]->const_item();
@@ -2396,6 +2431,8 @@ String *Item_func_json_merge_patch::val_str(String *str)
   uint n_arg;
   bool empty_result, merge_to_null;
 
+  /* To report errors properly if some JSON is invalid. */
+  je1.s.error= je2.s.error= 0;
   merge_to_null= args[0]->null_value;
 
   for (n_arg=1; n_arg < arg_count; n_arg++)
@@ -3500,6 +3537,7 @@ const char *Item_func_json_format::func_name() const
 bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
+  collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   maybe_null= 1;
   return FALSE;

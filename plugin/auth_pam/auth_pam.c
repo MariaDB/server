@@ -16,6 +16,7 @@
 
 #define _GNU_SOURCE 1 /* for strndup */
 
+#include <config_auth_pam.h>
 #include <mysql/plugin_auth.h>
 #include <stdio.h>
 #include <string.h>

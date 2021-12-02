@@ -1,6 +1,7 @@
 #
 # Bug#43360 - Server crash with a simple multi-table update
 #
+SET @saved_dbug = @@SESSION.debug_dbug;
 set session debug_dbug="+d,optimizer_innodb_icp";
 CREATE TABLE t1 (
 a CHAR(2) NOT NULL PRIMARY KEY, 
@@ -42,3 +43,4 @@ AB	Sweden
 MS	United States of Ame
 JA	USA
 DROP TABLE t1,t2;
+SET debug_dbug= @saved_dbug;

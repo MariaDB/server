@@ -83,6 +83,26 @@ public:
     */
     return cmp_signed(other);
   }
+  bool operator==(const Longlong_hybrid &nr) const
+  {
+    return cmp(nr) == 0;
+  }
+  bool operator==(ulonglong nr) const
+  {
+    return cmp(Longlong_hybrid((longlong) nr, true)) == 0;
+  }
+  bool operator==(uint nr) const
+  {
+    return cmp(Longlong_hybrid((longlong) nr, true)) == 0;
+  }
+  bool operator==(longlong nr) const
+  {
+    return cmp(Longlong_hybrid(nr, false)) == 0;
+  }
+  bool operator==(int nr) const
+  {
+    return cmp(Longlong_hybrid(nr, false)) == 0;
+  }
 };
 
 #endif // SQL_TYPE_INT_INCLUDED

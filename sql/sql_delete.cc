@@ -225,19 +225,11 @@ bool Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
 static bool record_should_be_deleted(THD *thd, TABLE *table, SQL_SELECT *sel,
                                      Explain_delete *explain, bool truncate_history)
 {
-  bool check_delete= true;
-
-  if (table->versioned())
-  {
-    bool historical= !table->vers_end_field()->is_max();
-    check_delete= truncate_history ? historical : !historical;
-  }
-
   explain->tracker.on_record_read();
   thd->inc_examined_row_count(1);
   if (table->vfield)
     (void) table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_DELETE);
-  if (check_delete && (!sel || sel->skip_record(thd) > 0))
+  if (!sel || sel->skip_record(thd) > 0)
   {
     explain->tracker.on_record_after_where();
     return true;
@@ -254,7 +246,15 @@ int TABLE::delete_row()
 
   store_record(this, record[1]);
   vers_update_end();
-  return file->ha_update_row(record[1], record[0]);
+  int err= file->ha_update_row(record[1], record[0]);
+  /*
+     MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got history
+     row with same trx_id which is the result of foreign key action, so we
+     don't need one more history row.
+  */
+  if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
+    return file->ha_delete_row(record[0]);
+  return err;
 }
 
 
@@ -305,29 +305,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   THD_STAGE_INFO(thd, stage_init_update);
 
-  bool delete_history= table_list->vers_conditions.is_set();
-  if (delete_history)
-  {
-    if (table_list->is_view_or_derived())
-    {
-      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
-      DBUG_RETURN(true);
-    }
-
-    DBUG_ASSERT(table_list->table);
-
-    DBUG_ASSERT(!conds || thd->stmt_arena->is_stmt_execute());
-
-    // conds could be cached from previous SP call
-    if (!conds)
-    {
-      if (select_lex->vers_setup_conds(thd, table_list))
-        DBUG_RETURN(TRUE);
-
-      conds= table_list->on_expr;
-      table_list->on_expr= NULL;
-    }
-  }
+  const bool delete_history= table_list->vers_conditions.delete_history;
 
   if (thd->lex->handle_list_of_derived(table_list, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE);
@@ -349,6 +327,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.select_lex= &thd->lex->select_lex;
   query_plan.table= table;
   query_plan.updating_a_view= MY_TEST(table_list->view);
+
+  promote_select_describe_flag_if_needed(thd->lex);
 
   if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,
                            select_lex->item_list, &conds,
@@ -603,14 +583,18 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (!table->check_virtual_columns_marked_for_read())
     {
       DBUG_PRINT("info", ("Trying direct delete"));
-      if (select && select->cond &&
-          (select->cond->used_tables() == table->map))
+      bool use_direct_delete= !select || !select->cond;
+      if (!use_direct_delete &&
+          (select->cond->used_tables() & ~RAND_TABLE_BIT) == table->map)
       {
         DBUG_ASSERT(!table->file->pushed_cond);
         if (!table->file->cond_push(select->cond))
+        {
+          use_direct_delete= TRUE;
           table->file->pushed_cond= select->cond;
+        }
       }
-      if (!table->file->direct_delete_rows_init())
+      if (use_direct_delete && !table->file->direct_delete_rows_init())
       {
         /* Direct deleting is supported */
         DBUG_PRINT("info", ("Using direct delete"));
@@ -940,16 +924,22 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
                                     select_lex->leaf_tables, FALSE, 
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
-  if (table_list->vers_conditions.is_set())
+
+  if (table_list->vers_conditions.is_set() && table_list->is_view_or_derived())
   {
-    if (table_list->is_view())
-    {
-      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
-      DBUG_RETURN(true);
-    }
-    if (select_lex->vers_setup_conds(thd, table_list))
-      DBUG_RETURN(true);
+    my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
+    DBUG_RETURN(true);
   }
+
+  DBUG_ASSERT(table_list->table);
+  // conds could be cached from previous SP call
+  DBUG_ASSERT(!table_list->vers_conditions.need_setup() ||
+              !*conds || thd->stmt_arena->is_stmt_execute());
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(TRUE);
+
+  *conds= select_lex->where;
+
   if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num,
                               &select_lex->hidden_bit_fields)) ||
       setup_fields(thd, Ref_ptr_array(),
@@ -1025,14 +1015,11 @@ int mysql_multi_delete_prepare(THD *thd)
                                     DELETE_ACL, SELECT_ACL, FALSE))
     DBUG_RETURN(TRUE);
 
-  if (lex->select_lex.handle_derived(thd->lex, DT_MERGE))  
-    DBUG_RETURN(TRUE);
-
   /*
     Multi-delete can't be constructed over-union => we always have
     single SELECT on top and have to check underlying SELECTs of it
   */
-  lex->select_lex.exclude_from_table_unique_test= TRUE;
+  lex->select_lex.set_unique_exclude();
   /* Fix tables-to-be-deleted-from list to point at opened tables */
   for (target_tbl= (TABLE_LIST*) aux_tables;
        target_tbl;
@@ -1055,6 +1042,12 @@ int mysql_multi_delete_prepare(THD *thd)
                target_tbl->table_name.str, "DELETE");
       DBUG_RETURN(TRUE);
     }
+  }
+
+  for (target_tbl= (TABLE_LIST*) aux_tables;
+       target_tbl;
+       target_tbl= target_tbl->next_local)
+  {
     /*
       Check that table from which we delete is not used somewhere
       inside subqueries/view.
@@ -1099,12 +1092,6 @@ multi_delete::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   unit= u;
   do_delete= 1;
   THD_STAGE_INFO(thd, stage_deleting_from_main_table);
-  SELECT_LEX *select_lex= u->first_select();
-  if (select_lex->first_cond_optimization)
-  {
-    if (select_lex->handle_derived(thd->lex, DT_MERGE))
-      DBUG_RETURN(TRUE);
-  }
   DBUG_RETURN(0);
 }
 
@@ -1237,11 +1224,6 @@ int multi_delete::send_data(List<Item> &values)
     /* Check if we are using outer join and we didn't find the row */
     if (table->status & (STATUS_NULL_ROW | STATUS_DELETED))
       continue;
-
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
 
     table->file->position(table->record[0]);
     found++;

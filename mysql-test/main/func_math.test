@@ -689,6 +689,94 @@ SELECT STDDEV_SAMP(a) FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-21977 main.func_math fails due to undefined behaviour
+--echo #
+
+SELECT  9223372036854775808 DIV  1;
+--error ER_DATA_OUT_OF_RANGE
+SELECT  9223372036854775808 DIV -1;
+--error ER_DATA_OUT_OF_RANGE
+SELECT -9223372036854775808 DIV  1;
+--error ER_DATA_OUT_OF_RANGE
+SELECT -9223372036854775808 DIV -1;
+
+SELECT  9223372036854775808 MOD  1;
+SELECT  9223372036854775808 MOD -1;
+SELECT -9223372036854775808 MOD  1;
+SELECT -9223372036854775808 MOD -1;
+
+SELECT  1 MOD  9223372036854775808;
+SELECT -1 MOD  9223372036854775808;
+SELECT  1 MOD -9223372036854775808;
+SELECT -1 MOD -9223372036854775808;
+
+SELECT  9223372036854775808 MOD  9223372036854775808;
+SELECT  9223372036854775808 MOD -9223372036854775808;
+SELECT -9223372036854775808 MOD  9223372036854775808;
+SELECT -9223372036854775808 MOD -9223372036854775808;
+
+--echo #
+--echo # MDEV-22502 MDB crashes in CREATE TABLE AS SELECT when the precision of returning type = 0
+--echo #
+
+CREATE TABLE t1 (d decimal(5,5));
+INSERT INTO t1 VALUES (0.55555);
+SELECT TRUNCATE(d,0) FROM t1;
+CREATE TABLE t2 AS SELECT TRUNCATE(d,0) FROM t1;
+SELECT * FROM t2;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # MDEV-22503 MDB limits DECIMAL column precision to 16 doing CTAS with floor/ceil over DECIMAL(X,Y) where X > 16
+--echo #
+
+CREATE TABLE t44 (d1 decimal(38,0) DEFAULT NULL);
+INSERT INTO t44 VALUES (12345678901234567890123456789012345678);
+SELECT FLOOR(d1) FROM t44;
+CREATE TABLE t45 AS SELECT FLOOR(d1) FROM t44;
+SELECT * FROM t45;
+SHOW CREATE TABLE t45;
+DROP TABLE t44, t45;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(prec INT, scale INT)
+BEGIN
+  DECLARE maxval VARCHAR(128) DEFAULT '';
+  SET @type= CONCAT('DECIMAL(', prec, ',', scale,')');
+  SET @stmt= CONCAT('CREATE TABLE t1 (a ', @type, ',b ', @type, 'unsigned)');
+  PREPARE stmt FROM @stmt;
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+  SET maxval= CONCAT(REPEAT('9', prec-scale), '.', REPEAT('9',scale));
+  INSERT INTO t1 VALUES (maxval, maxval);
+  CREATE TABLE t2 AS SELECT a, b, FLOOR(a) AS fa, FLOOR(b) AS fb FROM t1;
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t1, t2;
+END;
+$$
+CREATE PROCEDURE p2(prec INT)
+BEGIN
+  DECLARE scale INT DEFAULT 0;
+  WHILE scale < prec AND scale <= 30 DO
+    CALL p1(prec, scale);
+    SET scale= scale + 1;
+  END WHILE;
+END;
+$$
+DELIMITER ;$$
+--vertical_results
+CALL p2(38);
+CALL p2(30);
+--horizontal_results
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
 
@@ -704,11 +792,6 @@ select 0=0, 0=-0, 0.0= -0.0, 0.0 = -(0.0), 0.0E1=-0.0E1, 0.0E1=-(0.0E1);
 --echo #
 
 select CRC32(NULL), CRC32(''), CRC32('MySQL'), CRC32('mysql'), CRC32('01234567'), CRC32('012345678'), CRC32(REPEAT('ABCDEfghij', 20)), CRC32(REPEAT('0123456789', 200));
-
-#
-# MDEV-13673 Bad result in view
-#
-explain extended select (3-2)+1, (3/2)*1, 3-(2+1), 3/(2*1);
 
 --echo #
 --echo # Start of 10.3 tests
@@ -984,7 +1067,7 @@ DROP FUNCTION crc32_func;
 PREPARE stmt1 FROM 'SELECT CRC32(?)';
 SET @val = 'a';
 EXECUTE stmt1 USING @val;
-DEALLOCATE PREPARE stmt;
+DEALLOCATE PREPARE stmt1;
 
 # Test case for checksum on contents of a file
 SET NAMES utf8;
@@ -1022,6 +1105,29 @@ SET sql_mode=DEFAULT;
 CREATE TABLE t1 (i INT(23));
 SELECT ROUND( i, 18446744073709551594 ) AS f FROM t1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-22268 virtual longlong Item_func_div::int_op(): Assertion `0' failed in Item_func_div::int_op
+--echo #
+
+SET sql_mode='';
+SET @@SESSION.div_precision_increment=0;
+SELECT UTC_TIME / 0;
+SELECT TIMESTAMP'2001-01-01 00:00:00'/0;
+SELECT TIME'00:00:00'/0;
+CREATE TABLE t1 AS SELECT
+  UTC_TIME / 0 AS c1,
+  TIMESTAMP'2001-01-01 00:00:00'/0 AS c3,
+  TIME'00:00:00'/0 AS c4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_DATA_OUT_OF_RANGE
+SELECT(-0 * MOD((UTC_TIME / -0)MOD (ATAN('<img src_x0=x onerror="javascript:alert(0)">') MOD COT(0)),-0)) MOD (0 DIV 0);
+
+SET @@SESSION.div_precision_increment=DEFAULT;
+SET sql_mode=DEFAULT;
 
 --echo #
 --echo # End of 10.3 tests

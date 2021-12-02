@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -502,6 +502,7 @@ create_log_files(
 	memset(log_sys.buf, 0, srv_log_buffer_size);
 	log_block_init(log_sys.buf, log_sys.lsn);
 	log_block_set_first_rec_group(log_sys.buf, LOG_BLOCK_HDR_SIZE);
+	memset(log_sys.flush_buf, 0, srv_log_buffer_size);
 
 	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
 	log_sys.lsn += LOG_BLOCK_HDR_SIZE;
@@ -690,6 +691,7 @@ static bool srv_undo_tablespace_open(const char* name, ulint space_id,
 	if (create_new_db) {
 		space->size = file->size = ulint(size >> srv_page_size_shift);
 		space->size_in_header = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
+		space->committed_size = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 	} else {
 		success = file->read_page0(true);
 		if (!success) {
@@ -868,6 +870,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 			break;
 		}
 		/* fall through */
+	case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_EXPORT:
 		ut_ad(!create_new_db);
@@ -1026,6 +1029,8 @@ srv_undo_tablespaces_init(bool create_new_db)
 			return DB_CORRUPTION;
 		}
 
+		const trx_id_t max_trx_id = trx_sys.get_max_trx_id();
+
 		for (undo::undo_spaces_t::const_iterator it
 			     = undo::Truncate::s_fix_up_spaces.begin();
 		     it != undo::Truncate::s_fix_up_spaces.end();
@@ -1043,7 +1048,8 @@ srv_undo_tablespaces_init(bool create_new_db)
 				if (trx_sysf_rseg_get_space(sys_header, i)
 				    == *it) {
 					trx_rseg_header_create(
-						space, i, sys_header, &mtr);
+						space, i, max_trx_id,
+						sys_header, &mtr);
 				}
 			}
 
@@ -1215,6 +1221,7 @@ srv_shutdown_all_bg_threads()
 		case SRV_OPERATION_RESTORE_DELTA:
 			break;
 		case SRV_OPERATION_NORMAL:
+		case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 		case SRV_OPERATION_RESTORE:
 		case SRV_OPERATION_RESTORE_EXPORT:
 			if (!buf_page_cleaner_is_active
@@ -1262,7 +1269,7 @@ srv_init_abort_low(
 #ifdef UNIV_DEBUG
 			" at " << innobase_basename(file) << "[" << line << "]"
 #endif /* UNIV_DEBUG */
-			" with error " << ut_strerr(err) << ". You may need"
+			" with error " << err << ". You may need"
 			" to delete the ibdata1 file before trying to start"
 			" up again.";
 	} else {
@@ -1270,7 +1277,7 @@ srv_init_abort_low(
 #ifdef UNIV_DEBUG
 			" at " << innobase_basename(file) << "[" << line << "]"
 #endif /* UNIV_DEBUG */
-			" with error " << ut_strerr(err);
+			" with error " << err;
 	}
 
 	srv_shutdown_bg_undo_sources();
@@ -1397,9 +1404,13 @@ dberr_t srv_start(bool create_new_db)
 	unsigned	i = 0;
 
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	      || is_mariabackup_restore_or_export());
 
+
+	if (srv_force_recovery) {
+		ib::info() << "!!! innodb_force_recovery is set to "
+			<< srv_force_recovery << " !!!";
+	}
 
 	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
 		srv_read_only_mode = true;
@@ -1737,14 +1748,9 @@ dberr_t srv_start(bool create_new_db)
 				srv_read_only_mode);
 
 			if (err == DB_NOT_FOUND) {
-				if (i == 0) {
-					if (srv_operation
-					    == SRV_OPERATION_RESTORE
-					    || srv_operation
-					    == SRV_OPERATION_RESTORE_EXPORT) {
-						return(DB_SUCCESS);
-					}
-				}
+				if (i == 0
+				    && is_mariabackup_restore_or_export())
+					return (DB_SUCCESS);
 
 				/* opened all files */
 				break;
@@ -1771,10 +1777,7 @@ dberr_t srv_start(bool create_new_db)
 
 			if (i == 0) {
 				if (size == 0
-				    && (srv_operation
-					== SRV_OPERATION_RESTORE
-					|| srv_operation
-					== SRV_OPERATION_RESTORE_EXPORT)) {
+				    && is_mariabackup_restore_or_export()) {
 					/* Tolerate an empty ib_logfile0
 					from a previous run of
 					mariabackup --prepare. */
@@ -1927,7 +1930,11 @@ files_checked:
 		All the remaining rollback segments will be created later,
 		after the double write buffer has been created. */
 		trx_sys_create_sys_pages();
-		trx_lists_init_at_db_start();
+		err = trx_lists_init_at_db_start();
+
+		if (err != DB_SUCCESS) {
+			return(srv_init_abort(err));
+		}
 
 		err = dict_create();
 
@@ -1980,6 +1987,7 @@ files_checked:
 
 		switch (srv_operation) {
 		case SRV_OPERATION_NORMAL:
+		case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 		case SRV_OPERATION_RESTORE_EXPORT:
 			/* Initialize the change buffer. */
 			err = dict_boot();
@@ -1990,7 +1998,10 @@ files_checked:
 		case SRV_OPERATION_RESTORE:
 			/* This must precede
 			recv_apply_hashed_log_recs(true). */
-			trx_lists_init_at_db_start();
+			err = trx_lists_init_at_db_start();
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
+			}
 			break;
 		case SRV_OPERATION_RESTORE_DELTA:
 		case SRV_OPERATION_BACKUP:
@@ -2027,6 +2038,8 @@ files_checked:
 			if (sum_of_new_sizes > 0) {
 				/* New data file(s) were added */
 				mtr.start();
+				mtr.x_lock_space(fil_system.sys_space,
+						 __FILE__, __LINE__);
 				buf_block_t* block = buf_page_get(
 					page_id_t(0, 0), univ_page_size,
 					RW_SX_LATCH, &mtr);
@@ -2104,14 +2117,13 @@ files_checked:
 
 		recv_recovery_from_checkpoint_finish();
 
-		if (srv_operation == SRV_OPERATION_RESTORE
-		    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
+		if (is_mariabackup_restore_or_export()) {
 			/* After applying the redo log from
 			SRV_OPERATION_BACKUP, flush the changes
 			to the data files and truncate or delete the log.
 			Unless --export is specified, no further change to
 			InnoDB files is needed. */
-			ut_ad(!srv_force_recovery);
+			ut_ad(srv_force_recovery <= SRV_FORCE_IGNORE_CORRUPT);
 			ut_ad(srv_n_log_files_found <= 1);
 			ut_ad(recv_no_log_write);
 			buf_flush_sync_all_buf_pools();
@@ -2119,8 +2131,7 @@ files_checked:
 			ut_ad(!buf_pool_check_no_pending_io());
 			fil_close_log_files(true);
 			if (err == DB_SUCCESS) {
-				bool trunc = srv_operation
-					== SRV_OPERATION_RESTORE;
+				bool trunc = is_mariabackup_restore();
 				/* Delete subsequent log files. */
 				delete_log_files(logfilename, dirnamelen,
 						 (uint)srv_n_log_files_found, trunc);
@@ -2411,7 +2422,9 @@ skip_monitors:
 		}
 	}
 
-	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
+	if (!srv_read_only_mode
+	    && (srv_operation == SRV_OPERATION_NORMAL
+		|| srv_operation == SRV_OPERATION_RESTORE_ROLLBACK_XA)
 	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 
 		thread_handles[5 + SRV_MAX_N_IO_THREADS] = os_thread_create(
@@ -2431,7 +2444,7 @@ skip_monitors:
 			thread_started[5 + i + SRV_MAX_N_IO_THREADS] = true;
 		}
 
-		while (srv_shutdown_state == SRV_SHUTDOWN_NONE
+		while (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED
 		       && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
 		       && !purge_sys.enabled()) {
 			ib::info() << "Waiting for purge to start";
@@ -2453,11 +2466,6 @@ skip_monitors:
 			   << " started; log sequence number "
 			   << srv_start_lsn
 			   << "; transaction id " << trx_sys.get_max_trx_id();
-	}
-
-	if (srv_force_recovery > 0) {
-		ib::info() << "!!! innodb_force_recovery is set to "
-			<< srv_force_recovery << " !!!";
 	}
 
 	if (srv_force_recovery == 0) {
@@ -2524,6 +2532,7 @@ void srv_shutdown_bg_undo_sources()
 {
 	if (srv_undo_sources) {
 		ut_ad(!srv_read_only_mode);
+		srv_shutdown_state = SRV_SHUTDOWN_INITIATED;
 		fts_optimize_shutdown();
 		dict_stats_shutdown();
 		while (row_get_background_drop_list_len_low()) {
@@ -2543,6 +2552,11 @@ void innodb_shutdown()
 	ut_ad(!srv_undo_sources);
 
 	switch (srv_operation) {
+	case SRV_OPERATION_RESTORE_ROLLBACK_XA:
+		if (dberr_t err = fil_write_flushed_lsn(log_sys.lsn))
+			ib::error() << "Writing flushed lsn " << log_sys.lsn
+				    << " failed; error=" << err;
+		/* fall through */
 	case SRV_OPERATION_BACKUP:
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_DELTA:
@@ -2608,7 +2622,7 @@ void innodb_shutdown()
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (dict_sys) {
-		btr_search_disable(true);
+		btr_search_disable();
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 	if (ibuf) {
@@ -2649,6 +2663,19 @@ void innodb_shutdown()
 	}
 
 	sync_check_close();
+
+	srv_sys_space.shutdown();
+	if (srv_tmp_space.get_sanity_check_status()) {
+		if (fil_system.temp_space) {
+			fil_system.temp_space->close();
+		}
+		srv_tmp_space.delete_files();
+	}
+	srv_tmp_space.shutdown();
+
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	os_event_destroy(srv_allow_writes_event);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "

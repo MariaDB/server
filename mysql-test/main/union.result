@@ -1609,7 +1609,7 @@ NULL	binary(0)	YES		NULL
 CREATE TABLE t5 SELECT NULL UNION SELECT NULL;
 DESC t5;
 Field	Type	Null	Key	Default	Extra
-NULL	null	YES		NULL	
+NULL	binary(0)	YES		NULL	
 CREATE TABLE t6 
 SELECT * FROM (SELECT * FROM (SELECT NULL)a) b UNION SELECT a FROM t1;
 DESC t6;
@@ -1779,8 +1779,7 @@ union
 select 4
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ;
-foo
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 prepare stmt1 from 'select 1 as foo
 union
 select 2
@@ -1790,12 +1789,7 @@ union
 select 4
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ';
-execute stmt1;
-foo
-1
-execute stmt1;
-foo
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 select 1 as foo
 union
 select 2
@@ -1805,8 +1799,7 @@ union
 (select 4)
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ;
-foo
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 prepare stmt1 from 'select 1 as foo
 union
 select 2
@@ -1816,13 +1809,7 @@ union
 (select 4)
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ';
-execute stmt1;
-foo
-1
-execute stmt1;
-foo
-1
-deallocate prepare stmt1;
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 End of 5.1 tests
 #
 # mdev-5091: Asseirtion failure for UNION with ORDER BY 
@@ -2321,6 +2308,14 @@ Warnings:
 Note	1003	/* select#1 */ select 1 AS `1`,2 AS `2` union all /* select#2 */ select 1 AS `i`,count(0) AS `COUNT(*)` from `test`.`t2` where 1 group by 1 having 0
 DROP TABLE t1,t2;
 #
+# MDEV-10120: Wrong result of UNION .. ORDER BY GROUP_CONCAT()
+#
+CREATE TABLE t1 (a INT);
+INSERT t1 VALUES (1),(2),(3);
+(SELECT 1 AS a) UNION (SELECT a FROM t1 GROUP BY a) ORDER BY GROUP_CONCAT(a);
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
+DROP TABLE t1;
+#
 # Start of 10.3 tests
 #
 #
@@ -2605,6 +2600,69 @@ NULL	UNIT RESULT	<unit1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a` from `test`.`t2` where `test`.`t2`.`a` < 5 except /* select#2 */ select `test`.`t3`.`a` AS `a` from `test`.`t3` where `test`.`t3`.`a` < 5 union all /* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4
 drop table t1,t2,t3;
+#
+# MDEV-24387: Wrong number of decimal digits in certain UNION/Subqery
+#             constellation
+#
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT * from (SELECT NULL) t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST(1 AS UNSIGNED)	246	2	1	Y	32896	0	63
+CAST(1 AS UNSIGNED)
+1
+NULL
+SELECT CAST(1 AS SIGNED) UNION ALL SELECT * from (SELECT NULL) t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST(1 AS SIGNED)	3	2	1	Y	32896	0	63
+CAST(1 AS SIGNED)
+1
+NULL
+SELECT CAST(1 AS SIGNED) UNION ALL SELECT * from (SELECT CAST(1 AS UNSIGNED)) t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST(1 AS SIGNED)	246	11	1	N	32897	0	63
+CAST(1 AS SIGNED)
+1
+1
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT NULL;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST(1 AS UNSIGNED)	246	2	1	Y	32896	0	63
+CAST(1 AS UNSIGNED)
+1
+NULL
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT CAST(1 AS SIGNED);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST(1 AS UNSIGNED)	246	2	1	N	32897	0	63
+CAST(1 AS UNSIGNED)
+1
+1
+#
+# MDEV-24511 null field is created with CREATE..SELECT
+#
+set @save_default_storage_engine=@@default_storage_engine;
+SET @@default_storage_engine=MEMORY;
+CREATE TABLE t1 SELECT NULL UNION SELECT NULL;
+ALTER TABLE t1 ADD INDEX (`PRIMARY`);
+ERROR 42000: Key column 'PRIMARY' doesn't exist in table
+CREATE TABLE t2 SELECT NULL;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULL` binary(0) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+CREATE TABLE t3 SELECT NULL UNION SELECT NULL;
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `NULL` binary(0) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+CREATE OR REPLACE TABLE t4 SELECT NULL UNION SELECT NULL;
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `NULL` binary(0) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+ALTER TABLE t4 ADD INDEX (`NULL`);
+DROP TABLE t1, t2, t3, t4;
+set @@default_storage_engine=@save_default_storage_engine;
 #
 # End of 10.3 tests
 #

@@ -22,11 +22,12 @@
   that is defined in plugin.h
 */
 #define SHOW_always_last SHOW_KEY_CACHE_LONG, \
-            SHOW_LONG_STATUS, SHOW_DOUBLE_STATUS, \
             SHOW_HAVE, SHOW_MY_BOOL, SHOW_HA_ROWS, SHOW_SYS, \
-            SHOW_LONG_NOFLUSH, SHOW_LONGLONG_STATUS, SHOW_UINT32_STATUS, \
-            SHOW_LEX_STRING
-#include "mariadb.h"
+            SHOW_LONG_NOFLUSH, SHOW_LEX_STRING, \
+      /* SHOW_*_STATUS must be at the end, SHOW_LONG_STATUS being first */ \
+            SHOW_LONG_STATUS, SHOW_DOUBLE_STATUS, SHOW_LONGLONG_STATUS, \
+            SHOW_UINT32_STATUS
+#include <my_global.h>
 #undef SHOW_always_last
 
 #include "m_string.h"                       /* LEX_STRING */

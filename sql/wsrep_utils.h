@@ -298,7 +298,7 @@ class thd
 
 public:
 
-  thd(my_bool wsrep_on);
+  thd(my_bool wsrep_on, bool system_thread=false);
   ~thd();
   THD* const ptr;
 };

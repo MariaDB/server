@@ -936,11 +936,9 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 DROP TABLE t1;
 # UNION with a parenthesed term
 CREATE TABLE t1 (a INT);
@@ -1003,14 +1001,11 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a);
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 1;
-a
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 DROP TABLE t1;
 # Derived table with ROLLUP
 CREATE TABLE t1 (a INT);
@@ -1319,6 +1314,54 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `id` (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+create or replace view v1 as select 1 between (2 between 3 and 4) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+view_definition
+select 1 between 2 between 3 and 4 and 5 AS `1 between (2 between 3 and 4) and 5`
+create or replace view v1 as select 1 between (2 in (3,4)) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+view_definition
+select 1 between 2 in (3,4) and 5 AS `1 between (2 in (3,4)) and 5`
+create or replace view v1 as select 1 between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+view_definition
+select 1 between 2 like 3 and 4 AS `1 between (2 like 3) and 4`
+create or replace view v1 as select 1 not between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+view_definition
+select 1 not between 2 like 3 and 4 AS `1 not between (2 like 3) and 4`
+drop view v1;
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-27066 Fixed scientific notation parser
+#
+SELECT 1 1.e*1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e*1' at line 1
+SELECT 1 1.e/1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e/1' at line 1
+SELECT 1 1.e^1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e^1' at line 1
+SELECT 1 1.e%1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e%1' at line 1
+SELECT 1 1.e&1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e&1' at line 1
+SELECT 1 1.e|1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e|1' at line 1
+SELECT 1.e(1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e(1)' at line 1
+SELECT (1 1.e);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e)' at line 1
+SELECT 1 1.e, 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e, 1' at line 1
+CREATE TABLE scientific_notation (test int);
+SELECT tmp 1.e.test FROM scientific_notation AS tmp;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1.e.test FROM scientific_notation AS tmp' at line 1
+DROP TABLE scientific_notation;
+#
+# End of 10.2 tests
+#
 #
 # MDEV-10343 Providing compatibility for basic SQL data types
 #
@@ -1765,4 +1808,20 @@ SELECT @@GLOBAL.password;
 ERROR HY000: Unknown system variable 'password'
 SELECT @@GLOBAL.role;
 ERROR HY000: Unknown system variable 'role'
-End of 10.3 tests
+#
+# MDEV-22022 Various mangled SQL statements will crash 10.3 to 10.5 debug builds
+#
+EXECUTE IMMEDIATE 'if(`systeminfo /FO LIST';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`systeminfo /FO LIST' at line 1
+EXECUTE IMMEDIATE 'if(`systeminfo';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`systeminfo' at line 1
+#
+# MDEV-23666 Assertion failed in Lex_input_stream::body_utf8_append
+#
+SET @@sql_mode='ANSI_QUOTES';
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"' at line 1
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"abc';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"abc' at line 1
+SET @@sql_mode=@save_sql_mode;
+# End of 10.3 tests

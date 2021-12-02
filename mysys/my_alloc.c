@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates
+   Copyright (c) 2010, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -212,7 +213,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   uchar* point;
   reg1 USED_MEM *next= 0;
   reg2 USED_MEM **prev;
-  size_t original_length = length;
+  size_t original_length __attribute__((unused)) = length;
   DBUG_ENTER("alloc_root");
   DBUG_PRINT("enter",("root: %p  name: %s", mem_root, mem_root->name));
   DBUG_ASSERT(alloc_root_inited(mem_root));
@@ -479,7 +480,8 @@ char *strmake_root(MEM_ROOT *root, const char *str, size_t len)
   char *pos;
   if ((pos=alloc_root(root,len+1)))
   {
-    memcpy(pos,str,len);
+    if (len)
+      memcpy(pos,str,len);
     pos[len]=0;
   }
   return pos;
@@ -489,7 +491,7 @@ char *strmake_root(MEM_ROOT *root, const char *str, size_t len)
 void *memdup_root(MEM_ROOT *root, const void *str, size_t len)
 {
   char *pos;
-  if ((pos=alloc_root(root,len)))
+  if ((pos=alloc_root(root,len)) && len)
     memcpy(pos,str,len);
   return pos;
 }

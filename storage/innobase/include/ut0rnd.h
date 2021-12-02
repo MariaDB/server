@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,37 +28,49 @@ Created 1/20/1994 Heikki Tuuri
 #define ut0rnd_h
 
 #include "ut0byte.h"
+#include <my_sys.h>
 
 #ifndef UNIV_INNOCHECKSUM
-/** The 'character code' for end of field or string (used
-in folding records */
-#define UT_END_OF_FIELD		257
+/** Seed value of ut_rnd_gen() */
+extern int32 ut_rnd_current;
 
-/********************************************************//**
-This is used to set the random number seed. */
-UNIV_INLINE
-void
-ut_rnd_set_seed(
-/*============*/
-	ulint	 seed);		 /*!< in: seed */
-/********************************************************//**
-The following function generates a series of 'random' ulint integers.
-@return the next 'random' number */
-UNIV_INLINE
-ulint
-ut_rnd_gen_next_ulint(
-/*==================*/
-	ulint	rnd);	/*!< in: the previous random number value */
-/*********************************************************//**
-The following function generates 'random' ulint integers which
-enumerate the value space (let there be N of them) of ulint integers
-in a pseudo-random fashion. Note that the same integer is repeated
-always after N calls to the generator.
-@return the 'random' number */
-UNIV_INLINE
-ulint
-ut_rnd_gen_ulint(void);
-/*==================*/
+/** @return a pseudo-random 32-bit number */
+inline uint32_t ut_rnd_gen()
+{
+  /* This is a Galois linear-feedback shift register.
+  https://en.wikipedia.org/wiki/Linear-feedback_shift_register#Galois_LFSRs
+  The generating primitive Galois Field polynomial is the Castagnoli
+  polynomial that was made popular by CRC-32C:
+  x^32+x^28+x^27+x^26+x^25+x^23+x^22+x^20+
+  x^19+x^18+x^14+x^13+x^11+x^10+x^9+x^8+x^6+1 */
+  const uint32_t crc32c= 0x1edc6f41;
+
+  uint32_t rnd= my_atomic_load32_explicit(&ut_rnd_current,
+                                          MY_MEMORY_ORDER_RELAXED);
+
+  if (UNIV_UNLIKELY(rnd == 0))
+  {
+    rnd= static_cast<uint32_t>(my_interval_timer());
+    if (!rnd) rnd= 1;
+  }
+  else
+  {
+    bool lsb= rnd & 1;
+    rnd>>= 1;
+    if (lsb)
+      rnd^= crc32c;
+  }
+
+  my_atomic_store32_explicit(&ut_rnd_current, rnd, MY_MEMORY_ORDER_RELAXED);
+  return rnd;
+}
+
+/** @return a random number between 0 and n-1, inclusive */
+inline ulint ut_rnd_interval(ulint n)
+{
+  return n > 1 ? static_cast<ulint>(ut_rnd_gen() % n) : 0;
+}
+
 /*******************************************************//**
 The following function generates a hash value for a ulint integer
 to a hash table of size table_size, which should be a prime or some

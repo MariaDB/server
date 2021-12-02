@@ -1,0 +1,38 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+SET SQL_MODE=DEFAULT;
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES (NULL);
+INSERT INTO t1 VALUES ('2001-01-01');
+
+SET SQL_MODE= ORACLE;
+CREATE TABLE t2 SELECT * FROM t1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+SET SQL_MODE= DEFAULT;
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+
+SET SQL_MODE= ORACLE;
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+
+--sync_slave_with_master
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+SET SQL_MODE= DEFAULT;
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+
+SET SQL_MODE= ORACLE;
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+
+# Cleanup
+--connection master
+DROP TABLE t1, t2;
+--source include/rpl_end.inc

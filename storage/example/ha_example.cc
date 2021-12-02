@@ -225,9 +225,9 @@ static void init_example_psi_keys()
   used by the default rename_table and delete_table method in
   handler.cc and by the default discover_many method.
 
-  For engines that have two file name extentions (separate meta/index file
+  For engines that have two file name extensions (separate meta/index file
   and data file), the order of elements is relevant. First element of engine
-  file name extentions array should be meta/index file extention. Second
+  file name extensions array should be meta/index file extention. Second
   element - data file extention. This order is assumed by
   prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
 

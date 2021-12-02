@@ -100,6 +100,7 @@ pcre/pcre_chartables.c
 pcre/pcregrep
 pcre/pcretest
 pcre/test*grep
+plugin/auth_pam/config_auth_pam.h
 plugin/aws_key_management/aws-sdk-cpp
 plugin/aws_key_management/aws_sdk_cpp
 plugin/aws_key_management/aws_sdk_cpp-prefix
@@ -246,6 +247,8 @@ support-files/mysqld_multi.server
 support-files/wsrep.cnf
 support-files/wsrep_notify
 support-files/policy/selinux/mysqld-safe.pp
+support-files/sysusers.conf
+support-files/tmpfiles.conf
 support-files/mariadb.pp
 tags
 tests/async_queries
@@ -337,6 +340,7 @@ x86/
 build/
 bld/
 [Bb]in/
+/cmake-build-debug/
 [Oo]bj/
 
 # Roslyn cache directories
@@ -517,3 +521,6 @@ compile_commands.json
 
 # Visual Studio Code workspace
 .vscode/
+
+/.idea/
+.cache/clangd

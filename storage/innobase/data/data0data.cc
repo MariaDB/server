@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -228,41 +228,20 @@ dtuple_validate(
 /*============*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
 {
-	const dfield_t*	field;
-	ulint		n_fields;
-	ulint		len;
-	ulint		i;
-
 	ut_ad(tuple->magic_n == DATA_TUPLE_MAGIC_N);
+#ifdef HAVE_valgrind
+	const ulint n_fields = dtuple_get_n_fields(tuple);
 
-	n_fields = dtuple_get_n_fields(tuple);
-
-	/* We dereference all the data of each field to test
-	for memory traps */
-
-	for (i = 0; i < n_fields; i++) {
-
-		field = dtuple_get_nth_field(tuple, i);
-		len = dfield_get_len(field);
+	for (ulint i = 0; i < n_fields; i++) {
+		const dfield_t*	field = dtuple_get_nth_field(tuple, i);
 
 		if (!dfield_is_null(field)) {
-
-			const byte*	data;
-
-			data = static_cast<const byte*>(dfield_get_data(field));
-#ifndef UNIV_DEBUG_VALGRIND
-			ulint		j;
-
-			for (j = 0; j < len; j++) {
-				data++;
-			}
-#endif /* !UNIV_DEBUG_VALGRIND */
-
-			UNIV_MEM_ASSERT_RW(data, len);
+			MEM_CHECK_DEFINED(dfield_get_data(field),
+					  dfield_get_len(field));
 		}
 	}
-
-	ut_a(dtuple_check_typed(tuple));
+#endif /* HAVE_valgrind */
+	ut_ad(dtuple_check_typed(tuple));
 
 	return(TRUE);
 }
@@ -717,14 +696,6 @@ skip_field:
 		memcpy(data, dfield_get_data(dfield), local_prefix_len);
 		/* Clear the extern field reference (BLOB pointer). */
 		memset(data + local_prefix_len, 0, BTR_EXTERN_FIELD_REF_SIZE);
-#if 0
-		/* The following would fail the Valgrind checks in
-		page_cur_insert_rec_low() and page_cur_insert_rec_zip().
-		The BLOB pointers in the record will be initialized after
-		the record and the BLOBs have been written. */
-		UNIV_MEM_ALLOC(data + local_prefix_len,
-			       BTR_EXTERN_FIELD_REF_SIZE);
-#endif
 
 		dfield_set_data(dfield, data, local_len);
 		dfield_set_ext(dfield);
@@ -767,7 +738,7 @@ void
 dtuple_convert_back_big_rec(
 /*========================*/
 	dict_index_t*	index MY_ATTRIBUTE((unused)),	/*!< in: index */
-	dtuple_t*	entry,	/*!< in: entry whose data was put to vector */
+	dtuple_t*	entry,	/*!< in/out: entry whose data was put to vector */
 	big_rec_t*	vector)	/*!< in, own: big rec vector; it is
 				freed in this function */
 {

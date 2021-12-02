@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -799,12 +799,6 @@ struct row_prebuilt_t {
 					search key values from MySQL format
 					to InnoDB format.*/
 	uint		srch_key_val_len; /*!< Size of search key */
-	/** Disable prefetch. */
-	bool		m_no_prefetch;
-
-	/** Return materialized key for secondary index scan */
-	bool		m_read_virtual_key;
-
 	/** The MySQL table object */
 	TABLE*		m_mysql_table;
 
@@ -843,6 +837,8 @@ struct VCOL_STORAGE
 	byte *innobase_record;
 	byte *maria_record;
 	String *blob_value_storage;
+	VCOL_STORAGE(): maria_table(NULL), innobase_record(NULL),
+		maria_record(NULL),  blob_value_storage(NULL) {}
 };
 
 /**
@@ -865,11 +861,47 @@ bool innobase_allocate_row_for_vcol(
 				    dict_index_t* index,
 				    mem_heap_t**  heap,
 				    TABLE**	  table,
-				    byte**	  record,
-				    VCOL_STORAGE** storage);
+				    VCOL_STORAGE* storage);
 
 /** Free memory allocated by innobase_allocate_row_for_vcol() */
 void innobase_free_row_for_vcol(VCOL_STORAGE *storage);
+
+class ib_vcol_row
+{
+  VCOL_STORAGE storage;
+public:
+  mem_heap_t *heap;
+
+  ib_vcol_row(mem_heap_t *heap) : heap(heap) {}
+
+  byte *record(THD *thd, dict_index_t *index, TABLE **table)
+  {
+    if (!storage.innobase_record)
+    {
+      bool ok = innobase_allocate_row_for_vcol(thd, index, &heap, table,
+                                               &storage);
+      if (!ok)
+        return NULL;
+    }
+    return storage.innobase_record;
+  };
+
+  ~ib_vcol_row()
+  {
+    if (heap)
+    {
+      if (storage.innobase_record)
+        innobase_free_row_for_vcol(&storage);
+      mem_heap_free(heap);
+    }
+  }
+};
+
+/** Report virtual value computation failure in ib::error
+@param[in]    row    the data row
+*/
+ATTRIBUTE_COLD
+void innobase_report_computed_value_failed(dtuple_t *row);
 
 /** Get the computed value by supplying the base column values.
 @param[in,out]	row		the data row
@@ -878,11 +910,12 @@ void innobase_free_row_for_vcol(VCOL_STORAGE *storage);
 @param[in,out]	local_heap	heap memory for processing large data etc.
 @param[in,out]	heap		memory heap that copies the actual index row
 @param[in]	ifield		index field
-@param[in]	thd		MySQL thread handle
-@param[in,out]	mysql_table	mysql table object
+@param[in]	thd		connection handle
+@param[in,out]	mysql_table	MariaDB table handle
+@param[in,out]	mysql_rec	MariaDB record buffer
 @param[in]	old_table	during ALTER TABLE, this is the old table
 				or NULL.
-@param[in]	parent_update	update vector for the parent row
+@param[in]	update	update vector for the parent row
 @param[in]	foreign		foreign key information
 @return the field filled with computed value */
 dfield_t*
@@ -897,8 +930,7 @@ innobase_get_computed_value(
 	TABLE*			mysql_table,
 	byte*			mysql_rec,
 	const dict_table_t*	old_table,
-	upd_t*			parent_update,
-	dict_foreign_t*		foreign);
+	const upd_t*		update);
 
 /** Get the computed value by supplying the base column values.
 @param[in,out]	table		the table whose virtual column

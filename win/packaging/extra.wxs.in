@@ -666,7 +666,7 @@
     <CustomAction Id="CreateDatabaseRollbackCommand" Property="CreateDatabaseRollback"
         Value="[SERVICENAME]\[DATADIR]"
         Execute="immediate"/>
-    <CustomAction Id="CreateDatabase" BinaryKey="WixCA" DllEntry="CAQuietExec"
+    <CustomAction Id="CreateDatabase" BinaryKey="WixCA" DllEntry="@CA_QUIET_EXEC@"
             Execute="deferred" Return="check" Impersonate="no" />
     <CustomAction Id="CreateDatabaseRollback" BinaryKey="wixca.dll" DllEntry="CreateDatabaseRollback"
         Execute="rollback" Return="check" Impersonate="no"/>

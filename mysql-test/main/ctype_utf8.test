@@ -2,6 +2,8 @@
 # Tests with the utf8 character set
 #
 
+let $MYSQLD_DATADIR= `select @@datadir`;
+
 let collation=utf8_unicode_ci;
 --source include/have_collation.inc
 SET TIME_ZONE='+03:00';
@@ -1767,7 +1769,7 @@ set @@collation_connection=utf8_bin;
 --echo #
 --echo # Checking strnxfrm() with odd length
 --echo #
-set max_sort_length=5;
+set max_sort_length=9;
 select @@max_sort_length;
 create table t1 (a varchar(128) character set utf8 collate utf8_general_ci);
 insert into t1 values ('a'),('b'),('c');
@@ -2051,6 +2053,18 @@ SELECT CONVERT(1, CHAR) IN ('100', 10, '101');
 SELECT CONVERT(1, CHAR) IN ('100', 10, '1');
 SELECT CONVERT(1, CHAR) IN ('100', '10', '1');
 
+--echo #
+--echo # MDEV-23535 SIGSEGV, SIGABRT and SIGILL in typeinfo for Item_func_set_collation (on optimized builds)
+--echo #
+
+SET NAMES utf8;
+CREATE OR REPLACE TABLE t1(a DATETIME) ENGINE=MYISAM;
+INSERT INTO t1 VALUES ('2019-03-10 02:55:05');
+CREATE OR REPLACE TABLE t2(a VARCHAR(50) CHARACTER SET latin1) ENGINE=MYISAM;
+INSERT INTO t2 VALUES ('2019-03-10 02:55:05');
+SELECT * FROM t1 WHERE (SELECT 1,CONCAT(a) FROM t1) = (SELECT 1,CONCAT(a) FROM t2);
+DROP TABLE t1, t2;
+
 
 --echo #
 --echo # End of 10.1 tests
@@ -2152,6 +2166,31 @@ let $coll_pad='utf8_general_ci';
 let $coll='utf8_nopad_bin';
 let $coll_pad='utf8_bin';
 --source include/ctype_pad_all_engines.inc
+
+--echo #
+--echo # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+--echo #
+
+SET NAMES utf8;
+SET SESSION character_set_connection=latin1;
+CREATE VIEW v1 AS SELECT 'ä' AS c1;
+SELECT c1, HEX(c1) FROM v1;
+CREATE TABLE kv (v BLOB);
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv;
+SELECT * FROM kv WHERE v LIKE _binary'query=%';
+DROP TABLE kv;
+DROP VIEW v1;
+SET NAMES utf8;
+
+--echo #
+--echo # MDEV-24335 Unexpected question mark in the end of a TINYTEXT column
+--echo #
+
+CREATE TABLE t1 (a TINYTEXT character set utf8);
+INSERT IGNORE INTO t1 VALUES (REPEAT(_utf8 0xD184, 250));
+SELECT LENGTH(a), CHAR_LENGTH(a), RIGHT(a,3) FROM t1;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.2 tests
@@ -2256,6 +2295,13 @@ INSERT INTO t1 VALUES (1);
 SELECT x AS 5天内最近一次登录时间 FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-22391 Assertion `0' failed in Item_type_holder::val_str on utf16 charset table query
+--echo #
+
+SET NAMES utf8;
+VALUES (_latin1 0xDF) UNION SELECT _utf8'a' COLLATE utf8_bin;
+VALUES (_latin1 0xDF) UNION VALUES(_utf8'a' COLLATE utf8_bin);
 
 --echo #
 --echo # End of 10.3 tests

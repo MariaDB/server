@@ -7,7 +7,7 @@ set @@global.slave_net_timeout= 10;
 show status like 'Slave_heartbeat_period';;
 Variable_name	Slave_heartbeat_period
 Value	60.000
-SET @save_dbug= @@GLOBAL.debug_dbug;
+SET @saved_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,simulate_slave_heartbeat_network_error";
 CALL mtr.add_suppression('SET @master_heartbeat_period to master failed with error');
 CALL mtr.add_suppression('Master command COM_REGISTER_SLAVE failed: failed registering on master, reconnecting to try again');
@@ -25,7 +25,7 @@ connection master;
 drop table t1;
 connection slave;
 include/stop_slave.inc
-SET GLOBAL debug_dbug=@save_dbug;
+SET GLOBAL debug_dbug=@saved_dbug;
 set @@global.slave_net_timeout= @restore_slave_net_timeout;
 include/start_slave.inc
 include/rpl_end.inc

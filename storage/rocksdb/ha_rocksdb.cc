@@ -114,7 +114,6 @@ int thd_binlog_format(const MYSQL_THD thd);
 bool thd_binlog_filter_ok(const MYSQL_THD thd);
 }
 
-MYSQL_PLUGIN_IMPORT bool my_disable_leak_check;
 extern my_bool opt_core_file;
 
 // Needed in rocksdb_init_func
@@ -5716,13 +5715,6 @@ static int rocksdb_init_func(void *const p) {
   }
 #endif
 
-  /**
-    Rocksdb does not always shutdown its threads, when
-    plugin is shut down. Disable server's leak check
-    at exit to avoid crash.
-  */
-  my_disable_leak_check = true;
-
   err = my_error_register(rdb_get_error_messages, HA_ERR_ROCKSDB_FIRST,
                           HA_ERR_ROCKSDB_LAST);
   if (err != 0) {
@@ -6124,8 +6116,7 @@ ulonglong ha_rocksdb::load_auto_incr_value_from_index() {
     Field *field =
         table->key_info[table->s->next_number_index].key_part[0].field;
     ulonglong max_val = rdb_get_int_col_max_value(field);
-    my_bitmap_map *const old_map =
-        dbug_tmp_use_all_columns(table, table->read_set);
+    MY_BITMAP *const old_map = dbug_tmp_use_all_columns(table, &table->read_set);
     last_val = field->val_int();
     if (last_val != max_val) {
       last_val++;
@@ -6140,7 +6131,7 @@ ulonglong ha_rocksdb::load_auto_incr_value_from_index() {
       }
     }
 #endif
-    dbug_tmp_restore_column_map(table->read_set, old_map);
+    dbug_tmp_restore_column_map(&table->read_set, old_map);
   }
 
   m_keyread_only = save_keyread_only;
@@ -6177,15 +6168,15 @@ void ha_rocksdb::update_auto_incr_val_from_field() {
   field = table->key_info[table->s->next_number_index].key_part[0].field;
   max_val = rdb_get_int_col_max_value(field);
 
-  my_bitmap_map *const old_map =
-      dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *const old_map =
+      dbug_tmp_use_all_columns(table, &table->read_set);
   new_val = field->val_int();
   // don't increment if we would wrap around
   if (new_val != max_val) {
     new_val++;
   }
 
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
 
   // Only update if positive value was set for auto_incr column.
   if (new_val <= max_val) {

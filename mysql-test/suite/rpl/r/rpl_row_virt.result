@@ -1,0 +1,20 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1 (
+id int auto_increment,
+data varchar(32),
+virt tinyint as (1),
+primary key (id),
+key virt (virt)
+) engine=innodb default charset=utf8mb4;
+insert into t1 (data) values ('broken');
+update t1 set data='more broken';
+connection slave;
+select * from t1;
+id	data	virt
+1	more broken	1
+connection master;
+drop table t1;
+connection slave;
+include/rpl_end.inc

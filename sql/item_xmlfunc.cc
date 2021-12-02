@@ -64,7 +64,7 @@ typedef struct my_xml_node_st
 } MY_XML_NODE;
 
 
-/* Lexical analizer token */
+/* Lexical analyzer token */
 typedef struct my_xpath_lex_st
 {
   int        term;  /* token type, see MY_XPATH_LEX_XXXXX below */
@@ -815,7 +815,6 @@ String *Item_nodeset_func_attributebyname::val_nodeset(String *nodeset)
 String *Item_nodeset_func_predicate::val_nodeset(String *str)
 {
   Item_nodeset_func *nodeset_func= (Item_nodeset_func*) args[0];
-  Item_func *comp_func= (Item_func*)args[1];
   uint pos= 0, size;
   prepare(str);
   size= (uint)(fltend - fltbeg);
@@ -825,7 +824,7 @@ String *Item_nodeset_func_predicate::val_nodeset(String *str)
     ((XPathFilter*)(&nodeset_func->context_cache))->append_element(flt->num,
                                                                    flt->pos,
                                                                    size);
-    if (comp_func->val_int())
+    if (args[1]->val_int())
       ((XPathFilter*)str)->append_element(flt->num, pos++);
   }
   return str;
@@ -997,11 +996,16 @@ static Item *create_comparator(MY_XPATH *xpath,
            b->type() == Item::XPATH_NODESET)
   {
     uint len= (uint)(xpath->query.end - context->beg);
-    set_if_smaller(len, 32);
-    my_printf_error(ER_UNKNOWN_ERROR,
-                    "XPATH error: "
-                    "comparison of two nodesets is not supported: '%.*s'",
-                    MYF(0), len, context->beg);
+    if (len <= 32)
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "XPATH error: "
+                      "comparison of two nodesets is not supported: '%.*s'",
+                      MYF(0), len, context->beg);
+    else
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "XPATH error: "
+                      "comparison of two nodesets is not supported: '%.32T'",
+                      MYF(0), context->beg);
 
     return 0; // TODO: Comparison of two nodesets
   }
@@ -1097,7 +1101,7 @@ static Item* nametestfunc(MY_XPATH *xpath,
 
 
 /*
-  Tokens consisting of one character, for faster lexical analizer.
+  Tokens consisting of one character, for faster lexical analyzer.
 */
 static char simpletok[128]=
 {
@@ -1417,7 +1421,7 @@ my_xpath_function(const char *beg, const char *end)
 }
 
 
-/* Initialize a lex analizer token */
+/* Initialize a lex analyzer token */
 static void
 my_xpath_lex_init(MY_XPATH_LEX *lex,
                   const char *str, const char *strend)
@@ -1448,7 +1452,7 @@ my_xdigit(int c)
   SYNOPSYS
     Scan the next token from the input.
     lex->term is set to the scanned token type.
-    lex->beg and lex->end are set to the beginnig
+    lex->beg and lex->end are set to the beginning
     and to the end of the token.
   RETURN
     N/A
@@ -1474,7 +1478,7 @@ my_xpath_lex_scan(MY_XPATH *xpath,
                                       (const uchar*) end)) > 0 &&
       ((ctype & (_MY_L | _MY_U)) || *beg == '_'))
   {
-    // scan untill the end of the idenfitier
+    // scan until the end of the identifier
     for (beg+= length; 
          (length= xpath->cs->cset->ctype(xpath->cs, &ctype,
                                          (const uchar*) beg,
@@ -1603,7 +1607,7 @@ static int my_xpath_parse_AxisName(MY_XPATH *xpath)
 ** Grammar rules, according to http://www.w3.org/TR/xpath
 ** Implemented using recursive descendant method.
 ** All the following grammar processing functions accept
-** a signle "xpath" argument and return 1 on success and 0 on error.
+** a single "xpath" argument and return 1 on success and 0 on error.
 ** They also modify "xpath" argument by creating new items.
 */
 
@@ -2498,7 +2502,7 @@ public:
   as it is in conflict with abbreviated step.
   1 + .123    does not work,
   1 + 0.123   does.
-  Perhaps it is better to move this code into lex analizer.
+  Perhaps it is better to move this code into lex analyzer.
 
   RETURN
     1 - success
@@ -2653,9 +2657,12 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
       xpath->item= NULL;
       DBUG_ASSERT(xpath->query.end > dollar_pos);
       uint len= (uint)(xpath->query.end - dollar_pos);
-      set_if_smaller(len, 32);
-      my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.*s'", 
-                      MYF(0), len, dollar_pos);
+      if (len <= 32)
+        my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.*s'",
+                        MYF(0), len, dollar_pos);
+      else
+        my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.32T'",
+                        MYF(0), dollar_pos);
     }
   }
   return xpath->item ? 1 : 0;
@@ -2786,9 +2793,13 @@ bool Item_xml_str_func::fix_fields(THD *thd, Item **ref)
   if (!rc)
   {
     uint clen= (uint)(xpath.query.end - xpath.lasttok.beg);
-    set_if_smaller(clen, 32);
-    my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.*s'",
-                    MYF(0), clen, xpath.lasttok.beg);
+    if (clen <= 32)
+      my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.*s'",
+                      MYF(0), clen, xpath.lasttok.beg);
+    else
+      my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.32T'",
+                      MYF(0), xpath.lasttok.beg);
+
     return true;
   }
 
@@ -2846,7 +2857,7 @@ append_node(String *str, MY_XML_NODE *node)
   SYNOPSYS
 
     A call-back function executed when XML parser
-    is entering a tag or an attribue.
+    is entering a tag or an attribute.
     Appends the new node into data->pxml.
     Increments data->level.
 
@@ -2882,7 +2893,7 @@ int xml_enter(MY_XML_PARSER *st,const char *attr, size_t len)
   SYNOPSYS
 
     A call-back function executed when XML parser
-    is entering into a tag or an attribue textual value.
+    is entering into a tag or an attribute textual value.
     The value is appended into data->pxml.
 
   RETURN
@@ -2910,7 +2921,7 @@ int xml_value(MY_XML_PARSER *st,const char *attr, size_t len)
   SYNOPSYS
 
     A call-back function executed when XML parser
-    is leaving a tag or an attribue.
+    is leaving a tag or an attribute.
     Decrements data->level.
 
   RETURN

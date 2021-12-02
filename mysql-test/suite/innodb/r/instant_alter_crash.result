@@ -38,10 +38,10 @@ ALTER TABLE t2 ADD COLUMN (c4 TEXT NOT NULL DEFAULT ' et malorum');
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
+SET debug_dbug='+d,dict_sys_mutex_avoid';
 DELETE FROM t1;
 # Kill the server
 disconnect ddl;
-SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 FOUND 2 /\[Note\] InnoDB: Rolled back recovered transaction / in mysqld.1.err
 SELECT * FROM t1;
@@ -92,6 +92,22 @@ header=0x060008030000 (id=0x73757072656d756d00)
 UNLOCK TABLES;
 DELETE FROM t2;
 InnoDB		0 transactions not purged
+#
+# MDEV-24323 Crash on recovery after kill during instant ADD COLUMN
+#
+connect ddl, localhost, root;
+CREATE TABLE t3(id INT PRIMARY KEY, c2 INT, v2 INT AS(c2) VIRTUAL, UNIQUE(v2))
+ENGINE=InnoDB;
+INSERT INTO t3 SET id=1,c2=1;
+SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
+ALTER TABLE t3 ADD COLUMN c3 TEXT NOT NULL DEFAULT 'sic transit gloria mundi';
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR ddl';
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+SET debug_dbug='+d,dict_sys_mutex_avoid';
+INSERT INTO t1 VALUES(0,0);
+# Kill the server
+disconnect ddl;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -109,6 +125,14 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `c2` (`c2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
-DROP TABLE t1,t2;
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `id` int(11) NOT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `v2` int(11) GENERATED ALWAYS AS (`c2`) VIRTUAL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `v2` (`v2`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1,t2,t3;
 db.opt
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@saved_frequency;

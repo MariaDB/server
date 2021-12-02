@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,6 +32,10 @@ Created 10/25/1995 Heikki Tuuri
 #include "log0recv.h"
 #include "dict0types.h"
 #include "page0size.h"
+#include "ilist.h"
+
+struct unflushed_spaces_tag_t;
+struct rotation_list_tag_t;
 
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
@@ -73,7 +77,9 @@ fil_type_is_data(
 struct fil_node_t;
 
 /** Tablespace or log data space */
-struct fil_space_t {
+struct fil_space_t : ilist_node<unflushed_spaces_tag_t>,
+                     ilist_node<rotation_list_tag_t>
+{
 	ulint		id;	/*!< space id */
 	hash_node_t	hash;	/*!< hash chain node */
 	char*		name;	/*!< Tablespace name */
@@ -87,18 +93,6 @@ struct fil_space_t {
 	/** Log sequence number of the latest MLOG_INDEX_LOAD record
 	that was found while parsing the redo log */
 	lsn_t		enable_lsn;
-	bool		stop_new_ops;
-				/*!< we set this true when we start
-				deleting a single-table tablespace.
-				When this is set following new ops
-				are not allowed:
-				* read IO request
-				* ibuf merge
-				* file flush
-				Note that we can still possibly have
-				new write operations because we don't
-				check this flag when doing flush
-				batches. */
 	/** whether undo tablespace truncation is in progress */
 	bool		is_being_truncated;
 #ifdef UNIV_DEBUG
@@ -124,6 +118,8 @@ struct fil_space_t {
 				/*!< recovered tablespace size in pages;
 				0 if no size change was read from the redo log,
 				or if the size change was implemented */
+  /** the committed size of the tablespace in pages */
+  ulint committed_size;
 	ulint		flags;	/*!< FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
 				see fsp0types.h,
 				fsp_flags_is_valid(),
@@ -134,14 +130,24 @@ struct fil_space_t {
 	ulint		n_pending_flushes; /*!< this is positive when flushing
 				the tablespace to disk; dropping of the
 				tablespace is forbidden if this is positive */
-	/** Number of pending buffer pool operations accessing the tablespace
-	without holding a table lock or dict_operation_lock S-latch
-	that would prevent the table (and tablespace) from being
-	dropped. An example is change buffer merge.
-	The tablespace cannot be dropped while this is nonzero,
-	or while fil_node_t::n_pending is nonzero.
-	Protected by fil_system.mutex and my_atomic_loadlint() and friends. */
-	ulint		n_pending_ops;
+private:
+  /** Number of pending buffer pool operations accessing the
+  tablespace without holding a table lock or dict_operation_lock
+  S-latch that would prevent the table (and tablespace) from being
+  dropped. An example is change buffer merge.
+
+  The tablespace cannot be dropped while this is nonzero, or while
+  fil_node_t::n_pending is nonzero.
+
+  The most significant bit contains the STOP_NEW_OPS flag.
+
+  Protected by my_atomic. */
+  int32 n_pending_ops;
+
+  /** Flag in n_pending_ops that indicates that the tablespace is being
+  deleted, and no further operations should be performed */
+  static const int32 STOP_NEW_OPS= 1 << 31;
+public:
 	/** Number of pending block read or write operations
 	(when a write is imminent or a read has recently completed).
 	The tablespace object cannot be freed while this is nonzero,
@@ -151,25 +157,20 @@ struct fil_space_t {
 	ulint		n_pending_ios;
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
-	UT_LIST_NODE_T(fil_space_t) unflushed_spaces;
-				/*!< list of spaces with at least one unflushed
-				file we have written to */
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
 				/*!< list of spaces for which MLOG_FILE_NAME
 				records have been issued */
-	/** Checks that this tablespace in a list of unflushed tablespaces.
-	@return true if in a list */
-	bool is_in_unflushed_spaces() const;
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
-	/** other tablespaces needing key rotation */
-	UT_LIST_NODE_T(fil_space_t) rotation_list;
-	/** Checks that this tablespace needs key rotation.
-	@return true if in a rotation list */
-	bool is_in_rotation_list() const;
 
 	/** MariaDB encryption data */
 	fil_space_crypt_t* crypt_data;
+
+	/** Checks that this tablespace in a list of unflushed tablespaces. */
+	bool is_in_unflushed_spaces;
+
+	/** Checks that this tablespace needs key rotation. */
+	bool is_in_default_encrypt;
 
 	/** True if the device this filespace is on supports atomic writes */
 	bool		atomic_write_supported;
@@ -180,8 +181,14 @@ struct fil_space_t {
 
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 
-	/** @return whether the tablespace is about to be dropped */
-	bool is_stopping() const { return stop_new_ops;	}
+  /** Clamp a page number for batched I/O, such as read-ahead.
+  @param offset   page number limit
+  @return offset clamped to the tablespace size */
+  ulint max_page_number_for_io(ulint offset) const
+  {
+    const ulint limit= committed_size;
+    return limit > offset ? offset : limit;
+  }
 
 	/** @return whether doublewrite buffering is needed */
 	bool use_doublewrite() const
@@ -255,37 +262,78 @@ struct fil_space_t {
 	/** Close each file. Only invoked on fil_system.temp_space. */
 	void close();
 
-	/** Acquire a tablespace reference. */
-	void acquire() { my_atomic_addlint(&n_pending_ops, 1); }
-	/** Release a tablespace reference. */
-	void release()
-	{
-		ut_ad(referenced());
-		my_atomic_addlint(&n_pending_ops, ulint(-1));
-	}
-	/** @return whether references are being held */
-	bool referenced() { return my_atomic_loadlint(&n_pending_ops); }
-	/** @return whether references are being held */
-	bool referenced() const
-	{
-		return const_cast<fil_space_t*>(this)->referenced();
-	}
+  /** @return whether the tablespace is about to be dropped or is referenced */
+  int32 is_stopping_or_referenced()
+  {
+    return my_atomic_load32(&n_pending_ops);
+  }
 
-	/** Acquire a tablespace reference for I/O. */
-	void acquire_for_io() { my_atomic_addlint(&n_pending_ios, 1); }
-	/** Release a tablespace reference for I/O. */
-	void release_for_io()
-	{
-		ut_ad(pending_io());
-		my_atomic_addlint(&n_pending_ios, ulint(-1));
-	}
-	/** @return whether I/O is pending */
-	bool pending_io() { return my_atomic_loadlint(&n_pending_ios); }
-	/** @return whether I/O is pending */
-	bool pending_io() const
-	{
-		return const_cast<fil_space_t*>(this)->pending_io();
-	}
+  /** @return whether the tablespace is about to be dropped or is referenced */
+  int32 is_stopping_or_referenced() const
+  {
+    return const_cast<fil_space_t*>(this)->is_stopping_or_referenced();
+  }
+
+  /** @return whether the tablespace is about to be dropped */
+  bool is_stopping() const
+  {
+    return is_stopping_or_referenced() & STOP_NEW_OPS;
+  }
+
+  /** @return number of references being held */
+  int32 referenced() const
+  {
+    return is_stopping_or_referenced() & ~STOP_NEW_OPS;
+  }
+
+  /** Note that operations on the tablespace must stop or can resume */
+  void set_stopping(bool stopping)
+  {
+    /* Note: starting with 10.4 this should be std::atomic::fetch_xor() */
+    int32 n= stopping ? 0 : STOP_NEW_OPS;
+    while (!my_atomic_cas32_strong_explicit(&n_pending_ops, &n,
+                                            n ^ STOP_NEW_OPS,
+                                            MY_MEMORY_ORDER_ACQUIRE,
+                                            MY_MEMORY_ORDER_RELAXED))
+      ut_ad(!(n & STOP_NEW_OPS) == stopping);
+  }
+
+  MY_ATTRIBUTE((warn_unused_result))
+  /** @return whether a tablespace reference was successfully acquired */
+  bool acquire()
+  {
+    int32 n= 0;
+    while (!my_atomic_cas32_strong_explicit(&n_pending_ops, &n, n + 1,
+                                            MY_MEMORY_ORDER_ACQUIRE,
+                                            MY_MEMORY_ORDER_RELAXED))
+      if (UNIV_UNLIKELY(n & STOP_NEW_OPS))
+        return false;
+    return true;
+  }
+  /** Release a tablespace reference.
+  @return whether this was the last reference */
+  bool release()
+  {
+    int32 n= my_atomic_add32(&n_pending_ops, -1);
+    ut_ad(n & ~STOP_NEW_OPS);
+    return (n & ~STOP_NEW_OPS) == 1;
+  }
+
+  /** Acquire a tablespace reference for I/O. */
+  void acquire_for_io() { my_atomic_addlint(&n_pending_ios, 1); }
+  /** Release a tablespace reference for I/O. */
+  void release_for_io()
+  {
+    ut_d(ulint n=) my_atomic_addlint(&n_pending_ios, ulint(-1));
+    ut_ad(n);
+  }
+  /** @return whether I/O is pending */
+  bool pending_io() { return my_atomic_loadlint(&n_pending_ios); }
+  /** @return whether I/O is pending */
+  bool pending_io() const
+  {
+    return const_cast<fil_space_t*>(this)->pending_io();
+  }
 };
 
 /** Value of fil_space_t::magic_n */
@@ -350,7 +398,7 @@ struct fil_node_t {
 /** Value of fil_node_t::magic_n */
 #define	FIL_NODE_MAGIC_N	89389
 
-/** Common InnoDB file extentions */
+/** Common InnoDB file extensions */
 enum ib_extention {
 	NO_EXT = 0,
 	IBD = 1,
@@ -579,8 +627,6 @@ struct fil_system_t {
   {
     UT_LIST_INIT(LRU, &fil_node_t::LRU);
     UT_LIST_INIT(space_list, &fil_space_t::space_list);
-    UT_LIST_INIT(rotation_list, &fil_space_t::rotation_list);
-    UT_LIST_INIT(unflushed_spaces, &fil_space_t::unflushed_spaces);
     UT_LIST_INIT(named_spaces, &fil_space_t::named_spaces);
   }
 
@@ -616,8 +662,8 @@ public:
 					not put to this list: they are opened
 					after the startup, and kept open until
 					shutdown */
-	UT_LIST_BASE_NODE_T(fil_space_t) unflushed_spaces;
-					/*!< base node for the list of those
+	sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
+					/*!< list of those
 					tablespaces whose files contain
 					unflushed writes; those spaces have
 					at least one file node where
@@ -637,9 +683,9 @@ public:
 					record has been written since
 					the latest redo log checkpoint.
 					Protected only by log_sys.mutex. */
-	UT_LIST_BASE_NODE_T(fil_space_t) rotation_list;
-					/*!< list of all file spaces needing
-					key rotation.*/
+
+	/** List of all file spaces need key rotation */
+	ilist<fil_space_t, rotation_list_tag_t> default_encrypt_tables;
 
 	bool		space_id_reuse_warned;
 					/*!< whether fil_space_create()
@@ -652,39 +698,21 @@ public:
 	@retval	NULL	if the tablespace does not exist or cannot be read */
 	fil_space_t* read_page0(ulint id);
 
-	/** Return the next fil_space_t from key rotation list.
-	Once started, the caller must keep calling this until it returns NULL.
-	fil_space_acquire() and fil_space_release() are invoked here which
-	blocks a concurrent operation from dropping the tablespace.
-	@param[in]      prev_space      Previous tablespace or NULL to start
-					from beginning of fil_system->rotation
-					list
-	@param[in]      recheck         recheck of the tablespace is needed or
-					still encryption thread does write page0
-					for it
-	@param[in]	key_version	key version of the key state thread
-	If NULL, use the first fil_space_t on fil_system->space_list.
-	@return pointer to the next fil_space_t.
-	@retval NULL if this was the last */
-	fil_space_t* keyrotate_next(
-		fil_space_t*	prev_space,
-		bool		remove,
-		uint		key_version);
+  /** Return the next tablespace from default_encrypt_tables list.
+  @param space   previous tablespace (NULL to start from the start)
+  @param recheck whether the removal condition needs to be rechecked after
+  the encryption parameters were changed
+  @param encrypt expected state of innodb_encrypt_tables
+  @return the next tablespace to process (n_pending_ops incremented)
+  @retval NULL if this was the last */
+  inline fil_space_t* default_encrypt_next(
+    fil_space_t *space, bool recheck, bool encrypt);
 };
 
 /** The tablespace memory cache. */
 extern fil_system_t	fil_system;
 
 #include "fil0crypt.h"
-
-/** Returns the latch of a file space.
-@param[in]	id	space id
-@param[out]	flags	tablespace flags
-@return latch protecting storage allocation */
-rw_lock_t*
-fil_space_get_latch(
-	ulint	id,
-	ulint*	flags);
 
 /** Create a space memory object and put it to the fil_system hash table.
 Error messages are issued to the server log.
@@ -845,33 +873,6 @@ when it could be dropped concurrently.
 fil_space_t*
 fil_space_acquire_for_io(ulint id);
 
-/** Return the next fil_space_t.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_t::release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in,out]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system.space_list.
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last  */
-fil_space_t*
-fil_space_next(
-	fil_space_t*	prev_space)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Return the next fil_space_t from key rotation list.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_t::release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in,out]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system.space_list.
-@param[in]	remove		Whether to remove the previous tablespace from
-				the rotation list
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last*/
-fil_space_t*
-fil_space_keyrotate_next(fil_space_t* prev_space, bool remove)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /********************************************************//**
 Creates the database directory for a table if it does not exist yet. */
 void
@@ -908,14 +909,9 @@ bool fil_table_accessible(const dict_table_t* table)
 
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
+@param[in]	if_exists	whether to ignore missing tablespace
 @return	DB_SUCCESS or error */
-dberr_t
-fil_delete_tablespace(
-	ulint id
-#ifdef BTR_CUR_HASH_ADAPT
-	, bool drop_ahi = false /*!< whether to drop the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
-	);
+dberr_t fil_delete_tablespace(ulint id, bool if_exists= false);
 
 /** Prepare to truncate an undo tablespace.
 @param[in]	space_id	undo tablespace id

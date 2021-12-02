@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -182,7 +182,7 @@ enum Exit_status {
 */
 static Annotate_rows_log_event *annotate_event= NULL;
 
-void free_annotate_event()
+static void free_annotate_event()
 {
   if (annotate_event)
   {
@@ -747,7 +747,7 @@ static bool shall_skip_database(const char *log_dbname)
 /**
   Print "use <db>" statement when current db is to be changed.
 
-  We have to control emiting USE statements according to rewrite-db options.
+  We have to control emitting USE statements according to rewrite-db options.
   We have to do it here (see process_event() below) and to suppress
   producing USE statements by corresponding log event print-functions.
 */
@@ -779,7 +779,7 @@ print_use_stmt(PRINT_EVENT_INFO* pinfo, const Query_log_event *ev)
   // In case of rewrite rule print USE statement for db_to
   my_fprintf(result_file, "use %`s%s\n", db_to, pinfo->delimiter);
 
-  // Copy the *original* db to pinfo to suppress emiting
+  // Copy the *original* db to pinfo to suppress emitting
   // of USE stmts by log_event print-functions.
   memcpy(pinfo->db, db, db_len + 1);
 }
@@ -928,7 +928,7 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     }
   }
 
-  /* 
+  /*
      end of statement check:
        i) destroy/free ignored maps
       ii) if skip event
@@ -939,21 +939,21 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
    */
   if (is_stmt_end)
   {
-    /* 
+    /*
       Now is safe to clear ignored map (clear_tables will also
       delete original table map events stored in the map).
     */
     if (print_event_info->m_table_map_ignored.count() > 0)
       print_event_info->m_table_map_ignored.clear_tables();
 
-    /* 
+    /*
       If there is a kept Annotate event and all corresponding
       rbr-events were filtered away, the Annotate event was not
       freed and it is just the time to do it.
     */
-      free_annotate_event();
+    free_annotate_event();
 
-    /* 
+    /*
        One needs to take into account an event that gets
        filtered but was last event in the statement. If this is
        the case, previous rows events that were written into
@@ -969,8 +969,12 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         my_b_printf(body_cache, "'%s\n", print_event_info->delimiter);
 
       // flush cache
-      if ((copy_event_cache_to_file_and_reinit(&print_event_info->head_cache, result_file) ||
-          copy_event_cache_to_file_and_reinit(&print_event_info->body_cache, result_file)))
+      if ((copy_event_cache_to_file_and_reinit(&print_event_info->head_cache,
+                                               result_file) ||
+           copy_event_cache_to_file_and_reinit(&print_event_info->body_cache,
+                                               result_file) ||
+           copy_event_cache_to_file_and_reinit(&print_event_info->tail_cache,
+                                               result_file)))
         return 1;
     }
   }

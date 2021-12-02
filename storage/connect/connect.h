@@ -46,6 +46,7 @@ int   CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
                     bool *incl, key_part_map *kmap);
 PGLOBAL CntExit(PGLOBAL g);
 
+#if 0
 /***********************************************************************/
 /*  Definition of classes XKPDEF, DOXDEF, TDBDOX                       */
 /*  These classes purpose is chiefly to access protected items!        */
@@ -76,3 +77,4 @@ class XKPDEF: public KPARTDEF {
  public:
   XKPDEF(const char *name, int n) : KPARTDEF((PSZ)name, n) {}
   }; // end of class XKPDEF
+#endif // 0

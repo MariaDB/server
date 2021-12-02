@@ -352,7 +352,7 @@ include/save_master_gtid.inc
 connection server_2;
 include/sync_with_master_gtid.inc
 include/stop_slave.inc
-SET @old_dbug= @@GLOBAL.debug_dbug;
+SET @old_debug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug= '+d,inject_analyze_table_sleep';
 connection server_1;
 ALTER TABLE t2 COMMENT "123abc";

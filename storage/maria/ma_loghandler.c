@@ -1,4 +1,5 @@
 /* Copyright (C) 2007 MySQL AB & Sanja Belkin. 2010 Monty Program Ab.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3397,10 +3398,9 @@ static uint16 translog_get_chunk_header_length(uchar *chunk)
     DBUG_PRINT("info", ("TRANSLOG_CHUNK_LNGTH = 3"));
     DBUG_RETURN(3);
     break;
-  default:
-    DBUG_ASSERT(0);
-    DBUG_RETURN(0);                               /* Keep compiler happy */
   }
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);                               /* Keep compiler happy */
 }
 
 
@@ -3616,7 +3616,8 @@ my_bool translog_init_with_table(const char *directory,
   int old_log_was_recovered= 0, logs_found= 0;
   uint old_flags= flags;
   uint32 start_file_num= 1;
-  TRANSLOG_ADDRESS sure_page, last_page, last_valid_page, checkpoint_lsn;
+  TRANSLOG_ADDRESS UNINIT_VAR(sure_page), last_page, last_valid_page,
+    checkpoint_lsn;
   my_bool version_changed= 0;
   DBUG_ENTER("translog_init_with_table");
 
@@ -5443,15 +5444,15 @@ static uchar *translog_get_LSN_from_diff(LSN base_lsn, uchar *src, uchar *dst)
                           src + 1 + LSN_STORE_SIZE));
       DBUG_RETURN(src + 1 + LSN_STORE_SIZE);
     }
-    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 8) + *((uint8*)src));
+    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 8) | *((uint8*)src));
     break;
   case 1:
     diff= uint2korr(src);
-    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 16) + diff);
+    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 16) | diff);
     break;
   case 2:
     diff= uint3korr(src);
-    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 24) + diff);
+    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 24) | diff);
     break;
   case 3:
   {

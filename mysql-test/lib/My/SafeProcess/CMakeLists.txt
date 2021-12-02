@@ -17,14 +17,15 @@
 IF (WIN32)
   ADD_EXECUTABLE(my_safe_process safe_process_win.cc)
   ADD_EXECUTABLE(my_safe_kill safe_kill_win.cc)
-  TARGET_LINK_LIBRARIES(my_safe_kill dbghelp psapi)
+  TARGET_INCLUDE_DIRECTORIES(my_safe_kill PRIVATE ${CMAKE_SOURCE_DIR}/include)
+  TARGET_LINK_LIBRARIES(my_safe_kill mysys psapi)
 ELSE()
   ADD_EXECUTABLE(my_safe_process safe_process.cc)
 ENDIF()
 
 IF(WITH_WSREP)
   ADD_EXECUTABLE(wsrep_check_version wsrep_check_version.c)
-  TARGET_LINK_LIBRARIES(wsrep_check_version ${LIBDL})
+  TARGET_LINK_LIBRARIES(wsrep_check_version ${CMAKE_DL_LIBS})
 ENDIF()
 
 IF(NOT INSTALL_MYSQLTESTDIR)

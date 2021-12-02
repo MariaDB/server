@@ -284,7 +284,9 @@ void mysql_audit_notify_connection_change_user(THD *thd)
 }
 
 static inline
-void mysql_audit_external_lock(THD *thd, TABLE_SHARE *share, int lock)
+void mysql_audit_external_lock_ex(THD *thd, my_thread_id thread_id,
+    const char *user, const char *host, const char *ip, query_id_t query_id,
+    TABLE_SHARE *share, int lock)
 {
   if (lock != F_UNLCK && mysql_audit_table_enabled())
   {
@@ -293,22 +295,30 @@ void mysql_audit_external_lock(THD *thd, TABLE_SHARE *share, int lock)
 
     event.event_subclass= MYSQL_AUDIT_TABLE_LOCK;
     event.read_only= lock == F_RDLCK;
-    event.thread_id= (unsigned long)thd->thread_id;
-    event.user= sctx->user;
+    event.thread_id= (unsigned long)thread_id;
+    event.user= user;
     event.priv_user= sctx->priv_user;
     event.priv_host= sctx->priv_host;
     event.external_user= sctx->external_user;
     event.proxy_user= sctx->proxy_user;
-    event.host= sctx->host;
-    event.ip= sctx->ip;
+    event.host= host;
+    event.ip= ip;
     event.database= share->db;
     event.table= share->table_name;
     event.new_database= null_clex_str;
     event.new_table= null_clex_str;
-    event.query_id= thd->query_id;
+    event.query_id= query_id;
 
     mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
   }
+}
+
+static inline
+void mysql_audit_external_lock(THD *thd, TABLE_SHARE *share, int lock)
+{
+  mysql_audit_external_lock_ex(thd, thd->thread_id, thd->security_ctx->user,
+      thd->security_ctx->host, thd->security_ctx->ip, thd->query_id,
+      share, lock);
 }
 
 static inline

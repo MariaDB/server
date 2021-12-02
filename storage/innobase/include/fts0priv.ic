@@ -32,10 +32,7 @@ int
 fts_write_object_id(
 /*================*/
 	ib_id_t		id,		/* in: a table/index id */
-	char*		str,		/* in: buffer to write the id to */
-	bool		hex_format MY_ATTRIBUTE((unused)))
-					/* in: true for fixed hex format,
-					false for old ambiguous format */
+	char*		str)		/* in: buffer to write the id to */
 {
 
 #ifdef _WIN32
@@ -59,11 +56,6 @@ fts_write_object_id(
 			return(sprintf(str, "%016llx", (ulonglong) id)););
 
 #endif /* _WIN32 */
-
-	/* As above, but this is only for those tables failing to rename. */
-	if (!hex_format) {
-		return(sprintf(str, "%016llu", (ulonglong) id));
-	}
 
 	return(sprintf(str, "%016llx", (ulonglong) id));
 }

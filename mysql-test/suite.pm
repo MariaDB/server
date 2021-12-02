@@ -17,7 +17,13 @@ sub skip_combinations {
                 unless $ENV{DEBUG_KEY_MANAGEMENT_SO};
 
   # don't run tests for the wrong platform
-  $skip{'include/platform.combinations'} = [ (IS_WINDOWS) ? 'unix' : 'win' ];
+  if (IS_WINDOWS) {
+    $skip{'include/platform.combinations'} = [ 'aix', 'unix' ];
+  } elsif (IS_AIX) {
+    $skip{'include/platform.combinations'} = [ 'win', 'unix' ];
+  } else {
+    $skip{'include/platform.combinations'} = [ 'aix', 'win' ];
+  }
 
   $skip{'include/maybe_debug.combinations'} =
     [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
@@ -47,6 +53,7 @@ sub skip_combinations {
              unless $ENV{HA_EXAMPLE_SO};
 
   $skip{'include/not_windows.inc'} = 'Requires not Windows' if IS_WINDOWS;
+  $skip{'include/not_aix.inc'} = 'Requires not AIX' if IS_AIX;
 
   $skip{'main/plugin_loaderr.test'} = 'needs compiled-in innodb'
             unless $::mysqld_variables{'innodb'} eq "ON";
@@ -55,7 +62,7 @@ sub skip_combinations {
             unless ::have_mariabackup();
 
   $skip{'include/have_mariabackup.inc'} = 'Need socket statistics utility'
-            unless IS_WINDOWS || ::which("ss");
+            unless IS_WINDOWS || ! ::have_wsrep() || ::which("lsof") || ::which("sockstat") || ::which("ss");
 
   $skip{'include/have_mariabackup.inc'} = 'Need socat or nc'
             unless IS_WINDOWS || $ENV{MTR_GALERA_TFMT};

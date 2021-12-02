@@ -57,6 +57,8 @@ send call p1(1000);
 
 --connection node_2
 --disable_query_log
+--let $wait_condition = select count(*)=1 from information_schema.routines WHERE routine_name='p1';
+--source include/wait_condition.inc
 send call p1(1000);
 
 --connection node_1

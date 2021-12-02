@@ -198,11 +198,11 @@ t3	CREATE TABLE `t3` (
 ALTER TABLE t3 CHANGE
 `1234567890123456789012345678901234567890123456789012345678901234`
 `倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠倡倢倣値倥倦倧倨倩倪倫倬倭倮倯倰倱倲倳倴倵倶倷倸倹债倻值倽倾倿偀` INT;
-ERROR 42000: Identifier name '倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠' is too long
+ERROR 42000: Identifier name '倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借...' is too long
 ALTER TABLE t3 CHANGE
 `1234567890123456789012345678901234567890123456789012345678901234`
 `倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠倡倢倣値倥倦倧倨倩倪倫倬倭倮倯倰倱倲倳倴倵倶倷倸倹债倻值倽倾倿ä` INT;
-ERROR 42000: Identifier name '倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠' is too long
+ERROR 42000: Identifier name '倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借...' is too long
 ALTER TABLE t3 CHANGE
 `1234567890123456789012345678901234567890123456789012345678901234`
 `倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠倡倢倣値倥倦倧倨倩倪倫倬倭倮倯倰倱倲倳倴倵倶倷倸倹债倻值倽倾ä` INT;
@@ -210,7 +210,7 @@ ALTER TABLE t3 CHANGE
 `倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠倡倢倣値倥倦倧倨倩倪倫倬倭倮倯倰倱倲倳倴倵倶倷倸倹债倻值倽倾Ä`
 c3 INT;
 ALTER TABLE t3 CHANGE c3 𐌀𐌁𐌂𐌃𐌄𐌅𐌆𐌇𐌈𐌉𐌊𐌋𐌌𐌍𐌎𐌏𐌐𐌑𐌒𐌓𐌔𐌕𐌖𐌗𐌘𐌙𐌚𐌛𐌜 INT;
-ERROR HY000: Invalid utf8mb4 character string: '\xF0\x90\x8C\x80\xF0\x90\x8C\x81\xF0\x90\x8C\x82\xF0\x90\x8C\x83'
+ERROR HY000: Invalid utf8mb4 character string: '\xF0\x90\x8C\x80\xF0\x90\x8C\x81\xF0\x90\x8C\x82\xF0\x90\x8C\...'
 ALTER TABLE t3 CHANGE c3 😲 INT;
 ERROR HY000: Invalid utf8mb4 character string: '\xF0\x9F\x98\xB2'
 ALTER TABLE t3 RENAME TO t2;
@@ -1049,10 +1049,12 @@ a
 10
 DROP TABLE t1;
 CREATE TABLE t1 (a INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
-iNSERT INTO t1 VALUES (10);
-ALTER TABLE t1 ADD b DATE NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0);
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t1 VALUES (10);
+ALTER TABLE t1 ADD b DATE NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0), algorithm=copy;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'b' at row 1
 SELECT * FROM t1;
 a	b
 10	2001-01-01
@@ -1061,8 +1063,27 @@ CREATE TABLE t1 (a INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
 iNSERT INTO t1 VALUES (10);
 ALTER TABLE t1 ADD b TIME NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0);
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'b' at row 1
 SELECT * FROM t1;
 a	b
 10	10:20:30
+DROP TABLE t1;
+#
+# MDEV-18042 Server crashes in mysql_alter_table upon adding a non-null
+# date column under NO_ZERO_DATE with ALGORITHM=INPLACE
+#
+SET @OLD_SQL_MODE= @@SQL_MODE;
+SET @@SQL_MODE= 'NO_ZERO_DATE';
+CREATE OR REPLACE TABLE t1 (i INT) ENGINE=MyISAM;
+ALTER TABLE t1 ADD COLUMN d DATE NOT NULL, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+CREATE OR REPLACE TABLE t1 (i INT) ENGINE=InnoDB;
+ALTER TABLE t1 ADD d DATETIME NOT NULL CHECK (f <= 0), ALGORITHM=COPY;
+ERROR 42S22: Unknown column 'f' in 'CHECK'
+CREATE OR REPLACE TABLE t1 (a int) ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN b DATETIME NOT NULL, LOCK=NONE;
+# Cleanup
+SET @@SQL_MODE= @OLD_SQL_MODE;
 DROP TABLE t1;

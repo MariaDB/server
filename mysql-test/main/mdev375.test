@@ -27,6 +27,8 @@ SELECT 2;
 
 --connection default
 SELECT 0;
+let $count_sessions=11;
+--source include/wait_until_count_sessions.inc
 show status like "Threads_connected";
 
 SET GLOBAL log_warnings=@save_log_warnings;

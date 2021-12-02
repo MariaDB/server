@@ -114,7 +114,7 @@ qsort_t my_qsort(void *base_ptr, size_t count, size_t size, qsort_cmp cmp)
   stack[0].low=stack[0].high=0;
 #endif
   pivot = (char *) my_alloca((int) size);
-  ptr_cmp= size == sizeof(char*) && !((low - (char*) 0)& (sizeof(char*)-1));
+  ptr_cmp= size == sizeof(char*) && (intptr_t)low % sizeof(char*) == 0;
 
   /* The following loop sorts elements between high and low */
   do

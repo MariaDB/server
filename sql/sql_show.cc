@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -63,6 +63,19 @@
 #include "ha_partition.h"
 #endif
 #include "transaction.h"
+
+
+#include "lex_symbol.h"
+#define KEYWORD_SIZE 64
+
+extern SYMBOL symbols[];
+extern size_t symbols_length;
+
+extern SYMBOL sql_functions[];
+extern size_t sql_functions_length;
+
+extern Native_func_registry func_array[];
+extern size_t func_array_length;
 
 enum enum_i_s_events_fields
 {
@@ -592,7 +605,7 @@ static struct show_privileges_st sys_privileges[]=
   {"Create view", "Tables",  "To create new views"},
   {"Create user", "Server Admin",  "To create new users"},
   {"Delete", "Tables",  "To delete existing rows"},
-  {"Delete versioning rows", "Tables", "To delete versioning table historical rows"},
+  {"Delete history", "Tables", "To delete versioning table historical rows"},
   {"Drop", "Databases,Tables", "To drop databases, tables, and views"},
 #ifdef HAVE_EVENT_SCHEDULER
   {"Event","Server Admin","To create, alter, drop and execute events"},
@@ -1316,7 +1329,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
     goto exit;
   }
   else if (lex->table_type == TABLE_TYPE_SEQUENCE &&
-           table_list->table->s->table_type != TABLE_TYPE_SEQUENCE)
+           (!table_list->table ||
+            table_list->table->s->table_type != TABLE_TYPE_SEQUENCE))
   {
     my_error(ER_NOT_SEQUENCE, MYF(0),
              table_list->db.str, table_list->table_name.str);
@@ -1569,7 +1583,7 @@ mysqld_list_fields(THD *thd, TABLE_LIST *table_list, const char *wild)
 
   if (open_normal_and_derived_tables(thd, table_list,
                                      MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL,
-                                     DT_INIT | DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE))
     DBUG_VOID_RETURN;
   table= table_list->table;
 
@@ -2138,7 +2152,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                            !foreign_db_mode;
   bool check_options= !(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
                       !create_info_arg;
-  my_bitmap_map *old_map;
   handlerton *hton;
   int error= 0;
   DBUG_ENTER("show_create_table");
@@ -2205,7 +2218,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     We have to restore the read_set if we are called from insert in case
     of row based replication.
   */
-  old_map= tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= tmp_use_all_columns(table, &table->read_set);
 
   bool not_the_first_field= false;
   for (ptr=table->field ; (field= *ptr); ptr++)
@@ -2223,6 +2236,13 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     append_identifier(thd, packet, &field->field_name);
     packet->append(' ');
 
+    const Type_handler *th= field->type_handler();
+    const Schema *implied_schema= Schema::find_implied(thd);
+    if (th != implied_schema->map_data_type(thd, th))
+    {
+      packet->append(th->schema()->name(), system_charset_info);
+      packet->append(STRING_WITH_LEN("."), system_charset_info);
+    }
     type.set(tmp, sizeof(tmp), system_charset_info);
     field->sql_type(type);
     packet->append(type.ptr(), type.length(), system_charset_info);
@@ -2237,8 +2257,13 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       /*
 	For string types dump collation name only if
 	collation is not primary for the given charset
+
+        For generated fields don't print the COLLATE clause if
+        the collation matches the expression's collation.
       */
-      if (!(field->charset()->state & MY_CS_PRIMARY) && !field->vcol_info)
+      if (!(field->charset()->state & MY_CS_PRIMARY) &&
+          (!field->vcol_info ||
+           field->charset() != field->vcol_info->expr->collation.collation))
       {
 	packet->append(STRING_WITH_LEN(" COLLATE "));
 	packet->append(field->charset()->name);
@@ -2263,11 +2288,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
     else
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags & VERS_ROW_START)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW START"));
       }
-      else if (field->flags & VERS_SYS_END_FLAG)
+      else if (field->flags & VERS_ROW_END)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW END"));
       }
@@ -2484,7 +2509,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
   }
 #endif
-  tmp_restore_column_map(table->read_set, old_map);
+  tmp_restore_column_map(&table->read_set, old_map);
   DBUG_RETURN(error);
 }
 
@@ -3543,6 +3568,28 @@ void remove_status_vars(SHOW_VAR *list)
   }
 }
 
+/**
+  A union holding a pointer to a type that can be referred by a status variable.
+ */
+union Any_pointer {
+  const void *as_void;
+  const uchar *as_uchar;
+  const char *as_char;
+  const char ** as_charptr;
+  const double *as_double;
+  const int * as_int;
+  const uint * as_uint;
+  const long *as_long;
+  const longlong *as_longlong;
+  const bool *as_bool;
+  const my_bool *as_my_bool;
+  const sys_var *as_sys_var;
+  const system_status_var *as_system_status_var;
+  const ha_rows *as_ha_rows;
+  const LEX_STRING *as_lex_cstring;
+  const SHOW_COMP_OPTION *as_show_comp_options;
+  intptr as_intptr;
+};
 
 /**
   @brief Returns the value of a system or a status variable.
@@ -3567,16 +3614,18 @@ const char* get_one_variable(THD *thd,
                              const CHARSET_INFO **charset, char *buff,
                              size_t *length)
 {
-  void *value= variable->value;
+  Any_pointer value, status_var_value;
+  value.as_void= variable->value;
+  status_var_value.as_system_status_var= status_var;
   const char *pos= buff;
   const char *end= buff;
 
 
   if (show_type == SHOW_SYS)
   {
-    sys_var *var= (sys_var *) value;
+    const sys_var *var= value.as_sys_var;
     show_type= var->show_type();
-    value= var->value_ptr(thd, value_type, &null_clex_str);
+    value.as_uchar= var->value_ptr(thd, value_type, &null_clex_str);
     *charset= var->charset(thd);
   }
 
@@ -3586,66 +3635,65 @@ const char* get_one_variable(THD *thd,
   */
   switch (show_type) {
   case SHOW_DOUBLE_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_DOUBLE:
     /* 6 is the default precision for '%f' in sprintf() */
-    end= buff + my_fcvt(*(double *) value, 6, buff, NULL);
+    end= buff + my_fcvt(*value.as_double, 6, buff, NULL);
     break;
   case SHOW_LONG_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_ULONG:
   case SHOW_LONG_NOFLUSH: // the difference lies in refresh_status()
-    end= int10_to_str(*(long*) value, buff, 10);
+    end= int10_to_str(*value.as_long, buff, 10);
     break;
   case SHOW_LONGLONG_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_ULONGLONG:
-    end= longlong10_to_str(*(longlong*) value, buff, 10);
+    end= longlong10_to_str(*value.as_longlong, buff, 10);
     break;
   case SHOW_HA_ROWS:
-    end= longlong10_to_str((longlong) *(ha_rows*) value, buff, 10);
+    end= longlong10_to_str((longlong) *value.as_ha_rows, buff, 10);
     break;
   case SHOW_BOOL:
-    end= strmov(buff, *(bool*) value ? "ON" : "OFF");
+    end= strmov(buff, *value.as_bool ? "ON" : "OFF");
     break;
   case SHOW_MY_BOOL:
-    end= strmov(buff, *(my_bool*) value ? "ON" : "OFF");
+    end= strmov(buff, *value.as_my_bool ? "ON" : "OFF");
     break;
   case SHOW_UINT32_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_UINT:
-    end= int10_to_str((long) *(uint*) value, buff, 10);
+    end= int10_to_str((long) *value.as_uint, buff, 10);
     break;
   case SHOW_SINT:
-    end= int10_to_str((long) *(int*) value, buff, -10);
+    end= int10_to_str((long) *value.as_int, buff, -10);
     break;
   case SHOW_SLONG:
-    end= int10_to_str(*(long*) value, buff, -10);
+    end= int10_to_str(*value.as_long, buff, -10);
     break;
   case SHOW_SLONGLONG:
-    end= longlong10_to_str(*(longlong*) value, buff, -10);
+    end= longlong10_to_str(*value.as_longlong, buff, -10);
     break;
   case SHOW_HAVE:
     {
-      SHOW_COMP_OPTION tmp= *(SHOW_COMP_OPTION*) value;
-      pos= show_comp_option_name[(int) tmp];
+      pos= show_comp_option_name[(int) *value.as_show_comp_options];
       end= strend(pos);
       break;
     }
   case SHOW_CHAR:
     {
-      if (!(pos= (char*)value))
+      if (!(pos= value.as_char))
         pos= "";
       end= strend(pos);
       break;
     }
   case SHOW_CHAR_PTR:
     {
-      if (!(pos= *(char**) value))
+      if (!(pos= *value.as_charptr))
         pos= "";
 
       end= strend(pos);
@@ -3653,11 +3701,10 @@ const char* get_one_variable(THD *thd,
     }
   case SHOW_LEX_STRING:
     {
-      LEX_STRING *ls=(LEX_STRING*)value;
-      if (!(pos= ls->str))
+      if (!(pos= value.as_lex_cstring->str))
         end= pos= "";
       else
-        end= pos + ls->length;
+        end= pos + value.as_lex_cstring->length;
       break;
     }
   case SHOW_UNDEF:
@@ -3687,12 +3734,9 @@ static bool show_status_array(THD *thd, const char *wild,
   char name_buffer[NAME_CHAR_LEN];
   int len;
   SHOW_VAR tmp, *var;
-  enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
   bool res= FALSE;
   CHARSET_INFO *charset= system_charset_info;
   DBUG_ENTER("show_status_array");
-
-  thd->count_cuted_fields= CHECK_FIELD_WARN;
 
   prefix_end=strnmov(name_buffer, prefix, sizeof(name_buffer)-1);
   if (*prefix)
@@ -3790,9 +3834,14 @@ static bool show_status_array(THD *thd, const char *wild,
 
         if (show_type == SHOW_SYS)
           mysql_mutex_lock(&LOCK_global_system_variables);
+        else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL)
+          calc_sum_of_all_status_if_needed(status_var);
+
         pos= get_one_variable(thd, var, scope, show_type, status_var,
                               &charset, buff, &length);
 
+        if (table->field[1]->field_length)
+          thd->count_cuted_fields= CHECK_FIELD_WARN;
         table->field[1]->store(pos, (uint32) length, charset);
         thd->count_cuted_fields= CHECK_FIELD_IGNORE;
         table->field[1]->set_notnull();
@@ -3810,7 +3859,6 @@ static bool show_status_array(THD *thd, const char *wild,
     }
   }
 end:
-  thd->count_cuted_fields= save_count_cuted_fields;
   DBUG_RETURN(res);
 }
 
@@ -3830,8 +3878,6 @@ uint calc_sum_of_all_status(STATUS_VAR *to)
   I_List_iterator<THD> it(threads);
   THD *tmp;
 
-  /* Get global values as base */
-  *to= global_status_var;
   to->local_memory_used= 0;
 
   /* Add to this status from existing threads */
@@ -4428,7 +4474,9 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
   if (!lookup_field_vals->wild_table_value &&
       lookup_field_vals->table_value.str)
   {
-    if (lookup_field_vals->table_value.length > NAME_LEN)
+    if (check_table_name(lookup_field_vals->table_value.str,
+                         lookup_field_vals->table_value.length,
+                         false))
     {
       /*
         Impossible value for a table name,
@@ -4464,6 +4512,9 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
   if (db_name == &INFORMATION_SCHEMA_NAME)
     return (schema_tables_add(thd, table_names,
                               lookup_field_vals->table_value.str));
+
+  if (check_db_name((LEX_STRING*)db_name))
+    return 0; // Impossible TABLE_SCHEMA name
 
   find_files_result res= find_files(thd, table_names, db_name, path,
                                     &lookup_field_vals->table_value);
@@ -4535,8 +4586,7 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
                           Open_tables_backup *open_tables_state_backup,
                           bool can_deadlock)
 {
-  Query_arena i_s_arena(mem_root,
-                        Query_arena::STMT_CONVENTIONAL_EXECUTION),
+  Query_arena i_s_arena(mem_root, Query_arena::STMT_CONVENTIONAL_EXECUTION),
               backup_arena, *old_arena;
   LEX *old_lex= thd->lex, temp_lex, *lex;
   LEX_CSTRING db_name, table_name;
@@ -4633,7 +4683,7 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
     Again we don't do this for SHOW COLUMNS/KEYS because
     of backward compatibility.
   */
-  if (!is_show_fields_or_keys && result &&
+  if (!is_show_fields_or_keys && result && thd->is_error() &&
       (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
        thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE))
@@ -5050,14 +5100,12 @@ end:
 class Warnings_only_error_handler : public Internal_error_handler
 {
 public:
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char* sqlstate,
+  bool handle_condition(THD *thd, uint sql_errno, const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg,
-                        Sql_condition ** cond_hdl)
+                        const char* msg, Sql_condition ** cond_hdl)
   {
-    if (sql_errno == ER_TRG_NO_DEFINER || sql_errno == ER_TRG_NO_CREATION_CTX)
+    if (sql_errno == ER_TRG_NO_DEFINER || sql_errno == ER_TRG_NO_CREATION_CTX
+        || sql_errno == ER_PARSE_ERROR)
       return true;
 
     if (*level != Sql_condition::WARN_LEVEL_ERROR)
@@ -5255,6 +5303,12 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
                 continue;
             }
 
+            if (thd->killed == ABORT_QUERY)
+            {
+              error= 0;
+              goto err;
+            }
+
             DEBUG_SYNC(thd, "before_open_in_get_all_tables");
             if (fill_schema_table_by_open(thd, &tmp_mem_root, FALSE,
                                           table, schema_table,
@@ -5264,6 +5318,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
               goto err;
             free_root(&tmp_mem_root, MY_MARK_BLOCKS_FREE);
           }
+        }
+        if (thd->killed == ABORT_QUERY)
+        {
+          error= 0;
+          goto err;
         }
       }
     }
@@ -5287,6 +5346,29 @@ bool store_schema_shemata(THD* thd, TABLE *table, LEX_CSTRING *db_name,
   table->field[2]->store(cs->csname, strlen(cs->csname), system_charset_info);
   table->field[3]->store(cs->name, strlen(cs->name), system_charset_info);
   return schema_table_store_record(thd, table);
+}
+
+
+/*
+  Check if the specified database exists on disk.
+
+  @param dbname - the database name
+  @retval true  - on error, the database directory does not exists
+  @retval false - on success, the database directory exists
+*/
+static bool verify_database_directory_exists(const LEX_CSTRING &dbname)
+{
+  DBUG_ENTER("verify_database_directory_exists");
+  char path[FN_REFLEN + 16];
+  uint path_len;
+  MY_STAT stat_info;
+  if (!dbname.str[0])
+    DBUG_RETURN(true); // Empty database name: does not exist.
+  path_len= build_table_filename(path, sizeof(path) - 1, dbname.str, "", "", 0);
+  path[path_len - 1]= 0;
+  if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
+    DBUG_RETURN(true); // The database directory was not found: does not exist.
+  DBUG_RETURN(false);  // The database directory was found.
 }
 
 
@@ -5318,19 +5400,10 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
     If we have lookup db value we should check that the database exists
   */
   if(lookup_field_vals.db_value.str && !lookup_field_vals.wild_db_value &&
-     db_names.at(0) != &INFORMATION_SCHEMA_NAME)
-  {
-    char path[FN_REFLEN+16];
-    uint path_len;
-    MY_STAT stat_info;
-    if (!lookup_field_vals.db_value.str[0])
-      DBUG_RETURN(0);
-    path_len= build_table_filename(path, sizeof(path) - 1,
-                                   lookup_field_vals.db_value.str, "", "", 0);
-    path[path_len-1]= 0;
-    if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
-      DBUG_RETURN(0);
-  }
+     (!db_names.elements() /* The database name was too long */||
+      (db_names.at(0) != &INFORMATION_SCHEMA_NAME &&
+       verify_database_directory_exists(lookup_field_vals.db_value))))
+    DBUG_RETURN(0);
 
   for (size_t i=0; i < db_names.elements(); i++)
   {
@@ -5802,7 +5875,7 @@ static bool print_anchor_data_type(const Spvar_definition *def,
   Let's print it according to the current sql_mode.
   It will make output in line with the value in mysql.proc.param_list,
   so both I_S.XXX.DTD_IDENTIFIER and mysql.proc.param_list use the same notation:
-  default or Oracle, according to the sql_mode at the SP creation time. 
+  default or Oracle, according to the sql_mode at the SP creation time.
   The caller must make sure to set thd->variables.sql_mode to the routine sql_mode.
 */
 static bool print_anchor_dtd_identifier(THD *thd, const Spvar_definition *def,
@@ -5909,15 +5982,21 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
         rather than in SHOW COLUMNS
       */
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-      thd->clear_error();
+      if (thd->is_error())
+      {
+        /*
+          The the query was aborted because examined rows exceeded limit.
+          Don't send the warning here. It is done later, in handle_select().
+        */
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                     thd->get_stmt_da()->sql_errno(),
+                     thd->get_stmt_da()->message());
+        thd->clear_error();
+      }
       res= 0;
     }
     DBUG_RETURN(res);
   }
-
   show_table= tables->table;
   count= 0;
   ptr= show_table->field;
@@ -6006,7 +6085,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     }
     else if (field->flags & VERS_SYSTEM_FIELD)
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags & VERS_ROW_START)
       {
         table->field[21]->store(STRING_WITH_LEN("ROW START"), cs);
         buf.set(STRING_WITH_LEN("STORED GENERATED"), cs);
@@ -6330,7 +6409,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       {
         free_table_share(&share);
         if (free_sp_head)
-          delete sp;
+          sp_head::destroy(sp);
         DBUG_RETURN(1);
       }
     }
@@ -6377,7 +6456,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       }
     }
     if (free_sp_head)
-      delete sp;
+      sp_head::destroy(sp);
   }
   free_table_share(&share);
   DBUG_RETURN(error);
@@ -6456,7 +6535,7 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
           store_column_type(table, field, cs, 5);
           free_table_share(&share);
           if (free_sp_head)
-            delete sp;
+            sp_head::destroy(sp);
         }
       }
 
@@ -6624,6 +6703,16 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       LEX_CSTRING unknown= {STRING_WITH_LEN("?unknown field?") };
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
+        if (key_part->field->invisible >= INVISIBLE_SYSTEM &&
+            DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+        {
+          /*
+            NOTE: we will get SEQ_IN_INDEX gap inside the result if this key_part
+            is not last (currently not possible). Though nothing is wrong with
+            that probably.
+          */
+          continue;
+        }
         restore_record(table, s->default_values);
         table->field[0]->store(STRING_WITH_LEN("def"), cs);
         table->field[1]->store(db_name->str, db_name->length, cs);
@@ -6864,23 +6953,35 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
     thd->clear_error();
     DBUG_RETURN(0);
   }
-  else if (!tables->view)
+  if (!tables->view)
   {
-    if (tables->table->s->table_check_constraints)
+    StringBuffer<MAX_FIELD_WIDTH> str(system_charset_info);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    TABLE_LIST table_acl_check;
+    bzero((char*) &table_acl_check, sizeof(table_acl_check));
+#endif
+    for (uint i= 0; i < tables->table->s->table_check_constraints; i++)
     {
-      for (uint i= 0; i < tables->table->s->table_check_constraints; i++)
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      if (!(thd->col_access & TABLE_ACLS))
       {
-        StringBuffer<MAX_FIELD_WIDTH> str(system_charset_info);
-        Virtual_column_info *check= tables->table->check_constraints[i];
-        restore_record(table, s->default_values);
-        table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
-        table->field[1]->store(db_name->str, db_name->length, system_charset_info);
-        table->field[2]->store(check->name.str, check->name.length, system_charset_info);
-        table->field[3]->store(table_name->str, table_name->length, system_charset_info);
-        check->print(&str);
-        table->field[4]->store(str.ptr(), str.length(), system_charset_info);
-        schema_table_store_record(thd, table);
+        table_acl_check.db= *db_name;
+        table_acl_check.table_name= *table_name;
+        table_acl_check.grant.privilege= thd->col_access;
+        if (check_grant(thd, TABLE_ACLS, &table_acl_check, FALSE, 1, TRUE))
+          continue;
       }
+#endif
+      Virtual_column_info *check= tables->table->check_constraints[i];
+      table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
+      table->field[3]->store(check->name.str, check->name.length,
+                             system_charset_info);
+      /* Make sure the string is empty between each print. */
+      str.length(0);
+      check->print(&str);
+      table->field[4]->store(str.ptr(), str.length(), system_charset_info);
+      if (schema_table_store_record(thd, table))
+        DBUG_RETURN(1);
     }
   }
   DBUG_RETURN(res);
@@ -7843,6 +7944,60 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_RETURN(res);
 }
 
+int add_symbol_to_table(const char* name, TABLE* table){
+  DBUG_ENTER("add_symbol_to_table");
+
+  size_t length= strlen(name);
+
+  // If you've added a new SQL keyword longer than KEYWORD_SIZE,
+  // please increase the defined max length
+  DBUG_ASSERT(length < KEYWORD_SIZE);
+
+  restore_record(table, s->default_values);
+  table->field[0]->set_notnull();
+  table->field[0]->store(name, length,
+                         system_charset_info);
+  if (schema_table_store_record(table->in_use, table))
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(0);
+}
+
+int fill_i_s_keywords(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  DBUG_ENTER("fill_i_s_keywords");
+
+  TABLE *table= tables->table;
+
+  for (uint i= 0; i < symbols_length; i++){
+    const char *name= symbols[i].name;
+    if (add_symbol_to_table(name, table))
+      DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(0);
+}
+
+int fill_i_s_sql_functions(THD *thd, TABLE_LIST *tables, COND *cond) {
+  DBUG_ENTER("fill_i_s_sql_functions");
+
+  TABLE *table= tables->table;
+
+  for (uint i= 0; i < sql_functions_length; i++){
+    const char *name= sql_functions[i].name;
+    if (add_symbol_to_table(name, table))
+      DBUG_RETURN(1);
+  }
+
+  for (uint i= 0; i < func_array_length; i++){
+    const char *name= func_array[i].name.str;
+    if (add_symbol_to_table(name, table))
+      DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(0);
+}
+
 
 int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
 {
@@ -7880,13 +8035,7 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   if (partial_cond)
     partial_cond->val_int();
 
-  if (scope == OPT_GLOBAL)
-  {
-    /* We only hold LOCK_status for summary status vars */
-    mysql_mutex_lock(&LOCK_status);
-    calc_sum_of_all_status(&tmp);
-    mysql_mutex_unlock(&LOCK_status);
-  }
+  tmp.local_memory_used= 0; // meaning tmp was not populated yet
 
   mysql_mutex_lock(&LOCK_show_status);
   res= show_status_array(thd, wild,
@@ -8063,51 +8212,6 @@ ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx)
   return &schema_tables[schema_table_idx];
 }
 
-static void
-mark_all_fields_used_in_query(THD *thd,
-                              ST_FIELD_INFO *schema_fields,
-                              MY_BITMAP *bitmap,
-                              Item *all_items)
-{
-  Item *item;
-  DBUG_ENTER("mark_all_fields_used_in_query");
-
-  /* If not SELECT command, return all columns */
-  if (thd->lex->sql_command != SQLCOM_SELECT &&
-      thd->lex->sql_command != SQLCOM_SET_OPTION)
-  {
-    bitmap_set_all(bitmap);
-    DBUG_VOID_RETURN;
-  }
-
-  for (item= all_items ; item ; item= item->next)
-  {
-    if (item->type() == Item::FIELD_ITEM)
-    {
-      ST_FIELD_INFO *fields= schema_fields;
-      uint count;
-      Item_field *item_field= (Item_field*) item;
-
-      /* item_field can be '*' as this function is called before fix_fields */
-      if (item_field->field_name.str == star_clex_str.str)
-      {
-        bitmap_set_all(bitmap);
-        break;
-      }
-      for (count=0; fields->field_name; fields++, count++)
-      {
-        if (!my_strcasecmp(system_charset_info, fields->field_name,
-                           item_field->field_name.str))
-        {
-          bitmap_set_bit(bitmap, count);
-          break;
-        }
-      }
-    }
-  }
-  DBUG_VOID_RETURN;
-}
-
 /**
   Create information_schema table using schema_table data.
 
@@ -8120,7 +8224,7 @@ mark_all_fields_used_in_query(THD *thd,
     0<decimals<10 and 0<=length<100 .
 
   @param
-    thd	       	          thread handler
+    thd                   thread handler
 
   @param table_list Used to pass I_S table information(fields info, tables
   parameters etc) and table name.
@@ -8131,34 +8235,19 @@ mark_all_fields_used_in_query(THD *thd,
 
 TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
 {
-  uint field_count;
-  Item *item, *all_items;
+  uint field_count= 0;
+  Item *item;
   TABLE *table;
   List<Item> field_list;
   ST_SCHEMA_TABLE *schema_table= table_list->schema_table;
   ST_FIELD_INFO *fields_info= schema_table->fields_info;
-  ST_FIELD_INFO *fields;
   CHARSET_INFO *cs= system_charset_info;
   MEM_ROOT *mem_root= thd->mem_root;
-  MY_BITMAP bitmap;
-  my_bitmap_map *buf;
+  bool need_all_fieds= table_list->schema_table_reformed || // SHOW command
+                       thd->lex->only_view_structure(); // need table structure
   DBUG_ENTER("create_schema_table");
 
-  for (field_count= 0, fields= fields_info; fields->field_name; fields++)
-    field_count++;
-  if (!(buf= (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count))))
-    DBUG_RETURN(NULL);
-  my_bitmap_init(&bitmap, buf, field_count, 0);
-
-  if (!thd->stmt_arena->is_conventional() &&
-      thd->mem_root != thd->stmt_arena->mem_root)
-    all_items= thd->stmt_arena->free_list;
-  else
-    all_items= thd->free_list;
-
-  mark_all_fields_used_in_query(thd, fields_info, &bitmap, all_items);
-
-  for (field_count=0; fields_info->field_name; fields_info++)
+  for (; fields_info->field_name; fields_info++)
   {
     size_t field_name_length= strlen(fields_info->field_name);
     switch (fields_info->field_type) {
@@ -8235,43 +8324,18 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     case MYSQL_TYPE_MEDIUM_BLOB:
     case MYSQL_TYPE_LONG_BLOB:
     case MYSQL_TYPE_BLOB:
-      if (bitmap_is_set(&bitmap, field_count))
-      {
-        if (!(item= new (mem_root)
-              Item_blob(thd, fields_info->field_name,
-                        fields_info->field_length)))
-        {
-          DBUG_RETURN(0);
-        }
-      }
-      else
-      {
-        if (!(item= new (mem_root)
-              Item_empty_string(thd, "", 0, cs)))
-        {
-          DBUG_RETURN(0);
-        }
-        item->set_name(thd, fields_info->field_name,
-                       field_name_length, cs);
-      }
+      if (!(item= new (mem_root) Item_blob(thd, fields_info->field_name,
+                                           fields_info->field_length)))
+        DBUG_RETURN(0);
       break;
     default:
-    {
-      bool show_field;
       /* Don't let unimplemented types pass through. Could be a grave error. */
       DBUG_ASSERT(fields_info->field_type == MYSQL_TYPE_STRING);
-
-      show_field= bitmap_is_set(&bitmap, field_count);
-      if (!(item= new (mem_root)
-            Item_empty_string(thd, "",
-                              show_field ? fields_info->field_length : 0, cs)))
-      {
+      if (!(item= new (mem_root) Item_empty_string(thd, "",
+                                               fields_info->field_length, cs)))
         DBUG_RETURN(0);
-      }
-      item->set_name(thd, fields_info->field_name,
-                     field_name_length, cs);
+      item->set_name(thd, fields_info->field_name, field_name_length, cs);
       break;
-    }
     }
     field_list.push_back(item, thd->mem_root);
     item->maybe_null= (fields_info->field_flags & MY_I_S_MAYBE_NULL);
@@ -8284,11 +8348,10 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   tmp_table_param->schema_table= 1;
   SELECT_LEX *select_lex= thd->lex->current_select;
   bool keep_row_order= is_show_command(thd);
-  if (!(table= create_tmp_table(thd, tmp_table_param,
-                                field_list, (ORDER*) 0, 0, 0, 
-                                (select_lex->options | thd->variables.option_bits |
-                                 TMP_TABLE_ALL_COLUMNS), HA_POS_ERROR,
-                                &table_list->alias, false, keep_row_order)))
+  if (!(table= create_tmp_table(thd, tmp_table_param, field_list, (ORDER*) 0, 0,
+                 0, (select_lex->options | thd->variables.option_bits |
+                 TMP_TABLE_ALL_COLUMNS), HA_POS_ERROR,
+                 &table_list->alias, !need_all_fieds, keep_row_order)))
     DBUG_RETURN(0);
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
@@ -8704,6 +8767,74 @@ end:
 }
 
 
+bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
+{
+  DBUG_ENTER("optimize_schema_tables_memory_usage");
+
+  List_iterator<TABLE_LIST> tli(tables);
+
+  while (TABLE_LIST *table_list= tli++)
+  {
+    if (!table_list->schema_table)
+      continue;
+
+    TABLE *table= table_list->table;
+    THD *thd=table->in_use;
+
+    if (!thd->fill_information_schema_tables())
+      continue;
+
+    if (!table->is_created())
+    {
+      TMP_TABLE_PARAM *p= table_list->schema_table_param;
+      TMP_ENGINE_COLUMNDEF *from_recinfo, *to_recinfo;
+      DBUG_ASSERT(table->s->keys == 0);
+      DBUG_ASSERT(table->s->uniques == 0);
+
+      uchar *cur= table->field[0]->ptr;
+      /* first recinfo could be a NULL bitmap, not an actual Field */
+      from_recinfo= to_recinfo= p->start_recinfo + (cur != table->record[0]);
+      for (uint i=0; i < table->s->fields; i++, from_recinfo++)
+      {
+        Field *field= table->field[i];
+        DBUG_ASSERT(field->vcol_info == 0);
+        DBUG_ASSERT(from_recinfo->length);
+        DBUG_ASSERT(from_recinfo->length == field->pack_length_in_rec());
+        if (bitmap_is_set(table->read_set, i))
+        {
+          field->move_field(cur);
+          *to_recinfo++= *from_recinfo;
+          cur+= from_recinfo->length;
+        }
+        else
+        {
+          field= new (thd->mem_root) Field_string(cur, 0, field->null_ptr,
+                                field->null_bit, Field::NONE,
+                                &field->field_name, field->dtcollation());
+          field->init(table);
+          field->field_index= i;
+          DBUG_ASSERT(field->pack_length_in_rec() == 0);
+          table->field[i]= field;
+        }
+      }
+      if ((table->s->reclength= (ulong)(cur - table->record[0])) == 0)
+      {
+        /* all fields were optimized away. Force a non-0-length row */
+        table->s->reclength= to_recinfo->length= 1;
+        to_recinfo++;
+      }
+      p->recinfo= to_recinfo;
+
+      // TODO switch from Aria to Memory if all blobs were optimized away?
+      if (instantiate_tmp_table(table, p->keyinfo, p->start_recinfo, &p->recinfo,
+                   table_list->select_lex->options | thd->variables.option_bits))
+        DBUG_RETURN(1);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+
 /*
   This is the optimizer part of get_schema_tables_result().
 */
@@ -8711,7 +8842,6 @@ end:
 bool optimize_schema_tables_reads(JOIN *join)
 {
   THD *thd= join->thd;
-  bool result= 0;
   DBUG_ENTER("optimize_schema_tables_reads");
 
   JOIN_TAB *tab;
@@ -8746,11 +8876,11 @@ bool optimize_schema_tables_reads(JOIN *join)
         */
         cond= tab->cache_select->cond;
       }
-
-      optimize_for_get_all_tables(thd, table_list, cond);
+      if (optimize_for_get_all_tables(thd, table_list, cond))
+        DBUG_RETURN(1);   // Handle OOM
     }
   }
-  DBUG_RETURN(result);
+  DBUG_RETURN(0);
 }
 
 
@@ -8809,19 +8939,26 @@ bool get_schema_tables_result(JOIN *join,
       if (table_list->schema_table->fill_table == 0)
         continue;
 
+      /*
+        Do not fill in tables thare are marked as JT_CONST as these will never
+        be read and they also don't have a tab->read_record.table set!
+        This can happen with queries like
+        SELECT * FROM t1 LEFT JOIN (t1 AS t1b JOIN INFORMATION_SCHEMA.ROUTINES)
+        ON (t1b.a IS NULL);
+      */
+      if (tab->type == JT_CONST)
+        continue;
+
       /* skip I_S optimizations specific to get_all_tables */
       if (lex->describe &&
           (table_list->schema_table->fill_table != get_all_tables))
         continue;
 
       /*
-        If schema table is already processed and
-        the statement is not a subselect then
-        we don't need to fill this table again.
-        If schema table is already processed and
-        schema_table_state != executed_place then
-        table is already processed and
-        we should skip second data processing.
+        If schema table is already processed and the statement is not a
+        subselect then we don't need to fill this table again. If schema table
+        is already processed and schema_table_state != executed_place then
+        table is already processed and we should skip second data processing.
       */
       if (table_list->schema_table_state &&
           (!is_subselect || table_list->schema_table_state != executed_place))
@@ -8857,6 +8994,7 @@ bool get_schema_tables_result(JOIN *join,
       }
 
       Switch_to_definer_security_ctx backup_ctx(thd, table_list);
+      Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
       if (table_list->schema_table->fill_table(thd, table_list, cond))
       {
         result= 1;
@@ -8883,8 +9021,7 @@ bool get_schema_tables_result(JOIN *join,
       It also means that an audit plugin cannot process the error correctly
       either. See also thd->clear_error()
     */
-    thd->get_stmt_da()->push_warning(thd,
-                                     thd->get_stmt_da()->sql_errno(),
+    thd->get_stmt_da()->push_warning(thd, thd->get_stmt_da()->sql_errno(),
                                      thd->get_stmt_da()->get_sqlstate(),
                                      Sql_condition::WARN_LEVEL_ERROR,
                                      thd->get_stmt_da()->message());
@@ -9151,6 +9288,18 @@ ST_FIELD_INFO applicable_roles_fields_info[]=
 ST_FIELD_INFO enabled_roles_fields_info[]=
 {
   {"ROLE_NAME", USERNAME_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, SKIP_OPEN_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
+
+ST_FIELD_INFO keywords_field_info[]=
+{
+  {"WORD", KEYWORD_SIZE, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, SKIP_OPEN_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
+
+ST_FIELD_INFO sql_functions_field_info[]=
+{
+  {"FUNCTION", KEYWORD_SIZE, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 
@@ -9805,10 +9954,10 @@ ST_FIELD_INFO check_constraints_fields_info[]=
   {"CONSTRAINT_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
   {"CONSTRAINT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
    OPEN_FULL_TABLE},
+  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
   {"CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
    OPEN_FULL_TABLE},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"CHECK_CLAUSE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+  {"CHECK_CLAUSE", MAX_FIELD_VARCHARLENGTH , MYSQL_TYPE_STRING, 0, 0, 0,
    OPEN_FULL_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
@@ -9827,8 +9976,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_schema_applicable_roles, 0, 0, -1, -1, 0, 0},
   {"CHARACTER_SETS", charsets_fields_info, 0,
    fill_schema_charsets, make_character_sets_old_format, 0, -1, -1, 0, 0},
-  {"CHECK_CONSTRAINTS", check_constraints_fields_info, 0,
-   get_all_tables, 0, get_check_constraints_record, 1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
+  {"CHECK_CONSTRAINTS", check_constraints_fields_info, 0, get_all_tables, 0,
+   get_check_constraints_record, 1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"COLLATIONS", collation_fields_info, 0,
    fill_schema_collation, make_old_format, 0, -1, -1, 0, 0},
   {"COLLATION_CHARACTER_SET_APPLICABILITY", coll_charset_app_fields_info,
@@ -9857,6 +10006,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_status, make_old_format, 0, 0, -1, 0, 0},
   {"GLOBAL_VARIABLES", variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},
+  {"KEYWORDS", keywords_field_info, 0,
+   fill_i_s_keywords, 0, 0, -1, -1, 0, 0},
   {"KEY_CACHES", keycache_fields_info, 0,
    fill_key_cache_tables, 0, 0, -1,-1, 0, 0},
   {"KEY_COLUMN_USAGE", key_column_usage_fields_info, 0,
@@ -9892,6 +10043,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"STATISTICS", stat_fields_info, 0,
    get_all_tables, make_old_format, get_schema_stat_record, 1, 2, 0,
    OPEN_TABLE_ONLY|OPTIMIZE_I_S_TABLE},
+  {"SQL_FUNCTIONS", sql_functions_field_info, 0,
+   fill_i_s_sql_functions, 0, 0, -1, -1, 0, 0},
   {"SYSTEM_VARIABLES", sysvars_fields_info, 0,
    fill_sysvars, make_old_format, 0, 0, -1, 0, 0},
   {"TABLES", tables_fields_info, 0,

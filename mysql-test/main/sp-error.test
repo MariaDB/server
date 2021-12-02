@@ -3851,3 +3851,22 @@ SELECT @msg;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP TABLE t1;
+
+--echo #
+--echo # 10.2 Test
+--echo #
+--echo # MDEV-MDEV-22058: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo # is_bulk_op())' failed in Diagnostics_area::set_ok_status
+--echo #
+
+SET @old_optimizer_switch = @@SESSION.OPTIMIZER_SWITCH;
+
+SET @cmd:="SET @@SESSION.SQL_MODE=(SELECT 'a')";
+
+--error ER_ILLEGAL_SUBQUERY_OPTIMIZER_SWITCHES
+SET @@SESSION.OPTIMIZER_SWITCH="in_to_exists=OFF,materialization=OFF";
+PREPARE stmt FROM @cmd;
+
+set @@SESSION.OPTIMIZER_SWITCH=@old_optimizer_switch;
+
+--echo # End of 10.2 Test

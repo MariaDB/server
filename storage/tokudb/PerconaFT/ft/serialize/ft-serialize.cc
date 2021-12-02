@@ -340,7 +340,7 @@ int deserialize_ft_versioned(int fd, struct rbuf *rb, FT *ftp, uint32_t version)
     {
         struct ft_header h = {
             .type = FT_CURRENT,
-            .dirty = 0,
+            .dirty_ = 0,
             .checkpoint_count = checkpoint_count,
             .checkpoint_lsn = checkpoint_lsn,
             .layout_version = FT_LAYOUT_VERSION,

@@ -1,4 +1,4 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,7 +37,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include "log_event.h"
-#include <slave.h>
 
 wsrep_t *wsrep                  = NULL;
 /*
@@ -638,7 +637,6 @@ int wsrep_init()
   {
     // enable normal operation in case no provider is specified
     wsrep_ready_set(TRUE);
-    wsrep_inited= 1;
     global_system_variables.wsrep_on = 0;
     wsrep_init_args args;
     args.logger_cb = wsrep_log_cb;
@@ -649,9 +647,14 @@ int wsrep_init()
     {
       DBUG_PRINT("wsrep",("wsrep::init() failed: %d", rcode));
       WSREP_ERROR("wsrep::init() failed: %d, must shutdown", rcode);
+      wsrep_ready_set(FALSE);
       wsrep->free(wsrep);
       free(wsrep);
       wsrep = NULL;
+    }
+    else
+    {
+      wsrep_inited= 1;
     }
     return rcode;
   }
@@ -830,13 +833,25 @@ void wsrep_thr_init()
   DBUG_VOID_RETURN;
 }
 
+/* This is wrapper for wsrep_break_lock in thr_lock.c */
+static int wsrep_thr_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
+{
+  THD* victim_thd= (THD *) victim_thd_ptr;
+  /* We need to lock THD::LOCK_thd_data to protect victim
+  from concurrent usage or disconnect or delete. */
+  wsrep_thd_LOCK(victim_thd);
+  int res= wsrep_abort_thd(bf_thd_ptr, victim_thd_ptr, signal);
+  return res;
+}
+
+
 void wsrep_init_startup (bool first)
 {
   if (wsrep_init()) unireg_abort(1);
 
   wsrep_thr_lock_init(
      (wsrep_thd_is_brute_force_fun)wsrep_thd_is_BF,
-     (wsrep_abort_thd_fun)wsrep_abort_thd,
+     (wsrep_abort_thd_fun)wsrep_thr_abort_thd,
      wsrep_debug, wsrep_convert_LOCK_to_trx,
      (wsrep_on_fun)wsrep_on);
 
@@ -1546,6 +1561,39 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     {
       return false;
     }
+    /*
+      If mariadb master has replicated a CTAS, we should not replicate the create table
+      part separately as TOI, but to replicate both create table and following inserts
+      as one write set.
+      Howver, if CTAS creates empty table, we should replicate the create table alone
+      as TOI. We have to do relay log event lookup to see if row events follow the
+      create table event.
+    */
+    if (thd->slave_thread && !(thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_STANDALONE))
+    {
+      /* this is CTAS, either empty or populated table */
+      ulonglong event_size = 0;
+      enum Log_event_type ev_type= wsrep_peak_event(thd->rgi_slave, &event_size);
+      switch (ev_type)
+      {
+      case QUERY_EVENT:
+        /* CTAS with empty table, we replicate create table as TOI */
+        break;
+
+      case TABLE_MAP_EVENT:
+        WSREP_DEBUG("replicating CTAS of empty table as TOI");
+        // fall through
+      case WRITE_ROWS_EVENT:
+        /* CTAS with populated table, we replicate later at commit time */
+        WSREP_DEBUG("skipping create table of CTAS replication");
+        return false;
+
+      default:
+        WSREP_WARN("unexpected async replication event: %d", ev_type);
+      }
+      return true;
+    }
+    /* no next async replication event */
     return true;
 
   case SQLCOM_CREATE_VIEW:
@@ -1567,10 +1615,17 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
 
   case SQLCOM_CREATE_TRIGGER:
 
-    DBUG_ASSERT(!table_list);
     DBUG_ASSERT(first_table);
 
     if (thd->find_temporary_table(first_table))
+    {
+      return false;
+    }
+    return true;
+
+  case SQLCOM_DROP_TRIGGER:
+    DBUG_ASSERT(table_list);
+    if (thd->find_temporary_table(table_list))
     {
       return false;
     }
@@ -1641,6 +1696,11 @@ static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
     break;
   case SQLCOM_DROP_TABLE:
     buf_err= wsrep_drop_table_query(thd, &buf, &buf_len);
+    break;
+  case SQLCOM_KILL:
+    WSREP_DEBUG("KILL as TOI: %s", thd->query());
+    buf_err= wsrep_to_buf_helper(thd, thd->query(), thd->query_length(),
+                                 &buf, &buf_len);
     break;
   case SQLCOM_CREATE_ROLE:
     if (sp_process_definer(thd))
@@ -1753,7 +1813,7 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
     }
 
     my_error(ER_LOCK_DEADLOCK, MYF(0));
-    return(1);
+    return(-1);
   }
 
   wsrep_seqno_t seqno = wsrep->pause(wsrep);
@@ -1962,14 +2022,14 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
                   request_thd, granted_thd);
     ticket->wsrep_report(wsrep_debug);
 
-    mysql_mutex_lock(&granted_thd->LOCK_thd_data);
+    wsrep_thd_LOCK(granted_thd);
     if (granted_thd->wsrep_exec_mode == TOTAL_ORDER ||
         granted_thd->wsrep_exec_mode == REPL_RECV)
     {
       WSREP_MDL_LOG(INFO, "MDL BF-BF conflict", schema, schema_len,
                     request_thd, granted_thd);
       ticket->wsrep_report(true);
-      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      wsrep_thd_UNLOCK(granted_thd);
       ret= true;
     }
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH ||
@@ -1977,7 +2037,7 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
     {
       WSREP_DEBUG("BF thread waiting for FLUSH");
       ticket->wsrep_report(wsrep_debug);
-      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      wsrep_thd_UNLOCK(granted_thd);
       ret= false;
     }
     else
@@ -2002,8 +2062,10 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
         ticket->wsrep_report(true);
       }
 
-      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-      wsrep_abort_thd((void *) request_thd, (void *) granted_thd, 1);
+      /* This will call wsrep_abort_transaction so we should hold
+      THD::LOCK_thd_data to protect victim from concurrent usage
+      or disconnect or delete. */
+      wsrep_abort_thd((void *) request_thd, (void *) granted_thd, true);
       ret= false;
     }
   }
@@ -2178,6 +2240,7 @@ error:
 static bool abort_replicated(THD *thd)
 {
   bool ret_code= false;
+  wsrep_thd_LOCK(thd);
   if (thd->wsrep_query_state== QUERY_COMMITTING)
   {
     WSREP_DEBUG("aborting replicated trx: %llu", (ulonglong)(thd->real_id));
@@ -2185,6 +2248,8 @@ static bool abort_replicated(THD *thd)
     (void)wsrep_abort_thd(thd, thd, TRUE);
     ret_code= true;
   }
+  else
+    wsrep_thd_UNLOCK(thd);
   return ret_code;
 }
 
@@ -2231,6 +2296,8 @@ static bool have_client_connections()
                        (longlong) tmp->thread_id));
     if (is_client_connection(tmp) && tmp->killed == KILL_CONNECTION)
     {
+      WSREP_DEBUG("Informing thread %lld that it's time to die",
+                  (longlong)tmp->thread_id);
       (void)abort_replicated(tmp);
       return true;
     }
@@ -2270,6 +2337,7 @@ static my_bool have_committing_connections()
 
     if (is_committing_connection(tmp))
     {
+      mysql_mutex_unlock(&LOCK_thread_count);
       return TRUE;
     }
   }
@@ -2314,6 +2382,8 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD *except_caller_thd)
   {
     DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
                        (longlong) tmp->thread_id));
+    WSREP_DEBUG("Informing thread %lld that it's time to die",
+                (longlong)tmp->thread_id);
     /* We skip slave threads & scheduler on this first loop through. */
     if (!is_client_connection(tmp))
       continue;
@@ -2330,21 +2400,19 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD *except_caller_thd)
       continue;
     }
 
-    /* replicated transactions must be skipped */
+    /* replicated transactions must be skipped and aborted
+    with wsrep_abort_thd. */
     if (abort_replicated(tmp))
       continue;
 
     WSREP_DEBUG("closing connection %lld", (longlong) tmp->thread_id);
 
     /*
-      instead of wsrep_close_thread() we do now  soft kill by THD::awake
-     */
-    mysql_mutex_lock(&tmp->LOCK_thd_data);
-
+      instead of wsrep_close_thread() we do now  soft kill by
+      THD::awake(). Here also victim needs to be protected from
+      concurrent usage or disconnect or delete.
+    */
     tmp->awake(KILL_CONNECTION);
-
-    mysql_mutex_unlock(&tmp->LOCK_thd_data);
-
   }
   mysql_mutex_unlock(&LOCK_thread_count);
 
@@ -2359,7 +2427,6 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD *except_caller_thd)
   I_List_iterator<THD> it2(threads);
   while ((tmp=it2++))
   {
-#ifndef __bsdi__				// Bug in BSDI kernel
     if (is_client_connection(tmp) &&
         !abort_replicated(tmp)    &&
         !is_replaying_connection(tmp) &&
@@ -2368,7 +2435,6 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD *except_caller_thd)
       WSREP_INFO("killing local connection: %lld", (longlong) tmp->thread_id);
       close_connection(tmp,0);
     }
-#endif
   }
 
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
@@ -2538,13 +2604,25 @@ extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode)
 extern "C" void wsrep_thd_set_query_state(
 	THD *thd, enum wsrep_query_state state)
 {
+  /* async slave thread should never flag IDLE state, as it may
+     give rollbacker thread chance to interfere and rollback async slave
+     transaction.
+     in fact, async slave thread is never idle as it reads complete
+     transactions from relay log and applies them, as a whole.
+     BF abort happens voluntarily by async slave thread.
+  */
+  if (thd->slave_thread && state == QUERY_IDLE) {
+    WSREP_DEBUG("Skipping IDLE state change for slave SQL");
+    return;
+  }
   thd->wsrep_query_state= state;
 }
 
 
 void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state)
 {
-  if (WSREP(thd)) thd->wsrep_conflict_state= state;
+  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
+  thd->wsrep_conflict_state= state;
 }
 
 
@@ -2612,12 +2690,26 @@ wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd)
 void wsrep_thd_LOCK(THD *thd)
 {
   mysql_mutex_lock(&thd->LOCK_thd_data);
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
 }
 
 
 void wsrep_thd_UNLOCK(THD *thd)
 {
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
   mysql_mutex_unlock(&thd->LOCK_thd_data);
+}
+
+
+void wsrep_thd_kill_LOCK(THD *thd)
+{
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+}
+
+
+void wsrep_thd_kill_UNLOCK(THD *thd)
+{
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
 
@@ -2685,7 +2777,12 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
 {
   if (signal)
   {
-    thd->awake(KILL_QUERY);
+    /* Here we should hold THD::LOCK_thd_data to
+    protect from concurrent usage and
+    THD::LOCK_thd_kill from disconnect or delete */
+    mysql_mutex_assert_owner(&thd->LOCK_thd_data);
+    mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
+    thd->awake_no_mutex(KILL_QUERY);
   }
   else
   {
@@ -2711,16 +2808,18 @@ extern "C" bool wsrep_thd_ignore_table(THD *thd)
 extern int
 wsrep_trx_order_before(THD *thd1, THD *thd2)
 {
-    if (wsrep_thd_trx_seqno(thd1) < wsrep_thd_trx_seqno(thd2)) {
-        WSREP_DEBUG("BF conflict, order: %lld %lld\n",
-                    (long long)wsrep_thd_trx_seqno(thd1),
-                    (long long)wsrep_thd_trx_seqno(thd2));
-        return 1;
-    }
-    WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
-                (long long)wsrep_thd_trx_seqno(thd1),
-                (long long)wsrep_thd_trx_seqno(thd2));
-    return 0;
+  const longlong trx1_seqno= wsrep_thd_trx_seqno(thd1);
+  const longlong trx2_seqno= wsrep_thd_trx_seqno(thd2);
+  WSREP_DEBUG("BF conflict, order: %lld %lld\n",
+              trx1_seqno, trx2_seqno);
+
+  if (trx1_seqno == WSREP_SEQNO_UNDEFINED ||
+      trx2_seqno == WSREP_SEQNO_UNDEFINED)
+    return 1; /* trx is not yet replicated */
+  else if (trx1_seqno < trx2_seqno)
+    return 1;
+
+  return 0;
 }
 
 
@@ -2845,7 +2944,14 @@ static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
     definer_host.length= 0;
   }
 
-  stmt_query.append(STRING_WITH_LEN("CREATE "));
+  const LEX_CSTRING command[2]=
+      {{ C_STRING_WITH_LEN("CREATE ") },
+       { C_STRING_WITH_LEN("CREATE OR REPLACE ") }};
+
+  if (thd->lex->create_info.or_replace())
+    stmt_query.append(command[1]);
+  else
+    stmt_query.append(command[0]);
 
   append_definer(thd, &stmt_query, &definer_user, &definer_host);
 

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015  MariaDB Foundation.
+   Copyright (c) 2015, 2020, MariaDB
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #include "sql_const.h"
 #include "sql_class.h"
 #include "sql_time.h"
+#include "sql_string.h"
 #include "item.h"
 #include "log.h"
 
@@ -67,6 +68,12 @@ static Type_handler_blob_compressed type_handler_blob_compressed;
 #ifdef HAVE_SPATIAL
 Type_handler_geometry    type_handler_geometry;
 #endif
+
+
+Schema *Type_handler::schema() const
+{
+  return &mariadb_schema;
+}
 
 
 bool Type_handler_data::init()
@@ -3861,8 +3868,11 @@ cmp_item *Type_handler_temporal_with_date::make_cmp_item(THD *thd,
 
 /***************************************************************************/
 
-static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
+static int srtcmp_in(const void *cs_, const void *x_, const void *y_)
 {
+  const CHARSET_INFO *cs= static_cast<const CHARSET_INFO *>(cs_);
+  const String *x= static_cast<const String *>(x_);
+  const String *y= static_cast<const String *>(y_);
   return cs->coll->strnncollsp(cs,
                                (uchar *) x->ptr(),x->length(),
                                (uchar *) y->ptr(),y->length());
@@ -4772,7 +4782,7 @@ bool Type_handler_decimal_result::
 bool Type_handler_temporal_result::
        Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
 {
-  item->fix_length_and_dec_temporal();
+  item->fix_length_and_dec_temporal(true);
   return false;
 }
 
@@ -4821,7 +4831,7 @@ bool Type_handler_decimal_result::
 bool Type_handler_temporal_result::
        Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
 {
-  item->fix_length_and_dec_temporal();
+  item->fix_length_and_dec_temporal(true);
   return false;
 }
 
@@ -4870,7 +4880,7 @@ bool Type_handler_decimal_result::
 bool Type_handler_temporal_result::
        Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
 {
-  item->fix_length_and_dec_temporal();
+  item->fix_length_and_dec_temporal(true);
   return false;
 }
 
@@ -4919,7 +4929,8 @@ bool Type_handler_decimal_result::
 bool Type_handler_temporal_result::
        Item_func_div_fix_length_and_dec(Item_func_div *item) const
 {
-  item->fix_length_and_dec_temporal();
+  // Item_func_div::int_op() is not implemented. Disallow DECIMAL->INT downcast.
+  item->fix_length_and_dec_temporal(false);
   return false;
 }
 
@@ -4968,7 +4979,7 @@ bool Type_handler_decimal_result::
 bool Type_handler_temporal_result::
        Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
 {
-  item->fix_length_and_dec_temporal();
+  item->fix_length_and_dec_temporal(true);
   return false;
 }
 
@@ -5102,7 +5113,8 @@ uint Type_handler_timestamp_common::Item_decimal_precision(const Item *item) con
 
 bool Type_handler_real_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == REAL_RESULT);
   return outer->cmp_type() == REAL_RESULT;
@@ -5111,7 +5123,8 @@ bool Type_handler_real_result::
 
 bool Type_handler_int_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == INT_RESULT);
   return outer->cmp_type() == INT_RESULT;
@@ -5120,7 +5133,8 @@ bool Type_handler_int_result::
 
 bool Type_handler_decimal_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == DECIMAL_RESULT);
   return outer->cmp_type() == DECIMAL_RESULT;
@@ -5129,23 +5143,37 @@ bool Type_handler_decimal_result::
 
 bool Type_handler_string_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == STRING_RESULT);
-  return outer->cmp_type() == STRING_RESULT &&
-         outer->collation.collation == inner->collation.collation &&
-         /*
-           Materialization also is unable to work when create_tmp_table() will
-           create a blob column because item->max_length is too big.
-           The following test is copied from varstring_type_handler().
-         */
-         !inner->too_big_for_varchar();
+  if (outer->cmp_type() == STRING_RESULT &&
+      /*
+        Materialization also is unable to work when create_tmp_table() will
+        create a blob column because item->max_length is too big.
+        The following test is copied from varstring_type_handler().
+      */
+      !inner->too_big_for_varchar())
+  {
+    if (outer->collation.collation == inner->collation.collation)
+      return true;
+    if (is_in_predicate)
+    {
+      Charset inner_col(inner->collation.collation);
+      if (inner_col.encoding_allows_reinterpret_as(outer->
+                                                   collation.collation) &&
+          inner_col.eq_collation_specific_names(outer->collation.collation))
+        return true;
+    }
+  }
+  return false;
 }
 
 
 bool Type_handler_temporal_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == TIME_RESULT);
   return mysql_timestamp_type() ==
@@ -5905,6 +5933,24 @@ void Type_handler_geometry::Item_param_set_param_func(Item_param *param,
 
 /***************************************************************************/
 
+bool Type_handler_string_result::union_element_finalize(Item_type_holder *item) const
+{
+  if (item->collation.derivation == DERIVATION_NONE)
+  {
+    my_error(ER_CANT_AGGREGATE_NCOLLATIONS, MYF(0), "UNION");
+    return true;
+  }
+  return false;
+}
+
+bool Type_handler_null::union_element_finalize(Item_type_holder *item) const
+{
+  item->set_handler(&type_handler_string);
+  return false;
+}
+
+/***************************************************************************/
+
 bool Type_handler::Vers_history_point_resolve_unit(THD *thd,
                                                    Vers_history_point *point)
                                                    const
@@ -5963,3 +6009,56 @@ bool Type_handler_general_purpose_string::
 }
 
 /***************************************************************************/
+
+LEX_CSTRING Charset::collation_specific_name() const
+{
+  /*
+    User defined collations can provide arbitrary names
+    for character sets and collations, so a collation
+    name not necessarily starts with the character set name.
+  */
+  LEX_CSTRING retval;
+  size_t csname_length= strlen(m_charset->csname);
+  if (strncmp(m_charset->name, m_charset->csname, csname_length))
+  {
+    retval.str= NULL;
+    retval.length= 0;
+    return retval;
+  }
+  const char *ptr= m_charset->name + csname_length;
+  retval.str= ptr;
+  retval.length= strlen(ptr);
+  return retval;
+}
+
+
+bool
+Charset::encoding_allows_reinterpret_as(const CHARSET_INFO *cs) const
+{
+  if (!strcmp(m_charset->csname, cs->csname))
+    return true;
+
+  if (!strcmp(m_charset->csname, MY_UTF8MB3) &&
+      !strcmp(cs->csname, MY_UTF8MB4))
+    return true;
+
+  /*
+    Originally we allowed here instat ALTER for ASCII-to-LATIN1
+    and UCS2-to-UTF16, but this was wrong:
+    - MariaDB's ascii is not a subset for 8-bit character sets
+      like latin1, because it allows storing bytes 0x80..0xFF as
+      "unassigned" characters (see MDEV-19285).
+    - MariaDB's ucs2 (as in Unicode-1.1) is not a subset for UTF16,
+      because they treat surrogate codes differently (MDEV-19284).
+  */
+  return false;
+}
+
+
+bool
+Charset::eq_collation_specific_names(CHARSET_INFO *cs) const
+{
+  LEX_CSTRING name0= collation_specific_name();
+  LEX_CSTRING name1= Charset(cs).collation_specific_name();
+  return name0.length && !cmp(&name0, &name1);
+}

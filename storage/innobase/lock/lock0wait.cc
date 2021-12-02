@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -184,37 +184,27 @@ lock_wait_table_reserve_slot(
 check if lock timeout was for priority thread,
 as a side effect trigger lock monitor
 @param[in]    trx    transaction owning the lock
-@param[in]    locked true if trx and lock_sys.mutex is ownd
 @return	false for regular lock timeout */
 static
 bool
 wsrep_is_BF_lock_timeout(
-	const trx_t*	trx,
-	bool		locked = true)
+	const trx_t*	trx)
 {
-	if (wsrep_on_trx(trx)
-	    && wsrep_thd_is_BF(trx->mysql_thd, FALSE)
-	    && trx->error_state != DB_DEADLOCK) {
-		ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx->id)
+	bool long_wait= (trx->error_state != DB_DEADLOCK &&
+			 trx->is_wsrep() &&
+			 wsrep_thd_is_BF(trx->mysql_thd, false));
+	bool was_wait= true;
+
+	DBUG_EXECUTE_IF("wsrep_instrument_BF_lock_wait",
+			was_wait=false; long_wait=true;);
+
+	if (long_wait) {
+		ib::info() << "WSREP: BF lock wait long for trx:" << trx->id
 			   << " query: " << wsrep_thd_query(trx->mysql_thd);
-		if (!locked) {
-			lock_mutex_enter();
-		}
 
-		ut_ad(lock_mutex_own());
-
-		trx_print_latched(stderr, trx, 3000);
-
-		if (!locked) {
-			lock_mutex_exit();
-		}
-
-		srv_print_innodb_monitor 	= TRUE;
-		srv_print_innodb_lock_monitor 	= TRUE;
-		os_event_set(srv_monitor_event);
-		return true;
-	}
-	return false;
+		return was_wait;
+	} else
+		return false;
 }
 #endif /* WITH_WSREP */
 
@@ -399,8 +389,9 @@ lock_wait_suspend_thread(
 	if (lock_wait_timeout < 100000000
 	    && wait_time > (double) lock_wait_timeout
 #ifdef WITH_WSREP
-	    && (!wsrep_on_trx(trx) ||
-	       (!wsrep_is_BF_lock_timeout(trx, false) && trx->error_state != DB_DEADLOCK))
+	    && (!trx->is_wsrep()
+		|| (!wsrep_is_BF_lock_timeout(trx)
+		    && trx->error_state != DB_DEADLOCK))
 #endif /* WITH_WSREP */
 	    ) {
 

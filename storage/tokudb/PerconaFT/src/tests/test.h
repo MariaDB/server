@@ -428,14 +428,14 @@ static int env_del_multiple_test_no_array(
 /* Some macros for evaluating blocks or functions within the scope of a
  * transaction. */
 #define IN_TXN_COMMIT(env, parent, txn, flags, expr) ({                 \
-            DB_TXN *(txn);                                              \
+            DB_TXN *txn;                                                \
             { int chk_r = (env)->txn_begin((env), (parent), &(txn), (flags)); CKERR(chk_r); } \
             (expr);                                                     \
             { int chk_r = (txn)->commit((txn), 0); CKERR(chk_r); }      \
         })
 
 #define IN_TXN_ABORT(env, parent, txn, flags, expr) ({                  \
-            DB_TXN *(txn);                                              \
+            DB_TXN *txn;                                                \
             { int chk_r = (env)->txn_begin((env), (parent), &(txn), (flags)); CKERR(chk_r); } \
             (expr);                                                     \
             { int chk_r = (txn)->abort(txn); CKERR(chk_r); }            \

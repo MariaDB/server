@@ -1139,6 +1139,21 @@ PREPARE stmt FROM "SELECT 'x' ORDER BY NAME_CONST( 'f', 'foo' )";
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+--echo #
+--echo # MDEV-19680: Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index) ||
+--echo #             (!(ptr >= table->record[0] && ptr < table->record[0] + table->s->reclength)))'
+--echo #             or alike failed upon SELECT with mix of functions from simple view
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SELECT ISNULL( BENCHMARK(1, MIN(a))) FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
 
 --echo #
 --echo # Start of 10.2 tests

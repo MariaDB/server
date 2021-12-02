@@ -241,6 +241,26 @@ B2	salary
 1	2500
 drop table t1;
 drop table t2;
+# Ensure FTS retains correct history
+create table t1 (
+x int, y text, fulltext (y),
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning engine innodb;
+insert into t1 values (1, repeat('LONG', 2048));
+update t1 set x= x + 1;
+select x, left(y, 4), length(y), check_row(row_start, row_end) from t1 for system_time all order by x, y;
+x	left(y, 4)	length(y)	check_row(row_start, row_end)
+1	LONG	8192	HISTORICAL ROW
+2	LONG	8192	CURRENT ROW
+update t1 set y= 'SHORT';
+select x, left(y, 4), length(y), check_row(row_start, row_end) from t1 for system_time all order by x, y;
+x	left(y, 4)	length(y)	check_row(row_start, row_end)
+1	LONG	8192	HISTORICAL ROW
+2	LONG	8192	HISTORICAL ROW
+2	SHOR	5	CURRENT ROW
+drop tables t1;
 ### Issue tempesta-tech/mariadb#365, bug 7 (duplicate of historical row)
 create or replace table t1 (a int primary key, b int)
 with system versioning engine myisam;
@@ -249,6 +269,8 @@ replace t1 values (1,2),(1,3),(2,4);
 #
 # MDEV-14829 Assertion `0' failed in Protocol::end_statement upon concurrent UPDATE
 #
+set @old_lock_wait_timeout= @@innodb_lock_wait_timeout;
+set @@innodb_lock_wait_timeout= 1073741824;
 create or replace table t1 (pk int, a char(3), b char(3), primary key(pk))
 engine=innodb with system versioning;
 insert into t1 (pk) values (1);
@@ -265,6 +287,7 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 disconnect con1;
 connection default;
 drop table t1;
+set @@innodb_lock_wait_timeout= @old_lock_wait_timeout;
 #
 # MDEV-19406 Assertion on updating view of join with versioned table
 #
@@ -276,3 +299,103 @@ update t1 set a= '2012-12-12';
 update v set a= '2000-01-01' order by b limit 1;
 drop view v;
 drop table t1, t2;
+#
+# MDEV-20441 ER_CRASHED_ON_USAGE upon update on versioned Aria table
+#
+create or replace table t1 (a varchar(8))
+engine=aria row_format=fixed
+with system versioning;
+insert into t1 (a) values ('foo');
+update t1 set a = 'bar';
+drop table t1;
+#
+# MDEV-21147 Assertion `marked_for_read()' upon UPDATE on versioned table via view
+#
+create or replace table t1 (
+pk int, a char(8), b char(8),
+primary key (pk)
+) with system versioning;
+create or replace view v1 as select * from t1;
+insert into t1 values  (1, null, 'd') ,  (2, null, 'i') ;
+update v1 set a= null where b = '';
+create or replace table t1 (id int, k int, primary key (id)) engine=innodb with system versioning;
+insert into t1 values (1,1),(2,2);
+create or replace view v1 as select * from t1;
+update v1 set id= 2 where k = 0;
+create or replace table t1 (a int) with system versioning;
+create or replace view v1 as select * from t1;
+create or replace procedure sp() update v1 set xx = 1;
+call sp;
+ERROR 42S22: Unknown column 'xx' in 'field list'
+call sp;
+ERROR 42S22: Unknown column 'xx' in 'field list'
+drop procedure sp;
+drop view v1;
+drop table t1;
+#
+# MDEV-21342 Assertion in set_ok_status() upon spatial field error on system-versioned table
+#
+create or replace table t1 (f point, key(f)) with system versioning engine=myisam;
+update t1 set f = null where f = 'foo';
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+drop table t1;
+#
+# MDEV-22061 InnoDB: Assertion of missing row in sec index row_start upon REPLACE on a system-versioned table
+#
+create or replace table t1 (
+a int,
+b int,
+row_start bigint(20) unsigned generated always as row start,
+row_end bigint(20) unsigned generated always as row end,
+unique key (b,row_end),
+key (row_start),
+period for system_time (row_start,row_end)
+) engine=innodb with system versioning;
+insert into t1 (a, b) values (1, 2);
+replace into t1 (a, b) values (3, 2);
+replace into t1 (a, b) values (4, 2);
+drop table t1;
+#
+# MDEV-20661 Virtual fields are not recalculated on system fields value assignment
+#
+create table t1 (
+a int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end),
+v1 bigint unsigned as (a ^ row_start) unique,
+v2 bigint unsigned as (a ^ row_end) unique
+) engine=innodb with system versioning;
+insert into t1 (a) values (1), (2);
+update ignore t1 set a= 3;
+delete history from t1;
+drop table t1;
+#
+# MDEV-23446 UPDATE does not insert history row if the row is not changed
+#
+create table t1 (
+a int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)) with system versioning;
+insert into t1 values (1);
+update t1 set a= 1;
+select *, check_row(row_start, row_end) from t1 for system_time all order by row_end;
+a	check_row(row_start, row_end)
+1	HISTORICAL ROW
+1	CURRENT ROW
+# multi-update
+create or replace table t2 like t1;
+create or replace table t3 like t1;
+insert into t2 values (1);
+insert into t3 values (1);
+update t2, t3 set t2.a= 1, t3.a= 1 where t2.a = t3.a;
+select *, check_row(row_start, row_end) from t2 for system_time all order by row_end;
+a	check_row(row_start, row_end)
+1	HISTORICAL ROW
+1	CURRENT ROW
+select *, check_row(row_start, row_end) from t2 for system_time all order by row_end;
+a	check_row(row_start, row_end)
+1	HISTORICAL ROW
+1	CURRENT ROW
+drop tables t1, t2, t3;

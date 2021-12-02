@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -158,7 +158,7 @@ void setup_log_handling()
 
 /**
    purge logs, master and slave sides both, related error code
-   convertor.
+   converter.
    Called from @c purge_error_message(), @c MYSQL_BIN_LOG::reset_logs()
 
    @param  res  an internal to purging routines error code 
@@ -263,7 +263,7 @@ class binlog_cache_data
 public:
   binlog_cache_data(): m_pending(0), status(0),
   before_stmt_pos(MY_OFF_T_UNDEF),
-  incident(FALSE), changes_to_non_trans_temp_table_flag(FALSE),
+  incident(FALSE),
   saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
   ptr_binlog_cache_disk_use(0)
   { }
@@ -312,16 +312,6 @@ public:
     return(incident);
   }
 
-  void set_changes_to_non_trans_temp_table()
-  {
-    changes_to_non_trans_temp_table_flag= TRUE;    
-  }
-
-  bool changes_to_non_trans_temp_table()
-  {
-    return (changes_to_non_trans_temp_table_flag);    
-  }
-
   void reset()
   {
     bool cache_was_empty= empty();
@@ -333,7 +323,6 @@ public:
     if (truncate_file)
       my_chsize(cache_log.file, 0, 0, MYF(MY_WME));
 
-    changes_to_non_trans_temp_table_flag= FALSE;
     status= 0;
     incident= FALSE;
     before_stmt_pos= MY_OFF_T_UNDEF;
@@ -377,7 +366,7 @@ public:
       never zero.
 
       This is done while calling the constructor binlog_cache_mngr.
-      We cannot set informaton in the constructor binlog_cache_data
+      We cannot set information in the constructor binlog_cache_data
       because the space for binlog_cache_mngr is allocated through
       a placement new.
 
@@ -432,12 +421,6 @@ private:
   */ 
   bool incident;
 
-  /*
-    This flag indicates if the cache has changes to temporary tables.
-    @TODO This a temporary fix and should be removed after BUG#54562.
-  */
-  bool changes_to_non_trans_temp_table_flag;
-
   /**
     This function computes binlog cache and disk usage.
   */
@@ -484,6 +467,7 @@ private:
   void truncate(my_off_t pos, bool reset_cache=0)
   {
     DBUG_PRINT("info", ("truncating to position %lu", (ulong) pos));
+    cache_log.error=0;
     if (pending())
     {
       delete pending();
@@ -492,7 +476,7 @@ private:
     reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
     cache_log.end_of_file= saved_max_binlog_cache_size;
   }
- 
+
   binlog_cache_data& operator=(const binlog_cache_data& info);
   binlog_cache_data(const binlog_cache_data& info);
 };
@@ -585,9 +569,11 @@ bool LOGGER::is_log_table_enabled(uint log_table_type)
 {
   switch (log_table_type) {
   case QUERY_LOG_SLOW:
-    return (table_log_handler != NULL) && global_system_variables.sql_log_slow;
+    return (table_log_handler != NULL) && global_system_variables.sql_log_slow
+            && (log_output_options & LOG_TABLE);
   case QUERY_LOG_GENERAL:
-    return (table_log_handler != NULL) && opt_log ;
+    return (table_log_handler != NULL) && opt_log
+            && (log_output_options & LOG_TABLE);
   default:
     DBUG_ASSERT(0);
     return FALSE;                             /* make compiler happy */
@@ -1817,7 +1803,7 @@ binlog_commit_flush_stmt_cache(THD *thd, bool all,
 #ifdef WITH_WSREP
   if (thd->wsrep_mysql_replicated > 0)
   {
-    DBUG_ASSERT(WSREP_ON);
+    DBUG_ASSERT(WSREP(thd));
     WSREP_DEBUG("avoiding binlog_commit_flush_trx_cache: %d",
                 thd->wsrep_mysql_replicated);
     return 0;
@@ -1974,13 +1960,12 @@ static int binlog_prepare(handlerton *hton, THD *thd, bool all)
 */
 static bool trans_cannot_safely_rollback(THD *thd, bool all)
 {
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  DBUG_ASSERT(ending_trans(thd, all));
 
   return ((thd->variables.option_bits & OPTION_KEEP_LOG) ||
           (trans_has_updated_non_trans_table(thd) &&
            thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT) ||
-          (cache_mngr->trx_cache.changes_to_non_trans_temp_table() &&
+          (thd->transaction.all.has_modified_non_trans_temp_table() &&
            thd->wsrep_binlog_format() == BINLOG_FORMAT_MIXED) ||
           (trans_has_updated_non_trans_table(thd) &&
            ending_single_stmt_trans(thd,all) &&
@@ -2131,17 +2116,19 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
     /*
       Truncate the cache if:
         . aborting a single or multi-statement transaction or;
-        . the OPTION_KEEP_LOG is not active and;
+        . the current statement created or dropped a temporary table
+          while having actual STATEMENT format;
         . the format is not STMT or no non-trans table was
           updated and;
         . the format is not MIXED or no temporary non-trans table
           was updated.
     */
     else if (ending_trans(thd, all) ||
-             (!(thd->variables.option_bits & OPTION_KEEP_LOG) &&
+             (!(thd->transaction.stmt.has_created_dropped_temp_table() &&
+                !thd->is_current_stmt_binlog_format_row()) &&
               (!stmt_has_updated_non_trans_table(thd) ||
                thd->wsrep_binlog_format() != BINLOG_FORMAT_STMT) &&
-              (!cache_mngr->trx_cache.changes_to_non_trans_temp_table() ||
+              (!thd->transaction.stmt.has_modified_non_trans_temp_table() ||
                thd->wsrep_binlog_format() != BINLOG_FORMAT_MIXED)))
       error= binlog_truncate_trx_cache(thd, cache_mngr, all);
   }
@@ -2250,9 +2237,6 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
   int error= 1;
   DBUG_ENTER("binlog_savepoint_set");
 
-  if (wsrep_emulate_bin_log)
-    DBUG_RETURN(0);
-
   char buf[1024];
 
   String log_query(buf, sizeof(buf), &my_charset_bin);
@@ -2284,9 +2268,6 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
 static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("binlog_savepoint_rollback");
-
-  if (wsrep_emulate_bin_log)
-    DBUG_RETURN(0);
 
   /*
     Write ROLLBACK TO SAVEPOINT to the binlog cache if we have updated some
@@ -2462,7 +2443,7 @@ static int find_uniq_filename(char *name, ulong next_log_number)
   char                  buff[FN_REFLEN], ext_buf[FN_REFLEN];
   struct st_my_dir     *dir_info;
   struct fileinfo *file_info;
-  ulong                 max_found, next, UNINIT_VAR(number);
+  ulong                 max_found= 0, next= 0, number= 0;
   size_t		buf_length, length;
   char			*start, *end;
   int                   error= 0;
@@ -2489,7 +2470,7 @@ static int find_uniq_filename(char *name, ulong next_log_number)
     if (strncmp(file_info->name, start, length) == 0 &&
 	test_if_number(file_info->name+length, &number,0))
     {
-      set_if_bigger(max_found,(ulong) number);
+      set_if_bigger(max_found, number);
     }
   }
   my_dirend(dir_info);
@@ -2983,7 +2964,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
 
   mysql_mutex_lock(&LOCK_log);
   if (is_open())
-  {						// Safety agains reopen
+  {						// Safety against reopen
     char buff[80], *end;
     char query_time_buff[22+7], lock_time_buff[22+7];
     size_t buff_len;
@@ -3263,7 +3244,7 @@ void MYSQL_BIN_LOG::cleanup()
       DBUG_ASSERT(!binlog_xid_count_list.head());
       WSREP_XID_LIST_ENTRY("MYSQL_BIN_LOG::cleanup(): Removing xid_list_entry "
                            "for %s (%lu)", b);
-      my_free(b);
+      delete b;
     }
 
     mysql_mutex_destroy(&LOCK_log);
@@ -3281,7 +3262,7 @@ void MYSQL_BIN_LOG::cleanup()
 
   /*
     Free data for global binlog state.
-    We can't do that automaticly as we need to do this before
+    We can't do that automatically as we need to do this before
     safemalloc is shut down
   */
   if (!is_relay_log)
@@ -3439,6 +3420,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
                                  log_type_arg, io_cache_type_arg))
   {
     sql_print_error("MYSQL_BIN_LOG::open failed to generate new file name.");
+    if (!is_relay_log)
+      goto err;
     DBUG_RETURN(1);
   }
 
@@ -3628,19 +3611,10 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           know from where to start recovery.
         */
         size_t off= dirname_length(log_file_name);
-        size_t len= strlen(log_file_name) - off;
-        char *entry_mem, *name_mem;
-        if (!(new_xid_list_entry = (xid_count_per_binlog *)
-              my_multi_malloc(MYF(MY_WME),
-                              &entry_mem, sizeof(xid_count_per_binlog),
-                              &name_mem, len,
-                              NULL)))
+        uint len= static_cast<uint>(strlen(log_file_name) - off);
+        new_xid_list_entry= new xid_count_per_binlog(log_file_name+off, len);
+        if (!new_xid_list_entry)
           goto err;
-        memcpy(name_mem, log_file_name+off, len);
-        new_xid_list_entry->binlog_name= name_mem;
-        new_xid_list_entry->binlog_name_len= (int)len;
-        new_xid_list_entry->xid_count= 0;
-        new_xid_list_entry->notify_count= 0;
 
         /*
           Find the name for the Initial binlog checkpoint.
@@ -3657,8 +3631,11 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         mysql_mutex_unlock(&LOCK_xid_list);
         if (!b)
           b= new_xid_list_entry;
-        strmake(buf, b->binlog_name, b->binlog_name_len);
-        Binlog_checkpoint_log_event ev(buf, (uint)len);
+        if (b->binlog_name)
+          strmake(buf, b->binlog_name, b->binlog_name_len);
+        else
+          goto err;
+        Binlog_checkpoint_log_event ev(buf, len);
         DBUG_EXECUTE_IF("crash_before_write_checkpoint_event",
                         flush_io_cache(&log_file);
                         mysql_file_sync(log_file.file, MYF(MY_WME));
@@ -3761,7 +3738,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
     {
       WSREP_XID_LIST_ENTRY("MYSQL_BIN_LOG::open(): Removing xid_list_entry for "
                            "%s (%lu)", b);
-      my_free(binlog_xid_count_list.get());
+      delete binlog_xid_count_list.get();
     }
     mysql_cond_broadcast(&COND_xid_list);
     WSREP_XID_LIST_ENTRY("MYSQL_BIN_LOG::open(): Adding new xid_list_entry for "
@@ -3809,9 +3786,9 @@ err:
     purge_index_entry(NULL, NULL, need_mutex);
   close_purge_index_file();
 #endif
-  sql_print_error(fatal_log_error, name, tmp_errno);
+  sql_print_error(fatal_log_error, (name) ? name : log_name, tmp_errno);
   if (new_xid_list_entry)
-    my_free(new_xid_list_entry);
+    delete new_xid_list_entry;
   if (file >= 0)
     mysql_file_close(file, MYF(0));
   close(LOG_CLOSE_INDEX);
@@ -4060,7 +4037,7 @@ err:
 
 
 /**
-  Delete all logs refered to in the index file.
+  Delete all logs referred to in the index file.
 
   The new index file will only contain this file.
 
@@ -4297,7 +4274,7 @@ err:
       DBUG_ASSERT(b->xid_count == 0);
       WSREP_XID_LIST_ENTRY("MYSQL_BIN_LOG::reset_logs(): Removing "
                            "xid_list_entry for %s (%lu)", b);
-      my_free(binlog_xid_count_list.get());
+      delete binlog_xid_count_list.get();
     }
     mysql_cond_broadcast(&COND_xid_list);
     reset_master_pending--;
@@ -4455,7 +4432,9 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
                             0, 0, &log_space_reclaimed);
 
   mysql_mutex_lock(&rli->log_space_lock);
-  rli->log_space_total-= log_space_reclaimed;
+  my_atomic_add64_explicit((volatile int64*)(&rli->log_space_total),
+                           (-(int64)log_space_reclaimed),
+                           MY_MEMORY_ORDER_RELAXED);
   mysql_cond_broadcast(&rli->log_space_cond);
   mysql_mutex_unlock(&rli->log_space_lock);
 
@@ -5631,7 +5610,7 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
 
     - Start a statement transaction to allow us to truncate the cache.
 
-    - Save the currrent binlog position so that we can roll back the
+    - Save the current binlog position so that we can roll back the
       statement by truncating the cache.
 
       We only update the saved position if the old one was undefined,
@@ -6345,9 +6324,8 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       cache_data= cache_mngr->get_binlog_cache_data(is_trans_cache);
       file= &cache_data->cache_log;
 
-      if (thd->lex->stmt_accessed_non_trans_temp_table())
-        cache_data->set_changes_to_non_trans_temp_table();
-
+      if (thd->lex->stmt_accessed_non_trans_temp_table() && is_trans_cache)
+        thd->transaction.stmt.mark_modified_non_trans_temp_table();
       thd->binlog_start_trans_and_stmt();
     }
     DBUG_PRINT("info",("event type: %d",event_info->get_type_code()));
@@ -6691,14 +6669,15 @@ int MYSQL_BIN_LOG::rotate(bool force_rotate, bool* check_purge)
   int error= 0;
   DBUG_ENTER("MYSQL_BIN_LOG::rotate");
 
-  if (wsrep_to_isolation)
+#ifdef WITH_WSREP
+  if (WSREP_ON && wsrep_to_isolation)
   {
-    DBUG_ASSERT(WSREP_ON);
     *check_purge= false;
-    WSREP_DEBUG("avoiding binlog rotate due to TO isolation: %d", 
+    WSREP_DEBUG("avoiding binlog rotate due to TO isolation: %d",
                 wsrep_to_isolation);
     DBUG_RETURN(0);
   }
+#endif /* WITH_WSREP */
 
   //todo: fix the macro def and restore safe_mutex_assert_owner(&LOCK_log);
   *check_purge= false;
@@ -6819,7 +6798,7 @@ static const char* get_first_binlog(char* buf_arg)
   }
   if (normalize_binlog_name(buf_arg, fname, false))
   {
-    errmsg= "cound not normalize the first file name in the binlog index";
+    errmsg= "could not normalize the first file name in the binlog index";
     goto end;
   }
 end:
@@ -6912,6 +6891,9 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate,
   bool check_purge= false;
 
   mysql_mutex_lock(&LOCK_log);
+
+  DEBUG_SYNC(current_thd, "rotate_after_acquire_LOCK_log");
+
   prev_binlog_id= current_binlog_id;
 
   if ((err_gtid= do_delete_gtid_domain(domain_drop_lex)))
@@ -6922,11 +6904,22 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate,
   }
   else if (unlikely((error= rotate(force_rotate, &check_purge))))
     check_purge= false;
+
+  DEBUG_SYNC(current_thd, "rotate_after_rotate");
+
   /*
     NOTE: Run purge_logs wo/ holding LOCK_log because it does not need
           the mutex. Otherwise causes various deadlocks.
+          Explicit binlog rotation must be synchronized with a concurrent
+          binlog ordered commit, in particular not let binlog
+          checkpoint notification request until early binlogged
+          concurrent commits have has been completed.
   */
+  mysql_mutex_lock(&LOCK_after_binlog_sync);
   mysql_mutex_unlock(&LOCK_log);
+  mysql_mutex_lock(&LOCK_commit_ordered);
+  mysql_mutex_unlock(&LOCK_after_binlog_sync);
+  mysql_mutex_unlock(&LOCK_commit_ordered);
 
   if (check_purge)
     checkpoint_and_purge(prev_binlog_id);
@@ -8083,7 +8076,12 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   }
 
   DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_commit_ordered");
+
   mysql_mutex_lock(&LOCK_commit_ordered);
+  DBUG_EXECUTE_IF("crash_before_engine_commit",
+      {
+        DBUG_SUICIDE();
+      });
   last_commit_pos_offset= commit_offset;
 
   /*
@@ -9804,7 +9802,7 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
     than compare all found against each other to find the one pointing to the
     most recent binlog.
 
-    Note also that we need to first release LOCK_xid_list, then aquire
+    Note also that we need to first release LOCK_xid_list, then acquire
     LOCK_log, then re-aquire LOCK_xid_list. If we were to take LOCK_log while
     holding LOCK_xid_list, we might deadlock with other threads that take the
     locks in the opposite order.
@@ -9832,7 +9830,7 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
       break;
     WSREP_XID_LIST_ENTRY("TC_LOG_BINLOG::mark_xid_done(): Removing "
                          "xid_list_entry for %s (%lu)", b);
-    my_free(binlog_xid_count_list.get());
+    delete binlog_xid_count_list.get();
   }
 
   mysql_mutex_unlock(&LOCK_xid_list);
@@ -9889,7 +9887,7 @@ TC_LOG_BINLOG::commit_checkpoint_notify(void *cookie)
   necessary stuff.
 
   In the future, this thread could also be used to do log rotation in the
-  background, which could elimiate all stalls around binlog rotations.
+  background, which could eliminate all stalls around binlog rotations.
 */
 pthread_handler_t
 binlog_background_thread(void *arg __attribute__((unused)))
@@ -10454,7 +10452,8 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
 }
 
 
-static int show_binlog_vars(THD *thd, SHOW_VAR *var, char *buff)
+static int show_binlog_vars(THD *thd, SHOW_VAR *var, void *,
+                            system_status_var *status_var, enum_var_type)
 {
   mysql_bin_log.set_status_variables(thd);
   var->type= SHOW_ARRAY;

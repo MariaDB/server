@@ -29,17 +29,18 @@ INSERT INTO t1 VALUES (1);
 SET server_id= 3;
 --error ER_GTID_STRICT_OUT_OF_ORDER
 SET gtid_seq_no= 3;
-SET SESSION debug_dbug="+d,ignore_set_gtid_seq_no_check";
+SET @old_dbug = @@session.debug_dbug;
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
 SET gtid_seq_no= 3;
-SET SESSION debug_dbug="-d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug=@old_dbug;
 --error ER_GTID_STRICT_OUT_OF_ORDER
 INSERT INTO t1 VALUES (2);
 
 --error ER_GTID_STRICT_OUT_OF_ORDER
 SET gtid_seq_no= 2;
-SET SESSION debug_dbug="+d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
 SET gtid_seq_no= 2;
-SET SESSION debug_dbug="-d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug=@old_dbug;
 --error ER_GTID_STRICT_OUT_OF_ORDER
 INSERT INTO t1 VALUES (3);
 SET server_id= 1;
@@ -52,9 +53,9 @@ SELECT * FROM t1 ORDER BY 1;
 SET server_id= 3;
 --error ER_GTID_STRICT_OUT_OF_ORDER
 SET gtid_seq_no= 1;
-SET SESSION debug_dbug="+d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
 SET gtid_seq_no= 1;
-SET SESSION debug_dbug="-d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug=@old_dbug;
 --error ER_GTID_STRICT_OUT_OF_ORDER
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
 # The table is still created, DDL cannot be rolled back.
@@ -66,9 +67,9 @@ CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
 
 --error ER_GTID_STRICT_OUT_OF_ORDER
 SET gtid_seq_no= 1;
-SET SESSION debug_dbug="+d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
 SET gtid_seq_no= 1;
-SET SESSION debug_dbug="-d,ignore_set_gtid_seq_no_check";
+SET SESSION debug_dbug=@old_dbug;
 --error ER_GTID_STRICT_OUT_OF_ORDER
 INSERT INTO t2 VALUES (1);
 # The value is still inserted, cannot be rolled back.

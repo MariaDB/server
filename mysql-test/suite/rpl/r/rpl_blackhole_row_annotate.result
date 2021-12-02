@@ -230,7 +230,7 @@ ALTER TABLE t1 ENGINE=BLACKHOLE
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -248,7 +248,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -266,7 +266,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-5 trans
 /*!100001 SET @@session.gtid_seq_no=5*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -284,7 +284,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-6 trans
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -302,7 +302,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-7 trans
 /*!100001 SET @@session.gtid_seq_no=7*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -328,7 +328,7 @@ ALTER TABLE t1 ADD PRIMARY KEY pk_t1 (a,b)
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-9 trans
 /*!100001 SET @@session.gtid_seq_no=9*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -346,7 +346,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-10 trans
 /*!100001 SET @@session.gtid_seq_no=10*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -364,7 +364,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-11 trans
 /*!100001 SET @@session.gtid_seq_no=11*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -390,7 +390,7 @@ ALTER TABLE t1 DROP PRIMARY KEY, ADD KEY key_t1 (a)
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-13 trans
 /*!100001 SET @@session.gtid_seq_no=13*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -408,7 +408,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-14 trans
 /*!100001 SET @@session.gtid_seq_no=14*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -426,7 +426,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-15 trans
 /*!100001 SET @@session.gtid_seq_no=15*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #

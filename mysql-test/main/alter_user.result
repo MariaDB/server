@@ -43,7 +43,7 @@ SET GLOBAL read_only = @start_read_only;
 alter user boo;
 ERROR HY000: Operation ALTER USER failed for 'boo'
 #--warning ER_CANNOT_USER
-alter if exists user boo;
+alter user if exists boo;
 Warnings:
 Error	1133	Can't find any matching row in the user table
 Note	1396	Operation ALTER USER failed for 'boo'

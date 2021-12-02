@@ -1,0 +1,10 @@
+--source include/galera_cluster.inc
+
+CREATE TABLE t (f INT GENERATED ALWAYS AS (a+b)VIRTUAL,a INT,b INT,h BLOB);
+INSERT INTO t (a,b)VALUES(0,0), (0,0), (0,0), (0,0), (0,0);
+SELECT * from t;
+
+--connection node_2
+SELECT * from t;
+--connection node_1
+DROP TABLE t;

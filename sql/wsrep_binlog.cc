@@ -380,20 +380,6 @@ int wsrep_binlog_close_connection(THD* thd)
   DBUG_RETURN(0);
 }
 
-int wsrep_binlog_savepoint_set(THD *thd,  void *sv)
-{
-  if (!wsrep_emulate_bin_log) return 0;
-  int rcode = binlog_hton->savepoint_set(binlog_hton, thd, sv);
-  return rcode;
-}
-
-int wsrep_binlog_savepoint_rollback(THD *thd, void *sv)
-{
-  if (!wsrep_emulate_bin_log) return 0;
-  int rcode = binlog_hton->savepoint_rollback(binlog_hton, thd, sv);
-  return rcode;
-}
-
 #if 0
 void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache)
 {

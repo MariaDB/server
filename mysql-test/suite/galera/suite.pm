@@ -65,6 +65,17 @@ push @::global_suppressions,
      qr|WSREP: JOIN message from member .* in non-primary configuration. Ignored.|,
      qr(WSREP: Failed to remove page file .*),
      qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
+     qr|WSREP: Sending JOIN failed: -107 \(Transport endpoint is not connected\). Will retry in new primary component.|,
+     qr|WSREP: Trying to continue unpaused monitor|,
    );
+
+sub skip_combinations {
+  my %skip = ();
+  $skip{'include/have_stunnel.inc'} = "Need 'stunnel' utility"
+            unless ::which("stunnel");
+  $skip{'include/have_qpress.inc'} = "Need 'qpress' utility"
+            unless ::which("qpress");
+  %skip;
+}
 
 bless { };

@@ -75,7 +75,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   uint max_field_lengths, extra_header_size, column_nr;
   uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
   ulong reclength, real_reclength,min_pack_length;
-  char kfilename[FN_REFLEN], klinkname[FN_REFLEN], *klinkname_ptr;
+  char kfilename[FN_REFLEN], klinkname[FN_REFLEN], *klinkname_ptr= NullS;
   char dfilename[FN_REFLEN], dlinkname[FN_REFLEN], *dlinkname_ptr= 0;
   ulong pack_reclength;
   ulonglong tot_length,max_rows, tmp;
@@ -318,7 +318,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
     options|= HA_OPTION_TMP_TABLE;
     tmp_table= TRUE;
-    create_mode|= O_NOFOLLOW;
+    create_mode|= O_NOFOLLOW | (internal_table ? 0 : O_EXCL);
     /* "CREATE TEMPORARY" tables are not crash-safe (dropped at restart) */
     ci->transactional= FALSE;
     flags&= ~HA_CREATE_PAGE_CHECKSUM;
@@ -886,10 +886,9 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
     char *iext= strrchr(name, '.');
     int have_iext= iext && !strcmp(iext, MARIA_NAME_IEXT);
-    fn_format(kfilename, name, "", MARIA_NAME_IEXT,
-              MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
+    fn_format(kfilename, name, "", MARIA_NAME_IEXT, MY_UNPACK_FILENAME |
+              (internal_table ? 0 : MY_RETURN_REAL_PATH) |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
-    klinkname_ptr= NullS;
     /*
       Replace the current file.
       Don't sync dir now if the data file has the same path.
@@ -1164,6 +1163,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
                                   FALSE, TRUE))
       goto err;
     my_free(log_data);
+    log_data= 0;
   }
 
   if (!(flags & HA_DONT_TOUCH_DATA))

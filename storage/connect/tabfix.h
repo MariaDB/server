@@ -98,18 +98,20 @@ class DllExport BINCOL : public DOSCOL {
 /*  This is the class declaration for the DBF columns catalog table.   */
 /***********************************************************************/
 class TDBDCL : public TDBCAT {
- public:
-  // Constructor
-   TDBDCL(PDOSDEF tdp) : TDBCAT(tdp) {Fn = tdp->GetFn();}
+public:
+	// Constructor
+	TDBDCL(PDOSDEF tdp) : TDBCAT(tdp)
+	  {Fn = tdp->GetFn(); Topt = tdp->GetTopt();}
 
- protected:
+protected:
 	// Specific routines
-  virtual PQRYRES GetResult(PGLOBAL g) 
-      {return DBFColumns(g, ((PTABDEF)To_Def)->GetPath(), Fn, false);}
+	virtual PQRYRES GetResult(PGLOBAL g)
+	  {return DBFColumns(g, ((PTABDEF)To_Def)->GetPath(), Fn, Topt, false);}
 
-  // Members
+	// Members
 	PCSZ Fn;                    // The DBF file (path) name
-  }; // end of class TDBOCL
+	PTOS Topt;
+}; // end of class TDBOCL
 
 
 #endif // __TABFIX__

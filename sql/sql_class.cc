@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB Corporation.
+   Copyright (c) 2008, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -73,6 +73,7 @@
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
 #endif
+#include "repl_failsafe.h"
 
 /*
   The following is used to initialise Table_ident with a internal
@@ -447,6 +448,7 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
                      const void *ha_data)
 {
   plugin_ref *lock= &thd->ha_data[hton->slot].lock;
+  DBUG_ASSERT(thd == current_thd);
   if (ha_data && !*lock)
     *lock= ha_lock_engine(NULL, (handlerton*) hton);
   else if (!ha_data && *lock)
@@ -454,7 +456,9 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
     plugin_unlock(NULL, *lock);
     *lock= NULL;
   }
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   *thd_ha_data(thd, hton)= (void*) ha_data;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
 
@@ -605,6 +609,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    m_current_stage_key(0),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
+   current_stmt_binlog_format(BINLOG_FORMAT_MIXED),
    binlog_table_maps(0),
    bulk_param(0),
    table_map_for_update(0),
@@ -730,7 +735,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   query_name_consts= 0;
   semisync_info= 0;
   db_charset= global_system_variables.collation_database;
-  bzero(ha_data, sizeof(ha_data));
+  bzero((void*) ha_data, sizeof(ha_data));
   mysys_var=0;
   binlog_evt_union.do_union= FALSE;
   enable_slow_log= 0;
@@ -1155,10 +1160,8 @@ extern "C" my_thread_id next_thread_id_noinline()
 #endif
 
 
-const Type_handler *THD::type_handler_for_date() const
+const Type_handler *THD::type_handler_for_datetime() const
 {
-  if (!(variables.sql_mode & MODE_ORACLE))
-    return &type_handler_newdate;
   if (opt_mysql56_temporal_format)
     return &type_handler_datetime2;
   return &type_handler_datetime;
@@ -1225,7 +1228,7 @@ void THD::init()
 #ifdef WITH_WSREP
   wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
   wsrep_conflict_state= NO_CONFLICT;
-  wsrep_query_state= QUERY_IDLE;
+  wsrep_thd_set_query_state(this, QUERY_IDLE);
   wsrep_last_query_id= 0;
   wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
   wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
@@ -1522,6 +1525,10 @@ void THD::cleanup(void)
   DBUG_ASSERT(!mdl_context.has_locks());
 
   apc_target.destroy();
+#ifdef HAVE_REPLICATION
+  unregister_slave(this, true, true);
+#endif
+
   cleanup_done=1;
   DBUG_VOID_RETURN;
 }
@@ -1537,7 +1544,7 @@ void THD::cleanup(void)
 void THD::free_connection()
 {
   DBUG_ASSERT(free_connection_done == 0);
-  my_free((char*) db.str);
+  my_free(const_cast<char*>(db.str));
   db= null_clex_str;
 #ifndef EMBEDDED_LIBRARY
   if (net.vio)
@@ -1970,7 +1977,9 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
 
   if (needs_thr_lock_abort)
   {
+    bool mutex_released= false;
     mysql_mutex_lock(&in_use->LOCK_thd_data);
+    mysql_mutex_lock(&in_use->LOCK_thd_kill);
     /* If not already dying */
     if (in_use->killed != KILL_CONNECTION_HARD)
     {
@@ -1986,18 +1995,25 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
           thread can see those instances (e.g. see partitioning code).
         */
         if (!thd_table->needs_reopen())
-        {
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-          if (WSREP(this) && wsrep_thd_is_BF(this, FALSE))
-          {
-            WSREP_DEBUG("remove_table_from_cache: %llu",
-                        (unsigned long long) this->real_id);
-            wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
-          }
-        }
       }
+#ifdef WITH_WSREP
+      if (WSREP(this) && wsrep_thd_is_BF(this, false))
+      {
+        WSREP_DEBUG("notify_shared_lock: BF thread %llu query %s"
+                    " victim %llu query %s",
+                    this->real_id, wsrep_thd_query(this),
+                    in_use->real_id, wsrep_thd_query(in_use));
+        wsrep_abort_thd((void *)this, (void *)in_use, false);
+        mutex_released= true;
+      }
+#endif /* WITH_WSREP */
     }
-    mysql_mutex_unlock(&in_use->LOCK_thd_data);
+    if (!mutex_released)
+    {
+      mysql_mutex_unlock(&in_use->LOCK_thd_kill);
+      mysql_mutex_unlock(&in_use->LOCK_thd_data);
+    }
   }
   DBUG_RETURN(signalled);
 }
@@ -2729,6 +2745,60 @@ void THD::close_active_vio()
 #endif
 
 
+/*
+  @brief MySQL parser used for recursive invocations
+
+  @param old_lex  The LEX structure in the state when this parser
+                  is called recursively
+  @param lex      The LEX structure used to parse a new SQL fragment
+  @param str      The SQL fragment to parse
+  @param str_len  The length of the SQL fragment to parse
+  @param stmt_prepare_mode true <=> when parsing a prepare statement
+
+  @details
+    This function is to be used when parsing of an SQL fragment is
+    needed within one of the grammar rules.
+
+  @notes
+    Currently the function is used only when the specification of a CTE
+    is parsed for the not first and not recursive references of the CTE.
+
+  @retval false   On a successful parsing of the fragment
+  @retval true    Otherwise
+*/
+
+bool THD::sql_parser(LEX *old_lex, LEX *lex,
+                     char *str, uint str_len, bool stmt_prepare_mode)
+{
+  extern int MYSQLparse(THD * thd);
+
+  bool parse_status= false;
+  Parser_state parser_state;
+  Parser_state *old_parser_state= m_parser_state;
+
+  if (parser_state.init(this, str, str_len))
+    return true;
+
+  m_parser_state= &parser_state;
+  parser_state.m_lip.stmt_prepare_mode= stmt_prepare_mode;
+  parser_state.m_lip.multi_statements= false;
+  parser_state.m_lip.m_digest= NULL;
+
+  lex->param_list= old_lex->param_list;
+  lex->sphead= old_lex->sphead;
+  lex->spname= old_lex->spname;
+  lex->spcont= old_lex->spcont;
+  lex->sp_chistics= old_lex->sp_chistics;
+  lex->trg_chistics= old_lex->trg_chistics;
+
+  parse_status= MYSQLparse(this) != 0;
+
+  m_parser_state= old_parser_state;
+
+  return parse_status;
+}
+
+
 struct Item_change_record: public ilink
 {
   Item **place;
@@ -3066,12 +3136,12 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
   }
   /* Create the file world readable */
   if ((file= mysql_file_create(key_select_to_file,
-                               path, 0666, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
+                               path, 0644, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
     return file;
 #ifdef HAVE_FCHMOD
-  (void) fchmod(file, 0666);			// Because of umask()
+  (void) fchmod(file, 0644);			// Because of umask()
 #else
-  (void) chmod(path, 0666);
+  (void) chmod(path, 0644);
 #endif
   if (init_io_cache(cache, file, 0L, WRITE_CACHE, 0L, 1, MYF(MY_WME)))
   {
@@ -3540,7 +3610,7 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
     if (!cache)
     {
       cache= val_item->get_cache(thd);
-      switch (val_item->result_type()) {
+      switch (val_item->cmp_type()) {
       case REAL_RESULT:
 	op= &select_max_min_finder_subselect::cmp_real;
 	break;
@@ -3553,8 +3623,13 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
       case DECIMAL_RESULT:
         op= &select_max_min_finder_subselect::cmp_decimal;
         break;
-      case ROW_RESULT:
       case TIME_RESULT:
+        if (val_item->field_type() == MYSQL_TYPE_TIME)
+          op= &select_max_min_finder_subselect::cmp_time;
+        else
+          op= &select_max_min_finder_subselect::cmp_str;
+        break;
+      case ROW_RESULT:
         // This case should never be choosen
 	DBUG_ASSERT(0);
 	op= 0;
@@ -3599,6 +3674,22 @@ bool select_max_min_finder_subselect::cmp_int()
   return (val1 < val2);
 }
 
+bool select_max_min_finder_subselect::cmp_time()
+{
+  Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
+  longlong val1= cache->val_time_packed(), val2= maxmin->val_time_packed();
+
+  /* Ignore NULLs for ANY and keep them for ALL subqueries */
+  if (cache->null_value)
+    return (is_all && !maxmin->null_value) || (!is_all && maxmin->null_value);
+  if (maxmin->null_value)
+    return !is_all;
+
+  if (fmax)
+    return(val1 > val2);
+  return (val1 < val2);
+}
+
 bool select_max_min_finder_subselect::cmp_decimal()
 {
   Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
@@ -3625,7 +3716,7 @@ bool select_max_min_finder_subselect::cmp_str()
     but added for safety
   */
   val1= cache->val_str(&buf1);
-  val2= maxmin->val_str(&buf1);
+  val2= maxmin->val_str(&buf2);
 
   /* Ignore NULLs for ANY and keep them for ALL subqueries */
   if (cache->null_value)
@@ -3703,7 +3794,6 @@ void select_dumpvar::cleanup()
 
 Query_arena::Type Query_arena::type() const
 {
-  DBUG_ASSERT(0); /* Should never be called */
   return STATEMENT;
 }
 
@@ -4671,7 +4761,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_ASSERT(thd->open_tables == NULL);
   DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
-  Open_table_context ot_ctx(thd, 0);
+  Open_table_context ot_ctx(thd, MYSQL_OPEN_IGNORE_FLUSH);
   TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
@@ -4736,7 +4826,7 @@ void destroy_thd(MYSQL_THD thd)
 void reset_thd(MYSQL_THD thd)
 {
   close_thread_tables(thd);
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
   thd->free_items();
   free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
 }
@@ -4780,6 +4870,7 @@ extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd)
   @param buflen  Length of the buffer
 
   @return Length of the query
+  @retval 0 if LOCK_thd_data cannot be acquired without waiting
 
   @note This function is thread safe as the query string is
         accessed under mutex protection and the string is copied
@@ -4788,10 +4879,20 @@ extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd)
 
 extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen)
 {
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-  size_t len= MY_MIN(buflen - 1, thd->query_length());
-  memcpy(buf, thd->query(), len);
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  size_t len= 0;
+  /* InnoDB invokes this function while holding internal mutexes.
+  THD::awake() will hold LOCK_thd_data while invoking an InnoDB
+  function that would acquire the internal mutex. Because this
+  function is a non-essential part of information_schema view output,
+  we will break the deadlock by avoiding a mutex wait here
+  and returning the empty string if a wait would be needed. */
+  if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
+  {
+    len= MY_MIN(buflen - 1, thd->query_length());
+    if (len)
+      memcpy(buf, thd->query(), len);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
   buf[len]= '\0';
   return len;
 }
@@ -4963,6 +5064,18 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
   DBUG_EXECUTE_IF("disable_thd_need_ordering_with", return 1;);
   if (!thd || !other_thd)
     return 1;
+#ifdef WITH_WSREP
+  /* wsrep applier, replayer and TOI processing threads are ordered
+     by replication provider, relaxed GAP locking protocol can be used
+     between high priority wsrep threads. Note that this function
+     is called while holding lock_sys mutex, therefore we can't
+     use THD::LOCK_thd_data mutex below to follow mutex ordering rules.
+  */
+  if (WSREP_ON &&
+      wsrep_thd_is_BF(const_cast<THD *>(thd), false) &&
+      wsrep_thd_is_BF(const_cast<THD *>(other_thd), false))
+    return 0;
+#endif /* WITH_WSREP */
   rgi= thd->rgi_slave;
   other_rgi= other_thd->rgi_slave;
   if (!rgi || !other_rgi)
@@ -5073,8 +5186,8 @@ extern "C" bool thd_is_strict_mode(const MYSQL_THD thd)
 */
 void thd_get_query_start_data(THD *thd, char *buf)
 {
-  LEX_CSTRING field_name;
-  Field_timestampf f((uchar *)buf, NULL, 0, Field::NONE, &field_name, NULL, 6);
+  Field_timestampf f((uchar *)buf, NULL, 0, Field::NONE, &empty_clex_str,
+                     NULL, 6);
   f.store_TIME(thd->query_start(), thd->query_start_sec_part());
 }
 
@@ -6877,8 +6990,8 @@ void THD::binlog_prepare_row_images(TABLE *table)
     {
       case BINLOG_ROW_IMAGE_MINIMAL:
         /* MINIMAL: Mark only PK */
-        table->mark_columns_used_by_index(table->s->primary_key,
-                                          &table->tmp_set);
+        table->mark_index_columns(table->s->primary_key,
+                                  &table->tmp_set);
         break;
       case BINLOG_ROW_IMAGE_NOBLOB:
         /**

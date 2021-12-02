@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -337,48 +337,41 @@ operator<<(
 It contains a std::ostringstream object.  The main purpose of this class is
 to forward operator<< to the underlying std::ostringstream object.  Do not
 use this class directly, instead use one of the derived classes. */
-class logger {
-public:
-	template<typename T>
-	ATTRIBUTE_COLD
-	logger& operator<<(const T& rhs)
-	{
-		m_oss << rhs;
-		return(*this);
-	}
-
-	/** Write the given buffer to the internal string stream object.
-	@param[in]	buf	the buffer whose contents will be logged.
-	@param[in]	count	the length of the buffer buf.
-	@return the output stream into which buffer was written. */
-	ATTRIBUTE_COLD
-	std::ostream&
-	write(
-		const char*		buf,
-		std::streamsize		count)
-	{
-		return(m_oss.write(buf, count));
-	}
-
-	/** Write the given buffer to the internal string stream object.
-	@param[in]	buf	the buffer whose contents will be logged.
-	@param[in]	count	the length of the buffer buf.
-	@return the output stream into which buffer was written. */
-	ATTRIBUTE_COLD
-	std::ostream&
-	write(
-		const byte*		buf,
-		std::streamsize		count)
-	{
-		return(m_oss.write(reinterpret_cast<const char*>(buf), count));
-	}
-
-	std::ostringstream	m_oss;
+class logger
+{
 protected:
-	/* This class must not be used directly, hence making the default
-	constructor protected. */
-	ATTRIBUTE_COLD
-	logger() {}
+  /* This class must not be used directly */
+  ATTRIBUTE_COLD ATTRIBUTE_NOINLINE logger() {}
+public:
+  template<typename T> ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+  logger& operator<<(const T& rhs)
+  {
+    m_oss << rhs;
+    return *this;
+  }
+
+  /** Handle a fixed character string in the same way as a pointer to
+  an unknown-length character string, to reduce object code bloat. */
+  template<size_t N> logger& operator<<(const char (&rhs)[N])
+  { return *this << static_cast<const char*>(rhs); }
+
+  /** Output an error code name */
+  ATTRIBUTE_COLD logger& operator<<(dberr_t err);
+
+  /** Append a string.
+  @param buf   string buffer
+  @param size  buffer size
+  @return the output stream */
+  ATTRIBUTE_COLD __attribute__((noinline))
+  std::ostream &write(const char *buf, std::streamsize size)
+  {
+    return m_oss.write(buf, size);
+  }
+
+  std::ostream &write(const byte *buf, std::streamsize size)
+  { return write(reinterpret_cast<const char*>(buf), size); }
+
+  std::ostringstream m_oss;
 };
 
 /** The class info is used to emit informational log messages.  It is to be
@@ -412,6 +405,14 @@ class error : public logger {
 public:
 	ATTRIBUTE_COLD
 	~error();
+	/** Indicates that error::~error() was invoked. Can be used to
+	determine if error messages were logged during innodb code execution.
+	@return true if there were error messages, false otherwise. */
+	static bool was_logged() { return logged; }
+
+private:
+	/** true if error::~error() was invoked, false otherwise */
+	static bool logged;
 };
 
 /** The class fatal is used to emit an error message and stop the server

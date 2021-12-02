@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,29 +48,15 @@ extern int	yydebug;
 NOT re-entrant */
 extern sym_tab_t*	pars_sym_tab_global;
 
-extern pars_res_word_t	pars_to_char_token;
-extern pars_res_word_t	pars_to_number_token;
 extern pars_res_word_t	pars_to_binary_token;
-extern pars_res_word_t	pars_binary_to_number_token;
 extern pars_res_word_t	pars_substr_token;
-extern pars_res_word_t	pars_replstr_token;
 extern pars_res_word_t	pars_concat_token;
 extern pars_res_word_t	pars_length_token;
 extern pars_res_word_t	pars_instr_token;
-extern pars_res_word_t	pars_sysdate_token;
-extern pars_res_word_t	pars_printf_token;
-extern pars_res_word_t	pars_assert_token;
-extern pars_res_word_t	pars_rnd_token;
-extern pars_res_word_t	pars_rnd_str_token;
 extern pars_res_word_t	pars_count_token;
-extern pars_res_word_t	pars_sum_token;
-extern pars_res_word_t	pars_distinct_token;
-extern pars_res_word_t	pars_binary_token;
-extern pars_res_word_t	pars_blob_token;
 extern pars_res_word_t	pars_int_token;
 extern pars_res_word_t	pars_bigint_token;
 extern pars_res_word_t	pars_char_token;
-extern pars_res_word_t	pars_float_token;
 extern pars_res_word_t	pars_update_token;
 extern pars_res_word_t	pars_asc_token;
 extern pars_res_word_t	pars_desc_token;
@@ -236,17 +222,6 @@ pars_insert_statement(
 	que_node_t*	values_list,	/*!< in: value expression list or NULL */
 	sel_node_t*	select);	/*!< in: select condition or NULL */
 /*********************************************************************//**
-Parses a procedure parameter declaration.
-@return own: symbol table node of type SYM_VAR */
-sym_node_t*
-pars_parameter_declaration(
-/*=======================*/
-	sym_node_t*	node,	/*!< in: symbol table node allocated for the
-				id of the parameter */
-	ulint		param_type,
-				/*!< in: PARS_INPUT or PARS_OUTPUT */
-	pars_res_word_t* type);	/*!< in: pointer to a type token */
-/*********************************************************************//**
 Parses an elsif element.
 @return elsif node */
 elsif_node_t*
@@ -358,8 +333,6 @@ pars_column_def(
 	pars_res_word_t*	type,		/*!< in: data type */
 	sym_node_t*		len,		/*!< in: length of column, or
 						NULL */
-	void*			is_unsigned,	/*!< in: if not NULL, column
-						is of type UNSIGNED. */
 	void*			is_not_null);	/*!< in: if not NULL, column
 						is of type NOT NULL. */
 /*********************************************************************//**
@@ -370,9 +343,7 @@ pars_create_table(
 /*==============*/
 	sym_node_t*	table_sym,	/*!< in: table name node in the symbol
 					table */
-	sym_node_t*	column_defs,	/*!< in: list of column names */
-	sym_node_t*	compact,	/* in: non-NULL if COMPACT table. */
-	sym_node_t*	block_size);	/* in: block size (can be NULL) */
+	sym_node_t*	column_defs);	/*!< in: list of column names */
 /*********************************************************************//**
 Parses an index creation operation.
 @return index create subgraph */
@@ -394,7 +365,6 @@ pars_procedure_definition(
 /*======================*/
 	sym_node_t*	sym_node,	/*!< in: procedure id node in the symbol
 					table */
-	sym_node_t*	param_list,	/*!< in: parameter declaration list */
 	que_node_t*	stat_list);	/*!< in: statement list */
 
 /*************************************************************//**
@@ -521,7 +491,6 @@ void
 pars_info_bind_id(
 /*=============*/
 	pars_info_t*		info,	/*!< in: info struct */
-	ibool			copy_name,/* in: make a copy of name if TRUE */
 	const char*		name,	/*!< in: name */
 	const char*		id);	/*!< in: id */
 /****************************************************************//**
@@ -566,15 +535,6 @@ pars_info_bind_ull_literal(
 	const char*		name,	/*!< in: name */
 	const ib_uint64_t*	val)	/*!< in: value */
 	MY_ATTRIBUTE((nonnull));
-
-/****************************************************************//**
-Add bound id. */
-void
-pars_info_add_id(
-/*=============*/
-	pars_info_t*	info,		/*!< in: info struct */
-	const char*	name,		/*!< in: name */
-	const char*	id);		/*!< in: id */
 
 /****************************************************************//**
 Get bound literal with the given name.
@@ -672,7 +632,6 @@ struct proc_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_PROC */
 	sym_node_t*	proc_id;	/*!< procedure name symbol in the symbol
 					table of this same procedure */
-	sym_node_t*	param_list;	/*!< input and output parameters */
 	que_node_t*	stat_list;	/*!< statement list */
 	sym_tab_t*	sym_tab;	/*!< symbol table of this procedure */
 };
@@ -747,7 +706,7 @@ struct col_assign_node_t{
 #define	PARS_FUNC_LOGICAL	2	/*!< AND, OR, NOT */
 #define PARS_FUNC_CMP		3	/*!< comparison operators */
 #define	PARS_FUNC_PREDEFINED	4	/*!< TO_NUMBER, SUBSTR, ... */
-#define	PARS_FUNC_AGGREGATE	5	/*!< COUNT, DISTINCT, SUM */
+#define	PARS_FUNC_AGGREGATE	5	/*!< COUNT */
 #define	PARS_FUNC_OTHER		6	/*!< these are not real functions,
 					e.g., := */
 /* @} */

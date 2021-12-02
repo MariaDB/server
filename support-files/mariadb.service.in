@@ -75,7 +75,7 @@ PermissionsStartOnly=true
 # Do not panic if galera_recovery script is not available. (MDEV-10538)
 ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
 ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
- VAR=`@bindir@/galera_recovery`; [ $? -eq 0 ] \
+ VAR=`cd @bindir@/..; @bindir@/galera_recovery`; [ $? -eq 0 ] \
  && systemctl set-environment _WSREP_START_POSITION=$VAR || exit 1"
 
 # Needed to create system tables etc.
@@ -126,14 +126,21 @@ UMask=007
 # LOAD DATA INFILE you can enable PrivateTmp=true for a little more security.
 PrivateTmp=false
 
+# Set an explicit Start and Stop timeout of 900 seconds (15 minutes!)
+# this is the same value as used in SysV init scripts in the past
+# Galera might need a longer timeout, check the KB if you want to change this:
+# https://mariadb.com/kb/en/library/systemd/#configuring-the-systemd-service-timeout
+TimeoutStartSec=900
+TimeoutStopSec=900
+
 ##
 ## Options previously available to be set via [mysqld_safe]
 ## that now needs to be set by systemd config files as mysqld_safe
 ## isn't executed.
 ##
 
-# Number of files limit. previously [mysqld_safe] open-file-limit
-LimitNOFILE=16364
+# Number of files limit. previously [mysqld_safe] open-files-limit
+LimitNOFILE=32768
 
 # Maximium core size. previously [mysqld_safe] core-file-size
 # LimitCore=

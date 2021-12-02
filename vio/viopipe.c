@@ -75,6 +75,9 @@ size_t vio_read_pipe(Vio *vio, uchar *buf, size_t count)
   size_t ret= (size_t) -1;
   DBUG_ENTER("vio_read_pipe");
 
+  if (vio->shutdown_flag)
+      return ret;
+
   disable_iocp_notification(&vio->overlapped);
 
   /* Attempt to read from the pipe (overlapped I/O). */
@@ -85,8 +88,11 @@ size_t vio_read_pipe(Vio *vio, uchar *buf, size_t count)
   }
   /* Read operation is pending completion asynchronously? */
   else if (GetLastError() == ERROR_IO_PENDING)
+  {
+    if (vio->shutdown_flag)
+      CancelIo(vio->hPipe);
     ret= wait_overlapped_result(vio, vio->read_timeout);
-
+  }
   enable_iocp_notification(&vio->overlapped);
 
   DBUG_RETURN(ret);
@@ -99,6 +105,8 @@ size_t vio_write_pipe(Vio *vio, const uchar *buf, size_t count)
   size_t ret= (size_t) -1;
   DBUG_ENTER("vio_write_pipe");
 
+  if (vio->shutdown_flag == SHUT_RDWR)
+    return ret;
   disable_iocp_notification(&vio->overlapped);
   /* Attempt to write to the pipe (overlapped I/O). */
   if (WriteFile(vio->hPipe, buf, (DWORD)count, &transferred, &vio->overlapped))
@@ -108,8 +116,11 @@ size_t vio_write_pipe(Vio *vio, const uchar *buf, size_t count)
   }
   /* Write operation is pending completion asynchronously? */
   else if (GetLastError() == ERROR_IO_PENDING)
+  {
+    if (vio->shutdown_flag == SHUT_RDWR)
+      CancelIo(vio->hPipe);
     ret= wait_overlapped_result(vio, vio->write_timeout);
-
+  }
   enable_iocp_notification(&vio->overlapped);
   DBUG_RETURN(ret);
 }
@@ -129,9 +140,7 @@ int vio_close_pipe(Vio *vio)
   BOOL ret;
   DBUG_ENTER("vio_close_pipe");
 
-  CancelIo(vio->hPipe);
   CloseHandle(vio->overlapped.hEvent);
-  DisconnectNamedPipe(vio->hPipe);
   ret= CloseHandle(vio->hPipe);
 
   vio->type= VIO_CLOSED;
@@ -141,5 +150,11 @@ int vio_close_pipe(Vio *vio)
   DBUG_RETURN(ret);
 }
 
+/* return number of bytes readable from pipe.*/
+uint vio_pending_pipe(Vio *vio)
+{
+  DWORD bytes;
+  return PeekNamedPipe(vio->hPipe, NULL, 0, NULL, &bytes, NULL) ? bytes : 0;
+}
 #endif
 

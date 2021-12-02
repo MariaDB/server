@@ -1,8 +1,54 @@
 ChangeLog for PCRE
 ------------------
 
-Note that the PCRE 8.xx series (PCRE1) is now in a bugfix-only state. All
-development is happening in the PCRE2 10.xx series.
+Note that the PCRE 8.xx series (PCRE1) is now at end of life. All development
+is happening in the PCRE2 10.xx series.
+
+
+Version 8.45 15-June-2021
+-------------------------
+
+This is the final release of PCRE1. A few minor tidies are included.
+
+1. CMakeLists.txt has two user-supplied patches applied, one to allow for the
+setting of MODULE_PATH, and the other to support the generation of pcre-config
+file and libpcre*.pc files.
+
+2. There was a memory leak if a compile error occurred when there were more
+than 20 named groups (Bugzilla #2613).
+
+3. Fixed some typos in code and documentation.
+
+4. Fixed a small (*MARK) bug in the interpreter (Bugzilla #2771).
+
+
+Version 8.44 12 February-2020
+-----------------------------
+
+1. Setting --enable-jit=auto for an out-of-tree build failed because the
+source directory wasn't in the search path for AC_TRY_COMPILE always. Patch
+from Ross Burton.
+
+2. Applied a patch from Michael Shigorin to fix 8.43 build on e2k arch
+with lcc compiler (EDG frontend based); the problem it fixes is:
+
+  lcc: "pcrecpp.cc", line 74: error: declaration aliased to undefined entity
+       "_ZN7pcrecpp2RE6no_argE" [-Werror]
+
+3. Change 2 for 8.43 omitted (*LF) from the list of start-of-pattern items. Now
+added.
+
+4. Fix ARMv5 JIT improper handling of labels right after a constant pool.
+
+5. Small patch to pcreposix.c to set the erroroffset field to -1 immediately
+after a successful compile, instead of at the start of matching to avoid a
+sanitizer complaint (regexec is supposed to be thread safe).
+
+6. Check the size of the number after (?C as it is read, in order to avoid
+integer overflow.
+
+7. Tidy up left shifts to avoid sanitize warnings; also fix one NULL deference
+in pcretest.
 
 
 Version 8.43 23-February-2019
@@ -1605,7 +1651,7 @@ Version 8.21 12-Dec-2011
     are added as well.
 
 3.  Fix cache-flush issue on PowerPC (It is still an experimental JIT port).
-    PCRE_EXTRA_TABLES is not suported by JIT, and should be checked before
+    PCRE_EXTRA_TABLES is not supported by JIT, and should be checked before
     calling _pcre_jit_exec. Some extra comments are added.
 
 4.  (*MARK) settings inside atomic groups that do not contain any capturing

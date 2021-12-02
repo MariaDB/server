@@ -7,12 +7,18 @@ UPDATE t1 SET f1 = f1 + 10;;
 connection node_2;
 UPDATE t1 SET f1 = f1 + 100;;
 connection node_1;
-connection node_2;
-connection node_3;
-SELECT f1 = 111 FROM t1;
-f1 = 111
+SELECT COUNT(*) FROM t1;
+COUNT(*)
 1
-SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE 'committed%';
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+connection node_3;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%committed%';
 COUNT(*) IN (1, 2)
 1
 SET GLOBAL wsrep_slave_threads = 1;;

@@ -1,0 +1,26 @@
+SET @old_innodb_log_optimize_ddl=@@global.innodb_log_optimize_ddl;
+SET GLOBAL innodb_log_optimize_ddl=ON;
+SET @old_debug_dbug=@@global.debug_dbug;
+SET GLOBAL debug_dbug="+d,ib_log_checkpoint_avoid";
+SET @old_innodb_page_cleaner_disabled_debug=@@global.innodb_page_cleaner_disabled_debug;
+SET GLOBAL innodb_page_cleaner_disabled_debug=ON;
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+# backup
+SET GLOBAL debug_dbug="+d,ib_do_not_log_crypt_data";
+INSERT INTO t1 VALUES (2);
+# incremental backup
+# prepare
+# incremental prepare
+SET GLOBAL innodb_log_optimize_ddl=@old_innodb_log_optimize_ddl;
+SET GLOBAL innodb_page_cleaner_disabled_debug=@old_innodb_page_cleaner_disabled_debug;
+SET GLOBAL debug_dbug=@old_debug_dbug;
+# Restore and check results
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+SELECT count(*) FROM t1;
+count(*)
+2
+DROP TABLE t1;

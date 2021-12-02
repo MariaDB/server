@@ -403,8 +403,8 @@ static int register_service()
 
 static void clean_directory(const char *dir)
 {
-  char dir2[MAX_PATH+2];
-  *(strmake_buf(dir2, dir)+1)= 0;
+  char dir2[MAX_PATH + 4]= {};
+  snprintf(dir2, MAX_PATH+2, "%s\\*", dir);
 
   SHFILEOPSTRUCT fileop;
   fileop.hwnd= NULL;    /* no status display */
@@ -533,7 +533,7 @@ static int create_db_instance()
   DWORD cwd_len= MAX_PATH;
   char cmdline[3*MAX_PATH];
   FILE *in;
-  bool cleanup_datadir= true;
+  bool created_datadir= false;
   DWORD last_error;
 
   verbose("Running bootstrap");
@@ -542,7 +542,11 @@ static int create_db_instance()
 
   /* Create datadir and datadir/mysql, if they do not already exist. */
 
-  if (!CreateDirectory(opt_datadir, NULL) && (GetLastError() != ERROR_ALREADY_EXISTS))
+  if (CreateDirectory(opt_datadir, NULL))
+  {
+    created_datadir= true;
+  }
+  else if (GetLastError() != ERROR_ALREADY_EXISTS)
   {
     last_error = GetLastError();
     switch(last_error)
@@ -579,9 +583,11 @@ static int create_db_instance()
     }
   }
 
-  if (PathIsDirectoryEmpty(opt_datadir))
+  if (!PathIsDirectoryEmpty(opt_datadir))
   {
-    cleanup_datadir= false;
+    fprintf(stderr,"ERROR : Data directory %s is not empty."
+        " Only new or empty existing directories are accepted for --datadir\n",opt_datadir);
+    exit(1);
   }
 
   if (!CreateDirectory("mysql",NULL))
@@ -709,10 +715,12 @@ static int create_db_instance()
   }
 
 end:
-  if (ret && cleanup_datadir)
+  if (ret)
   {
     SetCurrentDirectory(cwd);
     clean_directory(opt_datadir);
+    if (created_datadir)
+      RemoveDirectory(opt_datadir);
   }
   return ret;
 }

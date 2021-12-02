@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -413,8 +413,6 @@ extern double	srv_defragment_fill_factor;
 extern uint	srv_defragment_frequency;
 extern ulonglong	srv_defragment_interval;
 
-extern ulong	srv_idle_flush_pct;
-
 extern uint	srv_change_buffer_max_size;
 
 /* Number of IO operations per second the server can do */
@@ -494,6 +492,8 @@ enum srv_operation_mode {
 	SRV_OPERATION_BACKUP,
 	/** Mariabackup restoring a backup for subsequent --copy-back */
 	SRV_OPERATION_RESTORE,
+	/** Mariabackup restoring a backup with rolling back prepared XA's*/
+	SRV_OPERATION_RESTORE_ROLLBACK_XA,
 	/** Mariabackup restoring the incremental part of a backup */
 	SRV_OPERATION_RESTORE_DELTA,
 	/** Mariabackup restoring a backup for subsequent --export */
@@ -502,6 +502,21 @@ enum srv_operation_mode {
 
 /** Current mode of operation */
 extern enum srv_operation_mode srv_operation;
+
+inline bool is_mariabackup_restore()
+{
+	/* To rollback XA's trx_sys must be initialized, the rest is the same
+	as regular backup restore, that is why we join this two operations in
+	the most cases. */
+	return srv_operation == SRV_OPERATION_RESTORE
+	       || srv_operation == SRV_OPERATION_RESTORE_ROLLBACK_XA;
+}
+
+inline bool is_mariabackup_restore_or_export()
+{
+	return is_mariabackup_restore()
+	       || srv_operation == SRV_OPERATION_RESTORE_EXPORT;
+}
 
 extern my_bool	srv_print_innodb_monitor;
 extern my_bool	srv_print_innodb_lock_monitor;
@@ -580,9 +595,6 @@ extern struct export_var_t export_vars;
 
 /** Global counters */
 extern srv_stats_t	srv_stats;
-
-/** Simulate compression failures. */
-extern uint srv_simulate_comp_failures;
 
 /** Fatal semaphore wait threshold = maximum number of seconds
 that semaphore times out in InnoDB */
@@ -1109,9 +1121,12 @@ struct srv_slot_t{
 						(only used for user threads) */
 #ifdef UNIV_DEBUG
 	struct debug_sync_t {
-		UT_LIST_NODE_T(debug_sync_t) debug_sync_list;
+		UT_LIST_NODE_T(debug_sync_t)
+			debug_sync_list;
+		char str[1];
 	};
-	UT_LIST_BASE_NODE_T(debug_sync_t) debug_sync;
+	UT_LIST_BASE_NODE_T(debug_sync_t)
+		debug_sync;
 	rw_lock_t debug_sync_lock;
 #endif
 };

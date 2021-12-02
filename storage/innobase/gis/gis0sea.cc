@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -526,12 +526,11 @@ rtr_compare_cursor_rec(
 	mem_heap_t**	heap)		/*!< in: memory heap */
 {
 	const rec_t*	rec;
-	ulint*		offsets;
+	rec_offs*	offsets;
 
 	rec = btr_cur_get_rec(cursor);
 
-	offsets = rec_get_offsets(
-		rec, index, NULL, false, ULINT_UNDEFINED, heap);
+	offsets = rec_get_offsets(rec, index, NULL, 0, ULINT_UNDEFINED, heap);
 
 	return(btr_node_ptr_get_child_page_no(rec, offsets) == page_no);
 }
@@ -668,7 +667,7 @@ rtr_page_get_father(
 {
 	mem_heap_t*	heap = mem_heap_create(100);
 #ifdef UNIV_DEBUG
-	ulint*		offsets;
+	rec_offs*	offsets;
 
 	offsets = rtr_page_get_father_block(
 		NULL, heap, index, block, mtr, sea_cur, cursor);
@@ -685,132 +684,10 @@ rtr_page_get_father(
 	mem_heap_free(heap);
 }
 
-/** Returns the upper level node pointer to a R-Tree page. It is assumed
-that mtr holds an SX-latch or X-latch on the tree.
-@return	rec_get_offsets() of the node pointer record */
-static
-ulint*
-rtr_page_get_father_node_ptr(
-	ulint*		offsets,/*!< in: work area for the return value */
-	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	btr_cur_t*	sea_cur,/*!< in: search cursor */
-	btr_cur_t*	cursor,	/*!< in: cursor pointing to user record,
-				out: cursor on node pointer record,
-				its page x-latched */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-	dtuple_t*	tuple;
-	rec_t*		user_rec;
-	rec_t*		node_ptr;
-	ulint		level;
-	ulint		page_no;
-	dict_index_t*	index;
-	rtr_mbr_t	mbr;
-
-	page_no = btr_cur_get_block(cursor)->page.id.page_no();
-	index = btr_cur_get_index(cursor);
-
-	ut_ad(srv_read_only_mode
-	      || mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
-					   MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
-
-	ut_ad(dict_index_get_page(index) != page_no);
-
-	level = btr_page_get_level(btr_cur_get_page(cursor));
-
-	user_rec = btr_cur_get_rec(cursor);
-	ut_a(page_rec_is_user_rec(user_rec));
-
-	offsets = rec_get_offsets(user_rec, index, offsets, !level,
-				  ULINT_UNDEFINED, &heap);
-	rtr_get_mbr_from_rec(user_rec, offsets, &mbr);
-
-	tuple = rtr_index_build_node_ptr(
-		index, &mbr, user_rec, page_no, heap);
-
-	if (sea_cur && !sea_cur->rtr_info) {
-		sea_cur = NULL;
-	}
-
-	rtr_get_father_node(index, level + 1, tuple, sea_cur, cursor,
-			    page_no, mtr);
-
-	node_ptr = btr_cur_get_rec(cursor);
-	ut_ad(!page_rec_is_comp(node_ptr)
-	      || rec_get_status(node_ptr) == REC_STATUS_NODE_PTR);
-	offsets = rec_get_offsets(node_ptr, index, offsets, false,
-				  ULINT_UNDEFINED, &heap);
-
-	ulint	child_page = btr_node_ptr_get_child_page_no(node_ptr, offsets);
-
-	if (child_page != page_no) {
-		const rec_t*	print_rec;
-
-		ib::fatal	error;
-
-		error << "Corruption of index " << index->name
-			<< " of table " << index->table->name
-			<< " parent page " << page_no
-			<< " child page " << child_page;
-
-		print_rec = page_rec_get_next(
-			page_get_infimum_rec(page_align(user_rec)));
-		offsets = rec_get_offsets(print_rec, index, offsets,
-					  page_rec_is_leaf(user_rec),
-					  ULINT_UNDEFINED, &heap);
-		error << "; child ";
-		rec_print(error.m_oss, print_rec,
-			  rec_get_info_bits(print_rec, rec_offs_comp(offsets)),
-			  offsets);
-		offsets = rec_get_offsets(node_ptr, index, offsets, false,
-					  ULINT_UNDEFINED, &heap);
-		error << "; parent ";
-		rec_print(error.m_oss, print_rec,
-			  rec_get_info_bits(print_rec, rec_offs_comp(offsets)),
-			  offsets);
-
-		error << ". You should dump + drop + reimport the table to"
-			" fix the corruption. If the crash happens at"
-			" database startup, see "
-			"https://mariadb.com/kb/en/library/innodb-recovery-modes/"
-			" about forcing"
-			" recovery. Then dump + drop + reimport.";
-	}
-
-	return(offsets);
-}
-
-/************************************************************//**
-Returns the father block to a page. It is assumed that mtr holds
-an X or SX latch on the tree.
-@return rec_get_offsets() of the node pointer record */
-ulint*
-rtr_page_get_father_block(
-/*======================*/
-	ulint*		offsets,/*!< in: work area for the return value */
-	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	dict_index_t*	index,	/*!< in: b-tree index */
-	buf_block_t*	block,	/*!< in: child page in the index */
-	mtr_t*		mtr,	/*!< in: mtr */
-	btr_cur_t*	sea_cur,/*!< in: search cursor, contains information
-				about parent nodes in search */
-	btr_cur_t*	cursor)	/*!< out: cursor on node pointer record,
-				its page x-latched */
-{
-	rec_t*  rec = page_rec_get_next(
-		page_get_infimum_rec(buf_block_get_frame(block)));
-	btr_cur_position(index, rec, block, cursor);
-
-	return(rtr_page_get_father_node_ptr(offsets, heap, sea_cur,
-					    cursor, mtr));
-}
-
 /********************************************************************//**
 Returns the upper level node pointer to a R-Tree page. It is assumed
 that mtr holds an x-latch on the tree. */
-void
-rtr_get_father_node(
-/*================*/
+static void rtr_get_father_node(
 	dict_index_t*	index,	/*!< in: index */
 	ulint		level,	/*!< in: the tree level of search */
 	const dtuple_t*	tuple,	/*!< in: data tuple; NOTE: n_fields_cmp in
@@ -920,6 +797,128 @@ func_exit:
 		rtr_clean_rtr_info(btr_cur->rtr_info, true);
 		btr_cur->rtr_info = NULL;
 	}
+}
+
+/** Returns the upper level node pointer to a R-Tree page. It is assumed
+that mtr holds an SX-latch or X-latch on the tree.
+@return	rec_get_offsets() of the node pointer record */
+static
+rec_offs*
+rtr_page_get_father_node_ptr(
+	rec_offs*	offsets,/*!< in: work area for the return value */
+	mem_heap_t*	heap,	/*!< in: memory heap to use */
+	btr_cur_t*	sea_cur,/*!< in: search cursor */
+	btr_cur_t*	cursor,	/*!< in: cursor pointing to user record,
+				out: cursor on node pointer record,
+				its page x-latched */
+	mtr_t*		mtr)	/*!< in: mtr */
+{
+	dtuple_t*	tuple;
+	rec_t*		user_rec;
+	rec_t*		node_ptr;
+	ulint		level;
+	ulint		page_no;
+	dict_index_t*	index;
+	rtr_mbr_t	mbr;
+
+	page_no = btr_cur_get_block(cursor)->page.id.page_no();
+	index = btr_cur_get_index(cursor);
+
+	ut_ad(srv_read_only_mode
+	      || mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
+					   MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
+
+	ut_ad(dict_index_get_page(index) != page_no);
+
+	level = btr_page_get_level(btr_cur_get_page(cursor));
+
+	user_rec = btr_cur_get_rec(cursor);
+	ut_a(page_rec_is_user_rec(user_rec));
+
+	offsets = rec_get_offsets(user_rec, index, offsets,
+				  level ? 0 : index->n_fields,
+				  ULINT_UNDEFINED, &heap);
+	rtr_get_mbr_from_rec(user_rec, offsets, &mbr);
+
+	tuple = rtr_index_build_node_ptr(
+		index, &mbr, user_rec, page_no, heap);
+
+	if (sea_cur && !sea_cur->rtr_info) {
+		sea_cur = NULL;
+	}
+
+	rtr_get_father_node(index, level + 1, tuple, sea_cur, cursor,
+			    page_no, mtr);
+
+	node_ptr = btr_cur_get_rec(cursor);
+	ut_ad(!page_rec_is_comp(node_ptr)
+	      || rec_get_status(node_ptr) == REC_STATUS_NODE_PTR);
+	offsets = rec_get_offsets(node_ptr, index, offsets, 0,
+				  ULINT_UNDEFINED, &heap);
+
+	ulint	child_page = btr_node_ptr_get_child_page_no(node_ptr, offsets);
+
+	if (child_page != page_no) {
+		const rec_t*	print_rec;
+
+		ib::fatal	error;
+
+		error << "Corruption of index " << index->name
+			<< " of table " << index->table->name
+			<< " parent page " << page_no
+			<< " child page " << child_page;
+
+		print_rec = page_rec_get_next(
+			page_get_infimum_rec(page_align(user_rec)));
+		offsets = rec_get_offsets(print_rec, index, offsets,
+					  page_rec_is_leaf(user_rec)
+					  ? index->n_fields : 0,
+					  ULINT_UNDEFINED, &heap);
+		error << "; child ";
+		rec_print(error.m_oss, print_rec,
+			  rec_get_info_bits(print_rec, rec_offs_comp(offsets)),
+			  offsets);
+		offsets = rec_get_offsets(node_ptr, index, offsets, 0,
+					  ULINT_UNDEFINED, &heap);
+		error << "; parent ";
+		rec_print(error.m_oss, print_rec,
+			  rec_get_info_bits(print_rec, rec_offs_comp(offsets)),
+			  offsets);
+
+		error << ". You should dump + drop + reimport the table to"
+			" fix the corruption. If the crash happens at"
+			" database startup, see "
+			"https://mariadb.com/kb/en/library/innodb-recovery-modes/"
+			" about forcing"
+			" recovery. Then dump + drop + reimport.";
+	}
+
+	return(offsets);
+}
+
+/************************************************************//**
+Returns the father block to a page. It is assumed that mtr holds
+an X or SX latch on the tree.
+@return rec_get_offsets() of the node pointer record */
+rec_offs*
+rtr_page_get_father_block(
+/*======================*/
+	rec_offs*	offsets,/*!< in: work area for the return value */
+	mem_heap_t*	heap,	/*!< in: memory heap to use */
+	dict_index_t*	index,	/*!< in: b-tree index */
+	buf_block_t*	block,	/*!< in: child page in the index */
+	mtr_t*		mtr,	/*!< in: mtr */
+	btr_cur_t*	sea_cur,/*!< in: search cursor, contains information
+				about parent nodes in search */
+	btr_cur_t*	cursor)	/*!< out: cursor on node pointer record,
+				its page x-latched */
+{
+	rec_t*  rec = page_rec_get_next(
+		page_get_infimum_rec(buf_block_get_frame(block)));
+	btr_cur_position(index, rec, block, cursor);
+
+	return(rtr_page_get_father_node_ptr(offsets, heap, sea_cur,
+					    cursor, mtr));
 }
 
 /*******************************************************************//**
@@ -1258,6 +1257,24 @@ rtr_check_discard_page(
 	lock_mutex_exit();
 }
 
+/** Structure acts as functor to get the optimistic access of the page.
+It returns true if it successfully gets the page. */
+struct optimistic_get
+{
+  btr_pcur_t *const r_cursor;
+  mtr_t *const mtr;
+
+  optimistic_get(btr_pcur_t *r_cursor,mtr_t *mtr)
+  :r_cursor(r_cursor), mtr(mtr) {}
+
+  bool operator()(buf_block_t *hint) const
+  {
+    return hint && buf_page_optimistic_get(
+       RW_X_LATCH, hint, r_cursor->modify_clock, __FILE__,
+       __LINE__, mtr);
+  }
+};
+
 /** Restore the stored position of a persistent cursor bufferfixing the page */
 static
 bool
@@ -1291,29 +1308,28 @@ rtr_cur_restore_position(
 
 	ut_ad(latch_mode == BTR_CONT_MODIFY_TREE);
 
-	if (!buf_pool_is_obsolete(r_cursor->withdraw_clock)
-	    && buf_page_optimistic_get(RW_X_LATCH,
-				       r_cursor->block_when_stored,
-				       r_cursor->modify_clock,
-				       __FILE__, __LINE__, mtr)) {
+	if (r_cursor->block_when_stored.run_with_hint(
+		optimistic_get(r_cursor, mtr))) {
 		ut_ad(r_cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 
 		ut_ad(r_cursor->rel_pos == BTR_PCUR_ON);
 #ifdef UNIV_DEBUG
 		do {
 			const rec_t*	rec;
-			const ulint*	offsets1;
-			const ulint*	offsets2;
+			const rec_offs*	offsets1;
+			const rec_offs*	offsets2;
 			ulint		comp;
 
 			rec = btr_pcur_get_rec(r_cursor);
 
 			heap = mem_heap_create(256);
 			offsets1 = rec_get_offsets(
-				r_cursor->old_rec, index, NULL, !level,
+				r_cursor->old_rec, index, NULL,
+				level ? 0 : r_cursor->old_n_fields,
 				r_cursor->old_n_fields, &heap);
 			offsets2 = rec_get_offsets(
-				rec, index, NULL, !level,
+				rec, index, NULL,
+				level ? 0 : r_cursor->old_n_fields,
 				r_cursor->old_n_fields, &heap);
 
 			comp = rec_offs_comp(offsets1);
@@ -1375,18 +1391,18 @@ search_again:
 
 	if (low_match == r_cursor->old_n_fields) {
 		const rec_t*	rec;
-		const ulint*	offsets1;
-		const ulint*	offsets2;
+		const rec_offs*	offsets1;
+		const rec_offs*	offsets2;
 		ulint		comp;
 
 		rec = btr_pcur_get_rec(r_cursor);
 
-		offsets1 = rec_get_offsets(
-			r_cursor->old_rec, index, NULL, !level,
-			r_cursor->old_n_fields, &heap);
-		offsets2 = rec_get_offsets(
-			rec, index, NULL, !level,
-			r_cursor->old_n_fields, &heap);
+		offsets1 = rec_get_offsets(r_cursor->old_rec, index, NULL,
+					   level ? 0 : r_cursor->old_n_fields,
+					   r_cursor->old_n_fields, &heap);
+		offsets2 = rec_get_offsets(rec, index, NULL,
+					   level ? 0 : r_cursor->old_n_fields,
+					   r_cursor->old_n_fields, &heap);
 
 		comp = rec_offs_comp(offsets1);
 
@@ -1422,7 +1438,7 @@ rtr_leaf_push_match_rec(
 /*====================*/
 	const rec_t*	rec,		/*!< in: record to copy */
 	rtr_info_t*	rtr_info,	/*!< in/out: search stack */
-	ulint*		offsets,	/*!< in: offsets */
+	rec_offs*	offsets,	/*!< in: offsets */
 	bool		is_comp)	/*!< in: is compact format */
 {
 	byte*		buf;
@@ -1608,7 +1624,7 @@ void
 rtr_get_mbr_from_rec(
 /*=================*/
 	const rec_t*	rec,	/*!< in: data tuple */
-	const ulint*	offsets,/*!< in: offsets array */
+	const rec_offs*	offsets,/*!< in: offsets array */
 	rtr_mbr_t*	mbr)	/*!< out MBR */
 {
 	ulint		rec_f_len;
@@ -1655,8 +1671,8 @@ rtr_cur_search_with_match(
 	const page_t*	page;
 	const rec_t*	rec;
 	const rec_t*	last_rec;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	mem_heap_t*	heap = NULL;
 	int		cmp = 1;
 	double		least_inc = DBL_MAX;
@@ -1676,7 +1692,7 @@ rtr_cur_search_with_match(
 	page = buf_block_get_frame(block);
 
 	const ulint level = btr_page_get_level(page);
-	const bool is_leaf = !level;
+	const ulint n_core = level ? 0 : index->n_fields;
 
 	if (mode == PAGE_CUR_RTREE_LOCATE) {
 		ut_ad(level != 0);
@@ -1698,7 +1714,7 @@ rtr_cur_search_with_match(
 
 		ulint	new_rec_size = rec_get_converted_size(index, tuple, 0);
 
-		offsets = rec_get_offsets(rec, index, offsets, is_leaf,
+		offsets = rec_get_offsets(rec, index, offsets, n_core,
 					  dtuple_get_n_fields_cmp(tuple),
 					  &heap);
 
@@ -1719,10 +1735,10 @@ rtr_cur_search_with_match(
 	}
 
 	while (!page_rec_is_supremum(rec)) {
-		offsets = rec_get_offsets(rec, index, offsets, is_leaf,
+		offsets = rec_get_offsets(rec, index, offsets, n_core,
 					  dtuple_get_n_fields_cmp(tuple),
 					  &heap);
-		if (!is_leaf) {
+		if (!n_core) {
 			switch (mode) {
 			case PAGE_CUR_CONTAIN:
 			case PAGE_CUR_INTERSECT:
@@ -1803,7 +1819,7 @@ rtr_cur_search_with_match(
 			to rtr_info->path for non-leaf nodes, or
 			rtr_info->matches for leaf nodes */
 			if (rtr_info && mode != PAGE_CUR_RTREE_INSERT) {
-				if (!is_leaf) {
+				if (!n_core) {
 					ulint		page_no;
 					node_seq_t	new_seq;
 					bool		is_loc;
@@ -1814,7 +1830,7 @@ rtr_cur_search_with_match(
 						  == PAGE_CUR_RTREE_GET_FATHER);
 
 					offsets = rec_get_offsets(
-						rec, index, offsets, false,
+						rec, index, offsets, 0,
 						ULINT_UNDEFINED, &heap);
 
 					page_no = btr_node_ptr_get_child_page_no(
@@ -1863,7 +1879,8 @@ rtr_cur_search_with_match(
 
 					/* Collect matched records on page */
 					offsets = rec_get_offsets(
-						rec, index, offsets, true,
+						rec, index, offsets,
+						index->n_fields,
 						ULINT_UNDEFINED, &heap);
 					rtr_leaf_push_match_rec(
 						rec, rtr_info, offsets,
@@ -1886,7 +1903,7 @@ rtr_cur_search_with_match(
 
 	/* All records on page are searched */
 	if (page_rec_is_supremum(rec)) {
-		if (!is_leaf) {
+		if (!n_core) {
 			if (!found) {
 				/* No match case, if it is for insertion,
 				then we select the record that result in
@@ -1896,7 +1913,7 @@ rtr_cur_search_with_match(
 					ut_ad(least_inc < DBL_MAX);
 					offsets = rec_get_offsets(
 						best_rec, index, offsets,
-						false, ULINT_UNDEFINED, &heap);
+						0, ULINT_UNDEFINED, &heap);
 					child_no =
 					btr_node_ptr_get_child_page_no(
 						best_rec, offsets);
@@ -1939,8 +1956,8 @@ rtr_cur_search_with_match(
 
 			test_rec = match_rec->matched_recs->back();
 #ifdef UNIV_DEBUG
-			ulint		offsets_2[REC_OFFS_NORMAL_SIZE];
-			ulint*		offsets2	= offsets_2;
+			rec_offs	offsets_2[REC_OFFS_NORMAL_SIZE];
+			rec_offs*	offsets2	= offsets_2;
 			rec_offs_init(offsets_2);
 
 			ut_ad(found);
@@ -1948,11 +1965,11 @@ rtr_cur_search_with_match(
 			/* Verify the record to be positioned is the same
 			as the last record in matched_rec vector */
 			offsets2 = rec_get_offsets(test_rec.r_rec, index,
-						   offsets2, true,
+						   offsets2, index->n_fields,
 						   ULINT_UNDEFINED, &heap);
 
 			offsets = rec_get_offsets(last_match_rec, index,
-						  offsets, true,
+						  offsets, index->n_fields,
 						  ULINT_UNDEFINED, &heap);
 
 			ut_ad(cmp_rec_rec(test_rec.r_rec, last_match_rec,
@@ -1969,9 +1986,8 @@ rtr_cur_search_with_match(
 			ulint	child_no;
 			ut_ad(!last_match_rec && rec);
 
-			offsets = rec_get_offsets(
-				rec, index, offsets, false,
-				ULINT_UNDEFINED, &heap);
+			offsets = rec_get_offsets(rec, index, offsets, 0,
+						  ULINT_UNDEFINED, &heap);
 
 			child_no = btr_node_ptr_get_child_page_no(rec, offsets);
 
@@ -1979,7 +1995,7 @@ rtr_cur_search_with_match(
 				index, rtr_info->parent_path, level, child_no,
 				block, rec, 0);
 
-		} else if (rtr_info && found && !is_leaf) {
+		} else if (rtr_info && found && !n_core) {
 			rec = last_match_rec;
 		}
 
@@ -1989,11 +2005,11 @@ rtr_cur_search_with_match(
 #ifdef UNIV_DEBUG
 	/* Verify that we are positioned at the same child page as pushed in
 	the path stack */
-	if (!is_leaf && (!page_rec_is_supremum(rec) || found)
+	if (!n_core && (!page_rec_is_supremum(rec) || found)
 	    && mode != PAGE_CUR_RTREE_INSERT) {
 		ulint		page_no;
 
-		offsets = rec_get_offsets(rec, index, offsets, false,
+		offsets = rec_get_offsets(rec, index, offsets, 0,
 					  ULINT_UNDEFINED, &heap);
 		page_no = btr_node_ptr_get_child_page_no(rec, offsets);
 

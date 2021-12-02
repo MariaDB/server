@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 #
 # $Id: mytop,v 1.91 2012/01/18 16:49:12 mgrennan Exp $
 

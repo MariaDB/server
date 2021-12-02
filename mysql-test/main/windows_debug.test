@@ -1,0 +1,11 @@
+# Windows-specific tests , debug mode
+
+--source include/have_debug.inc
+--source include/windows.inc
+
+--echo # mdev-23741 sharing violation when renaming .frm file in ALTER
+CREATE TABLE t(i int);
+SET STATEMENT debug_dbug='+d,rename_sharing_violation' FOR ALTER TABLE t ADD PRIMARY KEY (i);
+DROP TABLE t;
+
+#End of 10.3 tests

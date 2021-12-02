@@ -1,4 +1,4 @@
-/* Copyright (C) 2012 Monty Program Ab
+/* Copyright (C) 2012, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,7 +45,6 @@ static void  threadpool_remove_connection(THD *thd);
 static int   threadpool_process_request(THD *thd);
 static THD*  threadpool_add_connection(CONNECT *connect, void *scheduler_data);
 
-extern "C" pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 extern bool do_command(THD*);
 
 static inline TP_connection *get_TP_connection(THD *thd)
@@ -84,14 +83,14 @@ struct Worker_thread_context
 
   void save()
   {
-    psi_thread = PSI_CALL_get_thread();
-    mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
+    psi_thread= PSI_CALL_get_thread();
+    mysys_var= my_thread_var;
   }
 
   void restore()
   {
     PSI_CALL_set_thread(psi_thread);
-    pthread_setspecific(THR_KEY_mysys,mysys_var);
+    set_mysys_var(mysys_var);
     pthread_setspecific(THR_THD, 0);
   }
 };
@@ -137,7 +136,7 @@ static inline void set_thd_idle(THD *thd)
 */
 static void thread_attach(THD* thd)
 {
-  pthread_setspecific(THR_KEY_mysys,thd->mysys_var);
+  set_mysys_var(thd->mysys_var);
   thd->thread_stack=(char*)&thd;
   thd->store_globals();
   PSI_CALL_set_thread(thd->event_scheduler.m_psi);
@@ -185,7 +184,7 @@ void tp_callback(TP_connection *c)
   }
   else if (threadpool_process_request(thd))
   {
-    /* QUIT or an error occured. */
+    /* QUIT or an error occurred. */
     goto error;
   }
 
@@ -203,12 +202,11 @@ void tp_callback(TP_connection *c)
 
 error:
   c->thd= 0;
-  delete c;
-
   if (thd)
   {
     threadpool_remove_connection(thd);
   }
+  delete c;
   worker_context.restore();
 }
 
@@ -222,9 +220,9 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
     Store them in THD.
   */
 
-  pthread_setspecific(THR_KEY_mysys, 0);
+  set_mysys_var(NULL);
   my_thread_init();
-  st_my_thread_var* mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
+  st_my_thread_var* mysys_var= my_thread_var;
   if (!mysys_var ||!(thd= connect->create_thd(NULL)))
   {
     /* Out of memory? */
@@ -317,6 +315,16 @@ static void handle_wait_timeout(THD *thd)
   thd->net.error= 2;
 }
 
+/** Check if some client data is cached in thd->net or thd->net.vio */
+static bool has_unread_data(THD* thd)
+{
+  NET *net= &thd->net;
+  if (net->compress && net->remain_in_buf)
+    return true;
+  Vio *vio= net->vio;
+  return vio->has_data(vio);
+}
+
 
 /**
  Process a single client request or a single batch.
@@ -351,7 +359,6 @@ static int threadpool_process_request(THD *thd)
   */
   for(;;)
   {
-    Vio *vio;
     thd->net.reading_or_writing= 0;
     if (mysql_audit_release_required(thd))
       mysql_audit_release(thd);
@@ -367,8 +374,7 @@ static int threadpool_process_request(THD *thd)
 
     set_thd_idle(thd);
 
-    vio= thd->net.vio;
-    if (!vio->has_data(vio))
+    if (!has_unread_data(thd))
     { 
       /* More info on this debug sync is in sql_parse.cc*/
       DEBUG_SYNC(thd, "before_do_command_net_read");
@@ -469,11 +475,25 @@ void tp_timeout_handler(TP_connection *c)
 {
   if (c->state != TP_STATE_IDLE)
     return;
-  THD *thd=c->thd;
+  THD *thd= c->thd;
   mysql_mutex_lock(&thd->LOCK_thd_kill);
-  thd->set_killed_no_mutex(KILL_WAIT_TIMEOUT);
-  c->priority= TP_PRIORITY_HIGH;
-  post_kill_notification(thd);
+  Vio *vio= thd->net.vio;
+  if (vio && (vio_pending(vio) > 0 || vio->has_data(vio)) &&
+      c->state == TP_STATE_IDLE)
+  {
+    /*
+     There is some data on that connection, i.e
+     i.e there was no inactivity timeout.
+     Don't kill.
+    */
+    c->state= TP_STATE_PENDING;
+  }
+  else if (c->state == TP_STATE_IDLE)
+  {
+    thd->set_killed_no_mutex(KILL_WAIT_TIMEOUT);
+    c->priority= TP_PRIORITY_HIGH;
+    post_kill_notification(thd);
+  }
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 

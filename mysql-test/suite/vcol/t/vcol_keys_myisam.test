@@ -300,3 +300,14 @@ DROP TABLE t1;
 # Cleanup
 --let $datadir= `SELECT @@datadir`
 --remove_file $datadir/test/load_t1
+
+
+--echo #
+--echo # MDEV-20015 Assertion `!in_use->is_error()' failed in TABLE::update_virtual_field
+--echo #
+create or replace table t1 (a int);
+insert into t1 (a) values (1), (1);
+create or replace table t2 (pk int, b int, c int as (b) virtual, primary key (pk), key(c));
+--error ER_DUP_ENTRY
+insert into t2 (pk) select a from t1;
+drop tables t1, t2;

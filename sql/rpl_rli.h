@@ -219,7 +219,7 @@ public:
   */
   char future_event_master_log_name[FN_REFLEN];
 
-  /* 
+  /*
      Original log name and position of the group we're currently executing
      (whose coordinates are group_relay_log_name/pos in the relay log)
      in the master's binlog. These concern the *group*, because in the master's
@@ -419,7 +419,7 @@ public:
   void close_temporary_tables();
 
   /* Check if UNTIL condition is satisfied. See slave.cc for more. */
-  bool is_until_satisfied(my_off_t);
+  bool is_until_satisfied(Log_event *ev);
   inline ulonglong until_pos()
   {
     DBUG_ASSERT(until_condition == UNTIL_MASTER_POS ||
@@ -427,7 +427,13 @@ public:
     return ((until_condition == UNTIL_MASTER_POS) ? group_master_log_pos :
 	    group_relay_log_pos);
   }
-
+  inline char *until_name()
+  {
+    DBUG_ASSERT(until_condition == UNTIL_MASTER_POS ||
+                until_condition == UNTIL_RELAY_POS);
+    return ((until_condition == UNTIL_MASTER_POS) ? group_master_log_name :
+	    group_relay_log_name);
+  }
   /**
     Helper function to do after statement completion.
 
@@ -564,6 +570,15 @@ private:
     relay_log.info had 4 lines. Now it has 5 lines.
   */
   static const int LINES_IN_RELAY_LOG_INFO_WITH_DELAY= 5;
+  /*
+    Hint for when to stop event distribution by sql driver thread.
+    The flag is set ON by a non-group event when this event is in the middle
+    of a group (e.g a transaction group) so it's too early
+    to refresh the current-relay-log vs until-log cached comparison result.
+    And it is checked and to decide whether it's a right time to do so
+    when the being processed group has been fully scheduled.
+  */
+  bool until_relay_log_names_defer;
 
   /*
     Holds the state of the data in the relay log.

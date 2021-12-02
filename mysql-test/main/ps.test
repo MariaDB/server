@@ -4922,6 +4922,97 @@ drop procedure p;
 drop view v1;
 drop table t1;
 
+
 --echo #
+--echo # MDEV-22591 Debug build crashes on EXECUTE IMMEDIATE '... WHERE ?' USING IGNORE
+--echo #
+
+CREATE TABLE t1 (a INT);
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE ?' USING IGNORE;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT * FROM t1 HAVING ?' USING IGNORE;
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE ?' USING 0;
+EXECUTE IMMEDIATE 'SELECT * FROM t1 HAVING ?' USING 0;
+DROP TABLE t1;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SHOW DATABASES WHERE ?' USING DEFAULT;
+EXECUTE IMMEDIATE 'SHOW DATABASES WHERE ?' USING 0;
+
+--echo #
+--echo # MDEV-24779: main.subselect fails in buildbot with --ps-protocol
+--echo #
+
+CREATE TABLE t1(a INT);
+PREPARE stmt FROM "SELECT EXISTS(SELECT 1 FROM t1 GROUP BY a IN (select a from t1))";
+EXECUTE stmt;
+EXECUTE stmt;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25006: Failed assertion on executing EXPLAIN DELETE statement as a prepared statement
+--echo #
+
+CREATE TABLE t1(c1 CHAR(255) PRIMARY KEY);
+PREPARE stmt FROM 'EXPLAIN DELETE b FROM t1 AS a JOIN t1 AS b';
+EXECUTE stmt;
+DROP TABLE t1;
+CREATE TABLE t1(a INT);
+PREPARE stmt FROM 'EXPLAIN DELETE FROM t1.* USING t1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25108: Running of the EXPLAIN EXTENDED statement produces extra warning
+--echo #             in case it is executed in PS (prepared statement) mode
+--echo #
+CREATE TABLE t1 (c int);
+CREATE TABLE t2 (d int);
+
+--echo # EXPLAIN EXTENDED in regular way (not PS mode)
+EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1;
+SHOW WARNINGS;
+
+--echo # Now run the same EXPLAIN EXTENDED in PS mode. Number of warnings
+--echo # and their content must be the same as in case running the statement
+--echo # in regular way
+PREPARE stmt FROM "EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1";
+EXECUTE stmt;
+SHOW WARNINGS;
+
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-25576: The statement EXPLAIN running as regular statement and
+--echo #             as prepared statement produces different results for
+--echo #             UPDATE with subquery
+--echo #
+CREATE TABLE t1 (c1 INT KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (c2 INT) ENGINE=MyISAM;
+CREATE TABLE t3 (c3 INT) ENGINE=MyISAM;
+EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 );
+PREPARE stmt FROM "EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 )";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
+
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-26147: The test main.sp-row fails in case it is run in PS mode
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1(a ROW(a INT,b INT))
+BEGIN
+  SELECT a.a, a.b;
+END;
+$$
+DELIMITER ;$$
+PREPARE stmt FROM 'CALL p1(ROW(10, 20))';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP PROCEDURE p1;

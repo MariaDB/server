@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -53,6 +53,25 @@ struct buf_chunk_t{
 		return(mem_pfx.m_size);
 	}
 };
+
+bool buf_pool_t::is_block_field(const void *ptr) const
+{
+  const buf_chunk_t* chunk= chunks;
+  const buf_chunk_t *const echunk= chunk + ut_min(n_chunks,
+                                                  n_chunks_new);
+  /* TODO: protect chunks with a mutex (the older pointer will
+  currently remain during resize()) */
+  while (chunk < echunk)
+  {
+    if (ptr >= reinterpret_cast<const void*>(chunk->blocks) &&
+        ptr < reinterpret_cast<const void*>(
+		chunk->blocks + chunk->size))
+      return true;
+    chunk++;
+  }
+
+  return false;
+}
 
 /*********************************************************************//**
 Gets the current size of buffer buf_pool in bytes.
@@ -113,7 +132,17 @@ ulint
 buf_pool_get_n_pages(void)
 /*======================*/
 {
-	return buf_pool_get_curr_size() >> srv_page_size_shift;
+  if (!buf_pool_ptr)
+    return buf_pool_get_curr_size() >> srv_page_size_shift;
+
+  ulint chunk_size= 0;
+  for (uint i= 0; i < srv_buf_pool_instances; i++)
+  {
+    buf_pool_t* buf_pool = buf_pool_from_array(i);
+    for (uint j= 0; j < buf_pool->n_chunks; j++)
+      chunk_size+= buf_pool->chunks[j].size;
+  }
+  return chunk_size;
 }
 
 /********************************************************************//**
@@ -814,7 +843,7 @@ buf_page_alloc_descriptor(void)
 
 	bpage = (buf_page_t*) ut_zalloc_nokey(sizeof *bpage);
 	ut_ad(bpage);
-	UNIV_MEM_ALLOC(bpage, sizeof *bpage);
+	MEM_UNDEFINED(bpage, sizeof *bpage);
 
 	return(bpage);
 }
@@ -1046,8 +1075,6 @@ buf_block_buf_fix_dec(
 /*==================*/
 	buf_block_t*	block)	/*!< in/out: block to bufferunfix */
 {
-	buf_block_unfix(block);
-
 #ifdef UNIV_DEBUG
 	/* No debug latch is acquired if block belongs to system temporary.
 	Debug latch is not of much help if access to block is single
@@ -1056,6 +1083,8 @@ buf_block_buf_fix_dec(
 		rw_lock_s_unlock(&block->debug_latch);
 	}
 #endif /* UNIV_DEBUG */
+
+	buf_block_unfix(block);
 }
 
 /** Returns the buffer pool instance given a page id.
@@ -1427,18 +1456,6 @@ buf_page_get_frame(
 	} else {
 		return ((buf_block_t*) bpage)->frame;
 	}
-}
-
-/** Verify the possibility that a stored page is not in buffer pool.
-@param[in]	withdraw_clock	withdraw clock when stored the page
-@retval true	if the page might be relocated */
-UNIV_INLINE
-bool
-buf_pool_is_obsolete(
-	ulint	withdraw_clock)
-{
-	return(UNIV_UNLIKELY(buf_pool_withdrawing
-			     || buf_withdraw_clock != withdraw_clock));
 }
 
 /** Calculate aligned buffer pool size based on srv_buf_pool_chunk_unit,

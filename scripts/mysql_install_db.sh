@@ -67,6 +67,7 @@ Usage: $0 [OPTIONS]
   --cross-bootstrap    For internal use.  Used when building the MariaDB system
                        tables on a different host than the target.
   --datadir=path       The path to the MariaDB data directory.
+  --no-defaults        Don't read default options from any option file.
   --defaults-extra-file=name
                        Read this file after the global files are read.
   --defaults-file=name Only read default options from the given file name.
@@ -79,8 +80,6 @@ Usage: $0 [OPTIONS]
   --help               Display this help and exit.                     
   --ldata=path         The path to the MariaDB data directory. Same as
                        --datadir.
-  --no-defaults        Don't read default options from any option file.
-  --defaults-file=path Read only this configuration file.
   --rpm                For internal use.  This option is used by RPM files
                        during the MariaDB installation process.
   --skip-name-resolve  Use IP addresses rather than hostnames when creating
@@ -243,7 +242,7 @@ cannot_find_file()
   echo "If you compiled from source, you need to either run 'make install' to"
   echo "copy the software into the correct location ready for operation."
   echo "If you don't want to do a full install, you can use the --srcdir"
-  echo "option to only install the mysql database and privilege tables"
+  echo "option to only install the mysql database and privilege tables."
   echo
   echo "If you are using a binary release, you must either be at the top"
   echo "level of the extracted archive, or pass the --basedir option"
@@ -573,12 +572,8 @@ then
     echo
     echo
     echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
-    echo "To do so, start the server, then issue the following commands:"
+    echo "To do so, start the server, then issue the following command:"
     echo
-    echo "'$bindir/mysqladmin' -u root password 'new-password'"
-    echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
-    echo
-    echo "Alternatively you can run:"
     echo "'$bindir/mysql_secure_installation'"
     echo
     echo "which will also give you the option of removing the test"
@@ -587,8 +582,7 @@ then
   fi
 
   echo
-  echo "See the MariaDB Knowledgebase at http://mariadb.com/kb or the"
-  echo "MySQL manual for more instructions."
+  echo "See the MariaDB Knowledgebase at http://mariadb.com/kb"
 
   if test "$in_rpm" -eq 0
   then
@@ -604,8 +598,7 @@ then
   echo "Please report any problems at http://mariadb.org/jira"
   echo
   echo "The latest information about MariaDB is available at http://mariadb.org/."
-  echo "You can find additional information about the MySQL part at:"
-  echo "http://dev.mysql.com"
+  echo
   echo "Consider joining MariaDB's strong and vibrant community:"
   echo "https://mariadb.org/get-involved/"
   echo

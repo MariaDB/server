@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -68,27 +68,18 @@ trx_get_error_info(
 /*===============*/
 	const trx_t*	trx);	/*!< in: trx object */
 
-/** @return a trx_t instance from trx_pools. */
+/** @return an allocated transaction */
 trx_t *trx_create();
 
-/**
-  Release a trx_t instance back to the pool.
-  @param trx the instance to release.
-*/
-void trx_free(trx_t*& trx);
-
 /** At shutdown, frees a transaction object. */
-void
-trx_free_at_shutdown(trx_t *trx);
+void trx_free_at_shutdown(trx_t *trx);
 
 /** Disconnect a prepared transaction from MySQL.
 @param[in,out]	trx	transaction */
-void
-trx_disconnect_prepared(trx_t*	trx);
+void trx_disconnect_prepared(trx_t *trx);
 
 /** Initialize (resurrect) transactions at startup. */
-void
-trx_lists_init_at_db_start();
+dberr_t trx_lists_init_at_db_start();
 
 /*************************************************************//**
 Starts the transaction if it is not yet started. */
@@ -342,13 +333,6 @@ bool
 trx_is_interrupted(
 /*===============*/
 	const trx_t*	trx);	/*!< in: transaction */
-/**********************************************************************//**
-Determines if the currently running transaction is in strict mode.
-@return TRUE if strict */
-ibool
-trx_is_strict(
-/*==========*/
-	trx_t*	trx);	/*!< in: transaction */
 
 /*******************************************************************//**
 Calculates the "weight" of a transaction. The weight of one transaction
@@ -421,88 +405,6 @@ from innodb_lock_wait_timeout via trx_t::mysql_thd.
 	((t)->mysql_thd != NULL						\
 	 ? thd_lock_wait_timeout((t)->mysql_thd)			\
 	 : 0)
-
-/**
-Determine if the transaction is a non-locking autocommit select
-(implied read-only).
-@param t transaction
-@return true if non-locking autocommit select transaction. */
-#define trx_is_autocommit_non_locking(t)				\
-((t)->auto_commit && (t)->will_lock == 0)
-
-/**
-Determine if the transaction is a non-locking autocommit select
-with an explicit check for the read-only status.
-@param t transaction
-@return true if non-locking autocommit read-only transaction. */
-#define trx_is_ac_nl_ro(t)						\
-((t)->read_only && trx_is_autocommit_non_locking((t)))
-
-/**
-Check transaction state */
-#define check_trx_state(t) do {						\
-	ut_ad(!trx_is_autocommit_non_locking((t)));			\
-	switch ((t)->state) {						\
-	case TRX_STATE_PREPARED:					\
-	case TRX_STATE_PREPARED_RECOVERED:				\
-	case TRX_STATE_ACTIVE:						\
-	case TRX_STATE_COMMITTED_IN_MEMORY:				\
-		continue;						\
-	case TRX_STATE_NOT_STARTED:					\
-		break;							\
-	}								\
-	ut_error;							\
-} while (0)
-
-/** Check if transaction is free so that it can be re-initialized.
-@param t transaction handle */
-#define	assert_trx_is_free(t)	do {					\
-	ut_ad(trx_state_eq((t), TRX_STATE_NOT_STARTED));		\
-	ut_ad(!(t)->id);						\
-	ut_ad(!(t)->has_logged());					\
-	ut_ad(!(t)->is_referenced());					\
-	ut_ad(!(t)->read_view.is_open());				\
-	ut_ad((t)->lock.wait_thr == NULL);				\
-	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
-	ut_ad((t)->lock.table_locks.empty());				\
-	ut_ad(!(t)->autoinc_locks					\
-	      || ib_vector_is_empty((t)->autoinc_locks));		\
-	ut_ad((t)->dict_operation == TRX_DICT_OP_NONE);			\
-} while(0)
-
-/** Check if transaction is in-active so that it can be freed and put back to
-transaction pool.
-@param t transaction handle */
-#define assert_trx_is_inactive(t) do {					\
-	assert_trx_is_free((t));					\
-	ut_ad((t)->dict_operation_lock_mode == 0);			\
-} while(0)
-
-#ifdef UNIV_DEBUG
-/*******************************************************************//**
-Assert that an autocommit non-locking select cannot be in the
-rw_trx_hash and that it is a read-only transaction.
-The transaction must have mysql_thd assigned. */
-# define assert_trx_nonlocking_or_in_list(t)				\
-	do {								\
-		if (trx_is_autocommit_non_locking(t)) {			\
-			trx_state_t	t_state = (t)->state;		\
-			ut_ad((t)->read_only);				\
-			ut_ad(!(t)->is_recovered);			\
-			ut_ad((t)->mysql_thd);				\
-			ut_ad(t_state == TRX_STATE_NOT_STARTED		\
-			      || t_state == TRX_STATE_ACTIVE);		\
-		} else {						\
-			check_trx_state(t);				\
-		}							\
-	} while (0)
-#else /* UNIV_DEBUG */
-/*******************************************************************//**
-Assert that an autocommit non-locking slect cannot be in the
-rw_trx_hash and that it is a read-only transaction.
-The transaction must have mysql_thd assigned. */
-# define assert_trx_nonlocking_or_in_list(trx) ((void)0)
-#endif /* UNIV_DEBUG */
 
 typedef std::vector<ib_lock_t*, ut_allocator<ib_lock_t*> >	lock_list;
 
@@ -721,10 +623,6 @@ struct trx_undo_ptr_t {
 					yet */
 	trx_undo_t*	undo;		/*!< pointer to the undo log, or
 					NULL if nothing logged yet */
-	trx_undo_t*     old_insert;	/*!< pointer to recovered
-					insert undo log, or NULL if no
-					INSERT transactions were
-					recovered from old-format undo logs */
 };
 
 /** An instance of temporary rollback segment. */
@@ -838,6 +736,16 @@ public:
 
 	Transitions to COMMITTED are protected by trx_t::mutex. */
 	trx_state_t	state;
+#ifdef WITH_WSREP
+	/** whether wsrep_on(mysql_thd) held at the start of transaction */
+	bool		wsrep;
+	bool is_wsrep() const { return UNIV_UNLIKELY(wsrep); }
+	/** true, if BF thread is performing unique secondary index scanning */
+	bool wsrep_UK_scan;
+	bool is_wsrep_UK_scan() const { return UNIV_UNLIKELY(wsrep_UK_scan); }
+#else /* WITH_WSREP */
+	bool is_wsrep() const { return false; }
+#endif /* WITH_WSREP */
 
 	ReadView	read_view;	/*!< consistent read view used in the
 					transaction, or NULL if not yet set */
@@ -874,7 +782,8 @@ public:
 					the coordinator using the XA API, and
 					is set to false  after commit or
 					rollback. */
-	unsigned	active_commit_ordered:1;/* 1 if owns prepare mutex */
+	/** whether this is holding the prepare mutex */
+	bool		active_commit_ordered;
 	/*------------------------------*/
 	bool		check_unique_secondary;
 					/*!< normally TRUE, but if the user
@@ -1001,16 +910,15 @@ public:
 	/*------------------------------*/
 	bool		read_only;	/*!< true if transaction is flagged
 					as a READ-ONLY transaction.
-					if auto_commit && will_lock == 0
+					if auto_commit && !will_lock
 					then it will be handled as a
 					AC-NL-RO-SELECT (Auto Commit Non-Locking
 					Read Only Select). A read only
 					transaction will not be assigned an
 					UNDO log. */
 	bool		auto_commit;	/*!< true if it is an autocommit */
-	ib_uint32_t	will_lock;	/*!< Will acquire some locks. Increment
-					each time we determine that a lock will
-					be acquired by the MySQL layer. */
+	bool		will_lock;	/*!< set to inform trx_start_low() that
+					the transaction may acquire locks */
 	/*------------------------------*/
 	fts_trx_t*	fts_trx;	/*!< FTS information, or NULL if
 					transaction hasn't modified tables
@@ -1047,20 +955,6 @@ private:
 	during bulk create index */
 	FlushObserver*	flush_observer;
 public:
-	/* Lock wait statistics */
-	ulint		n_rec_lock_waits;
-					/*!< Number of record lock waits,
-					might not be exactly correct. */
-	ulint		n_table_lock_waits;
-					/*!< Number of table lock waits,
-					might not be exactly correct. */
-	ulint		total_rec_lock_wait_time;
-					/*!< Total rec lock wait time up
-					to this moment. */
-	ulint		total_table_lock_wait_time;
-					/*!< Total table lock wait time
-					up to this moment. */
-
 #ifdef WITH_WSREP
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
 #endif /* WITH_WSREP */
@@ -1079,13 +973,6 @@ public:
 	bool has_logged() const
 	{
 		return(has_logged_persistent() || rsegs.m_noredo.undo);
-	}
-
-	/** @return whether any undo log has been generated or
-	recovered */
-	bool has_logged_or_recovered() const
-	{
-		return(has_logged() || rsegs.m_redo.old_insert);
 	}
 
 	/** @return rollback segment for modifying temporary tables */
@@ -1145,11 +1032,36 @@ public:
     ut_ad(old_n_ref > 0);
   }
 
+  /** @return whether the table has lock on
+  mysql.innodb_table_stats and mysql.innodb_index_stats */
+  bool has_stats_table_lock() const;
+
+  /** Free the memory to trx_pools */
+  void free();
+
+
+  void assert_freed() const
+  {
+    ut_ad(state == TRX_STATE_NOT_STARTED);
+    ut_ad(!id);
+    ut_ad(!has_logged());
+    ut_ad(!const_cast<trx_t*>(this)->is_referenced());
+    ut_ad(!is_wsrep());
+    ut_ad(!read_view.is_open());
+    ut_ad(!lock.wait_thr);
+    ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
+    ut_ad(lock.table_locks.empty());
+    ut_ad(!autoinc_locks || ib_vector_is_empty(autoinc_locks));
+    ut_ad(dict_operation == TRX_DICT_OP_NONE);
+  }
+
+  /** @return whether this is a non-locking autocommit transaction */
+  bool is_autocommit_non_locking() const { return auto_commit && !will_lock; }
 
 private:
-	/** Assign a rollback segment for modifying temporary tables.
-	@return the assigned rollback segment */
-	trx_rseg_t* assign_temp_rseg();
+  /** Assign a rollback segment for modifying temporary tables.
+  @return the assigned rollback segment */
+  trx_rseg_t *assign_temp_rseg();
 };
 
 /**

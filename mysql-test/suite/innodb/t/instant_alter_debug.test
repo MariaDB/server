@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/have_sequence.inc
 
 SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
@@ -212,6 +213,15 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 SET a=0;
 ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2, ADD COLUMN c INT;
 
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT DEFAULT(SELECT CONCAT('ALTER TABLE t1 ADD (c',
+                                       GROUP_CONCAT(seq SEPARATOR ' INT, c'), ' INT), ALGORITHM=INSTANT;') FROM seq_1_to_130);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
+
 connection stop_purge;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
@@ -228,6 +238,7 @@ connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR copied';
 let $wait_all_purged = 1;
 --source include/wait_all_purged.inc
+let $wait_all_purged = 0;
 INSERT INTO t1 SET a=1;
 INSERT INTO t1 SET a=2,b=3,c=4;
 SET DEBUG_SYNC = 'now SIGNAL logged';
@@ -237,7 +248,7 @@ reap;
 
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c FROM t1;
 
 --echo #
 --echo # MDEV-15872 Crash in online ALTER TABLE...ADD PRIMARY KEY
@@ -264,7 +275,7 @@ disconnect ddl;
 
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c, d FROM t1;
 DROP TABLE t1;
 
 --echo #
@@ -292,8 +303,6 @@ CHECK TABLE t1;
 SELECT * FROM t1;
 DROP TABLE t1;
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
-
 --echo #
 --echo # MDEV-21045 AddressSanitizer: use-after-poison in mem_heap_dup / row_log_table_get_pk_col
 --echo #
@@ -319,3 +328,80 @@ SET DEBUG_SYNC='now SIGNAL update';
 SET DEBUG_SYNC='RESET';
 --disconnect con2
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-24653 Assertion block->page.id.page_no() == index->page failed
+--echo # in innobase_add_instant_try()
+--echo #
+
+SET @saved_limit = @@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+ALTER TABLE t1 ADD COLUMN b INT;
+DELETE FROM t1;
+--source include/wait_all_purged.inc
+ALTER TABLE t1 ADD COLUMN c INT;
+
+SELECT * FROM t1;
+DROP TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+
+--echo #
+--echo # MDEV-24796 Assertion page_has_next... failed
+--echo # in btr_pcur_store_position()
+--echo #
+
+CREATE TABLE t1 (c INT KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2);
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+ALTER TABLE t1 ADD COLUMN d INT;
+DELETE FROM t1;
+--source include/wait_all_purged.inc
+SELECT * FROM t1 WHERE c<>1 ORDER BY c DESC;
+DROP TABLE t1;
+
+SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+
+--echo #
+--echo # MDEV-24620 ASAN heap-buffer-overflow in btr_pcur_restore_position()
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(1) PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connect (stop_purge,localhost,root,,);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+ALTER TABLE t1 ADD c INT;
+BEGIN;
+DELETE FROM t1;
+
+connect (dml,localhost,root,,test);
+SET DEBUG_SYNC='row_mysql_handle_errors SIGNAL s1 WAIT_FOR s2';
+send UPDATE t1 SET c=1;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR s1';
+COMMIT;
+
+connection stop_purge;
+COMMIT;
+disconnect stop_purge;
+
+connection default;
+--source include/wait_all_purged.inc
+SET DEBUG_SYNC='now SIGNAL s2';
+
+connection dml;
+reap;
+disconnect dml;
+
+connection default;
+SET DEBUG_SYNC=RESET;
+DROP TABLE t1;
+
+--echo # End of 10.3 tests
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;

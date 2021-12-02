@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -976,9 +976,9 @@ sync_array_print_long_waits_low(
 		return(false);
 	}
 
-#ifdef UNIV_DEBUG_VALGRIND
+#if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
 	/* Increase the timeouts if running under valgrind because it executes
-	extremely slowly. UNIV_DEBUG_VALGRIND does not necessary mean that
+	extremely slowly. HAVE_valgrind does not necessary mean that
 	we are running under valgrind but we have no better way to tell.
 	See Bug#58432 innodb.innodb_bug56143 fails under valgrind
 	for an example */
@@ -1075,7 +1075,8 @@ sync_array_print_long_waits(
 		sync_array_exit(arr);
 	}
 
-	if (noticed) {
+	if (noticed && srv_monitor_event) {
+
 		fprintf(stderr,
 			"InnoDB: ###### Starts InnoDB Monitor"
 			" for 30 secs to print diagnostic info:\n");

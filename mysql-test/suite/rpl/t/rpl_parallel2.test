@@ -8,8 +8,10 @@
 
 --connection server_2
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+set @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=5;
+set global slave_parallel_mode= optimistic;
 --source include/start_slave.inc
 
 --connection server_1
@@ -219,6 +221,7 @@ UNLOCK TABLES;
 --connection server_2
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+set global slave_parallel_mode= @old_parallel_mode;
 --source include/start_slave.inc
 
 --connection server_1

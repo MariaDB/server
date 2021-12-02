@@ -33,6 +33,33 @@ FLUSH BINARY LOGS;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-16372 ER_BASE64_DECODE_ERROR upon replaying binary log with system table
+--echo #
+FLUSH BINARY LOGS;
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (1), (2) ON DUPLICATE KEY UPDATE pk= pk + 10;
+
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+
+FLUSH BINARY LOGS;
+--exec $MYSQL_BINLOG --verbose $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--echo Proof: two subsequent patterns must be found
+--let SEARCH_PATTERN= ### UPDATE `test`.`t1`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= ### INSERT INTO `test`.`t1`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t1;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+SELECT * FROM t1;
+
+--echo # Cleanup
+DROP TABLE t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
 #
 # MDEV-14605 ON UPDATE CURRENT_TIMESTAMP fields by multi-table UPDATE are not logged with binlog_row_image=MINIMAL
 #
@@ -64,11 +91,12 @@ UPDATE t1 t1 INNER JOIN t2 t2 ON t1.ref_id = t2.id
   WHERE t1.id = 1;
 
 --let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_end= query_get_value(SHOW MASTER STATUS, Position, 1)
 
 FLUSH BINARY LOGS;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---replace_regex /\d{6} *\d*:\d\d:\d\d/<date>/ /SET TIMESTAMP=\d*/SET TIMESTAMP=X/ /exec_time=\d*/exec_time=x/ /@3=\d*/@3=X/ /CRC32 0x[0-9a-f]+/CRC32 XXX/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
---exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog --start-position=$binlog_pos
+--replace_regex /table id \d*/table id TID/ /mapped to number \d*/mapped to number TID/ /at \d*/at POS/ /end_log_pos \d*/end_log_pos END_LOG_POS/ /GTID \d*-\d*-\d*/GTID D-S-N/ /\d{6} *\d*:\d\d:\d\d/<date>/ /SET TIMESTAMP=\d*/SET TIMESTAMP=X/ /exec_time=\d*/exec_time=x/ /@3=\d*/@3=X/ /CRC32 0x[0-9a-f]+/CRC32 XXX/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/ /thread_id=\d*/thread_id=TID/
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog --start-position=$binlog_pos --stop-position=$binlog_end
 
 DROP TABLE t1,t2;
 

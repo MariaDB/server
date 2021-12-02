@@ -1,6 +1,7 @@
 #
 # Bug#43448 - Server crashes on multi table delete with Innodb
 #
+SET @saved_dbug = @@SESSION.debug_dbug;
 set session debug_dbug="+d,optimizer_innodb_icp";
 CREATE TABLE t1 (
 id1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY, 
@@ -28,3 +29,4 @@ DELETE t1, t2, t3
 FROM t1, t2, t3 
 WHERE t1.id1 = t2.id2 AND t2.id2 = t3.id3 AND t1.id1 > 5;
 DROP TABLE t1, t2, t3;
+SET debug_dbug= @saved_dbug;

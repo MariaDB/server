@@ -1,7 +1,12 @@
 # TODO: Copyrights
 
+SET(CPACK_RPM_rocksdb-engine_PACKAGE_SUMMARY "RocksDB storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is a high performance storage engine, aimed
+at maximising storage efficiency while maintaining InnoDB-like performance." PARENT_SCOPE)
+
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
   MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
+  ADD_FEATURE_INFO(ROCKSDB "OFF" "Storage Engine")
   RETURN()
 ENDMACRO()
 
@@ -43,6 +48,15 @@ IF (WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
   SKIP_ROCKSDB_PLUGIN("32-Bit Windows are temporarily disabled")
 ENDIF()
 
+#
+# Also, disable on ARM64 when not Linux
+# Requires submodule update to v6.16.3
+# containing commit https://github.com/facebook/rocksdb/commit/ee4bd4780b321ddb5f92a0f4eb956f2a2ebd60dc
+#
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(arm64|aarch64)" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  SKIP_ROCKSDB_PLUGIN("ARM64 disabled on all except Linux")
+ENDIF()
+
 # This plugin needs recent C++ compilers (it is using C++11 features)
 # Skip build for the old compilers
 SET(CXX11_FLAGS)
@@ -54,6 +68,9 @@ IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     SKIP_ROCKSDB_PLUGIN("${OLD_COMPILER_MSG}")
   ENDIF()
   SET(CXX11_FLAGS "-std=c++11")
+  IF (GCC_VERSION VERSION_LESS 5.0)
+    SET(CXX11_FLAGS "-std=c++11 -Wno-missing-field-initializers")
+  ENDIF()
 ELSEIF (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   IF ((CMAKE_CXX_COMPILER_VERSION AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS  3.3) OR
      (CLANG_VERSION_STRING AND CLANG_VERSION_STRING VERSION_LESS  3.3))
@@ -112,9 +129,15 @@ SET(ROCKSDB_SE_SOURCES
 # This is a strong requirement coming from RocksDB. No conditional checks here.
 #ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX
 #)
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
+  SET(ATOMIC_EXTRA_LIBS -latomic)
+else()
+  SET(ATOMIC_EXTRA_LIBS)
+endif()
 
 MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} MODULE_ONLY STORAGE_ENGINE
                  MODULE_OUTPUT_NAME ha_rocksdb
+                 LINK_LIBRARIES ${ATOMIC_EXTRA_LIBS}
                  COMPONENT rocksdb-engine)
 
 IF(NOT TARGET rocksdb)
@@ -165,6 +188,7 @@ TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARY})
 if (UNIX AND NOT APPLE)
   TARGET_LINK_LIBRARIES(rocksdb_aux_lib -lrt)
 endif()
+TARGET_LINK_LIBRARIES(rocksdb_aux_lib ${ATOMIC_EXTRA_LIBS})
 
 # IF (WITH_JEMALLOC)
 #  FIND_LIBRARY(JEMALLOC_LIBRARY
@@ -188,9 +212,6 @@ endif()
 
 
 TARGET_LINK_LIBRARIES(rocksdb rocksdb_aux_lib)
-  FIND_LIBRARY(LZ4_LIBRARY
-    NAMES liblz4${PIC_EXT}.a lz4
-    HINTS ${WITH_LZ4}/lib)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
@@ -257,7 +278,7 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/myrocks_hotbackup.py
 INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/myrocks_hotbackup COMPONENT rocksdb-engine)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS -frtti)
+  SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS "-frtti -Wno-error")
 ENDIF()
 IF(MSVC)
   # RocksDB, the storage engine, overdoes "const" by adding
@@ -271,13 +292,6 @@ IF(MSVC)
   IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
   ENDIF()
-ENDIF()
-
-# Enable ZSTD if available. Upstream rocksdb cmake will use WITH_ZSTD and set
-# defines within their code.
-FIND_PACKAGE(zstd)
-IF (ZSTD_FOUND)
-  SET(WITH_ZSTD ON)
 ENDIF()
 
 IF(GIT_EXECUTABLE AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/.git)

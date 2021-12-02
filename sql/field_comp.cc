@@ -67,10 +67,12 @@ static uint compress_zlib(THD *thd, char *to, const char *from, uint length)
     stream.zfree= 0;
     stream.opaque= 0;
 
-    if (deflateInit2(&stream, level, Z_DEFLATED, wbits, 8, strategy) == Z_OK &&
-        deflate(&stream, Z_FINISH) == Z_STREAM_END &&
-        deflateEnd(&stream) == Z_OK)
-      return (uint) (stream.next_out - (Bytef*) to);
+    if (deflateInit2(&stream, level, Z_DEFLATED, wbits, 8, strategy) == Z_OK)
+    {
+      int res= deflate(&stream, Z_FINISH);
+      if (deflateEnd(&stream) == Z_OK && res == Z_STREAM_END)
+        return (uint) (stream.next_out - (Bytef*) to);
+    }
   }
   return 0;
 }
@@ -117,12 +119,14 @@ static int uncompress_zlib(String *to, const uchar *from, uint from_length,
   stream.zfree= 0;
   stream.opaque= 0;
 
-  if (inflateInit2(&stream, wbits) == Z_OK &&
-      inflate(&stream, Z_FINISH) == Z_STREAM_END &&
-      inflateEnd(&stream) == Z_OK)
+  if (inflateInit2(&stream, wbits) == Z_OK)
   {
-    to->length(stream.total_out);
-    return 0;
+    int res= inflate(&stream, Z_FINISH);
+    if (inflateEnd(&stream) == Z_OK && res == Z_STREAM_END)
+    {
+      to->length(stream.total_out);
+      return 0;
+    }
   }
   my_error(ER_ZLIB_Z_DATA_ERROR, MYF(0));
   return 1;

@@ -15,7 +15,7 @@ source include/master-slave.inc;
 
 connection slave;
 stop slave;
-
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 SET @@debug_dbug="d,simulate_find_log_pos_error";
 
 --error ER_UNKNOWN_TARGET_BINLOG
@@ -36,6 +36,7 @@ reset slave;
 change master to master_host='dummy';
 
 connection master;
+SET @saved_dbug_m = @@global.debug_dbug;
 SET @@debug_dbug="d,simulate_find_log_pos_error";
 --error ER_UNKNOWN_TARGET_BINLOG
 reset master;
@@ -53,10 +54,12 @@ purge binary logs to 'master-bin.000001';
 --disable_query_log
 call mtr.add_suppression("Failed to locate old binlog or relay log files");
 call mtr.add_suppression("MYSQL_BIN_LOG::purge_logs was called with file ..master-bin.000001 not listed in the index");
+set @@global.debug_dbug = @saved_dbug_m;
 connection slave;
 call mtr.add_suppression("Failed to locate old binlog or relay log files");
 call mtr.add_suppression("MYSQL_BIN_LOG::purge_logs was called with file ..master-bin.000001 not listed in the index");
 --enable_query_log
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 
 --echo ==== clean up ====
 CHANGE MASTER TO MASTER_HOST = '127.0.0.1';

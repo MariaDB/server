@@ -939,6 +939,16 @@ DROP VIEW v1;
 
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-4677 GROUP_CONCAT not showing any output with group_concat_max_len >= 4Gb
+--echo #
+set group_concat_max_len=1024*1024*1024*4;
+create table t1 (i int, j int);
+insert into t1 values (1,1),(1,2);
+select i, group_concat(j) from t1 group by i;
+drop table t1;
+
 --echo #
 --echo # End of 10.2 tests
 --echo #
@@ -985,6 +995,13 @@ select grp,group_concat(c order by c) from t1 group by grp;
 select grp,group_concat(c order by c limit 2) from t1 group by grp;
 select grp,group_concat(c order by c desc) from t1 group by grp;
 select grp,group_concat(c order by c desc limit 2) from t1 group by grp;
+
+--echo #
+--echo # Empty results for group concat as offset is greater than the rows
+--echo # for a group
+--echo #
+
+select grp,group_concat(distinct c limit 10,1 ) from t1 group by grp;
 
 drop table t1;
 

@@ -21,7 +21,7 @@ MACRO(EXTRACT_LINK_LIBRARIES target var)
     FOREACH(lib ${${target}_LIB_DEPENDS})
       # Filter out "general", it is not a library, just CMake hint
       # Also, remove duplicates
-      IF(NOT lib STREQUAL "general" AND NOT ${var}  MATCHES "-l${lib} ")
+      IF(NOT lib STREQUAL "general" AND NOT ${var}  MATCHES "-l${lib} " AND NOT lib STREQUAL "zlib")
         IF (lib MATCHES "^\\-")
           SET(${var} "${${var}} ${lib} ") 
         ELSEIF(lib MATCHES "^/")

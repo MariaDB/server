@@ -4,15 +4,17 @@
 # We can not easily restart the first node, so instead we restart all the other nodes. MTR does not allow multiple nodes
 # to be down at the same time, so restarts are sequential.
 #
-# We can not test any of the actual WAN optimizations from inside MTR and no 
+# We can not test any of the actual WAN optimizations from inside MTR and no
 # status variables are provided. So we only check that simple replication works.
 #
 
 --source include/big_test.inc
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/force_restart.inc
 
-SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER);
@@ -37,10 +39,11 @@ INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (13);
 
 --source include/kill_galera.inc
---sleep 5
 
 --connection node_1
 --source include/wait_until_connected_again.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 INSERT INTO t1 VALUES (11);
 
 --connection node_2
@@ -51,8 +54,10 @@ INSERT INTO t1 VALUES (14);
 
 --connection node_3
 --source include/start_mysqld.inc
---sleep 5
 --source include/wait_until_connected_again.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 
 INSERT INTO t1 VALUES (131);
 
@@ -64,10 +69,12 @@ INSERT INTO t1 VALUES (131);
 INSERT INTO t1 VALUES (22);
 
 --source include/kill_galera.inc
---sleep 5
 
 --connection node_1
 --source include/wait_until_connected_again.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
 INSERT INTO t1 VALUES (21);
 
 --connection node_3
@@ -78,8 +85,9 @@ INSERT INTO t1 VALUES (24);
 
 --connection node_2
 --source include/start_mysqld.inc
---sleep 5
 --source include/wait_until_connected_again.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 
 INSERT INTO t1 VALUES (221);
 
@@ -91,10 +99,11 @@ INSERT INTO t1 VALUES (221);
 INSERT INTO t1 VALUES (34);
 
 --source include/kill_galera.inc
---sleep 5
 
 --connection node_1
 --source include/wait_until_connected_again.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 INSERT INTO t1 VALUES (31);
 
 --connection node_2
@@ -105,11 +114,11 @@ INSERT INTO t1 VALUES (33);
 
 --connection node_4
 --source include/start_mysqld.inc
---sleep 5
 --source include/wait_until_connected_again.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 
 INSERT INTO t1 VALUES (341);
-
 
 #
 # Check all nodes
@@ -119,19 +128,19 @@ INSERT INTO t1 VALUES (341);
 --let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
 
-SELECT COUNT(*) = 19 FROM t1;
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
 
 --connection node_2
-SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-SELECT COUNT(*) = 19 FROM t1;
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
 
 --connection node_3
-SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-SELECT COUNT(*) = 19 FROM t1;
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
 
 --connection node_4
-SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-SELECT COUNT(*) = 19 FROM t1;
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
 
 --connection node_1
 DROP TABLE t1;

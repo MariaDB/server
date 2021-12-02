@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2019, MariaDB
+   Copyright (c) 2011, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
   trans_rollback_stmt(thd);
   trans_rollback(thd);
   close_thread_tables(thd);
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
 
   /*
     table_list->table has been closed and freed. Do not reference
@@ -91,10 +91,10 @@ static int send_check_errmsg(THD *thd, TABLE_LIST* table,
 static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 			      HA_CHECK_OPT *check_opt)
 {
-  int error= 0;
+  int error= 0, create_error= 0;
   TABLE tmp_table, *table;
   TABLE_LIST *pos_in_locked_tables= 0;
-  TABLE_SHARE *share;
+  TABLE_SHARE *share= 0;
   bool has_mdl_lock= FALSE;
   char from[FN_REFLEN],tmp[FN_REFLEN+32];
   const char **ext;
@@ -116,7 +116,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       acquire the exclusive lock to satisfy MDL asserts and avoid
       deadlocks.
     */
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     /*
       Attempt to do full-blown table open in mysql_admin_table() has failed.
       Let us try to open at least a .FRM for this table.
@@ -175,7 +175,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
   /*
     Check if this is a table type that stores index and data separately,
     like ISAM or MyISAM. We assume fixed order of engine file name
-    extentions array. First element of engine file name extentions array
+    extensions array. First element of engine file name extensions array
     is meta/index file extention. Second element - data file extention. 
   */
   ext= table->file->bas_ext();
@@ -207,6 +207,23 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
                               HA_EXTRA_NOT_USED, NULL);
     table_list->table= 0;
   }
+  else
+  {
+    /*
+      Table open failed, maybe because we run out of memory.
+      Close all open tables and relaese all MDL locks
+    */
+#if MYSQL_VERSION < 100500
+    tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
+                     table->s->db.str, table->s->table_name.str,
+                     TRUE);
+#else
+    tdc_release_share(share);
+    share->tdc->flush(thd, true);
+    share= 0;
+#endif
+  }
+
   /*
     After this point we have an exclusive metadata lock on our table
     in both cases when table was successfully open in mysql_admin_table()
@@ -220,11 +237,8 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
     goto end;
   }
   if (dd_recreate_table(thd, table_list->db.str, table_list->table_name.str))
-  {
-    error= send_check_errmsg(thd, table_list, "repair",
-			     "Failed generating table from .frm file");
-    goto end;
-  }
+    create_error= send_check_errmsg(thd, table_list, "repair",
+                                    "Failed generating table from .frm file");
   /*
     'FALSE' for 'using_transactions' means don't postpone
     invalidation till the end of a transaction, but do it
@@ -237,6 +251,8 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 			     "Failed restoring .MYD file");
     goto end;
   }
+  if (create_error)
+    goto end;
 
   if (thd->locked_tables_list.locked_tables())
   {
@@ -264,11 +280,12 @@ end:
   if (table == &tmp_table)
   {
     closefrm(table);
-    tdc_release_share(table->s);
+    if (share)
+      tdc_release_share(share);
   }
   /* In case of a temporary table there will be no metadata lock. */
   if (unlikely(error) && has_mdl_lock)
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
 
   DBUG_RETURN(error);
 }
@@ -438,7 +455,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                               int (handler::*operator_func)(THD *,
                                                             HA_CHECK_OPT *),
                               int (view_operator_func)(THD *, TABLE_LIST*,
-                                                       HA_CHECK_OPT *))
+                                                       HA_CHECK_OPT *),
+                              bool is_cmd_replicated)
 {
   TABLE_LIST *table;
   List<Item> field_list;
@@ -449,6 +467,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   int compl_result_code;
   bool need_repair_or_alter= 0;
   wait_for_commit* suspended_wfc;
+  bool is_table_modified= false;
+
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
 
@@ -498,6 +518,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     bool open_for_modify= org_open_for_modify;
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", db, table->table_name.str));
+    DEBUG_SYNC(thd, "admin_command_kill_before_modify");
+
     strxmov(table_name, db, ".", table->table_name.str, NullS);
     thd->open_options|= extra_open_options;
     table->lock_type= lock_type;
@@ -511,6 +533,14 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                 ? MDL_SHARED_NO_READ_WRITE
                                 : lock_type >= TL_WRITE_ALLOW_WRITE
                                 ? MDL_SHARED_WRITE : MDL_SHARED_READ);
+
+    if (thd->check_killed())
+    {
+      open_error= false;
+      fatal_error= true;
+      result_code= HA_ADMIN_FAILED;
+      goto send_result;
+    }
 
     /* open only one table from local list of command */
     while (1)
@@ -546,7 +576,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       trans_rollback(thd);
       close_thread_tables(thd);
       table->table= NULL;
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
       table->mdl_request.init(MDL_key::TABLE, table->db.str, table->table_name.str,
                               MDL_SHARED_NO_READ_WRITE, MDL_TRANSACTION);
     }
@@ -592,6 +622,12 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 #endif
     DBUG_PRINT("admin", ("table: %p", table->table));
 
+    if (table->schema_table)
+    {
+      result_code= HA_ADMIN_NOT_IMPLEMENTED;
+      goto send_result;
+    }
+
     if (prepare_func)
     {
       DBUG_PRINT("admin", ("calling prepare_func"));
@@ -600,7 +636,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         trans_rollback_stmt(thd);
         trans_rollback(thd);
         close_thread_tables(thd);
-        thd->mdl_context.release_transactional_locks();
+        thd->release_transactional_locks();
         DBUG_PRINT("admin", ("simple error, admin next table"));
         continue;
       case -1:           // error, message could be written to net
@@ -650,12 +686,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       goto send_result;
     }
 
-    if (table->schema_table)
-    {
-      result_code= HA_ADMIN_NOT_IMPLEMENTED;
-      goto send_result;
-    }
-
     if ((table->table->db_stat & HA_READ_ONLY) && open_for_modify)
     {
       /* purecov: begin inspected */
@@ -673,7 +703,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       trans_commit_stmt(thd);
       trans_commit(thd);
       close_thread_tables(thd);
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
       lex->reset_query_tables_list(FALSE);
       /*
         Restore Query_tables_list::sql_command value to make statement
@@ -768,35 +798,20 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       {
         compl_result_code= result_code= HA_ADMIN_INVALID;
       }
+
+      /*
+        The check for ALTER_PARTITION_ADMIN implements this logic:
+        do not collect EITS STATS for this syntax:
+          ALTER TABLE ... ANALYZE PARTITION p
+        EITS statistics is global (not per-partition). Collecting global stats
+        is much more expensive processing just one partition, so the most
+        appropriate action is to just not collect EITS stats for this command.
+      */
       collect_eis=
         (table->table->s->table_category == TABLE_CATEGORY_USER &&
+        !(lex->alter_info.flags & ALTER_PARTITION_ADMIN) &&
          (get_use_stat_tables_mode(thd) > NEVER ||
           lex->with_persistent_for_clause));
-
-
-      if (!lex->index_list)
-      {
-        tab->keys_in_use_for_query.init(tab->s->keys);
-      }
-      else
-      {
-        int pos;
-        LEX_STRING *index_name;
-        List_iterator_fast<LEX_STRING> it(*lex->index_list);
-   
-        tab->keys_in_use_for_query.clear_all();  
-        while ((index_name= it++))
-	{
-          if (tab->s->keynames.type_names == 0 ||
-              (pos= find_type(&tab->s->keynames, index_name->str,
-                              index_name->length, 1)) <= 0)
-          {
-            compl_result_code= result_code= HA_ADMIN_INVALID;
-            break;
-          }
-          tab->keys_in_use_for_query.set_bit(--pos);
-        }  
-      }
     }
 
     if (result_code == HA_ADMIN_OK)
@@ -821,7 +836,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       thd->open_options|= extra_open_options;
       close_thread_tables(thd);
       table->table= NULL;
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
       table->mdl_request.init(MDL_key::TABLE, table->db.str, table->table_name.str,
                               MDL_SHARED_NO_READ_WRITE, MDL_TRANSACTION);
       table->mdl_request.set_type(MDL_SHARED_READ);
@@ -844,7 +859,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             enum enum_field_types type= (*field_ptr)->type();
             if (type < MYSQL_TYPE_MEDIUM_BLOB ||
                 type > MYSQL_TYPE_BLOB)
-              bitmap_set_bit(tab->read_set, fields);
+              tab->field[fields]->register_field_in_read_map();
             else
               push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_NO_EIS_FOR_FIELD,
@@ -872,7 +887,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             enum enum_field_types type= tab->field[pos]->type();
             if (type < MYSQL_TYPE_MEDIUM_BLOB ||
                 type > MYSQL_TYPE_BLOB)
-              bitmap_set_bit(tab->read_set, pos);
+              tab->field[pos]->register_field_in_read_map();
             else
               push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_NO_EIS_FOR_FIELD,
@@ -880,6 +895,27 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                   column_name->str);
           }
           tab->file->column_bitmaps_signal();
+        }
+        if (!lex->index_list)
+          tab->keys_in_use_for_query.init(tab->s->keys);
+        else
+        {
+          int pos;
+          LEX_STRING *index_name;
+          List_iterator_fast<LEX_STRING> it(*lex->index_list);
+
+          tab->keys_in_use_for_query.clear_all();
+          while ((index_name= it++))
+          {
+            if (tab->s->keynames.type_names == 0 ||
+                (pos= find_type(&tab->s->keynames, index_name->str,
+                                index_name->length, 1)) <= 0)
+            {
+              compl_result_code= result_code= HA_ADMIN_INVALID;
+              break;
+            }
+            tab->keys_in_use_for_query.set_bit(--pos);
+          }
         }
         if (!(compl_result_code=
               alloc_statistics_for_table(thd, table->table)) &&
@@ -1032,7 +1068,7 @@ send_result_message:
       trans_commit_stmt(thd);
       trans_commit(thd);
       close_thread_tables(thd);
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
       /* Clear references to TABLE and MDL_ticket after releasing them. */
       table->mdl_request.ticket= NULL;
 
@@ -1094,7 +1130,7 @@ send_result_message:
         }
         /* Make sure this table instance is not reused after the operation. */
         if (table->table)
-          table->table->m_needs_reopen= true;
+          table->table->mark_table_for_reopen();
       }
       result_code= result_code ? HA_ADMIN_FAILED : HA_ADMIN_OK;
       table->next_local= save_next_local;
@@ -1144,6 +1180,13 @@ send_result_message:
         break;
       }
     }
+    /*
+      Admin commands acquire table locks and these locks are not detected by
+      parallel replication deadlock detection-and-handling mechanism. Hence
+      they must be marked as DDL so that they are not scheduled in parallel
+      with conflicting DMLs resulting in deadlock.
+    */
+    thd->transaction.stmt.mark_executed_table_admin_cmd();
     if (table->table && !table->view)
     {
       if (table->table->s->tmp_table)
@@ -1179,13 +1222,12 @@ send_result_message:
     }
     else
     {
-      if (trans_commit_stmt(thd) ||
-          (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END) &&
-           trans_commit_implicit(thd)))
+      if (trans_commit_stmt(thd))
         goto err;
+      is_table_modified= true;
     }
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
 
     /*
       If it is CHECK TABLE v1, v2, v3, and v1, v2, v3 are views, we will run
@@ -1205,6 +1247,13 @@ send_result_message:
 
     if (protocol->write())
       goto err;
+    DEBUG_SYNC(thd, "admin_command_kill_after_modify");
+  }
+  if (is_table_modified && is_cmd_replicated &&
+      (!opt_readonly || thd->slave_thread) && !thd->lex->no_write_to_binlog)
+  {
+    if (write_bin_log(thd, TRUE, thd->query(), thd->query_length()))
+      goto err;
   }
 
   my_eof(thd);
@@ -1219,11 +1268,11 @@ err:
     trans_rollback(thd);
   if (table && table->table)
   {
-    table->table->m_needs_reopen= true;
+    table->table->mark_table_for_reopen();
     table->table= 0;
   }
   close_thread_tables(thd);			// Shouldn't be needed
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_RETURN(TRUE);
 }
@@ -1267,7 +1316,7 @@ bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* tables,
   check_opt.key_cache= key_cache;
   DBUG_RETURN(mysql_admin_table(thd, tables, &check_opt,
 				"assign_to_keycache", TL_READ_NO_INSERT, 0, 0,
-				0, 0, &handler::assign_to_keycache, 0));
+				0, 0, &handler::assign_to_keycache, 0, false));
 }
 
 
@@ -1294,7 +1343,7 @@ bool mysql_preload_keys(THD* thd, TABLE_LIST* tables)
   */
   DBUG_RETURN(mysql_admin_table(thd, tables, 0,
 				"preload_keys", TL_READ_NO_INSERT, 0, 0, 0, 0,
-				&handler::preload_keys, 0));
+				&handler::preload_keys, 0, false));
 }
 
 
@@ -1312,15 +1361,7 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt,
                          "analyze", lock_type, 1, 0, 0, 0,
-                         &handler::ha_analyze, 0);
-  /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
-  {
-    /*
-      Presumably, ANALYZE and binlog writing doesn't require synchronization
-    */
-    res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-  }
+                         &handler::ha_analyze, 0, true);
   m_lex->select_lex.table_list.first= first_table;
   m_lex->query_tables= first_table;
 
@@ -1344,7 +1385,7 @@ bool Sql_cmd_check_table::execute(THD *thd)
 
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "check",
                          lock_type, 0, 0, HA_OPEN_FOR_REPAIR, 0,
-                         &handler::ha_check, &view_check);
+                         &handler::ha_check, &view_check, false);
 
   m_lex->select_lex.table_list.first= first_table;
   m_lex->query_tables= first_table;
@@ -1370,15 +1411,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
     mysql_recreate_table(thd, first_table, true) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
                       "optimize", TL_WRITE, 1, 0, 0, 0,
-                      &handler::ha_optimize, 0);
-  /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
-  {
-    /*
-      Presumably, OPTIMIZE and binlog writing doesn't require synchronization
-    */
-    res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-  }
+                      &handler::ha_optimize, 0, true);
   m_lex->select_lex.table_list.first= first_table;
   m_lex->query_tables= first_table;
 
@@ -1403,16 +1436,8 @@ bool Sql_cmd_repair_table::execute(THD *thd)
                          TL_WRITE, 1,
                          MY_TEST(m_lex->check_opt.sql_flags & TT_USEFRM),
                          HA_OPEN_FOR_REPAIR, &prepare_for_repair,
-                         &handler::ha_repair, &view_repair);
+                         &handler::ha_repair, &view_repair, true);
 
-  /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
-  {
-    /*
-      Presumably, REPAIR and binlog writing doesn't require synchronization
-    */
-    res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-  }
   m_lex->select_lex.table_list.first= first_table;
   m_lex->query_tables= first_table;
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,13 +48,13 @@ mtr_t::memo_push(void* object, mtr_memo_type_t type)
 	ut_ad(is_active());
 	ut_ad(object != NULL);
 	ut_ad(type >= MTR_MEMO_PAGE_S_FIX);
-	ut_ad(type <= MTR_MEMO_SX_LOCK);
+	ut_ad(type <= MTR_MEMO_SPACE_X_LOCK);
 	ut_ad(ut_is_2pow(type));
 
 	/* If this mtr has x-fixed a clean page then we set
 	the made_dirty flag. This tells us if we need to
-	grab log_flush_order_mutex at mtr_commit so that we
-	can insert the dirtied page to the flush list. */
+	grab log_sys.flush_order_mutex at mtr_t::commit() so that we
+	can insert the dirtied page into the flush list. */
 
 	if ((type == MTR_MEMO_PAGE_X_FIX || type == MTR_MEMO_PAGE_SX_FIX)
 	    && !m_made_dirty) {
@@ -170,9 +170,9 @@ mtr_t::release_block_at_savepoint(
 
 	ut_a(slot->object == block);
 
-	buf_block_unfix(reinterpret_cast<buf_block_t*>(block));
-
 	buf_page_release_latch(block, slot->type);
+
+	buf_block_unfix(reinterpret_cast<buf_block_t*>(block));
 
 	slot->object = NULL;
 }

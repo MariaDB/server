@@ -898,6 +898,11 @@ NULL
 SELECT JSON_MERGE_PATCH(NULL, '[1,2,3]');
 JSON_MERGE_PATCH(NULL, '[1,2,3]')
 [1, 2, 3]
+SELECT JSON_MERGE_PATCH(NULL, 'a');
+JSON_MERGE_PATCH(NULL, 'a')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 1
 SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}');
 JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}')
 {"d": "e"}
@@ -915,6 +920,25 @@ JSON_MERGE_PATCH('{"a":"b"}', '[1,')
 NULL
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_patch'
+#
+# MDEV-22976 CAST(JSON_EXTRACT() AS DECIMAL) does not handle boolean values
+#
+SELECT
+CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DOUBLE) AS cf,
+CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DECIMAL) AS cd;
+cf	cd
+1	1
+SELECT
+CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DOUBLE) AS cf,
+CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
+cf	cd
+0	0
+#
+# MDEV-24585 Assertion `je->s.cs == nice_js->charset()' failed in json_nice.
+#
+SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
+JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' )
+["x"]
 #
 # End of 10.2 tests
 #

@@ -1306,7 +1306,7 @@ create table t1 (a varchar(334) character set utf32 primary key);
 ERROR 42000: Specified key was too long; max key length is 1000 bytes
 create table t1 (a varchar(333) character set utf32, key(a));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 insert into t1 values (repeat('a',333)), (repeat('b',333));
 flush tables;
 check table t1;
@@ -1504,7 +1504,9 @@ ab
 ab
 AE
 AE
-SET max_sort_length=4;
+SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
 SELECT * FROM t1 ORDER BY s1;
 s1
 ab
@@ -2867,6 +2869,26 @@ DROP TABLE t1;
 # End of ctype_pad.inc
 #
 SET STORAGE_ENGINE=Default;
+#
+# MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
+# 10.2 tests
+#
+SET NAMES utf8, COLLATION_CONNECTION=utf32_bin;
+CREATE TABLE t1(c1 ENUM('a','b','ac') CHARACTER SET 'Binary',c2 JSON,c3 INT);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` enum('\0\0\0a','\0\0\0b','\0\0\0a\0\0\0c') CHARACTER SET binary DEFAULT NULL,
+  `c2` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 (c1) VALUES (1),(2),(3);
+SELECT HEX(c1) FROM t1 ORDER BY c1;
+HEX(c1)
+00000061
+00000062
+0000006100000063
+DROP TABLE t1;
 #
 # End of 10.2 tests
 #

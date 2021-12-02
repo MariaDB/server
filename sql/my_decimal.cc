@@ -345,12 +345,12 @@ void my_decimal_trim(ulonglong *precision, uint *scale)
 */
 
 int my_decimal2int(uint mask, const decimal_t *d, bool unsigned_flag,
-		   longlong *l)
+		   longlong *l, decimal_round_mode round_type)
 {
   int res;
   my_decimal rounded;
   /* decimal_round can return only E_DEC_TRUNCATED */
-  decimal_round(d, &rounded, 0, HALF_UP);
+  decimal_round(d, &rounded, 0, round_type);
   res= (unsigned_flag ?
         decimal2ulonglong(&rounded, (ulonglong *) l) :
         decimal2longlong(&rounded, l));

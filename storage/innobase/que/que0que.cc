@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -349,7 +349,6 @@ que_fork_start_command(
 
 		case QUE_THR_RUNNING:
 		case QUE_THR_LOCK_WAIT:
-		case QUE_THR_PROCEDURE_WAIT:
 			ut_error;
 		}
 	}
@@ -459,6 +458,8 @@ que_graph_free_recursive(
 
 		que_graph_free_recursive(ins->select);
 		ins->select = NULL;
+
+		ins->~ins_node_t();
 
 		if (ins->entry_sys_heap != NULL) {
 			mem_heap_free(ins->entry_sys_heap);

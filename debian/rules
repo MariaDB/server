@@ -86,9 +86,6 @@ endif
 	    -DSYSTEM_TYPE="debian-$(DEB_HOST_GNU_SYSTEM)" \
 	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
-	    -DINSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH) \
-	    -DINSTALL_PLUGINDIR=lib/mysql/plugin \
-	    -DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
 	    -DDEB=$(DEB_VENDOR) ..'
 
@@ -120,8 +117,13 @@ ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
 	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.3.mariadb@.service
 endif
 
-	# make install
-	cd $(BUILDDIR) && $(MAKE) install DESTDIR=$(TMP)
+	# Run 'make install' without output since it is uninteresting and
+	# silencing it helps to make overall build log shorter and more readable
+	@echo "Running $(MAKE) install DESTDIR=$(TMP) ..."
+	cd $(BUILDDIR) && $(MAKE) install DESTDIR=$(TMP) > /dev/null
+
+	# If mariadb-test package is removed, also remove most of it's files
+	grep --quiet "Package: mariadb-test" debian/control || rm -rf $(TMP)/usr/share/mysql/mysql-test
 
 	# Delete runnable files we don't want to have in the test data package.
 	# This avoids triggering multiple Lintian errors.

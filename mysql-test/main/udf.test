@@ -47,7 +47,7 @@ select lookup();
 select lookup("127.0.0.1");
 --error ER_CANT_INITIALIZE_UDF
 select lookup(127,0,0,1);
-select lookup("localhost");
+select lookup("localhost") rlike '^127\.\\d+\.\\d+.\\d+$';
 --error ER_CANT_INITIALIZE_UDF
 select reverse_lookup();
 
@@ -541,3 +541,35 @@ select * from v1;
 drop view v1;
 drop function myfunc_int;
 drop table t1;
+
+--echo #
+--echo # MDEV-23327: Can't uninstall UDF if the implementation library
+--echo # file doesn't exist
+--echo #
+
+# emulate brocken so/ddl udf
+insert into  mysql.func values ("unexisting_udf", 0, "soname", "function");
+
+# check that we have the function "installed"
+select * from mysql.func WHERE name='unexisting_udf';
+
+# make attempt to drop the function
+DROP FUNCTION unexisting_udf;
+
+# check that we have the plugin uninstalled
+select * from mysql.plugin WHERE name='unexisting_udf';
+
+--error ER_SP_DOES_NOT_EXIST
+DROP FUNCTION unexisting_udf;
+
+--echo #
+--echo # Bug #31674599: THE UDF_INIT() FUNCTION CAUSE SERVER CRASH
+--echo #
+call mtr.add_suppression('Invalid row in mysql.func table');
+insert mysql.func () values ();
+source include/restart_mysqld.inc;
+delete from mysql.func where name = '';
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

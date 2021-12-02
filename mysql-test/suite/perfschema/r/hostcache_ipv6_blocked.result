@@ -25,6 +25,7 @@ current_user()
 root@localhost
 disconnect con1;
 connection default;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6,native_password_bad_reply";
 ERROR 08S01: Bad handshake
 connection default;
@@ -427,4 +428,4 @@ drop user 'root'@'santa.claus.ipv6.example.com';
 revoke select on test.* from 'quota'@'santa.claus.ipv6.example.com';
 drop user 'quota'@'santa.claus.ipv6.example.com';
 set global max_connect_errors = @saved_max_connect_errors;
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;

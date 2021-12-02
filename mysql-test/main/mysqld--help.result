@@ -1069,7 +1069,7 @@ The following specify which files/extra groups are read (specified before remain
  disable; STATE to track just transaction state (Is there
  an active transaction? Does it have any data? etc.);
  CHARACTERISTICS to track transaction state and report all
- statements needed to start a transaction withthe same
+ statements needed to start a transaction with the same
  characteristics (isolation level, read only/read
  write,snapshot - but not any work done / data modified
  within the transaction).
@@ -1273,10 +1273,10 @@ The following specify which files/extra groups are read (specified before remain
  application layer.If set to 0, system dependent default
  is used. (Automatically configured unless set explicitly)
  --tcp-keepalive-time=# 
- Timeout, in milliseconds, with no activity until the
- first TCP keep-alive packet is sent.If set to 0, system
- dependent default is used. (Automatically configured
- unless set explicitly)
+ Timeout, in seconds, with no activity until the first TCP
+ keep-alive packet is sent.If set to 0, system dependent
+ default is used. (Automatically configured unless set
+ explicitly)
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse.
  These are freed after 5 minutes of idle time
@@ -1468,7 +1468,7 @@ lc-messages-dir MYSQL_SHAREDIR/
 lc-time-names en_US
 local-infile TRUE
 lock-wait-timeout 86400
-log-bin (No default value)
+log-bin foo
 log-bin-compress FALSE
 log-bin-compress-min-len 256
 log-bin-index (No default value)
@@ -1499,7 +1499,6 @@ max-binlog-cache-size 18446744073709547520
 max-binlog-size 1073741824
 max-binlog-stmt-cache-size 18446744073709547520
 max-connect-errors 100
-max-connections 151
 max-delayed-threads 20
 max-digest-length 1024
 max-error-count 64
@@ -1686,10 +1685,7 @@ sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
 system-versioning-alter-history ERROR
-table-cache 421
 table-definition-cache 400
-table-open-cache 421
-table-open-cache-instances 8
 tc-heuristic-recover OFF
 tcp-keepalive-interval 0
 tcp-keepalive-probes 0
@@ -1717,5 +1713,5 @@ userstat FALSE
 verbose TRUE
 wait-timeout 28800
 
-To see what values a running MySQL server is using, type
+To see what variables a running MySQL server is using, type
 'mysqladmin variables' instead of 'mysqld --verbose --help'.

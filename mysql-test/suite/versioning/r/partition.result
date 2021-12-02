@@ -504,6 +504,14 @@ delete from t1 where a is not null;
 create or replace table t1 (i int) with system versioning partition by system_time limit 10 (partition p0 history, partition pn current);
 select * from t1 partition (p0) for system_time all;
 ERROR HY000: SYSTEM_TIME partitions in table `t1` does not support historical query
+# MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+create or replace procedure sp()
+select * from t1 partition (p0) for system_time all;
+call sp;
+ERROR HY000: SYSTEM_TIME partitions in table `t1` does not support historical query
+call sp;
+ERROR HY000: SYSTEM_TIME partitions in table `t1` does not support historical query
+drop procedure sp;
 # MDEV-15380 Index for versioned table gets corrupt after partitioning and DELETE
 create or replace table t1 (pk int primary key)
 engine=myisam
@@ -522,6 +530,7 @@ set timestamp=1523466002.799571;
 insert into t1 values (11),(12);
 set timestamp=1523466004.169435;
 delete from t1 where pk in (11, 12);
+set timestamp= default;
 #
 # MDEV-18136 Server crashes in Item_func_dyncol_create::prepare_arguments
 #
@@ -566,3 +575,175 @@ execute immediate 'select * from t1 for update';
 pk
 drop view v1;
 drop tables t, t1, t2, t3, t4;
+#
+# MDEV-18957 UPDATE with LIMIT clause is wrong for versioned partitioned tables
+#
+create or replace table t1 (
+x int,
+a varchar(255)
+) with system versioning partition by system_time (partition p1 history, partition pn current);
+insert into t1 (x) values (1), (2), (3), (4);
+update t1 set a= 'foo' limit 3;
+update t1 set a= 'bar' limit 4;
+select * from t1;
+x	a
+1	bar
+2	bar
+3	bar
+4	bar
+drop table t1;
+#
+# MDEV-21011 Table corruption reported for versioned partitioned table after DELETE: "Found a misplaced row"
+#
+create table t1 (a int) with system versioning
+partition by system_time limit 3
+(partition p1 history, partition p2 history, partition pn current);
+insert into t1 values (1),(2),(3),(4);
+delete from t1;
+delete from t1;
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+#
+# MDEV-21233 Assertion `m_extra_cache' failed in ha_partition::late_extra_cache
+#
+create table t1 (id int, a varchar(8)) with system versioning partition by key (id) partitions 2;
+insert into t1 values  (1,'foo'),(2,'bar');
+create table t2 (b int);
+insert into t2 values (1),(2);
+update t1, t2 set a = 1;
+drop table t1, t2;
+#
+# MDEV-20515 multi-update tries to position updated table by null reference
+#
+create or replace table t1 (a int);
+insert into t1 values (0), (1);
+create or replace table t2 (b int) with system versioning
+partition by system_time
+(partition p1 history, partition pn current);
+insert into t2 values (0), (2);
+update t1 left join t2 on a > b set b= 2 order by b;
+drop table t1, t2;
+#
+# MDEV-17091 Assertion `old_part_id == m_last_part' failed in
+# ha_partition::update_row or `part_id == m_last_part' in
+# ha_partition::delete_row upon UPDATE/DELETE after dropping versioning
+#
+create or replace table t1 (pk int primary key, f int) engine=innodb
+with system versioning
+partition by key() partitions 2;
+insert into t1 values (1,10),(2,20);
+# expected to hit same partition
+select * from t1 partition (p0);
+pk	f
+1	10
+2	20
+alter table t1 drop system versioning;
+# 1 and 2 are expected to be in different partitions
+select * from t1 partition(p0);
+pk	f
+1	10
+select * from t1 partition(p1);
+pk	f
+2	20
+update t1 set f=pk;
+delete from t1;
+drop table t1;
+#
+# MDEV-22413 Server hangs upon UPDATE/DELETE on a view reading from versioned partitioned table
+#
+create or replace table t1 (f char(6)) engine innodb with system versioning;
+insert into t1 values (null);
+update t1 set f= 'foo';
+update t1 set f= 'bar';
+create or replace view v1 as select * from t1 for system_time all;
+update v1 set f = '';
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+create or replace table t1 (f char(6)) engine innodb with system versioning
+partition by system_time limit 1
+(partition p1 history, partition p2 history, partition pn current);
+insert into t1 values (null);
+update t1 set f= 'foo';
+update t1 set f= 'bar';
+create or replace view v1 as select * from t1 for system_time all;
+update v1 set f= '';
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+delete from v1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+drop view v1;
+drop table t1;
+#
+# MDEV-22112 Assertion `tab_part_info->part_type == RANGE_PARTITION || tab_part_info->part_type == LIST_PARTITION' failed in prep_alter_part_table
+#
+create table t1 (a int) with system versioning partition by system_time;
+ERROR HY000: For SYSTEM_TIME partitions each partition must be defined
+create table t1 (a int) with system versioning partition by system_time
+(partition p1 history, partition pn current);
+alter table t1 add partition (partition p2);
+ERROR HY000: Wrong partitioning type, expected type: `SYSTEM_TIME`
+# MDEV-17891 Assertion failures in select_insert::abort_result_set and
+#            mysql_load upon attempt to replace into a full table
+set @@max_heap_table_size= 1024*1024;
+create or replace table t1 (
+pk integer auto_increment,
+primary key (pk),
+f varchar(45000)
+) with system versioning engine=memory
+partition by system_time interval 1 year (partition p1 history,
+partition pn current);
+# fill the table until full
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 (f) select f from t1;
+ERROR HY000: The table 't1' is full
+# leave space for exactly one record in current partition
+delete from t1 where pk = 1;
+# copy all data into history partition
+replace into t1 select * from t1;
+replace into t1 select * from t1;
+ERROR HY000: The table 't1' is full
+create or replace table t1 (
+pk integer auto_increment,
+primary key (pk),
+f varchar(45000)
+) with system versioning engine=memory
+partition by system_time interval 1 year (partition p1 history,
+partition pn current);
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+select * from t1 into outfile 'load.data';
+load data infile 'load.data' replace into table t1;
+load data infile 'load.data' replace into table t1;
+ERROR HY000: The table 't1' is full
+load data infile 'load.data' replace into table t1;
+ERROR HY000: The table 't1' is full
+set @@max_heap_table_size= 1048576;
+drop table t1;
+#
+# MDEV-22178 Assertion `info->alias.str' failed in partition_info::check_partition_info instead of ER_VERS_WRONG_PARTS
+#
+create or replace table t1 (a int) with system versioning;
+alter table t1 partition by system_time (partition pn current);
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+drop table t1;
+#
+# MDEV-22247 History partition overflow leads to wrong SELECT result
+#
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour
+(partition p0 history, partition p1 history, partition pn current);
+insert into t1 values (0);
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:01');
+update t1 set x= x + 1;
+select *, row_start, row_end from t1 for system_time as of '2000-01-01 02:00:00';
+x	row_start	row_end
+1	2000-01-01 00:00:00.000000	2000-01-01 02:00:01.000000
+explain partitions select * from t1 for system_time as of '2000-01-01 02:00:00';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,pn	ALL	NULL	NULL	NULL	NULL	#	Using where
+explain partitions select * from t1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	pn	#	NULL	NULL	NULL	NULL	#	#
+drop table t1;
+# End of 10.3 tests

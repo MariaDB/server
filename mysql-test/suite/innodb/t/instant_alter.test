@@ -4,6 +4,9 @@
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
 --echo #
 
+SET @saved_allowance = @@GLOBAL.innodb_instant_alter_column_allowed;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+
 call mtr.add_suppression("Cannot add field `.*` in table `test`.`.*` because after adding it, the row size is");
 
 let $format= `SELECT CASE WHEN @@GLOBAL.innodb_page_size>16384
@@ -396,6 +399,36 @@ DELETE FROM t1;
 CHECK TABLE t1;
 DROP TABLE t1;
 
+# MDEV-21172 Memory leak during ADD PRIMARY KEY
+
+SET innodb_strict_mode = ON;
+eval CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) $engine;
+ALTER TABLE t1 ADD d TEXT;
+--error 0,ER_TOO_BIG_ROWSIZE
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+# Exploit MDEV-17468 to force the table definition to be reloaded
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
+
+# MDEV-20950 innodb_instant_alter_column_allowed
+eval CREATE TABLE t1 (a INT PRIMARY KEY) $engine;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+--enable_info
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+--disable_info
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+
 dec $format;
 let $redundant_4k= 0;
 }
@@ -404,3 +437,4 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
+SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;

@@ -7,7 +7,7 @@ INSERT INTO invalid_values VALUES('\'aaa\'');
 INSERT INTO invalid_values VALUES('\'bbb\'');
 SET @@global.rocksdb_compaction_readahead_size = -1;
 Warnings:
-Warning	1292	Truncated incorrect rocksdb_compaction_readahead_siz value: '-1'
+Warning	1292	Truncated incorrect rocksdb_compaction_readahead_... value: '-1'
 SELECT @@global.rocksdb_compaction_readahead_size;
 @@global.rocksdb_compaction_readahead_size
 0

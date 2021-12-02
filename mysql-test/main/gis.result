@@ -1683,7 +1683,7 @@ NULL
 #
 create table t1 (pt point);
 insert into t1 values(Geomfromtext('POLYGON((1 1, 2 2, 2 1, 1 1))'));
-ERROR 22007: Incorrect POINT value: 'POLYGON' for column `test`.`t1`.`pt` at row 1
+ERROR 22007: Incorrect POINT value: 'POLYGON((1 1,2 2,2 1,1 1))' for column `test`.`t1`.`pt` at row 1
 drop table t1;
 SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100));
 st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100))
@@ -2264,6 +2264,13 @@ select st_astext(p) from t1;
 st_astext(p)
 POINT(0 0)
 drop table t1;
+#
+# MDEV-21056 Memory leak after query with DEFAULT on a geometry field
+#
+CREATE TABLE t1 (f POINT DEFAULT ST_GEOMFROMTEXT('Point(0 0)'));
+SELECT ST_GEOMFROMTEXT('Point(1 1)') IN ( DEFAULT( `f` ), ST_GEOMFROMTEXT('Point(2 2)') ) AS x FROM t1;
+x
+DROP TABLE t1;
 #
 # End of 10.2 tests
 #

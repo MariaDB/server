@@ -1,0 +1,50 @@
+connection node_2;
+CREATE TABLE t1(a int not null primary key auto_increment,b int) engine=InnoDB;
+insert into t1 values (NULL,1);
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+begin;
+update t1 set a = 5;
+connection node_2;
+select * from t1;
+a	b
+2	1
+disconnect node_2a;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+begin;
+update t1 set a =5;
+connection node_2;
+select * from t1;
+a	b
+2	1
+disconnect node_2a;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+begin;
+update t1 set a =5, b=2;
+connection node_2;
+ALTER TABLE t1 ADD UNIQUE KEY b1(b);
+ALTER TABLE t1 DROP KEY b1;
+select * from t1;
+a	b
+2	1
+disconnect node_2a;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+begin;
+update t1 set a =5, b=2;
+connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2b;
+begin;
+update t1 set a =6, b=7;
+connection node_2;
+ALTER TABLE t1 ADD UNIQUE KEY b2(b);
+ALTER TABLE t1 DROP KEY b2;
+select * from t1;
+a	b
+2	1
+disconnect node_2a;
+disconnect node_2b;
+connection node_1;
+drop table t1;

@@ -41,7 +41,7 @@ perl;
 EOF
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---shutdown_server 10
+--shutdown_server
 
 --error 1
 --exec $MYSQLD_CMD --plugin_load=$HA_ROCKSDB_SO --rocksdb_ignore_unknown_options=0 --log-error=$error_log

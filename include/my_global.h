@@ -164,7 +164,7 @@
 #  if defined(__i386__) || defined(__ppc__)
 #    define SIZEOF_CHARP 4
 #    define SIZEOF_LONG 4
-#  elif defined(__x86_64__) || defined(__ppc64__)
+#  elif defined(__x86_64__) || defined(__ppc64__) || defined(__aarch64__)
 #    define SIZEOF_CHARP 8
 #    define SIZEOF_LONG 8
 #  else
@@ -566,13 +566,6 @@ typedef int	my_socket;	/* File descriptor for sockets */
 #endif
 /* Type for functions that handles signals */
 #define sig_handler RETSIGTYPE
-C_MODE_START
-#ifdef HAVE_SIGHANDLER_T
-#define sig_return sighandler_t
-#else
-typedef void (*sig_return)(void); /* Returns type from signal */
-#endif
-C_MODE_END
 #if defined(__GNUC__) && !defined(_lint)
 typedef char	pchar;		/* Mixed prototypes can take char */
 typedef char	puchar;		/* Mixed prototypes can take char */

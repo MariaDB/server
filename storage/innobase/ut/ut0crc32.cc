@@ -84,6 +84,7 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include <string.h>
 
 #include "ut0crc32.h"
+#include "my_valgrind.h"
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -195,15 +196,17 @@ ut_crc32_8_hw(
 	const byte**	data,
 	ulint*		len)
 {
-#ifdef _MSC_VER
+#  ifdef _MSC_VER
 	*crc = _mm_crc32_u8(*crc, (*data)[0]);
-#else
+#  elif __has_feature(memory_sanitizer)
+	*crc = __builtin_ia32_crc32qi(*crc, (*data)[0]);
+#  else
 	asm("crc32b %1, %0"
 	    /* output operands */
 	    : "+r" (*crc)
 	    /* input operands */
 	    : "rm" ((*data)[0]));
-#endif
+#  endif
 
 	(*data)++;
 	(*len)--;
@@ -220,22 +223,24 @@ ut_crc32_64_low_hw(
 	uint64_t	data)
 {
 	uint64_t	crc_64bit = crc;
-#ifdef _MSC_VER
-#ifdef _M_X64
+#  ifdef _MSC_VER
+#   ifdef _M_X64
 	crc_64bit = _mm_crc32_u64(crc_64bit, data);
-#elif defined(_M_IX86)
+#   elif defined(_M_IX86)
 	crc = _mm_crc32_u32(crc, static_cast<uint32_t>(data));
 	crc_64bit = _mm_crc32_u32(crc, static_cast<uint32_t>(data >> 32));
-#else
-#error Not Supported processors type.
-#endif
-#else
+#   else
+#    error Not Supported processors type.
+#   endif
+#  elif __has_feature(memory_sanitizer)
+	crc_64bit = __builtin_ia32_crc32di(crc_64bit, data);
+#  else
 	asm("crc32q %1, %0"
 	    /* output operands */
 	    : "+r" (crc_64bit)
 	    /* input operands */
 	    : "rm" (data));
-#endif
+#  endif
 
 	return(static_cast<uint32_t>(crc_64bit));
 }

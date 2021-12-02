@@ -35,9 +35,9 @@
 #include "my_global.h"
 #include "sql_class.h"
 #include "sql_servers.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 //#include <fnmatch.h>
 //#include <errno.h>
 #include <stdlib.h>
@@ -46,7 +46,7 @@
 #include "osutil.h"
 //#include <io.h>
 //#include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -342,11 +342,13 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
     Delayed = !!GetIntCatInfo("Delayed", 0);
   } else {
     // MYSQL access from a PROXY table 
-    Tabschema = GetStringCatInfo(g, "Database", Tabschema ? Tabschema : PlugDup(g, "*"));
+		TABLE_SHARE* s;
+
+		Tabschema = GetStringCatInfo(g, "Database", Tabschema ? Tabschema : PlugDup(g, "*"));
     Isview = GetBoolCatInfo("View", false);
 
     // We must get other connection parms from the calling table
-    Remove_tshp(Cat);
+    s = Remove_tshp(Cat);
     url = GetStringCatInfo(g, "Connect", NULL);
 
     if (!url || !*url) { 
@@ -365,6 +367,9 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
     } // endif url
 
     Tabname = Name;
+
+		// Needed for column description
+		Restore_tshp(Cat, s);
   } // endif am
 
   if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL))) {

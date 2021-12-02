@@ -6,7 +6,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1993-2019    */
+/*  (C) Copyright to the author Olivier BERTRAND          1993-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -44,7 +44,7 @@
 /*                                                                     */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
 #else
 #if defined(UNIX) || defined(UNIV_LINUX)
@@ -81,9 +81,9 @@
 #include "rcmsg.h"
 #endif   // NEWMSG
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 extern HINSTANCE s_hModule;                   /* Saved module handle    */
-#endif   // __WIN__
+#endif   // _WIN32
 
 #if defined(XMSG)
 extern char *msg_path;
@@ -96,7 +96,7 @@ char *msglang(void);
 typedef struct {
   ushort Segsize;
   ushort Size;
-  } AREASIZE;
+} AREASIZE;
 
 ACTIVITY defActivity = {            /* Describes activity and language */
   NULL,                             /* Points to user work area(s)     */
@@ -142,7 +142,7 @@ void htrc(char const* fmt, ...)
 /*  Language points on initial language name and eventual path.        */
 /*  Return value is the pointer to the Global structure.               */
 /***********************************************************************/
-PGLOBAL PlugInit(LPCSTR Language, uint worksize)
+PGLOBAL PlugInit(LPCSTR Language, size_t worksize)
 {
 	PGLOBAL g;
 
@@ -158,13 +158,14 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
 	} // end try/catch
 
 	g->Sarea = NULL;
-	g->Createas = 0;
+	g->Createas = false;
 	g->Alchecked = 0;
 	g->Mrr = 0;
 	g->Activityp = NULL;
 	g->Xchk = NULL;
 	g->N = 0;
 	g->More = 0;
+	g->Saved_Size = 0;
 	strcpy(g->Message, "");
 
 	/*******************************************************************/
@@ -183,7 +184,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
 /***********************************************************************/
 /*  PlugExit: Terminate Plug operations.                               */
 /***********************************************************************/
-int PlugExit(PGLOBAL g)
+PGLOBAL PlugExit(PGLOBAL g)
 {
 	if (g) {
 		PDBUSER dup = PlgGetUser(g);
@@ -195,7 +196,7 @@ int PlugExit(PGLOBAL g)
 		delete g;
 	}	// endif g
 
-  return 0;
+  return NULL;
 } // end of PlugExit
 
 /***********************************************************************/
@@ -203,8 +204,8 @@ int PlugExit(PGLOBAL g)
 /*  Note: this routine is not really implemented for Unix.             */
 /***********************************************************************/
 LPSTR PlugRemoveType(LPSTR pBuff, LPCSTR FileName)
-  {
-#if defined(__WIN__)
+{
+#if defined(_WIN32)
   char drive[_MAX_DRIVE];
 #else
   char *drive = NULL;
@@ -227,12 +228,11 @@ LPSTR PlugRemoveType(LPSTR pBuff, LPCSTR FileName)
     htrc("buff='%s'\n", pBuff);
 
   return pBuff;
-  } // end of PlugRemoveType
-
+} // end of PlugRemoveType
 
 BOOL PlugIsAbsolutePath(LPCSTR path)
 {
-#if defined(__WIN__)
+#if defined(_WIN32)
   return ((path[0] >= 'a' && path[0] <= 'z') ||
           (path[0] >= 'A' && path[0] <= 'Z')) && path[1] == ':';
 #else
@@ -245,12 +245,12 @@ BOOL PlugIsAbsolutePath(LPCSTR path)
 /*  Note: this routine is not really implemented for Unix.             */
 /***********************************************************************/
 LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
-  {
+{
   char newname[_MAX_PATH];
   char direc[_MAX_DIR], defdir[_MAX_DIR], tmpdir[_MAX_DIR];
   char fname[_MAX_FNAME];
   char ftype[_MAX_EXT];
-#if defined(__WIN__)
+#if defined(_WIN32)
   char drive[_MAX_DRIVE], defdrv[_MAX_DRIVE];
 #else
   char *drive = NULL, *defdrv = NULL;
@@ -270,7 +270,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
     return pBuff;
   } // endif
   
-#if !defined(__WIN__)
+#if !defined(_WIN32)
   if (*FileName == '~') {
     if (_fullpath(pBuff, FileName, _MAX_PATH)) {
       if (trace(2))
@@ -281,7 +281,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
       return FileName;     // Error, return unchanged name
       
     } // endif FileName  
-#endif   // !__WIN__
+#endif   // !_WIN32
   
   if (prefix && strcmp(prefix, ".") && !PlugIsAbsolutePath(defpath))
   {
@@ -310,7 +310,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
 
   if (trace(2)) {
     htrc("after _splitpath: FileName=%s\n", FileName);
-#if defined(__WIN__)
+#if defined(_WIN32)
     htrc("drive=%s dir=%s fname=%s ext=%s\n", drive, direc, fname, ftype);
     htrc("defdrv=%s defdir=%s\n", defdrv, defdir);
 #else
@@ -346,14 +346,14 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   } else
     return FileName;     // Error, return unchanged name
 
-  } // end of PlugSetPath
+} // end of PlugSetPath
 
 #if defined(XMSG)
 /***********************************************************************/
 /*  PlugGetMessage: get a message from the message file.               */
 /***********************************************************************/
 char *PlugReadMessage(PGLOBAL g, int mid, char *m)
-  {
+{
   char  msgfile[_MAX_PATH], msgid[32], buff[256];
   char *msg;
   FILE *mfile = NULL;
@@ -377,9 +377,9 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
       if (atoi(buff) == mid)
         break;
 
-  if (sscanf(buff, " %*d %s \"%[^\"]", msgid, stmsg) < 2) {
+  if (sscanf(buff, " %*d %.31s \"%.255[^\"]", msgid, stmsg) < 2) {
     // Old message file
-    if (!sscanf(buff, " %*d \"%[^\"]", stmsg)) {
+    if (!sscanf(buff, " %*d \"%.255[^\"]", stmsg)) {
       sprintf(stmsg, "Bad message file for %d %s", mid, SVP(m));
       goto fin;
     } else
@@ -404,14 +404,14 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
     msg =  stmsg;
 
   return msg;
-  } // end of PlugReadMessage
+} // end of PlugReadMessage
 
 #elif defined(NEWMSG)
 /***********************************************************************/
 /*  PlugGetMessage: get a message from the resource string table.      */
 /***********************************************************************/
 char *PlugGetMessage(PGLOBAL g, int mid)
-  {
+{
   char *msg;
 
 #if 0 // was !defined(UNIX) && !defined(UNIV_LINUX)
@@ -439,32 +439,32 @@ char *PlugGetMessage(PGLOBAL g, int mid)
     msg =  stmsg;
 
   return msg;
-  } // end of PlugGetMessage
+} // end of PlugGetMessage
 #endif     // NEWMSG
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 /***********************************************************************/
 /*  Return the line length of the console screen buffer.               */
 /***********************************************************************/
 short GetLineLength(PGLOBAL g)
-  {
+{
   CONSOLE_SCREEN_BUFFER_INFO coninfo;
   HANDLE  hcons = GetStdHandle(STD_OUTPUT_HANDLE);
   BOOL    b = GetConsoleScreenBufferInfo(hcons, &coninfo);
 
   return (b) ? coninfo.dwSize.X : 0;
-  } // end of GetLineLength
-#endif   // __WIN__
+} // end of GetLineLength
+#endif   // _WIN32
 
 /***********************************************************************/
 /*  Program for memory allocation of work and language areas.          */
 /***********************************************************************/
-bool AllocSarea(PGLOBAL g, uint size)
+bool AllocSarea(PGLOBAL g, size_t size)
 {
   /*********************************************************************/
   /*  This is the allocation routine for the WIN32/UNIX/AIX version.   */
   /*********************************************************************/
-#if defined(__WIN__)
+#if defined(_WIN32)
 	if (size >= 1048576)			 // 1M
 		g->Sarea = VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	else
@@ -474,17 +474,19 @@ bool AllocSarea(PGLOBAL g, uint size)
 	if (!g->Sarea) {
 		sprintf(g->Message, MSG(MALLOC_ERROR), "malloc");
 		g->Sarea_Size = 0;
-	}	else
-		g->Sarea_Size = size;
+	}	else {
+    g->Sarea_Size = size;
+    PlugSubSet(g->Sarea, size);
+  } // endif Sarea
 
 #if defined(DEVELOPMENT)
 	if (true) {
 #else
 	if (trace(8)) {
 #endif
-    if (g->Sarea)
-      htrc("Work area of %u allocated at %p\n", size, g->Sarea);
-    else
+    if (g->Sarea) {
+      htrc("Work area of %zd allocated at %p\n", size, g->Sarea);
+    } else
       htrc("SareaAlloc: %s\n", g->Message);
 
   } // endif trace
@@ -498,7 +500,7 @@ bool AllocSarea(PGLOBAL g, uint size)
 void FreeSarea(PGLOBAL g)
 {
 	if (g->Sarea) {
-#if defined(__WIN__)
+#if defined(_WIN32)
 		if (g->Sarea_Size >= 1048576)			 // 1M
 			VirtualFree(g->Sarea, 0, MEM_RELEASE);
 		else
@@ -510,7 +512,7 @@ void FreeSarea(PGLOBAL g)
 #else
 		if (trace(8))
 #endif
-			htrc("Freeing Sarea at %p size = %d\n", g->Sarea, g->Sarea_Size);
+			htrc("Freeing Sarea at %p size = %zd\n", g->Sarea, g->Sarea_Size);
 
 		g->Sarea = NULL;
 		g->Sarea_Size = 0;
@@ -524,14 +526,14 @@ void FreeSarea(PGLOBAL g)
 /*  Here there should be some verification done such as validity of    */
 /*  the address and size not larger than memory size.                  */
 /***********************************************************************/
-BOOL PlugSubSet(void *memp, uint size)
-  {
+BOOL PlugSubSet(void *memp, size_t size)
+{
   PPOOLHEADER pph = (PPOOLHEADER)memp;
 
-  pph->To_Free = (OFFSET)sizeof(POOLHEADER);
+  pph->To_Free = (size_t)sizeof(POOLHEADER);
   pph->FreeBlk = size - pph->To_Free;
   return FALSE;
-  } /* end of PlugSubSet */
+} /* end of PlugSubSet */
 
 /***********************************************************************/
 /*  Use it to export a function that do throwing.                      */
@@ -560,15 +562,15 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   pph = (PPOOLHEADER)memp;
 
   if (trace(16))
-    htrc("SubAlloc in %p size=%d used=%d free=%d\n",
+    htrc("SubAlloc in %p size=%zd used=%zd free=%zd\n",
           memp, size, pph->To_Free, pph->FreeBlk);
 
-  if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
+  if (size > pph->FreeBlk) {   /* Not enough memory left in pool */
     PCSZ pname = "Work";
 
     sprintf(g->Message,
-      "Not enough memory in %s area for request of %u (used=%d free=%d)",
-                          pname, (uint)size, pph->To_Free, pph->FreeBlk);
+      "Not enough memory in %s area for request of %zd (used=%zd free=%zd)",
+                          pname, size, pph->To_Free, pph->FreeBlk);
 
     if (trace(1))
       htrc("PlugSubAlloc: %s\n", g->Message);
@@ -580,11 +582,11 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   /*  Do the suballocation the simplest way.                           */
   /*********************************************************************/
   memp = MakePtr(memp, pph->To_Free); /* Points to suballocated block  */
-  pph->To_Free += (OFFSET)size;       /* New offset of pool free block */
-  pph->FreeBlk -= (uint)size;         /* New size   of pool free block */
+  pph->To_Free += size;               /* New offset of pool free block */
+  pph->FreeBlk -= size;               /* New size   of pool free block */
 
   if (trace(16))
-    htrc("Done memp=%p used=%d free=%d\n",
+    htrc("Done memp=%p used=%zd free=%zd\n",
           memp, pph->To_Free, pph->FreeBlk);
 
   return (memp);
@@ -594,7 +596,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
 /*  Program for sub-allocating and copying a string in a storage area. */
 /***********************************************************************/
 char *PlugDup(PGLOBAL g, const char *str)
-  {
+{
   if (str) {
     char *sm = (char*)PlugSubAlloc(g, NULL, strlen(str) + 1);
 
@@ -603,42 +605,33 @@ char *PlugDup(PGLOBAL g, const char *str)
   } else
     return NULL;
 
-  } // end of PlugDup 
+} // end of PlugDup 
 
-#if 0
-/***********************************************************************/
-/* This routine suballocate a copy of the passed string.               */
-/***********************************************************************/
-char *PlugDup(PGLOBAL g, const char *str)
-  {
-  char  *buf;
-  size_t len;
+/*************************************************************************/
+/* This routine makes a pointer from an offset to a memory pointer.      */
+/*************************************************************************/
+void* MakePtr(void* memp, size_t offset)
+{
+  // return ((offset == 0) ? NULL : &((char*)memp)[offset]);
+  return (!offset) ? NULL : (char *)memp + offset;
+} /* end of MakePtr */
 
-  if (str && (len = strlen(str))) {
-    buf = (char*)PlugSubAlloc(g, NULL, len + 1);
-    strcpy(buf, str);
+/*************************************************************************/
+/* This routine makes an offset from a pointer new format.               */
+/*************************************************************************/
+size_t MakeOff(void* memp, void* ptr)
+{
+  if (ptr) {
+#if defined(_DEBUG) || defined(DEVELOPMENT)
+    if (ptr <= memp) {
+      fprintf(stderr, "ptr %p <= memp %p", ptr, memp);
+      DoThrow(999);
+    } // endif ptr
+#endif   // _DEBUG  ||         DEVELOPMENT
+    return (size_t)(((char*)ptr) - ((char*)memp));
   } else
-    buf = NULL;
+    return 0;
 
-  return(buf);
-  } /* end of PlugDup */
-#endif // 0
+} /* end of MakeOff */
 
-/***********************************************************************/
-/* This routine makes a pointer from an offset to a memory pointer.    */
-/***********************************************************************/
-void *MakePtr(void *memp, OFFSET offset)
-  {
-  return ((offset == 0) ? NULL : &((char *)memp)[offset]);
-  } /* end of MakePtr */
-
-/***********************************************************************/
-/* This routine makes an offset from a pointer new format.             */
-/***********************************************************************/
-#if 0
-OFFSET MakeOff(void *memp, void *ptr)
-  {
-  return ((!ptr) ? 0 : (OFFSET)((char *)ptr - (char *)memp));
-  } /* end of MakeOff */
-#endif
-/*--------------------- End of PLUGUTIL program -----------------------*/
+/*---------------------- End of PLUGUTIL program ------------------------*/

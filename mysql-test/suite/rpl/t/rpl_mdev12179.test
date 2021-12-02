@@ -57,7 +57,7 @@ SET sql_log_bin=1;
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait
 EOF
---shutdown_server 30
+--shutdown_server
 --source include/wait_until_disconnected.inc
 
 --connection server_1
@@ -96,7 +96,7 @@ SET sql_log_bin=1;
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait
 EOF
---shutdown_server 30
+--shutdown_server
 --source include/wait_until_disconnected.inc
 
 --connection server_1
@@ -134,7 +134,7 @@ SET sql_log_bin=1;
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait
 EOF
---shutdown_server 30
+--shutdown_server
 --source include/wait_until_disconnected.inc
 
 --connection server_1
@@ -178,7 +178,7 @@ SET sql_log_bin=1;
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait
 EOF
---shutdown_server 30
+--shutdown_server
 --source include/wait_until_disconnected.inc
 
 --connection server_1
@@ -275,7 +275,7 @@ while (!$done)
 wait
 EOF
 --connection server_2
---shutdown_server 30
+--shutdown_server
 --source include/wait_until_disconnected.inc
 
 --echo *** Restart the slave server to prove 'gtid_slave_pos_innodb' autodiscovery ***

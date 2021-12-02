@@ -1,0 +1,17 @@
+FLUSH TABLES;
+#
+# MDEV-21217 innodb_force_recovery=2 may wrongly abort the rollback
+# of recovered transactions
+#
+connect  con0,localhost,root;
+CREATE TABLE t0 (a INT PRIMARY KEY) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t0 SELECT * FROM seq_1_to_1000;
+connection default;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+disconnect con0;
+connection default;
+SELECT * FROM t0 LIMIT 0 LOCK IN SHARE MODE;
+a
+DROP TABLE t0,t1;

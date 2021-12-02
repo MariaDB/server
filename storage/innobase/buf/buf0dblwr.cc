@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,6 +33,8 @@ Created 2011/12/19
 #include "trx0sys.h"
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
+
+using st_::span;
 
 /** The doublewrite buffer */
 buf_dblwr_t*	buf_dblwr = NULL;
@@ -168,6 +170,7 @@ buf_dblwr_create()
 {
 	buf_block_t*	block2;
 	buf_block_t*	new_block;
+	buf_block_t*	trx_sys_block;
 	byte*	doublewrite;
 	byte*	fseg_header;
 	ulint	page_no;
@@ -203,9 +206,13 @@ start_again:
 		}
 	}
 
-	block2 = fseg_create(fil_system.sys_space, TRX_SYS_PAGE_NO,
-			     TRX_SYS_DOUBLEWRITE
-			     + TRX_SYS_DOUBLEWRITE_FSEG, &mtr);
+	trx_sys_block = buf_page_get(
+		page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
+		univ_page_size, RW_X_LATCH, &mtr);
+
+	block2 = fseg_create(fil_system.sys_space,
+			     TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG,
+			     &mtr, false, trx_sys_block);
 
 	if (block2 == NULL) {
 too_small:
@@ -527,30 +534,54 @@ buf_dblwr_init_or_load_pages(
 void
 buf_dblwr_process()
 {
+	ut_ad(recv_sys->parse_start_lsn);
+
 	ulint		page_no_dblwr	= 0;
 	byte*		read_buf;
-	byte*		unaligned_read_buf;
 	recv_dblwr_t&	recv_dblwr	= recv_sys->dblwr;
 
 	if (!buf_dblwr) {
 		return;
 	}
 
-	unaligned_read_buf = static_cast<byte*>(
-		ut_malloc_nokey(3U << srv_page_size_shift));
-
 	read_buf = static_cast<byte*>(
-		ut_align(unaligned_read_buf, srv_page_size));
+		aligned_malloc(3 * srv_page_size, srv_page_size));
 	byte* const buf = read_buf + srv_page_size;
 
 	for (recv_dblwr_t::list::iterator i = recv_dblwr.pages.begin();
 	     i != recv_dblwr.pages.end();
 	     ++i, ++page_no_dblwr) {
-		byte*	page		= *i;
-		ulint	space_id	= page_get_space_id(page);
-		fil_space_t*	space = fil_space_get(space_id);
+		byte* page = *i;
+		const ulint page_no = page_get_page_no(page);
 
-		if (space == NULL) {
+		if (!page_no) {
+			/* page 0 should have been recovered
+			already via Datafile::restore_from_doublewrite() */
+			continue;
+		}
+
+		const ulint space_id = page_get_space_id(page);
+		const lsn_t lsn = mach_read_from_8(page + FIL_PAGE_LSN);
+
+		if (recv_sys->parse_start_lsn > lsn) {
+			/* Pages written before the checkpoint are
+			not useful for recovery. */
+			continue;
+		}
+
+		const page_id_t page_id(space_id, page_no);
+
+		if (recv_sys->scanned_lsn < lsn) {
+			ib::warn() << "Ignoring a doublewrite copy of page "
+				   << page_id
+				   << " with future log sequence number "
+				   << lsn;
+			continue;
+		}
+
+		fil_space_t* space = fil_space_acquire_for_io(space_id);
+
+		if (!space) {
 			/* Maybe we have dropped the tablespace
 			and this page once belonged to it: do nothing */
 			continue;
@@ -558,10 +589,7 @@ buf_dblwr_process()
 
 		fil_space_open_if_needed(space);
 
-		const ulint		page_no	= page_get_page_no(page);
-		const page_id_t		page_id(space_id, page_no);
-
-		if (page_no >= space->size) {
+		if (UNIV_UNLIKELY(page_no >= space->size)) {
 
 			/* Do not report the warning if the tablespace
 			is scheduled for truncation or was truncated
@@ -569,16 +597,21 @@ buf_dblwr_process()
 			if (!srv_is_tablespace_truncated(space_id)
 			    && !srv_was_tablespace_truncated(space)
 			    && !srv_is_undo_tablespace(space_id)) {
-				ib::warn() << "A copy of page " << page_id
+				ib::warn() << "A copy of page " << page_no
 					<< " in the doublewrite buffer slot "
 					<< page_no_dblwr
-					<< " is not within space bounds";
+					<< " is beyond the end of tablespace "
+					<< space->name
+					<< " (" << space->size << " pages)";
 			}
+next_page:
+			space->release_for_io();
 			continue;
 		}
 
 		const page_size_t	page_size(space->flags);
-		ut_ad(!buf_page_is_zeroes(page, page_size.physical()));
+		ut_ad(!buf_is_zeroes(span<const byte>(page,
+						      page_size.physical())));
 
 		/* We want to ensure that for partial reads the
 		unread portion of the page is NUL. */
@@ -594,83 +627,34 @@ buf_dblwr_process()
 			page_id, page_size,
 				0, page_size.physical(), read_buf, NULL);
 
-		if (err != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			ib::warn()
 				<< "Double write buffer recovery: "
 				<< page_id << " read failed with "
-				<< "error: " << ut_strerr(err);
+				<< "error: " << err;
 		}
 
-		const bool is_all_zero = buf_page_is_zeroes(
-			read_buf, page_size.physical());
-		const bool expect_encrypted = space->crypt_data
-			&& space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED;
-
-		if (is_all_zero) {
+		if (buf_is_zeroes(span<const byte>(read_buf,
+						   page_size.physical()))) {
 			/* We will check if the copy in the
 			doublewrite buffer is valid. If not, we will
 			ignore this page (there should be redo log
 			records to initialize it). */
+		} else if (recv_dblwr.validate_page(
+				page_id, read_buf, space, buf)) {
+			goto next_page;
 		} else {
-			/* Decompress the page before
-			validating the checksum. */
-			ulint decomp = fil_page_decompress(buf, read_buf);
-			if (!decomp || (decomp != srv_page_size
-					&& page_size.is_compressed())) {
-				goto bad;
-			}
-
-			if (expect_encrypted && mach_read_from_4(
-				    read_buf
-				    + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
-			    ? fil_space_verify_crypt_checksum(read_buf,
-							      page_size)
-			    : !buf_page_is_corrupted(true, read_buf,
-						     page_size, space)) {
-				/* The page is good; there is no need
-				to consult the doublewrite buffer. */
-				continue;
-			}
-
-bad:
 			/* We intentionally skip this message for
-			is_all_zero pages. */
+			all-zero pages. */
 			ib::info()
 				<< "Trying to recover page " << page_id
 				<< " from the doublewrite buffer.";
 		}
 
-		ulint decomp = fil_page_decompress(buf, page);
-		if (!decomp || (decomp != srv_page_size
-				&& page_size.is_compressed())) {
-			continue;
-		}
+		page = recv_dblwr.find_page(page_id, space, buf);
 
-		if (expect_encrypted && mach_read_from_4(
-			    page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
-		    ? !fil_space_verify_crypt_checksum(page, page_size)
-		    : buf_page_is_corrupted(true, page, page_size, space)) {
-			/* Theoretically we could have another good
-			copy for this page in the doublewrite
-			buffer. If not, we will report a fatal error
-			for a corrupted page somewhere else if that
-			page was truly needed. */
-			continue;
-		}
-
-		if (page_no == 0) {
-			/* Check the FSP_SPACE_FLAGS. */
-			ulint flags = fsp_header_get_flags(page);
-			if (!fsp_flags_is_valid(flags, space_id)
-			    && fsp_flags_convert_from_101(flags)
-			    == ULINT_UNDEFINED) {
-				ib::warn() << "Ignoring a doublewrite copy"
-					" of page " << page_id
-					<< " due to invalid flags "
-					<< ib::hex(flags);
-				continue;
-			}
-			/* The flags on the page should be converted later. */
+		if (!page) {
+			goto next_page;
 		}
 
 		/* Write the good page from the doublewrite buffer to
@@ -679,17 +663,18 @@ bad:
 		IORequest	write_request(IORequest::WRITE);
 
 		fil_io(write_request, true, page_id, page_size,
-		       0, page_size.physical(),
-				const_cast<byte*>(page), NULL);
+		       0, page_size.physical(), page, NULL);
 
 		ib::info() << "Recovered page " << page_id
 			<< " from the doublewrite buffer.";
+
+		goto next_page;
 	}
 
 	recv_dblwr.pages.clear();
 
 	fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
-	ut_free(unaligned_read_buf);
+	aligned_free(read_buf);
 }
 
 /****************************************************************//**
@@ -846,10 +831,6 @@ buf_dblwr_check_block(
 {
 	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 
-	if (block->skip_flush_check) {
-		return;
-	}
-
 	switch (fil_page_get_type(block->frame)) {
 	case FIL_PAGE_INDEX:
 	case FIL_PAGE_TYPE_INSTANT:
@@ -989,6 +970,7 @@ try_again:
 		int64_t	sig_count = os_event_reset(buf_dblwr->b_event);
 		mutex_exit(&buf_dblwr->mutex);
 
+		os_aio_simulated_wake_handler_threads();
 		os_event_wait_low(buf_dblwr->b_event, sig_count);
 		goto try_again;
 	}
@@ -1118,6 +1100,7 @@ try_again:
 		checkpoint. */
 		int64_t	sig_count = os_event_reset(buf_dblwr->b_event);
 		mutex_exit(&buf_dblwr->mutex);
+		os_aio_simulated_wake_handler_threads();
 
 		os_event_wait_low(buf_dblwr->b_event, sig_count);
 		goto try_again;
@@ -1139,7 +1122,7 @@ try_again:
 	void * frame = buf_page_get_frame(bpage);
 
 	if (bpage->size.is_compressed()) {
-		UNIV_MEM_ASSERT_RW(bpage->zip.data, bpage->size.physical());
+		MEM_CHECK_DEFINED(bpage->zip.data, bpage->size.physical());
 		/* Copy the compressed page and clear the rest. */
 
 		memcpy(p, frame, bpage->size.physical());
@@ -1148,10 +1131,7 @@ try_again:
 		       srv_page_size - bpage->size.physical());
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
-
-		UNIV_MEM_ASSERT_RW(frame,
-				   bpage->size.logical());
-
+		MEM_CHECK_DEFINED(frame, bpage->size.logical());
 		memcpy(p, frame, bpage->size.logical());
 	}
 

@@ -343,11 +343,12 @@ DELETE FROM t1 WHERE c=1;
 DROP TABLE t1;
 }
 
---error ER_PARSE_ERROR
 CREATE TABLE t1 (c CHAR(10) CHARACTER SET utf8 COLLATE utf8_bin GENERATED ALWAYS AS ("foo bar"));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
 CREATE TABLE t1 (i INT);
---error ER_PARSE_ERROR
 ALTER TABLE t1 ADD COLUMN c CHAR(10) CHARACTER SET utf8 COLLATE utf8_bin GENERATED ALWAYS AS ("foo bar");
+SHOW CREATE TABLE t1;
 DROP TABLE t1;
 --error ER_PARSE_ERROR
 CREATE TABLE t1 (i INT COLLATE utf8_bin, c INT COLLATE utf8_bin GENERATED ALWAYS AS (10));
@@ -584,3 +585,14 @@ ALTER TABLE t1 ALTER COLUMN a SET DEFAULT 7,
 --disable_info
 DROP TABLE t1;
 --enable_warnings
+
+--echo #
+--echo # MDEV-26262 frm is corrupted after ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+--echo #
+
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+CREATE TABLE MDEV_26262 (a INT,b INT AS (b) VIRTUAL);
+
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=Incorrect information in file: './test/MDEV_26262.frm'
+--source include/search_pattern_in_file.inc

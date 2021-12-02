@@ -5757,4 +5757,7 @@ AbcdCBefgBhiBqz
 /(?&word)*  \. (?<word> \w+ )/xi
     pokus.hokus
 
+/(?:A(*:X))*+/K
+    A
+
 /-- End of testinput1 --/

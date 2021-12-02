@@ -62,6 +62,7 @@ class Item_func_minus;
 class Item_func_mul;
 class Item_func_div;
 class Item_func_mod;
+class Item_type_holder;
 class cmp_item;
 class in_vector;
 class Type_handler_hybrid_field_type;
@@ -75,6 +76,7 @@ struct Schema_specification_st;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 class Vers_history_point;
+class Schema;
 
 
 /**
@@ -292,6 +294,15 @@ class Temporal_with_date: protected MYSQL_TIME
 {
 protected:
   void make_from_item(THD *thd, Item *item, sql_mode_t flags);
+
+  ulong daynr() const
+  {
+    return (ulong) ::calc_daynr((uint) year, (uint) month, (uint) day);
+  }
+  int weekday(bool sunday_first_day_of_week) const
+  {
+    return ::calc_weekday(daynr(), sunday_first_day_of_week);
+  }
   Temporal_with_date(THD *thd, Item *item, sql_mode_t flags)
   {
     make_from_item(thd, item, flags);
@@ -388,6 +399,11 @@ public:
   {
     DBUG_ASSERT(is_valid_datetime_slow());
     return hour == 0 && minute == 0 && second == 0 && second_part == 0;
+  }
+  int weekday(bool sunday_first_day_of_week) const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return Temporal_with_date::weekday(sunday_first_day_of_week);
   }
   const MYSQL_TIME *get_mysql_time() const
   {
@@ -1048,6 +1064,7 @@ public:
   Type_handler *aggregate_for_num_op_traditional(const Type_handler *h1,
                                                  const Type_handler *h2);
 
+  virtual Schema *schema() const;
   virtual const Name name() const= 0;
   virtual enum_field_types field_type() const= 0;
   virtual enum_field_types real_field_type() const { return field_type(); }
@@ -1171,6 +1188,14 @@ public:
   virtual Field *make_conversion_table_field(TABLE *TABLE,
                                              uint metadata,
                                              const Field *target) const= 0;
+  /*
+    Performs the final data type validation for a UNION element,
+    after the regular "aggregation for result" was done.
+  */
+  virtual bool union_element_finalize(Item_type_holder *item) const
+  {
+    return false;
+  }
   virtual bool Column_definition_fix_attributes(Column_definition *c) const= 0;
   virtual bool Column_definition_prepare_stage1(THD *thd,
                                                 MEM_ROOT *mem_root,
@@ -1273,9 +1298,21 @@ public:
                                Item *target_expr, Item *target_value,
                                Item_bool_func2 *source,
                                Item *source_expr, Item *source_const) const= 0;
+
+  /*
+    @brief
+      Check if an IN subquery allows materialization or not
+    @param
+      inner              expression on the inner side of the IN subquery
+      outer              expression on the outer side of the IN subquery
+      is_in_predicate    SET to true if IN subquery was converted from an
+                         IN predicate or we are checking if materialization
+                         strategy can be used for an IN predicate
+  */
   virtual bool
   subquery_type_allows_materialization(const Item *inner,
-                                       const Item *outer) const= 0;
+                                       const Item *outer,
+                                       bool is_in_predicate) const= 0;
   /**
     Make a simple constant replacement item for a constant "src",
     so the new item can futher be used for comparison with "cmp", e.g.:
@@ -1452,7 +1489,8 @@ public:
   }
   const Type_handler *type_handler_for_comparison() const;
   bool subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
   {
     DBUG_ASSERT(0);
     return false;
@@ -1770,7 +1808,8 @@ public:
   virtual ~Type_handler_real_result() {}
   const Type_handler *type_handler_for_comparison() const;
   bool subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const;
+                                            const Item *outer,
+                                            bool is_in_predicate) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
   void sortlength(THD *thd,
@@ -1839,7 +1878,8 @@ public:
   virtual ~Type_handler_decimal_result() {};
   const Type_handler *type_handler_for_comparison() const;
   bool subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const;
+                                            const Item *outer,
+                                            bool is_in_predicate) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
@@ -2042,7 +2082,8 @@ public:
   virtual ~Type_handler_int_result() {}
   const Type_handler *type_handler_for_comparison() const;
   bool subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const;
+                                            const Item *outer,
+                                            bool is_in_predicate) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
@@ -2138,7 +2179,8 @@ public:
                                    Item_bool_func2 *source,
                                    Item *source_expr, Item *source_const) const;
   bool subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const;
+                                            const Item *outer,
+                                            bool is_in_predicate) const;
   bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
                                         Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
@@ -2203,6 +2245,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool union_element_finalize(Item_type_holder *item) const;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -2245,7 +2288,8 @@ public:
                                    Item_bool_func2 *source,
                                    Item *source_expr, Item *source_const) const;
   bool subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const;
+                                            const Item *outer,
+                                            bool is_in_predicate) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -3075,6 +3119,7 @@ public:
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool union_element_finalize(Item_type_holder *item) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
@@ -3215,7 +3260,8 @@ public:
     return blob_type_handler(item);
   }
   bool subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
   {
     return false; // Materialization does not work with BLOB columns
   }
@@ -3320,7 +3366,8 @@ public:
     return true;
   }
   bool subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
   {
     return false; // Materialization does not work with GEOMETRY columns
   }

@@ -375,8 +375,7 @@ SELECT SLEEP(1000);
 connection con1;
 KILL QUERY ID @id;
 connection default;
-SLEEP(1000)
-1
+ERROR 70100: Query execution was interrupted
 KILL QUERY ID 0;
 ERROR HY000: Unknown query id: 0
 #
@@ -392,8 +391,7 @@ ERROR HY000: You are not owner of query ID
 connection con1;
 KILL QUERY ID @id;
 connection default;
-SLEEP(1000)
-1
+ERROR 70100: Query execution was interrupted
 disconnect con5;
 DROP USER u1@localhost;
 SET DEBUG_SYNC = 'RESET';
@@ -415,3 +413,8 @@ ALTER TABLE t2 DROP c;
 UNLOCK TABLES;
 DROP VIEW v1;
 DROP TABLE t1, t2;
+#
+# KILL QUERY ID USER
+#
+kill query id user 'foo';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''foo'' at line 1

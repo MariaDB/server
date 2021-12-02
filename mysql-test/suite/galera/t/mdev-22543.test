@@ -1,0 +1,58 @@
+# The test verifies that the FLUSH TABLES WITH READ LOCK does not
+# time out if it needs to wait for another MDL lock for short duration
+# during SST donation.
+ 
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--let $node_1 = node_1
+--let $node_2 = node_2
+--source include/auto_increment_offset_save.inc
+
+--let $galera_connection_name = node_1_ctrl
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+#
+# Run UPDATE on node_1 and make it block before table locks are taken.
+# This should block FTWRL.
+#
+--connection node_1
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT);
+INSERT INTO t1 VALUES (1, 1);
+SET DEBUG_SYNC = "before_lock_tables_takes_lock SIGNAL sync_point_reached WAIT_FOR sync_point_continue";
+--send UPDATE t1 SET f2 = 2 WHERE f1 = 1
+
+--connection node_1_ctrl
+SET DEBUG_SYNC = "now WAIT_FOR sync_point_reached";
+
+#
+# Restart node_2, force SST.
+#
+--connection node_2
+--source include/shutdown_mysqld.inc
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+# Restart without waiting. The UPDATE should block FTWRL on node_1,
+# so the SST cannot be completed and node_2 cannot join before
+# UPDATE connection is signalled to continue.
+--exec echo "restart:$start_mysqld_params" > $_expect_file_name
+# If the bug is present, FTWRL times out on node_1 in couple of
+# seconds and node_2 fails to join.
+--sleep 10
+
+--connection node_1_ctrl
+SET DEBUG_SYNC = "now SIGNAL sync_point_continue";
+
+--connection node_1
+--reap
+SET DEBUG_SYNC = "RESET";
+
+--connection node_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection node_1
+DROP TABLE t1;
+
+--source include/auto_increment_offset_restore.inc

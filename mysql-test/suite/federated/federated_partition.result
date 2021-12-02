@@ -47,6 +47,42 @@ connection slave;
 drop table federated.t1_1;
 drop table federated.t1_2;
 End of 5.1 tests
+#
+# MDEV-18734 ASAN heap-use-after-free upon sorting by blob column from partitioned table
+#
+connection slave;
+use federated;
+create table t1_1 (x int, b text, key(x));
+create table t1_2 (x int, b text, key(x));
+connection master;
+create table t1 (x int, b text, key(x)) engine=federated
+partition by range columns (x) (
+partition p1 values less than (40) connection='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1_1',
+partition pn values less than (maxvalue) connection='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1_2'
+);
+insert t1 values (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8);
+insert t1 select x + 8, x + 8 from t1;
+insert t1 select x + 16, x + 16 from t1;
+insert t1 select x + 49, repeat(x + 49, 100) from t1;
+flush tables;
+# This produces wrong result before MDEV-17573
+select x, left(b, 10) from t1 where x > 30 and x < 60 order by b;
+x	left(b, 10)
+31	31
+32	32
+50	5050505050
+51	5151515151
+52	5252525252
+53	5353535353
+54	5454545454
+55	5555555555
+56	5656565656
+57	5757575757
+58	5858585858
+59	5959595959
+drop table t1;
+connection slave;
+drop table t1_1, t1_2;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

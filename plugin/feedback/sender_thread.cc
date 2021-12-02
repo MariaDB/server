@@ -47,7 +47,7 @@ static int table_to_string(TABLE *table, String *result)
 
   res= table->file->ha_rnd_init(1);
 
-  dbug_tmp_use_all_columns(table, table->read_set);
+  dbug_tmp_use_all_columns(table, &table->read_set);
 
   while(!res && !table->file->ha_rnd_next(table->record[0]))
   {
@@ -117,6 +117,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
 
   tables->init_one_table(&INFORMATION_SCHEMA_NAME, &tbl_name, 0, TL_READ);
   tables->schema_table= i_s_feedback;
+  tables->schema_table_reformed= 1;
   tables->table= create_schema_table(thd, tables);
   if (!tables->table)
     return 1;

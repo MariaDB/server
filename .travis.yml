@@ -11,7 +11,7 @@ language: cpp
 os:
   - linux
   - osx
-osx_image: xcode10.1
+osx_image: xcode12u
 compiler:
   - gcc
   - clang
@@ -20,8 +20,6 @@ cache:
   timeout: 500
   apt: true
   ccache: true
-  directories:
-    - /usr/local/Cellar # Fails do to permission error: https://github.com/travis-ci/travis-ci/issues/8092
 
 env:
   matrix:
@@ -49,6 +47,7 @@ matrix:
             - cmake
             - debhelper
             - dh-apparmor
+            - dh-exec
             - dpatch
             - gdb
             - libaio-dev

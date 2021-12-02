@@ -1,4 +1,4 @@
-# Copyright (c) 2012, Monty Program Ab
+# Copyright (c) 2012, 2020, MariaDB
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,11 +21,11 @@ SET(MAN1_SERVER innochecksum.1 my_print_defaults.1 myisam_ftdump.1 myisamchk.1
 		mysql_secure_installation.1 mysql_setpermission.1
 		mysql_tzinfo_to_sql.1 mysql_upgrade.1
 		mysqld_multi.1 mysqld_safe.1 mysqldumpslow.1 mysqlhotcopy.1
-		mysqltest.1 perror.1 replace.1 resolve_stack_dump.1
+		perror.1 replace.1 resolve_stack_dump.1
 		resolveip.1 mariadb-service-convert.1
-		mysqld_safe_helper.1 tokuftdump.1 wsrep_sst_common.1
+		mysqld_safe_helper.1 wsrep_sst_common.1
 		wsrep_sst_mysqldump.1 wsrep_sst_rsync.1
-		galera_recovery.1 galera_new_cluster.1 tokuft_logprint.1
+		galera_recovery.1 galera_new_cluster.1
 		mysql_ldb.1
 		wsrep_sst_mariabackup.1 mbstream.1 mariabackup.1
 		wsrep_sst_rsync_wan.1)
@@ -36,7 +36,8 @@ SET(MAN1_CLIENT msql2mysql.1 mysql.1 mysql_find_rows.1 mysql_waitpid.1
                 mysql_plugin.1 mysql_embedded.1)
 SET(MAN1_DEVEL mysql_config.1)
 SET(MAN1_TEST mysql-stress-test.pl.1 mysql-test-run.pl.1 mysql_client_test.1
-              mysqltest_embedded.1 mysql_client_test_embedded.1 my_safe_process.1)
+              mysqltest.1 mysqltest_embedded.1 mysql_client_test_embedded.1
+              my_safe_process.1)
 
 INSTALL(FILES ${MAN1_SERVER} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesServer)
 INSTALL(FILES ${MAN8_SERVER} DESTINATION ${INSTALL_MANDIR}/man8 COMPONENT ManPagesServer)

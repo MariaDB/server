@@ -185,3 +185,13 @@ ALTER TABLE t1 add column d int default next value for s_not_exits;
 ERROR 42S02: Table 'test.s_not_exits' doesn't exist
 drop table t1;
 drop sequence s1;
+#
+# MDEV 22785 Crash with prepared statements and NEXTVAL()
+#
+CREATE SEQUENCE s;
+CREATE TABLE t1 (id int NOT NULL DEFAULT NEXTVAL(s), PRIMARY KEY (id));
+PREPARE stmt FROM " INSERT INTO t1 () values ()";
+INSERT INTO t1 () values ();
+EXECUTE stmt;
+DROP TABLE t1;
+DROP SEQUENCE s;

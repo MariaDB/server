@@ -1,0 +1,12 @@
+#
+# MDEV-16929 Assertion ... in close_thread_tables upon killing connection
+# running SHOW on sequence
+#
+CREATE SEQUENCE s ENGINE=InnoDB;
+RENAME TABLE s TO s1;
+connect  con1,localhost,root,,test;
+SHOW CREATE SEQUENCE s1;
+connection default;
+KILL thread_id;
+connection default;
+drop sequence s1;

@@ -96,7 +96,7 @@ void sql_print_error(const char *format, ...)
 
 /*** end of encryption tweaks and stubs ****************************/
 
-IO_CACHE info;
+static IO_CACHE info;
 #define CACHE_SIZE 16384
 
 #define INFO_TAIL ", pos_in_file = %llu, pos_in_mem = %lu", \

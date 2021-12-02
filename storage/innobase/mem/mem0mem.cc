@@ -210,8 +210,6 @@ mem_heap_validate(
 		block != NULL;
 		block = UT_LIST_GET_NEXT(list, block)) {
 
-		mem_block_validate(block);
-
 		switch (block->type) {
 		case MEM_HEAP_DYNAMIC:
 			break;
@@ -266,7 +264,6 @@ mem_heap_create_block_func(
 	      || (type == MEM_HEAP_BUFFER + MEM_HEAP_BTR_SEARCH));
 
 	if (heap != NULL) {
-		mem_block_validate(heap);
 		ut_d(mem_heap_validate(heap));
 	}
 
@@ -308,7 +305,6 @@ mem_heap_create_block_func(
 	block->buf_block = buf_block;
 	block->free_block = NULL;
 
-	block->magic_n = MEM_BLOCK_MAGIC_N;
 	ut_d(ut_strlcpy_rev(block->file_name, file_name,
 			    sizeof(block->file_name)));
 	ut_d(block->line = line);
@@ -326,8 +322,7 @@ mem_heap_create_block_func(
 		/* Not the first allocation for the heap. This block's
 		total_length field should be set to undefined. */
 		ut_d(block->total_size = ULINT_UNDEFINED);
-		UNIV_MEM_INVALID(&block->total_size,
-				 sizeof block->total_size);
+		MEM_UNDEFINED(&block->total_size, sizeof block->total_size);
 
 		heap->total_size += len;
 	}
@@ -335,7 +330,7 @@ mem_heap_create_block_func(
 	/* Poison all available memory. Individual chunks will be unpoisoned on
 	every mem_heap_alloc() call. */
 	compile_time_assert(MEM_BLOCK_HEADER_SIZE >= sizeof *block);
-	UNIV_MEM_FREE(block + 1, len - sizeof *block);
+	MEM_NOACCESS(block + 1, len - sizeof *block);
 
 	ut_ad((ulint)MEM_BLOCK_HEADER_SIZE < len);
 
@@ -355,8 +350,6 @@ mem_heap_add_block(
 	mem_block_t*	block;
 	mem_block_t*	new_block;
 	ulint		new_size;
-
-	ut_d(mem_block_validate(heap));
 
 	block = UT_LIST_GET_LAST(heap->base);
 
@@ -410,8 +403,6 @@ mem_heap_block_free(
 
 	buf_block = static_cast<buf_block_t*>(block->buf_block);
 
-	mem_block_validate(block);
-
 	UT_LIST_REMOVE(heap->base, block);
 
 	ut_ad(heap->total_size >= block->len);
@@ -419,7 +410,6 @@ mem_heap_block_free(
 
 	type = heap->type;
 	len = block->len;
-	block->magic_n = MEM_FREED_BLOCK_MAGIC_N;
 
 	if (type == MEM_HEAP_DYNAMIC || len < srv_page_size / 2) {
 		ut_ad(!buf_block);

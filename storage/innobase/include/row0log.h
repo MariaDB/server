@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -69,7 +69,7 @@ Free the row log for an index that was being created online. */
 void
 row_log_free(
 /*=========*/
-	row_log_t*&	log)	/*!< in,own: row log */
+	row_log_t*	log)	/*!< in,own: row log */
 	MY_ATTRIBUTE((nonnull));
 
 /******************************************************//**
@@ -136,7 +136,7 @@ row_log_table_delete(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	const byte*	sys)	/*!< in: DB_TRX_ID,DB_ROLL_PTR that should
 				be logged, or NULL to use those in rec */
 	ATTRIBUTE_COLD __attribute__((nonnull(1,2,3)));
@@ -151,7 +151,7 @@ row_log_table_update(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	const dtuple_t*	old_pk);/*!< in: row_log_table_get_pk()
 				before the update */
 
@@ -167,7 +167,7 @@ row_log_table_get_pk(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index),
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec,index),
 				or NULL */
 	byte*		sys,	/*!< out: DB_TRX_ID,DB_ROLL_PTR for
 				row_log_table_delete(), or NULL */
@@ -184,7 +184,7 @@ row_log_table_insert(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets);/*!< in: rec_get_offsets(rec,index) */
+	const rec_offs*	offsets);/*!< in: rec_get_offsets(rec,index) */
 /******************************************************//**
 Notes that a BLOB is being freed during online ALTER TABLE. */
 void
@@ -246,6 +246,11 @@ row_log_apply(
 	struct TABLE*		table,
 	ut_stage_alter_t*	stage)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Get the n_core_fields of online log for the index
+@param	 index	index whose n_core_fields of log to be accessed
+@return number of n_core_fields */
+unsigned row_log_get_n_core_fields(const dict_index_t *index);
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Estimate how much work is to be done by the log apply phase

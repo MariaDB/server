@@ -17,7 +17,8 @@ connection con1;
 connection default;
 connection con1;
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='d,show_explain_probe_join_exec_start';
 select count(*) from t0 where a < 100000;
 connection default;
 show explain for $thr2;
@@ -28,7 +29,7 @@ Note	1003	select count(*) from t0 where a < 100000
 connection con1;
 count(*)
 10
-set debug_dbug='';
+SET debug_dbug= @saved_dbug;
 select event_name
 from
 performance_schema.events_stages_history_long join

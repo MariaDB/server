@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2019, MariaDB Corporation.
+# Copyright (c) 2008, 2021, MariaDB Corporation.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,10 +14,26 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.7)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
+
+IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  # Setting build type to RelWithDebInfo as none was specified.
+  # Must occur before PROJECT
+  SET(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
+   "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel"
+   FORCE)
+  # Set the possible values of build type for cmake-gui
+  SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+   "None" "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+ENDIF()
+
+PROJECT(MySQL)
 
 IF(POLICY CMP0022)
   CMAKE_POLICY(SET CMP0022 NEW)
+ENDIF()
+IF(POLICY CMP0048)
+  CMAKE_POLICY(SET CMP0048 NEW)
 ENDIF()
 IF(POLICY CMP0054)
   CMAKE_POLICY(SET CMP0054 NEW)
@@ -37,9 +53,6 @@ IF(NOT DEFINED MANUFACTURER)
      "Set the entity that appears as the manufacturer of packages that support a manufacturer field.")
   MARK_AS_ADVANCED(MANUFACTURER)
 ENDIF()
-
-SET(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
-   "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel")
 
 # MAX_INDEXES - Set the maximum number of indexes per table, default 64
 IF (NOT MAX_INDEXES)
@@ -68,18 +81,8 @@ IF(UNIX AND NOT APPLE)
   MARK_AS_ADVANCED(WITH_PIC)
 ENDIF()
 
-# Optionally set project name, e.g.
-# foo.xcodeproj (mac) or foo.sln (windows)
+# This is used by TokuDB only
 SET(MYSQL_PROJECT_NAME_DOCSTRING "MySQL project name")
-IF(DEFINED MYSQL_PROJECT_NAME)
-  SET(MYSQL_PROJECT_NAME ${MYSQL_PROJECT_NAME} CACHE STRING
-      ${MYSQL_PROJECT_NAME_DOCSTRING} FORCE)
-ELSE()
-  SET(MYSQL_PROJECT_NAME "MySQL" CACHE STRING
-      ${MYSQL_PROJECT_NAME_DOCSTRING} FORCE)
-  MARK_AS_ADVANCED(MYSQL_PROJECT_NAME)
-ENDIF()
-PROJECT(${MYSQL_PROJECT_NAME})
 
 SET(CPACK_PACKAGE_NAME "MariaDB")
 SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MariaDB: a very fast and robust SQL database server")
@@ -107,11 +110,13 @@ FOREACH(_base
   ENDIF()
 ENDFOREACH()
 
+IF(NOT RPM AND NOT DEB)
 FOREACH(tool gtar tar)
  STRING(TOUPPER ${tool}  TOOL)
  FIND_PROGRAM(${TOOL}_EXECUTABLE ${tool} DOC "path to the executable")
  MARK_AS_ADVANCED(${TOOL}_EXECUTABLE)
 ENDFOREACH()
+ENDIF()
 
 FIND_PACKAGE(Git)
 
@@ -124,7 +129,7 @@ ENDIF()
 # NUMA
 SET(WITH_NUMA "AUTO" CACHE STRING "Build with non-uniform memory access, allowing --innodb-numa-interleave. Options are ON|OFF|AUTO. ON = enabled (requires NUMA library), OFF = disabled, AUTO = enabled if NUMA library found.")
 
-SET(MYSQL_MAINTAINER_MODE "AUTO" CACHE STRING "MySQL maintainer-specific development environment. Options are: ON OFF AUTO.")
+SET(MYSQL_MAINTAINER_MODE "AUTO" CACHE STRING "Enable MariaDB maintainer-specific warnings. One of: NO (warnings are disabled) WARN (warnings are enabled) ERR (warnings are errors) AUTO (warnings are errors in Debug only)")
 
 # Packaging
 IF (NOT CPACK_GENERATOR)
@@ -135,13 +140,12 @@ IF (NOT CPACK_GENERATOR)
   ENDIF(WIN32) 
 ENDIF(NOT CPACK_GENERATOR)
 
+INCLUDE(FeatureSummary)
 INCLUDE(misc)
 INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
 INCLUDE(wsrep)
-INCLUDE(cpack_rpm)
-INCLUDE(cpack_deb)
 
 # Add macros
 INCLUDE(character_sets)
@@ -182,27 +186,24 @@ ENDIF()
 OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
 
 INCLUDE(check_compiler_flag)
+INCLUDE(check_linker_flag)
 
 OPTION(WITH_ASAN "Enable address sanitizer" OFF)
 
 IF (WITH_ASAN AND NOT MSVC)
   # this flag might be set by default on some OS
   MY_CHECK_AND_SET_COMPILER_FLAG("-U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
-  # gcc 4.8.1 and new versions of clang
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=address -fPIC"
     DEBUG RELWITHDEBINFO)
   SET(HAVE_C_FSANITIZE ${have_C__fsanitize_address__fPIC})
   SET(HAVE_CXX_FSANITIZE ${have_CXX__fsanitize_address__fPIC})
   IF(HAVE_C_FSANITIZE AND HAVE_CXX_FSANITIZE)
+    OPTION(WITH_ASAN_SCOPE "Enable -fsanitize-address-use-after-scope" OFF)
     SET(WITH_ASAN_OK 1)
-  ELSE()
-    # older versions of clang
-    MY_CHECK_AND_SET_COMPILER_FLAG("-faddress-sanitizer -fPIC"
-      DEBUG RELWITHDEBINFO)
-    SET(HAVE_C_FADDRESS ${have_C__faddress_sanitizer__fPIC})
-    SET(HAVE_CXX_FADDRESS ${have_CXX__faddress_sanitizer__fPIC})
-    IF(HAVE_C_FADDRESS AND HAVE_CXX_FADDRESS)
-      SET(WITH_ASAN_OK 1)
+    IF(WITH_ASAN_SCOPE)
+      MY_CHECK_AND_SET_COMPILER_FLAG(
+        "-fsanitize=address -fsanitize-address-use-after-scope"
+	DEBUG RELWITHDEBINFO)
     ENDIF()
   ENDIF()
 
@@ -221,7 +222,7 @@ ENDIF()
 
 OPTION(WITH_UBSAN "Enable undefined behavior sanitizer" OFF)
 IF (WITH_UBSAN)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=undefined -fno-sanitize=alignment -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=undefined -fno-sanitize=alignment -U_FORTIFY_SOURCE -DWITH_UBSAN" DEBUG RELWITHDEBINFO)
 ENDIF()
 
 OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
@@ -244,10 +245,15 @@ IF(NOT WITH_TSAN)
     ENDIF()
     # security-enhancing flags
     MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wl,-z,relro,-z,now")
+    MY_CHECK_AND_SET_LINKER_FLAG("-Wl,-z,relro,-z,now")
     MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
     MY_CHECK_AND_SET_COMPILER_FLAG("-D_FORTIFY_SOURCE=2" RELEASE RELWITHDEBINFO)
   ENDIF()
+ENDIF()
+
+OPTION(WITH_DBUG_TRACE "Enable DBUG_ENTER()/DBUG_EXIT()" ON)
+IF(WITH_DBUG_TRACE)
+  ADD_DEFINITIONS(-DDBUG_TRACE)
 ENDIF()
 
 # Always enable debug sync for debug builds.
@@ -369,8 +375,6 @@ MYSQL_CHECK_SSL()
 MYSQL_CHECK_READLINE()
 
 SET(MALLOC_LIBRARY "system")
-SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
-MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 CHECK_PCRE()
 
@@ -408,6 +412,12 @@ SET (MYSQLD_STATIC_PLUGIN_LIBS "" CACHE INTERNAL "")
 INCLUDE(submodules)
 INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 
+INCLUDE(cpack_rpm)
+INCLUDE(cpack_deb)
+
+SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
+MARK_AS_ADVANCED(PYTHON_SHEBANG)
+
 # Add storage engines and plugins.
 CONFIGURE_PLUGINS()
 
@@ -425,12 +435,15 @@ ADD_SUBDIRECTORY(sql/share)
 IF(NOT WITHOUT_SERVER)
   ADD_SUBDIRECTORY(tests)
   ADD_SUBDIRECTORY(sql)
-  OPTION (WITH_EMBEDDED_SERVER "Compile MySQL with embedded server" OFF)
-  IF(WITH_EMBEDDED_SERVER) 
-   ADD_SUBDIRECTORY(libmysqld)
-   ADD_SUBDIRECTORY(libmysqld/examples)
-   ADD_SUBDIRECTORY(unittest/embedded)
+  OPTION (WITH_EMBEDDED_SERVER "Compile MariaDB with embedded server" OFF)
+  IF(WITH_EMBEDDED_SERVER)
+    ADD_SUBDIRECTORY(libmysqld)
+    ADD_SUBDIRECTORY(libmysqld/examples)
+    ADD_SUBDIRECTORY(unittest/embedded)
   ENDIF(WITH_EMBEDDED_SERVER)
+  IF(NOT WIN32)
+    ADD_FEATURE_INFO(EMBEDDED_SERVER WITH_EMBEDDED_SERVER "Embedded MariaDB Server Library")
+  ENDIF()
 
   IF(WITH_WSREP)
     ADD_SUBDIRECTORY(wsrep)
@@ -511,8 +524,7 @@ ADD_CUSTOM_TARGET(INFO_BIN ALL
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
-INSTALL_DOCUMENTATION(README.md CREDITS COPYING THIRDPARTY
-                      EXCEPTIONS-CLIENT COMPONENT Readme)
+INSTALL_DOCUMENTATION(README.md CREDITS COPYING THIRDPARTY COMPONENT Readme)
 
 # MDEV-6526 these files are not installed anymore
 #INSTALL_DOCUMENTATION(${CMAKE_BINARY_DIR}/Docs/INFO_SRC
@@ -532,7 +544,52 @@ IF(WIN32 AND SIGNCODE)
   INSTALL(SCRIPT ${PROJECT_BINARY_DIR}/sign.cmake)
 ENDIF()
 
+FEATURE_SUMMARY(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES VAR MARIADB_FEATURE_SUMMARY)
+
+OPTION(FEATURE_SUMMARY "Print feature summary at the end of configure step" ON)
+IF (FEATURE_SUMMARY)
+  MESSAGE("${MARIADB_FEATURE_SUMMARY}")
+  SET(FEATURE_SUMMARY OFF CACHE BOOL "" FORCE)
+ENDIF()
+
 IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
 You have linked MariaDB with ${NON_DISTRIBUTABLE_WARNING} libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with the Free Software Foundation.")
+ENDIF()
+
+IF(NOT WITHOUT_SERVER)
+  # Define target for minimal mtr-testable build
+  ADD_CUSTOM_TARGET(minbuild)
+  ADD_DEPENDENCIES(minbuild
+   aria_chk
+   aria_pack
+   mysql
+   mysqladmin
+   mysqlbinlog
+   mysqlcheck
+   mysql_client_test
+   mysqldump
+   mysqlimport
+   mysql_plugin
+   mysqlshow
+   mysqlslap
+   mysqltest
+   mysql_tzinfo_to_sql
+   mysql_upgrade
+   mysqld
+   my_print_defaults
+   my_safe_process
+   myisam_ftdump
+   myisamchk
+   myisamlog
+   myisampack
+   perror
+   replace)
+  IF(WIN32)
+    ADD_DEPENDENCIES(minbuild echo my_safe_kill)
+  ENDIF()
+  ADD_CUSTOM_TARGET(smoketest
+    COMMAND perl ./mysql-test-run.pl main.1st
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/mysql-test)
+  ADD_DEPENDENCIES(smoketest minbuild)
 ENDIF()

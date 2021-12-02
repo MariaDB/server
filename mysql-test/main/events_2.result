@@ -348,7 +348,7 @@ drop event имя_события_в_кодировке_утф8_длиной_бо
 create event
 очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66
 on schedule every 2 year do select 1;
-ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длинна' is too long
+ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длин...' is too long
 create event event_35981 on schedule every 6 month on completion preserve
 disable
 do

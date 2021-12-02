@@ -141,7 +141,7 @@ void my_thread_global_reinit(void)
   my_thread_destroy_internal_mutex();
   my_thread_init_internal_mutex();
 
-  tmp= my_pthread_getspecific(struct st_my_thread_var*, THR_KEY_mysys);
+  tmp= my_thread_var;
   DBUG_ASSERT(tmp);
 
   my_thread_destory_thr_mutex(tmp);
@@ -279,7 +279,7 @@ my_bool my_thread_init(void)
   fprintf(stderr,"my_thread_init(): pthread_self: %p\n", pthread_self());
 #endif  
 
-  if (my_pthread_getspecific(struct st_my_thread_var *,THR_KEY_mysys))
+  if (my_thread_var)
   {
 #ifdef EXTRA_DEBUG_THREADS
     fprintf(stderr,"my_thread_init() called more than once in thread 0x%lx\n",
@@ -297,7 +297,7 @@ my_bool my_thread_init(void)
     error= 1;
     goto end;
   }
-  pthread_setspecific(THR_KEY_mysys,tmp);
+  set_mysys_var(tmp);
   tmp->pthread_self= pthread_self();
   my_thread_init_thr_mutex(tmp);
 
@@ -334,7 +334,7 @@ end:
 void my_thread_end(void)
 {
   struct st_my_thread_var *tmp;
-  tmp= my_pthread_getspecific(struct st_my_thread_var*,THR_KEY_mysys);
+  tmp= my_thread_var;
 
 #ifdef EXTRA_DEBUG_THREADS
   fprintf(stderr,"my_thread_end(): tmp: %p  pthread_self: %p  thread_id: %ld\n",
@@ -355,7 +355,7 @@ void my_thread_end(void)
     as the key is used by DBUG.
   */
   DBUG_POP();
-  pthread_setspecific(THR_KEY_mysys,0);
+  set_mysys_var(NULL);
 
   if (tmp && tmp->init)
   {
@@ -439,7 +439,7 @@ extern void **my_thread_var_dbug()
   struct st_my_thread_var *tmp;
   if (!my_thread_global_init_done)
     return NULL;
-  tmp= my_pthread_getspecific(struct st_my_thread_var*,THR_KEY_mysys);
+  tmp= my_thread_var;
   return tmp && tmp->init ? &tmp->dbug : 0;
 }
 #endif /* DBUG_OFF */
@@ -451,7 +451,7 @@ safe_mutex_t **my_thread_var_mutex_in_use()
   struct st_my_thread_var *tmp;
   if (!my_thread_global_init_done)
     return NULL;
-  tmp=  my_pthread_getspecific(struct st_my_thread_var*,THR_KEY_mysys);
+  tmp= my_thread_var;
   return tmp ? &tmp->mutex_in_use : 0;
 }
 

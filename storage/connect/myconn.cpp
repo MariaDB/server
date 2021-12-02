@@ -35,11 +35,11 @@
 #include "my_sys.h"
 #include "mysqld_error.h"
 #endif   // !MYSQL_PREPARED_STATEMENTS
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include "osutil.h"
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #include "global.h"
 #include "plgdbsem.h"
@@ -472,7 +472,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             int pt, const char *csname)
   {
   const char *pipe = NULL;
-  uint        cto = 10, nrt = 20;
+  //uint      cto = 10, nrt = 20;
   my_bool     my_true= 1;
 
   m_DB = mysql_init(NULL);
@@ -485,22 +485,22 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
 	if (trace(1))
 		htrc("MYSQLC Open: m_DB=%.4X size=%d\n", m_DB, (int)sizeof(*m_DB));
 
-	// Removed to do like FEDERATED do
+	// Removed to do like FEDERATED does
 //mysql_options(m_DB, MYSQL_READ_DEFAULT_GROUP, "client-mariadb");
-  mysql_options(m_DB, MYSQL_OPT_USE_REMOTE_CONNECTION, NULL);
-  mysql_options(m_DB, MYSQL_OPT_CONNECT_TIMEOUT, &cto);
-  mysql_options(m_DB, MYSQL_OPT_READ_TIMEOUT, &nrt);
+//mysql_options(m_DB, MYSQL_OPT_USE_REMOTE_CONNECTION, NULL);
+//mysql_options(m_DB, MYSQL_OPT_CONNECT_TIMEOUT, &cto);
+//mysql_options(m_DB, MYSQL_OPT_READ_TIMEOUT, &nrt);
 //mysql_options(m_DB, MYSQL_OPT_WRITE_TIMEOUT, ...);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (!strcmp(host, ".")) {
     mysql_options(m_DB, MYSQL_OPT_NAMED_PIPE, NULL);
     pipe = mysqld_unix_port;
     } // endif host
-#else   // !__WIN__
+#else   // !_WIN32
   if (!strcmp(host, "localhost"))
     pipe = mysqld_unix_port;
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #if 0
   if (pwd && !strcmp(pwd, "*")) {

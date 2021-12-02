@@ -656,7 +656,7 @@ void toku_ftnode_clone_callback(void *value_data,
         node->layout_version_read_from_disk;
     cloned_node->build_id = node->build_id;
     cloned_node->height = node->height;
-    cloned_node->dirty = node->dirty;
+    cloned_node->dirty_ = node->dirty_;
     cloned_node->fullhash = node->fullhash;
     cloned_node->n_children = node->n_children;
 
@@ -672,8 +672,8 @@ void toku_ftnode_clone_callback(void *value_data,
     toku_ftnode_clone_partitions(node, cloned_node);
 
     // clear dirty bit
-    node->dirty = 0;
-    cloned_node->dirty = 0;
+    node->clear_dirty();
+    cloned_node->clear_dirty();
     node->layout_version_read_from_disk = FT_LAYOUT_VERSION;
     // set new pair attr if necessary
     if (node->height == 0) {
@@ -742,7 +742,7 @@ void toku_ftnode_flush_callback(CACHEFILE UU(cachefile),
                 // persisted, we need undo the logical row count adjustments as
                 // they may occur again in the future if/when the node is
                 // re-read from disk for another query or change.
-                if (!ftnode->dirty && !write_me) {
+                if (!ftnode->dirty() && !write_me) {
                     int64_t lrc_delta = 0;
                     for (int i = 0; i < ftnode->n_children; i++) {
                         if (BP_STATE(ftnode, i) == PT_AVAIL) {
@@ -847,8 +847,8 @@ int toku_ftnode_fetch_callback(CACHEFILE UU(cachefile),
     if (r == 0) {
         *sizep = make_ftnode_pair_attr(*node);
         (*node)->ct_pair = p;
-        *dirtyp = (*node)->dirty;  // deserialize could mark the node as dirty
-                                   // (presumably for upgrade)
+        *dirtyp = (*node)->dirty();  // deserialize could mark the node as dirty
+                                     // (presumably for upgrade)
     }
     return r;
 }
@@ -870,7 +870,7 @@ void toku_ftnode_pe_est_callback(
     paranoid_invariant(ftnode_pv != NULL);
     long bytes_to_free = 0;
     FTNODE node = static_cast<FTNODE>(ftnode_pv);
-    if (node->dirty || node->height == 0 ||
+    if (node->dirty() || node->height == 0 ||
         node->layout_version_read_from_disk < FT_FIRST_LAYOUT_VERSION_WITH_BASEMENT_NODES) {
         *bytes_freed_estimate = 0;
         *cost = PE_CHEAP;
@@ -947,7 +947,7 @@ int toku_ftnode_pe_callback(void *ftnode_pv,
     void *pointers_to_free[node->n_children * 2];
 
     // Don't partially evict dirty nodes
-    if (node->dirty) {
+    if (node->dirty()) {
         goto exit;
     }
     // Don't partially evict nodes whose partitions can't be read back
@@ -1400,7 +1400,7 @@ ft_init_new_root(FT ft, FTNODE oldroot, FTNODE *newrootp)
     MSN msna = oldroot->max_msn_applied_to_node_on_disk;
     newroot->max_msn_applied_to_node_on_disk = msna;
     BP_STATE(newroot,0) = PT_AVAIL;
-    newroot->dirty = 1;
+    newroot->set_dirty();
 
     // Set the first child to have the new blocknum,
     // and then swap newroot with oldroot. The new root
@@ -1488,7 +1488,7 @@ static void inject_message_in_locked_node(
     // mark the node as dirty.
     // enforcing invariant here.
     //
-    paranoid_invariant(node->dirty != 0);
+    paranoid_invariant(node->dirty() != 0);
 
     // update some status variables
     if (node->height != 0) {
@@ -1848,7 +1848,7 @@ static void push_something_in_subtree(
                 }
             }
 
-            if (next_loc != NEITHER_EXTREME || child->dirty || toku_bnc_should_promote(ft, bnc)) {
+            if (next_loc != NEITHER_EXTREME || child->dirty() || toku_bnc_should_promote(ft, bnc)) {
                 push_something_in_subtree(ft, child, -1, msg, flow_deltas, gc_info, depth + 1, next_loc, false);
                 toku_sync_fetch_and_add(&bnc->flow[0], flow_deltas[0]);
                 // The recursive call unpinned the child, but
@@ -2803,9 +2803,9 @@ static int ft_create_file(FT_HANDLE UU(ft_handle), const char *fname, int *fdp) 
 }
 
 // open a file for use by the ft.  if the file does not exist, error
-static int ft_open_file(const char *fname, int *fdp) {
+static int ft_open_file(const char *fname, int *fdp, bool rw) {
     int fd;
-    fd = ft_open_maybe_direct(fname, O_RDWR | O_BINARY, file_mode);
+    fd = ft_open_maybe_direct(fname, (rw ? O_RDWR : O_RDONLY) | O_BINARY, file_mode);
     if (fd==-1) {
         return get_error_errno();
     }
@@ -2956,7 +2956,7 @@ toku_ft_handle_inherit_options(FT_HANDLE t, FT ft) {
 // The checkpointed version (checkpoint_lsn) of the dictionary must be no later than max_acceptable_lsn .
 // Requires: The multi-operation client lock must be held to prevent a checkpoint from occuring.
 static int
-ft_handle_open(FT_HANDLE ft_h, const char *fname_in_env, int is_create, int only_create, CACHETABLE cachetable, TOKUTXN txn, FILENUM use_filenum, DICTIONARY_ID use_dictionary_id, LSN max_acceptable_lsn) {
+ft_handle_open(FT_HANDLE ft_h, const char *fname_in_env, int is_create, int only_create, CACHETABLE cachetable, TOKUTXN txn, FILENUM use_filenum, DICTIONARY_ID use_dictionary_id, LSN max_acceptable_lsn, bool open_rw = true) {
     int r;
     bool txn_created = false;
     char *fname_in_cwd = NULL;
@@ -2978,7 +2978,7 @@ ft_handle_open(FT_HANDLE ft_h, const char *fname_in_env, int is_create, int only
     fname_in_cwd = toku_cachetable_get_fname_in_cwd(cachetable, fname_in_env);
     {
         int fd = -1;
-        r = ft_open_file(fname_in_cwd, &fd);
+        r = ft_open_file(fname_in_cwd, &fd, open_rw);
         if (reserved_filenum.fileid == FILENUM_NONE.fileid) {
             reserved_filenum = toku_cachetable_reserve_filenum(cachetable);
         }
@@ -3124,15 +3124,15 @@ toku_ft_handle_open_recovery(FT_HANDLE t, const char *fname_in_env, int is_creat
 // Open an ft in normal use.  The FILENUM and dict_id are assigned by the ft_handle_open() function.
 // Requires: The multi-operation client lock must be held to prevent a checkpoint from occuring.
 int
-toku_ft_handle_open(FT_HANDLE t, const char *fname_in_env, int is_create, int only_create, CACHETABLE cachetable, TOKUTXN txn) {
+toku_ft_handle_open(FT_HANDLE t, const char *fname_in_env, int is_create, int only_create, CACHETABLE cachetable, TOKUTXN txn, bool open_rw) {
     int r;
-    r = ft_handle_open(t, fname_in_env, is_create, only_create, cachetable, txn, FILENUM_NONE, DICTIONARY_ID_NONE, MAX_LSN);
+    r = ft_handle_open(t, fname_in_env, is_create, only_create, cachetable, txn, FILENUM_NONE, DICTIONARY_ID_NONE, MAX_LSN, open_rw);
     return r;
 }
 
 // clone an ft handle. the cloned handle has a new dict_id but refers to the same fractal tree
 int 
-toku_ft_handle_clone(FT_HANDLE *cloned_ft_handle, FT_HANDLE ft_handle, TOKUTXN txn) {
+toku_ft_handle_clone(FT_HANDLE *cloned_ft_handle, FT_HANDLE ft_handle, TOKUTXN txn, bool open_rw) {
     FT_HANDLE result_ft_handle; 
     toku_ft_handle_create(&result_ft_handle);
 
@@ -3147,7 +3147,7 @@ toku_ft_handle_clone(FT_HANDLE *cloned_ft_handle, FT_HANDLE ft_handle, TOKUTXN t
     CACHEFILE cf = ft_handle->ft->cf;
     CACHETABLE ct = toku_cachefile_get_cachetable(cf);
     const char *fname_in_env = toku_cachefile_fname_in_env(cf);
-    int r = toku_ft_handle_open(result_ft_handle, fname_in_env, false, false, ct, txn); 
+    int r = toku_ft_handle_open(result_ft_handle, fname_in_env, false, false, ct, txn, open_rw);
     if (r != 0) {
         toku_ft_handle_close(result_ft_handle);
         result_ft_handle = NULL;
@@ -3548,7 +3548,7 @@ unlock_ftnode_fun (void *v) {
     int r = toku_cachetable_unpin_ct_prelocked_no_flush(
         ft_handle->ft->cf,
         node->ct_pair,
-        (enum cachetable_dirty) node->dirty,
+        (enum cachetable_dirty) node->dirty(),
         x->msgs_applied ? make_ftnode_pair_attr(node) : make_invalid_pair_attr()
         );
     assert_zero(r);
@@ -4970,6 +4970,14 @@ static void toku_pfs_keys_destroy(void) {
 }
 
 int toku_ft_layer_init(void) {
+    static bool ft_layer_init_started = false;
+
+    if(ft_layer_init_started) {
+        return 0;
+    }
+
+    ft_layer_init_started = true;
+
     int r = 0;
 
     // Portability must be initialized first
@@ -5000,6 +5008,14 @@ exit:
 }
 
 void toku_ft_layer_destroy(void) {
+    static bool ft_layer_destroy_started = false;
+
+    if(ft_layer_destroy_started) {
+        return;
+    }
+
+    ft_layer_destroy_started = true;
+
     toku_mutex_destroy(&ft_open_close_lock);
     toku_ft_serialize_layer_destroy();
     toku_checkpoint_destroy();

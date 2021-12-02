@@ -109,6 +109,8 @@ extern	ibool	srv_start_raw_disk_in_use;
 /** Shutdown state */
 enum srv_shutdown_t {
 	SRV_SHUTDOWN_NONE = 0,	/*!< Database running normally */
+	/** Shutdown initiated in srv_shutdown_bg_undo_sources() */
+	SRV_SHUTDOWN_INITIATED,
 	SRV_SHUTDOWN_CLEANUP,	/*!< Cleaning up in
 				logs_empty_and_mark_files_at_shutdown() */
 	SRV_SHUTDOWN_FLUSH_PHASE,/*!< At this phase the master and the

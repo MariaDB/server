@@ -1,0 +1,49 @@
+--echo #
+--echo # MDEV-24760 SELECT..CASE statement syntax error at Spider Engine table
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_init.inc
+--enable_query_log
+--enable_result_log
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+DROP TABLE IF EXISTS tbl_a;
+eval CREATE TABLE tbl_a (
+  id int NOT NULL AUTO_INCREMENT,
+  name varchar(255) DEFAULT NULL,
+  PRIMARY KEY (id)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+INSERT INTO tbl_a (name) VALUES ('Alice'), ('Bob');
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+eval CREATE TABLE tbl_a (
+  id int NOT NULL AUTO_INCREMENT,
+  name varchar(255) DEFAULT NULL,
+  PRIMARY KEY (id)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a"'
+PARTITION BY HASH(id) (
+  PARTITION pt1 COMMENT='srv "s_2_1"'
+);
+
+SELECT id, CASE WHEN name='Alice' THEN "A" WHEN name='Bob' THEN "B" END FROM tbl_a;
+SELECT id, CASE name WHEN 'Alice' THEN "A" WHEN 'Bob' THEN "B" END FROM tbl_a;
+
+DROP DATABASE auto_test_local;
+
+--connection child2_1
+DROP DATABASE auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_query_log
+--enable_result_log

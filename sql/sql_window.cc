@@ -592,9 +592,15 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
       Let's use only one of the lists.
     */
     if (!win_spec1->name() && win_spec2->name())
+    {
+      win_spec1->save_partition_list= win_spec1->partition_list;
       win_spec1->partition_list= win_spec2->partition_list;
+    }
     else
+    {
+      win_spec2->save_partition_list= win_spec2->partition_list;
       win_spec2->partition_list= win_spec1->partition_list;
+    }
 
     cmp= compare_order_lists(win_spec1->order_list,
                              win_spec2->order_list);
@@ -607,9 +613,15 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
        Let's use only one of the lists.
     */
     if (!win_spec1->name() && win_spec2->name())
+    {
+      win_spec1->save_order_list= win_spec2->order_list;
       win_spec1->order_list= win_spec2->order_list;
+    }
     else
+    {
+      win_spec1->save_order_list= win_spec2->order_list;
       win_spec2->order_list= win_spec1->order_list;
+    }
 
     cmp= compare_window_frames(win_spec1->window_frame,
                                win_spec2->window_frame);
@@ -1779,11 +1791,7 @@ protected:
     List_iterator_fast<Item_sum> it(sum_functions);
     Item_sum* item;
     while ((item= it++))
-    {
-      Item_sum_window_with_row_count* item_with_row_count =
-        static_cast<Item_sum_window_with_row_count *>(item);
-      item_with_row_count->set_row_count(num_rows_in_partition);
-    }
+      item->set_partition_row_count(num_rows_in_partition);
   }
 };
 
@@ -3062,7 +3070,8 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
      */
     ORDER *order= (ORDER *)alloc_root(thd->mem_root, sizeof(ORDER));
     memset(order, 0, sizeof(*order));
-    Item *item= new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
+    Item *item= new (thd->mem_root) Item_temptable_field(thd,
+                                                    join_tab->table->field[0]);
     order->item= (Item **)alloc_root(thd->mem_root, 2 * sizeof(Item *));
     order->item[1]= NULL;
     order->item[0]= item;
@@ -3160,6 +3169,14 @@ Window_funcs_computation::save_explain_plan(MEM_ROOT *mem_root,
     xpl->sorts.push_back(eaf, mem_root);
   }
   return xpl;
+}
+
+
+bool st_select_lex::add_window_func(Item_window_func *win_func)
+{
+  if (parsing_place != SELECT_LIST)
+    fields_in_window_functions+= win_func->window_func()->argument_count();
+  return window_funcs.push_back(win_func);
 }
 
 /////////////////////////////////////////////////////////////////////////////

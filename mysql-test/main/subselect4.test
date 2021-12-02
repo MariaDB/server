@@ -7,6 +7,8 @@ drop table if exists t0,t1,t2,t3,t4,t5,t6;
 drop view if exists v1, v2;
 --enable_warnings
 
+--source include/have_sequence.inc
+
 set @subselect4_tmp= @@optimizer_switch;
 set optimizer_switch='semijoin=on,firstmatch=on,loosescan=on';
 set optimizer_switch='semijoin_with_cache=on';
@@ -2077,3 +2079,303 @@ insert into t1 values(2,1),(1,2);
 select (select c1 from t1 group by c1,c2 order by c1 limit 1) as x;
 (select c1 from t1 group by c1,c2 order by c1 limit 1);
 drop table t1;
+
+--echo #
+--echo # MDEV-22498: SIGSEGV in Bitmap<64u>::merge on SELECT
+--echo #
+
+set @save_sql_select_limit= @@sql_select_limit;
+SET sql_select_limit=0;
+
+CREATE TABLE t1(b INT, c INT);
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3);
+
+let $query=
+SELECT sum(a), t2.a, t2.b FROM t2 HAVING t2.a IN (SELECT t2.b FROM t1);
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+
+SET @@sql_select_limit= @save_sql_select_limit;
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-17606: Query returns wrong results (while using CHARACTER SET utf8)
+--echo #
+
+CREATE TABLE t1(l1 varchar(10), i2 int);
+INSERT INTO t1 VALUES ('e',2),('o',6),('x',4);
+CREATE TABLE t2 (v1 varchar(10) CHARACTER SET utf8, KEY v1 (v1(3)));
+INSERT INTO t2 VALUES  ('k'),('rid'),('f'),('x');
+
+EXPLAIN EXTENDED SELECT * FROM t1 where  ( t1.l1 < ANY (SELECT MAX(t2.v1) FROM t2));
+SELECT * FROM t1 where  ( t1.l1 < ANY (SELECT MAX(t2.v1) FROM t2));
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-19232: Floating point precision / value comparison problem
+--echo #
+
+CREATE TABLE t1 (region varchar(60), area decimal(10,0), population decimal(11,0));
+INSERT INTO t1 VALUES ('Central America and the Caribbean',91,11797);
+INSERT INTO t1 VALUES ('Central America and the Caribbean',442,66422);
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='subquery_cache=on';
+
+SELECT
+population, area, population/area,
+cast(population/area as DECIMAL(20,9)) FROM t1 LIMIT 1;
+
+SELECT * FROM t1 A
+WHERE population/area = (SELECT MAX(population/area) from t1 B where A.region = B.region);
+
+SET optimizer_switch='subquery_cache=off';
+SELECT * FROM t1 A
+WHERE population/area = (SELECT MAX(population/area) from t1 B where A.region = B.region);
+
+SET @@optimizer_switch= @save_optimizer_switch;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9513: Assertion `join->group_list || !join->is_in_subquery()' failed in create_sort_index
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (2),(3);
+EXPLAIN
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+
+EXPLAIN
+SELECT t1.a FROM t1 WHERE EXISTS (SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+SELECT t1.a FROM t1 WHERE EXISTS (SELECT A.a FROM t1 A UNION SELECT B.a FROM t2 B ORDER BY 1);
+
+EXPLAIN
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION ALL SELECT B.a FROM t2 B ORDER BY 1);
+SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION ALL SELECT B.a FROM t2 B ORDER BY 1);
+
+DROP TABLE t1,t2;
+
+--echo # end of 10.1 tests
+
+--echo #
+--echo # MDEV-22852: SIGSEGV in sortlength (optimized builds)
+--echo #
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='subquery_cache=off';
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (0,0),(0,0);
+SELECT (SELECT DISTINCT t1i.b FROM t1 t1i GROUP BY t1i.a ORDER BY MAX(t1o.b)) FROM t1 AS t1o;
+SET @@optimizer_switch= @save_optimizer_switch;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17066: Bytes lost or Assertion `status_var.local_memory_used == 0 after DELETE
+--echo # with subquery with ROLLUP
+--echo #
+
+CREATE TABLE t1 (i INT DEFAULT 0, c VARCHAR(2048));
+INSERT INTO t1  SELECT 0, seq FROM seq_1_to_6000;
+
+CREATE TABLE t2 (f VARCHAR(2048) DEFAULT '');
+INSERT INTO t2 VALUES ('1'),('bar');
+
+EXPLAIN
+SELECT * FROM t2 WHERE f IN ( SELECT MAX(c) FROM t1 GROUP BY c WITH ROLLUP);
+SELECT * FROM t2 WHERE f IN ( SELECT MAX(c) FROM t1 GROUP BY c WITH ROLLUP);
+
+SELECT * FROM t2;
+DELETE FROM t2 WHERE f IN ( SELECT MAX(c) FROM t1 GROUP BY c WITH ROLLUP );
+SELECT * FROM t2;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-23449: alias do not exist and a query do not report an error
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
+
+--error ER_BAD_FIELD_ERROR
+SELECT a, b FROM t1 WHERE a IN (SELECT A.a FROM t1 A GROUP BY s.id);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-24519: Server crashes in Charset::set_charset upon SELECT
+--echo #
+
+CREATE TABLE t1 (a VARBINARY(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE TABLE t2 (b VARBINARY(8));
+
+EXPLAIN
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b VARBINARY(8));
+
+EXPLAIN
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-22462: Item_in_subselect::create_single_in_to_exists_cond(JOIN *, Item **, Item **): Assertion `false' failed.
+--echo #
+
+select 1 from dual where 1 in (select 5 from dual where 1);
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+
+update t1 set a = 2 where a in (select a from dual where a = a);
+drop table t1;
+
+--echo #
+--echo # MDEV-18335: Assertion `!error || error == 137' failed in subselect_rowid_merge_engine::init
+--echo #
+
+CREATE TABLE t1 (i1 int,v1 varchar(1),KEY (v1,i1));
+INSERT INTO t1 VALUES
+(9,'y'),(4,'q'),(0,null),(0,'p'),(null,'j');
+
+CREATE TABLE t2 (pk int);
+INSERT INTO t2 VALUES (1),(2);
+
+CREATE TABLE t3 (v2 varchar(1));
+INSERT INTO t3 VALUES
+('p'),('j'),('y'),('q');
+
+CREATE TABLE t4 (v2 varchar(1));
+INSERT INTO t4 VALUES
+('a'),('a'),('b'),('b'),('c'),('c'),
+('d'),('d'),('e'),('e'),('f'),('f'),
+('g'),('g'),('h'),('h'),('i'),('i'),
+('j'),('j'),('k'),('k'),('l'),('l'),
+('m'),('m'),('n'),('n'),('o'),('o'),
+('p'),('p'),('q'),('q'),('r'),('r'),
+('s'),('s'),('t'),('t'),('u'),('u'),('v'),('v'),
+('w'),('w'),('x'),('x'), (NULL),(NULL);
+
+SET @save_join_cache_level=@@join_cache_level;
+SET join_cache_level=0;
+
+select 1
+from t2 join t1 on
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 500;
+SET join_cache_level= @save_join_cache_level;
+
+DROP TABLE t1,t2,t3,t4;
+--echo #
+--echo # MDEV-21265: IN predicate conversion to IN subquery should be allowed for a broader set of datatype comparison
+--echo #
+
+CREATE TABLE t1(a VARCHAR(50) collate utf8_general_ci, b INT);
+INSERT INTO t1 VALUES ('abc',1), ('def', 2), ('ghi', 3), ('jkl', 4), ('mno', 5);
+
+CREATE TABLE t2(a VARCHAR(50) collate utf8mb4_general_ci, b INT);
+INSERT INTO t2 VALUES ('abc',1), ('def', 2), ('ghi', 3), ('jkl', 4), ('mno', 5);
+
+set @save_in_predicate_conversion_threshold= @@in_predicate_conversion_threshold;
+set in_predicate_conversion_threshold=2;
+
+set names 'utf8mb4';
+--echo #
+--echo # IN predicate to IN subquery is not allowed as materialization is not allowed
+--echo # The character set on the inner side is not equal to or a proper subset of the outer side
+--echo #
+
+EXPLAIN
+SELECT * FROM t1 WHERE (t1.a,t1.b) IN (('abx',1),('def',2), ('abc', 3));
+
+set names 'utf8';
+--echo #
+--echo # IN predicate to IN subquery is performed as materialization is llowed
+--echo # The character set on the inner side is a proper subset of the outer side
+--echo #
+
+EXPLAIN
+SELECT * FROM t2 WHERE (t2.a,t2.b) IN (('abx',1),('def',2), ('abc', 3));
+
+set names default;
+set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-24925: Server crashes in Item_subselect::init_expr_cache_tracker
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+
+SELECT
+  1 IN (
+    SELECT
+      (SELECT COUNT(id)
+       FROM t1
+       WHERE t1_outer.id <> id
+       ) AS f
+    FROM
+      t1 AS t1_outer
+    GROUP BY f
+  );
+
+SELECT
+  1 IN (
+    SELECT
+      (SELECT COUNT(id)
+       FROM t1
+       WHERE t1_outer.id <> id
+       ) AS f
+    FROM
+      t1 AS t1_outer
+    GROUP BY 1
+  );
+
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-24898: Server crashes in st_select_lex::next_select / Item_subselect::is_expensive
+--echo #  (Testcase)
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2); # Optional, fails either way
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4); # Optional, fails either way
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1 IN (SELECT (SELECT a FROM t1) AS x FROM t2 GROUP BY x);
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-25629: Crash in get_sort_by_table() in subquery with order by having outer ref
+--echo #
+CREATE TABLE t1 (i1 int);
+insert into t1 values (1),(2);
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1
+FROM (t1 JOIN t1 AS ref_t1 ON
+	(t1.i1 > (SELECT ref_t1.i1 AS c0 FROM t1 b ORDER BY -c0)));
+
+DROP TABLE t1;
+
+--echo # End of 10.2 tests
+
+--echo # End of 10.3 tests

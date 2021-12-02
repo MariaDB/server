@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -72,6 +72,7 @@ size_t Item_sum::ram_limitation(THD *thd)
 bool Item_sum::init_sum_func_check(THD *thd)
 {
   SELECT_LEX *curr_sel= thd->lex->current_select;
+  LEX *lex_s= (curr_sel ? curr_sel->parent_lex : thd->lex);
   if (curr_sel && curr_sel->name_visibility_map.is_clear_all())
   {
     for (SELECT_LEX *sl= curr_sel; sl; sl= sl->context.outer_select())
@@ -87,9 +88,9 @@ bool Item_sum::init_sum_func_check(THD *thd)
     return TRUE;
   }
   /* Set a reference to the nesting set function if there is  any */
-  in_sum_func= thd->lex->in_sum_func;
+  in_sum_func= lex_s->in_sum_func;
   /* Save a pointer to object to be used in items for nested set functions */
-  thd->lex->in_sum_func= this;
+  lex_s->in_sum_func= this;
   nest_level= thd->lex->current_select->nest_level;
   ref_by= 0;
   aggr_level= -1;
@@ -156,6 +157,7 @@ bool Item_sum::init_sum_func_check(THD *thd)
 bool Item_sum::check_sum_func(THD *thd, Item **ref)
 {
   SELECT_LEX *curr_sel= thd->lex->current_select;
+  LEX *lex_s= curr_sel->parent_lex;
   nesting_map allow_sum_func(thd->lex->allow_sum_func);
   allow_sum_func.intersect(curr_sel->name_visibility_map);
   bool invalid= FALSE;
@@ -318,7 +320,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
   if (sum_func() == SP_AGGREGATE_FUNC)
     aggr_sel->set_custom_agg_func_used(true);
   update_used_tables();
-  thd->lex->in_sum_func= in_sum_func;
+  lex_s->in_sum_func= in_sum_func;
   return FALSE;
 }
 
@@ -472,7 +474,8 @@ Item_sum::Item_sum(THD *thd, Item_sum *item):
     if (!(orig_args= (Item**) thd->alloc(sizeof(Item*)*arg_count)))
       return;
   }
-  memcpy(orig_args, item->orig_args, sizeof(Item*)*arg_count);
+  if (arg_count)
+    memcpy(orig_args, item->orig_args, sizeof(Item*)*arg_count);
   init_aggregator();
   with_distinct= item->with_distinct;
   if (item->aggr)
@@ -705,7 +708,7 @@ int Aggregator_distinct::composite_key_cmp(void* arg, uchar* key1, uchar* key2)
 
 C_MODE_START
 
-/* Declarations for auxilary C-callbacks */
+/* Declarations for auxiliary C-callbacks */
 
 int simple_raw_key_cmp(void* arg, const void* key1, const void* key2)
 {
@@ -737,7 +740,7 @@ C_MODE_END
   @param thd Thread descriptor
   @return status
     @retval FALSE success
-    @retval TRUE  faliure  
+    @retval TRUE  failure  
 
     Prepares Aggregator_distinct to process the incoming stream.
     Creates the temporary table and the Unique class if needed.
@@ -1094,19 +1097,6 @@ void Aggregator_distinct::endup()
 
 
 String *
-Item_sum_num::val_str(String *str)
-{
-  return val_string_from_real(str);
-}
-
-
-my_decimal *Item_sum_num::val_decimal(my_decimal *decimal_value)
-{
-  return val_decimal_from_real(decimal_value);
-}
-
-
-String *
 Item_sum_int::val_str(String *str)
 {
   return val_string_from_int(str);
@@ -1145,7 +1135,8 @@ Item_sum_num::fix_fields(THD *thd, Item **ref)
       check_sum_func(thd, ref))
     return TRUE;
 
-  memcpy (orig_args, args, sizeof (Item *) * arg_count);
+  if (arg_count)
+    memcpy (orig_args, args, sizeof (Item *) * arg_count);
   fixed= 1;
   return FALSE;
 }
@@ -1375,7 +1366,8 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
   if (check_sum_func(thd, ref))
     return TRUE;
 
-  memcpy(orig_args, args, sizeof(Item *) * arg_count);
+  if (arg_count)
+    memcpy(orig_args, args, sizeof(Item *) * arg_count);
   fixed= 1;
   return FALSE;
 }
@@ -1397,10 +1389,12 @@ Item_sum_sp::execute()
   bool res;
   uint old_server_status= thd->server_status;
 
-  /* We set server status so we can send a signal to exit from the
-     function with the return value. */
+  /*
+    We set server status so we can send a signal to exit from the
+    function with the return value.
+  */
 
-  thd->server_status= SERVER_STATUS_LAST_ROW_SENT;
+  thd->server_status|= SERVER_STATUS_LAST_ROW_SENT;
   res= Item_sp::execute(thd, &null_value, args, arg_count);
   thd->server_status= old_server_status;
   return res;
@@ -1955,7 +1949,7 @@ void Item_sum_count::cleanup()
 
 
 /*
-  Avgerage
+  Average
 */
 
 void Item_sum_avg::fix_length_and_dec_decimal()
@@ -2188,7 +2182,7 @@ static double variance_fp_recurrence_result(double s, ulonglong count, bool is_s
 
 
 Item_sum_variance::Item_sum_variance(THD *thd, Item_sum_variance *item):
-  Item_sum_num(thd, item),
+  Item_sum_double(thd, item),
     count(item->count), sample(item->sample),
     prec_increment(item->prec_increment)
 {
@@ -2225,7 +2219,7 @@ bool Item_sum_variance::fix_length_and_dec()
   /*
     According to the SQL2003 standard (Part 2, Foundations; sec 10.9,
     aggregate function; paragraph 7h of Syntax Rules), "the declared 
-    type of the result is an implementation-defined aproximate numeric
+    type of the result is an implementation-defined approximate numeric
     type.
   */
   if (args[0]->type_handler()->Item_sum_variance_fix_length_and_dec(this))
@@ -2299,7 +2293,7 @@ double Item_sum_variance::val_real()
     is one or zero.  If it's zero, i.e. a population variance, then we only
     set nullness when the count is zero.
 
-    Another way to read it is that 'sample' is the numerical threshhold, at and
+    Another way to read it is that 'sample' is the numerical threshold, at and
     below which a 'count' number of items is called NULL.
   */
   DBUG_ASSERT((sample == 0) || (sample == 1));
@@ -2311,13 +2305,6 @@ double Item_sum_variance::val_real()
 
   null_value=0;
   return variance_fp_recurrence_result(recurrence_s, count, sample);
-}
-
-
-my_decimal *Item_sum_variance::val_decimal(my_decimal *dec_buf)
-{
-  DBUG_ASSERT(fixed == 1);
-  return val_decimal_from_real(dec_buf);
 }
 
 
@@ -3625,7 +3612,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
 {
   Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
   TABLE *table= item->table;
-  uint max_length= (uint)table->in_use->variables.group_concat_max_len;
+  uint max_length= table->in_use->variables.group_concat_max_len;
   String tmp((char *)table->record[1], table->s->reclength,
              default_charset_info);
   String tmp2;
@@ -3637,22 +3624,24 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   ulonglong *offset_limit= &item->copy_offset_limit;
   ulonglong *row_limit = &item->copy_row_limit;
   if (item->limit_clause && !(*row_limit))
+  {
+    item->result_finalized= true;
     return 1;
-
-  if (item->no_appended)
-    item->no_appended= FALSE;
-  else
-    result->append(*item->separator);
+  }
 
   tmp.length(0);
 
   if (item->limit_clause && (*offset_limit))
   {
     item->row_count++;
-    item->no_appended= TRUE;
     (*offset_limit)--;
     return 0;
   }
+
+  if (!item->result_finalized)
+    item->result_finalized= true;
+  else
+    result->append(*item->separator);
 
   for (; arg < arg_end; arg++)
   {
@@ -3786,7 +3775,8 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
 
   /* orig_args is only used for print() */
   orig_args= (Item**) (order + arg_count_order);
-  memcpy(orig_args, args, sizeof(Item*) * arg_count);
+  if (arg_count)
+    memcpy(orig_args, args, sizeof(Item*) * arg_count);
   if (limit_clause)
   {
     row_limit= row_limit_arg;
@@ -3908,7 +3898,7 @@ void Item_func_group_concat::clear()
   result.copy();
   null_value= TRUE;
   warning_for_row= FALSE;
-  no_appended= TRUE;
+  result_finalized= FALSE;
   if (offset_limit)
     copy_offset_limit= offset_limit->val_int();
   if (row_limit)
@@ -3963,7 +3953,7 @@ bool Item_func_group_concat::repack_tree(THD *thd)
   DBUG_ASSERT(tree->size_of_element == st.tree.size_of_element);
   st.table= table;
   st.len= 0;
-  st.maxlen= (size_t)thd->variables.group_concat_max_len;
+  st.maxlen= thd->variables.group_concat_max_len;
   tree_walk(tree, &copy_to_tree, &st, left_root_right);
   if (st.len <= st.maxlen) // Copying aborted. Must be OOM
   {
@@ -3984,7 +3974,7 @@ bool Item_func_group_concat::repack_tree(THD *thd)
   decreases up to N=10 (that is, factor=1024) and then starts to increase,
   again, very slowly.
 */
-#define GCONCAT_REPACK_FACTOR (1 << 10)
+#define GCONCAT_REPACK_FACTOR 10
 
 bool Item_func_group_concat::add()
 {
@@ -4030,7 +4020,7 @@ bool Item_func_group_concat::add()
   {
     THD *thd= table->in_use;
     table->field[0]->store(row_str_len, FALSE);
-    if (tree_len > thd->variables.group_concat_max_len * GCONCAT_REPACK_FACTOR
+    if ((tree_len >> GCONCAT_REPACK_FACTOR) > thd->variables.group_concat_max_len
         && tree->elements_in_tree > 1)
       if (repack_tree(thd))
         return 1;
@@ -4041,13 +4031,12 @@ bool Item_func_group_concat::add()
       return 1;
     tree_len+= row_str_len;
   }
+
   /*
-    If the row is not a duplicate (el->count == 1)
-    we can dump the row here in case of GROUP_CONCAT(DISTINCT...)
-    instead of doing tree traverse later.
+    In case of GROUP_CONCAT with DISTINCT or ORDER BY (or both) don't dump the
+    row to the output buffer here. That will be done in val_str.
   */
-  if (row_eligible && !warning_for_row &&
-      (!tree || (el->count == 1 && distinct && !arg_count_order)))
+  if (row_eligible && !warning_for_row && (!tree && !distinct))
     dump_leaf_key(table->record[0] + table->s->null_bytes, 1, this);
 
   return 0;
@@ -4086,9 +4075,9 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
   result.set_charset(collation.collation);
   result_field= 0;
   null_value= 1;
-  max_length= (uint32)(thd->variables.group_concat_max_len
-              / collation.collation->mbminlen
-              * collation.collation->mbmaxlen);
+  max_length= (uint32)MY_MIN(thd->variables.group_concat_max_len
+                             / collation.collation->mbminlen
+                             * collation.collation->mbmaxlen, UINT_MAX32);
 
   uint32 offset;
   if (separator->needs_conversion(separator->length(), separator->charset(),
@@ -4188,7 +4177,7 @@ bool Item_func_group_concat::setup(THD *thd)
   {
     /*
       Force the create_tmp_table() to convert BIT columns to INT
-      as we cannot compare two table records containg BIT fields
+      as we cannot compare two table records containing BIT fields
       stored in the the tree used for distinct/order by.
       Moreover we don't even save in the tree record null bits 
       where BIT fields store parts of their data.
@@ -4282,9 +4271,18 @@ String* Item_func_group_concat::val_str(String* str)
   DBUG_ASSERT(fixed == 1);
   if (null_value)
     return 0;
-  if (no_appended && tree)
-    /* Tree is used for sorting as in ORDER BY */
-    tree_walk(tree, &dump_leaf_key, this, left_root_right);
+
+  if (!result_finalized) // Result yet to be written.
+  {
+    if (tree != NULL) // order by
+      tree_walk(tree, &dump_leaf_key, this, left_root_right);
+    else if (distinct) // distinct (and no order by).
+      unique_filter->walk(table, &dump_leaf_key, this);
+    else if (row_limit && copy_row_limit == (ulonglong)row_limit->val_int())
+      return &result;
+    else
+      DBUG_ASSERT(false); // Can't happen
+  }
 
   if (table && table->blob_storage && 
       table->blob_storage->is_truncated_value())

@@ -97,7 +97,7 @@ buffer_LRU_batch_flush_avg_time_thread	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	
 buffer_flush_adaptive_avg_time_est	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Estimated time (ms) spent for adaptive flushing recently.
 buffer_LRU_batch_flush_avg_time_est	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Estimated time (ms) spent for LRU batch flushing recently.
 buffer_flush_avg_time	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Avg time (ms) spent for flushing recently.
-buffer_flush_adaptive_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Numner of adaptive flushes passed during the recent Avg period.
+buffer_flush_adaptive_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of adaptive flushes passed during the recent Avg period.
 buffer_LRU_batch_flush_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of LRU batch flushes passed during the recent Avg period.
 buffer_flush_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of flushes passed during the recent Avg period.
 buffer_LRU_get_free_loops	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Total loops in LRU get free.

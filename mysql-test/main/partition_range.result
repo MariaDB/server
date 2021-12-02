@@ -1009,3 +1009,47 @@ select * from t1 partition (p1);
 d
 2000-01-01 00:00:01.000000
 DROP TABLE t1, t2;
+#
+# MDEV-21195 INSERT chooses wrong partition for RANGE partitioning by DECIMAL column
+#
+create or replace table t (
+d decimal(2,1)) partition by range (d)
+(partition p1 values less than (10));
+insert into t values (9.9);
+create or replace table t (
+d decimal(2,1)) partition by range (d)
+(partition p1 values less than (10),
+partition p2 values less than (20));
+insert into t values (9.9);
+select * from t partition (p1);
+d
+9.9
+select * from t partition (p2);
+d
+create or replace table t (
+d decimal(2,1)) partition by range (d)
+(partition p1 values less than (-3));
+insert into t values (-3.3);
+create or replace table t (
+d decimal(2,1)) partition by range (d+1)
+(partition p1 values less than (10),
+partition p2 values less than (20));
+insert into t values (8.9);
+select * from t partition (p1);
+d
+8.9
+select * from t partition (p2);
+d
+set time_zone='+00:00';
+create or replace table t (
+d timestamp(1)) partition by range (unix_timestamp(d))
+(partition p1 values less than (1577836800),
+partition p2 values less than (2000000000));
+insert into t values (from_unixtime(1577836799.9));
+select * from t partition (p1);
+d
+2019-12-31 23:59:59.9
+select * from t partition (p2);
+d
+set time_zone=default;
+drop table t;

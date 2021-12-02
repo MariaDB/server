@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -384,8 +384,7 @@ private:
 	{
 		return(latch->get_id() == LATCH_ID_RTR_ACTIVE_MUTEX
 		       || latch->get_id() == LATCH_ID_RTR_PATH_MUTEX
-		       || latch->get_id() == LATCH_ID_RTR_MATCH_MUTEX
-		       || latch->get_id() == LATCH_ID_RTR_SSN_MUTEX);
+		       || latch->get_id() == LATCH_ID_RTR_MATCH_MUTEX);
 	}
 
 private:
@@ -466,7 +465,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_WORK_QUEUE);
 	LEVEL_MAP_INSERT(SYNC_FTS_TOKENIZE);
 	LEVEL_MAP_INSERT(SYNC_FTS_OPTIMIZE);
-	LEVEL_MAP_INSERT(SYNC_FTS_BG_THREADS);
 	LEVEL_MAP_INSERT(SYNC_FTS_CACHE_INIT);
 	LEVEL_MAP_INSERT(SYNC_RECV);
 	LEVEL_MAP_INSERT(SYNC_LOG_FLUSH_ORDER);
@@ -475,7 +473,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_PAGE_CLEANER);
 	LEVEL_MAP_INSERT(SYNC_PURGE_QUEUE);
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS_HEADER);
-	LEVEL_MAP_INSERT(SYNC_REC_LOCK);
 	LEVEL_MAP_INSERT(SYNC_THREADS);
 	LEVEL_MAP_INSERT(SYNC_TRX);
 	LEVEL_MAP_INSERT(SYNC_RW_TRX_HASH_ELEMENT);
@@ -744,7 +741,6 @@ LatchDebug::check_order(
 
 	case SYNC_MONITOR_MUTEX:
 	case SYNC_RECV:
-	case SYNC_FTS_BG_THREADS:
 	case SYNC_WORK_QUEUE:
 	case SYNC_FTS_TOKENIZE:
 	case SYNC_FTS_OPTIMIZE:
@@ -842,15 +838,6 @@ LatchDebug::check_order(
 		if (less(latches, level) != NULL) {
 			basic_check(latches, level, level - 1);
 			ut_a(find(latches, SYNC_BUF_POOL) != 0);
-		}
-		break;
-
-	case SYNC_REC_LOCK:
-
-		if (find(latches, SYNC_LOCK_SYS) != 0) {
-			basic_check(latches, level, SYNC_REC_LOCK - 1);
-		} else {
-			basic_check(latches, level, SYNC_REC_LOCK);
 		}
 		break;
 
@@ -1302,13 +1289,7 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(FLUSH_LIST, SYNC_BUF_FLUSH_LIST, flush_list_mutex_key);
 
-	LATCH_ADD_MUTEX(FTS_BG_THREADS, SYNC_FTS_BG_THREADS,
-			fts_bg_threads_mutex_key);
-
 	LATCH_ADD_MUTEX(FTS_DELETE, SYNC_FTS_OPTIMIZE, fts_delete_mutex_key);
-
-	LATCH_ADD_MUTEX(FTS_OPTIMIZE, SYNC_FTS_OPTIMIZE,
-			fts_optimize_mutex_key);
 
 	LATCH_ADD_MUTEX(FTS_DOC_ID, SYNC_FTS_OPTIMIZE, fts_doc_id_mutex_key);
 
@@ -1360,8 +1341,6 @@ sync_latch_meta_init()
 			SYNC_NO_ORDER_CHECK,
 			rw_lock_debug_mutex_key);
 #endif /* UNIV_DEBUG */
-
-	LATCH_ADD_MUTEX(RTR_SSN_MUTEX, SYNC_ANY_LATCH, rtr_ssn_mutex_key);
 
 	LATCH_ADD_MUTEX(RTR_ACTIVE_MUTEX, SYNC_ANY_LATCH,
 			rtr_active_mutex_key);
@@ -1478,9 +1457,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_RWLOCK(INDEX_TREE, SYNC_INDEX_TREE, index_tree_rw_lock_key);
 
-	LATCH_ADD_RWLOCK(DICT_TABLE_STATS, SYNC_INDEX_TREE,
-			 dict_table_stats_key);
-
 	LATCH_ADD_RWLOCK(HASH_TABLE_RW_LOCK, SYNC_BUF_PAGE_HASH,
 		  hash_table_locks_key);
 
@@ -1493,8 +1469,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK,
 			PFS_NOT_INSTRUMENTED);
 	LATCH_ADD_MUTEX(BTR_DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK,
-			PFS_NOT_INSTRUMENTED);
-	LATCH_ADD_MUTEX(FIL_CRYPT_MUTEX, SYNC_NO_ORDER_CHECK,
 			PFS_NOT_INSTRUMENTED);
 	LATCH_ADD_MUTEX(FIL_CRYPT_STAT_MUTEX, SYNC_NO_ORDER_CHECK,
 			PFS_NOT_INSTRUMENTED);
@@ -1562,7 +1536,7 @@ struct CreateTracker {
 	~CreateTracker()
 		UNIV_NOTHROW
 	{
-		ut_d(m_files.empty());
+		ut_ad(m_files.empty());
 
 		m_mutex.destroy();
 	}

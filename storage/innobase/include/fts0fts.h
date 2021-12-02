@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -95,10 +95,6 @@ those defined in mysql file ft_global.h */
 
 /** Threshold where our optimize thread automatically kicks in */
 #define FTS_OPTIMIZE_THRESHOLD		10000000
-
-/** Threshold to avoid exhausting of doc ids. Consecutive doc id difference
-should not exceed FTS_DOC_ID_MAX_STEP */
-#define FTS_DOC_ID_MAX_STEP		65535
 
 /** Maximum possible Fulltext word length in bytes (assuming mbmaxlen=4) */
 #define FTS_MAX_WORD_LEN		(HA_FT_MAXCHARLEN * 4)
@@ -317,18 +313,10 @@ public:
 	/** fts_t destructor. */
 	~fts_t();
 
-	/** Mutex protecting bg_threads* and fts_add_wq. */
-	ib_mutex_t	bg_threads_mutex;
-
-	/** Whether the ADDED table record sync-ed after
-	crash recovery; protected by bg_threads_mutex */
+	/** Whether the ADDED table record sync-ed after crash recovery */
 	unsigned	added_synced:1;
-	/** Whether the table holds dict_sys->mutex;
-	protected by bg_threads_mutex */
+	/** Whether the table holds dict_sys->mutex */
 	unsigned	dict_locked:1;
-
-	/** Number of background threads accessing this table. */
-	ulint		bg_threads;
 
 	/** Work queue for scheduling jobs for the FTS 'Add' thread, or NULL
 	if the thread has not yet been created. Each work item is a
@@ -736,12 +724,9 @@ fts_savepoint_rollback_last_stmt(
 /*=============================*/
 	trx_t*		trx);			/*!< in: transaction */
 
-/***********************************************************************//**
-Drop all orphaned FTS auxiliary tables, those that don't have a parent
+/** Drop all orphaned FTS auxiliary tables, those that don't have a parent
 table or FTS index defined on them. */
-void
-fts_drop_orphaned_tables(void);
-/*==========================*/
+void fts_drop_orphaned_tables();
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
@@ -774,15 +759,6 @@ doc_id_t
 fts_init_doc_id(
 /*============*/
 	const dict_table_t*		table);	/*!< in: table */
-
-/* Get parent table name if it's a fts aux table
-@param[in]	aux_table_name	aux table name
-@param[in]	aux_table_len	aux table length
-@return parent table name, or NULL */
-char*
-fts_get_parent_table_name(
-	const char*	aux_table_name,
-	ulint		aux_table_len);
 
 /******************************************************************//**
 compare two character string according to their charset. */
@@ -878,20 +854,18 @@ fts_valid_stopword_table(
 						name */
 /****************************************************************//**
 This function loads specified stopword into FTS cache
-@return TRUE if success */
-ibool
+@return true if success */
+bool
 fts_load_stopword(
 /*==============*/
 	const dict_table_t*
 			table,			/*!< in: Table with FTS */
 	trx_t*		trx,			/*!< in: Transaction */
-	const char*	global_stopword_table,	/*!< in: Global stopword table
-						name */
 	const char*	session_stopword_table,	/*!< in: Session stopword table
 						name */
-	ibool		stopword_is_on,		/*!< in: Whether stopword
+	bool		stopword_is_on,		/*!< in: Whether stopword
 						option is turned on/off */
-	ibool		reload);		/*!< in: Whether it is during
+	bool		reload);		/*!< in: Whether it is during
 						reload of FTS table */
 
 /****************************************************************//**
@@ -985,5 +959,21 @@ fts_add_doc_from_tuple(
 fts_trx_t*
 fts_trx_create(
 	trx_t*  trx);
+
+/** Clear all fts resources when there is no internal DOC_ID
+and there are no new fts index to add.
+@param[in,out]  table   table  where fts is to be freed
+@param[in]      trx     transaction to drop all fts tables */
+void fts_clear_all(dict_table_t *table, trx_t *trx);
+
+/** Check whether the given name is fts auxiliary table
+and fetch the parent table id and index id
+@param[in]	name		table name
+@param[in,out]	table_id	parent table id
+@param[in,out]	index_id	index id
+@return true if it is auxilary table */
+bool fts_check_aux_table(const char *name,
+                         table_id_t *table_id,
+                         index_id_t *index_id);
 
 #endif /*!< fts0fts.h */

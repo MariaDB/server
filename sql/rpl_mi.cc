@@ -170,6 +170,8 @@ void Master_info::clear_in_memory_info(bool all)
   {
     port= MYSQL_PORT;
     host[0] = 0; user[0] = 0; password[0] = 0;
+    domain_id_filter.clear_ids();
+    reset_dynamic(&ignore_server_ids);
   }
 }
 
@@ -1173,7 +1175,7 @@ bool Master_info_index::init_all_master_info()
     }
     else
     {
-      /* Initialization of Master_info succeded. Add it to HASH */
+      /* Initialization of Master_info succeeded. Add it to HASH */
       if (global_system_variables.log_warnings > 1)
         sql_print_information("Initialized Master_info from '%s'",
                               buf_master_info_file);
@@ -1791,6 +1793,12 @@ void Domain_id_filter::do_filter(ulong domain_id)
 void Domain_id_filter::reset_filter()
 {
   m_filter= false;
+}
+
+void Domain_id_filter::clear_ids()
+{
+  reset_dynamic(&m_domain_ids[DO_DOMAIN_IDS]);
+  reset_dynamic(&m_domain_ids[IGNORE_DOMAIN_IDS]);
 }
 
 /**

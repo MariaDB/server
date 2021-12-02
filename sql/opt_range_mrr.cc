@@ -74,6 +74,7 @@ range_seq_t sel_arg_range_seq_init(void *init_param, uint n_ranges, uint flags)
   SEL_ARG_RANGE_SEQ *seq= (SEL_ARG_RANGE_SEQ*)init_param;
   seq->param->range_count=0;
   seq->at_start= TRUE;
+  seq->param->max_key_part= 0;
   seq->stack[0].key_tree= NULL;
   seq->stack[0].min_key= seq->param->min_key;
   seq->stack[0].min_key_flag= 0;

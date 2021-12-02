@@ -15,6 +15,7 @@
 # that with the fix local variable linfo is valid along all
 # mysql_show_binlog_events function scope.
 #
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/master-slave.inc
 

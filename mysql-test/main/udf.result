@@ -30,9 +30,9 @@ lookup("127.0.0.1")
 127.0.0.1
 select lookup(127,0,0,1);
 ERROR HY000: Can't initialize function 'lookup'; Wrong arguments to lookup;  Use the source
-select lookup("localhost");
-lookup("localhost")
-127.0.0.1
+select lookup("localhost") rlike '^127\.\\d+\.\\d+.\\d+$';
+lookup("localhost") rlike '^127\.\\d+\.\\d+.\\d+$'
+1
 select reverse_lookup();
 ERROR HY000: Can't initialize function 'reverse_lookup'; Wrong number of arguments to reverse_lookup;  Use the source
 select reverse_lookup("127.0.0.1");
@@ -479,3 +479,25 @@ myfunc_int(max(a) over (order by b) , b)
 drop view v1;
 drop function myfunc_int;
 drop table t1;
+#
+# MDEV-23327: Can't uninstall UDF if the implementation library
+# file doesn't exist
+#
+insert into  mysql.func values ("unexisting_udf", 0, "soname", "function");
+select * from mysql.func WHERE name='unexisting_udf';
+name	ret	dl	type
+unexisting_udf	0	soname	function
+DROP FUNCTION unexisting_udf;
+select * from mysql.plugin WHERE name='unexisting_udf';
+name	dl
+DROP FUNCTION unexisting_udf;
+ERROR 42000: FUNCTION test.unexisting_udf does not exist
+#
+# Bug #31674599: THE UDF_INIT() FUNCTION CAUSE SERVER CRASH
+#
+call mtr.add_suppression('Invalid row in mysql.func table');
+insert mysql.func () values ();
+delete from mysql.func where name = '';
+#
+# End of 10.2 tests
+#

@@ -102,7 +102,7 @@ DROP TABLE t1;
 --echo #
 
 --echo #
---echo # MDEV-6950 Bad results with joins compating DATE and INT/ENUM/VARCHAR columns
+--echo # MDEV-6950 Bad results with joins comparing DATE and INT/ENUM/VARCHAR columns
 --echo #
 
 CREATE TABLE t1 (c1 DATE PRIMARY KEY);

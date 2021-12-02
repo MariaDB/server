@@ -1,7 +1,5 @@
 --source include/have_innodb.inc
 
-call mtr.add_suppression("Cannot add field `b_str_20` in table `test`.`test_tab` because after adding it, the row size is");
-
 SET innodb_strict_mode=OFF;
 CREATE TABLE test_tab (
 a_str_18 mediumtext,

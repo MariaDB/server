@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -144,16 +144,6 @@ mem_block_get_start(mem_block_t* block)
 	return(block->start);
 }
 
-/** Checks that an object is a memory heap block
-@param[in]	block	Memory block to check. */
-UNIV_INLINE
-void
-mem_block_validate(
-	const mem_block_t*	block)
-{
-	ut_a(block->magic_n == MEM_BLOCK_MAGIC_N);
-}
-
 /** Allocates and zero-fills n bytes of memory from a memory heap.
 @param[in]	heap	memory heap
 @param[in]	n	number of bytes; if the heap is allowed to grow into
@@ -186,8 +176,6 @@ mem_heap_alloc(
 	byte*		buf;
 	ulint		free;
 
-	ut_d(mem_block_validate(heap));
-
 	block = UT_LIST_GET_LAST(heap->base);
 
 	n += REDZONE_SIZE;
@@ -215,7 +203,7 @@ mem_heap_alloc(
 	mem_block_set_free(block, free + MEM_SPACE_NEEDED(n));
 
 	buf = buf + REDZONE_SIZE;
-	UNIV_MEM_ALLOC(buf, n - REDZONE_SIZE);
+	MEM_MAKE_ADDRESSABLE(buf, n - REDZONE_SIZE);
 	return(buf);
 }
 
@@ -229,8 +217,6 @@ mem_heap_get_heap_top(
 {
 	mem_block_t*	block;
 	byte*		buf;
-
-	ut_d(mem_block_validate(heap));
 
 	block = UT_LIST_GET_LAST(heap->base);
 
@@ -282,7 +268,7 @@ mem_heap_free_heap_top(
 			   ulint(old_top - reinterpret_cast<byte*>(block)));
 
 	ut_ad(mem_block_get_start(block) <= mem_block_get_free(block));
-	UNIV_MEM_FREE(old_top, (byte*) block + block->len - old_top);
+	MEM_NOACCESS(old_top, (byte*) block + block->len - old_top);
 
 	/* If free == start, we may free the block if it is not the first
 	one */
@@ -322,8 +308,6 @@ mem_heap_get_top(
 	mem_block_t*	block;
 	byte*		buf;
 
-	ut_d(mem_block_validate(heap));
-
 	block = UT_LIST_GET_LAST(heap->base);
 
 	buf = (byte*) block + mem_block_get_free(block) - MEM_SPACE_NEEDED(n);
@@ -343,8 +327,6 @@ mem_heap_free_top(
 {
 	mem_block_t*	block;
 
-	ut_d(mem_block_validate(heap));
-
 	n += REDZONE_SIZE;
 
 	block = UT_LIST_GET_LAST(heap->base);
@@ -360,7 +342,7 @@ mem_heap_free_top(
 				== mem_block_get_start(block))) {
 		mem_heap_block_free(heap, block);
 	} else {
-		UNIV_MEM_FREE((byte*) block + mem_block_get_free(block), n);
+		MEM_NOACCESS((byte*) block + mem_block_get_free(block), n);
 	}
 }
 
@@ -420,8 +402,6 @@ mem_heap_free(
 	mem_block_t*	block;
 	mem_block_t*	prev_block;
 
-	ut_d(mem_block_validate(heap));
-
 	block = UT_LIST_GET_LAST(heap->base);
 
 	if (heap->free_block) {
@@ -448,11 +428,7 @@ mem_heap_get_size(
 /*==============*/
 	mem_heap_t*	heap)	/*!< in: heap */
 {
-	ulint		size	= 0;
-
-	ut_d(mem_block_validate(heap));
-
-	size = heap->total_size;
+	ulint size = heap->total_size;
 
 	if (heap->free_block) {
 		size += srv_page_size;

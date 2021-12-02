@@ -1877,7 +1877,7 @@ int Gcalc_scan_iterator::add_eq_node(Gcalc_heap::Info *node, point *sp)
   if (!en)
     GCALC_DBUG_RETURN(1);
 
-  /* eq_node iserted after teh equal point. */
+  /* eq_node inserted after the equal point. */
   en->next= node->get_next();
   node->next= en;
 

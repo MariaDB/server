@@ -1184,14 +1184,14 @@ int Gcalc_operation_reducer::connect_threads(
     {
       rp0->outer_poly= prev_range->thread_start;
       tb->thread_start= prev_range->thread_start;
-      /* Chack if needed */
+      /* Check if needed */
       ta->thread_start= prev_range->thread_start;
     }
     else
     {
       rp0->outer_poly= 0;
       ta->thread_start= rp0;
-      /* Chack if needed */
+      /* Check if needed */
       tb->thread_start= rp0;
     }
     GCALC_DBUG_RETURN(0);

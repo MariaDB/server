@@ -1,7 +1,4 @@
 call mtr.add_suppression("table or database name 't-1'");
-drop table if exists t1,t2,t3,t4,t5;
-drop database if exists mysqltest;
-drop view if exists v1;
 create table t1 (b char(0));
 insert into t1 values (""),(null);
 select * from t1;
@@ -945,7 +942,7 @@ drop table t1;
 
 Bug #26104 Bug on foreign key class constructor
 
-Check that ref_columns is initalized correctly in the constructor
+Check that ref_columns is initialized correctly in the constructor
 and semantic checks in mysql_prepare_table work.
 
 We do not need a storage engine that supports foreign keys
@@ -1114,9 +1111,9 @@ drop trigger имя_триггера_в_кодировке_утф8_длиной_
 create trigger
 очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66
 before insert on имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48 for each row set @a:=1;
-ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длинна' is too long
+ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длин...' is too long
 drop trigger очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66;
-ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длинна' is too long
+ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длин...' is too long
 create procedure имя_процедуры_в_кодировке_утф8_длиной_больше_чем_50()
 begin
 end;
@@ -1128,7 +1125,7 @@ drop procedure имя_процедуры_в_кодировке_утф8_длин�
 create procedure очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66()
 begin
 end;
-ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длинна' is too long
+ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длин...' is too long
 create function имя_функции_в_кодировке_утф8_длиной_больше_чем_49()
 returns int
 return 0;
@@ -1140,7 +1137,7 @@ drop function имя_функции_в_кодировке_утф8_длиной_�
 create function очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66()
 returns int
 return 0;
-ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длинна' is too long
+ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длин...' is too long
 drop view имя_вью_кодировке_утф8_длиной_больше_чем_42;
 drop table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
 set @@character_set_client=@save_character_set_client;
@@ -1314,7 +1311,7 @@ drop table if exists t1,t2,t3;
 # Fix modified for MariaDB: we support this syntax
 create table t1 (a int) transactional=0;
 Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
+Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=0'
 create table t2 (a int) page_checksum=1;
 create table t3 (a int) row_format=page;
 drop table t1,t2,t3;
@@ -2090,14 +2087,39 @@ alter table t1 add
 key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx0064 (f64) comment 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy';
 ERROR HY000: Cannot create table `t1`: index information is too long. Decrease number of indexes or use shorter index names or shorter comments.
 drop table t1;
-End of 5.5 tests
+#
+# End of 5.5 tests
+#
+#
+# MDEV-4880 Attempt to create a table without columns produces ER_ILLEGAL_HA instead of ER_TABLE_MUST_HAVE_COLUMNS
+#
 create table t1;
 ERROR 42000: A table must have at least 1 column
+#
+# MDEV-11231 Server crashes in check_duplicate_key on CREATE TABLE ... SELECT
+#
 create table t1 (i int, j int, key(i), key(i)) as select 1 as i, 2 as j;
 Warnings:
 Note	1831	Duplicate index `i_2`. This is deprecated and will be disallowed in a future release
 drop table t1;
+#
+# End of 10.0 tests
+#
+#
+# MDEV-18428 Memory: If transactional=0 is specified in CREATE TABLE, it is not possible to ALTER TABLE
+#
+create table t1 (c int(10) unsigned) engine=memory transactional=0;
+ERROR HY000: Table storage engine 'MEMORY' does not support the create option 'TRANSACTIONAL=0'
+#
+# End of 10.2 tests
+#
+#
+# MDEV-17544 No warning when trying to name a primary key constraint.
+#
 CREATE TABLE t1 ( id1 INT, id2 INT, CONSTRAINT `foo` PRIMARY KEY (id1), CONSTRAINT `bar` UNIQUE KEY(id2));
 Warnings:
 Warning	1280	Name 'foo' ignored for PRIMARY key.
 DROP TABLE t1;
+#
+# End of 10.3 tests
+#

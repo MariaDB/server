@@ -44,6 +44,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <mysql.h>
 #include <mysqld.h>
 #include <my_sys.h>
+#include <stdlib.h>
 #include <string.h>
 #include <limits>
 #include "common.h"
@@ -107,6 +108,13 @@ xb_mysql_connect()
 			mysql_error(connection));
 		return(NULL);
 	}
+
+#if !defined(DONT_USE_MYSQL_PWD)
+	if (!opt_password)
+	{
+		opt_password=getenv("MYSQL_PWD");
+	}
+#endif
 
 	if (!opt_secure_auth) {
 		mysql_options(connection, MYSQL_SECURE_AUTH,
@@ -327,194 +335,212 @@ check_server_version(unsigned long version_number,
 /*********************************************************************//**
 Receive options important for XtraBackup from MySQL server.
 @return	true on success. */
-bool
-get_mysql_vars(MYSQL *connection)
+bool get_mysql_vars(MYSQL *connection)
 {
-	char *gtid_mode_var = NULL;
-	char *version_var = NULL;
-	char *version_comment_var = NULL;
-	char *innodb_version_var = NULL;
-	char *have_backup_locks_var = NULL;
-	char *log_bin_var = NULL;
-	char *lock_wait_timeout_var= NULL;
-	char *wsrep_on_var = NULL;
-	char *slave_parallel_workers_var = NULL;
-	char *gtid_slave_pos_var = NULL;
-	char *innodb_buffer_pool_filename_var = NULL;
-	char *datadir_var = NULL;
-	char *innodb_log_group_home_dir_var = NULL;
-	char *innodb_log_file_size_var = NULL;
-	char *innodb_log_files_in_group_var = NULL;
-	char *innodb_data_file_path_var = NULL;
-	char *innodb_data_home_dir_var = NULL;
-	char *innodb_undo_directory_var = NULL;
-	char *innodb_page_size_var = NULL;
-	char *innodb_undo_tablespaces_var = NULL;
-	char *page_zip_level_var = NULL;
-	char *endptr;
-	unsigned long server_version = mysql_get_server_version(connection);
+  char *gtid_mode_var= NULL;
+  char *version_var= NULL;
+  char *version_comment_var= NULL;
+  char *innodb_version_var= NULL;
+  char *have_backup_locks_var= NULL;
+  char *log_bin_var= NULL;
+  char *lock_wait_timeout_var= NULL;
+  char *wsrep_on_var= NULL;
+  char *slave_parallel_workers_var= NULL;
+  char *gtid_slave_pos_var= NULL;
+  char *innodb_buffer_pool_filename_var= NULL;
+  char *datadir_var= NULL;
+  char *innodb_log_group_home_dir_var= NULL;
+  char *innodb_log_file_size_var= NULL;
+  char *innodb_log_files_in_group_var= NULL;
+  char *innodb_data_file_path_var= NULL;
+  char *innodb_data_home_dir_var= NULL;
+  char *innodb_undo_directory_var= NULL;
+  char *innodb_page_size_var= NULL;
+  char *innodb_undo_tablespaces_var= NULL;
+  char *page_zip_level_var= NULL;
+  char *ignore_db_dirs= NULL;
+  char *endptr;
+  unsigned long server_version= mysql_get_server_version(connection);
 
-	bool ret = true;
+  bool ret= true;
 
-	mysql_variable mysql_vars[] = {
-		{"have_backup_locks", &have_backup_locks_var},
-		{"log_bin", &log_bin_var},
-		{"lock_wait_timeout", &lock_wait_timeout_var},
-		{"gtid_mode", &gtid_mode_var},
-		{"version", &version_var},
-		{"version_comment", &version_comment_var},
-		{"innodb_version", &innodb_version_var},
-		{"wsrep_on", &wsrep_on_var},
-		{"slave_parallel_workers", &slave_parallel_workers_var},
-		{"gtid_slave_pos", &gtid_slave_pos_var},
-		{"innodb_buffer_pool_filename",
-			&innodb_buffer_pool_filename_var},
-		{"datadir", &datadir_var},
-		{"innodb_log_group_home_dir", &innodb_log_group_home_dir_var},
-		{"innodb_log_file_size", &innodb_log_file_size_var},
-		{"innodb_log_files_in_group", &innodb_log_files_in_group_var},
-		{"innodb_data_file_path", &innodb_data_file_path_var},
-		{"innodb_data_home_dir", &innodb_data_home_dir_var},
-		{"innodb_undo_directory", &innodb_undo_directory_var},
-		{"innodb_page_size", &innodb_page_size_var},
-		{"innodb_undo_tablespaces", &innodb_undo_tablespaces_var},
-		{"innodb_compression_level", &page_zip_level_var},
-		{NULL, NULL}
-	};
+  mysql_variable mysql_vars[]= {
+      {"have_backup_locks", &have_backup_locks_var},
+      {"log_bin", &log_bin_var},
+      {"lock_wait_timeout", &lock_wait_timeout_var},
+      {"gtid_mode", &gtid_mode_var},
+      {"version", &version_var},
+      {"version_comment", &version_comment_var},
+      {"innodb_version", &innodb_version_var},
+      {"wsrep_on", &wsrep_on_var},
+      {"slave_parallel_workers", &slave_parallel_workers_var},
+      {"gtid_slave_pos", &gtid_slave_pos_var},
+      {"innodb_buffer_pool_filename", &innodb_buffer_pool_filename_var},
+      {"datadir", &datadir_var},
+      {"innodb_log_group_home_dir", &innodb_log_group_home_dir_var},
+      {"innodb_log_file_size", &innodb_log_file_size_var},
+      {"innodb_log_files_in_group", &innodb_log_files_in_group_var},
+      {"innodb_data_file_path", &innodb_data_file_path_var},
+      {"innodb_data_home_dir", &innodb_data_home_dir_var},
+      {"innodb_undo_directory", &innodb_undo_directory_var},
+      {"innodb_page_size", &innodb_page_size_var},
+      {"innodb_undo_tablespaces", &innodb_undo_tablespaces_var},
+      {"innodb_compression_level", &page_zip_level_var},
+      {"ignore_db_dirs", &ignore_db_dirs},
+      {NULL, NULL}};
 
-	read_mysql_variables(connection, "SHOW VARIABLES",
-				mysql_vars, true);
+  read_mysql_variables(connection, "SHOW VARIABLES", mysql_vars, true);
 
-	if (have_backup_locks_var != NULL && !opt_no_backup_locks) {
-		have_backup_locks = true;
-	}
+  if (have_backup_locks_var != NULL && !opt_no_backup_locks)
+  {
+    have_backup_locks= true;
+  }
 
-	if (opt_binlog_info == BINLOG_INFO_AUTO) {
-		if (log_bin_var != NULL && !strcmp(log_bin_var, "ON"))
-			opt_binlog_info = BINLOG_INFO_ON;
-		else
-			opt_binlog_info = BINLOG_INFO_OFF;
-	}
+  if (opt_binlog_info == BINLOG_INFO_AUTO)
+  {
+    if (log_bin_var != NULL && !strcmp(log_bin_var, "ON"))
+      opt_binlog_info= BINLOG_INFO_ON;
+    else
+      opt_binlog_info= BINLOG_INFO_OFF;
+  }
 
-	if (lock_wait_timeout_var != NULL) {
-		have_lock_wait_timeout = true;
-	}
+  if (lock_wait_timeout_var != NULL)
+  {
+    have_lock_wait_timeout= true;
+  }
 
-	if (wsrep_on_var != NULL) {
-		have_galera_enabled = true;
-	}
+  if (wsrep_on_var != NULL)
+  {
+    have_galera_enabled= true;
+  }
 
-	/* Check server version compatibility and detect server flavor */
+  /* Check server version compatibility and detect server flavor */
 
-	if (!(ret = check_server_version(server_version, version_var,
-					 version_comment_var,
-					 innodb_version_var))) {
-		goto out;
-	}
+  if (!(ret= check_server_version(server_version, version_var,
+                                  version_comment_var, innodb_version_var)))
+  {
+    goto out;
+  }
 
-	if (server_version > 50500) {
-		have_flush_engine_logs = true;
-	}
+  if (server_version > 50500)
+  {
+    have_flush_engine_logs= true;
+  }
 
-	if (slave_parallel_workers_var != NULL
-		&& atoi(slave_parallel_workers_var) > 0) {
-		have_multi_threaded_slave = true;
-	}
+  if (slave_parallel_workers_var != NULL &&
+      atoi(slave_parallel_workers_var) > 0)
+  {
+    have_multi_threaded_slave= true;
+  }
 
-	if (innodb_buffer_pool_filename_var != NULL) {
-		buffer_pool_filename = strdup(innodb_buffer_pool_filename_var);
-	}
+  if (innodb_buffer_pool_filename_var != NULL)
+  {
+    buffer_pool_filename= strdup(innodb_buffer_pool_filename_var);
+  }
 
-	if ((gtid_mode_var && strcmp(gtid_mode_var, "ON") == 0) ||
-	    (gtid_slave_pos_var && *gtid_slave_pos_var)) {
-		have_gtid_slave = true;
-	}
+  if ((gtid_mode_var && strcmp(gtid_mode_var, "ON") == 0) ||
+      (gtid_slave_pos_var && *gtid_slave_pos_var))
+  {
+    have_gtid_slave= true;
+  }
 
-	msg("Using server version %s", version_var);
+  msg("Using server version %s", version_var);
 
-	if (!(ret = detect_mysql_capabilities_for_backup())) {
-		goto out;
-	}
+  if (!(ret= detect_mysql_capabilities_for_backup()))
+  {
+    goto out;
+  }
 
-	/* make sure datadir value is the same in configuration file */
-	if (check_if_param_set("datadir")) {
-		if (!directory_exists(mysql_data_home, false)) {
-			msg("Warning: option 'datadir' points to "
-			    "nonexistent directory '%s'", mysql_data_home);
-		}
-		if (!directory_exists(datadir_var, false)) {
-			msg("Warning: MySQL variable 'datadir' points to "
-			    "nonexistent directory '%s'", datadir_var);
-		}
-		if (!equal_paths(mysql_data_home, datadir_var)) {
-			msg("Warning: option 'datadir' has different "
-				"values:\n"
-				"  '%s' in defaults file\n"
-				"  '%s' in SHOW VARIABLES",
-				mysql_data_home, datadir_var);
-		}
-	}
+  /* make sure datadir value is the same in configuration file */
+  if (check_if_param_set("datadir"))
+  {
+    if (!directory_exists(mysql_data_home, false))
+    {
+      msg("Warning: option 'datadir' points to "
+          "nonexistent directory '%s'",
+          mysql_data_home);
+    }
+    if (!directory_exists(datadir_var, false))
+    {
+      msg("Warning: MySQL variable 'datadir' points to "
+          "nonexistent directory '%s'",
+          datadir_var);
+    }
+    if (!equal_paths(mysql_data_home, datadir_var))
+    {
+      msg("Warning: option 'datadir' has different "
+          "values:\n"
+          "  '%s' in defaults file\n"
+          "  '%s' in SHOW VARIABLES",
+          mysql_data_home, datadir_var);
+    }
+  }
 
-	/* get some default values is they are missing from my.cnf */
-	if (datadir_var && *datadir_var) {
-		strmake(mysql_real_data_home, datadir_var, FN_REFLEN - 1);
-		mysql_data_home= mysql_real_data_home;
-	}
+  /* get some default values is they are missing from my.cnf */
+  if (datadir_var && *datadir_var)
+  {
+    strmake(mysql_real_data_home, datadir_var, FN_REFLEN - 1);
+    mysql_data_home= mysql_real_data_home;
+  }
 
-	if (innodb_data_file_path_var && *innodb_data_file_path_var) {
-		innobase_data_file_path = my_strdup(
-			innodb_data_file_path_var, MYF(MY_FAE));
-	}
+  if (innodb_data_file_path_var && *innodb_data_file_path_var)
+  {
+    innobase_data_file_path= my_strdup(innodb_data_file_path_var, MYF(MY_FAE));
+  }
 
-	if (innodb_data_home_dir_var) {
-		innobase_data_home_dir = my_strdup(
-			innodb_data_home_dir_var, MYF(MY_FAE));
-	}
+  if (innodb_data_home_dir_var)
+  {
+    innobase_data_home_dir= my_strdup(innodb_data_home_dir_var, MYF(MY_FAE));
+  }
 
-	if (innodb_log_group_home_dir_var
-	    && *innodb_log_group_home_dir_var) {
-		srv_log_group_home_dir = my_strdup(
-			innodb_log_group_home_dir_var, MYF(MY_FAE));
-	}
+  if (innodb_log_group_home_dir_var && *innodb_log_group_home_dir_var)
+  {
+    srv_log_group_home_dir=
+        my_strdup(innodb_log_group_home_dir_var, MYF(MY_FAE));
+  }
 
-	if (innodb_undo_directory_var && *innodb_undo_directory_var) {
-		srv_undo_dir = my_strdup(
-			innodb_undo_directory_var, MYF(MY_FAE));
-	}
+  if (innodb_undo_directory_var && *innodb_undo_directory_var)
+  {
+    srv_undo_dir= my_strdup(innodb_undo_directory_var, MYF(MY_FAE));
+  }
 
-	if (innodb_log_files_in_group_var) {
-		srv_n_log_files = strtol(
-			innodb_log_files_in_group_var, &endptr, 10);
-		ut_ad(*endptr == 0);
-	}
+  if (innodb_log_files_in_group_var)
+  {
+    srv_n_log_files= strtol(innodb_log_files_in_group_var, &endptr, 10);
+    ut_ad(*endptr == 0);
+  }
 
-	if (innodb_log_file_size_var) {
-		srv_log_file_size = strtoll(
-			innodb_log_file_size_var, &endptr, 10);
-		ut_ad(*endptr == 0);
-	}
+  if (innodb_log_file_size_var)
+  {
+    srv_log_file_size= strtoll(innodb_log_file_size_var, &endptr, 10);
+    ut_ad(*endptr == 0);
+  }
 
-	if (innodb_page_size_var) {
-		innobase_page_size = strtoll(
-			innodb_page_size_var, &endptr, 10);
-		ut_ad(*endptr == 0);
-	}
+  if (innodb_page_size_var)
+  {
+    innobase_page_size= strtoll(innodb_page_size_var, &endptr, 10);
+    ut_ad(*endptr == 0);
+  }
 
-	if (innodb_undo_tablespaces_var) {
-		srv_undo_tablespaces = strtoul(innodb_undo_tablespaces_var,
-					       &endptr, 10);
-		ut_ad(*endptr == 0);
-	}
+  if (innodb_undo_tablespaces_var)
+  {
+    srv_undo_tablespaces= strtoul(innodb_undo_tablespaces_var, &endptr, 10);
+    ut_ad(*endptr == 0);
+  }
 
-	if (page_zip_level_var != NULL) {
-		page_zip_level = strtoul(page_zip_level_var, &endptr, 10);
-		ut_ad(*endptr == 0);
-	}
+  if (page_zip_level_var != NULL)
+  {
+    page_zip_level= strtoul(page_zip_level_var, &endptr, 10);
+    ut_ad(*endptr == 0);
+  }
+
+  if (ignore_db_dirs)
+    xb_load_list_string(ignore_db_dirs, ",", register_ignore_db_dirs_filter);
 
 out:
-	free_mysql_variables(mysql_vars);
+  free_mysql_variables(mysql_vars);
 
-	return(ret);
+  return (ret);
 }
 
 /*********************************************************************//**
@@ -942,78 +968,92 @@ Function acquires either a backup tables lock, if supported
 by the server, or a global read lock (FLUSH TABLES WITH READ LOCK)
 otherwise.
 @returns true if lock acquired */
-bool
-lock_tables(MYSQL *connection)
+bool lock_tables(MYSQL *connection)
 {
-	if (have_lock_wait_timeout) {
-		/* Set the maximum supported session value for
-		lock_wait_timeout to prevent unnecessary timeouts when the
-		global value is changed from the default */
-		xb_mysql_query(connection,
-			"SET SESSION lock_wait_timeout=31536000", false);
-	}
+  if (have_lock_wait_timeout || opt_lock_wait_timeout)
+  {
+    char buf[FN_REFLEN];
+    /* Set the maximum supported session value for
+    lock_wait_timeout if opt_lock_wait_timeout is not set to prevent
+    unnecessary timeouts when the global value is changed from the default */
+    snprintf(buf, sizeof(buf), "SET SESSION lock_wait_timeout=%u",
+             opt_lock_wait_timeout ? opt_lock_wait_timeout : 31536000);
+    xb_mysql_query(connection, buf, false);
+  }
 
-	if (have_backup_locks) {
-		msg("Executing LOCK TABLES FOR BACKUP...");
-		xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
-		return(true);
-	}
+  if (have_backup_locks)
+  {
+    msg("Executing LOCK TABLES FOR BACKUP...");
+    xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
+    return (true);
+  }
 
-	if (opt_lock_ddl_per_table) {
-		start_mdl_waiters_killer();
-	}
+  if (opt_lock_ddl_per_table)
+  {
+    start_mdl_waiters_killer();
+  }
 
-	if (!opt_lock_wait_timeout && !opt_kill_long_queries_timeout) {
+  if (!opt_lock_wait_timeout && !opt_kill_long_queries_timeout)
+  {
 
-		/* We do first a FLUSH TABLES. If a long update is running, the
-		FLUSH TABLES will wait but will not stall the whole mysqld, and
-		when the long update is done the FLUSH TABLES WITH READ LOCK
-		will start and succeed quickly. So, FLUSH TABLES is to lower
-		the probability of a stage where both mysqldump and most client
-		connections are stalled. Of course, if a second long update
-		starts between the two FLUSHes, we have that bad stall.
+    /* We do first a FLUSH TABLES. If a long update is running, the
+    FLUSH TABLES will wait but will not stall the whole mysqld, and
+    when the long update is done the FLUSH TABLES WITH READ LOCK
+    will start and succeed quickly. So, FLUSH TABLES is to lower
+    the probability of a stage where both mysqldump and most client
+    connections are stalled. Of course, if a second long update
+    starts between the two FLUSHes, we have that bad stall.
 
-		Option lock_wait_timeout serve the same purpose and is not
-		compatible with this trick.
-		*/
+    Option lock_wait_timeout serve the same purpose and is not
+    compatible with this trick.
+    */
 
-		msg("Executing FLUSH NO_WRITE_TO_BINLOG TABLES...");
+    msg("Executing FLUSH NO_WRITE_TO_BINLOG TABLES...");
 
-		xb_mysql_query(connection,
-			       "FLUSH NO_WRITE_TO_BINLOG TABLES", false);
-	}
+    xb_mysql_query(connection, "FLUSH NO_WRITE_TO_BINLOG TABLES", false);
+  }
 
-	if (opt_lock_wait_timeout) {
-		if (!wait_for_no_updates(connection, opt_lock_wait_timeout,
-					 opt_lock_wait_threshold)) {
-			return(false);
-		}
-	}
+  if (opt_lock_wait_timeout)
+  {
+    if (!wait_for_no_updates(connection, opt_lock_wait_timeout,
+                             opt_lock_wait_threshold))
+    {
+      return (false);
+    }
+  }
 
-	msg("Executing FLUSH TABLES WITH READ LOCK...");
+  msg("Executing FLUSH TABLES WITH READ LOCK...");
 
-	if (opt_kill_long_queries_timeout) {
-		start_query_killer();
-	}
+  if (opt_kill_long_queries_timeout)
+  {
+    start_query_killer();
+  }
 
-	if (have_galera_enabled) {
-		xb_mysql_query(connection,
-				"SET SESSION wsrep_causal_reads=0", false);
-	}
+  if (have_galera_enabled)
+  {
+    xb_mysql_query(connection, "SET SESSION wsrep_causal_reads=0", false);
+  }
 
-	xb_mysql_query(connection, "FLUSH TABLES WITH READ LOCK", false);
+  xb_mysql_query(connection, "FLUSH TABLES WITH READ LOCK", false, true);
+  /* Set the maximum supported session value for
+  lock_wait_timeout to prevent unnecessary timeouts when the
+  global value is changed from the default */
+  if (opt_lock_wait_timeout)
+    xb_mysql_query(connection, "SET SESSION lock_wait_timeout=31536000",
+                   false);
 
-	if (opt_lock_ddl_per_table) {
-		stop_mdl_waiters_killer();
-	}
+  if (opt_lock_ddl_per_table)
+  {
+    stop_mdl_waiters_killer();
+  }
 
-	if (opt_kill_long_queries_timeout) {
-		stop_query_killer();
-	}
+  if (opt_kill_long_queries_timeout)
+  {
+    stop_query_killer();
+  }
 
-	return(true);
+  return (true);
 }
-
 
 /*********************************************************************//**
 If backup locks are used, execute LOCK BINLOG FOR BACKUP provided that we are
@@ -1168,6 +1208,7 @@ write_slave_info(MYSQL *connection)
 	char *master = NULL;
 	char *filename = NULL;
 	char *gtid_executed = NULL;
+	char *using_gtid = NULL;
 	char *position = NULL;
 	char *gtid_slave_pos = NULL;
 	char *ptr;
@@ -1178,6 +1219,7 @@ write_slave_info(MYSQL *connection)
 		{"Relay_Master_Log_File", &filename},
 		{"Exec_Master_Log_Pos", &position},
 		{"Executed_Gtid_Set", &gtid_executed},
+		{"Using_Gtid", &using_gtid},
 		{NULL, NULL}
 	};
 
@@ -1218,7 +1260,8 @@ write_slave_info(MYSQL *connection)
 		ut_a(asprintf(&mysql_slave_position,
 			"master host '%s', purge list '%s'",
 			master, gtid_executed) != -1);
-	} else if (gtid_slave_pos && *gtid_slave_pos) {
+	} else if (gtid_slave_pos && *gtid_slave_pos &&
+			!(using_gtid && !strncmp(using_gtid, "No", 2))) {
 		/* MariaDB >= 10.0 with GTID enabled */
 		result = backup_file_printf(XTRABACKUP_SLAVE_INFO,
 			"SET GLOBAL gtid_slave_pos = '%s';\n"

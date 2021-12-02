@@ -1,11 +1,11 @@
 /************* RelDef CPP Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: RELDEF                                                */
 /* -------------                                                       */
-/*  Version 1.6                                                        */
+/*  Version 1.7                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2019    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -17,10 +17,10 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <sqlext.h>
 #else
-#include <dlfcn.h>          // dlopen(), dlclose(), dlsym() ...
+//#include <dlfcn.h>          // dlopen(), dlclose(), dlsym() ...
 #include "osutil.h"
 //#include "sqlext.h"
 #endif
@@ -52,15 +52,110 @@
 #include "ha_connect.h"
 #include "mycat.h"
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 extern handlerton *connect_hton;
-#endif   // !__WIN__
+#endif   // !_WIN32
 
 /***********************************************************************/
 /*  External function.                                                 */
 /***********************************************************************/
 USETEMP UseTemp(void);
 char   *GetPluginDir(void);
+PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info);
+
+/***********************************************************************/
+/*  OEMColumns: Get table column info for an OEM table.                */
+/***********************************************************************/
+PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
+{
+	typedef PQRYRES(__stdcall* XCOLDEF) (PGLOBAL, void*, char*, char*, bool);
+	const char* module, * subtype;
+	char    c, soname[_MAX_PATH], getname[40] = "Col";
+#if defined(_WIN32)
+	HANDLE  hdll;               /* Handle to the external DLL            */
+#else   // !_WIN32
+	void* hdll;               /* Handle for the loaded shared library  */
+#endif  // !_WIN32
+	XCOLDEF coldef = NULL;
+	PQRYRES qrp = NULL;
+
+	module = topt->module;
+	subtype = topt->subtype;
+
+	if (!module || !subtype)
+		return NULL;
+
+	/*********************************************************************/
+	/*  Ensure that the .dll doesn't have a path.                        */
+	/*  This is done to ensure that only approved dll from the system    */
+	/*  directories are used (to make this even remotely secure).        */
+	/*********************************************************************/
+	if (check_valid_path(module, strlen(module))) {
+		strcpy(g->Message, "Module cannot contain a path");
+		return NULL;
+	} else
+		PlugSetPath(soname, module, GetPluginDir());
+
+	// The exported name is always in uppercase
+	for (int i = 0; ; i++) {
+		c = subtype[i];
+		getname[i + 3] = toupper(c);
+		if (!c) break;
+	} // endfor i
+
+#if defined(_WIN32)
+	// Load the Dll implementing the table
+	if (!(hdll = LoadLibrary(soname))) {
+		char  buf[256];
+		DWORD rc = GetLastError();
+
+		sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, soname);
+		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+			(LPTSTR)buf, sizeof(buf), NULL);
+		strcat(strcat(g->Message, ": "), buf);
+		return NULL;
+	} // endif hDll
+
+// Get the function returning an instance of the external DEF class
+	if (!(coldef = (XCOLDEF)GetProcAddress((HINSTANCE)hdll, getname))) {
+		sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), getname);
+		FreeLibrary((HMODULE)hdll);
+		return NULL;
+	} // endif coldef
+#else   // !_WIN32
+	const char* error = NULL;
+
+	// Load the desired shared library
+	if (!(hdll = dlopen(soname, RTLD_LAZY))) {
+		error = dlerror();
+		sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
+		return NULL;
+	} // endif Hdll
+
+// Get the function returning an instance of the external DEF class
+	if (!(coldef = (XCOLDEF)dlsym(hdll, getname))) {
+		error = dlerror();
+		sprintf(g->Message, MSG(GET_FUNC_ERR), getname, SVP(error));
+		dlclose(hdll);
+		return NULL;
+	} // endif coldef
+#endif  // !_WIN32
+
+	// Just in case the external Get function does not set error messages
+	sprintf(g->Message, "Error getting column info from %s", subtype);
+
+	// Get the table column definition
+	qrp = coldef(g, topt, tab, db, info);
+
+#if defined(_WIN32)
+	FreeLibrary((HMODULE)hdll);
+#else   // !_WIN32
+	dlclose(hdll);
+#endif  // !_WIN32
+
+	return qrp;
+} // end of OEMColumns
 
 /* --------------------------- Class RELDEF -------------------------- */
 
@@ -208,6 +303,7 @@ TABDEF::TABDEF(void)
   {
   Schema = NULL;
   Desc = NULL;
+	Recfm = RECFM_DFLT;
   Catfunc = FNC_NO;
   Card = 0;
   Elemt = 0;
@@ -221,11 +317,38 @@ TABDEF::TABDEF(void)
   } // end of TABDEF constructor
 
 /***********************************************************************/
+/*  Return the table format.                                           */
+/***********************************************************************/
+RECFM TABDEF::GetTableFormat(const char* type)
+{
+	RECFM recfm = Recfm;
+
+	if (Catfunc != FNC_NO)
+		recfm = RECFM_NAF;
+	else if (recfm == RECFM_DFLT)
+		// Default format depends on the table type
+		switch (GetTypeID(type)) {
+		case TAB_DOS: recfm = RECFM_VAR; break;
+		case TAB_CSV: recfm = RECFM_CSV; break;
+		case TAB_FMT: recfm = RECFM_FMT; break;
+		case TAB_FIX: recfm = RECFM_FIX; break;
+		case TAB_BIN: recfm = RECFM_BIN; break;
+		case TAB_VEC: recfm = RECFM_VCT; break;
+		case TAB_DBF: recfm = RECFM_DBF; break;
+		case TAB_XML: recfm = RECFM_XML; break;
+		case TAB_DIR: recfm = RECFM_DIR; break;
+		default:			recfm = RECFM_NAF; break;
+		} // endswitch type
+
+	return recfm;
+} // end of GetTableFormat
+
+/***********************************************************************/
 /*  Define: initialize the table definition block from XDB file.       */
 /***********************************************************************/
 bool TABDEF::Define(PGLOBAL g, PCATLG cat,
                     LPCSTR name, LPCSTR schema, LPCSTR am)
-  {
+{
   int   poff = 0;
 
   Hc = ((MYCAT*)cat)->GetHandler();
@@ -243,13 +366,17 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat,
                   NULL;
   csname = GetStringCatInfo(g, "Table_charset", NULL);
 
-  // Get The column definitions
-  if ((poff = GetColCatInfo(g)) < 0)
-    return true;
+	// Do the definition of AM specific fields
+	if (DefineAM(g, am, 0))
+		return true;
 
-  // Do the definition of AM specific fields
-  return DefineAM(g, am, poff);
-  } // end of Define
+	// Get The column definitions
+	if (stricmp(am, "OEM") && GetColCatInfo(g) < 0)
+		return true;
+
+	Hc->tshp = NULL;    // TO BE CHECKED
+	return false;
+} // end of Define
 
 /***********************************************************************/
 /*  This function returns the database data path.                      */
@@ -264,71 +391,71 @@ PCSZ TABDEF::GetPath(void)
 /***********************************************************************/
 int TABDEF::GetColCatInfo(PGLOBAL g)
   {
-  char    *type= GetStringCatInfo(g, "Type", "*");
+  char    *type = GetStringCatInfo(g, "Type", "*");
   char     c, fty, eds;
   int      i, n, loff, poff, nof, nlg;
-  void    *field= NULL;
-  TABTYPE  tc;
-  PCOLDEF  cdp, lcdp= NULL, tocols= NULL;
+  void    *field = NULL;
+  RECFM    trf;
+  PCOLDEF  cdp, lcdp = NULL, tocols= NULL;
   PCOLINFO pcf= (PCOLINFO)PlugSubAlloc(g, NULL, sizeof(COLINFO));
 
   memset(pcf, 0, sizeof(COLINFO));
 
-  // Get a unique char identifier for type
-  tc= (Catfunc == FNC_NO) ? GetTypeID(type) : TAB_PRX;
+  // Get the table format
+	trf = GetTableFormat(type);
 
   // Take care of the column definitions
   i= poff= nof= nlg= 0;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   // Offsets of HTML and DIR tables start from 0, DBF at 1
-  loff= (tc == TAB_DBF) ? 1 : (tc == TAB_XML || tc == TAB_DIR) ? -1 : 0;
-#else   // !__WIN__
+  loff= (trf == RECFM_DBF) ? 1 : (trf  == RECFM_XML || trf  == RECFM_DIR) ? -1 : 0;
+#else   // !_WIN32
   // Offsets of HTML tables start from 0, DIR and DBF at 1
-  loff = (tc == TAB_DBF || tc == TAB_DIR) ? 1 : (tc == TAB_XML) ? -1 : 0;
-#endif  // !__WIN__
+  loff = (trf  == RECFM_DBF || trf  == RECFM_DIR) ? 1 : (trf  == RECFM_XML) ? -1 : 0;
+#endif  // !_WIN32
 
   while (true) {
-    // Default Offset depends on table type
-    switch (tc) {
-      case TAB_DOS:
-      case TAB_FIX:
-      case TAB_BIN:
-      case TAB_VEC:
-      case TAB_DBF:
+    // Default Offset depends on table format
+    switch (trf ) {
+      case RECFM_VAR:
+      case RECFM_FIX:
+      case RECFM_BIN:
+      case RECFM_VCT:
+      case RECFM_DBF:
         poff= loff + nof;        // Default next offset
         nlg= MY_MAX(nlg, poff);    // Default lrecl
         break;
-      case TAB_CSV:
-      case TAB_FMT:
+      case RECFM_CSV:
+      case RECFM_FMT:
         nlg+= nof;
-      case TAB_DIR:
-      case TAB_XML:
+      case RECFM_DIR:
+      case RECFM_XML:
         poff= loff + (pcf->Flags & U_VIRTUAL ? 0 : 1);
         break;
-      case TAB_INI:
-      case TAB_MAC:
-      case TAB_TBL:
-      case TAB_XCL:
-      case TAB_OCCUR:
-      case TAB_PRX:
-      case TAB_OEM:
+      //case RECFM_INI:
+      //case RECFM_MAC:
+      //case RECFM_TBL:
+      //case RECFM_XCL:
+      //case RECFM_OCCUR:
+      //case RECFM_PRX:
+      case RECFM_OEM:
         poff = 0;      // Offset represents an independant flag
         break;
-      default:         // VCT PLG ODBC JDBC MYSQL WMI...
+      default:         // PLG ODBC JDBC MYSQL WMI...
         poff = 0;      // NA
         break;
-      } // endswitch tc
+      } // endswitch trf 
 
 //    do {
       field= Hc->GetColumnOption(g, field, pcf);
 //    } while (field && (*pcf->Name =='*' /*|| pcf->Flags & U_VIRTUAL*/));
 
-    if (tc == TAB_DBF && pcf->Type == TYPE_DATE && !pcf->Datefmt) {
+    if (trf  == RECFM_DBF && pcf->Type == TYPE_DATE && !pcf->Datefmt) {
       // DBF date format defaults to 'YYYMMDD'
       pcf->Datefmt= "YYYYMMDD";
       pcf->Length= 8;
-      } // endif tc
+      } // endif trf 
 
     if (!field)
       break;
@@ -341,10 +468,10 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
     else
       loff= cdp->GetOffset();
 
-    switch (tc) {
-      case TAB_VEC:
+    switch (trf ) {
+      case RECFM_VCT:
         cdp->SetOffset(0);     // Not to have shift
-      case TAB_BIN:
+      case RECFM_BIN:
         // BIN/VEC are packed by default
         if (nof) {
           // Field width is the internal representation width
@@ -395,7 +522,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
 
       default:
         break;
-      } // endswitch tc
+      } // endswitch trf 
 
     if (lcdp)
       lcdp->SetNext(cdp);
@@ -413,21 +540,15 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
   if (GetDefType() == TYPE_AM_DOS) {
     int     ending, recln= 0;
 
-    // Was commented because sometimes ending is 0 even when
-    // not specified (for instance if quoted is specified)
-//  if ((ending= Hc->GetIntegerOption("Ending")) < 0) {
-    if ((ending= Hc->GetIntegerOption("Ending")) <= 0) {
-      ending= (tc == TAB_BIN || tc == TAB_VEC) ? 0 : CRLF;
-      Hc->SetIntegerOption("Ending", ending);
-      } // endif ending
+		ending = Hc->GetIntegerOption("Ending");
 
     // Calculate the default record size
-    switch (tc) {
-      case TAB_FIX:
-      case TAB_BIN:
+    switch (trf ) {
+      case RECFM_FIX:
+      case RECFM_BIN:
         recln= nlg + ending;     // + length of line ending
         break;
-      case TAB_VEC:
+      case RECFM_VCT:
         recln= nlg;
 
 //      if ((k= (pak < 0) ? 8 : pak) > 1)
@@ -436,18 +557,18 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
 //        recln= ((recln + k - 1) / k) * k;
 
         break;
-      case TAB_DOS:
-      case TAB_DBF:
+      case RECFM_VAR:
+      case RECFM_DBF:
         recln= nlg;
         break;
-      case TAB_CSV:
-      case TAB_FMT:
+      case RECFM_CSV:
+      case RECFM_FMT:
         // The number of separators (assuming an extra one can exist)
 //      recln= poff * ((qotd) ? 3 : 1);  to be investigated
         recln= nlg + poff * 3;     // To be safe
       default:
         break;
-      } // endswitch tc
+      } // endswitch trf 
 
     // lrecl must be at least recln to avoid buffer overflow
     if (trace(1))
@@ -461,7 +582,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
     if (trace(1))
       htrc("Lrecl set to %d\n", recln);
 
-    } // endif Lrecl
+    } // endif TYPE
 
   // Attach the column definition to the tabdef
   SetCols(tocols);
@@ -500,9 +621,10 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     return NULL;
   } else
 //  PlugSetPath(soname, Module, GetPluginDir());  // Crashes on Fedora
-    strncat(strcpy(soname, GetPluginDir()), Module, _MAX_PATH);
+    strncat(strcpy(soname, GetPluginDir()), Module,
+			sizeof(soname) - strlen(soname) - 1);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   // Is the DLL already loaded?
   if (!Hdll && !(Hdll = GetModuleHandle(soname)))
     // No, load the Dll implementing the function
@@ -538,7 +660,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     FreeLibrary((HMODULE)Hdll);
     return NULL;
     } // endif getdef
-#else   // !__WIN__
+#else   // !_WIN32
   const char *error = NULL;
 
 #if 0  // Don't know what all this stuff does
@@ -580,7 +702,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     dlclose(Hdll);
     return NULL;
     } // endif getdef
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   // Just in case the external Get function does not set error messages
   sprintf(g->Message, MSG(DEF_ALLOC_ERROR), Subtype);
@@ -595,10 +717,6 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     cat->Cblen = GetSizeCatInfo("Colsize", "8K");
     cat->Cbuf = (char*)PlugSubAlloc(g, NULL, cat->Cblen);
     } // endif Cbuf
-
-  // Here "OEM" should be replace by a more useful value
-  if (xdefp->Define(g, cat, Name, Schema, "OEM"))
-    return NULL;
 
   // Ok, return external block
   return xdefp;
@@ -622,7 +740,7 @@ bool OEMDEF::DeleteTableFile(PGLOBAL g)
 /***********************************************************************/
 bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   {
-  Module = GetStringCatInfo(g, "Module", "");
+	Module = GetStringCatInfo(g, "Module", "");
   Subtype = GetStringCatInfo(g, "Subtype", Module);
 
   if (!*Module)
@@ -632,7 +750,13 @@ bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR, int)
                                           + strlen(Subtype) + 3);
   sprintf(desc, "%s(%s)", Module, Subtype);
   Desc = desc;
-  return false;
+
+	// If define block not here yet, get it now
+	if (!Pxdef && !(Pxdef = GetXdef(g)))
+		return true;            // Error
+
+	// Here "OEM" should be replace by a more useful value
+  return Pxdef->Define(g, Cat, Name, Schema, Subtype);
   } // end of DefineAM
 
 /***********************************************************************/
@@ -640,7 +764,6 @@ bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR, int)
 /***********************************************************************/
 PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
   {
-  RECFM rfm;
   PTDB  tdbp = NULL;
 
   // If define block not here yet, get it now
@@ -653,18 +776,10 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
   /*********************************************************************/
   if (!(tdbp = Pxdef->GetTable(g, mode)))
     return NULL;
-  else
-    rfm = tdbp->GetFtype();
+  else if (Multiple && tdbp->GetFtype() == RECFM_OEM)
+    tdbp = new(g) TDBMUL(tdbp);       // No block optimization yet
 
-  if (rfm == RECFM_NAF)
-    return tdbp;
-  else if (rfm == RECFM_OEM) {
-    if (Multiple)
-      tdbp = new(g) TDBMUL(tdbp);       // No block optimization yet
-
-    return tdbp;
-    } // endif OEM
-
+#if 0
   /*********************************************************************/
   /*  The OEM table is based on a file type (currently DOS+ only)      */
   /*********************************************************************/
@@ -723,7 +838,7 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
 
   if (Multiple)
     tdbp = new(g) TDBMUL(tdbp);
-
+#endif // 0
   return tdbp;
   } // end of GetTable
 

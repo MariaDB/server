@@ -27,3 +27,20 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.events_stages_history WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_stages_history'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='events_stages_history';
+column_name	column_comment
+THREAD_ID	Thread associated with the event. Together with EVENT_ID uniquely identifies the row.
+EVENT_ID	Thread's current event number at the start of the event. Together with THREAD_ID uniquely identifies the row.
+END_EVENT_ID	NULL when the event starts, set to the thread's current event number at the end of the event.
+EVENT_NAME	Event instrument name and a NAME from the setup_instruments table
+SOURCE	Name and line number of the source file containing the instrumented code that produced the event.
+TIMER_START	Value in picoseconds when the event timing started or NULL if timing is not collected.
+TIMER_END	Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.
+TIMER_WAIT	Value in picoseconds of the event's duration or NULL if the event has not ended or timing is not collected.
+NESTING_EVENT_ID	EVENT_ID of event within which this event nests.
+NESTING_EVENT_TYPE	Nesting event type. Either statement, stage or wait.

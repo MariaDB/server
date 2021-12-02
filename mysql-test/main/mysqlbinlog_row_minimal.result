@@ -51,7 +51,7 @@ CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMIN
 # at 774
 #<date> server id 1  end_log_pos 816 CRC32 XXX 	GTID 0-1-3
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 816
 # at 890
@@ -80,7 +80,7 @@ COMMIT
 # at 1088
 #<date> server id 1  end_log_pos 1130 CRC32 XXX 	GTID 0-1-4
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 1130
 # at 1206
@@ -109,7 +109,7 @@ COMMIT
 # at 1403
 #<date> server id 1  end_log_pos 1445 CRC32 XXX 	GTID 0-1-5
 /*!100001 SET @@session.gtid_seq_no=5*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 1445
 # at 1523
@@ -138,7 +138,7 @@ COMMIT
 # at 1719
 #<date> server id 1  end_log_pos 1761 CRC32 XXX 	GTID 0-1-6
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 1761
 # at 1836
@@ -167,7 +167,7 @@ COMMIT
 # at 2035
 #<date> server id 1  end_log_pos 2077 CRC32 XXX 	GTID 0-1-7
 /*!100001 SET @@session.gtid_seq_no=7*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 2077
 # at 2131
@@ -229,7 +229,7 @@ COMMIT
 # at 2427
 #<date> server id 1  end_log_pos 2469 CRC32 XXX 	GTID 0-1-8
 /*!100001 SET @@session.gtid_seq_no=8*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 2469
 # at 2535
@@ -262,7 +262,7 @@ COMMIT
 # at 2730
 #<date> server id 1  end_log_pos 2772 CRC32 XXX 	GTID 0-1-9
 /*!100001 SET @@session.gtid_seq_no=9*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 2772
 # at 2809
@@ -292,7 +292,7 @@ COMMIT
 # at 2992
 #<date> server id 1  end_log_pos 3034 CRC32 XXX 	GTID 0-1-10
 /*!100001 SET @@session.gtid_seq_no=10*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 3034
 # at 3071
@@ -327,6 +327,24 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 DROP TABLE t1,t2;
+#
+# MDEV-16372 ER_BASE64_DECODE_ERROR upon replaying binary log with system table
+#
+FLUSH BINARY LOGS;
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (1), (2) ON DUPLICATE KEY UPDATE pk= pk + 10;
+FLUSH BINARY LOGS;
+Proof: two subsequent patterns must be found
+FOUND 1 /### UPDATE `test`.`t1`/ in mysqlbinlog.sql
+FOUND 2 /### INSERT INTO `test`.`t1`/ in mysqlbinlog.sql
+DROP TABLE t1;
+SELECT * FROM t1;
+pk
+2
+11
+# Cleanup
+DROP TABLE t1;
 CREATE TABLE `t1` (
 `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 `is_deleted` BIT(1) DEFAULT b'0',
@@ -351,23 +369,23 @@ FLUSH BINARY LOGS;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
-# at 387
-#<date> server id 1  end_log_pos 429 CRC32 XXX 	GTID 0-1-16
+# at POS
+#<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	GTID D-S-N
 /*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
-/*!100001 SET @@session.gtid_seq_no=16*//*!*/;
-BEGIN
+/*!100001 SET @@session.gtid_seq_no=21*//*!*/;
+START TRANSACTION
 /*!*/;
-# at 429
-# at 543
-#<date> server id 1  end_log_pos 543 CRC32 XXX 	Annotate_rows:
+# at POS
+# at POS
+#<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	Annotate_rows:
 #Q> UPDATE t1 t1 INNER JOIN t2 t2 ON t1.ref_id = t2.id
 #Q> SET t1.is_deleted = TRUE
 #Q> WHERE t1.id =
-#<date> server id 1  end_log_pos 594 CRC32 XXX 	Table_map: `test`.`t1` mapped to number 35
-# at 594
-#<date> server id 1  end_log_pos 643 CRC32 XXX 	Update_rows: table id 35 flags: STMT_END_F
+#<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	Table_map: `test`.`t1` mapped to number TID
+# at POS
+#<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	Update_rows: table id TID flags: STMT_END_F
 ### UPDATE `test`.`t1`
 ### WHERE
 ###   @1=1 /* LONGINT meta=0 nullable=0 is_null=0 */
@@ -375,10 +393,10 @@ BEGIN
 ###   @2=b'1' /* BIT(1) meta=1 nullable=1 is_null=0 */
 ###   @3=X /* TIMESTAMP(0) meta=0 nullable=0 is_null=0 */
 # Number of rows: 1
-# at 643
-#<date> server id 1  end_log_pos 725 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
+# at POS
+#<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
-SET @@session.pseudo_thread_id=5/*!*/;
+SET @@session.pseudo_thread_id=TID/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
 SET @@session.sql_mode=#/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
@@ -388,8 +406,6 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 COMMIT
 /*!*/;
-# at 725
-#<date> server id 1  end_log_pos 773 CRC32 XXX 	Rotate to master-bin.000004  pos: 4
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;

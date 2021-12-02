@@ -1,0 +1,7 @@
+call mtr.add_suppression("InnoDB: Table '.*' tablespace is set as discarded.");
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+CREATE TABLE mdev21563(f1 VARCHAR(100), FULLTEXT idx(f1))ENGINE=InnoDB;
+set debug_dbug="+d,fts_instrument_sync_request";
+INSERT INTO mdev21563 VALUES('This is a test');
+ALTER TABLE mdev21563 DISCARD TABLESPACE;
+DROP TABLE mdev21563;

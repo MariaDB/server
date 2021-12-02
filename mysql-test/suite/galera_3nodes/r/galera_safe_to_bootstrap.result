@@ -2,7 +2,8 @@ connection node_1;
 connection node_2;
 connection node_3;
 connection node_1;
-CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
 include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
 include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
 include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
@@ -48,6 +49,7 @@ CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f1` int(11) DEFAULT NULL
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1;

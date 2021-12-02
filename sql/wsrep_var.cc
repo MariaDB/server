@@ -602,16 +602,22 @@ static void wsrep_slave_count_change_update ()
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
 {
+  mysql_mutex_lock(&LOCK_thread_count);
+  bool res= false;
+
   wsrep_slave_count_change_update();
 
   if (wsrep_slave_count_change > 0)
   {
     WSREP_DEBUG("Creating %d applier threads, total %ld", wsrep_slave_count_change, wsrep_slave_threads);
-    wsrep_create_appliers(wsrep_slave_count_change);
+    res= wsrep_create_appliers(wsrep_slave_count_change, true);
     WSREP_DEBUG("Running %lu applier threads", wsrep_running_applier_threads);
     wsrep_slave_count_change = 0;
   }
-  return false;
+
+  mysql_mutex_unlock(&LOCK_thread_count);
+
+  return res;
 }
 
 bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
@@ -718,8 +724,8 @@ static int show_var_cmp(const void *var1, const void *var2)
   return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
 }
 
-int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
-                       enum enum_var_type scope)
+int wsrep_show_status (THD *thd, SHOW_VAR *var, void *buff,
+                       system_status_var *, enum_var_type scope)
 {
   uint i, maxi= SHOW_VAR_FUNC_BUFF_SIZE / sizeof(*var) - 1;
   SHOW_VAR *v= (SHOW_VAR *)buff;

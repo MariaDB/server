@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -357,7 +357,7 @@ QUICK_RANGE_SELECT *get_quick_select(PARAM *param,uint index,
                                      uint mrr_buf_size, MEM_ROOT *alloc);
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used,
-                                       bool update_tbl_stats,
+                                       bool for_range_access,
                                        double read_time);
 static
 TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
@@ -1858,6 +1858,9 @@ SEL_ARG::SEL_ARG(SEL_ARG &arg) :Sql_alloc()
   next_key_part=arg.next_key_part;
   max_part_no= arg.max_part_no;
   use_count=1; elements=1;
+  next= 0;
+  if (next_key_part)
+    ++next_key_part->use_count;
 }
 
 
@@ -2386,7 +2389,7 @@ static int fill_used_fields_bitmap(PARAM *param)
      force_quick_range is really needed.
 
   RETURN
-   -1 if impossible select (i.e. certainly no rows will be selected)
+   -1 if error or impossible select (i.e. certainly no rows will be selected)
     0 if can't use quick_select
     1 if found usable ranges and quick select has been successfully created.
 */
@@ -2457,6 +2460,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.imerge_cost_buff_size= 0;
     param.using_real_indexes= TRUE;
     param.remove_jump_scans= TRUE;
+    param.is_ror_scan= 0;
     param.remove_false_where_parts= remove_false_parts_of_where;
     param.force_default_mrr= ordered_output;
     param.possible_keys.clear_all();
@@ -2473,7 +2477,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     {
       thd->no_errors=0;
       free_root(&alloc,MYF(0));			// Return memory & allocator
-      DBUG_RETURN(0);				// Can't use range
+      DBUG_RETURN(-1);				// Error
     }
     key_parts= param.key_parts;
 
@@ -2524,7 +2528,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     {
       thd->no_errors=0;
       free_root(&alloc,MYF(0));			// Return memory & allocator
-      DBUG_RETURN(0);				// Can't use range
+      DBUG_RETURN(-1);				// Error
     }
 
     thd->mem_root= &alloc;
@@ -2560,6 +2564,13 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         */
         if (tree->type != SEL_TREE::KEY && tree->type != SEL_TREE::KEY_SMALLER)
           tree= NULL;
+      }
+      else if (thd->is_error())
+      {
+        thd->no_errors=0;
+        thd->mem_root= param.old_root;
+        free_root(&alloc, MYF(0));
+        DBUG_RETURN(-1);
       }
     }
 
@@ -3253,8 +3264,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
 void store_key_image_to_rec(Field *field, uchar *ptr, uint len)
 {
-  /* Do the same as print_key() does */ 
-  my_bitmap_map *old_map;
+  /* Do the same as print_key() does */
 
   if (field->real_maybe_null())
   {
@@ -3266,10 +3276,10 @@ void store_key_image_to_rec(Field *field, uchar *ptr, uint len)
     field->set_notnull();
     ptr++;
   }    
-  old_map= dbug_tmp_use_all_columns(field->table,
-                                    field->table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table,
+                                    &field->table->write_set);
   field->set_key_image(ptr, len); 
-  dbug_tmp_restore_column_map(field->table->write_set, old_map);
+  dbug_tmp_restore_column_map(&field->table->write_set, old_map);
 }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -3484,7 +3494,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   PART_PRUNE_PARAM prune_param;
   MEM_ROOT alloc;
   RANGE_OPT_PARAM  *range_par= &prune_param.range_param;
-  my_bitmap_map *old_sets[2];
+  MY_BITMAP *old_sets[2];
 
   prune_param.part_info= part_info;
   init_sql_alloc(&alloc, "prune_partitions",
@@ -3501,7 +3511,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   }
 
   dbug_tmp_use_all_columns(table, old_sets, 
-                           table->read_set, table->write_set);
+                           &table->read_set, &table->write_set);
   range_par->thd= thd;
   range_par->table= table;
   /* range_par->cond doesn't need initialization */
@@ -3598,7 +3608,7 @@ all_used:
   retval= FALSE; // some partitions are used
   mark_all_partitions_as_used(prune_param.part_info);
 end:
-  dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+  dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
   thd->no_errors=0;
   thd->mem_root= range_par->old_root;
   free_root(&alloc,MYF(0));			// Return memory & allocator
@@ -4714,6 +4724,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                              sizeof(TRP_RANGE*)*
                                              n_child_scans)))
     DBUG_RETURN(NULL);
+
   /*
     Collect best 'range' scan for each of disjuncts, and, while doing so,
     analyze possibility of ROR scans. Also calculate some values needed by
@@ -4725,7 +4736,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   {
     DBUG_EXECUTE("info", print_sel_tree(param, *ptree, &(*ptree)->keys_map,
                                         "tree in SEL_IMERGE"););
-    if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE, read_time)))
+    if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE,
+                                           read_time)))
     {
       /*
         One of index scans in this index_merge is more expensive than entire
@@ -5045,9 +5057,12 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
          a random order
       2. the functions that estimate the cost of a range scan and an
          index merge retrievals are not well calibrated
+
+      As the best range access has been already chosen it does not
+      make sense to evaluate the one obtained from a degenerated
+      index merge.
     */
-    trp= get_key_scans_params(param, *imerge->trees, FALSE, TRUE,
-                              read_time);
+    trp= 0;
   }
 
   DBUG_RETURN(trp); 
@@ -6774,6 +6789,8 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
       tree         make range select for this SEL_TREE
       index_read_must_be_used if TRUE, assume 'index only' option will be set
                              (except for clustered PK indexes)
+      for_range_access     if TRUE the function is called to get the best range
+                           plan for range access, not for index merge access
       read_time    don't create read plans with cost > read_time.
   RETURN
     Best range read plan
@@ -6782,7 +6799,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
 
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used, 
-                                       bool update_tbl_stats,
+                                       bool for_range_access,
                                        double read_time)
 {
   uint idx, UNINIT_VAR(best_idx);
@@ -6828,8 +6845,15 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                             (bool) param->table->covering_keys.is_set(keynr);
 
       found_records= check_quick_select(param, idx, read_index_only, key,
-                                        update_tbl_stats, &mrr_flags,
+                                        for_range_access, &mrr_flags,
                                         &buf_size, &cost);
+
+      if (!for_range_access && !param->is_ror_scan &&
+          !optimizer_flag(param->thd,OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
+      {
+        /* The scan is not a ROR-scan, just skip it */
+        continue;
+      }
 
       if (found_records != HA_POS_ERROR && tree->index_scans &&
           (index_scan= (INDEX_SCAN_INFO *)alloc_root(param->mem_root,
@@ -7149,6 +7173,30 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
 
       if (array->count > NOT_IN_IGNORE_THRESHOLD || !value_item)
         DBUG_RETURN(0);
+
+      /*
+        If this is "unique_key NOT IN (...)", do not consider it sargable (for
+        any index, not just the unique one). The logic is as follows:
+         - if there are only a few constants, this condition is not selective
+           (unless the table is also very small in which case we won't gain
+           anything)
+         - If there are a lot of constants, the overhead of building and
+           processing enormous range list is not worth it.
+      */
+      if (param->using_real_indexes)
+      {
+        key_map::Iterator it(field->key_start);
+        uint key_no;
+        while ((key_no= it++) != key_map::Iterator::BITMAP_END)
+        {
+          KEY *key_info= &field->table->key_info[key_no];
+          if (key_info->user_defined_key_parts == 1 &&
+              (key_info->flags & HA_NOSAME))
+          {
+            DBUG_RETURN(0);
+          }
+        }
+      }
 
       /* Get a SEL_TREE for "(-inf|NULL) < X < c_0" interval.  */
       uint i=0;
@@ -7561,13 +7609,15 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   table_map param_comp= ~(param->prev_tables | param->read_tables |
 		          param->current_table);
 #ifdef HAVE_SPATIAL
-  Field::geometry_type sav_geom_type;
-  const bool geometry= field_item->field->type() == MYSQL_TYPE_GEOMETRY;
-  if (geometry)
+  Field::geometry_type sav_geom_type= Field::GEOM_GEOMETRY, *geom_type=
+    field_item->field->type() == MYSQL_TYPE_GEOMETRY
+    ? &(static_cast<Field_geom*>(field_item->field))->geom_type
+    : NULL;
+  if (geom_type)
   {
-    sav_geom_type= ((Field_geom*) field_item->field)->geom_type;
+    sav_geom_type= *geom_type;
     /* We have to be able to store all sorts of spatial features here */
-    ((Field_geom*) field_item->field)->geom_type= Field::GEOM_GEOMETRY;
+    *geom_type= Field::GEOM_GEOMETRY;
   }
 #endif /*HAVE_SPATIAL*/
 
@@ -7598,9 +7648,9 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   }
 
 #ifdef HAVE_SPATIAL
-  if (geometry)
+  if (geom_type)
   {
-    ((Field_geom*) field_item->field)->geom_type= sav_geom_type;
+    *geom_type= sav_geom_type;
   }
 #endif /*HAVE_SPATIAL*/
   DBUG_RETURN(ftree);
@@ -8999,6 +9049,8 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
   }
   if (key1->type == SEL_ARG::MAYBE_KEY)
   {
+    if (key2->type == SEL_ARG::KEY_RANGE)
+      return key2;
     key1->right= key1->left= &null_element;
     key1->next= key1->prev= 0;
   }
@@ -9099,7 +9151,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       if (key2->next_key_part)
       {
 	key1->use_count--;			// Incremented in and_all_keys
-	return and_all_keys(param, key1, key2, clone_flag);
+        return and_all_keys(param, key1, key2->next_key_part, clone_flag);
       }
       key2->use_count--;			// Key2 doesn't have a tree
     }
@@ -9611,10 +9663,11 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
 
       if (!tmp->next_key_part)
       {
-        if (key2->use_count)
+	SEL_ARG *key2_next= key2->next;
+	if (key2_shared)
 	{
 	  SEL_ARG *key2_cpy= new SEL_ARG(*key2);
-          if (key2_cpy)
+          if (!key2_cpy)
             return 0;
           key2= key2_cpy;
 	}
@@ -9635,7 +9688,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
             Move on to next range in key2
           */
           key2->increment_use_count(-1); // Free not used tree
-          key2=key2->next;
+          key2=key2_next;
           continue;
         }
         else
@@ -10372,6 +10425,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   uint keynr= param->real_keynr[idx];
   DBUG_ENTER("check_quick_select");
   
+  param->is_ror_scan= FALSE;
   /* Handle cases when we don't have a valid non-empty list of range */
   if (!tree)
     DBUG_RETURN(HA_POS_ERROR);
@@ -14792,6 +14846,113 @@ static void print_ror_scans_arr(TABLE *table, const char *msg,
   DBUG_VOID_RETURN;
 }
 
+static String dbug_print_sel_arg_buf;
+
+static void
+print_sel_arg_key(Field *field, const uchar *key, String *out)
+{
+  TABLE *table= field->table;
+  MY_BITMAP *old_sets[2];
+  dbug_tmp_use_all_columns(table, old_sets, &table->read_set, &table->write_set);
+
+  if (field->real_maybe_null())
+  {
+    if (*key)
+    {
+      out->append("NULL");
+      goto end;
+    }
+    key++;					// Skip null byte
+  }
+
+  field->set_key_image(key, field->pack_length());
+
+  if (field->type() == MYSQL_TYPE_BIT)
+    (void) field->val_int_as_str(out, 1);
+  else
+    field->val_str(out);
+
+end:
+  dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
+}
+
+
+/*
+  @brief
+    Produce a string representation of an individual SEL_ARG and return pointer
+    to it
+
+  @detail
+    Intended usage:
+
+     (gdb) p dbug_print_sel_arg(ptr)
+*/
+
+const char *dbug_print_sel_arg(SEL_ARG *sel_arg)
+{
+  StringBuffer<64> buf;
+  String &out= dbug_print_sel_arg_buf;
+  out.length(0);
+
+  if (!sel_arg)
+  {
+    out.append("NULL");
+    goto end;
+  }
+
+  out.append("SEL_ARG(");
+
+  const char *stype;
+  switch(sel_arg->type) {
+  case SEL_ARG::IMPOSSIBLE:
+    stype="IMPOSSIBLE";
+    break;
+  case SEL_ARG::MAYBE:
+    stype="MAYBE";
+    break;
+  case SEL_ARG::MAYBE_KEY:
+    stype="MAYBE_KEY";
+    break;
+  case SEL_ARG::KEY_RANGE:
+  default:
+    stype= NULL;
+  }
+
+  if (stype)
+  {
+    out.append("type=");
+    out.append(stype);
+    goto end;
+  }
+
+  if (sel_arg->min_flag & NO_MIN_RANGE)
+    out.append("-inf");
+  else
+  {
+    print_sel_arg_key(sel_arg->field, sel_arg->min_value, &buf);
+    out.append(buf);
+  }
+
+  out.append((sel_arg->min_flag & NEAR_MIN)? "<" : "<=");
+
+  out.append(sel_arg->field->field_name);
+
+  out.append((sel_arg->max_flag & NEAR_MAX)? "<" : "<=");
+
+  if (sel_arg->max_flag & NO_MAX_RANGE)
+    out.append("+inf");
+  else
+  {
+    print_sel_arg_key(sel_arg->field, sel_arg->max_value, &buf);
+    out.append(buf);
+  }
+
+  out.append(")");
+
+end:
+  return dbug_print_sel_arg_buf.c_ptr_safe();
+}
+
 
 /*****************************************************************************
 ** Print a quick range for debugging
@@ -14807,9 +14968,9 @@ print_key(KEY_PART *key_part, const uchar *key, uint used_length)
   const uchar *key_end= key+used_length;
   uint store_length;
   TABLE *table= key_part->field->table;
-  my_bitmap_map *old_sets[2];
+  MY_BITMAP *old_sets[2];
 
-  dbug_tmp_use_all_columns(table, old_sets, table->read_set, table->write_set);
+  dbug_tmp_use_all_columns(table, old_sets, &table->read_set, &table->write_set);
 
   for (; key < key_end; key+=store_length, key_part++)
   {
@@ -14836,7 +14997,7 @@ print_key(KEY_PART *key_part, const uchar *key, uint used_length)
     if (key+store_length < key_end)
       fputc('/',DBUG_FILE);
   }
-  dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+  dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
 }
 
 
@@ -14844,16 +15005,16 @@ static void print_quick(QUICK_SELECT_I *quick, const key_map *needed_reg)
 {
   char buf[MAX_KEY/8+1];
   TABLE *table;
-  my_bitmap_map *old_sets[2];
+  MY_BITMAP *old_sets[2];
   DBUG_ENTER("print_quick");
   if (!quick)
     DBUG_VOID_RETURN;
   DBUG_LOCK_FILE;
 
   table= quick->head;
-  dbug_tmp_use_all_columns(table, old_sets, table->read_set, table->write_set);
+  dbug_tmp_use_all_columns(table, old_sets, &table->read_set, &table->write_set);
   quick->dbug_dump(0, TRUE);
-  dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+  dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
 
   fprintf(DBUG_FILE,"other_keys: 0x%s:\n", needed_reg->print(buf));
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -172,10 +172,6 @@ using the call command. */
 #define UNIV_ENABLE_UNIT_TEST_ROW_RAW_FORMAT_INT
 */
 
-#if defined HAVE_valgrind && defined HAVE_VALGRIND_MEMCHECK_H
-# define UNIV_DEBUG_VALGRIND
-#endif
-
 #ifdef DBUG_OFF
 # undef UNIV_DEBUG
 #elif !defined UNIV_DEBUG
@@ -183,8 +179,6 @@ using the call command. */
 #endif
 
 #if 0
-#define UNIV_DEBUG_VALGRIND			/* Enable extra
-						Valgrind instrumentation */
 #define UNIV_DEBUG_PRINT			/* Enable the compilation of
 						some debug print functions */
 #define UNIV_AHI_DEBUG				/* Enable adaptive hash index
@@ -238,6 +232,12 @@ easy way to get it to work. See http://bugs.mysql.com/bug.php?id=52263. */
 # define UNIV_INTERN __attribute__((visibility ("hidden")))
 #else
 # define UNIV_INTERN
+#endif
+
+#if defined(__GNUC__) && (__GNUC__ >= 11)
+# define ATTRIBUTE_ACCESS(X) __attribute__((access X))
+#else
+# define ATTRIBUTE_ACCESS(X)
 #endif
 
 #ifndef MY_ATTRIBUTE
@@ -428,7 +428,7 @@ in both 32-bit and 64-bit environments. */
 #ifdef UNIV_INNOCHECKSUM
 extern bool 			strict_verify;
 extern FILE* 			log_file;
-extern unsigned long long	cur_page_num;
+extern uint32_t			cur_page_num;
 #endif /* UNIV_INNOCHECKSUM */
 
 typedef int64_t ib_int64_t;
@@ -579,57 +579,6 @@ typedef void* os_thread_ret_t;
 #include "ut0lst.h"
 #include "ut0ut.h"
 #include "sync0types.h"
-
-#include <my_valgrind.h>
-/* define UNIV macros in terms of my_valgrind.h */
-#define UNIV_MEM_INVALID(addr, size) 	MEM_UNDEFINED(addr, size)
-#define UNIV_MEM_FREE(addr, size) 	MEM_NOACCESS(addr, size)
-#define UNIV_MEM_ALLOC(addr, size) 	UNIV_MEM_INVALID(addr, size)
-#ifdef UNIV_DEBUG_VALGRIND
-# include <valgrind/memcheck.h>
-# define UNIV_MEM_VALID(addr, size) VALGRIND_MAKE_MEM_DEFINED(addr, size)
-# define UNIV_MEM_DESC(addr, size) VALGRIND_CREATE_BLOCK(addr, size, #addr)
-# define UNIV_MEM_UNDESC(b) VALGRIND_DISCARD(b)
-# define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {		\
-	const void* _p = (const void*) (ulint)				\
-		VALGRIND_CHECK_MEM_IS_DEFINED(addr, size);		\
-	if (UNIV_LIKELY_NULL(_p)) {					\
-		fprintf(stderr, "%s:%d: %p[%u] undefined at %ld\n",	\
-			__FILE__, __LINE__,				\
-			(const void*) (addr), (unsigned) (size), (long)	\
-			(((const char*) _p) - ((const char*) (addr))));	\
-		if (should_abort) {					\
-			ut_error;					\
-		}							\
-	}								\
-} while (0)
-# define UNIV_MEM_ASSERT_RW(addr, size)					\
-	UNIV_MEM_ASSERT_RW_LOW(addr, size, false)
-# define UNIV_MEM_ASSERT_RW_ABORT(addr, size)				\
-	UNIV_MEM_ASSERT_RW_LOW(addr, size, true)
-# define UNIV_MEM_ASSERT_W(addr, size) do {				\
-	const void* _p = (const void*) (ulint)				\
-		VALGRIND_CHECK_MEM_IS_ADDRESSABLE(addr, size);		\
-	if (UNIV_LIKELY_NULL(_p))					\
-		fprintf(stderr, "%s:%d: %p[%u] unwritable at %ld\n",	\
-			__FILE__, __LINE__,				\
-			(const void*) (addr), (unsigned) (size), (long)	\
-			(((const char*) _p) - ((const char*) (addr))));	\
-	} while (0)
-# define UNIV_MEM_TRASH(addr, c, size) do {				\
-	ut_d(memset(addr, c, size));					\
-	UNIV_MEM_INVALID(addr, size);					\
-	} while (0)
-#else
-# define UNIV_MEM_VALID(addr, size) do {} while(0)
-# define UNIV_MEM_DESC(addr, size) do {} while(0)
-# define UNIV_MEM_UNDESC(b) do {} while(0)
-# define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {} while(0)
-# define UNIV_MEM_ASSERT_RW(addr, size) do {} while(0)
-# define UNIV_MEM_ASSERT_RW_ABORT(addr, size) do {} while(0)
-# define UNIV_MEM_ASSERT_W(addr, size) do {} while(0)
-# define UNIV_MEM_TRASH(addr, c, size) do {} while(0)
-#endif
 
 extern ulong	srv_page_size_shift;
 extern ulong	srv_page_size;

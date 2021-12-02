@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2018, MariaDB Corporation.
+Copyright (C) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,7 +27,6 @@ Updated 14/02/2015
 #include "fil0fil.h"
 #include "fil0pagecompress.h"
 
-#include <debug_sync.h>
 #include <my_dbug.h>
 
 #include "mem0mem.h"
@@ -236,24 +235,11 @@ success:
 	/* Set up the actual payload lenght */
 	mach_write_to_2(out_buf+FIL_PAGE_DATA, write_size);
 
-#ifdef UNIV_DEBUG
-	/* Verify */
 	ut_ad(fil_page_is_compressed(out_buf) || fil_page_is_compressed_encrypted(out_buf));
 	ut_ad(mach_read_from_4(out_buf+FIL_PAGE_SPACE_OR_CHKSUM) == BUF_NO_CHECKSUM_MAGIC);
 	ut_ad(mach_read_from_2(out_buf+FIL_PAGE_DATA) == write_size);
 	ut_ad(mach_read_from_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) == (ulint)comp_method ||
 		mach_read_from_2(out_buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE) == (ulint)comp_method);
-
-	/* Verify that page can be decompressed */
-	{
-		page_t tmp_buf[UNIV_PAGE_SIZE_MAX];
-		page_t page[UNIV_PAGE_SIZE_MAX];
-		memcpy(page, out_buf, srv_page_size);
-		ut_ad(fil_page_decompress(tmp_buf, page));
-		ut_ad(!buf_page_is_corrupted(false, page, univ_page_size,
-					     NULL));
-	}
-#endif /* UNIV_DEBUG */
 
 	write_size+=header_len;
 

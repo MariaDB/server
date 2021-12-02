@@ -2110,8 +2110,8 @@ avg(export_set( 3, 'y', sha(i)))	group_concat(d)
 0	2008-10-02
 0	2010-12-12
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'y,y,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428ab,3'
-Warning	1292	Truncated incorrect DOUBLE value: 'y,y,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b0,d'
+Warning	1292	Truncated incorrect DOUBLE value: 'y,y,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428a...'
+Warning	1292	Truncated incorrect DOUBLE value: 'y,y,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b...'
 drop table t1;
 #
 # MDEV-4290: crash in st_select_lex::mark_as_dependent
@@ -2459,7 +2459,38 @@ count(*)+sleep(0)
 2
 drop table t1;
 #
-# Start of 10.3 tests
+# MDEV-25112: MIN/MAX optimization for query containing BETWEEN in WHERE
+#
+create table t1 (a int) engine=myisam;
+insert into t1 values (267), (273),  (287), (303), (308);
+select max(a) from t1 where a < 303 and (a between 267 AND 287);
+max(a)
+287
+explain select max(a) from t1 where a < 303 and (a between 267 AND 287);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+select min(a) from t1 where a > 267 and (a between 273 AND 303);
+min(a)
+273
+explain select min(a) from t1 where a > 267 and (a between 273 AND 303);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+create index idx on t1(a);
+select max(a) from t1 where a < 303 and (a between 267 AND 287);
+max(a)
+287
+explain select max(a) from t1 where a < 303 and (a between 267 AND 287);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(a) from t1 where a > 267 and (a between 273 AND 303);
+min(a)
+273
+explain select min(a) from t1 where a > 267 and (a between 273 AND 303);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+drop table t1;
+#
+# End of 10.2 tests
 #
 #
 # MDEV-9408 CREATE TABLE SELECT MAX(int_column) creates different columns for table vs view
@@ -2491,3 +2522,6 @@ t2	CREATE TABLE `t2` (
 DROP TABLE t2;
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# End of 10.3 tests
+#

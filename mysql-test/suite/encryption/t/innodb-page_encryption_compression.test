@@ -37,8 +37,10 @@ insert into innodb_compact select * from innodb_normal;
 insert into innodb_dynamic select * from innodb_normal;
 commit;
 
-let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
---source include/wait_condition.inc
+FLUSH TABLES innodb_compact FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT; UNLOCK TABLES;
+select variable_value > 0 from information_schema.global_status
+where variable_name = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
 
 --let $restart_parameters=--innodb-encrypt-tables=OFF
 --source include/restart_mysqld.inc
@@ -52,8 +54,13 @@ alter table innodb_compact engine=innodb encrypted=DEFAULT encryption_key_id=DEF
 show create table innodb_compact;
 alter table innodb_dynamic engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT page_compressed=DEFAULT;
 show create table innodb_dynamic;
-let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_PAGE_DECOMPRESSED';
---source include/wait_condition.inc
+
+FLUSH TABLES innodb_normal FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT; UNLOCK TABLES;
+
+select variable_value > 0 from information_schema.global_status
+where variable_name = 'INNODB_NUM_PAGES_PAGE_DECOMPRESSED';
 
 drop procedure innodb_insert_proc;
 drop table innodb_normal;

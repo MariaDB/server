@@ -80,3 +80,27 @@ insert t1 () values ();
 set sql_mode=default;
 select * from t1;
 drop table t1;
+
+#
+# MDEV-21249 MariaDB 10.3.10 When referring to bigint to generate timestamp data in the virtual generated column, the value of the generated column does not change when the time zone changes
+#
+set time_zone='+00:00';
+create table t1 (a int, b datetime default from_unixtime(a), c datetime);
+insert t1 (a, c) values (1569495327, from_unixtime(1569495327));
+set time_zone='+01:00';
+insert t1 (a, c) values (1569495327, from_unixtime(1569495327));
+flush tables;
+insert t1 (a, c) values (1569495327, from_unixtime(1569495327));
+select * from t1;
+drop table t1;
+
+# same with vcols
+set time_zone = "+00:00";
+create table t1 (a int, b timestamp as (from_unixtime(a)) virtual);
+insert into t1 (a) value (1569495327);
+select a, b, from_unixtime(a) from t1;
+set time_zone = "+01:00";
+select a, b, from_unixtime(a) from t1;
+flush tables;
+select a, b, from_unixtime(a) from t1;
+drop table t1;

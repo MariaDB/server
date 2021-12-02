@@ -131,8 +131,8 @@ extern const char* wsrep_provider_name;
 extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
 
-int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff,
-                       enum enum_var_type scope);
+int  wsrep_show_status(THD *thd, SHOW_VAR *var, void *buff,
+                       system_status_var *status_var, enum_var_type scope);
 int  wsrep_init();
 void wsrep_deinit(bool free_options);
 
@@ -181,13 +181,7 @@ extern void wsrep_prepend_PATH (const char* path);
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
 
-#define WSREP_ON                         \
-  (global_system_variables.wsrep_on)
-
-#define WSREP_ON_NEW                     \
-  ((global_system_variables.wsrep_on) && \
-   wsrep_provider                     && \
-   strcmp(wsrep_provider, WSREP_NONE))
+#define WSREP_ON unlikely(global_system_variables.wsrep_on)
 
 #define WSREP(thd) \
   (WSREP_ON && thd->variables.wsrep_on)

@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -44,9 +45,7 @@ mysql_pfs_key_t	dict_foreign_err_mutex_key;
 mysql_pfs_key_t	dict_sys_mutex_key;
 mysql_pfs_key_t	fil_system_mutex_key;
 mysql_pfs_key_t	flush_list_mutex_key;
-mysql_pfs_key_t	fts_bg_threads_mutex_key;
 mysql_pfs_key_t	fts_delete_mutex_key;
-mysql_pfs_key_t	fts_optimize_mutex_key;
 mysql_pfs_key_t	fts_doc_id_mutex_key;
 mysql_pfs_key_t	fts_pll_tokenize_mutex_key;
 mysql_pfs_key_t	hash_table_mutex_key;
@@ -72,7 +71,6 @@ mysql_pfs_key_t	rw_lock_debug_mutex_key;
 mysql_pfs_key_t rtr_active_mutex_key;
 mysql_pfs_key_t	rtr_match_mutex_key;
 mysql_pfs_key_t	rtr_path_mutex_key;
-mysql_pfs_key_t rtr_ssn_mutex_key;
 mysql_pfs_key_t	rw_lock_list_mutex_key;
 mysql_pfs_key_t	rw_lock_mutex_key;
 mysql_pfs_key_t	srv_innodb_monitor_mutex_key;
@@ -103,7 +101,6 @@ mysql_pfs_key_t	buf_block_debug_latch_key;
 # endif /* UNIV_DEBUG */
 mysql_pfs_key_t	checkpoint_lock_key;
 mysql_pfs_key_t	dict_operation_lock_key;
-mysql_pfs_key_t	dict_table_stats_key;
 mysql_pfs_key_t	hash_table_locks_key;
 mysql_pfs_key_t	index_tree_rw_lock_key;
 mysql_pfs_key_t	index_online_log_key;

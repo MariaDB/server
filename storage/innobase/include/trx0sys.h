@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -94,7 +94,6 @@ void
 trx_write_trx_id(byte* db_trx_id, trx_id_t id)
 {
 	compile_time_assert(DATA_TRX_ID_LEN == 6);
-	ut_ad(id);
 	mach_write_to_6(db_trx_id, id);
 }
 
@@ -513,7 +512,7 @@ class rw_trx_hash_t
   static void validate_element(trx_t *trx)
   {
     ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
-    ut_ad(!trx_is_autocommit_non_locking(trx));
+    ut_ad(!trx->is_autocommit_non_locking());
     /* trx->state can be anything except TRX_STATE_NOT_STARTED */
     mutex_enter(&trx->mutex);
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
@@ -566,7 +565,7 @@ public:
     Releases LF_HASH pins.
 
     Must be called by thread that owns trx_t object when the latter is being
-    "detached" from thread (e.g. released to the pool by trx_free()). Can be
+    "detached" from thread (e.g. released to the pool by trx_t::free()). Can be
     called earlier if thread is expected not to use rw_trx_hash.
 
     Since pins are not allowed to be transferred to another thread,
@@ -857,8 +856,10 @@ public:
 #endif
   /** Latest recovered binlog offset */
   uint64_t recovered_binlog_offset;
-  /** Latest recovred binlog file name */
+  /** Latest recovered binlog file name */
   char recovered_binlog_filename[TRX_SYS_MYSQL_LOG_NAME_LEN];
+  /** FIL_PAGE_LSN of the page with the latest recovered binlog metadata */
+  lsn_t recovered_binlog_lsn;
 
 
   /**
@@ -1119,7 +1120,7 @@ public:
   }
 
   /** @return number of committed transactions waiting for purge */
-  ulint history_size() const
+  uint32 history_size() const
   {
     return uint32(my_atomic_load32(&const_cast<trx_sys_t*>(this)
                                    ->rseg_history_len));

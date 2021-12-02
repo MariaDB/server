@@ -324,6 +324,7 @@ toku_db_open(DB * db, DB_TXN * txn, const char *fname, const char *dbname, DBTYP
     // DB_THREAD is implicitly supported and DB_BLACKHOLE is supported at the ft-layer
     unused_flags &= ~DB_THREAD;
     unused_flags &= ~DB_BLACKHOLE;
+    unused_flags &= ~DB_RDONLY;
 
     // check for unknown or conflicting flags
     if (unused_flags) return EINVAL; // unknown flags
@@ -405,7 +406,7 @@ int toku_db_lt_on_create_callback(toku::locktree *lt, void *extra) {
     FT_HANDLE ft_handle = info->ft_handle;
 
     FT_HANDLE cloned_ft_handle;
-    r = toku_ft_handle_clone(&cloned_ft_handle, ft_handle, ttxn);
+    r = toku_ft_handle_clone(&cloned_ft_handle, ft_handle, ttxn, info->open_rw);
     if (r == 0) {
         assert(lt->get_userdata() == NULL);
         lt->set_userdata(cloned_ft_handle);
@@ -466,6 +467,7 @@ int toku_db_open_iname(DB * db, DB_TXN * txn, const char *iname_in_env, uint32_t
                                             flags&=~DB_READ_COMMITTED;
                                             flags&=~DB_SERIALIZABLE;
                                             flags&=~DB_IS_HOT_INDEX;
+                                            flags&=~DB_RDONLY;
     // unknown or conflicting flags are bad
     int unknown_flags = flags & ~DB_THREAD;
     unknown_flags &= ~DB_BLACKHOLE;
@@ -480,11 +482,12 @@ int toku_db_open_iname(DB * db, DB_TXN * txn, const char *iname_in_env, uint32_t
     db->i->open_flags = flags;
     db->i->open_mode = mode;
 
+    bool open_rw = mode & (S_IWUSR | S_IWOTH | S_IWGRP);
     FT_HANDLE ft_handle = db->i->ft_handle;
     int r = toku_ft_handle_open(ft_handle, iname_in_env,
                       is_db_create, is_db_excl,
                       db->dbenv->i->cachetable,
-                      txn ? db_txn_struct_i(txn)->tokutxn : nullptr);
+                      txn ? db_txn_struct_i(txn)->tokutxn : nullptr, open_rw);
     if (r != 0) {
         goto out;
     }
@@ -506,6 +509,7 @@ int toku_db_open_iname(DB * db, DB_TXN * txn, const char *iname_in_env, uint32_t
         struct lt_on_create_callback_extra on_create_extra = {
             .txn = txn,
             .ft_handle = db->i->ft_handle,
+            .open_rw = false
         };
         db->i->lt = db->dbenv->i->ltm.get_lt(db->i->dict_id,
                                              toku_ft_get_comparator(db->i->ft_handle),

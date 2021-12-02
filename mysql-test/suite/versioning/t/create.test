@@ -406,3 +406,65 @@ with system versioning
 select 1 as x;
 
 drop tables t0, t1, t2, t3;
+
+--echo #
+--echo # MDEV-23968 CREATE TEMPORARY TABLE .. LIKE (system versioned table) returns error if unique index is defined in the table
+--echo #
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+create table t1 (id int primary key, index(row_start)) with system versioning;
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+create table t1 (id int primary key, index(row_end)) with system versioning;
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+create table t1 (id int, primary key(id, row_end, row_end)) with system versioning;
+create table t1 (id int primary key) with system versioning;
+create temporary table t2 like t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+drop temporary table t2;
+create or replace table t1 (
+  a int,
+  row_start timestamp(6) as row start,
+  row_end timestamp(6) as row end,
+  period for system_time (row_start, row_end),
+  index(row_start),
+  index(row_end),
+  primary key(row_end, a, row_start),
+  index(row_end, row_start, a)) with system versioning;
+create temporary table t2 like t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+drop temporary table t2;
+drop table t1;
+
+--echo #
+--echo # MDEV-16857 system-invisible row_end is displayed in SHOW INDEX
+--echo #
+create or replace table t1 (id int primary key, x int) with system versioning;
+select table_schema, table_name, non_unique, index_schema, index_name, seq_in_index, column_name
+from information_schema.statistics where table_name = 't1';
+--replace_column 6 # 7 # 8 # 9 # 10 # 11 #
+show index from t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-26928 Column-inclusive WITH SYSTEM VERSIONING doesn't work with explicit system fields
+--echo #
+create or replace table t1 (x int, y int with system versioning);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (
+    x int, y int with system versioning,
+    row_start timestamp(6) as row start,
+    row_end timestamp(6) as row end,
+    period for system_time(row_start, row_end));
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+drop table t1;

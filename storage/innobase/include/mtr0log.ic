@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -118,30 +118,6 @@ mlog_catenate_ulint(
 }
 
 /********************************************************//**
-Catenates a compressed ulint to mlog. */
-UNIV_INLINE
-void
-mlog_catenate_ulint_compressed(
-/*===========================*/
-	mtr_t*	mtr,	/*!< in: mtr */
-	ulint	val)	/*!< in: value to write */
-{
-	byte*	log_ptr;
-
-	log_ptr = mlog_open(mtr, 10);
-
-	/* If no logging is requested, we may return now */
-	if (log_ptr == NULL) {
-
-		return;
-	}
-
-	log_ptr += mach_write_compressed(log_ptr, val);
-
-	mlog_close(mtr, log_ptr);
-}
-
-/********************************************************//**
 Catenates a compressed 64-bit integer to mlog. */
 UNIV_INLINE
 void
@@ -187,7 +163,6 @@ mlog_write_initial_log_record_low(
 	      || type == MLOG_FILE_CREATE2
 	      || type == MLOG_FILE_RENAME2
 	      || type == MLOG_INDEX_LOAD
-	      || type == MLOG_TRUNCATE
 	      || type == MLOG_FILE_WRITE_CRYPT_DATA
 	      || mtr->is_named_space(space_id));
 

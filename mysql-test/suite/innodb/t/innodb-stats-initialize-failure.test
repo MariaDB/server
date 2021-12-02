@@ -6,6 +6,7 @@
 
 call mtr.add_suppression("InnoDB: Warning: Index.*");
 # This caused crash earlier
+SET @saved_dbug = @@SESSION.debug_dbug;
 set DEBUG_DBUG='+d,ib_ha_innodb_stat_not_initialized';
 create table t1(a int not null primary key, b int, c int, key(b), key(c)) engine=innodb;
 
@@ -32,8 +33,8 @@ select count(1) from t1 where a between 5 and 100;
 select count(1) from t1 where b between 5 and 256;
 select count(1) from t1 where c between 7 and 787;
 
-set DEBUG_DBUG=NULL;
+
 
 drop procedure innodb_insert_proc;
 drop table t1;
-
+SET debug_dbug= @saved_dbug;

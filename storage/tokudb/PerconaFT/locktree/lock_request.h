@@ -89,6 +89,7 @@ public:
 
     // effect: Destroys a lock request.
     void destroy(void);
+    void clearmem(char c);
 
     // effect: Resets the lock request parameters, allowing it to be reused.
     // requires: Lock request was already created at some point

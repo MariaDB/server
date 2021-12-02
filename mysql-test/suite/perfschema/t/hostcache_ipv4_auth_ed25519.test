@@ -1,0 +1,53 @@
+#
+# Tests for the performance_schema host_cache.
+#
+# Test authorization with auth plugins.
+# error reporting in:
+# - column COUNT_AUTH_PLUGIN_ERRORS
+# - column COUNT_PROXY_USER_ERRORS
+# - column COUNT_PROXY_USER_ACL_ERRORS
+
+source include/not_embedded.inc;
+source include/have_debug.inc;
+source include/have_perfschema.inc;
+source include/have_plugin_auth.inc;
+source include/have_hostname_cache.inc;
+
+if (!$AUTH_ED25519_SO) {
+  skip No auth_ed25519 plugin;
+}
+install soname 'auth_ed25519';
+
+# Enforce a clean state
+source ../include/wait_for_pfs_thread_count.inc;
+source ../include/hostcache_set_state.inc;
+
+create user plug1@'santa.claus.ipv4.example.com'
+  identified with ed25519 as 'foo';
+create user plug2@'santa.claus.ipv4.example.com'
+  identified with ED25519 as 'vubFBzIrapbfHct1/J72dnUryz5VS7lA6XHH8sIx4TI';
+
+set @saved_dbug = @@global.debug_dbug;
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
+
+replace_result $MASTER_MYPORT PORT $MASTER_MYSOCK SOCKET;
+error ER_ACCESS_DENIED_ERROR;
+connect con1, 127.0.0.1, plug1,foo,,$MASTER_MYPORT;
+source ../include/hostcache_dump.inc;
+
+replace_result $MASTER_MYPORT PORT $MASTER_MYSOCK SOCKET;
+error ER_ACCESS_DENIED_ERROR;
+connect con1, 127.0.0.1, plug2,bar,,$MASTER_MYPORT;
+source ../include/hostcache_dump.inc;
+
+connect con1, 127.0.0.1, plug2,foo,,$MASTER_MYPORT;
+select current_user();
+disconnect con1;
+connection default;
+source ../include/hostcache_dump.inc;
+
+drop user plug1@'santa.claus.ipv4.example.com';
+drop user plug2@'santa.claus.ipv4.example.com';
+
+set @@global.debug_dbug = @saved_dbug;
+uninstall plugin ed25519;

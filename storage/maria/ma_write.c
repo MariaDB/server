@@ -335,12 +335,6 @@ err:
       my_errno == HA_ERR_NULL_IN_SPATIAL ||
       my_errno == HA_ERR_OUT_OF_MEM)
   {
-    if (info->bulk_insert)
-    {
-      uint j;
-      for (j=0 ; j < share->base.keys ; j++)
-        maria_flush_bulk_insert(info, j);
-    }
     info->errkey= i < share->base.keys ? (int) i : -1;
     /*
       We delete keys in the reverse order of insertion. This is the order that
@@ -366,6 +360,7 @@ err:
         {
           if (_ma_ft_del(info,i,buff,record,filepos))
 	  {
+            fatal_error= 1;
 	    if (local_lock_tree)
 	      mysql_rwlock_unlock(&keyinfo->root_lock);
             break;
@@ -380,6 +375,7 @@ err:
                                                       filepos,
                                                       info->trn->trid)))
 	  {
+            fatal_error= 1;
 	    if (local_lock_tree)
 	      mysql_rwlock_unlock(&keyinfo->root_lock);
 	    break;
@@ -397,6 +393,13 @@ err:
   {
     if ((*share->write_record_abort)(info))
       fatal_error= 1;
+  }
+
+  if (info->bulk_insert)
+  {
+    uint j;
+    for (j=0 ; j < share->base.keys ; j++)
+      maria_flush_bulk_insert(info, j);
   }
 
   if (fatal_error)

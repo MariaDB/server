@@ -7,7 +7,7 @@ INSERT INTO invalid_values VALUES('\'aaa\'');
 INSERT INTO invalid_values VALUES('\'bbb\'');
 SET @@session.rocksdb_force_index_records_in_range = -1;
 Warnings:
-Warning	1292	Truncated incorrect rocksdb_force_index_records_in_r value: '-1'
+Warning	1292	Truncated incorrect rocksdb_force_index_records_i... value: '-1'
 SELECT @@session.rocksdb_force_index_records_in_range;
 @@session.rocksdb_force_index_records_in_range
 0

@@ -293,14 +293,14 @@ public:
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
                     st_plugin_int *p, st_mysql_sys_var *plugin_var_arg);
   sys_var_pluginvar *cast_pluginvar() { return this; }
-  uchar* real_value_ptr(THD *thd, enum_var_type type);
-  TYPELIB* plugin_var_typelib(void);
-  uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base);
-  uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  uchar* real_value_ptr(THD *thd, enum_var_type type) const;
+  TYPELIB* plugin_var_typelib(void) const;
+  const uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base) const;
+  const uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return do_value_ptr(thd, OPT_SESSION, base); }
-  uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return do_value_ptr(thd, OPT_GLOBAL, base); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return do_value_ptr(thd, OPT_DEFAULT, 0); }
   bool do_check(THD *thd, set_var *var);
   virtual void session_save_default(THD *thd, set_var *var) {}
@@ -1859,7 +1859,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
     sql_print_error(ER_THD(new_thd, ER_GET_ERRNO), my_errno,
                            table->file->table_type());
   end_read_record(&read_record_info);
-  table->m_needs_reopen= TRUE;                  // Force close to free memory
+  table->mark_table_for_reopen();
   close_mysql_tables(new_thd);
 end:
   new_thd->db= null_clex_str;                 // Avoid free on thd->db
@@ -2240,26 +2240,30 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
   if (!(plugin= plugin_find_internal(name, MYSQL_ANY_PLUGIN)) ||
       plugin->state & (PLUGIN_IS_UNINITIALIZED | PLUGIN_IS_DYING))
   {
-    my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PLUGIN", name->str);
-    return 1;
-  }
-  if (!plugin->plugin_dl)
-  {
-    my_error(ER_PLUGIN_DELETE_BUILTIN, MYF(0));
-    return 1;
-  }
-  if (plugin->load_option == PLUGIN_FORCE_PLUS_PERMANENT)
-  {
-    my_error(ER_PLUGIN_IS_PERMANENT, MYF(0), name->str);
-    return 1;
+    // maybe plugin is in mysql.plugin present so postpond the error
+    plugin= NULL;
   }
 
-  plugin->state= PLUGIN_IS_DELETED;
-  if (plugin->ref_count)
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                 WARN_PLUGIN_BUSY, ER_THD(thd, WARN_PLUGIN_BUSY));
-  else
-    reap_needed= true;
+  if (plugin)
+  {
+    if (!plugin->plugin_dl)
+    {
+      my_error(ER_PLUGIN_DELETE_BUILTIN, MYF(0));
+      return 1;
+    }
+    if (plugin->load_option == PLUGIN_FORCE_PLUS_PERMANENT)
+    {
+      my_error(ER_PLUGIN_IS_PERMANENT, MYF(0), name->str);
+      return 1;
+    }
+
+    plugin->state= PLUGIN_IS_DELETED;
+    if (plugin->ref_count)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+          WARN_PLUGIN_BUSY, ER_THD(thd, WARN_PLUGIN_BUSY));
+    else
+      reap_needed= true;
+  }
 
   uchar user_key[MAX_KEY_LENGTH];
   table->use_all_columns();
@@ -2283,6 +2287,11 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
       table->file->print_error(error, MYF(0));
       return 1;
     }
+  }
+  else if (!plugin)
+  {
+    my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PLUGIN", name->str);
+    return 1;
   }
   return 0;
 }
@@ -3340,7 +3349,7 @@ sys_var_pluginvar::sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
   plugin_opt_set_limits(&option, pv);
 }
 
-uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type)
+uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type) const
 {
   if (type == OPT_DEFAULT)
   {
@@ -3414,7 +3423,7 @@ bool sys_var_pluginvar::session_is_default(THD *thd)
 }
 
 
-TYPELIB* sys_var_pluginvar::plugin_var_typelib(void)
+TYPELIB* sys_var_pluginvar::plugin_var_typelib(void) const
 {
   switch (plugin_var->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_THDLOCAL)) {
   case PLUGIN_VAR_ENUM:
@@ -3432,12 +3441,10 @@ TYPELIB* sys_var_pluginvar::plugin_var_typelib(void)
 }
 
 
-uchar* sys_var_pluginvar::do_value_ptr(THD *thd, enum_var_type type,
-                                       const LEX_CSTRING *base)
+const uchar* sys_var_pluginvar::do_value_ptr(THD *thd, enum_var_type type,
+                                             const LEX_CSTRING *base) const
 {
-  uchar* result;
-
-  result= real_value_ptr(thd, type);
+  const uchar* result= real_value_ptr(thd, type);
 
   if ((plugin_var->flags & PLUGIN_VAR_TYPEMASK) == PLUGIN_VAR_ENUM)
     result= (uchar*) get_type(plugin_var_typelib(), *(ulong*)result);

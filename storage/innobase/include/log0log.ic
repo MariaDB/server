@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -190,18 +190,6 @@ log_block_convert_lsn_to_no(
 			0xFUL, 0x3FFFFFFFUL)) + 1);
 }
 
-/************************************************************//**
-Calculates the checksum for a log block.
-@return checksum */
-UNIV_INLINE
-ulint
-log_block_calc_checksum(
-/*====================*/
-	const byte*	block)	/*!< in: log block */
-{
-	return(log_checksum_algorithm_ptr(block));
-}
-
 /** Calculate the checksum for a log block using the pre-5.7.9 algorithm.
 @param[in]	block	log block
 @return		checksum */
@@ -240,15 +228,6 @@ log_block_calc_checksum_crc32(
 	const byte*	block)
 {
 	return(ut_crc32(block, OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE));
-}
-
-/** Calculates the checksum for a log block using the "no-op" algorithm.
-@return        checksum */
-UNIV_INLINE
-ulint
-log_block_calc_checksum_none(const byte*)
-{
-	return(LOG_NO_CHECKSUM_MAGIC);
 }
 
 /************************************************************//**

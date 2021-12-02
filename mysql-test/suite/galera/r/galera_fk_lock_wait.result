@@ -1,0 +1,52 @@
+CREATE TABLE parent(parent_id int not null AUTO_INCREMENT PRIMARY KEY,
+parent_name varchar(80)) ENGINE=InnoDB;
+CREATE TABLE child(child_id int not null AUTO_INCREMENT PRIMARY KEY,
+child_name varchar(80),
+child_parent_id int not null,
+CONSTRAINT `fk_child_parent`
+    FOREIGN KEY (child_parent_id) REFERENCES parent (parent_id)
+ON DELETE CASCADE
+ON UPDATE CASCADE) ENGINE=InnoDB;
+INSERT INTO parent VALUES (1, 'first'),(2,'second'),(3,'foo'),(4,'tmp');
+INSERT INTO child VALUES (NULL,'first_child',1);
+INSERT INTO child VALUES (NULL,'second_child',1);
+INSERT INTO child VALUES (NULL,'first_child2',2);
+INSERT INTO child VALUES (NULL,'first_child3',2);
+INSERT INTO child VALUES (NULL,'first_child4',3);
+BEGIN;
+UPDATE parent SET parent_name = 'bar' WHERE parent_id = 2;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION innodb_lock_wait_timeout=2;
+UPDATE child SET child_parent_id = 5 where child_parent_id = 2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection node_1;
+COMMIT;
+SELECT * FROM parent;
+parent_id	parent_name
+1	first
+2	bar
+3	foo
+4	tmp
+SELECT * FROM child;
+child_id	child_name	child_parent_id
+1	first_child	1
+3	second_child	1
+5	first_child2	2
+7	first_child3	2
+9	first_child4	3
+connection node_2;
+SELECT * FROM parent;
+parent_id	parent_name
+1	first
+2	bar
+3	foo
+4	tmp
+SELECT * FROM child;
+child_id	child_name	child_parent_id
+1	first_child	1
+3	second_child	1
+5	first_child2	2
+7	first_child3	2
+9	first_child4	3
+DROP TABLE child, parent;
+disconnect node_1a;

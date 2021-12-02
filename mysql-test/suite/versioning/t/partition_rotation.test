@@ -37,4 +37,22 @@ select * from t1 for system_time all where row_end = @ts;
 --replace_column 5 # 10 # 11 #
 explain partitions select * from t1 for system_time all where row_end = @ts;
 
+--echo #
+--echo # MDEV-16023 Unfortunate error message WARN_VERS_PART_FULL
+--echo #
+
+set timestamp= unix_timestamp('2020-07-29 10:30:10');
+create or replace table t1 (a int) with system versioning
+  partition by system_time interval 1 second (
+    partition p0 history,
+    partition p1 history,
+    partition pc current
+  );
+
+set timestamp= unix_timestamp('2020-07-29 10:30:14');
+insert into t1 values (1),(2),(3);
+show warnings;
+
+--echo # Cleanup
+set timestamp= default;
 drop table t1;

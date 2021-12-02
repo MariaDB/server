@@ -325,7 +325,7 @@ static Sys_var_long Sys_pfs_digest_size(
        "Size of the statement digest."
        " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_digest_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 200),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024 * 1024),
        DEFAULT(-1),
        BLOCK_SIZE(1));
 
@@ -438,11 +438,10 @@ static Sys_var_charptr Sys_my_bind_addr(
        READ_ONLY GLOBAL_VAR(my_bind_addr_str), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(0));
 
-const char *Sys_var_vers_asof::asof_keywords[]= {"DEFAULT", NULL};
 static Sys_var_vers_asof Sys_vers_asof_timestamp(
        "system_versioning_asof", "Default value for the FOR SYSTEM_TIME AS OF clause",
        SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
-       Sys_var_vers_asof::asof_keywords, DEFAULT(SYSTEM_TIME_UNSPECIFIED));
+       DEFAULT(SYSTEM_TIME_UNSPECIFIED));
 
 static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP", NullS};
 static Sys_var_enum Sys_vers_alter_history(
@@ -1096,7 +1095,9 @@ static Sys_var_ulong Sys_flush_time(
 static bool check_ftb_syntax(sys_var *self, THD *thd, set_var *var)
 {
   return ft_boolean_check_syntax_string((uchar*)
-                      (var->save_result.string_value.str));
+                      (var->save_result.string_value.str),
+                      var->save_result.string_value.length,
+                      self->charset(thd));
 }
 static bool query_cache_flush(sys_var *self, THD *thd, enum_var_type type)
 {
@@ -1703,8 +1704,9 @@ static Sys_var_gtid_binlog_pos Sys_gtid_binlog_pos(
        READ_ONLY GLOBAL_VAR(opt_gtid_binlog_pos_dummy), NO_CMD_LINE);
 
 
-uchar *
-Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd,
+                                          const LEX_CSTRING *base) const
 {
   char buf[128];
   String str(buf, sizeof(buf), system_charset_info);
@@ -1731,8 +1733,9 @@ static Sys_var_gtid_current_pos Sys_gtid_current_pos(
        READ_ONLY GLOBAL_VAR(opt_gtid_current_pos_dummy), NO_CMD_LINE);
 
 
-uchar *
-Sys_var_gtid_current_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_current_pos::global_value_ptr(THD *thd,
+                                           const LEX_CSTRING *base) const
 {
   String str;
   char *p;
@@ -1812,8 +1815,9 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
-Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_slave_pos::global_value_ptr(THD *thd,
+                                         const LEX_CSTRING *base) const
 {
   String str;
   char *p;
@@ -1933,8 +1937,9 @@ Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
-Sys_var_gtid_binlog_state::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_binlog_state::global_value_ptr(THD *thd,
+                                            const LEX_CSTRING *base) const
 {
   char buf[512];
   String str(buf, sizeof(buf), system_charset_info);
@@ -1968,8 +1973,8 @@ static Sys_var_last_gtid Sys_last_gtid(
 export sys_var *Sys_last_gtid_ptr= &Sys_last_gtid; // for check changing
 
 
-uchar *
-Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   char buf[10+1+10+1+20+1];
   String str(buf, sizeof(buf), system_charset_info);
@@ -2120,9 +2125,10 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
+const uchar *
 Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
-                                              const LEX_CSTRING *base_name)
+                                              const
+                                              LEX_CSTRING *base_name) const
 {
   Master_info *mi;
   enum_slave_parallel_mode val=
@@ -2301,7 +2307,7 @@ static Sys_var_ulong Sys_max_sort_length(
        "the first max_sort_length bytes of each value are used; the rest "
        "are ignored)",
        SESSION_VAR(max_sort_length), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(4, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
+       VALID_RANGE(64, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_max_sp_recursion_depth(
        "max_sp_recursion_depth",
@@ -2558,12 +2564,23 @@ static bool fix_optimizer_switch(sys_var *self, THD *thd,
                         "engine_condition_pushdown=on");
   return false;
 }
+static bool check_legal_optimizer_switch(sys_var *self, THD *thd,
+                                         set_var *var)
+{
+  if (var->save_result.ulonglong_value & (OPTIMIZER_SWITCH_MATERIALIZATION |
+                                          OPTIMIZER_SWITCH_IN_TO_EXISTS))
+  {
+    return false;
+  }
+  my_error(ER_ILLEGAL_SUBQUERY_OPTIMIZER_SWITCHES, MYF(0));
+  return true;
+}
 static Sys_var_flagset Sys_optimizer_switch(
        "optimizer_switch",
        "Fine-tune the optimizer behavior",
        SESSION_VAR(optimizer_switch), CMD_LINE(REQUIRED_ARG),
        optimizer_switch_names, DEFAULT(OPTIMIZER_SWITCH_DEFAULT),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_legal_optimizer_switch),
        ON_UPDATE(fix_optimizer_switch));
 
 static Sys_var_charptr Sys_pid_file(
@@ -3598,6 +3615,12 @@ static bool fix_tp_min_threads(sys_var *, THD *, enum_var_type)
 
 static bool check_threadpool_size(sys_var *self, THD *thd, set_var *var)
 {
+
+#ifdef _WIN32
+  if (threadpool_mode != TP_MODE_GENERIC)
+    return false;
+#endif
+
   ulonglong v= var->save_result.ulonglong_value;
   if (v > threadpool_max_size)
   {
@@ -4020,7 +4043,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     if (trans_commit_stmt(thd) || trans_commit(thd))
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
       WSREP_DEBUG("autocommit, MDL TRX lock released: %lld",
                   (longlong) thd->thread_id);
       return true;
@@ -4365,12 +4388,16 @@ static Sys_var_session_special Sys_identity(
 */
 static bool update_insert_id(THD *thd, set_var *var)
 {
-  if (!var->value)
-  {
-    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
-    return true;
-  }
-  thd->force_one_auto_inc_interval(var->save_result.ulonglong_value);
+  /*
+    If we set the insert_id to the DEFAULT or 0
+    it means we 'reset' it so it's value doesn't
+    affect the INSERT.
+  */
+  if (!var->value ||
+      var->save_result.ulonglong_value == 0)
+    thd->auto_inc_intervals_forced.empty();
+  else
+    thd->force_one_auto_inc_interval(var->save_result.ulonglong_value);
   return false;
 }
 
@@ -4378,6 +4405,8 @@ static ulonglong read_insert_id(THD *thd)
 {
   return thd->auto_inc_intervals_forced.minimum();
 }
+
+
 static Sys_var_session_special Sys_insert_id(
        "insert_id", "The value to be used by the following INSERT "
        "or ALTER TABLE statement when inserting an AUTO_INCREMENT value",
@@ -4460,11 +4489,11 @@ static Sys_var_ulong Sys_default_week_format(
        SESSION_VAR(default_week_format), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 7), DEFAULT(0), BLOCK_SIZE(1));
 
-static Sys_var_ulonglong Sys_group_concat_max_len(
+static Sys_var_uint Sys_group_concat_max_len(
        "group_concat_max_len",
        "The maximum length of the result of function GROUP_CONCAT()",
        SESSION_VAR(group_concat_max_len), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(4, SIZE_T_MAX), DEFAULT(1024*1024), BLOCK_SIZE(1));
+       VALID_RANGE(4, UINT_MAX32), DEFAULT(1024*1024), BLOCK_SIZE(1));
 
 static char *glob_hostname_ptr;
 static Sys_var_charptr Sys_hostname(
@@ -4934,8 +4963,9 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   return status;
 }
 
-uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd,
-                                            const LEX_CSTRING *base_name)
+const uchar *
+Sys_var_rpl_filter::global_value_ptr(THD *thd,
+                                     const LEX_CSTRING *base_name) const
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
@@ -5047,7 +5077,7 @@ static Sys_var_uint Sys_slave_net_timeout(
 */
 
 ulonglong Sys_var_multi_source_ulonglong::
-get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset)
+get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
 {
   Master_info *mi;
   ulonglong res= 0;                                  // Default value
@@ -5306,7 +5336,7 @@ static Sys_var_tz Sys_time_zone(
 
 static Sys_var_charptr Sys_wsrep_provider(
        "wsrep_provider", "Path to replication provider library",
-       PREALLOCATED GLOBAL_VAR(wsrep_provider), CMD_LINE(REQUIRED_ARG),
+       PREALLOCATED READ_ONLY GLOBAL_VAR(wsrep_provider), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(WSREP_NONE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_provider_check), ON_UPDATE(wsrep_provider_update));
@@ -5518,7 +5548,7 @@ static Sys_var_ulong Sys_wsrep_max_ws_rows (
 
 static Sys_var_charptr Sys_wsrep_notify_cmd(
        "wsrep_notify_cmd", "",
-       GLOBAL_VAR(wsrep_notify_cmd),CMD_LINE(REQUIRED_ARG),
+       READ_ONLY GLOBAL_VAR(wsrep_notify_cmd), CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(""));
 
 static Sys_var_mybool Sys_wsrep_certify_nonPK(
@@ -5679,7 +5709,7 @@ vio_keepalive_opts opt_vio_keepalive;
 
 static Sys_var_int Sys_keepalive_time(
        "tcp_keepalive_time",
-       "Timeout, in milliseconds, with no activity until the first TCP keep-alive packet is sent."
+       "Timeout, in seconds, with no activity until the first TCP keep-alive packet is sent."
        "If set to 0, system dependent default is used.",
        AUTO_SET GLOBAL_VAR(opt_vio_keepalive.idle),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000),
@@ -6164,7 +6194,7 @@ static Sys_var_enum Sys_session_track_transaction_info(
        "Track changes to the transaction attributes. OFF to disable; "
        "STATE to track just transaction state (Is there an active transaction? "
        "Does it have any data? etc.); CHARACTERISTICS to track transaction "
-       "state and report all statements needed to start a transaction with"
+       "state and report all statements needed to start a transaction with "
        "the same characteristics (isolation level, read only/read write,"
        "snapshot - but not any work done / data modified within the "
        "transaction).",

@@ -87,7 +87,7 @@ CREATE SEQUENCE `s2` (
 ) ENGINE=InnoDB sequence=1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(
 `next_not_cached_value` bigint(21) NOT NULL,
-`minimum_value` bigint(21) NOT NU' at line 1
+`minimum_value` bigint(21) NOT...' at line 1
 CREATE TABLE `s2` (
 `next_not_cached_value` bigint(21) NOT NULL,
 `minimum_value` bigint(21) NOT NULL,

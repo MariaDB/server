@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -160,7 +160,7 @@ trx_sysf_create(
 	compile_time_assert(TRX_SYS_SPACE == 0);
 
 	/* Create the trx sys file block in a new allocated file segment */
-	block = fseg_create(fil_system.sys_space, 0,
+	block = fseg_create(fil_system.sys_space,
 			    TRX_SYS + TRX_SYS_FSEG_HEADER,
 			    mtr);
 	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
@@ -197,7 +197,7 @@ trx_sysf_create(
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
 	buf_block_t* rblock = trx_rseg_header_create(fil_system.sys_space,
-						     slot_no, block, mtr);
+						     slot_no, 0, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
 	ut_a(rblock->page.id.page_no() == FSP_FIRST_RSEG_PAGE_NO);

@@ -438,19 +438,19 @@ SELECT 1 FROM dual WHERE ('Alpha,Bravo,Charlie,Delta,Echo,Foxtrot,StrataCentral,
 #
 SELECT CONCAT(REPEAT('100,',60),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
 --replace_regex /[0-9]+ exceeded/NUM exceeded/
-SELECT CONCAT(REPEAT('100,',200),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
+SELECT CONCAT(REPEAT('100,',400),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
 
 SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
 --replace_regex /[0-9]+ exceeded/NUM exceeded/
-SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
+SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
 
 SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
 --replace_regex /[0-9]+ exceeded/NUM exceeded/
-SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
+SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
 
 SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
 --replace_regex /[0-9]+ exceeded/NUM exceeded/
-SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
+SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
 
 #
 # MDEV-12942 REGEXP_INSTR returns 1 when using brackets

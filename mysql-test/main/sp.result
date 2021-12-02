@@ -5302,7 +5302,7 @@ CREATE DEFINER=longer_than_80_45678901234567890123456789012345678901234567890123
 BEGIN
 SET @a = 1;
 END|
-ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345678' is too long for user name (should be no longer than 80)
+ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345...' is too long for user name (should be no longer than 80)
 CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
 FUNCTION bug16899_f1() RETURNS INT
 BEGIN
@@ -8469,8 +8469,40 @@ ERROR 22007: Incorrect integer value: 'y' for column ``.``.`a` at row 1
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
-# Start of 10.3 tests
+# MDEV-24220: error when opening a table for the second call of SP
 #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE VIEW v1 AS SELECT MAX(a) as f FROM t1;
+CREATE PROCEDURE p1()
+BEGIN
+SELECT * FROM v1;
+END $
+CALL p1;
+f
+2
+ALTER TABLE t1 DROP a;
+CALL p1;
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# BUG#30366310: USING A FUNCTION TO ASSIGN DEFAULT VALUES TO
+# 2 OR MORE VARIABLES CRASHES SERVER
+#
+create function f1() returns bigint return now()-1|
+create procedure p1()
+begin
+declare b, c bigint default f1();
+select b-c;
+end|
+call p1()|
+b-c
+0
+drop procedure p1|
+drop function f1|
+#End of 10.2 tests
 #
 # MDEV-12007 Allow ROW variables as a cursor FETCH target
 #

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, Corporation
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@
 #include "filesort.h"                           // filesort_free_buffers
 #include "sql_view.h"
 #include "sql_cte.h"
+#include "item_windowfunc.h"
 
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
                  SELECT_LEX_UNIT *unit, ulong setup_tables_done_option)
@@ -405,7 +406,10 @@ select_union_recursive::create_result_table(THD *thd_arg,
                                        hidden))
     return true;
   
-  if (! (incr_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
+  incr_table_param.init();
+  incr_table_param.field_count= column_types->elements;
+  incr_table_param.bit_fields_as_long= bit_fields_as_long;
+  if (! (incr_table= create_tmp_table(thd_arg, &incr_table_param, *column_types,
                                       (ORDER*) 0, false, 1,
                                       options, HA_POS_ERROR, &empty_clex_str,
                                       true, keep_row_order)))
@@ -414,20 +418,6 @@ select_union_recursive::create_result_table(THD *thd_arg,
   incr_table->keys_in_use_for_query.clear_all();
   for (uint i=0; i < table->s->fields; i++)
     incr_table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
-
-  TABLE *rec_table= 0;
-  if (! (rec_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
-                                     (ORDER*) 0, false, 1,
-                                     options, HA_POS_ERROR, alias,
-                                     true, keep_row_order)))
-    return true;
-
-  rec_table->keys_in_use_for_query.clear_all();
-  for (uint i=0; i < table->s->fields; i++)
-    rec_table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
-
-  if (rec_tables.push_back(rec_table))
-    return true;
 
   return false;
 }
@@ -466,23 +456,25 @@ void select_union_recursive::cleanup()
     free_tmp_table(thd, incr_table);
   }
 
-  List_iterator<TABLE> it(rec_tables);
-  TABLE *tab;
-  while ((tab= it++))
+  List_iterator<TABLE_LIST> it(rec_table_refs);
+  TABLE_LIST *tbl;
+  while ((tbl= it++))
   {
+    TABLE *tab= tbl->table;
     if (tab->is_created())
     {
       tab->file->extra(HA_EXTRA_RESET_STATE);
       tab->file->ha_delete_all_rows();
     }
-    /* 
+    /*
       The table will be closed later in close_thread_tables(),
       because it might be used in the statements like
       ANALYZE WITH r AS (...) SELECT * from r
-      where r is defined through recursion. 
+      where r is defined through recursion.
     */
     tab->next= thd->rec_tables;
     thd->rec_tables= tab;
+    tbl->derived_result= 0;
   }
 }
 
@@ -906,6 +898,25 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   found_rows_for_union= first_sl->options & OPTION_FOUND_ROWS;
   is_union_select= is_unit_op() || fake_select_lex || single_tvc;
 
+  /*
+    If we are reading UNION output and the UNION is in the
+    IN/ANY/ALL/EXISTS subquery, then ORDER BY is redundant and hence should
+    be removed.
+    Example:
+     select ... col IN (select col2 FROM t1 union select col3 from t2 ORDER BY 1)
+
+    (as for ORDER BY ... LIMIT, it currently not supported inside
+     IN/ALL/ANY subqueries)
+    (For non-UNION this removal of ORDER BY clause is done in
+     check_and_do_in_subquery_rewrites())
+  */
+  if (item && is_unit_op() &&
+      (item->is_in_predicate() || item->is_exists_predicate()))
+  {
+    global_parameters()->order_list.first= NULL;
+    global_parameters()->order_list.elements= 0;
+  }
+
   for (SELECT_LEX *s= first_sl; s; s= s->next_select())
   {
     switch (s->linkage)
@@ -920,6 +931,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
       break;
     }
   }
+
   /* Global option */
 
   if (is_union_select || is_recursive)
@@ -976,9 +988,21 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
       if (sl->tvc->prepare(thd, sl, tmp_result, this))
 	goto err;
     }
-    else if (prepare_join(thd, first_sl, tmp_result, additional_options,
+    else
+    {
+      if (prepare_join(thd, first_sl, tmp_result, additional_options,
                      is_union_select))
-      goto err;
+        goto err;
+
+      if (derived_arg && derived_arg->table &&
+          derived_arg->derived_type == VIEW_ALGORITHM_MERGE &&
+          derived_arg->table->versioned())
+      {
+        /* Got versioning conditions (see vers_setup_conds()), need to update
+           derived_arg. */
+        derived_arg->where= first_sl->where;
+      }
+    }
     types= first_sl->item_list;
     goto cont;
   }
@@ -1065,9 +1089,33 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
           goto err;
         if (!derived_arg->table)
         {
-          derived_arg->table= with_element->rec_result->rec_tables.head();
-          if (derived_arg->derived_result)
-            derived_arg->derived_result->table= derived_arg->table;
+          bool res= false;
+
+          if ((!derived_arg->is_with_table_recursive_reference() ||
+               !derived_arg->derived_result) &&
+              !(derived_arg->derived_result=
+                new (thd->mem_root) select_unit(thd)))
+            goto err; // out of memory
+          thd->create_tmp_table_for_derived= TRUE;
+
+          res= derived_arg->derived_result->create_result_table(thd,
+                                                            &types,
+                                                            FALSE,
+                                                            create_options,
+                                                            &derived_arg->alias,
+                                                            FALSE, FALSE,
+                                                            FALSE, 0);
+          thd->create_tmp_table_for_derived= FALSE;
+          if (res)
+            goto err;
+          derived_arg->derived_result->set_unit(this);
+          derived_arg->table= derived_arg->derived_result->table;
+          if (derived_arg->is_with_table_recursive_reference())
+          {
+            /* Here 'derived_arg' is the primary recursive table reference */
+            derived_arg->with->rec_result->
+              rec_table_refs.push_back(derived_arg);
+          }
         }
         with_element->mark_as_with_prepared_anchor();
         is_rec_result_table_created= true;
@@ -1102,12 +1150,13 @@ cont:
 
     while ((type= tp++))
     {
-      if (type->cmp_type() == STRING_RESULT &&
-          type->collation.derivation == DERIVATION_NONE)
-      {
-        my_error(ER_CANT_AGGREGATE_NCOLLATIONS, MYF(0), "UNION");
+      /*
+        Test if the aggregated data type is OK for a UNION element.
+        E.g. in case of string data, DERIVATION_NONE is not allowed.
+      */
+      if (type->type() == Item::TYPE_HOLDER && type->type_handler()->
+            union_element_finalize(static_cast<Item_type_holder*>(type)))
         goto err;
-      }
     }
     
     /*
@@ -1710,11 +1759,11 @@ bool st_select_lex_unit::exec_recursive()
   TABLE *incr_table= with_element->rec_result->incr_table;
   st_select_lex *end= NULL;
   bool is_unrestricted= with_element->is_unrestricted();
-  List_iterator_fast<TABLE> li(with_element->rec_result->rec_tables);
+  List_iterator_fast<TABLE_LIST> li(with_element->rec_result->rec_table_refs);
   TMP_TABLE_PARAM *tmp_table_param= &with_element->rec_result->tmp_table_param;
   ha_rows examined_rows= 0;
   bool was_executed= executed;
-  TABLE *rec_table;
+  TABLE_LIST *rec_tbl;
 
   DBUG_ENTER("st_select_lex_unit::exec_recursive");
 
@@ -1792,8 +1841,9 @@ bool st_select_lex_unit::exec_recursive()
   else
     with_element->level++;
 
-  while ((rec_table= li++))
+  while ((rec_tbl= li++))
   {
+    TABLE *rec_table= rec_tbl->table;
     saved_error=
       incr_table->insert_all_rows_into_tmp_table(thd, rec_table,
                                                  tmp_table_param,
@@ -1827,13 +1877,8 @@ bool st_select_lex_unit::cleanup()
   {
     DBUG_RETURN(FALSE);
   }
-  /*
-    When processing a PS/SP or an EXPLAIN command cleanup of a unit can
-    be performed immediately when the unit is reached in the cleanup
-    traversal initiated by the cleanup of the main unit.
-  */
-  if (!thd->stmt_arena->is_stmt_prepare() && !thd->lex->describe &&
-      with_element && with_element->is_recursive && union_result)
+  if (with_element && with_element->is_recursive && union_result &&
+      with_element->rec_outer_references)
   {
     select_union_recursive *result= with_element->rec_result;
     if (++result->cleanup_count == with_element->rec_outer_references)
@@ -2002,6 +2047,29 @@ static void cleanup_order(ORDER *order)
 }
 
 
+static void cleanup_window_funcs(List<Item_window_func> &win_funcs)
+{
+  List_iterator_fast<Item_window_func> it(win_funcs);
+  Item_window_func *win_func;
+  while ((win_func= it++))
+  {
+    Window_spec *win_spec= win_func->window_spec;
+    if (!win_spec)
+      continue;
+    if (win_spec->save_partition_list)
+    {
+      win_spec->partition_list= win_spec->save_partition_list;
+      win_spec->save_partition_list= NULL;
+    }
+    if (win_spec->save_order_list)
+    {
+      win_spec->order_list= win_spec->save_order_list;
+      win_spec->save_order_list= NULL;
+    }
+  }
+}
+
+
 bool st_select_lex::cleanup()
 {
   bool error= FALSE;
@@ -2011,16 +2079,37 @@ bool st_select_lex::cleanup()
   cleanup_order(group_list.first);
   cleanup_ftfuncs(this);
 
+  cleanup_window_funcs(window_funcs);
+
   if (join)
   {
+    List_iterator<TABLE_LIST> ti(leaf_tables);
+    TABLE_LIST *tbl;
+    while ((tbl= ti++))
+    {
+      if (tbl->is_recursive_with_table() &&
+          !tbl->is_with_table_recursive_reference())
+      {
+        /*
+          If query is killed before open_and_process_table() for tbl
+          is called then 'with' is already set, but 'derived' is not.
+        */
+        st_select_lex_unit *unit= tbl->with->spec;
+        error|= (bool) error | (uint) unit->cleanup();
+      }
+    }
     DBUG_ASSERT((st_select_lex*)join->select_lex == this);
     error= join->destroy();
     delete join;
     join= 0;
   }
+  leaf_tables.empty();
   for (SELECT_LEX_UNIT *lex_unit= first_inner_unit(); lex_unit ;
        lex_unit= lex_unit->next_unit())
   {
+    if (lex_unit->with_element && lex_unit->with_element->is_recursive &&
+        lex_unit->with_element->rec_outer_references)
+      continue;
     error= (bool) ((uint) error | (uint) lex_unit->cleanup());
   }
   inner_refs_list.empty();
@@ -2040,8 +2129,12 @@ void st_select_lex::cleanup_all_joins(bool full)
     join->cleanup(full);
 
   for (unit= first_inner_unit(); unit; unit= unit->next_unit())
+  {
+    if (unit->with_element && unit->with_element->is_recursive)
+      continue;
     for (sl= unit->first_select(); sl; sl= sl->next_select())
       sl->cleanup_all_joins(full);
+  }
   DBUG_VOID_RETURN;
 }
 

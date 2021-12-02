@@ -14,6 +14,8 @@ call mtr.add_suppression("Out of sort memory; increase server sort buffer size")
 # Test old ORDER BY bug
 #
 
+--source include/have_sequence.inc
+
 CREATE TABLE t1 (
   id int(6) DEFAULT '0' NOT NULL,
   idservice int(5),
@@ -529,11 +531,11 @@ drop table t1, t2;
 # Bug #5428: a problem with small max_sort_length value
 #
 
-create table t1 (a char(25));
+create table t1 (a char(70));
 insert into t1 set a = repeat('x', 20);
-insert into t1 set a = concat(repeat('x', 19), 'z');
-insert into t1 set a = concat(repeat('x', 19), 'ab');
-insert into t1 set a = concat(repeat('x', 19), 'aa');
+insert into t1 set a = concat(repeat('x', 63), 'z');
+insert into t1 set a = concat(repeat('x', 63), 'ab');
+insert into t1 set a = concat(repeat('x', 63), 'aa');
 set max_sort_length=20;
 select a from t1 order by a;
 drop table t1;
@@ -2146,6 +2148,74 @@ SELECT DISTINCT pk FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-21044: Wrong result when using a smaller size for sort buffer
+--echo #
+
+create table t1(a varchar(765),b int);
+insert into t1 values ("a",1),("b",2),("c",3),("e",4);
+insert into t1 values ("d",5),("f",6),("g",7),("h",8);
+insert into t1 values ("k",11),("l",12),("i",9),("j",10);
+insert into t1 values ("m",13),("n",14),("o",15),("p",16);
+set @save_sort_buffer_size= @@sort_buffer_size;
+set sort_buffer_size=1024;
+select * from t1 order  by b;
+set @@sort_buffer_size= @save_sort_buffer_size;
+drop table t1;
+
+--echo #
+--echo # MDEV-22715: SIGSEGV in radixsort_for_str_ptr and in native_compare/my_qsort2 (optimized builds)
+--echo #
+
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_sort_length= @@max_sort_length;
+SET max_sort_length=8;
+SET sort_buffer_size=1024;
+CREATE TABLE t1(a INT, b DECIMAL(65), c BLOB);
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+SELECT * FROM t1 ORDER BY a,b;
+SET @@sort_buffer_size= @save_sort_buffer_size;
+SET @@max_sort_length= @save_max_sort_length;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22390: Assertion `m_next_rec_ptr >= m_rawmem' failed in Filesort_buffer::spaceleft |
+--echo # SIGSEGV in __memmove_avx_unaligned_erms from my_b_write (on optimized)
+--echo #
+
+SET @save_max_sort_length= @@max_sort_length;
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_length_for_sort_data= @@max_length_for_sort_data;
+SET max_sort_length=8;
+SET sort_buffer_size=1024;
+# needed to make sure we use addon fields
+SET max_length_for_sort_data=7000;
+CREATE TABLE t1(a VARCHAR(64), b VARCHAR(2048))DEFAULT CHARSET=utf8;
+INSERT INTO t1 SELECT seq,seq from seq_1_to_100;
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT * FROM t1 ORDER BY a LIMIT 5;
+SELECT * FROM t1 ORDER BY a LIMIT 5;
+SET max_sort_length= @save_max_sort_length;
+SET sort_buffer_size= @save_sort_buffer_size;
+SET max_length_for_sort_data= @save_max_length_for_sort_data;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23596: Assertion `tab->ref.use_count' failed in join_read_key_unlock_row
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY(b));
+INSERT INTO t1 VALUES (0, 1),(1, 2);
+CREATE TABLE t2 SELECT * FROM t1;
+
+EXPLAIN SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
+SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
+
+DROP TABLE t1,t2;
+
+--echo # end of 10.1 tests
+
+--echo #
 --echo # MDEV-13994: Bad join results with orderby_uses_equalities=on
 --echo #
 
@@ -2203,6 +2273,45 @@ ORDER BY id+1 DESC;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-24033: SIGSEGV in __memcmp_avx2_movbe from queue_insert | SIGSEGV in __memcmp_avx2_movbe from native_compare
+--echo #
+
+SET @save_max_length_for_sort_data=@@max_length_for_sort_data;
+SET @save_max_sort_length= @@max_sort_length;
+SET @save_sql_select_limit= @@sql_select_limit;
+
+CREATE TABLE t1 (a DECIMAL(64,0), b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4);
+
+SET max_length_for_sort_data= 30;
+SET sql_select_limit = 3;
+SET max_sort_length=8;
+SELECT * FROM t1 ORDER BY a+1;
+
+SET max_length_for_sort_data=@save_max_length_for_sort_data;
+SET max_sort_length= @save_max_sort_length;
+SET sql_select_limit= @save_sql_select_limit;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25682: EXPLAIN for SELECT with ORDER BY after [ORDER BY] LIMIT
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+explain (select a from t1 limit 2) order by a desc;
+(select a from t1 limit 2) order by a desc;
+
+create table t2 (a int, b int);
+insert into t2 values (3,70), (7,10), (1,40), (4,30);
+explain (select b,a from t2 order by a limit 3) order by b desc;
+(select b,a from t2 order by a limit 3) order by b desc;
+
+drop table t1,t2;
+
+--echo # End of 10.2 tests
+
+--echo #
 --echo # MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY
 --echo #
 
@@ -2238,3 +2347,5 @@ eval explain $query;
 eval $query;
 
 drop table t1,t2;
+
+--echo # End of 10.3 tests

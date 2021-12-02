@@ -99,7 +99,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
   }
 
   mysql_mutex_lock(&thd->LOCK_thd_data);
-  thd->wsrep_query_state= QUERY_EXEC;
+  wsrep_thd_set_query_state(thd, QUERY_EXEC);
   if (thd->wsrep_conflict_state!= REPLAYING)
     thd->wsrep_conflict_state= NO_CONFLICT;
   mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -189,7 +189,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       trans_rollback(thd);
       thd->locked_tables_list.unlock_locked_tables(thd);
       /* Release transactional metadata locks. */
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
       thd->wsrep_conflict_state= NO_CONFLICT;
       DBUG_RETURN(WSREP_CB_FAILURE);
     }
@@ -199,7 +199,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
 
  error:
   mysql_mutex_lock(&thd->LOCK_thd_data);
-  thd->wsrep_query_state= QUERY_IDLE;
+  wsrep_thd_set_query_state(thd, QUERY_IDLE);
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   assert(thd->wsrep_exec_mode== REPL_RECV);
@@ -371,7 +371,7 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
 
   /* Cleanup */
   wsrep_set_apply_format(thd, NULL);
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
   thd->reset_query();                           /* Mutex protected */
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
   thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;

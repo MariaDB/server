@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -256,9 +256,6 @@ ulong srv_buf_pool_load_pages_abort = LONG_MAX;
 /** Lock table size in bytes */
 ulint	srv_lock_table_size	= ULINT_MAX;
 
-/** innodb_idle_flush_pct */
-ulong	srv_idle_flush_pct;
-
 /** innodb_read_io_threads */
 ulong	srv_n_read_io_threads;
 /** innodb_write_io_threads */
@@ -487,11 +484,10 @@ current_time % 60 == 0 and no tasks will be performed when
 current_time % 5 != 0. */
 
 # define	SRV_MASTER_CHECKPOINT_INTERVAL		(7)
-# define	SRV_MASTER_PURGE_INTERVAL		(10)
+#ifdef MEM_PERIODIC_CHECK
+# define	SRV_MASTER_MEM_VALIDATE_INTERVAL	(13)
+#endif /* MEM_PERIODIC_CHECK */
 # define	SRV_MASTER_DICT_LRU_INTERVAL		(47)
-
-/** Simulate compression failures. */
-UNIV_INTERN uint srv_simulate_comp_failures;
 
 /** Buffer pool dump status frequence in percentages */
 UNIV_INTERN ulong srv_buf_dump_status_frequency;
@@ -1285,7 +1281,8 @@ srv_printf_innodb_monitor(
 	ibuf_print(file);
 
 #ifdef BTR_CUR_HASH_ADAPT
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
+	btr_search_x_lock_all();
+	for (ulint i = 0; i < btr_ahi_parts && btr_search_enabled; ++i) {
 		const hash_table_t* table = btr_search_sys->hash_tables[i];
 
 		ut_ad(table->magic_n == HASH_TABLE_MAGIC_N);
@@ -1309,6 +1306,7 @@ srv_printf_innodb_monitor(
 			", node heap has " ULINTPF " buffer(s)\n",
 			table->n_cells, heap->base.count - !heap->free_block);
 	}
+	btr_search_x_unlock_all();
 
 	fprintf(file,
 		"%.2f hash searches/s, %.2f non-hash searches/s\n",
@@ -1750,7 +1748,7 @@ loop:
 
 	srv_refresh_innodb_monitor_stats();
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		goto exit_func;
 	}
 
@@ -1862,7 +1860,7 @@ loop:
 
 	os_event_wait_time_low(srv_error_event, 1000000, sig_count);
 
-	if (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 
 		goto loop;
 	}
@@ -2150,7 +2148,7 @@ srv_master_do_active_tasks(void)
 
 	ut_d(srv_master_do_disabled_loop());
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2175,7 +2173,7 @@ srv_master_do_active_tasks(void)
 	/* Now see if various tasks that are performed at defined
 	intervals need to be performed. */
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2200,7 +2198,7 @@ srv_master_do_active_tasks(void)
 	early and often to avoid those situations. */
 	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2243,7 +2241,7 @@ srv_master_do_idle_tasks(void)
 
 	ut_d(srv_master_do_disabled_loop());
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2259,7 +2257,7 @@ srv_master_do_idle_tasks(void)
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2287,7 +2285,7 @@ srv_master_do_idle_tasks(void)
 	early and often to avoid those situations. */
 	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		return;
 	}
 
@@ -2296,6 +2294,10 @@ srv_master_do_idle_tasks(void)
 	log_checkpoint(true);
 	MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_CHECKPOINT_MICROSECOND,
 				       counter_time);
+
+	/* This is a workaround to avoid the InnoDB hang when OS datetime
+	changed backwards.*/
+	os_event_set(buf_flush_event);
 }
 
 /** Perform shutdown tasks.
@@ -2385,8 +2387,7 @@ DECLARE_THREAD(srv_master_thread)(
 	ut_a(slot == srv_sys.sys_threads);
 
 loop:
-	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
-
+	while (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		srv_master_sleep();
 
 		MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
@@ -2401,6 +2402,7 @@ loop:
 
 	switch (srv_shutdown_state) {
 	case SRV_SHUTDOWN_NONE:
+	case SRV_SHUTDOWN_INITIATED:
 		break;
 	case SRV_SHUTDOWN_FLUSH_PHASE:
 	case SRV_SHUTDOWN_LAST_PHASE:
@@ -2422,6 +2424,10 @@ loop:
 
 	srv_suspend_thread(slot);
 
+	/* DO NOT CHANGE THIS STRING. innobase_start_or_create_for_mysql()
+	waits for database activity to die down when converting < 4.1.x
+	databases, and relies on this string being exactly as it is. InnoDB
+	manual also mentions this string in several places. */
 	srv_main_thread_op_info = "waiting for server activity";
 
 	srv_resume_thread(slot);
@@ -2431,34 +2437,33 @@ loop:
 /** @return whether purge should exit due to shutdown */
 static bool srv_purge_should_exit()
 {
-	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_NONE
-	      || srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
+  ut_ad(srv_shutdown_state <= SRV_SHUTDOWN_CLEANUP);
 
-	if (srv_undo_sources) {
-		return(false);
-	}
-	if (srv_fast_shutdown) {
-		return(true);
-	}
-	/* Slow shutdown was requested. */
-	ulint history_size = trx_sys.history_size();
+  if (srv_undo_sources)
+    return false;
 
-	if (history_size) {
+  if (srv_fast_shutdown)
+    return true;
+
+  /* Slow shutdown was requested. */
+  if (const ulint history_size= trx_sys.history_size())
+  {
+    static time_t progress_time;
+    time_t now= time(NULL);
+    if (now - progress_time >= 15)
+    {
+      progress_time= now;
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
-		static time_t progress_time;
-		time_t now = time(NULL);
-		if (now - progress_time >= 15) {
-			progress_time = now;
-			service_manager_extend_timeout(
-				INNODB_EXTEND_TIMEOUT_INTERVAL,
-				"InnoDB: to purge " ULINTPF " transactions",
-				history_size);
-		}
+      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+				     "InnoDB: to purge %zu transactions",
+				     history_size);
+      ib::info() << "to purge " << history_size << " transactions";
 #endif
-		return false;
-	}
+    }
+    return false;
+  }
 
-	return !trx_sys.any_active_transactions();
+  return !trx_sys.any_active_transactions();
 }
 
 /*********************************************************************//**
@@ -2540,6 +2545,8 @@ DECLARE_THREAD(srv_worker_thread)(
 			srv_wake_purge_thread_if_not_active();
 		}
 	} while (purge_sys.enabled());
+
+	ut_d(rw_lock_free(&slot->debug_sync_lock));
 
 	srv_free_slot(slot);
 
@@ -2633,6 +2640,8 @@ static ulint srv_do_purge(ulint* n_total_purged
 		n_pages_purged = trx_purge(
 			n_use_threads,
 			(++count % rseg_truncate_frequency) == 0
+			|| (srv_shutdown_state != SRV_SHUTDOWN_NONE
+			    && srv_fast_shutdown == 0)
 #ifdef UNIV_DEBUG
 			, slot
 #endif
@@ -2682,7 +2691,7 @@ srv_purge_coordinator_suspend(
 
 		rw_lock_x_lock(&purge_sys.latch);
 
-		stop = srv_shutdown_state == SRV_SHUTDOWN_NONE
+		stop = srv_shutdown_state <= SRV_SHUTDOWN_INITIATED
 			&& purge_sys.paused_latched();
 
 		if (!stop) {
@@ -2753,7 +2762,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		/* If there are no records to purge or the last
 		purge didn't purge any records then wait for activity. */
 
-		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
+		if (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED
 		    && srv_undo_sources
 		    && (n_total_purged == 0 || purge_sys.paused())) {
 
@@ -2774,6 +2783,8 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	/* The task queue should always be empty, independent of fast
 	shutdown state. */
 	ut_a(srv_get_task_queue_length() == 0);
+
+	ut_d(rw_lock_free(&slot->debug_sync_lock));
 
 	srv_free_slot(slot);
 

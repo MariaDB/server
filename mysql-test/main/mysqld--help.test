@@ -11,7 +11,7 @@
 # force symbolic-links=0 (valgrind build has a different default)
 #
 
-exec $MYSQLD_BOOTSTRAP_CMD --symbolic-links=0 --lower-case-table-names=1 --help --verbose > $MYSQL_TMP_DIR/mysqld--help.txt 2>&1;
+exec $MYSQLD_BOOTSTRAP_CMD --symbolic-links=0 --log-bin=foo --lower-case-table-names=1 --help --verbose > $MYSQL_TMP_DIR/mysqld--help.txt 2>&1;
 
 # The inline perl code below will copy $MYSQL_TMP_DIR/mysqld--help.txt
 # to output, but filter away some variable stuff (e.g. paths).
@@ -23,7 +23,9 @@ perl;
                log-slow-queries pid-file slow-query-log-file log-basename
                datadir slave-load-tmpdir tmpdir socket thread-pool-size
                large-files-support lower-case-file-system system-time-zone
-               collation-server character-set-server log-tc-size version.*/;
+               collation-server character-set-server log-tc-size table-cache
+               table-open-cache table-open-cache-instances max-connections
+               version.*/;
 
   # Plugins which may or may not be there:
   @plugins=qw/innodb archive blackhole federated partition

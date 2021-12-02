@@ -5,8 +5,8 @@ NOTE: This document relates to PCRE releases that use the original API, with
 library names libpcre, libpcre16, and libpcre32. January 2015 saw the first
 release of a new API, known as PCRE2, with release numbers starting at 10.00
 and library names libpcre2-8, libpcre2-16, and libpcre2-32. The old libraries
-(now called PCRE1) are still being maintained for bug fixes, but there will be
-no new development. New projects are advised to use the new PCRE2 libraries.
+(now called PCRE1) are now at end of life, and 8.45 is the final release. New
+projects are advised to use the new PCRE2 libraries.
 
 
 This document contains the following sections:
@@ -768,6 +768,6 @@ Everything, source and executable, is in EBCDIC and native z/OS file formats.
 However, this software is not maintained and will not be upgraded. If you are
 new to PCRE you should be looking at PCRE2 (version 10.30 or later).
 
-===============================
-Last Updated: 13 September 2017
-===============================
+==========================
+Last Updated: 15 June 2021
+==========================

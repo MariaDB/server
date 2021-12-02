@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,6 +38,9 @@ Created 5/11/1994 Heikki Tuuri
 #include <string>
 #include "log.h"
 #include "my_cpu.h"
+#ifndef DBUG_OFF
+#include "rem0rec.h"
+#endif
 
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
@@ -148,8 +151,6 @@ ut_print_buf(
 	const byte*	data;
 	ulint		i;
 
-	UNIV_MEM_ASSERT_RW(buf, len);
-
 	fprintf(file, " len " ULINTPF "; hex ", len);
 
 	for (data = (const byte*) buf, i = 0; i < len; i++) {
@@ -184,8 +185,6 @@ ut_print_buf_hex(
 		'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
 	};
 
-	UNIV_MEM_ASSERT_RW(buf, len);
-
 	o << "(0x";
 
 	for (data = static_cast<const byte*>(buf), i = 0; i < len; i++) {
@@ -207,8 +206,6 @@ ut_print_buf(
 {
 	const byte*	data;
 	ulint		i;
-
-	UNIV_MEM_ASSERT_RW(buf, len);
 
 	for (data = static_cast<const byte*>(buf), i = 0; i < len; i++) {
 		int	c = static_cast<int>(*data++);
@@ -568,6 +565,12 @@ ut_basename_noext(
 
 namespace ib {
 
+ATTRIBUTE_COLD logger& logger::operator<<(dberr_t err)
+{
+  m_oss << ut_strerr(err);
+  return *this;
+}
+
 info::~info()
 {
 	sql_print_information("InnoDB: %s", m_oss.str().c_str());
@@ -578,9 +581,13 @@ warn::~warn()
 	sql_print_warning("InnoDB: %s", m_oss.str().c_str());
 }
 
+/** true if error::~error() was invoked, false otherwise */
+bool error::logged;
+
 error::~error()
 {
 	sql_print_error("InnoDB: %s", m_oss.str().c_str());
+	logged = true;
 }
 
 #ifdef _MSC_VER
@@ -622,5 +629,50 @@ fatal_or_error::~fatal_or_error()
 }
 
 } // namespace ib
+
+#ifndef DBUG_OFF
+static char dbug_print_buf[1024];
+
+const char * dbug_print_rec(const rec_t* rec, const rec_offs* offsets)
+{
+	rec_printer r(rec, offsets);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const rec_t* rec, ulint info, const rec_offs* offsets)
+{
+	rec_printer r(rec, info, offsets);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const dtuple_t* tuple)
+{
+	rec_printer r(tuple);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const dfield_t* field, ulint n)
+{
+	rec_printer r(field, n);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const rec_t* rec, dict_index_t* index)
+{
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
+	rec_offs_init(offsets_);
+	mem_heap_t*	tmp_heap	= NULL;
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
+				  ULINT_UNDEFINED, &tmp_heap);
+	rec_printer r(rec, offsets);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+#endif /* !DBUG_OFF */
 
 #endif /* !UNIV_INNOCHECKSUM */

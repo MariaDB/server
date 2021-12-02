@@ -78,7 +78,8 @@ struct ha_table_option_struct {
 
 typedef class ha_connect     *PHC;
 
-char *GetPluginDir(void);
+char   *GetPluginDir(void);
+char   *GetMessageDir(void);
 TABTYPE GetTypeID(const char *type);
 bool    IsFileType(TABTYPE type);
 bool    IsExactType(TABTYPE type);
@@ -102,14 +103,14 @@ class MYCAT : public CATALOG {
   // Methods
   void    Reset(void);
   bool    StoreIndex(PGLOBAL, PTABDEF) {return false;}  // Temporary
-	PRELDEF GetTableDesc(PGLOBAL g, PTABLE tablep,
+	PTABDEF GetTableDesc(PGLOBAL g, PTABLE tablep,
 		                   LPCSTR type, PRELDEF *prp = NULL);
   PTDB    GetTable(PGLOBAL g, PTABLE tablep, 
                               MODE mode = MODE_READ, LPCSTR type = NULL);
   void    ClearDB(PGLOBAL g);
 
  protected:
-	PRELDEF MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am);
+	PTABDEF MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am);
 
   // Members
   ha_connect *Hc;                          // The Connect handler

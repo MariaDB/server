@@ -1,0 +1,77 @@
+#
+# Optionally rollback prepared XA when backup is prepared
+#
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+
+CALL mtr.add_suppression("Found 1 prepared XA transactions");
+
+RESET MASTER;
+
+let targetdir1=$MYSQLTEST_VARDIR/tmp/backup1;
+let targetdir2=$MYSQLTEST_VARDIR/tmp/backup2;
+let targetdir3=$MYSQLTEST_VARDIR/tmp/backup3;
+let targetdir4=$MYSQLTEST_VARDIR/tmp/backup4;
+
+CREATE TABLE t1 (a INT) ENGINE=INNODB;
+XA START 'test1';
+INSERT t1 VALUES (10);
+XA END 'test1';
+XA PREPARE 'test1';
+XA RECOVER;
+
+--echo # xtrabackup backup
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir1;
+--enable_result_log
+
+perl;
+use lib "lib";
+use My::Handles { suppress_init_messages => 1 };
+use My::File::Path;
+copytree($ENV{'targetdir1'}, $ENV{'targetdir2'});
+copytree($ENV{'targetdir1'}, $ENV{'targetdir3'});
+copytree($ENV{'targetdir1'}, $ENV{'targetdir4'});
+EOF
+
+XA ROLLBACK 'test1';
+
+--echo # xtrabackup prepare and rollback prepared XA
+--disable_result_log
+exec $XTRABACKUP  --prepare --rollback_xa --target-dir=$targetdir1;
+--let $targetdir = $targetdir1
+--source include/restart_and_restore.inc
+--enable_result_log
+XA RECOVER;
+
+--echo # xtrabackup prepare and DO NOT rollback prepared XA
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir2;
+--let $targetdir = $targetdir2
+--source include/restart_and_restore.inc
+--enable_result_log
+XA RECOVER;
+XA ROLLBACK 'test1';
+
+--echo # xtrabackup prepare for export and rollback prepared XA
+--disable_result_log
+exec $XTRABACKUP  --prepare --rollback_xa --export --target-dir=$targetdir3;
+--let $targetdir = $targetdir3
+--source include/restart_and_restore.inc
+--enable_result_log
+XA RECOVER;
+
+--echo # xtrabackup prepare for export and DO NOT rollback prepared XA
+--disable_result_log
+exec $XTRABACKUP  --prepare --export --target-dir=$targetdir4;
+--let $targetdir = $targetdir4
+--source include/restart_and_restore.inc
+--enable_result_log
+XA RECOVER;
+XA ROLLBACK 'test1';
+
+DROP TABLE t1;
+rmdir $targetdir1;
+rmdir $targetdir2;
+rmdir $targetdir3;
+rmdir $targetdir4;

@@ -74,6 +74,7 @@ enum TP_STATE
 {
   TP_STATE_IDLE,
   TP_STATE_RUNNING,
+  TP_STATE_PENDING
 };
 
 /*

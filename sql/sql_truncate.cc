@@ -428,10 +428,9 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 
       if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd, false))
       {
-        thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
-        error=1;
+          thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+          error= 1;
       }
-
       /* No need to binlog a failed truncate-by-recreate. */
       binlog_stmt= !error;
     }
@@ -442,6 +441,15 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
         Attempt to use the handler truncate method.
       */
       error= handler_truncate(thd, table_ref, FALSE);
+
+      if (error == TRUNCATE_OK && thd->locked_tables_mode &&
+          (table_ref->table->file->ht->flags &
+           HTON_REQUIRES_CLOSE_AFTER_TRUNCATE))
+      {
+        thd->locked_tables_list.mark_table_for_reopen(thd, table_ref->table);
+        if (unlikely(thd->locked_tables_list.reopen_tables(thd, true)))
+          thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+      }
 
       /*
         All effects of a TRUNCATE TABLE operation are committed even if

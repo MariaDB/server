@@ -343,19 +343,18 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
   if ((*item)->const_item() && !(*item)->is_expensive())
   {
     TABLE *table= field->table;
-    sql_mode_t orig_sql_mode= thd->variables.sql_mode;
-    enum_check_fields orig_count_cuted_fields= thd->count_cuted_fields;
-    my_bitmap_map *old_maps[2] = { NULL, NULL };
+    Sql_mode_save sql_mode(thd);
+    Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
+    MY_BITMAP *old_maps[2] = { NULL, NULL };
     ulonglong UNINIT_VAR(orig_field_val); /* original field value if valid */
 
     /* table->read_set may not be set if we come here from a CREATE TABLE */
     if (table && table->read_set)
-      dbug_tmp_use_all_columns(table, old_maps, 
-                               table->read_set, table->write_set);
+      dbug_tmp_use_all_columns(table, old_maps,
+                               &table->read_set, &table->write_set);
     /* For comparison purposes allow invalid dates like 2000-01-32 */
-    thd->variables.sql_mode= (orig_sql_mode & ~MODE_NO_ZERO_DATE) | 
+    thd->variables.sql_mode= (thd->variables.sql_mode & ~MODE_NO_ZERO_DATE) |
                              MODE_INVALID_DATES;
-    thd->count_cuted_fields= CHECK_FIELD_IGNORE;
 
     /*
       Store the value of the field/constant because the call to save_in_field
@@ -392,10 +391,8 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
       /* orig_field_val must be a valid value that can be restored back. */
       DBUG_ASSERT(!result);
     }
-    thd->variables.sql_mode= orig_sql_mode;
-    thd->count_cuted_fields= orig_count_cuted_fields;
     if (table && table->read_set)
-      dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_maps);
+      dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_maps);
   }
   return result;
 }
@@ -843,6 +840,8 @@ int Arg_comparator::compare_decimal()
     {
       if (set_null)
         owner->null_value= 0;
+      my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val1, (*a)->decimals, 0);
+      my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val2, (*b)->decimals, 0);
       return my_decimal_cmp(val1, val2);
     }
   }
@@ -867,7 +866,9 @@ int Arg_comparator::compare_e_decimal()
   my_decimal *val2= (*b)->val_decimal(&decimal2);
   if ((*a)->null_value || (*b)->null_value)
     return MY_TEST((*a)->null_value && (*b)->null_value);
-  return MY_TEST(my_decimal_cmp(val1, val2) == 0);
+  my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val1, (*a)->decimals, 0);
+  my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val2, (*b)->decimals, 0);
+  return my_decimal_cmp(val1, val2) == 0;
 }
 
 
@@ -1176,7 +1177,9 @@ longlong Item_func_truth::val_int()
 
 bool Item_in_optimizer::is_top_level_item()
 {
-  return ((Item_in_subselect *)args[1])->is_top_level_item();
+  if (!invisible_mode())
+    return ((Item_in_subselect *)args[1])->is_top_level_item();
+  return false;
 }
 
 
@@ -1356,6 +1359,9 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
     maybe_null=1;
   m_with_subquery= true;
   with_sum_func= with_sum_func || args[1]->with_sum_func;
+  with_window_func= args[0]->with_window_func;
+  // The subquery cannot have window functions aggregated in this select
+  DBUG_ASSERT(!args[1]->with_window_func);
   with_field= with_field || args[1]->with_field;
   with_param= args[0]->with_param || args[1]->with_param; 
   used_tables_and_const_cache_join(args[1]);
@@ -1370,7 +1376,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   @note 
    Item_in_optimizer should work as pass-through for
     - subqueries that were processed by ALL/ANY->MIN/MAX rewrite
-    - subqueries taht were originally EXISTS subqueries (and were coverted by
+    - subqueries that were originally EXISTS subqueries (and were coinverted by
       the EXISTS->IN rewrite)
 
    When Item_in_optimizer is not not working as a pass-through, it
@@ -1538,7 +1544,7 @@ longlong Item_in_optimizer::val_int()
     DBUG_RETURN(res);
   }
 
-  if (cache->null_value)
+  if (cache->null_value_inside)
   {
      DBUG_PRINT("info", ("Left NULL..."));
     /*
@@ -1960,8 +1966,8 @@ longlong Item_func_interval::val_int()
       interval_range *range= intervals + mid;
       my_bool cmp_result;
       /*
-        The values in the range intervall may have different types,
-        Only do a decimal comparision of the first argument is a decimal
+        The values in the range interval may have different types,
+        Only do a decimal comparison if the first argument is a decimal
         and we are comparing against a decimal
       */
       if (dec && range->type == DECIMAL_RESULT)
@@ -2249,7 +2255,7 @@ longlong Item_func_between::val_int_cmp_real()
 
 void Item_func_between::print(String *str, enum_query_type query_type)
 {
-  args[0]->print_parenthesised(str, query_type, precedence());
+  args[0]->print_parenthesised(str, query_type, higher_precedence());
   if (negated)
     str->append(STRING_WITH_LEN(" not"));
   str->append(STRING_WITH_LEN(" between "));
@@ -2542,7 +2548,7 @@ Item_func_nullif::fix_length_and_dec()
       Some examples of what NULLIF can end up with after argument
       substitution (we don't mention args[1] in some cases for simplicity):
 
-      1. l_expr is not an aggragate function:
+      1. l_expr is not an aggregate function:
 
         a. No conversion happened.
            args[0] and args[2] were not replaced to something else
@@ -2666,7 +2672,7 @@ Item_func_nullif::fix_length_and_dec()
     In this case we remember and reuse m_arg0 during EXECUTE time as args[2].
 
     QQ: How to make sure that m_args0 does not point
-    to something temporary which will be destoyed between PREPARE and EXECUTE.
+    to something temporary which will be destroyed between PREPARE and EXECUTE.
     The condition below should probably be more strict and somehow check that:
     - change_item_tree() was called for the new args[0]
     - m_args0 is referenced from inside args[0], e.g. as a function argument,
@@ -3098,7 +3104,7 @@ bool Item_func_decode_oracle::fix_length_and_dec()
 /*
   Aggregate all THEN and ELSE expression types
   and collations when string result
-  
+
   @param THD       - current thd
   @param start     - an element in args to start aggregating from
 */
@@ -3236,27 +3242,28 @@ Item* Item_func_case_simple::propagate_equal_fields(THD *thd,
 }
 
 
-void Item_func_case::print_when_then_arguments(String *str,
-                                               enum_query_type query_type,
-                                               Item **items, uint count)
+inline void Item_func_case::print_when_then_arguments(String *str,
+                                                      enum_query_type
+                                                      query_type,
+                                                      Item **items, uint count)
 {
-  for (uint i=0 ; i < count ; i++)
+  for (uint i= 0; i < count; i++)
   {
     str->append(STRING_WITH_LEN("when "));
-    items[i]->print_parenthesised(str, query_type, precedence());
+    items[i]->print(str, query_type);
     str->append(STRING_WITH_LEN(" then "));
-    items[i + count]->print_parenthesised(str, query_type, precedence());
+    items[i + count]->print(str, query_type);
     str->append(' ');
   }
 }
 
 
-void Item_func_case::print_else_argument(String *str,
-                                         enum_query_type query_type,
-                                         Item *item)
+inline void Item_func_case::print_else_argument(String *str,
+                                                enum_query_type query_type,
+                                                Item *item)
 {
   str->append(STRING_WITH_LEN("else "));
-  item->print_parenthesised(str, query_type, precedence());
+  item->print(str, query_type);
   str->append(' ');
 }
 
@@ -4976,7 +4983,7 @@ void Item_cond::neg_arguments(THD *thd)
       
    @retval
      clone of the item
-     0 if an error occured
+     0 if an error occurred
 */ 
 
 Item *Item_cond::build_clone(THD *thd)
@@ -5230,18 +5237,21 @@ void Item_func_like::print(String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN(" not "));
   str->append(func_name());
   str->append(' ');
-  args[1]->print_parenthesised(str, query_type, precedence());
   if (escape_used_in_parsing)
   {
+    args[1]->print_parenthesised(str, query_type, precedence());
     str->append(STRING_WITH_LEN(" escape "));
-    escape_item->print(str, query_type);
+    escape_item->print_parenthesised(str, query_type, higher_precedence());
   }
+  else
+    args[1]->print_parenthesised(str, query_type, higher_precedence());
 }
 
 
 longlong Item_func_like::val_int()
 {
   DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(escape != ESCAPE_NOT_INITIALIZED);
   String* res= args[0]->val_str(&cmp_value1);
   if (args[0]->null_value)
   {
@@ -5328,15 +5338,29 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
                      bool escape_used_in_parsing, CHARSET_INFO *cmp_cs,
                      int *escape)
 {
-  if (!escape_item->const_during_execution())
+  /*
+    ESCAPE clause accepts only constant arguments and Item_param.
+
+    Subqueries during context_analysis_only might decide they're
+    const_during_execution, but not quite const yet, not evaluate-able.
+    This is fine, as most of context_analysis_only modes will never
+    reach val_int(), so we won't need the value.
+    CONTEXT_ANALYSIS_ONLY_DERIVED being a notable exception here.
+  */
+  if (!escape_item->const_during_execution() ||
+     (!escape_item->const_item() &&
+      !(thd->lex->context_analysis_only & ~CONTEXT_ANALYSIS_ONLY_DERIVED)))
   {
     my_error(ER_WRONG_ARGUMENTS,MYF(0),"ESCAPE");
     return TRUE;
   }
-  
+
+  IF_DBUG(*escape= ESCAPE_NOT_INITIALIZED,);
+
   if (escape_item->const_item())
   {
     /* If we are on execution stage */
+    /* XXX is it safe to evaluate is_expensive() items here? */
     String *escape_str= escape_item->val_str(tmp_str);
     if (escape_str)
     {
@@ -6950,7 +6974,7 @@ Item* Item_equal::get_first(JOIN_TAB *context, Item *field_item)
     and not ot2.col.
     
     eliminate_item_equal() also has code that deals with equality substitution
-    in presense of SJM nests.
+    in presence of SJM nests.
   */
 
   TABLE_LIST *emb_nest;

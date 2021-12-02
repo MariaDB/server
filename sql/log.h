@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -600,7 +600,18 @@ public:
     long notify_count;
     /* For linking in requests to the binlog background thread. */
     xid_count_per_binlog *next_in_queue;
-    xid_count_per_binlog();   /* Give link error if constructor used. */
+    xid_count_per_binlog(char *log_file_name, uint log_file_name_len)
+      :binlog_id(0), xid_count(0), notify_count(0)
+    {
+      binlog_name_len= log_file_name_len;
+      binlog_name= (char *) my_malloc(binlog_name_len, MYF(MY_ZEROFILL));
+      if (binlog_name)
+        memcpy(binlog_name, log_file_name, binlog_name_len);
+    }
+    ~xid_count_per_binlog()
+    {
+      my_free(binlog_name);
+    }
   };
   I_List<xid_count_per_binlog> binlog_xid_count_list;
   mysql_mutex_t LOCK_binlog_background_thread;
@@ -720,7 +731,9 @@ public:
     char buf1[22],buf2[22];
 #endif
     DBUG_ENTER("harvest_bytes_written");
-    (*counter)+=bytes_written;
+
+    my_atomic_add64_explicit((volatile int64*)(counter), bytes_written,
+                             MY_MEMORY_ORDER_RELAXED);
     DBUG_PRINT("info",("counter: %s  bytes_written: %s", llstr(*counter,buf1),
 		       llstr(bytes_written,buf2)));
     bytes_written=0;
@@ -925,6 +938,20 @@ public:
   void lock_binlog_end_pos() { mysql_mutex_lock(&LOCK_binlog_end_pos); }
   void unlock_binlog_end_pos() { mysql_mutex_unlock(&LOCK_binlog_end_pos); }
   mysql_mutex_t* get_binlog_end_pos_lock() { return &LOCK_binlog_end_pos; }
+
+  /*
+    Ensures the log's state is either LOG_OPEN or LOG_CLOSED. If something
+    failed along the desired path and left the log in invalid state, i.e.
+    LOG_TO_BE_OPENED, forces the state to be LOG_CLOSED.
+  */
+  void try_fix_log_state()
+  {
+    mysql_mutex_lock(get_log_lock());
+    /* Only change the log state if it is LOG_TO_BE_OPENED */
+    if (log_state == LOG_TO_BE_OPENED)
+      log_state= LOG_CLOSED;
+    mysql_mutex_unlock(get_log_lock());
+  }
 
   int wait_for_update_binlog_end_pos(THD* thd, struct timespec * timeout);
 

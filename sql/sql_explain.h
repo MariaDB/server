@@ -121,11 +121,13 @@ public:
   */
   enum explain_connection_type connection_type;
 
+protected:
   /* 
     A node may have children nodes. When a node's explain structure is 
     created, children nodes may not yet have QPFs. This is why we store ids.
   */
   Dynamic_array<int> children;
+public:
   void add_child(int select_no)
   {
     children.append(select_no);
@@ -211,6 +213,7 @@ public:
     select_lex(NULL),
 #endif
     linkage(UNSPECIFIED_TYPE),
+    is_lateral(false),
     message(NULL),
     having(NULL), having_value(Item::COND_UNDEF),
     using_temporary(false), using_filesort(false),
@@ -226,6 +229,7 @@ public:
 #endif
   const char *select_type;
   enum sub_select_type linkage;
+  bool is_lateral;
 
   /*
     If message != NULL, this is a degenerate join plan, and all subsequent

@@ -15,6 +15,18 @@ SELECT COALESCE(@a) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-21065 UNIQUE constraint causes a query with string comparison to omit a row in the result set
+--echo #
+
+CREATE TABLE t1 (c0 INT UNIQUE);
+INSERT INTO t1 VALUES (NULL), (NULL), (NULL), (NULL), (1), (0);
+SELECT * FROM t1 WHERE c0 < '\n2';
+DROP TABLE t1;
+
+SELECT CAST('\n2' AS INT);
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 

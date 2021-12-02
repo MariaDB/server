@@ -1,0 +1,29 @@
+--source include/have_innodb.inc
+--source include/have_tis620.inc
+
+SET STORAGE_ENGINE=InnoDB;
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo #  MDEV-24901 SIGSEGV in fts_get_table_name, SIGSEGV in ib_vector_size, SIGSEGV in row_merge_fts_doc_tokenize, stack smashing Export
+--echo #
+
+CREATE TABLE t1(c TEXT CHARACTER SET tis620);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES('100');
+ALTER TABLE t1 ADD FULLTEXT INDEX(c), ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1(c TEXT CHARACTER SET tis620 COLLATE tis620_thai_nopad_ci);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES('100');
+ALTER TABLE t1 ADD FULLTEXT INDEX(c), ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

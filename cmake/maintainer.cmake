@@ -1,4 +1,5 @@
 # Copyright (c) 2010, 2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2011, 2021, MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,7 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
-IF(MSVC)
+IF(MYSQL_MAINTAINER_MODE STREQUAL "NO")
   RETURN()
 ENDIF()
 
@@ -33,20 +34,25 @@ SET(MY_WARNING_FLAGS
   -Wnon-virtual-dtor
   -Wvla
   -Wwrite-strings
-  -Werror
   )
 
+FOREACH(F ${MY_WARNING_FLAGS})
+  MY_CHECK_AND_SET_COMPILER_FLAG(${F} DEBUG RELWITHDEBINFO)
+ENDFOREACH()
+
+SET(MY_ERROR_FLAGS -Werror)
+
 IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
-  SET(MY_WARNING_FLAGS ${MY_WARNING_FLAGS} -Wno-error=maybe-uninitialized)
+  SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=maybe-uninitialized)
 ENDIF()
 
-IF(MYSQL_MAINTAINER_MODE MATCHES "OFF")
+IF(MYSQL_MAINTAINER_MODE MATCHES "OFF|WARN")
   RETURN()
 ELSEIF(MYSQL_MAINTAINER_MODE MATCHES "AUTO")
   SET(WHERE DEBUG)
 ENDIF()
 
-FOREACH(F ${MY_WARNING_FLAGS})
+FOREACH(F ${MY_ERROR_FLAGS})
   MY_CHECK_AND_SET_COMPILER_FLAG(${F} ${WHERE})
 ENDFOREACH()
 

@@ -333,7 +333,7 @@ static my_bool emb_read_query_result(MYSQL *mysql)
 static int emb_stmt_execute(MYSQL_STMT *stmt)
 {
   DBUG_ENTER("emb_stmt_execute");
-  uchar header[5];
+  uchar header[9];
   THD *thd;
   my_bool res;
 
@@ -345,6 +345,7 @@ static int emb_stmt_execute(MYSQL_STMT *stmt)
 
   int4store(header, stmt->stmt_id);
   header[4]= (uchar) stmt->flags;
+  header[5]= header[6]= header[7]= header[8]= 0; // safety
   thd= (THD*)stmt->mysql->thd;
   thd->client_param_count= stmt->param_count;
   thd->client_params= stmt->params;
@@ -626,7 +627,8 @@ int init_embedded_server(int argc, char **argv, char **groups)
 
   (void) thr_setconcurrency(concurrency);	// 10 by default
 
-  start_handle_manager();
+  if (flush_time && flush_time != ~(ulong) 0L)
+    start_handle_manager();
 
   // FIXME initialize binlog_filter and rpl_filter if not already done
   //       corresponding delete is in clean_up()

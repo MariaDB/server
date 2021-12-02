@@ -85,13 +85,10 @@ SELECT @@session.session_track_system_variables;
 connection default;
 
 --echo # Testing NULL
+--error ER_WRONG_VALUE_FOR_VAR
 SET @@global.session_track_system_variables = NULL;
+--error ER_WRONG_VALUE_FOR_VAR
 SET @@session.session_track_system_variables = NULL;
-
---echo # Global - expect "" instead of NULL
-SELECT @@global.session_track_system_variables;
---echo # Session - expect "" instead of NULL
-SELECT @@session.session_track_system_variables;
 
 --echo # testing with duplicate entries.
 # Lets first set it to some valid value.
@@ -122,6 +119,8 @@ SELECT @@global.session_track_system_variables;
 SELECT @@session.session_track_system_variables;
 --echo
 
+--echo # MDEV-22524 SIGABRT in safe_mutex_unlock with session_track_system_variables and max_relay_log_size.
+SET SESSION session_track_system_variables="sql_slave_skip_counter", sql_slave_skip_counter= 0;
 
 --echo # Restoring the original values.
 SET @@global.session_track_system_variables = @global_saved_tmp;

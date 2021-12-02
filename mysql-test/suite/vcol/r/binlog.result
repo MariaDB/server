@@ -67,4 +67,31 @@ connection master;
 DROP VIEW v1;
 set @@binlog_row_image=default;
 DROP TABLE t1;
+SET SQL_MODE=default;
+CREATE TABLE t1 (pk INT, a VARCHAR(3), b VARCHAR(1) AS (a) VIRTUAL, PRIMARY KEY (pk));
+INSERT IGNORE INTO t1 (pk, a) VALUES (1,'foo'),(2,'bar');
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 1
+Warning	1265	Data truncated for column 'b' at row 2
+REPLACE INTO t1 (pk) VALUES (2);
+ERROR 22001: Data too long for column 'b' at row 1
+UPDATE IGNORE t1 SET a = NULL;
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 1
+Warning	1265	Data truncated for column 'b' at row 2
+DROP TABLE t1;
+#
+# MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+#
+SET SESSION binlog_row_image= noblob;
+CREATE TEMPORARY TABLE t1 SELECT UUID();
+show create table t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `UUID()` varchar(36) CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE TABLE t2 (a INT PRIMARY KEY, b TEXT, c INT GENERATED ALWAYS AS(b));
+INSERT INTO t2 (a,b) VALUES (1,1);
+SET SESSION binlog_row_image= default;
+DROP TABLE t2;
 include/rpl_end.inc

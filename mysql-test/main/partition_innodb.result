@@ -386,33 +386,33 @@ DROP TABLE t1;
 create table t1 (a int) engine=innodb partition by hash(a) ;
 show table status like 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	2	8192	16384	0	0	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	2	8192	16384	0	0	0	NULL	#	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 drop table t1;
 create table t1 (a int)
 engine = innodb
 partition by key (a);
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	2	8192	16384	0	0	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	2	8192	16384	0	0	0	NULL	Create_time	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 insert into t1 values (0), (1), (2), (3);
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	4	4096	16384	0	0	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	4	4096	16384	0	0	0	NULL	Create_time	Update_time	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 drop table t1;
 create table t1 (a int auto_increment primary key)
 engine = innodb
 partition by key (a);
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	2	8192	16384	0	0	#	1	#	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	2	8192	16384	0	0	0	1	Create_time	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	4	4096	16384	0	0	#	5	#	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	4	4096	16384	0	0	0	5	Create_time	Update_time	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	10	Dynamic	8	2048	16384	0	0	#	9	#	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	InnoDB	10	Dynamic	8	2048	16384	0	0	0	9	Create_time	Update_time	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 drop table t1;
 create table t1 (a int)
 partition by key (a)
@@ -1046,10 +1046,10 @@ INSERT INTO t1 VALUES ();
 SELECT * FROM t1;
 a
 -1
-1
 3
 4
 6
+7
 DROP TABLE t1;
 #
 # End of 10.3 tests

@@ -1,9 +1,6 @@
 -- source include/have_innodb.inc
 
---disable_warnings
-drop table if exists prefixinno;
---enable_warnings
-
+SET @save_opt= @@GLOBAL.innodb_prefix_index_cluster_optimization;
 set global innodb_prefix_index_cluster_optimization = ON;
 show variables like 'innodb_prefix_index_cluster_optimization';
 
@@ -665,4 +662,58 @@ select @cluster_lookups;
 select @cluster_lookups_avoided;
 
 DROP TABLE t1;
-set global innodb_prefix_index_cluster_optimization = OFF;
+
+--echo #
+--echo # MDEV-20464 Division by 0 in row_search_with_covering_prefix()
+--echo #
+CREATE TABLE t1 (f1 INT, f2 INT AS (f1), f3 INT AS (f1), f4 INT AS (f1),
+                 KEY (f1,f2,f3)) ENGINE=InnoDB;
+INSERT INTO t1 (f1) VALUES (NULL),(0);
+SELECT f1, MAX(f3), COUNT(f4) FROM t1 GROUP BY f1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23600 Division by 0 in row_search_with_covering_prefix()
+--echo #
+CREATE TABLE t(c POINT UNIQUE) ENGINE=InnoDB;
+INSERT t SET c=POINT(1,1);
+SELECT * FROM t WHERE c > (SELECT MAX(c) FROM t);
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-12486 Wrong results with innodb_prefix_index_cluster_optimization
+--echo #
+CREATE TABLE wp_blogs (
+  blog_id bigint(20) NOT NULL auto_increment,
+  site_id bigint(20) NOT NULL default '0',
+  domain varchar(200) NOT NULL default '',
+  path varchar(100) NOT NULL default '',
+  registered datetime NOT NULL default '0000-00-00 00:00:00',
+  last_updated datetime NOT NULL default '0000-00-00 00:00:00',
+  public tinyint(2) NOT NULL default '1',
+  archived tinyint(2) NOT NULL default '0',
+  mature tinyint(2) NOT NULL default '0',
+  spam tinyint(2) NOT NULL default '0',
+  deleted tinyint(2) NOT NULL default '0',
+  lang_id int(11) NOT NULL default '0',
+  PRIMARY KEY  (blog_id),
+  KEY domain (domain(50),path(5)),
+  KEY lang_id (lang_id)
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;
+
+INSERT INTO wp_blogs (domain, path) VALUES
+('domain.no', '/fondsinvesteringer/'), ('domain.no', '/'),
+('foo', 'bar'), ('bar', 'foo'), ('foo', 'foo'), ('bar', 'bar'),
+('foo', 'foobar'), ('bar', 'foobar'), ('foobar', 'foobar');
+
+SET GLOBAL innodb_prefix_index_cluster_optimization=off;
+SELECT blog_id FROM wp_blogs WHERE domain IN ('domain.no')
+AND path IN ( '/fondsinvesteringer/', '/' );
+
+SET GLOBAL innodb_prefix_index_cluster_optimization=on;
+SELECT blog_id FROM wp_blogs WHERE domain IN ('domain.no')
+AND path IN ( '/fondsinvesteringer/', '/' );
+
+DROP TABLE wp_blogs;
+
+SET GLOBAL innodb_prefix_index_cluster_optimization = @save_opt;

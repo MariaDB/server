@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +29,8 @@ Created 2013-03-16 Sunny Bains
 
 #include "mem0mem.h"
 #include "dyn0types.h"
-#include "ut0lst.h"
+#include "ilist.h"
+
 
 /** Class that manages dynamic buffers. It uses a UT_LIST of
 mtr_buf_t::block_t instances. We don't use STL containers in
@@ -40,17 +41,11 @@ backend for the custom allocator because we would like the data in
 the blocks to be contiguous. */
 class mtr_buf_t {
 public:
-
-	class block_t;
-
-	typedef UT_LIST_NODE_T(block_t) block_node_t;
-	typedef UT_LIST_BASE_NODE_T(block_t) block_list_t;
-
 	/** SIZE - sizeof(m_node) + sizeof(m_used) */
 	enum { MAX_DATA_SIZE = DYN_ARRAY_DATA_SIZE
-	       - sizeof(block_node_t) + sizeof(ib_uint32_t) };
+	       - sizeof(ilist_node<>) + sizeof(uint32_t) };
 
-	class block_t {
+	class block_t : public ilist_node<> {
 	public:
 
 		block_t()
@@ -158,9 +153,6 @@ public:
 		/** Storage */
 		byte		m_data[MAX_DATA_SIZE];
 
-		/** Doubly linked list node. */
-		block_node_t	m_node;
-
 		/** number of data bytes used in this block;
 		DYN_BLOCK_FULL_FLAG is set when the block becomes full */
 		uint32_t	m_used;
@@ -168,13 +160,14 @@ public:
 		friend class mtr_buf_t;
 	};
 
+	typedef sized_ilist<block_t> list_t;
+
 	/** Default constructor */
 	mtr_buf_t()
 		:
 		m_heap(),
 		m_size()
 	{
-		UT_LIST_INIT(m_list, &block_t::m_node);
 		push_back(&m_first_block);
 	}
 
@@ -192,11 +185,11 @@ public:
 			m_heap = NULL;
 
 			/* Initialise the list and add the first block. */
-			UT_LIST_INIT(m_list, &block_t::m_node);
-			push_back(&m_first_block);
+			m_list.clear();
+			m_list.push_back(m_first_block);
 		} else {
 			m_first_block.init();
-			ut_ad(UT_LIST_GET_LEN(m_list) == 1);
+			ut_ad(m_list.size() == 1);
 		}
 
 		m_size = 0;
@@ -228,7 +221,7 @@ public:
 	@param ptr	end of used space */
 	void close(const byte* ptr)
 	{
-		ut_ad(UT_LIST_GET_LEN(m_list) > 0);
+		ut_ad(!m_list.empty());
 		block_t*	block = back();
 
 		m_size -= block->used();
@@ -310,11 +303,9 @@ public:
 #ifdef UNIV_DEBUG
 		ulint	total_size = 0;
 
-		for (const block_t* block = UT_LIST_GET_FIRST(m_list);
-		     block != NULL;
-		     block = UT_LIST_GET_NEXT(m_node, block)) {
-
-			total_size += block->used();
+		for (list_t::iterator it = m_list.begin(), end = m_list.end();
+		     it != end; ++it) {
+			total_size += it->used();
 		}
 
 		ut_ad(total_size == m_size);
@@ -328,12 +319,29 @@ public:
 	template <typename Functor>
 	bool for_each_block(Functor& functor) const
 	{
-		for (const block_t* block = UT_LIST_GET_FIRST(m_list);
-		     block != NULL;
-		     block = UT_LIST_GET_NEXT(m_node, block)) {
+		for (list_t::iterator it = m_list.begin(), end = m_list.end();
+		     it != end; ++it) {
 
-			if (!functor(block)) {
-				return(false);
+			if (!functor(&*it)) {
+				return false;
+			}
+		}
+
+		return(true);
+	}
+
+	/**
+	Iterate over each block and call the functor.
+	@return	false if iteration was terminated. */
+	template <typename Functor>
+	bool for_each_block(const Functor& functor) const
+	{
+		for (typename list_t::iterator it = m_list.begin(),
+					       end = m_list.end();
+		     it != end; ++it) {
+
+			if (!functor(&*it)) {
+				return false;
 			}
 		}
 
@@ -346,12 +354,12 @@ public:
 	template <typename Functor>
 	bool for_each_block_in_reverse(Functor& functor) const
 	{
-		for (block_t* block = UT_LIST_GET_LAST(m_list);
-		     block != NULL;
-		     block = UT_LIST_GET_PREV(m_node, block)) {
+		for (list_t::reverse_iterator it = m_list.rbegin(),
+					      end = m_list.rend();
+		     it != end; ++it) {
 
-			if (!functor(block)) {
-				return(false);
+			if (!functor(&*it)) {
+				return false;
 			}
 		}
 
@@ -364,12 +372,12 @@ public:
 	template <typename Functor>
 	bool for_each_block_in_reverse(const Functor& functor) const
 	{
-		for (block_t* block = UT_LIST_GET_LAST(m_list);
-		     block != NULL;
-		     block = UT_LIST_GET_PREV(m_node, block)) {
+		for (list_t::reverse_iterator it = m_list.rbegin(),
+					      end = m_list.rend();
+		     it != end; ++it) {
 
-			if (!functor(block)) {
-				return(false);
+			if (!functor(&*it)) {
+				return false;
 			}
 		}
 
@@ -381,8 +389,7 @@ public:
 	block_t* front()
 		MY_ATTRIBUTE((warn_unused_result))
 	{
-		ut_ad(UT_LIST_GET_LEN(m_list) > 0);
-		return(UT_LIST_GET_FIRST(m_list));
+		return &m_list.front();
 	}
 
 	/**
@@ -403,14 +410,13 @@ private:
 	void push_back(block_t* block)
 	{
 		block->init();
-
-		UT_LIST_ADD_LAST(m_list, block);
+		m_list.push_back(*block);
 	}
 
 	/** @return the last block in the list */
 	block_t* back() const
 	{
-		return(UT_LIST_GET_LAST(m_list));
+		return &const_cast<block_t&>(m_list.back());
 	}
 
 	/*
@@ -433,25 +439,21 @@ private:
 	@return the block containing the pos. */
 	block_t* find(ulint& pos)
 	{
-		block_t*	block;
+		ut_ad(!m_list.empty());
 
-		ut_ad(UT_LIST_GET_LEN(m_list) > 0);
+		for (list_t::iterator it = m_list.begin(), end = m_list.end();
+		     it != end; ++it) {
 
-		for (block = UT_LIST_GET_FIRST(m_list);
-		     block != NULL;
-		     block = UT_LIST_GET_NEXT(m_node, block)) {
+			if (pos < it->used()) {
+				ut_ad(it->used() >= pos);
 
-			if (pos < block->used()) {
-				break;
+				return &*it;
 			}
 
-			pos -= block->used();
+			pos -= it->used();
 		}
 
-		ut_ad(block != NULL);
-		ut_ad(block->used() >= pos);
-
-		return(block);
+		return NULL;
 	}
 
 	/**
@@ -477,7 +479,7 @@ private:
 	mem_heap_t*		m_heap;
 
 	/** Allocated blocks */
-	block_list_t		m_list;
+	list_t			m_list;
 
 	/** Total size used by all blocks */
 	ulint			m_size;

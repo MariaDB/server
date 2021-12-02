@@ -132,6 +132,27 @@ id	title	body
 3	Optimizing MySQL	In this tutorial we will show ...
 4	1001 MySQL Tricks	1. Never run mysqld as root. 2. ...
 5	MySQL vs. YourSQL	In the following database comparison ...
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('(((((((((((((((((((((((((((((((((Security)))))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+ERROR HY000: Table handler out of memory
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('((((((((((((((((((((((((((((((((Security))))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+id	title	body
+6	MySQL Security	When configured properly, MySQL ...
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('(((((((((((((((((((((((((((((((vs))))))))))))))))))))))))))))))),(((to)))'
+ IN BOOLEAN MODE);
+id	title	body
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('((((((((((((((((((((((((((((((((Security)))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+ERROR 42000: syntax error, unexpected $end
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('(((((((((((((((((((((((((((((((((Security))))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+ERROR 42000: syntax error, unexpected $end
 SELECT * FROM articles WHERE MATCH (title,body)
 AGAINST ('+ MySQL + (>Well < stands)' IN BOOLEAN MODE);
 id	title	body
@@ -292,9 +313,7 @@ FTS_DOC_ID
 65536
 131071
 drop table t1;
-call mtr.add_suppression("\\[ERROR\\] InnoDB: Doc ID 20030101000000 is too big. Its difference with largest used Doc ID 0 cannot exceed or equal to 65535");
 CREATE TABLE t1 (FTS_DOC_ID BIGINT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200), FULLTEXT(title)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (NULL, NULL), (20030101000000, 20030102000000);
-ERROR HY000: Invalid InnoDB FTS Doc ID
 DROP TABLE t1;

@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,7 +40,7 @@ MYRG_INFO *myrg_open(const char *name, int mode, int handle_locking)
   uint files= 0, i, UNINIT_VAR(key_parts), min_keys= 0;
   size_t length, dir_length;
   ulonglong file_offset=0;
-  char name_buff[FN_REFLEN*2],buff[FN_REFLEN],*end;
+  char name_buff[FN_REFLEN*2],buff[FN_REFLEN];
   MYRG_INFO *m_info=0;
   File fd;
   IO_CACHE file;
@@ -63,8 +64,9 @@ MYRG_INFO *myrg_open(const char *name, int mode, int handle_locking)
   dir_length=dirname_part(name_buff, name, &name_buff_length);
   while ((length=my_b_gets(&file,buff,FN_REFLEN-1)))
   {
-    if ((end=buff+length)[-1] == '\n')
-      end[-1]='\0';
+    char *end= &buff[length - 1];
+    if (*end == '\n')
+      *end= '\0';
     if (buff[0] && buff[0] != '#')
       files++;
   }
@@ -72,8 +74,9 @@ MYRG_INFO *myrg_open(const char *name, int mode, int handle_locking)
   my_b_seek(&file, 0);
   while ((length=my_b_gets(&file,buff,FN_REFLEN-1)))
   {
-    if ((end=buff+length)[-1] == '\n')
-      *--end='\0';
+    char *end= &buff[length - 1];
+    if (*end == '\n')
+      *end= '\0';
     if (!buff[0])
       continue;		/* Skip empty lines */
     if (buff[0] == '#')

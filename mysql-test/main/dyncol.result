@@ -1261,7 +1261,7 @@ select id from t1 where column_get(str,4 as char(100)) = repeat("a", 100);
 id
 5
 Warnings:
-Warning	1292	Truncated incorrect CHAR(100) value: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+Warning	1292	Truncated incorrect CHAR(100) value: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...'
 update t1 set str=column_add(str, 4, repeat("b", 10000)) where id=5;
 select id from t1 where column_get(str,4 as char(100000)) = repeat("b", 10000);
 id

@@ -1,0 +1,2 @@
+--source include/have_mariabackup.inc
+--source galera_log_bin.inc

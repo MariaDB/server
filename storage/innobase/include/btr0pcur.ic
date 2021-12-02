@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -445,14 +445,14 @@ btr_pcur_open_low(
 #endif /* BTR_CUR_HASH_ADAPT */
 		file, line, mtr, autoinc);
 
-	if (err != DB_SUCCESS) {
-		ib::warn() << " Error code: " << err
-			   << " btr_pcur_open_low "
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+		ib::warn() << "btr_pcur_open_low"
 			   << " level: " << level
 			   << " called from file: "
 			   << file << " line: " << line
 			   << " table: " << index->table->name
-			   << " index: " << index->name;
+			   << " index: " << index->name
+			   << " error: " << err;
 	}
 
 	cursor->pos_state = BTR_PCUR_IS_POSITIONED;

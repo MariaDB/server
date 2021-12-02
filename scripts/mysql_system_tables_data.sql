@@ -14,7 +14,7 @@
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
 --
--- The inital data for system tables of MySQL Server
+-- The initial data for system tables of MySQL Server
 --
 
 -- When setting up a "cross bootstrap" database (e.g., creating data on a Unix

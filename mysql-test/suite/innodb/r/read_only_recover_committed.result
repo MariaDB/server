@@ -31,6 +31,7 @@ a
 1
 20
 UPDATE t SET a=3 WHERE a=1;
+SET GLOBAL innodb_status_output= @@GLOBAL.innodb_status_output;
 # Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.
 # In earlier versions, this would return the last committed version
 # (only a=3; no record for a=20)!

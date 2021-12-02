@@ -655,7 +655,7 @@ recognized.
 <P>
 It is possible to restrict \R to match only CR, LF, or CRLF (instead of the
 complete set of Unicode line endings) by setting the option PCRE_BSR_ANYCRLF
-either at compile time or when the pattern is matched. (BSR is an abbrevation
+either at compile time or when the pattern is matched. (BSR is an abbreviation
 for "backslash R".) This can be made the default when PCRE is built; if this is
 the case, the other behaviour can be requested via the PCRE_BSR_UNICODE option.
 It is also possible to specify these settings by starting a pattern string with
@@ -972,7 +972,7 @@ additional characters according to the following rules for ending a cluster:
 3. Do not break Hangul (a Korean script) syllable sequences. Hangul characters
 are of five types: L, V, T, LV, and LVT. An L character may be followed by an
 L, V, LV, or LVT character; an LV or V character may be followed by a V or T
-character; an LVT or T character may be follwed only by a T character.
+character; an LVT or T character may be followed only by a T character.
 </P>
 <P>
 4. Do not end before extending characters or spacing marks. Characters with
@@ -3080,7 +3080,7 @@ successful match. Consider:
 </pre>
 If the subject is "aaaac...", after the first match attempt fails (starting at
 the first character in the string), the starting point skips on to start the
-next attempt at "c". Note that a possessive quantifer does not have the same
+next attempt at "c". Note that a possessive quantifier does not have the same
 effect as this example; although it would suppress backtracking during the
 first match attempt, the second attempt would start at the second character
 instead of skipping on to "c".

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -118,11 +119,6 @@ row_ext_create(
 
 	ret->buf = static_cast<byte*>(
 		mem_heap_alloc(heap, n_ext * ret->max_len));
-
-#ifdef UNIV_DEBUG
-	memset(ret->buf, 0xaa, n_ext * ret->max_len);
-	UNIV_MEM_ALLOC(ret->buf, n_ext * ret->max_len);
-#endif
 
 	/* Fetch the BLOB prefixes */
 	for (i = 0; i < n_ext; i++) {

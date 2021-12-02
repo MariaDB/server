@@ -78,42 +78,42 @@ SET NAMES utf8;
 
 --echo # All tables in all schemas (filtered with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables;
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 DROP TABLE t1;
 
 --echo # All tables in all schemas (filtered with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables TABNAME='%.%';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 DROP TABLE t1;
 
 --echo # All tables "T1" in all schemas (filtered with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables TABNAME='%.T1';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 DROP TABLE t1;
 
 --echo # All tables "T1" in all schemas (filtered with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables TABNAME='T1';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 DROP TABLE t1;
 
 --echo # Table "T1" in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables TABNAME='MTR.T1';
 SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
 DROP TABLE t1;
 
 --echo # All tables in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables TABNAME='MTR.%';
 SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
 DROP TABLE t1;
@@ -127,7 +127,7 @@ DROP TABLE t1;
 
 --echo # All columns in all schemas (limited with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Columns;
 # Disable warnings to avoid "Result limited to 20000 lines"
 --disable_warnings
@@ -137,7 +137,7 @@ DROP TABLE t1;
 
 --echo # All columns in all schemas (limited with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Columns TABNAME='%.%';
 # Disable warnings to avoid "Result limited to 20000 lines"
 --disable_warnings
@@ -146,20 +146,20 @@ SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 DROP TABLE t1;
 
 --echo # All tables "T1" in all schemas (limited with WHERE)
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='%.T1';
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew' CATFUNC=Columns TABNAME='%.T1';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 DROP TABLE t1;
 
 --echo # Table "T1" in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Columns TABNAME='MTR.T1';
 SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
 DROP TABLE t1;
 
 --echo # All tables "T1" in all schemas (filtered with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Columns TABNAME='%.T1';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 DROP TABLE t1;
@@ -172,7 +172,7 @@ DROP TABLE t1;
 
 --echo # Table "T1" in the default schema ("MTR")
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 TABNAME='T1';
 SHOW CREATE TABLE t1;
 SELECT * FROM t1 ORDER BY A;
@@ -189,7 +189,7 @@ DROP TABLE t1;
 
 --echo # Table "T1" in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 TABNAME='MTR.T1';
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
@@ -197,7 +197,7 @@ DROP TABLE t1;
 
 --echo # View "V1" in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 TABNAME='MTR.V1';
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
@@ -214,7 +214,7 @@ DROP TABLE t1;
 
 --echo # Table "T2" in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 TABNAME='MTR.T2';
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;

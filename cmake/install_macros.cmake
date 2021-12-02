@@ -182,18 +182,22 @@ IF(WIN32)
   MARK_AS_ADVANCED(SIGNCODE)
   IF(SIGNCODE)
    SET(SIGNTOOL_PARAMETERS 
-     /a /t http://timestamp.verisign.com/scripts/timstamp.dll
+     /a /t http://timestamp.globalsign.com/?signature=sha2
      CACHE STRING "parameters for signtool (list)")
-    FIND_PROGRAM(SIGNTOOL_EXECUTABLE signtool 
-      PATHS "$ENV{ProgramFiles}/Microsoft SDKs/Windows/v7.0A/bin"
-      "$ENV{ProgramFiles}/Windows Kits/8.0/bin/x86"
-      "$ENV{ProgramFiles}/Windows Kits/8.1/bin/x86"
-    )
     IF(NOT SIGNTOOL_EXECUTABLE)
-      MESSAGE(FATAL_ERROR 
-      "signtool is not found. Signing executables not possible")
+      FILE(GLOB path_list
+        "$ENV{ProgramFiles} (x86)/Windows Kits/*/bin/*/x64"
+        "$ENV{ProgramFiles} (x86)/Windows Kits/*/App Certification Kit"
+      )
+      FIND_PROGRAM(SIGNTOOL_EXECUTABLE signtool
+        PATHS ${path_list}
+      )
+      IF(NOT SIGNTOOL_EXECUTABLE)
+        MESSAGE(FATAL_ERROR
+        "signtool is not found. Signing executables not possible")
+      ENDIF()
+      MARK_AS_ADVANCED(SIGNTOOL_EXECUTABLE  SIGNTOOL_PARAMETERS)
     ENDIF()
-    MARK_AS_ADVANCED(SIGNTOOL_EXECUTABLE  SIGNTOOL_PARAMETERS)
   ENDIF()
 ENDIF()
 
@@ -260,93 +264,6 @@ ENDFUNCTION()
 # For Makefile generators we default Debug build directory to ${buildroot}/../debug.
 GET_FILENAME_COMPONENT(BINARY_PARENTDIR ${CMAKE_BINARY_DIR} PATH)
 SET(DEBUGBUILDDIR "${BINARY_PARENTDIR}/debug" CACHE INTERNAL "Directory of debug build")
-
-
-FUNCTION(INSTALL_DEBUG_TARGET target)
-  RETURN() # XXX unused?
-  CMAKE_PARSE_ARGUMENTS(ARG
-  ""
-  "DESTINATION;RENAME;PDB_DESTINATION;COMPONENT"
-  ""
-  ${ARGN}
-  )
-  GET_TARGET_PROPERTY(target_type ${target} TYPE)
-  IF(ARG_RENAME)
-    SET(RENAME_PARAM RENAME ${ARG_RENAME}${CMAKE_${target_type}_SUFFIX})
-  ELSE()
-    SET(RENAME_PARAM)
-  ENDIF()
-  IF(NOT ARG_DESTINATION)
-    MESSAGE(FATAL_ERROR "Need DESTINATION parameter for INSTALL_DEBUG_TARGET")
-  ENDIF()
-  GET_TARGET_PROPERTY(target_location ${target} LOCATION)
-  IF(CMAKE_GENERATOR MATCHES "Makefiles|Ninja")
-   STRING(REPLACE "${CMAKE_BINARY_DIR}" "${DEBUGBUILDDIR}"  debug_target_location "${target_location}")
-  ELSE()
-   STRING(REPLACE "${CMAKE_CFG_INTDIR}" "Debug"  debug_target_location "${target_location}" )
-  ENDIF()
-  IF(NOT ARG_COMPONENT)
-    SET(ARG_COMPONENT DebugBinaries)
-  ENDIF()
-  
-  # Define permissions
-  # For executable files
-  SET(PERMISSIONS_EXECUTABLE
-      PERMISSIONS
-      OWNER_READ OWNER_WRITE OWNER_EXECUTE
-      GROUP_READ GROUP_EXECUTE
-      WORLD_READ WORLD_EXECUTE)
-
-  # Permissions for shared library (honors CMAKE_INSTALL_NO_EXE which is 
-  # typically set on Debian)
-  IF(CMAKE_INSTALL_SO_NO_EXE)
-    SET(PERMISSIONS_SHARED_LIBRARY
-      PERMISSIONS
-      OWNER_READ OWNER_WRITE 
-      GROUP_READ
-      WORLD_READ)
-  ELSE()
-    SET(PERMISSIONS_SHARED_LIBRARY ${PERMISSIONS_EXECUTABLE})
-  ENDIF()
-
-  # Shared modules get the same permissions as shared libraries
-  SET(PERMISSIONS_MODULE_LIBRARY ${PERMISSIONS_SHARED_LIBRARY})
-
-  #  Define permissions for static library
-  SET(PERMISSIONS_STATIC_LIBRARY
-      PERMISSIONS
-      OWNER_READ OWNER_WRITE 
-      GROUP_READ
-      WORLD_READ)
-
-  INSTALL(FILES ${debug_target_location}
-    DESTINATION ${ARG_DESTINATION}
-    ${RENAME_PARAM}
-    ${PERMISSIONS_${target_type}}
-    CONFIGURATIONS Release RelWithDebInfo
-    COMPONENT ${ARG_COMPONENT}
-    OPTIONAL)
-
-  IF(MSVC)
-    GET_FILENAME_COMPONENT(ext ${debug_target_location} EXT)
-    STRING(REPLACE "${ext}" ".pdb"  debug_pdb_target_location "${debug_target_location}" )
-    IF (RENAME_PARAM)
-      IF(NOT ARG_PDB_DESTINATION)
-        STRING(REPLACE "${ext}" ".pdb"  "${ARG_RENAME}" pdb_rename)
-        SET(PDB_RENAME_PARAM RENAME "${pdb_rename}")
-      ENDIF()
-    ENDIF()
-    IF(NOT ARG_PDB_DESTINATION)
-      SET(ARG_PDB_DESTINATION "${ARG_DESTINATION}")
-    ENDIF()
-    INSTALL(FILES ${debug_pdb_target_location}
-      DESTINATION ${ARG_PDB_DESTINATION}
-      ${PDB_RENAME_PARAM}
-      CONFIGURATIONS Release RelWithDebInfo
-      COMPONENT ${ARG_COMPONENT}
-      OPTIONAL)
-  ENDIF()
-ENDFUNCTION()
 
 
 FUNCTION(INSTALL_MYSQL_TEST from to)

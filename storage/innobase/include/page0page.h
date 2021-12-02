@@ -1,6 +1,6 @@
 /*****************************************************************************
-Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,6 +32,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "buf0buf.h"
 #include "data0data.h"
 #include "dict0dict.h"
+#include "rem0types.h"
 #include "rem0rec.h"
 #endif /* !UNIV_INNOCHECKSUM*/
 #include "fsp0fsp.h"
@@ -857,6 +858,22 @@ page_rec_is_last(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /************************************************************//**
+true if distance between the records (measured in number of times we have to
+move to the next record) is at most the specified value
+@param[in]	left_rec	lefter record
+@param[in]	right_rec	righter record
+@param[in]	val		specified value to compare
+@return true if the distance is smaller than the value */
+UNIV_INLINE
+bool
+page_rec_distance_is_at_most(
+/*=========================*/
+	const rec_t*	left_rec,
+	const rec_t*	right_rec,
+	ulint		val)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/************************************************************//**
 true if the record is the second last user record on a page.
 @return true if the second last user record */
 UNIV_INLINE
@@ -938,20 +955,6 @@ page_mem_alloc_free(
 				free record list */
 	ulint		need);	/*!< in: number of bytes allocated */
 /************************************************************//**
-Allocates a block of memory from the heap of an index page.
-@return pointer to start of allocated buffer, or NULL if allocation fails */
-byte*
-page_mem_alloc_heap(
-/*================*/
-	page_t*		page,	/*!< in/out: index page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page with enough
-				space available for inserting the record,
-				or NULL */
-	ulint		need,	/*!< in: total number of bytes needed */
-	ulint*		heap_no);/*!< out: this contains the heap number
-				of the allocated record
-				if allocation succeeds */
-/************************************************************//**
 Puts a record to free list. */
 UNIV_INLINE
 void
@@ -963,7 +966,7 @@ page_mem_free(
 	rec_t*			rec,	/*!< in: pointer to the (origin of)
 					record */
 	const dict_index_t*	index,	/*!< in: index of rec */
-	const ulint*		offsets);/*!< in: array returned by
+	const rec_offs*		offsets);/*!< in: array returned by
 					 rec_get_offsets() */
 
 /** Read the PAGE_DIRECTION field from a byte.
@@ -1223,7 +1226,7 @@ void
 page_rec_print(
 /*===========*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets);/*!< in: record descriptor */
+	const rec_offs*	offsets);/*!< in: record descriptor */
 # ifdef UNIV_BTR_PRINT
 /***************************************************************//**
 This is used to print the contents of the directory for
@@ -1270,7 +1273,7 @@ ibool
 page_rec_validate(
 /*==============*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets);/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets);/*!< in: array returned by rec_get_offsets() */
 #ifdef UNIV_DEBUG
 /***************************************************************//**
 Checks that the first directory slot points to the infimum record and

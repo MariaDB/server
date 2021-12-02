@@ -10,12 +10,12 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -25,7 +25,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include required application header files                          */
@@ -659,7 +659,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*  Not true for DBF tables because of eventual soft deleted lines.  */
   /*  Note: for Num_K = 1 any non null value is Ok.                    */
   /*********************************************************************/
-  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR 
+  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR && Tdbp->Ftype != RECFM_CSV
                     && Tdbp->Txfp->GetAmType() != TYPE_AM_DBF) {
     Incr = (Num_K > 1) ? To_Rec[1] : Num_K;
     PlgDBfree(Record);
@@ -837,7 +837,8 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -845,7 +846,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
 
   if ((sep = defp->GetBoolCatInfo("SepIndex", false))) {
     // Index is saved in a separate file
-#if defined(__WIN__)
+#if defined(_WIN32)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -990,7 +991,8 @@ bool XINDEX::Init(PGLOBAL g)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -998,7 +1000,7 @@ bool XINDEX::Init(PGLOBAL g)
 
   if (defp->SepIndex()) {
     // Index was saved in a separate file
-#if defined(__WIN__)
+#if defined(_WIN32)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -1243,7 +1245,8 @@ bool XINDEX::MapInit(PGLOBAL g)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -1251,7 +1254,7 @@ bool XINDEX::MapInit(PGLOBAL g)
 
   if (defp->SepIndex()) {
     // Index was save in a separate file
-#if defined(__WIN__)
+#if defined(_WIN32)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -1457,7 +1460,8 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -1465,7 +1469,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
 
   if (defp->SepIndex()) {
     // Index was saved in a separate file
-#if defined(__WIN__)
+#if defined(_WIN32)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -2513,7 +2517,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   if (trace(1))
     htrc(" Xopen: filename=%s id=%d mode=%d\n", filename, id, mode);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   LONG  high = 0;
   DWORD rc, drc, access, share, creation;
 
@@ -2689,7 +2693,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 /***********************************************************************/
 bool XHUGE::Seek(PGLOBAL g, int low, int high, int origin)
   {
-#if defined(__WIN__)
+#if defined(_WIN32)
   LONG  hi = high;
   DWORD rc = SetFilePointer(Hfile, low, &hi, origin);
 
@@ -2725,7 +2729,7 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
   {
   bool rc = false;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   bool    brc;
   DWORD   nbr, count = (DWORD)(n * size);
 
@@ -2771,7 +2775,7 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
 /***********************************************************************/
 int XHUGE::Write(PGLOBAL g, void *buf, int n, int size, bool& rc)
   {
-#if defined(__WIN__)
+#if defined(_WIN32)
   bool    brc;
   DWORD   nbw, count = (DWORD)n * (DWORD) size;
 
@@ -2813,7 +2817,7 @@ void XHUGE::Close(char *fn, int id)
   if (trace(1))
     htrc("XHUGE::Close: fn=%s id=%d NewOff=%lld\n", fn, id, NewOff.Val);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (id >= 0 && fn) {
     CloseFileHandle(Hfile);
     Hfile = CreateFile(fn, GENERIC_READ | GENERIC_WRITE, 0, NULL,
@@ -2828,7 +2832,7 @@ void XHUGE::Close(char *fn, int id)
         } // endif SetFilePointer
 
     } // endif id
-#else   // !__WIN__
+#else   // !_WIN32
   if (id >= 0 && fn) {
     if (Hfile != INVALID_HANDLE_VALUE) {
       if (lseek64(Hfile, id * sizeof(IOFF), SEEK_SET) >= 0) {
@@ -2844,7 +2848,7 @@ void XHUGE::Close(char *fn, int id)
       htrc("(XHUGE)error reopening %s: %s\n", fn, strerror(errno));
 
     } // endif id
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   XLOAD::Close();
   } // end of Close

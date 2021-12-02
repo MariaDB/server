@@ -29,3 +29,19 @@ exec $MYSQLD --defaults-file=with.ext --print-defaults 2>&1;
 --error 1
 exec $MYSQLD --defaults-file=no_extension --print-defaults 2>&1;
 
+--echo #
+--echo # MDEV-21374: When "--help --verbose" prints out configuration file paths,
+--echo # the --defaults-file option is not considered
+--echo #
+
+--echo # Test on `defaults-file`
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+exec $MYSQLD --defaults-file=$MYSQLTEST_VARDIR/my.cnf --help --verbose | grep -A 1 'Default options are read';
+
+--echo # Test on `defaults-extra-file`
+# <first-defaults> = `/etc/my.cnf /etc/mysql/my.cnf`
+# Using sysconfdir configuration, we don't always have `/etc/mysql/my.cnf`, so replace them with a regex as well.
+copy_file $MYSQLTEST_VARDIR/my.cnf $MYSQLTEST_VARDIR/my_test.cnf;
+--replace_regex /.*my_test.cnf/<first-defaults> MYSQLTEST_VARDIR\/my_test.cnf/
+exec $MYSQLD --defaults-extra-file=$MYSQLTEST_VARDIR/my_test.cnf --help --verbose | grep -A 1 'Default options are read';
+remove_file $MYSQLTEST_VARDIR/my_test.cnf;

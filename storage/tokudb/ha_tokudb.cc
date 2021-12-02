@@ -1333,7 +1333,7 @@ int ha_tokudb::open_main_dictionary(
             NULL,
             DB_BTREE,
             open_flags,
-            0);
+            S_IWUSR);
     if (error) {
         goto exit;
     }
@@ -1396,7 +1396,7 @@ int ha_tokudb::open_secondary_dictionary(
     }
 
 
-    error = (*ptr)->open(*ptr, txn, newname, NULL, DB_BTREE, open_flags, 0);
+    error = (*ptr)->open(*ptr, txn, newname, NULL, DB_BTREE, open_flags, S_IWUSR);
     if (error) {
         my_errno = error;
         goto cleanup;
@@ -2313,7 +2313,7 @@ int ha_tokudb::pack_row_in_buff(
     int r = ENOSYS;
     memset((void *) row, 0, sizeof(*row));
 
-    my_bitmap_map *old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP *old_map = dbug_tmp_use_all_columns(table, &table->write_set);
     
     // Copy null bytes
     memcpy(row_buff, record, table_share->null_bytes);
@@ -2362,7 +2362,7 @@ int ha_tokudb::pack_row_in_buff(
     row->size = (size_t) (var_field_data_ptr - row_buff);
     r = 0;
 
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     return r;
 }
 
@@ -2758,7 +2758,7 @@ DBT* ha_tokudb::create_dbt_key_from_key(
 {
     uint32_t size = 0;
     uchar* tmp_buff = buff;
-    my_bitmap_map *old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP *old_map = dbug_tmp_use_all_columns(table, &table->write_set);
 
     key->data = buff;
 
@@ -2797,7 +2797,7 @@ DBT* ha_tokudb::create_dbt_key_from_key(
 
     key->size = size;
     DBUG_DUMP("key", (uchar *) key->data, key->size);
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     return key;
 }
 
@@ -2890,7 +2890,7 @@ DBT* ha_tokudb::pack_key(
     KEY* key_info = &table->key_info[keynr];
     KEY_PART_INFO* key_part = key_info->key_part;
     KEY_PART_INFO* end = key_part + key_info->user_defined_key_parts;
-    my_bitmap_map* old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP* old_map = dbug_tmp_use_all_columns(table, &table->write_set);
 
     memset((void *) key, 0, sizeof(*key));
     key->data = buff;
@@ -2927,7 +2927,7 @@ DBT* ha_tokudb::pack_key(
 
     key->size = (buff - (uchar *) key->data);
     DBUG_DUMP("key", (uchar *) key->data, key->size);
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     DBUG_RETURN(key);
 }
 
@@ -2955,7 +2955,7 @@ DBT* ha_tokudb::pack_ext_key(
     KEY* key_info = &table->key_info[keynr];
     KEY_PART_INFO* key_part = key_info->key_part;
     KEY_PART_INFO* end = key_part + key_info->user_defined_key_parts;
-    my_bitmap_map* old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP* old_map = dbug_tmp_use_all_columns(table, &table->write_set);
 
     memset((void *) key, 0, sizeof(*key));
     key->data = buff;
@@ -3034,7 +3034,7 @@ DBT* ha_tokudb::pack_ext_key(
 
     key->size = (buff - (uchar *) key->data);
     DBUG_DUMP("key", (uchar *) key->data, key->size);
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     DBUG_RETURN(key);
 }
 #endif  // defined(TOKU_INCLUDE_EXTENDED_KEYS) && TOKU_INCLUDE_EXTENDED_KEYS
@@ -6123,6 +6123,11 @@ void ha_tokudb::position(const uchar * record) {
         //
         memcpy(ref, &key.size, sizeof(uint32_t));
     }
+    /*
+      tokudb doesn't always write the last byte. Don't that cause problems with
+      MariaDB
+    */
+    MEM_MAKE_DEFINED(ref, ref_length);
     TOKUDB_HANDLER_DBUG_VOID_RETURN;
 }
 
@@ -7261,7 +7266,7 @@ int ha_tokudb::create(
     // in the database directory, so automatic filename-based
     // discover_table_names() doesn't work either. So, it must force .frm
     // file to disk.
-    form->s->write_frm_image();
+    error= form->s->write_frm_image();
 #endif
 
 #if defined(TOKU_INCLUDE_OPTION_STRUCTS) && TOKU_INCLUDE_OPTION_STRUCTS
@@ -7293,8 +7298,8 @@ int ha_tokudb::create(
 #endif  // defined(TOKU_INCLUDE_OPTION_STRUCTS) && TOKU_INCLUDE_OPTION_STRUCTS
     const toku_compression_method compression_method =
         row_format_to_toku_compression_method(row_format);
-
     bool create_from_engine = (create_info->table_options & HA_OPTION_CREATE_FROM_ENGINE);
+    if (error) { goto cleanup; }
     if (create_from_engine) {
         // table already exists, nothing to do
         error = 0;

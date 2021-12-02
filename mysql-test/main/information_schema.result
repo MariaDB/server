@@ -65,6 +65,7 @@ GEOMETRY_COLUMNS
 GLOBAL_STATUS
 GLOBAL_VARIABLES
 INDEX_STATISTICS
+KEYWORDS
 KEY_CACHES
 KEY_COLUMN_USAGE
 PARAMETERS
@@ -79,6 +80,7 @@ SCHEMA_PRIVILEGES
 SESSION_STATUS
 SESSION_VARIABLES
 SPATIAL_REF_SYS
+SQL_FUNCTIONS
 STATISTICS
 SYSTEM_VARIABLES
 TABLES
@@ -858,6 +860,7 @@ where data_type = 'longtext' and table_schema != 'performance_schema'
 order by binary table_name, ordinal_position;
 table_schema	table_name	column_name
 information_schema	ALL_PLUGINS	PLUGIN_DESCRIPTION
+information_schema	CHECK_CONSTRAINTS	CHECK_CLAUSE
 information_schema	COLUMNS	COLUMN_DEFAULT
 information_schema	COLUMNS	COLUMN_TYPE
 information_schema	COLUMNS	GENERATION_EXPRESSION
@@ -1039,8 +1042,8 @@ GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 'user1'@'localhost'	def	USAGE	NO
 show grants;
 Grants for user1@localhost
-GRANT USAGE ON *.* TO 'user1'@'localhost'
-GRANT SELECT (f1) ON `mysqltest`.`t1` TO 'user1'@'localhost'
+GRANT USAGE ON *.* TO `user1`@`localhost`
+GRANT SELECT (f1) ON `mysqltest`.`t1` TO `user1`@`localhost`
 connection con2;
 select * from information_schema.column_privileges order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
@@ -1054,8 +1057,8 @@ GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 'user2'@'localhost'	def	USAGE	NO
 show grants;
 Grants for user2@localhost
-GRANT USAGE ON *.* TO 'user2'@'localhost'
-GRANT SELECT ON `mysqltest`.`t2` TO 'user2'@'localhost'
+GRANT USAGE ON *.* TO `user2`@`localhost`
+GRANT SELECT ON `mysqltest`.`t2` TO `user2`@`localhost`
 connection con3;
 select * from information_schema.column_privileges order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
@@ -1069,8 +1072,8 @@ GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 'user3'@'localhost'	def	USAGE	NO
 show grants;
 Grants for user3@localhost
-GRANT USAGE ON *.* TO 'user3'@'localhost'
-GRANT SELECT ON `mysqltest`.* TO 'user3'@'localhost'
+GRANT USAGE ON *.* TO `user3`@`localhost`
+GRANT SELECT ON `mysqltest`.* TO `user3`@`localhost`
 connection con4;
 select * from information_schema.column_privileges where grantee like '\'user%'
 order by grantee;
@@ -1093,7 +1096,7 @@ GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 'user4'@'localhost'	def	SELECT	NO
 show grants;
 Grants for user4@localhost
-GRANT SELECT ON *.* TO 'user4'@'localhost'
+GRANT SELECT ON *.* TO `user4`@`localhost`
 connection default;
 disconnect con1;
 disconnect con2;
@@ -2191,3 +2194,156 @@ column_name
 c1
 c2
 DROP TABLE tt1, tt2;
+#
+# MDEV-13242 Wrong results for queries with row constructors and information_schema
+#
+SELECT SCHEMA_NAME from information_schema.schemata where schema_name='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+SCHEMA_NAME
+SELECT SCHEMA_NAME from information_schema.schemata where schema_name=REPEAT('a',193);
+SCHEMA_NAME
+#
+# End of 10.1 tests
+#
+#
+# MDEV-14836: Assertion `m_status == DA_ERROR' failed in
+# Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
+#
+SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
+Warnings:
+Warning	1931	Query execution was interrupted. The query examined at least ### rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
+#
+# MDEV-24179: AAssertion `m_status == DA_ERROR || m_status == DA_OK ||
+# m_status == DA_OK_BULK' failed in Diagnostics_area::message()
+#
+call mtr.add_suppression("Sort aborted.*");
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+CREATE VIEW v AS SELECT table_schema  AS object_schema, table_name  AS object_name, table_type AS object_type FROM information_schema.tables ORDER BY object_schema;
+SELECT * FROM v LIMIT ROWS EXAMINED 9;
+ERROR HY000: Sort aborted: 
+DROP VIEW v;
+#
+# MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+#
+CREATE TABLE t (a INT);
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=CONCAT('t',0x00,'1');
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=CONCAT('test',0x00,'1');
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+DROP TABLE t;
+CREATE TABLE `a/~.b` (a INT);
+SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='a/~.b';
+TABLE_SCHEMA	TABLE_NAME
+test	a/~.b
+DROP TABLE `a/~.b`;
+CREATE DATABASE `a/~.b`;
+CREATE TABLE `a/~.b`.t1 (a INT);
+SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='a/~.b';
+TABLE_SCHEMA	TABLE_NAME
+a/~.b	t1
+DROP DATABASE `a/~.b`;
+#
+# End of 10.2 Test
+#
+#
+# MDEV-21201:No records produced in information_schema query,
+# depending on projection
+#
+create table t (i int, constraint a check (i > 0));
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.TABLE_CONSTRAINTS tc
+join information_schema.CHECK_CONSTRAINTS cc
+using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.CHECK_CONSTRAINTS cc
+join information_schema.TABLE_CONSTRAINTS tc
+using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.TABLE_CONSTRAINTS tc
+NATURAL join information_schema.CHECK_CONSTRAINTS cc
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.CHECK_CONSTRAINTS cc
+NATURAL join information_schema.TABLE_CONSTRAINTS tc
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE,
+tc.CONSTRAINT_CATALOG,
+tc.CONSTRAINT_SCHEMA
+from information_schema.TABLE_CONSTRAINTS tc
+join information_schema.CHECK_CONSTRAINTS cc
+using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE	CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA
+test	t	a	`i` > 0	def	test
+drop table t;
+#
+# MDEV-24230 subquery on information_schema fails with error message
+#
+create table t1 (n int);
+create table t2 (n int);
+insert into t1 set n = (select table_rows from information_schema.tables where table_name='t2');
+drop table t1, t2;
+#
+# MDEV-24593 Signal 11 when group by primary key of table joined to information_schema.columns
+#
+create table t1 (f varchar(64) primary key);
+select f from information_schema.columns i
+inner join t1 on f=i.column_name
+group by f;
+f
+drop table t1;
+#
+# MDEV-24929 Server crash in thr_multi_unlock or in
+# get_schema_tables_result upon select from I_S with joins
+#
+CREATE TABLE t1 (a TIMESTAMP, KEY (a));
+INSERT INTO t1 VALUES ('2012-12-12'),('2021-11-11');
+SELECT count(*) FROM t1 AS t1a LEFT JOIN (t1 AS t1b JOIN INFORMATION_SCHEMA.ROUTINES) ON (t1b.a IS NULL);
+count(*)
+2
+SELECT count(*) FROM t1 AS t1a LEFT JOIN (t1 AS t1b JOIN INFORMATION_SCHEMA.PROFILING) ON (t1b.a IS NULL);
+count(*)
+2
+DROP TABLE t1;
+#
+# MDEV-24868 Server crashes in optimize_schema_tables_memory_usage after select from information_schema.innodb_sys_columns
+#
+create table t1 ( name varchar(64) character set utf8, len int);
+select * from t1 where (name, len) in (select  name, len from information_schema.innodb_sys_columns having len = 8);
+name	len
+drop table t1;
+#
+# End of 10.3 tests
+#

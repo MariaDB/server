@@ -410,5 +410,52 @@ SELECT @@GLOBAL.role;
 
 
 --echo #
+--echo # MDEV-22822 sql_mode="oracle" cannot declare without variable errors
+--echo #
+--echo # It's OK to have no declarations between DECLARE and BEGIN.
+--echo #
+
+DELIMITER //;
+BEGIN
+  DECLARE
+  BEGIN
+    NULL;
+  END;
+EXCEPTION
+WHEN OTHERS THEN
+    NULL;
+END;
+//
+DELIMITER ;//
+
+
+DELIMITER //;
+DECLARE
+BEGIN
+  NULL;
+EXCEPTION
+WHEN OTHERS THEN
+  NULL;
+END;
+//
+DELIMITER ;//
+
+
+DELIMITER //;
+BEGIN
+<<lab>>
+  DECLARE
+  BEGIN
+    NULL;
+  END;
+EXCEPTION
+WHEN OTHERS THEN
+    NULL;
+END;
+//
+DELIMITER ;//
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

@@ -4,12 +4,6 @@
 /***********************************************************************/
 #include <cpprest/filestream.h>
 #include <cpprest/http_client.h>
-#if defined(MARIADB)
-#include <my_global.h>
-#else
-#include "mini-global.h"
-#define _OS_H_INCLUDED     // Prevent os.h to be called
-#endif
 
 using namespace utility::conversions; // String conversions utilities
 using namespace web;                  // Common features like URIs.
@@ -17,24 +11,26 @@ using namespace web::http;            // Common HTTP functionality
 using namespace web::http::client;    // HTTP client features
 using namespace concurrency::streams; // Asynchronous streams
 
-#include "global.h"
+typedef const char* PCSZ;
+
+extern "C" int restGetFile(char* m, bool xt, PCSZ http, PCSZ uri, PCSZ fn);
 
 /***********************************************************************/
 /*  Make a local copy of the requested file.                           */
 /***********************************************************************/
-int restGetFile(PGLOBAL g, PCSZ http, PCSZ uri, PCSZ fn)
+int restGetFile(char *m, bool xt, PCSZ http, PCSZ uri, PCSZ fn)
 {
   int  rc = 0;
-	bool xt = trace(515);
   auto fileStream = std::make_shared<ostream>();
 
   if (!http || !fn) {
-    strcpy(g->Message, "Missing http or filename");
-    return 2;
+    //strcpy(g->Message, "Missing http or filename");
+		strcpy(m, "Missing http or filename");
+		return 2;
   } // endif
 
 	if (xt)
-	  htrc("restGetFile: fn=%s\n", fn);
+		fprintf(stderr, "restGetFile: fn=%s\n", fn);
 
   // Open stream to output file.
   pplx::task<void> requestTask = fstream::open_ostream(to_string_t(fn))
@@ -42,7 +38,7 @@ int restGetFile(PGLOBAL g, PCSZ http, PCSZ uri, PCSZ fn)
       *fileStream= outFile;
 
 			if (xt)
-				htrc("Outfile isopen=%d\n", outFile.is_open());
+				fprintf(stderr, "Outfile isopen=%d\n", outFile.is_open());
 
       // Create http_client to send the request.
       http_client client(to_string_t(http));
@@ -58,8 +54,8 @@ int restGetFile(PGLOBAL g, PCSZ http, PCSZ uri, PCSZ fn)
     // Handle response headers arriving.
     .then([=](http_response response) {
 			if (xt)
-				htrc("Received response status code:%u\n",
-                       response.status_code());
+				fprintf(stderr, "Received response status code:%u\n",
+                                  response.status_code());
 
       // Write response body into the file.
       return response.body().read_to_end(fileStream->streambuf());
@@ -68,27 +64,27 @@ int restGetFile(PGLOBAL g, PCSZ http, PCSZ uri, PCSZ fn)
     // Close the file stream.
     .then([=](size_t n) {
 			if (xt)
-			  htrc("Return size=%u\n", n);
+				fprintf(stderr, "Return size=%zu\n", n);
 
       return fileStream->close();
     });
 
   // Wait for all the outstanding I/O to complete and handle any exceptions
   try {
-    requestTask.wait();
-
 		if (xt)
-      htrc("In Wait\n");
+			fprintf(stderr, "Waiting\n");
 
+		requestTask.wait();
   } catch (const std::exception &e) {
 		if (xt)
-		  htrc("Error exception: %s\n", e.what());
-    sprintf(g->Message, "Error exception: %s", e.what());
-    rc= 1;
+			fprintf(stderr, "Error exception: %s\n", e.what());
+
+		sprintf(m, "Error exception: %s", e.what());
+		rc= 1;
   } // end try/catch
 
 	if (xt)
-	  htrc("restget done: rc=%d\n", rc);
+		fprintf(stderr, "restget done: rc=%d\n", rc);
 
   return rc;
 } // end of restGetFile

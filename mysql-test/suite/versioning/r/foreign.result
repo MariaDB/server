@@ -398,6 +398,8 @@ Warning	1265	Data truncated for column 'f12' at row 7
 SET timestamp = 9;
 REPLACE INTO t2 SELECT * FROM t2;
 DROP TABLE t1, t2;
+set timestamp= default;
+set time_zone='+00:00';
 #
 # MDEV-16210 FK constraints on versioned tables use historical rows, which may cause constraint violation
 #
@@ -427,3 +429,30 @@ insert into t2 values (1), (1);
 # DELETE from foreign table is allowed
 delete from t2;
 drop tables t2, t1;
+#
+# MDEV-23644 Assertion on evaluating foreign referential action for self-reference in system versioned table
+#
+create table t1 (pk int primary key, f1 int,f2 int, f3 text,
+key(f1), fulltext(f3), key(f3(10)),
+foreign key (f2) references t1 (f1) on delete set null
+) engine=innodb with system versioning;
+insert into t1 values (1, 8, 8, 'SHORT'), (2, 8, 8, repeat('LONG', 8071));
+delete from t1;
+select pk, f1, f2, left(f3, 4), check_row_ts(row_start, row_end) from t1 for system_time all order by pk;
+pk	f1	f2	left(f3, 4)	check_row_ts(row_start, row_end)
+1	8	8	SHOR	HISTORICAL ROW
+2	8	8	LONG	HISTORICAL ROW
+drop table t1;
+#
+# MDEV-21555 Assertion secondary index is out of sync on delete from versioned table
+#
+create table t1 (a int, b int as (a + 1) virtual, key(a)) engine=innodb with system versioning;
+set foreign_key_checks= off;
+insert into t1 (a) values (1), (2);
+alter table t1 add foreign key (b) references t1 (a), algorithm=copy;
+update t1 set a= null where a = 1;
+delete from t1 where a is null;
+set foreign_key_checks= on;
+delete history from t1;
+delete from t1;
+drop table t1;

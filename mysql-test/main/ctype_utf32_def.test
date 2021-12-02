@@ -1,0 +1,9 @@
+--source include/have_utf32.inc
+call mtr.add_suppression("'utf32' can not be used as client character set");
+
+--echo #
+--echo # MDEV-23269 SIGSEGV in ft_boolean_check_syntax_string on setting ft_boolean_syntax
+--echo #
+
+SET GLOBAL ft_boolean_syntax='+ -><()~*:""&|';
+SET GLOBAL ft_boolean_syntax=DEFAULT;

@@ -30,11 +30,11 @@
 #include "sql_class.h"
 #include "sql_time.h"
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include <string.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #include <math.h>
 
@@ -77,12 +77,12 @@ int DTVAL::Shift = 0;
 /***********************************************************************/
 bool PlugEvalLike(PGLOBAL, LPCSTR, LPCSTR, bool);
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 extern "C" {
 PSZ strupr(PSZ s);
 PSZ strlwr(PSZ s);
 }
-#endif   // !__WIN__
+#endif   // !_WIN32
 
 /***********************************************************************/
 /*  Get a long long number from its character representation.          */
@@ -197,7 +197,7 @@ const char *GetFormatType(int type)
     case TYPE_DOUBLE: c = "F"; break;
     case TYPE_DATE:   c = "D"; break;
     case TYPE_TINY:   c = "T"; break;
-    case TYPE_DECIM:  c = "M"; break;
+    case TYPE_DECIM:  c = "F"; break;
     case TYPE_BIN:    c = "B"; break;
     case TYPE_PCHAR:  c = "P"; break;
   } // endswitch type
@@ -380,8 +380,8 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
     case TYPE_STRING:
       valp = new(g) TYPVAL<PSZ>(g, (PSZ)NULL, len, prec);
       break;
-    case TYPE_DATE:
-      valp = new(g) DTVAL(g, len, prec, fmt);
+		case TYPE_DATE:
+			valp = new(g) DTVAL(g, len, prec, fmt);
       break;
     case TYPE_INT:
       if (uns)
@@ -1648,10 +1648,10 @@ int TYPVAL<PSZ>::CompareValue(PVAL vp)
   else
     n = strcmp(Strp, vp->GetCharValue());
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (n == _NLSCMPERROR)
     return n;                        // Here we should raise an error
-#endif   // __WIN__
+#endif   // _WIN32
 
   return (n > 0) ? 1 : (n < 0) ? -1 : 0;
 } // end of CompareValue
@@ -2251,6 +2251,15 @@ void BINVAL::SetBinValue(void *p)
 } // end of SetBinValue
 
 /***********************************************************************/
+/*  BINVAL SetBinValue: fill string with len bytes.                    */
+/***********************************************************************/
+void BINVAL::SetBinValue(void* p, ulong len)
+{
+	memcpy(Binp, p, len);
+	Len = len;
+} // end of SetBinValue
+
+/***********************************************************************/
 /*  GetBinValue: fill a buffer with the internal binary value.         */
 /*  This function checks whether the buffer length is enough and       */
 /*  returns true if not. Actual filling occurs only if go is true.     */
@@ -2634,9 +2643,9 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 			} else if (valp->GetType() == TYPE_BIGINT &&
 				       !(valp->GetBigintValue() % 1000)) {
 				// Assuming that this timestamp is in milliseconds
-				Tval = (int)(valp->GetBigintValue() / 1000);
+				SetValue((int)(valp->GetBigintValue() / 1000));
 			}	else
-        Tval = valp->GetIntValue();
+        SetValue(valp->GetIntValue());
 
     } else
       Reset();
@@ -2728,20 +2737,38 @@ void DTVAL::SetValue_pvblk(PVBLK blk, int n)
 } // end of SetValue
 
 /***********************************************************************/
+/*  DTVAL SetValue: get date as an integer.                            */
+/***********************************************************************/
+void DTVAL::SetValue(int n)
+{
+  Tval = n;
+
+  if (Pdtp) {
+    size_t slen = (size_t)Len + 1;
+    struct tm tm, *ptm= GetGmTime(&tm);
+
+    if (ptm)
+      strftime(Sdate, slen, Pdtp->OutFmt, ptm);
+
+  } // endif Pdtp
+
+} // end of SetValue
+
+/***********************************************************************/
 /*  DTVAL GetCharString: get string representation of a date value.    */
 /***********************************************************************/
 char *DTVAL::GetCharString(char *p)
 {
   if (Pdtp) {
-    size_t n = 0;
+    size_t n = 0, slen = (size_t)Len + 1;
     struct tm tm, *ptm= GetGmTime(&tm);
 
     if (ptm)
-      n = strftime(Sdate, Len + 1, Pdtp->OutFmt, ptm);
+      n = strftime(Sdate, slen, Pdtp->OutFmt, ptm);
 
     if (!n) {
       *Sdate = '\0';
-      strncat(Sdate, "Error", Len + 1);
+      strncat(Sdate, "Error", slen);
       } // endif n
 
     return Sdate;
