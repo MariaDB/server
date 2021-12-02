@@ -45,7 +45,7 @@ SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log
 
 # Shrink buffer pool
-set global innodb_buffer_pool_size = 7340032;
+set global innodb_buffer_pool_size = 64 * 1024 * 1024 + 512 * 1024;
 --source include/wait_condition.inc
 
 select @@innodb_buffer_pool_size;

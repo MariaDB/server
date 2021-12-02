@@ -171,6 +171,8 @@ static const long AUTOINC_OLD_STYLE_LOCKING = 0;
 static const long AUTOINC_NEW_STYLE_LOCKING = 1;
 static const long AUTOINC_NO_LOCKING = 2;
 
+static constexpr size_t buf_pool_chunk_min_size= 1U << 20;
+
 static ulong innobase_open_files;
 static long innobase_autoinc_lock_mode;
 
@@ -3718,17 +3720,26 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
   return 0;
 }
 
-/** Initialize and normalize innodb_buffer_pool_size. */
+/** Initialize and normalize innodb_buffer_pool_{chunk_,}size. */
 static void innodb_buffer_pool_size_init()
 {
-	if (srv_buf_pool_chunk_unit > srv_buf_pool_size) {
-		/* Size unit of buffer pool is larger than srv_buf_pool_size.
-		adjust srv_buf_pool_chunk_unit for srv_buf_pool_size. */
-		srv_buf_pool_chunk_unit = ulong(srv_buf_pool_size);
-	}
+  if (srv_buf_pool_chunk_unit > srv_buf_pool_size)
+  {
+    /* Size unit of buffer pool is larger than srv_buf_pool_size.
+    adjust srv_buf_pool_chunk_unit for srv_buf_pool_size. */
+    srv_buf_pool_chunk_unit = ulong(srv_buf_pool_size);
+  }
+  else if (srv_buf_pool_chunk_unit == 0)
+  {
+    srv_buf_pool_chunk_unit = srv_buf_pool_size / 64;
+    my_large_page_truncate(&srv_buf_pool_chunk_unit);
+  }
 
-	srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
-	innobase_buffer_pool_size = srv_buf_pool_size;
+  if (srv_buf_pool_chunk_unit < buf_pool_chunk_min_size)
+    srv_buf_pool_chunk_unit = buf_pool_chunk_min_size;
+
+  srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
+  innobase_buffer_pool_size = srv_buf_pool_size;
 }
 
 
@@ -19056,13 +19067,13 @@ static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
   srv_buf_pool_min_size,
   LLONG_MAX, 1024*1024L);
 
-static MYSQL_SYSVAR_ULONG(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
+static MYSQL_SYSVAR_SIZE_T(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Size of a single memory chunk"
-  " for resizing buffer pool. Online buffer pool resizing happens"
-  " at this granularity. 0 means disable resizing buffer pool.",
+  " for resizing buffer pool. Online buffer pool resizing happens at this"
+  " granularity. 0 means autosize this variable based on buffer pool size.",
   NULL, NULL,
-  128 * 1024 * 1024, 1024 * 1024, LONG_MAX, 1024 * 1024);
+  0, 0, SIZE_T_MAX, 1024 * 1024);
 
 static MYSQL_SYSVAR_STR(buffer_pool_filename, srv_buf_dump_filename,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,

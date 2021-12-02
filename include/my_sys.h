@@ -178,6 +178,7 @@ extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf
 int my_init_large_pages(my_bool super_large_pages);
 uchar *my_large_malloc(size_t *size, myf my_flags);
 void my_large_free(void *ptr, size_t size);
+void my_large_page_truncate(size_t *size);
 
 #ifdef _WIN32
 extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
