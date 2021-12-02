@@ -367,189 +367,335 @@ void Histogram_json_hb::init_for_collection(MEM_ROOT *mem_root,
 
 
 /*
+  A syntax sugar interface to json_string_t
+*/
+class Json_string
+{
+  json_string_t str;
+public:
+  explicit Json_string(const char *name)
+  {
+    json_string_set_str(&str, (const uchar*)name,
+                        (const uchar*)name + strlen(name));
+    json_string_set_cs(&str, system_charset_info);
+  }
+  json_string_t *get() { return &str; }
+};
+
+
+/*
+  This [partially] saves the JSON parser state and then can rollback the parser
+  to it.
+
+  The goal of this is to be able to make multiple json_key_matches() calls:
+
+    Json_saved_parser_state save(je);
+    if (json_key_matches(je, KEY_NAME_1)) {
+      ...
+      return;
+    }
+    save.restore_to(je);
+    if (json_key_matches(je, KEY_NAME_2)) {
+      ...
+    }
+
+  This allows one to parse JSON objects where [optional] members come in any
+  order.
+*/
+
+class Json_saved_parser_state
+{
+  const uchar *c_str;
+  my_wc_t c_next;
+  int state;
+public:
+  explicit Json_saved_parser_state(const json_engine_t *je) :
+    c_str(je->s.c_str),
+    c_next(je->s.c_next),
+    state(je->state)
+  {}
+  void restore_to(json_engine_t *je)
+  {
+    je->s.c_str= c_str;
+    je->s.c_next= c_next;
+    je->state= state;
+  }
+};
+
+
+bool read_bucket_endpoint(json_engine_t *je, Field *field, String *out,
+                          const char **err)
+{
+  if (json_read_value(je))
+    return true;
+
+  const char* je_value= (const char*)je->value;
+  if (je->value_type == JSON_VALUE_STRING && je->value_escaped)
+  {
+    StringBuffer<128> unescape_buf;
+    if (json_unescape_to_string(je_value, je->value_len, &unescape_buf))
+    {
+      *err= "Un-escape error";
+      return true;
+    }
+    field->store_text(unescape_buf.ptr(), unescape_buf.length(),
+                      unescape_buf.charset());
+  }
+  else
+    field->store_text(je_value, je->value_len, &my_charset_utf8mb4_bin);
+
+  out->alloc(field->pack_length());
+  uint bytes= field->get_key_image((uchar*)out->ptr(),
+                                   field->key_length(), Field::itRAW);
+  out->length(bytes);
+  return false;
+}
+
+
+/*
+  @brief  Parse a JSON reprsentation for one histogram bucket
+
+  @param je     The JSON parser object
+  @param field  Table field we are using histogram (used to convert
+                               endpoints from text representation to binary)
+  @param total_size  INOUT  Fraction of the table rows in the buckets parsed so
+                            far.
+  @param assigned_last_end  OUT  TRUE<=> The bucket had "end" members, the
+                                 function has saved it in
+                                 this->last_bucket_end_endp
+  @param err  OUT  If function returns 1, this *may* be set to point to text
+                   describing the error.
+
+  @detail
+
+    Parse a JSON object in this form:
+
+      { "start": "value", "size":nnn.nn, "ndv": nnn, "end": "value"}
+
+   Unknown members are ignored.
+
+  @return
+    0  OK
+    1  Parse Error
+   -1  EOF
+*/
+int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
+                                    double *total_size,
+                                    bool *assigned_last_end,
+                                    const char **err)
+{
+  *assigned_last_end= false;
+  if (json_scan_next(je))
+    return 1;
+  if (je->state != JST_VALUE)
+  {
+    if (je->state == JST_ARRAY_END)
+      return -1; // EOF
+    else
+      return 1; // An error
+  }
+
+  if (json_scan_next(je) || je->state != JST_OBJ_START)
+  {
+    *err= "Expected an object in the buckets array";
+    return 1;
+  }
+
+  bool have_start= false;
+  bool have_size= false;
+  bool have_ndv= false;
+
+  double size_d;
+  longlong ndv_ll;
+  StringBuffer<128> value_buf;
+
+  while (!json_scan_next(je) && je->state != JST_OBJ_END)
+  {
+    Json_saved_parser_state save1(je);
+    Json_string start_str("start");
+    if (json_key_matches(je, start_str.get()))
+    {
+      if (read_bucket_endpoint(je, field, &value_buf, err))
+        return 1;
+
+      have_start= true;
+      continue;
+    }
+    save1.restore_to(je);
+
+    Json_string size_str("size");
+    if (json_key_matches(je, size_str.get()))
+    {
+      if (json_read_value(je))
+        return 1;
+
+      const char *size= (const char*)je->value_begin;
+      char *size_end= (char*)je->value_end;
+      int conv_err;
+      size_d= my_strtod(size, &size_end, &conv_err);
+      if (conv_err)
+      {
+        *err= ".size member must be a floating-point value";
+        return 1;
+      }
+      have_size= true;
+      continue;
+    }
+    save1.restore_to(je);
+
+    Json_string ndv_str("ndv");
+    if (json_key_matches(je, ndv_str.get()))
+    {
+      if (json_read_value(je))
+        return 1;
+
+      const char *ndv= (const char*)je->value_begin;
+      char *ndv_end= (char*)je->value_end;
+      int conv_err;
+      ndv_ll= my_strtoll10(ndv, &ndv_end, &conv_err);
+      if (conv_err)
+      {
+        *err= ".ndv member must be an integer value";
+        return 1;
+      }
+      have_ndv= true;
+      continue;
+    }
+    save1.restore_to(je);
+
+    Json_string end_str("end");
+    if (json_key_matches(je, end_str.get()))
+    {
+      if (read_bucket_endpoint(je, field, &value_buf, err))
+        return 1;
+      last_bucket_end_endp.assign(value_buf.ptr(), value_buf.length());
+      *assigned_last_end= true;
+      continue;
+    }
+    save1.restore_to(je);
+
+    // Some unknown member. Skip it.
+    if (json_skip_key(je))
+      return 1;
+  }
+
+  if (!have_start)
+  {
+    *err= "\"start\" element not present";
+    return 1;
+  }
+  if (!have_size)
+  {
+    *err= "\"size\" element not present";
+    return 1;
+  }
+  if (!have_ndv)
+  {
+    *err= "\"ndv\" element not present";
+    return 1;
+  }
+
+  *total_size += size_d;
+
+  buckets.push_back({std::string(value_buf.ptr(), value_buf.length()),
+                     *total_size, ndv_ll});
+
+  return 0; // Ok, continue reading
+}
+
+
+/*
   @brief
-    Parse the histogram from its on-disk representation
+    Parse the histogram from its on-disk JSON representation
+
+  @detail
+    See opt_histogram_json.h, class Histogram_json_hb for description of the
+    data format.
 
   @return
      false  OK
      True   Error
 */
 
-bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
-                              Histogram_type type_arg, const char *hist_data,
-                              size_t hist_data_len)
+bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
+                              const char *table_name, Field *field,
+                              Histogram_type type_arg,
+                              const char *hist_data, size_t hist_data_len)
 {
-  const char *err;
+  json_engine_t je;
+  int rc;
+  const char *err= "JSON parse error";
+  double total_size= 0.0;
+  int end_element= -1;
+  bool end_assigned;
   DBUG_ENTER("Histogram_json_hb::parse");
   DBUG_ASSERT(type_arg == JSON_HB);
-  const char *err_pos= hist_data;
-  const char *obj1;
-  int obj1_len;
-  double cumulative_size= 0.0;
-  size_t end_member_index= (size_t)-1;
-  StringBuffer<128> value_buf;
-  StringBuffer<128> unescape_buf;
 
-  if (JSV_OBJECT != json_type(hist_data, hist_data + hist_data_len,
-                              &obj1, &obj1_len))
+  Json_string hist_key_name(JSON_NAME);
+  json_scan_start(&je, &my_charset_utf8mb4_bin,
+                  (const uchar*)hist_data,
+                  (const uchar*)hist_data+hist_data_len);
+
+  if (json_scan_next(&je))
+    goto err;
+
+  if (je.state != JST_OBJ_START)
   {
     err= "Root JSON element must be a JSON object";
-    err_pos= hist_data;
-    goto error;
+    goto err;
   }
 
-  const char *hist_array;
-  int hist_array_len;
-  if (JSV_ARRAY != json_get_object_key(obj1, obj1 + obj1_len,
-                                       JSON_NAME, &hist_array,
-                                       &hist_array_len))
+  if (json_scan_next(&je))
+    goto err;
+
+  if (je.state != JST_KEY || !json_key_matches(&je, hist_key_name.get()))
   {
-    err_pos= obj1;
-    err= "A JSON array expected";
-    goto error;
+    err= "Root element must be histogram_hb_v2";
+    goto err;
   }
 
-  for (int i= 0;; i++)
+  if (json_scan_next(&je))
+    goto err;
+
+  if (je.state != JST_ARRAY_START)
   {
-    const char *bucket_info;
-    int bucket_info_len;
-    enum json_types ret= json_get_array_item(hist_array, hist_array+hist_array_len,
-                                             i, &bucket_info,
-                                             &bucket_info_len);
-    if (ret == JSV_NOTHING)
-      break;
-    if (ret == JSV_BAD_JSON)
-    {
-      err_pos= hist_array;
-      err= "JSON parse error";
-      goto error;
-    }
-    if (ret != JSV_OBJECT)
-    {
-      err_pos= hist_array;
-      err= "Object expected";
-      goto error;
-    }
-
-    // Ok, now we are parsing the JSON object describing the bucket
-    // Read the "start" field.
-    const char *val;
-    int val_len;
-    ret= json_get_object_key(bucket_info, bucket_info+bucket_info_len,
-                             "start", &val, &val_len);
-    if (ret != JSV_STRING && ret != JSV_NUMBER)
-    {
-      err_pos= bucket_info;
-      err= ".start member must be present and be a scalar";
-      goto error;
-    }
-
-    // Read the "size" field.
-    const char *size;
-    int size_len;
-    ret= json_get_object_key(bucket_info, bucket_info+bucket_info_len,
-                             "size", &size, &size_len);
-    if (ret != JSV_NUMBER)
-    {
-      err_pos= bucket_info;
-      err= ".size member must be present and be a scalar";
-      goto error;
-    }
-
-    int conv_err;
-    char *size_end= (char*)size + size_len;
-    double size_d= my_strtod(size, &size_end, &conv_err);
-    if (conv_err)
-    {
-      err_pos= size;
-      err= ".size member must be a floating-point value";
-      goto error;
-    }
-    cumulative_size += size_d;
-
-    // Read the "ndv" field
-    const char *ndv;
-    int ndv_len;
-    ret= json_get_object_key(bucket_info, bucket_info+bucket_info_len,
-                             "ndv", &ndv, &ndv_len);
-    if (ret != JSV_NUMBER)
-    {
-      err_pos= bucket_info;
-      err= ".ndv member must be present and be a scalar";
-      goto error;
-    }
-    char *ndv_end= (char*)ndv + ndv_len;
-    longlong ndv_ll= my_strtoll10(ndv, &ndv_end, &conv_err);
-    if (conv_err)
-    {
-      err_pos= ndv;
-      err= ".ndv member must be an integer value";
-      goto error;
-    }
-
-    unescape_buf.set_charset(field->charset());
-    uint len_to_copy= field->key_length();
-    if (json_unescape_to_string(val, val_len, &unescape_buf))
-    {
-      err_pos= ndv;
-      err= "Out of memory";
-      goto error;
-    }
-    field->store_text(unescape_buf.ptr(), unescape_buf.length(),
-                      unescape_buf.charset());
-    value_buf.alloc(field->pack_length());
-    uint bytes= field->get_key_image((uchar*)value_buf.ptr(), len_to_copy,
-                                     Field::itRAW);
-    buckets.push_back({std::string(value_buf.ptr(), bytes), cumulative_size,
-                       ndv_ll});
-
-    // Read the "end" field
-    const char *end_val;
-    int end_val_len;
-    ret= json_get_object_key(bucket_info, bucket_info+bucket_info_len,
-                             "end", &end_val, &end_val_len);
-    if (ret != JSV_NOTHING && ret != JSV_STRING && ret !=JSV_NUMBER)
-    {
-      err_pos= bucket_info;
-      err= ".end member must be a scalar";
-      goto error;
-    }
-    if (ret != JSV_NOTHING)
-    {
-      if (json_unescape_to_string(end_val, end_val_len, &unescape_buf))
-      {
-        err_pos= bucket_info;
-        err= "Out of memory";
-        goto error;
-      }
-      field->store_text(unescape_buf.ptr(), unescape_buf.length(),
-                        &my_charset_bin);
-      value_buf.alloc(field->pack_length());
-      uint bytes= field->get_key_image((uchar*)value_buf.ptr(), len_to_copy,
-                                       Field::itRAW);
-      last_bucket_end_endp.assign(value_buf.ptr(), bytes);
-      if (end_member_index == (size_t)-1)
-        end_member_index= buckets.size();
-    }
+    err= "histogram_hb_v2 must contain an array";
+    goto err;
   }
-  size= buckets.size();
 
-  if (end_member_index != buckets.size())
+  while (!(rc= parse_bucket(&je, field, &total_size, &end_assigned, &err)))
   {
-    err= ".end must be present in the last bucket and only there";
-    err_pos= hist_data;
-    goto error;
-  }
-  if (!buckets.size())
-  {
-    err= ".end member is allowed only in last bucket";
-    err_pos= hist_data;
-    goto error;
+    if (end_assigned && end_element != -1)
+      end_element= (int)buckets.size();
   }
 
-  DBUG_RETURN(false);
-error:
-  my_error(ER_JSON_HISTOGRAM_PARSE_FAILED, MYF(0), err, err_pos - hist_data);
+  if (rc > 0)  // Got error other than EOF
+    goto err;
+
+  if (buckets.size() < 1)
+  {
+    err= "Histogram must have at least one bucket";
+    goto err;
+  }
+
+  if (end_element == -1)
+  {
+    buckets.back().start_value= last_bucket_end_endp;
+  }
+  else if (end_element < (int)buckets.size())
+  {
+    err= ".end is only allowed in the last bucket";
+    goto err;
+  }
+
+  DBUG_RETURN(false); // Ok
+err:
+  THD *thd= current_thd;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_JSON_HISTOGRAM_PARSE_FAILED,
+                      ER_THD(thd, ER_JSON_HISTOGRAM_PARSE_FAILED),
+                      db_name, table_name,
+                      err, (je.s.c_str - (const uchar*)hist_data));
   DBUG_RETURN(true);
 }
 
@@ -683,7 +829,7 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
 {
   double min, max;
 
-  if (min_endp && !(field->null_ptr && min_endp->key[0]))
+  if (min_endp && !(field->real_maybe_null() && min_endp->key[0]))
   {
     bool exclusive_endp= (min_endp->flag == HA_READ_AFTER_KEY)? true: false;
     const uchar *min_key= min_endp->key;
@@ -721,7 +867,7 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
   if (max_endp)
   {
     // The right endpoint cannot be NULL
-    DBUG_ASSERT(!(field->null_ptr && max_endp->key[0]));
+    DBUG_ASSERT(!(field->real_maybe_null() && max_endp->key[0]));
     bool inclusive_endp= (max_endp->flag == HA_READ_AFTER_KEY)? true: false;
     const uchar *max_key= max_endp->key;
     uint max_key_len= max_endp->length;

@@ -154,7 +154,9 @@ class Histogram_builder;
 class Histogram_base
 {
 public:
-  virtual bool parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg,
+  virtual bool parse(MEM_ROOT *mem_root,
+                     const char *db_name, const char *table_name,
+                     Field *field, Histogram_type type_arg,
                      const char *hist_data, size_t hist_data_len)= 0;
   virtual void serialize(Field *to_field)= 0;
 
@@ -311,8 +313,9 @@ public:
 
   Histogram_type get_type() override { return type; }
 
-  bool parse(MEM_ROOT *mem_root, Field *, Histogram_type type_arg,
-             const char *hist_data, size_t hist_data_len) override;
+  bool parse(MEM_ROOT *mem_root, const char*, const char*, Field*,
+             Histogram_type type_arg, const char *hist_data,
+             size_t hist_data_len) override;
   void serialize(Field *to_field) override;
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
                            ulonglong size) override;

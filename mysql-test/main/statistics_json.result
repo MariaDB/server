@@ -4263,54 +4263,79 @@ UPDATE mysql.column_stats
 SET histogram='["not-what-you-expect"]' WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-ERROR HY000: Failed to parse histogram: Root JSON element must be a JSON object at offset 0.
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+Warnings:
+Warning	4186	Failed to parse histogram for table test.t1_json: Root JSON element must be a JSON object at offset 1.
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":"not-histogram"}' WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-ERROR HY000: Failed to parse histogram: A JSON array expected at offset 0.
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+Warnings:
+Warning	4186	Failed to parse histogram for table test.t1_json: histogram_hb_v2 must contain an array at offset 35.
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":["not-a-bucket"]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-ERROR HY000: Failed to parse histogram: Object expected at offset 19.
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+Warnings:
+Warning	4186	Failed to parse histogram for table test.t1_json: Expected an object in the buckets array at offset 35.
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[{"no-expected-members":1}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-ERROR HY000: Failed to parse histogram: .start member must be present and be a scalar at offset 20.
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+Warnings:
+Warning	4186	Failed to parse histogram for table test.t1_json: "start" element not present at offset 45.
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[{"start":{}}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-ERROR HY000: Failed to parse histogram: .start member must be present and be a scalar at offset 20.
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+Warnings:
+Warning	4186	Failed to parse histogram for table test.t1_json: "size" element not present at offset 31.
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[{"start":"aaa", "size":"not-an-integer"}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-ERROR HY000: Failed to parse histogram: .size member must be present and be a scalar at offset 20.
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+Warnings:
+Warning	4186	Failed to parse histogram for table test.t1_json: "ndv" element not present at offset 60.
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[{"start":"aaa", "size":0.25}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-ERROR HY000: Failed to parse histogram: .ndv member must be present and be a scalar at offset 20.
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+Warnings:
+Warning	4186	Failed to parse histogram for table test.t1_json: "ndv" element not present at offset 48.
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[{"start":"aaa", "size":0.25, "ndv":1}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-ERROR HY000: Failed to parse histogram: .end must be present in the last bucket and only there at offset 0.
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-ERROR HY000: Failed to parse histogram: .end must be present in the last bucket and only there at offset 0.
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+Warnings:
+Warning	4186	Failed to parse histogram for table test.t1_json: Histogram must have at least one bucket at offset 21.
 create table t2 (
 city varchar(100)
 );

@@ -46,62 +46,53 @@ drop table ten;
 UPDATE mysql.column_stats 
 SET histogram='["not-what-you-expect"]' WHERE table_name='t1_json';
 FLUSH TABLES;
---error ER_JSON_HISTOGRAM_PARSE_FAILED
 explain select * from t1_json limit 1;
 
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":"not-histogram"}' WHERE table_name='t1_json';
 FLUSH TABLES;
---error ER_JSON_HISTOGRAM_PARSE_FAILED
 explain select * from t1_json limit 1;
 
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":["not-a-bucket"]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
---error ER_JSON_HISTOGRAM_PARSE_FAILED
 explain select * from t1_json limit 1;
 
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[{"no-expected-members":1}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
---error ER_JSON_HISTOGRAM_PARSE_FAILED
 explain select * from t1_json limit 1;
 
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[{"start":{}}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
---error ER_JSON_HISTOGRAM_PARSE_FAILED
 explain select * from t1_json limit 1;
 
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[{"start":"aaa", "size":"not-an-integer"}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
---error ER_JSON_HISTOGRAM_PARSE_FAILED
 explain select * from t1_json limit 1;
 
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[{"start":"aaa", "size":0.25}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
---error ER_JSON_HISTOGRAM_PARSE_FAILED
 explain select * from t1_json limit 1;
 
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[{"start":"aaa", "size":0.25, "ndv":1}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
---error ER_JSON_HISTOGRAM_PARSE_FAILED
 explain select * from t1_json limit 1;
 
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb_v2":[]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
---error ER_JSON_HISTOGRAM_PARSE_FAILED
 explain select * from t1_json limit 1;
 
 --source include/have_sequence.inc

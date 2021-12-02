@@ -1233,7 +1233,8 @@ public:
       if (!(hist= create_histogram(mem_root, hist_type, NULL)))
         return NULL;
       Field *field= table->field[table_field->field_index];
-      if (!hist->parse(mem_root, field, hist_type,
+      if (!hist->parse(mem_root, db_name->str, table_name->str,
+                       field, hist_type,
                        val.ptr(), val.length()))
       {
         table_field->read_stats->histogram= hist;
@@ -1247,9 +1248,9 @@ public:
 };
 
 
-bool Histogram_binary::parse(MEM_ROOT *mem_root, Field*,
-                             Histogram_type type_arg, const char *hist_data,
-                             size_t hist_data_len)
+bool Histogram_binary::parse(MEM_ROOT *mem_root, const char*, const char*,
+                             Field*, Histogram_type type_arg,
+                             const char *hist_data, size_t hist_data_len)
 {
   /* On-disk an in-memory formats are the same. Just copy the data. */
   type= type_arg;

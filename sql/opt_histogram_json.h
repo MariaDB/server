@@ -76,7 +76,8 @@ class Histogram_json_hb : public Histogram_base
 public:
   static constexpr const char* JSON_NAME="histogram_hb_v2";
 
-  bool parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg,
+  bool parse(MEM_ROOT *mem_root, const char *db_name, const char *table_name,
+             Field *field, Histogram_type type_arg,
              const char *hist_data, size_t hist_data_len) override;
 
   void serialize(Field *field) override;
@@ -122,6 +123,9 @@ public:
   }
 
 private:
+  int parse_bucket(json_engine_t *je, Field *field, double *cumulative_size,
+                   bool *assigned_last_end, const char **err);
+
   double get_left_fract(int idx);
   std::string& get_end_value(int idx);
   int find_bucket(const Field *field, const uchar *lookup_val, bool *equal);
