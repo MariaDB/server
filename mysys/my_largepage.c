@@ -251,6 +251,28 @@ int my_init_large_pages(my_bool super_large_pages)
 }
 
 
+/**
+   Large page size helper.
+   This rounds down, if needed, the size parameter to the largest
+   multiple of an available large page size on the system.
+*/
+void my_large_page_truncate(size_t *size)
+{
+  if (my_use_large_pages)
+  {
+    size_t large_page_size= 0;
+#ifdef _WIN32
+    large_page_size= my_large_page_size;
+#elif defined(HAVE_MMAP)
+    int page_i= 0;
+    large_page_size= my_next_large_page_size(*size, &page_i);
+#endif
+    if (large_page_size > 0)
+      *size-= *size % large_page_size;
+  }
+}
+
+
 #if defined(HAVE_MMAP) && !defined(_WIN32)
 /* Solaris for example has only MAP_ANON, FreeBSD has MAP_ANONYMOUS and
 MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */

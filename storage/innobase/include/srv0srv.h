@@ -314,7 +314,7 @@ extern const ulint	srv_buf_pool_min_size;
 /** Default pool size in bytes */
 extern const ulint	srv_buf_pool_def_size;
 /** Requested buffer pool chunk size */
-extern ulong		srv_buf_pool_chunk_unit;
+extern size_t		srv_buf_pool_chunk_unit;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
 extern ulong	srv_LRU_scan_depth;
 /** Whether or not to flush neighbors of a block */
