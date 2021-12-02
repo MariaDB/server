@@ -24,7 +24,7 @@
   Histogram format in JSON:
 
   {
-    "histogram_hb_v2": [
+    "histogram_hb": [
       { "start": "value", "size":nnn.nn, "ndv": nnn },
       ...
       { "start": "value", "size":nnn.nn, "ndv": nnn, "end": "value"}
@@ -74,7 +74,7 @@ class Histogram_json_hb : public Histogram_base
   std::string last_bucket_end_endp;
 
 public:
-  static constexpr const char* JSON_NAME="histogram_hb_v2";
+  static constexpr const char* JSON_NAME="histogram_hb";
 
   bool parse(MEM_ROOT *mem_root, const char *db_name, const char *table_name,
              Field *field, Histogram_type type_arg,

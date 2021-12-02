@@ -650,7 +650,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
 
   if (je.state != JST_KEY || !json_key_matches(&je, hist_key_name.get()))
   {
-    err= "Root element must be histogram_hb_v2";
+    err= "Root element must be histogram_hb";
     goto err;
   }
 
@@ -659,7 +659,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
 
   if (je.state != JST_ARRAY_START)
   {
-    err= "histogram_hb_v2 must contain an array";
+    err= "histogram_hb must contain an array";
     goto err;
   }
 
