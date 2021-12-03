@@ -227,15 +227,20 @@ drop table t1;
 
 --echo #
 --echo # Another testcase: use a character that cannot be represented in utf8:
+--echo # Also, now it's testcase for:
+--echo #  MDEV-26764: JSON_HB Histograms: handle BINARY and unassigned characters
 --echo #
 create table t1 ( a varchar(100) character set cp1251);
-insert into t1 values ( _cp1251 x'88'),( _cp1251 x'98');
+insert into t1 values ( _cp1251 x'88'),( _cp1251 x'88'), ( _cp1251 x'88');
+insert into t1 values ( _cp1251 x'98'),( _cp1251 x'98');
 analyze table t1 persistent for all;
 
 --source include/histogram_replaces.inc
 select hist_type, histogram
 from mysql.column_stats
 where db_name=database() and table_name='t1';
+
+analyze select * from t1 where a=_cp1251 x'88';
 
 drop table t1;
 

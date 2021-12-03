@@ -32,12 +32,18 @@
     "histogram_hb": [
       { "start": "value", "size":nnn.nn, "ndv": nnn },
       ...
-      { "start": "value", "size":nnn.nn, "ndv": nnn, "end": "value"}
+
+      // Optionally, start and/or end can be replaced with _hex variant
+      { "start_hex: "value", "size":nnn.nn, "ndv":nnn},
+
+      ...
+      { "start": "value", "size":nnn.nn, "ndv": nnn, "end": "value"},
     ]
   }
 
   The histogram is an object with single member named Histogram_json_hb::
   JSON_NAME. The value of that member is an array of buckets.
+
   Each bucket is an object with these members:
     "start" - the first value in the bucket.
     "size"  - fraction of table rows that is contained in the bucket.
@@ -51,6 +57,11 @@
 
   The exception is single-point buckets where last value is the same as the
   first value.
+
+  start/end can be replaced with start_hex/end_hex. In _hex variant, the
+  constant is encoded in hex. This encoding is used to handle so called 
+  "unassigned characters": some non-UTF8 charsets have byte combinations that
+  are not mapped to any UTF8 character.
 */
 
 class Histogram_json_hb : public Histogram_base

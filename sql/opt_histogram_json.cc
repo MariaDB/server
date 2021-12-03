@@ -70,11 +70,11 @@ static bool json_unescape_to_string(const char *val, int val_len, String* out)
     succeeds.
 */
 
-static bool json_escape_to_string(const String *str, String* out)
+static int json_escape_to_string(const String *str, String* out)
 {
   // Make sure 'out' has some memory allocated.
   if (!out->alloced_length() && out->alloc(128))
-    return true;
+    return JSON_ERROR_OUT_OF_SPACE;
 
   while (1)
   {
@@ -90,15 +90,15 @@ static bool json_escape_to_string(const String *str, String* out)
     if (res >= 0)
     {
       out->length(res);
-      return false; // Ok
+      return 0; // Ok
     }
 
     if (res != JSON_ERROR_OUT_OF_SPACE)
-      return true; // Some conversion error
+      return res; // Some conversion error
 
     // Out of space error. Try with a bigger buffer
     if (out->alloc(out->alloced_length()*2))
-      return true;
+      return JSON_ERROR_OUT_OF_SPACE;
   }
 }
 
@@ -208,8 +208,7 @@ private:
   */
   bool finalize_bucket_with_end_value(void *elem)
   {
-    writer.add_member("end");
-    if (append_column_value(elem))
+    if (append_column_value(elem, false))
       return true;
     finalize_bucket();
     return false;
@@ -224,19 +223,18 @@ private:
   {
     DBUG_ASSERT(bucket.size == 0);
     writer.start_object();
-    writer.add_member("start");
-    if (append_column_value(elem))
+    if (append_column_value(elem, true))
       return true;
 
     bucket.ndv= 1;
     bucket.size= cnt;
     return false;
   }
-
+  
   /*
     Append the passed value into the JSON writer as string value
   */
-  bool append_column_value(void *elem)
+  bool append_column_value(void *elem, bool is_start)
   {
     StringBuffer<MAX_FIELD_WIDTH> val;
 
@@ -246,12 +244,21 @@ private:
 
     // Escape the value for JSON
     StringBuffer<MAX_FIELD_WIDTH> escaped_val;
-    if (json_escape_to_string(str, &escaped_val))
-      return true;
-
-    // Note: The Json_writer does NOT do escapes (perhaps this should change?)
-    writer.add_str(escaped_val.c_ptr_safe());
-    return false;
+    int rc= json_escape_to_string(str, &escaped_val);
+    if (!rc)
+    {
+      writer.add_member(is_start? "start": "end");
+      writer.add_str(escaped_val.c_ptr_safe());
+      return false;
+    }
+    if (rc == JSON_ERROR_ILLEGAL_SYMBOL)
+    {
+      escaped_val.set_hex(val.ptr(), val.length());
+      writer.add_member(is_start? "start_hex": "end_hex");
+      writer.add_str(escaped_val.c_ptr_safe());
+      return false;
+    }
+    return true;
   }
 
   /*
@@ -496,6 +503,41 @@ bool read_bucket_endpoint(json_engine_t *je, Field *field, String *out,
 }
 
 
+bool read_hex_bucket_endpoint(json_engine_t *je, Field *field, String *out,
+                              const char **err)
+{
+  if (json_read_value(je))
+    return true;
+
+  if (je->value_type != JSON_VALUE_STRING || je->value_escaped ||
+      (je->value_len & 1))
+  {
+    *err= "Expected a hex string";
+    return true;
+  }
+  StringBuffer<128> buf;
+    
+  for (auto pc= je->value; pc < je->value + je->value_len; pc+=2)
+  {
+    int hex_char1= hexchar_to_int(pc[0]);
+    int hex_char2= hexchar_to_int(pc[1]);
+    if (hex_char1 == -1 || hex_char2 == -1)
+    {
+      *err= "Expected a hex string";
+      return true;
+    }
+    buf.append((hex_char1 << 4) | hex_char2);
+  }
+
+  field->store_text(buf.ptr(), buf.length(), field->charset());
+  out->alloc(field->pack_length());
+  uint bytes= field->get_key_image((uchar*)out->ptr(),
+                                   field->key_length(), Field::itRAW);
+  out->length(bytes);
+  return false;
+}
+
+
 /*
   @brief  Parse a JSON reprsentation for one histogram bucket
 
@@ -618,6 +660,30 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
       continue;
     }
     save1.restore_to(je);
+
+    // Less common endoints:
+    Json_string start_hex_str("start_hex");
+    if (json_key_matches(je, start_hex_str.get()))
+    {
+      if (read_hex_bucket_endpoint(je, field, &value_buf, err))
+        return 1;
+
+      have_start= true;
+      continue;
+    }
+    save1.restore_to(je);
+
+    Json_string end_hex_str("end_hex");
+    if (json_key_matches(je, end_hex_str.get()))
+    {
+      if (read_hex_bucket_endpoint(je, field, &value_buf, err))
+        return 1;
+      last_bucket_end_endp.assign(value_buf.ptr(), value_buf.length());
+      *assigned_last_end= true;
+      continue;
+    }
+    save1.restore_to(je);
+
 
     // Some unknown member. Skip it.
     if (json_skip_key(je))

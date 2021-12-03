@@ -7896,16 +7896,41 @@ a
 drop table t1;
 #
 # Another testcase: use a character that cannot be represented in utf8:
+# Also, now it's testcase for:
+#  MDEV-26764: JSON_HB Histograms: handle BINARY and unassigned characters
 #
 create table t1 ( a varchar(100) character set cp1251);
-insert into t1 values ( _cp1251 x'88'),( _cp1251 x'98');
+insert into t1 values ( _cp1251 x'88'),( _cp1251 x'88'), ( _cp1251 x'88');
+insert into t1 values ( _cp1251 x'98'),( _cp1251 x'98');
 analyze table t1 persistent for all;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Operation failed
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 select hist_type, histogram
 from mysql.column_stats
 where db_name=database() and table_name='t1';
 hist_type	histogram
+JSON_HB	{
+  "target_histogram_size": 10,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "€",
+      "size": 0.6,
+      "ndv": 1
+    },
+    {
+      "start_hex": "98",
+      "end_hex": "98",
+      "size": 0.4,
+      "ndv": 1
+    }
+  ]
+}
+analyze select * from t1 where a=_cp1251 x'88';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	5.00	60.00	60.00	Using where
 drop table t1;
 #
 # ASAN use-after-poison my_strnxfrm_simple_internal / Histogram_json_hb::range_selectivity ...
@@ -8102,7 +8127,8 @@ set histogram_type= JSON_HB, histogram_size= 1;
 insert into t1 values ('foo'),(unhex('9C'));
 analyze table t1 persistent for all;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Operation failed
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 select * from t1;
 a
 foo
