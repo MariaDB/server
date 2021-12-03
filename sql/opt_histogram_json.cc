@@ -914,7 +914,6 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
       /*
         The range is "col > $CONST" and we've found a bucket that contains
         only the value $CONST. Move to the next bucket.
-        TODO: what if the last value in the histogram is a popular one?
       */
       idx++;
     }
@@ -948,7 +947,6 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
       /*
         The range is "col < $CONST" and we've found a bucket starting with
         $CONST. Move to the previous bucket.
-        TODO: what if the first value is the popular one?
       */
       idx--;
     }

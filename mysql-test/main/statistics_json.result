@@ -8146,3 +8146,25 @@ analyze select * from t1 where a >= 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	100.00	Using where
 drop table t1;
+#
+# More test coverage
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (a int);
+insert into t2 select 1 from t1;
+insert into t2 select (a+1)*10 from t0;
+insert into t2 values (0);
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+analyze select * from t2 where a < 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1011	1011.00	8.33	0.10	Using where
+analyze select * from t2 where a =100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1011	1011.00	0.10	0.10	Using where
+drop table t0,t1,t2;
