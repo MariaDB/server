@@ -269,13 +269,13 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 	}
 
 	ib::info() << "Setting log file " << logfile0 << " size to "
-		   << srv_log_file_size << " bytes";
+		   << ib::bytes_iec{srv_log_file_size};
 
 	ret = os_file_set_size(logfile0.c_str(), file, srv_log_file_size);
 	if (!ret) {
 		os_file_close(file);
 		ib::error() << "Cannot set log file " << logfile0
-			    << " size to " << srv_log_file_size << " bytes";
+			    << " size to " << ib::bytes_iec{srv_log_file_size};
 		return DB_ERROR;
 	}
 
@@ -406,7 +406,8 @@ static dberr_t srv_undo_tablespace_create(const char* name)
 			" be created";
 
 		ib::info() << "Setting file " << name << " size to "
-			<< (SRV_UNDO_TABLESPACE_SIZE_IN_PAGES >> (20 - srv_page_size_shift)) << " MB";
+			<< ib::bytes_iec{SRV_UNDO_TABLESPACE_SIZE_IN_PAGES
+					 << srv_page_size_shift};
 
 		ib::info() << "Database physically writes the file full: "
 			<< "wait...";
@@ -922,7 +923,8 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 						" and resizing";
 				}
 
-				info << " redo log from " << srv_log_file_size
+				info << " redo log from "
+				     << ib::bytes_iec{srv_log_file_size}
 				     << " to ";
 			} else if (srv_encrypt_log) {
 				info << "Encrypting redo log: ";
@@ -930,8 +932,8 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 				info << "Removing redo log encryption: ";
 			}
 
-			info << srv_log_file_size_requested
-			     << " bytes; LSN=" << flushed_lsn;
+			info << ib::bytes_iec{srv_log_file_size_requested}
+			     << "; LSN=" << flushed_lsn;
 		}
 
 		mysql_mutex_unlock(&log_sys.mutex);
@@ -1207,8 +1209,8 @@ dberr_t srv_start(bool create_new_db)
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
 	ib::info() << "Initializing buffer pool, total size = "
-		<< srv_buf_pool_size
-		<< ", chunk size = " << srv_buf_pool_chunk_unit;
+		<< ib::bytes_iec{srv_buf_pool_size}
+		<< ", chunk size = " << ib::bytes_iec{srv_buf_pool_chunk_unit};
 
 	if (buf_pool.create()) {
 		ib::error() << "Cannot allocate memory for the buffer pool";
@@ -1225,8 +1227,8 @@ dberr_t srv_start(bool create_new_db)
 	if (srv_buf_pool_size <= 5 * 1024 * 1024) {
 
 		ib::info() << "Small buffer pool size ("
-			<< srv_buf_pool_size / 1024 / 1024
-			<< "M), the flst_validate() debug function can cause a"
+			<< ib::bytes_iec{srv_buf_pool_size}
+			<< "), the flst_validate() debug function can cause a"
 			<< " deadlock if the buffer pool fills up.";
 	}
 #endif /* UNIV_DEBUG */
