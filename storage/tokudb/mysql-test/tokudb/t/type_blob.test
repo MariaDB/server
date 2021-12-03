@@ -133,8 +133,6 @@ select c,count(*) from t1 group by c;
 select d,count(*) from t1 group by d;
 drop table t1;
 
--- error 1071
-create table t1 (a text, unique (a(21000))); # should give an error
 create table t1 (a text, key (a(2100)));    # key is auto-truncated
 replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;
@@ -366,6 +364,7 @@ create table t1 (id integer primary key auto_increment, txt text, index txt_inde
 insert into t1 (txt) values ('Chevy'), ('Chevy '), (NULL);
 select * from t1 where txt='Chevy' or txt is NULL;
 explain select * from t1 where txt='Chevy' or txt is NULL;
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL;
 select * from t1 where txt='Chevy ';
 select * from t1 where txt='Chevy ' or txt='Chevy';
 select * from t1 where txt='Chevy' or txt='Chevy ';
@@ -386,8 +385,10 @@ select * from t1 where txt > 'Chevy';
 select * from t1 where txt >= 'Chevy';
 alter table t1 modify column txt blob;
 explain select * from t1 where txt='Chevy' or txt is NULL;
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL;
 select * from t1 where txt='Chevy' or txt is NULL;
 explain select * from t1 where txt='Chevy' or txt is NULL order by txt;
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL order by txt;
 select * from t1 where txt='Chevy' or txt is NULL order by txt;
 drop table t1;
 

@@ -1,0 +1,13 @@
+!include ../galera_2nodes_as_slave.cnf
+
+[mysqld]
+binlog-format=row
+
+[mysqld.1]
+wsrep_restart_slave=1
+wsrep-debug=1
+
+[mysqld.2]
+wsrep_restart_slave=1
+wsrep-debug=1
+

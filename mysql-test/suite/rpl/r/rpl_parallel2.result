@@ -2,8 +2,10 @@ include/rpl_init.inc [topology=1->2]
 *** MDEV-5509: Incorrect value for Seconds_Behind_Master if parallel replication ***
 connection server_2;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+set @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=5;
+set global slave_parallel_mode= optimistic;
 include/start_slave.inc
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
@@ -157,6 +159,7 @@ UNLOCK TABLES;
 connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+set global slave_parallel_mode= @old_parallel_mode;
 include/start_slave.inc
 connection server_1;
 DROP TABLE t1, t2;

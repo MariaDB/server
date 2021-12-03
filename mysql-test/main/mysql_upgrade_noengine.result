@@ -1,3 +1,5 @@
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
 install soname 'ha_blackhole';
 install soname 'ha_archive';
 create table t1 (a int) engine=blackhole;
@@ -61,6 +63,7 @@ mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.global_priv_bak                              OK
 mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
@@ -140,6 +143,10 @@ Warnings:
 Level	Warning
 Code	1286
 Message	Unknown storage engine 'ARCHIVE'
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
 alter table mysql.user drop column default_role, drop column max_statement_time;
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
@@ -149,6 +156,7 @@ mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.global_priv_bak                              OK
 mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
@@ -228,6 +236,10 @@ Warnings:
 Level	Warning
 Code	1286
 Message	Unknown storage engine 'ARCHIVE'
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
 alter table mysql.user drop column default_role, drop column max_statement_time;
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
@@ -237,6 +249,7 @@ mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.global_priv_bak                              OK
 mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
@@ -303,3 +316,5 @@ table_comment
 drop table t1, t2;
 uninstall plugin blackhole;
 uninstall plugin archive;
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;

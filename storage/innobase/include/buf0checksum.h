@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,23 +27,15 @@ Created Aug 11, 2011 Vasil Dimov
 #ifndef buf0checksum_h
 #define buf0checksum_h
 
-#include "univ.i"
-
 #include "buf0types.h"
 
 /** Calculate the CRC32 checksum of a page. The value is stored to the page
 when it is written to a file and also checked for a match when reading from
-the file. When reading we allow both normal CRC32 and CRC-legacy-big-endian
-variants. Note that we must be careful to calculate the same value on 32-bit
-and 64-bit architectures.
+the file. Note that we must be careful to calculate the same value on all
+architectures.
 @param[in]	page			buffer page (srv_page_size bytes)
-@param[in]	use_legacy_big_endian	if true then use big endian
-byteorder when converting byte strings to integers
-@return checksum */
-uint32_t
-buf_calc_page_crc32(
-	const byte*	page,
-	bool		use_legacy_big_endian = false);
+@return	CRC-32C */
+uint32_t buf_calc_page_crc32(const byte* page);
 
 /** Calculate a checksum which is stored to the page when it is written
 to a file. Note that we must be careful to calculate the same value on
@@ -71,6 +63,5 @@ const char*
 buf_checksum_algorithm_name(srv_checksum_algorithm_t algo);
 
 extern ulong	srv_checksum_algorithm;
-extern bool	legacy_big_endian_checksum;
 
 #endif /* buf0checksum_h */

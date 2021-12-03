@@ -31,7 +31,11 @@ echo [ enable semi-sync on slave ];
 stop slave;
 set global rpl_semi_sync_slave_enabled = 1;
 start slave;
+let $status_var= rpl_semi_sync_slave_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
 show status like 'rpl_semi_sync_slave%';
+
 
 connection master;
 CREATE TABLE t1(a INT) ENGINE=InnoDB;
@@ -190,6 +194,12 @@ connection con1;
 INSERT INTO t1 values (2);
 sync_slave_with_master;
 connection con1;
+let $status_var= Rpl_semi_sync_master_clients;
+let $status_var_value= 1;
+source include/wait_for_status_var.inc;
+let $status_var= Rpl_semi_sync_master_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
 show status like 'Rpl_semi_sync_master_clients';
 show status like 'Rpl_semi_sync_master_status';
 
@@ -259,7 +269,12 @@ START SLAVE IO_THREAD;
 --echo #########################################################
 connection con1;
 SET GLOBAL rpl_semi_sync_master_enabled = 0;
+
+let $status_var= Rpl_semi_sync_master_clients;
+let $status_var_value= 1;
+source include/wait_for_status_var.inc;
 show status like 'Rpl_semi_sync_master_clients';
+
 INSERT INTO t1 VALUES (1);
 SET GLOBAL rpl_semi_sync_master_enabled = 1;
 INSERT INTO t1 VALUES (2);

@@ -1,0 +1,23 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+log-bin
+log-slave-updates
+log-bin-compress
+
+[mysqld.1]
+#gtid_domain_id=1
+wsrep_gtid_mode=ON
+# Maximum allowed wsrep_gtid_domain_id.
+wsrep_gtid_domain_id=4294967295
+wsrep_trx_fragment_size=1
+wsrep_trx_fragment_unit='ROWS'
+
+[mysqld.2]
+#gtid_domain_id=2
+wsrep_gtid_mode=ON
+wsrep_gtid_domain_id=4294967295
+wsrep_trx_fragment_size=1
+wsrep_trx_fragment_unit='ROWS'
+#wsrep_gitd_domain_id value will be inherited from donor node (mysqld.1)
+#wsrep_gitd_domain_id=X

@@ -1,0 +1,13 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+enforce_storage_engine=innodb
+sql_mode=''
+
+[mysqld.2]
+enforce_storage_engine=innodb
+sql_mode=''
+
+
+
+

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "sql_plugin.h"                         // SHOW_MY_BOOL
 #include "sql_priv.h"
@@ -76,7 +76,7 @@ uint plugin_maturity_map[]=
 { 0, 1, 2, 3, 4, 5, 6 };
 
 /*
-  When you ad a new plugin type, add both a string and make sure that the
+  When you add a new plugin type, add both a string and make sure that the
   init and deinit array are correctly updated.
 */
 const LEX_CSTRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
@@ -227,6 +227,7 @@ static DYNAMIC_ARRAY plugin_array;
 static HASH plugin_hash[MYSQL_MAX_PLUGIN_TYPE_NUM];
 static MEM_ROOT plugin_mem_root;
 static bool reap_needed= false;
+volatile int global_plugin_version= 1;
 
 static bool initialized= 0;
 ulong dlopen_count;
@@ -293,14 +294,14 @@ public:
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
                     st_plugin_int *p, st_mysql_sys_var *plugin_var_arg);
   sys_var_pluginvar *cast_pluginvar() { return this; }
-  uchar* real_value_ptr(THD *thd, enum_var_type type);
-  TYPELIB* plugin_var_typelib(void);
-  uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base);
-  uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  uchar* real_value_ptr(THD *thd, enum_var_type type) const;
+  TYPELIB* plugin_var_typelib(void) const;
+  const uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base) const;
+  const uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return do_value_ptr(thd, OPT_SESSION, base); }
-  uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return do_value_ptr(thd, OPT_GLOBAL, base); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return do_value_ptr(thd, OPT_DEFAULT, 0); }
   bool do_check(THD *thd, set_var *var);
   virtual void session_save_default(THD *thd, set_var *var) {}
@@ -728,9 +729,9 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
     This is done to ensure that only approved libraries from the
     plugin directory are used (to make this even remotely secure).
   */
-  if (check_valid_path(dl->str, dl->length) ||
-      check_string_char_length((LEX_CSTRING *) dl, 0, NAME_CHAR_LEN,
+  if (check_string_char_length((LEX_CSTRING *) dl, 0, NAME_CHAR_LEN,
                                system_charset_info, 1) ||
+      check_valid_path(dl->str, dl->length) ||
       plugin_dir_len + dl->length + 1 >= FN_REFLEN)
   {
     my_error(ER_UDF_NO_PATHS, MyFlags);
@@ -1800,6 +1801,8 @@ static void plugin_load(MEM_ROOT *tmp_root)
   int error;
   THD *new_thd= new THD(0);
   bool result;
+  unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
+  { MYSQL_AUDIT_GENERAL_CLASSMASK };
   DBUG_ENTER("plugin_load");
 
   if (global_system_variables.log_warnings >= 9)
@@ -1845,6 +1848,34 @@ static void plugin_load(MEM_ROOT *tmp_root)
     LEX_CSTRING name= {str_name.ptr(), str_name.length()};
     LEX_CSTRING dl=   {str_dl.ptr(), str_dl.length()};
 
+    if (!name.length || !dl.length)
+      continue;
+
+    /*
+      Pre-acquire audit plugins for events that may potentially occur
+      during [UN]INSTALL PLUGIN.
+
+      When audit event is triggered, audit subsystem acquires interested
+      plugins by walking through plugin list. Evidently plugin list
+      iterator protects plugin list by acquiring LOCK_plugin, see
+      plugin_foreach_with_mask().
+
+      On the other hand plugin_load is acquiring LOCK_plugin
+      rather for a long time.
+
+      When audit event is triggered during plugin_load plugin
+      list iterator acquires the same lock (within the same thread)
+      second time.
+
+      This hack should be removed when LOCK_plugin is fixed so it
+      protects only what it supposed to protect.
+
+      See also mysql_install_plugin(), mysql_uninstall_plugin() and
+        initialize_audit_plugin()
+    */
+    if (mysql_audit_general_enabled())
+      mysql_audit_acquire_plugins(new_thd, event_class_mask);
+
     /*
       there're no other threads running yet, so we don't need a mutex.
       but plugin_add() before is designed to work in multi-threaded
@@ -1860,7 +1891,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
     sql_print_error(ER_THD(new_thd, ER_GET_ERRNO), my_errno,
                            table->file->table_type());
   end_read_record(&read_record_info);
-  table->m_needs_reopen= TRUE;                  // Force close to free memory
+  table->mark_table_for_reopen();
   close_mysql_tables(new_thd);
 end:
   new_thd->db= null_clex_str;                 // Avoid free on thd->db
@@ -2225,6 +2256,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
     reap_plugins();
   }
 err:
+  global_plugin_version++;
   mysql_mutex_unlock(&LOCK_plugin);
   if (argv)
     free_defaults(argv);
@@ -2244,27 +2276,30 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
   if (!(plugin= plugin_find_internal(name, MYSQL_ANY_PLUGIN)) ||
       plugin->state & (PLUGIN_IS_UNINITIALIZED | PLUGIN_IS_DYING))
   {
-    myf MyFlags= thd->lex->if_exists() ? ME_NOTE : 0;
-    my_error(ER_SP_DOES_NOT_EXIST, MyFlags, "PLUGIN", name->str);
-    return !MyFlags;
-  }
-  if (!plugin->plugin_dl)
-  {
-    my_error(ER_PLUGIN_DELETE_BUILTIN, MYF(0));
-    return 1;
-  }
-  if (plugin->load_option == PLUGIN_FORCE_PLUS_PERMANENT)
-  {
-    my_error(ER_PLUGIN_IS_PERMANENT, MYF(0), name->str);
-    return 1;
+    // maybe plugin is present in mysql.plugin; postpone the error
+    plugin= nullptr;
   }
 
-  plugin->state= PLUGIN_IS_DELETED;
-  if (plugin->ref_count)
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                 WARN_PLUGIN_BUSY, ER_THD(thd, WARN_PLUGIN_BUSY));
-  else
-    reap_needed= true;
+  if (plugin)
+  {
+    if (!plugin->plugin_dl)
+    {
+      my_error(ER_PLUGIN_DELETE_BUILTIN, MYF(0));
+      return 1;
+    }
+    if (plugin->load_option == PLUGIN_FORCE_PLUS_PERMANENT)
+    {
+      my_error(ER_PLUGIN_IS_PERMANENT, MYF(0), name->str);
+      return 1;
+    }
+
+    plugin->state= PLUGIN_IS_DELETED;
+    if (plugin->ref_count)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+          WARN_PLUGIN_BUSY, ER_THD(thd, WARN_PLUGIN_BUSY));
+    else
+      reap_needed= true;
+  }
 
   uchar user_key[MAX_KEY_LENGTH];
   table->use_all_columns();
@@ -2288,6 +2323,12 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
       table->file->print_error(error, MYF(0));
       return 1;
     }
+  }
+  else if (!plugin)
+  {
+    const myf MyFlags= thd->lex->if_exists() ? ME_NOTE : 0;
+    my_error(ER_SP_DOES_NOT_EXIST, MyFlags, "PLUGIN", name->str);
+    return !MyFlags;
   }
   return 0;
 }
@@ -2375,6 +2416,7 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   }
   reap_plugins();
 
+  global_plugin_version++;
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(error);
 #ifdef WITH_WSREP
@@ -2834,37 +2876,25 @@ static void update_func_double(THD *thd, struct st_mysql_sys_var *var,
   System Variables support
 ****************************************************************************/
 
-sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
-                         bool throw_error, bool locked)
+sys_var *find_sys_var(THD *thd, const char *str, size_t length,
+                      bool throw_error)
 {
   sys_var *var;
-  sys_var_pluginvar *pi= NULL;
-  plugin_ref plugin;
-  DBUG_ENTER("find_sys_var_ex");
+  sys_var_pluginvar *pi;
+  DBUG_ENTER("find_sys_var");
   DBUG_PRINT("enter", ("var '%.*s'", (int)length, str));
 
-  if (!locked)
-    mysql_mutex_lock(&LOCK_plugin);
   mysql_prlock_rdlock(&LOCK_system_variables_hash);
   if ((var= intern_find_sys_var(str, length)) &&
       (pi= var->cast_pluginvar()))
   {
-    mysql_prlock_unlock(&LOCK_system_variables_hash);
-    LEX *lex= thd ? thd->lex : 0;
-    if (!(plugin= intern_plugin_lock(lex, plugin_int_to_ref(pi->plugin))))
+    mysql_mutex_lock(&LOCK_plugin);
+    if (!intern_plugin_lock(thd ? thd->lex : 0, plugin_int_to_ref(pi->plugin),
+                            PLUGIN_IS_READY))
       var= NULL; /* failed to lock it, it must be uninstalling */
-    else
-    if (!(plugin_state(plugin) & PLUGIN_IS_READY))
-    {
-      /* initialization not completed */
-      var= NULL;
-      intern_plugin_unlock(lex, plugin);
-    }
-  }
-  else
-    mysql_prlock_unlock(&LOCK_system_variables_hash);
-  if (!locked)
     mysql_mutex_unlock(&LOCK_plugin);
+  }
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   if (unlikely(!throw_error && !var))
     my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0),
@@ -2872,11 +2902,6 @@ sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
   DBUG_RETURN(var);
 }
 
-
-sys_var *find_sys_var(THD *thd, const char *str, size_t length)
-{
-  return find_sys_var_ex(thd, str, length, false, false);
-}
 
 /*
   called by register_var, construct_options and test_plugin_options.
@@ -3161,6 +3186,11 @@ void plugin_thdvar_init(THD *thd)
   thd->variables.enforced_table_plugin= NULL;
   cleanup_variables(&thd->variables);
 
+  /* This and all other variable cleanups are here for COM_CHANGE_USER :( */
+#ifndef EMBEDDED_LIBRARY
+  thd->session_tracker.sysvars.deinit(thd);
+#endif
+
   thd->variables= global_system_variables;
 
   /* we are going to allocate these lazily */
@@ -3182,6 +3212,9 @@ void plugin_thdvar_init(THD *thd)
   intern_plugin_unlock(NULL, old_enforced_table_plugin);
   mysql_mutex_unlock(&LOCK_plugin);
 
+#ifndef EMBEDDED_LIBRARY
+  thd->session_tracker.sysvars.init(thd);
+#endif
   DBUG_VOID_RETURN;
 }
 
@@ -3246,6 +3279,10 @@ void plugin_thdvar_cleanup(THD *thd)
   uint idx;
   plugin_ref *list;
   DBUG_ENTER("plugin_thdvar_cleanup");
+
+#ifndef EMBEDDED_LIBRARY
+  thd->session_tracker.sysvars.deinit(thd);
+#endif
 
   mysql_mutex_lock(&LOCK_plugin);
 
@@ -3351,7 +3388,7 @@ sys_var_pluginvar::sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
   plugin_opt_set_limits(&option, pv);
 }
 
-uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type)
+uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type) const
 {
   if (type == OPT_DEFAULT)
   {
@@ -3425,7 +3462,7 @@ bool sys_var_pluginvar::session_is_default(THD *thd)
 }
 
 
-TYPELIB* sys_var_pluginvar::plugin_var_typelib(void)
+TYPELIB* sys_var_pluginvar::plugin_var_typelib(void) const
 {
   switch (plugin_var->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_THDLOCAL)) {
   case PLUGIN_VAR_ENUM:
@@ -3443,12 +3480,10 @@ TYPELIB* sys_var_pluginvar::plugin_var_typelib(void)
 }
 
 
-uchar* sys_var_pluginvar::do_value_ptr(THD *thd, enum_var_type type,
-                                       const LEX_CSTRING *base)
+const uchar* sys_var_pluginvar::do_value_ptr(THD *thd, enum_var_type type,
+                                             const LEX_CSTRING *base) const
 {
-  uchar* result;
-
-  result= real_value_ptr(thd, type);
+  const uchar* result= real_value_ptr(thd, type);
 
   if ((plugin_var->flags & PLUGIN_VAR_TYPEMASK) == PLUGIN_VAR_ENUM)
     result= (uchar*) get_type(plugin_var_typelib(), *(ulong*)result);
@@ -3698,7 +3733,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
   const LEX_CSTRING plugin_dash = { STRING_WITH_LEN("plugin-") };
   size_t plugin_name_len= strlen(plugin_name);
   size_t optnamelen;
-  const int max_comment_len= 180;
+  const int max_comment_len= 255;
   char *comment= (char *) alloc_root(mem_root, max_comment_len + 1);
   char *optname;
 
@@ -3732,8 +3767,9 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
     options[0].typelib= options[1].typelib= &global_plugin_typelib;
 
     strxnmov(comment, max_comment_len, "Enable or disable ", plugin_name,
-            " plugin. One of: ON, OFF, FORCE (don't start "
-            "if the plugin fails to load).", NullS);
+            " plugin. One of: ON, OFF, FORCE (don't start if the plugin"
+            " fails to load), FORCE_PLUS_PERMANENT (like FORCE, but the"
+            " plugin can not be uninstalled).", NullS);
     options[0].comment= comment;
     /*
       Allocate temporary space for the value of the tristate.
@@ -4354,25 +4390,31 @@ void wsrep_plugins_pre_init()
   members of wsrep startup threads with correct values, as these value
   were not available at the time these threads were created.
 */
+
+my_bool post_init_callback(THD *thd, void *)
+{
+  DBUG_ASSERT(!current_thd);
+  if (thd->wsrep_applier)
+  {
+    // Save options_bits as it will get overwritten in
+    // plugin_thdvar_init() (verified)
+    ulonglong option_bits_saved= thd->variables.option_bits;
+
+    set_current_thd(thd);
+    plugin_thdvar_init(thd);
+
+    // Restore option_bits
+    thd->variables.option_bits= option_bits_saved;
+  }
+  set_current_thd(0);
+  return 0;
+}
+
+
 void wsrep_plugins_post_init()
 {
-  THD *thd;
-  I_List_iterator<THD> it(threads);
-
-  while ((thd= it++))
-  {
-    if (IF_WSREP(thd->wsrep_applier,1))
-    {
-      // Save options_bits as it will get overwritten in plugin_thdvar_init()
-      ulonglong option_bits_saved= thd->variables.option_bits;
-
-      plugin_thdvar_init(thd);
-
-      // Restore option_bits
-      thd->variables.option_bits= option_bits_saved;
-    }
-  }
-
-  return;
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  server_threads.iterate(post_init_callback);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
 }
 #endif /* WITH_WSREP */

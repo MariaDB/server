@@ -1,5 +1,9 @@
+connection node_2;
+connection node_1;
 connection node_1;
 CREATE EVENT event1 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 connection node_2;
 SELECT DEFINER= 'root@localhost', ORIGINATOR = 1, STATUS = 'SLAVESIDE_DISABLED', EVENT_TYPE = 'ONE TIME', ON_COMPLETION = 'NOT PRESERVE' FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME = 'event1';
 DEFINER= 'root@localhost'	ORIGINATOR = 1	STATUS = 'SLAVESIDE_DISABLED'	EVENT_TYPE = 'ONE TIME'	ON_COMPLETION = 'NOT PRESERVE'

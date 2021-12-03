@@ -1,0 +1,29 @@
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+# mere to limit it run rate
+--source include/have_binlog_format_row.inc
+
+connect(con1,localhost,root,,);
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+
+#   This forced synchronization pattern ensures con1 will execute its retry
+# path. More specifically, con1 should see that the cache of log files it
+# creates during SHOW BINARY LOGS becomes invalidated after con2 completes
+# RESET MASTER.
+SET DEBUG_SYNC= "at_after_lock_index SIGNAL con1_ready WAIT_FOR con1_go";
+--send SHOW BINARY LOGS
+
+connect(con2,localhost,root,,);
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+RESET MASTER;
+FLUSH LOGS;
+SET DEBUG_SYNC= "now SIGNAL con1_go";
+
+--connection con1
+--echo # The correct result must consists of two records
+--replace_column 2 #
+--reap
+
+SET debug_sync = 'reset';

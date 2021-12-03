@@ -10,12 +10,12 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -25,7 +25,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include required application header files                          */
@@ -272,8 +272,8 @@ void XINDEX::Close(void)
 /***********************************************************************/
 int XINDEX::Qcompare(int *i1, int *i2)
   {
-  register int  k;
-  register PXCOL kcp;
+  int  k;
+  PXCOL kcp;
 
   for (kcp = To_KeyCol, k = 0; kcp; kcp = kcp->Next)
     if ((k = kcp->Compare(*i1, *i2)))
@@ -559,12 +559,14 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 
   // Check whether the unique index is unique indeed
   if (!Mul)
+  {
     if (Ndif < Num_K) {
       strcpy(g->Message, MSG(INDEX_NOT_UNIQ));
       brc = true;
       goto err;
     } else
       PlgDBfree(Offset);           // Not used anymore
+  }
 
   // Restore kcp list
   To_LastCol->Next = addcolp;
@@ -659,7 +661,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*  Not true for DBF tables because of eventual soft deleted lines.  */
   /*  Note: for Num_K = 1 any non null value is Ok.                    */
   /*********************************************************************/
-  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR 
+  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR && Tdbp->Ftype != RECFM_CSV
                     && Tdbp->Txfp->GetAmType() != TYPE_AM_DBF) {
     Incr = (Num_K > 1) ? To_Rec[1] : Num_K;
     PlgDBfree(Record);
@@ -745,7 +747,7 @@ int XINDEX::ColMaxSame(PXCOL kp)
 /***********************************************************************/
 bool XINDEX::Reorder(PGLOBAL g __attribute__((unused)))
   {
-  register int i, j, k, n;
+  int i, j, k, n;
   bool          sorted = true;
   PXCOL         kcp;
 #if 0
@@ -837,7 +839,8 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -845,7 +848,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
 
   if ((sep = defp->GetBoolCatInfo("SepIndex", false))) {
     // Index is saved in a separate file
-#if defined(__WIN__)
+#if defined(_WIN32)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -990,7 +993,8 @@ bool XINDEX::Init(PGLOBAL g)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -998,7 +1002,7 @@ bool XINDEX::Init(PGLOBAL g)
 
   if (defp->SepIndex()) {
     // Index was saved in a separate file
-#if defined(__WIN__)
+#if defined(_WIN32)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -1207,7 +1211,7 @@ bool XINDEX::MapInit(PGLOBAL g)
   PCOL    colp;
   PXCOL   prev = NULL, kcp = NULL;
   PDOSDEF defp = (PDOSDEF)Tdbp->To_Def;
-  PDBUSER dup = PlgGetUser(g);
+  PDBUSER dup __attribute__((unused))= PlgGetUser(g);
 
   /*********************************************************************/
   /*  Get the estimated table size.                                    */
@@ -1243,7 +1247,8 @@ bool XINDEX::MapInit(PGLOBAL g)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -1251,7 +1256,7 @@ bool XINDEX::MapInit(PGLOBAL g)
 
   if (defp->SepIndex()) {
     // Index was save in a separate file
-#if defined(__WIN__)
+#if defined(_WIN32)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -1457,7 +1462,8 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -1465,7 +1471,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
 
   if (defp->SepIndex()) {
     // Index was saved in a separate file
-#if defined(__WIN__)
+#if defined(_WIN32)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -1870,8 +1876,8 @@ int XINDEX::Fetch(PGLOBAL g)
 /***********************************************************************/
 int XINDEX::FastFind(void)
   {
-  register int  curk, sup, inf, i= 0, k, n = 2;
-  register PXCOL kp, kcp;
+  int  curk, sup, inf, i= 0, k, n = 2;
+  PXCOL kp, kcp;
 
 //assert((int)nv == Nval);
 
@@ -2039,11 +2045,12 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
     k = FastFind();
 
     if (k < Num_K || Op != OP_EQ)
+    {
       if (limit)
         n = (Mul) ? k : kp->Val_K;
       else
         n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
-
+    }
   } else {
     strcpy(g->Message, MSG(RANGE_NO_JOIN));
     n = -1;                        // Logical error
@@ -2209,8 +2216,8 @@ int XINDXS::Fetch(PGLOBAL g)
 /***********************************************************************/
 int XINDXS::FastFind(void)
   {
-  register int   sup, inf, i= 0, n = 2;
-  register PXCOL kcp = To_KeyCol;
+  int   sup, inf, i= 0, n = 2;
+  PXCOL kcp = To_KeyCol;
 
   if (Nblk && Op == OP_EQ) {
     // Look in block values to find in which block to search
@@ -2513,7 +2520,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   if (trace(1))
     htrc(" Xopen: filename=%s id=%d mode=%d\n", filename, id, mode);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   LONG  high = 0;
   DWORD rc, drc, access, share, creation;
 
@@ -2689,7 +2696,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 /***********************************************************************/
 bool XHUGE::Seek(PGLOBAL g, int low, int high, int origin)
   {
-#if defined(__WIN__)
+#if defined(_WIN32)
   LONG  hi = high;
   DWORD rc = SetFilePointer(Hfile, low, &hi, origin);
 
@@ -2725,7 +2732,7 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
   {
   bool rc = false;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   bool    brc;
   DWORD   nbr, count = (DWORD)(n * size);
 
@@ -2771,7 +2778,7 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
 /***********************************************************************/
 int XHUGE::Write(PGLOBAL g, void *buf, int n, int size, bool& rc)
   {
-#if defined(__WIN__)
+#if defined(_WIN32)
   bool    brc;
   DWORD   nbw, count = (DWORD)n * (DWORD) size;
 
@@ -2813,7 +2820,7 @@ void XHUGE::Close(char *fn, int id)
   if (trace(1))
     htrc("XHUGE::Close: fn=%s id=%d NewOff=%lld\n", fn, id, NewOff.Val);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (id >= 0 && fn) {
     CloseFileHandle(Hfile);
     Hfile = CreateFile(fn, GENERIC_READ | GENERIC_WRITE, 0, NULL,
@@ -2828,7 +2835,7 @@ void XHUGE::Close(char *fn, int id)
         } // endif SetFilePointer
 
     } // endif id
-#else   // !__WIN__
+#else   // !_WIN32
   if (id >= 0 && fn) {
     if (Hfile != INVALID_HANDLE_VALUE) {
       if (lseek64(Hfile, id * sizeof(IOFF), SEEK_SET) >= 0) {
@@ -2844,7 +2851,7 @@ void XHUGE::Close(char *fn, int id)
       htrc("(XHUGE)error reopening %s: %s\n", fn, strerror(errno));
 
     } // endif id
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   XLOAD::Close();
   } // end of Close
@@ -3235,7 +3242,7 @@ void KXYCOL::FillValue(PVAL valp)
 int KXYCOL::Compare(int i1, int i2)
   {
   // Do the actual comparison between values.
-  register int k = Kblp->CompVal(i1, i2);
+  int k = Kblp->CompVal(i1, i2);
 
   if (trace(4))
     htrc("Compare done result=%d\n", k);
@@ -3250,7 +3257,7 @@ int KXYCOL::CompVal(int i)
   {
   // Do the actual comparison between numerical values.
   if (trace(4)) {
-    register int k = (int)Kblp->CompVal(Valp, (int)i);
+    int k = (int)Kblp->CompVal(Valp, (int)i);
 
     htrc("Compare done result=%d\n", k);
     return k;

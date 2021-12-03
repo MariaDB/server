@@ -53,11 +53,31 @@ INSERT INTO t1 VALUES(1);
 INSERT INTO t1 VALUES(2);
 INSERT INTO t1 VALUES(20);
 INSERT INTO t1 VALUES(21);
+let $ID = `SELECT connection_id()`;
 --connection default
 --disconnect con1
 
 SELECT * FROM t1;
 
+--disable_parsing
+# MariaDB: no support for $RPC_PROTOCOL
+if (`SELECT $RPC_PROTOCOL > 0`) {
+  # for --rpc_protocol mode wait for the background detached session to
+  # go away
+  let $wait_condition =
+      SELECT COUNT(*) = 0
+      FROM information_schema.srv_sessions
+      WHERE id = $ID;
+  --source include/wait_condition.inc
+}
+
+if (`SELECT $RPC_PROTOCOL = 0`) {
+  # for non --rpc_protocol mode simply wait until the number of sessions
+  # returns to earlier levels
+  --source include/wait_until_count_sessions.inc
+}
+--enable_parsing
+# MariaDB:
 --source include/wait_until_count_sessions.inc
 
 # Note: in MariaDB, session count will be decremented *before* 

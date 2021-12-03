@@ -13,9 +13,9 @@ ROW(1, 7) IN (SELECT id, id1 FROM t1 WHERE id1= 8)
 0
 DROP TABLE t1;
 EXECUTE IMMEDIATE 'SELECT ?' USING (1 IN (SELECT * FROM t1));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT * FROM t1))' at line 1
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
 EXECUTE IMMEDIATE 'SELECT ?' USING (SELECT * FROM t1);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT * FROM t1)' at line 1
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
 CREATE TABLE t1 (id INT);
 INSERT INTO t1 VALUES (10);
 CREATE PROCEDURE p1(a INT) AS BEGIN NULL; END;
@@ -47,21 +47,21 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SIGNAL SQLSTATE '01000';
 END' at line 3
 PREPARE stmt FROM (1 IN (SELECT * FROM t1));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT * FROM t1))' at line 1
+ERROR 42000: PREPARE..FROM does not support subqueries or stored functions
 PREPARE stmt FROM EXISTS (SELECT * FROM t1);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(SELECT * FROM t1)' at line 1
+ERROR 42000: PREPARE..FROM does not support subqueries or stored functions
 EXECUTE IMMEDIATE (1 IN (SELECT * FROM t1));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT * FROM t1))' at line 1
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
 EXECUTE IMMEDIATE EXISTS (SELECT * FROM t1);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(SELECT * FROM t1)' at line 1
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
 GET DIAGNOSTICS CONDITION (1 IN (SELECT * FROM t1)) @errno=MYSQL_ERRNO;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(1 IN (SELECT * FROM t1)) @errno=MYSQL_ERRNO' at line 1
 GET DIAGNOSTICS CONDITION EXISTS (SELECT * FROM t1) @errno=MYSQL_ERRNO;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'EXISTS (SELECT * FROM t1) @errno=MYSQL_ERRNO' at line 1
 PURGE BINARY LOGS BEFORE (1 IN (SELECT * FROM t1));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT * FROM t1))' at line 1
+ERROR 42000: PURGE..BEFORE does not support subqueries or stored functions
 PURGE BINARY LOGS BEFORE EXISTS (SELECT * FROM t1);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(SELECT * FROM t1)' at line 1
+ERROR 42000: PURGE..BEFORE does not support subqueries or stored functions
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
 DO 1 IN (SELECT * FROM t1);

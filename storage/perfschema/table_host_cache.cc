@@ -1,17 +1,24 @@
 /* Copyright (c) 2011, 2012, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file storage/perfschema/table_host_cache.cc
@@ -38,35 +45,35 @@ table_host_cache::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE host_cache("
-                      "IP VARCHAR(64) not null,"
-                      "HOST VARCHAR(255) collate utf8_bin,"
-                      "HOST_VALIDATED ENUM ('YES', 'NO') not null,"
-                      "SUM_CONNECT_ERRORS BIGINT not null,"
-                      "COUNT_HOST_BLOCKED_ERRORS BIGINT not null,"
-                      "COUNT_NAMEINFO_TRANSIENT_ERRORS BIGINT not null,"
-                      "COUNT_NAMEINFO_PERMANENT_ERRORS BIGINT not null,"
-                      "COUNT_FORMAT_ERRORS BIGINT not null,"
-                      "COUNT_ADDRINFO_TRANSIENT_ERRORS BIGINT not null,"
-                      "COUNT_ADDRINFO_PERMANENT_ERRORS BIGINT not null,"
-                      "COUNT_FCRDNS_ERRORS BIGINT not null,"
-                      "COUNT_HOST_ACL_ERRORS BIGINT not null,"
-                      "COUNT_NO_AUTH_PLUGIN_ERRORS BIGINT not null,"
-                      "COUNT_AUTH_PLUGIN_ERRORS BIGINT not null,"
-                      "COUNT_HANDSHAKE_ERRORS BIGINT not null,"
-                      "COUNT_PROXY_USER_ERRORS BIGINT not null,"
-                      "COUNT_PROXY_USER_ACL_ERRORS BIGINT not null,"
-                      "COUNT_AUTHENTICATION_ERRORS BIGINT not null,"
-                      "COUNT_SSL_ERRORS BIGINT not null,"
-                      "COUNT_MAX_USER_CONNECTIONS_ERRORS BIGINT not null,"
-                      "COUNT_MAX_USER_CONNECTIONS_PER_HOUR_ERRORS BIGINT not null,"
-                      "COUNT_DEFAULT_DATABASE_ERRORS BIGINT not null,"
-                      "COUNT_INIT_CONNECT_ERRORS BIGINT not null,"
-                      "COUNT_LOCAL_ERRORS BIGINT not null,"
-                      "COUNT_UNKNOWN_ERRORS BIGINT not null,"
-                      "FIRST_SEEN TIMESTAMP(0) NOT NULL default 0,"
-                      "LAST_SEEN TIMESTAMP(0) NOT NULL default 0,"
-                      "FIRST_ERROR_SEEN TIMESTAMP(0) null default 0,"
-                      "LAST_ERROR_SEEN TIMESTAMP(0) null default 0)") }
+                      "IP VARCHAR(64) not null comment 'Client IP address.',"
+                      "HOST VARCHAR(255) collate utf8_bin comment 'IP''s resolved DNS host name, or NULL if unknown.',"
+                      "HOST_VALIDATED ENUM ('YES', 'NO') not null comment 'YES if the IP-to-host DNS lookup was successful, and the HOST column can be used to avoid DNS calls, or NO if unsuccessful, in which case DNS lookup is performed for each connect until either successful or a permanent error.',"
+                      "SUM_CONNECT_ERRORS BIGINT not null comment 'Number of connection errors. Counts only protocol handshake errors for hosts that passed validation. These errors count towards max_connect_errors.',"
+                      "COUNT_HOST_BLOCKED_ERRORS BIGINT not null comment 'Number of blocked connections because SUM_CONNECT_ERRORS exceeded the max_connect_errors system variable.',"
+                      "COUNT_NAMEINFO_TRANSIENT_ERRORS BIGINT not null comment 'Number of transient errors during IP-to-host DNS lookups.',"
+                      "COUNT_NAMEINFO_PERMANENT_ERRORS BIGINT not null comment 'Number of permanent errors during IP-to-host DNS lookups.',"
+                      "COUNT_FORMAT_ERRORS BIGINT not null comment 'Number of host name format errors, for example a numeric host column.',"
+                      "COUNT_ADDRINFO_TRANSIENT_ERRORS BIGINT not null comment 'Number of transient errors during host-to-IP reverse DNS lookups.',"
+                      "COUNT_ADDRINFO_PERMANENT_ERRORS BIGINT not null comment 'Number of permanent errors during host-to-IP reverse DNS lookups.',"
+                      "COUNT_FCRDNS_ERRORS BIGINT not null comment 'Number of forward-confirmed reverse DNS errors, which occur when IP-to-host DNS lookup does not match the originating IP address.',"
+                      "COUNT_HOST_ACL_ERRORS BIGINT not null comment 'Number of errors occurring because no user from the host is permitted to log in. These attempts return error code 1130 ER_HOST_NOT_PRIVILEGED and do not proceed to username and password authentication.',"
+                      "COUNT_NO_AUTH_PLUGIN_ERRORS BIGINT not null comment 'Number of errors due to requesting an authentication plugin that was not available. This can be due to the plugin never having been loaded, or the load attempt failing.',"
+                      "COUNT_AUTH_PLUGIN_ERRORS BIGINT not null comment 'Number of errors reported by an authentication plugin. Plugins can increment COUNT_AUTHENTICATION_ERRORS or COUNT_HANDSHAKE_ERRORS instead, but, if specified or the error is unknown, this column is incremented.',"
+                      "COUNT_HANDSHAKE_ERRORS BIGINT not null comment 'Number of errors detected at the wire protocol level.',"
+                      "COUNT_PROXY_USER_ERRORS BIGINT not null comment 'Number of errors detected when a proxy user is proxied to a user that does not exist.',"
+                      "COUNT_PROXY_USER_ACL_ERRORS BIGINT not null comment 'Number of errors detected when a proxy user is proxied to a user that exists, but the proxy user doesn''t have the PROXY privilege.',"
+                      "COUNT_AUTHENTICATION_ERRORS BIGINT not null comment 'Number of errors where authentication failed.',"
+                      "COUNT_SSL_ERRORS BIGINT not null comment 'Number of errors due to TLS problems.',"
+                      "COUNT_MAX_USER_CONNECTIONS_ERRORS BIGINT not null comment 'Number of errors due to the per-user quota being exceeded.',"
+                      "COUNT_MAX_USER_CONNECTIONS_PER_HOUR_ERRORS BIGINT not null comment 'Number of errors due to the per-hour quota being exceeded.',"
+                      "COUNT_DEFAULT_DATABASE_ERRORS BIGINT not null comment 'Number of errors due to the user not having permission to access the specified default database, or it not existing.',"
+                      "COUNT_INIT_CONNECT_ERRORS BIGINT not null comment 'Number of errors due to statements in the init_connect system variable.',"
+                      "COUNT_LOCAL_ERRORS BIGINT not null comment 'Number of local server errors, such as out-of-memory errors, unrelated to network, authentication, or authorization.',"
+                      "COUNT_UNKNOWN_ERRORS BIGINT not null comment 'Number of unknown errors that cannot be allocated to another column.',"
+                      "FIRST_SEEN TIMESTAMP(0) NOT NULL default 0 comment 'Timestamp of the first connection attempt by the IP.',"
+                      "LAST_SEEN TIMESTAMP(0) NOT NULL default 0 comment 'Timestamp of the most recent connection attempt by the IP.',"
+                      "FIRST_ERROR_SEEN TIMESTAMP(0) null default 0 comment 'Timestamp of the first error seen from the IP.',"
+                      "LAST_ERROR_SEEN TIMESTAMP(0) null default 0 comment 'Timestamp of the most recent error seen from the IP.')") }
 };
 
 PFS_engine_table* table_host_cache::create(void)

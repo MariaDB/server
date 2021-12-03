@@ -67,10 +67,10 @@ wsrep_slave_threads=1
 wsrep_certify_nonPK=1
 
 # Maximum number of rows in write set
-wsrep_max_ws_rows=131072
+wsrep_max_ws_rows=0
 
 # Maximum size of write set
-wsrep_max_ws_size=1073741824
+wsrep_max_ws_size=2147483647
 
 # to enable debug level logging, set this to 1
 wsrep_debug=0

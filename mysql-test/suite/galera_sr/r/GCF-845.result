@@ -1,0 +1,21 @@
+connection node_2;
+connection node_1;
+CREATE TABLE IF NOT EXISTS t1 (f1 INTEGER) ENGINE = InnoDB;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET SESSION AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (161);
+COMMIT;
+DELETE FROM t1 WHERE f1 > 13;
+disconnect node_1a;
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+DROP TABLE t1;
+include/assert_grep.inc [No BF-BF log line found]

@@ -13,12 +13,12 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 #include "client_priv.h"
 #include <sslopt-vars.h>
-#include "../scripts/mysql_fix_privilege_tables_sql.c"
+#include <../scripts/mysql_fix_privilege_tables_sql.c>
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
@@ -111,7 +111,7 @@ static struct my_option my_long_options[]=
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"force", 'f', "Force execution of mysqlcheck even if mysql_upgrade "
-   "has already been executed for the current version of MySQL.",
+   "has already been executed for the current version of MariaDB.",
    &opt_force, &opt_force, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", 0,
    0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -148,7 +148,7 @@ static struct my_option my_long_options[]=
    &opt_systables_only, &opt_systables_only, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #define USER_OPT (array_elements(my_long_options) - 6)
-  {"user", 'u', "User for login if not current user.", &opt_user,
+  {"user", 'u', "User for login.", &opt_user,
    &opt_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Display more output about the process; Using it twice will print connection argument; Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during the check phase.",
    &opt_not_used, &opt_not_used, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
@@ -173,6 +173,7 @@ static const char *load_default_groups[]=
 {
   "client",          /* Read settings how to connect to server */
   "mysql_upgrade",   /* Read special settings for mysql_upgrade */
+  "mariadb-upgrade", /* Read special settings for mysql_upgrade */
   "client-server",   /* Reads settings common between client & server */
   "client-mariadb",  /* Read mariadb unique client settings */
   0
@@ -382,7 +383,7 @@ static int run_command(char* cmd,
   if (opt_verbose >= 4)
     puts(cmd);
 
-  if (!(res_file= popen(cmd, "r")))
+  if (!(res_file= my_popen(cmd, IF_WIN("rt","r"))))
     die("popen(\"%s\", \"r\") failed", cmd);
 
   while (fgets(buf, sizeof(buf), res_file))
@@ -400,7 +401,7 @@ static int run_command(char* cmd,
     }
   }
 
-  error= pclose(res_file);
+  error= my_pclose(res_file);
   return WEXITSTATUS(error);
 }
 
@@ -497,7 +498,7 @@ static void find_tool(char *tool_executable_name, const char *tool_name,
 
     len= (int)(last_fn_libchar - self_name);
 
-    my_snprintf(tool_executable_name, FN_REFLEN, "%.*s%c%s",
+    my_snprintf(tool_executable_name, FN_REFLEN, "%.*b%c%s",
                 len, self_name, FN_LIBCHAR, tool_name);
   }
 
@@ -808,7 +809,7 @@ static my_bool is_mysql()
       strstr(ds_events_struct.str, "IGNORE_BAD_TABLE_OPTIONS") != NULL)
     ret= FALSE;
   else
-    verbose("MySQL upgrade detected");
+    verbose("MariaDB upgrade detected");
 
   dynstr_free(&ds_events_struct);
   return(ret);
@@ -878,10 +879,15 @@ static int run_mysqlcheck_fixnames(void)
 
 static const char *expected_errors[]=
 {
+  "ERROR 1051", /* Unknown table */
   "ERROR 1060", /* Duplicate column name */
   "ERROR 1061", /* Duplicate key name */
   "ERROR 1054", /* Unknown column */
+  "ERROR 1146", /* Table does not exist */
   "ERROR 1290", /* RR_OPTION_PREVENTS_STATEMENT */
+  "ERROR 1347", /* 'mysql.user' is not of type 'BASE TABLE' */
+  "ERROR 1348", /* Column 'Show_db_priv' is not updatable */
+  "ERROR 1356", /* definer of view lack rights (UPDATE) */
   0
 };
 
@@ -1000,6 +1006,64 @@ static int install_used_engines(void)
   return 0;
 }
 
+static int check_slave_repositories(void)
+{
+  DYNAMIC_STRING ds_result;
+  int row_count= 0;
+  int error= 0;
+  const char *query = "SELECT COUNT(*) AS c1 FROM mysql.slave_master_info";
+
+  if (init_dynamic_string(&ds_result, "", 512, 512))
+    die("Out of memory");
+
+  run_query(query, &ds_result, TRUE);
+
+  if (ds_result.length)
+  {
+    row_count= atoi((char *)ds_result.str);
+    if (row_count)
+    {
+      fprintf(stderr,"Slave info repository compatibility check:"
+              " Found data in `mysql`.`slave_master_info` table.\n");
+      fprintf(stderr,"Warning: Content of `mysql`.`slave_master_info` table"
+              " will be ignored as MariaDB supports file based info "
+              "repository.\n");
+      error= 1;
+    }
+  }
+  dynstr_free(&ds_result);
+
+  query = "SELECT COUNT(*) AS c1 FROM mysql.slave_relay_log_info";
+
+  if (init_dynamic_string(&ds_result, "", 512, 512))
+    die("Out of memory");
+
+  run_query(query, &ds_result, TRUE);
+
+  if (ds_result.length)
+  {
+    row_count= atoi((char *)ds_result.str);
+    if (row_count)
+    {
+      fprintf(stderr, "Slave info repository compatibility check:"
+              " Found data in `mysql`.`slave_relay_log_info` table.\n");
+      fprintf(stderr, "Warning: Content of `mysql`.`slave_relay_log_info` "
+              "table will be ignored as MariaDB supports file based "
+              "repository.\n");
+      error= 1;
+    }
+  }
+  dynstr_free(&ds_result);
+  if (error)
+  {
+    fprintf(stderr,"Slave server may not possess the correct replication "
+            "metadata.\n");
+    fprintf(stderr, "Execution of CHANGE MASTER as per "
+            "`mysql`.`slave_master_info` and  `mysql`.`slave_relay_log_info` "
+            "table content is recommended.\n");
+  }
+  return 0;
+}
 
 /*
   Update all system tables in MySQL Server to current
@@ -1192,7 +1256,7 @@ int main(int argc, char **argv)
   */
   if (!opt_force && upgrade_already_done(0))
   {
-    printf("This installation of MySQL is already upgraded to %s, "
+    printf("This installation of MariaDB is already upgraded to %s, "
            "use --force if you still need to run mysql_upgrade\n",
            MYSQL_SERVER_VERSION);
     goto end;
@@ -1211,7 +1275,8 @@ int main(int argc, char **argv)
       run_mysqlcheck_views() ||
       run_sql_fix_privilege_tables() ||
       run_mysqlcheck_fixnames() ||
-      run_mysqlcheck_upgrade(FALSE))
+      run_mysqlcheck_upgrade(FALSE) ||
+      check_slave_repositories())
     die("Upgrade failed" );
 
   verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);

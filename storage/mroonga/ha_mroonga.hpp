@@ -16,7 +16,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #ifndef HA_MROONGA_HPP_
@@ -407,11 +407,11 @@ public:
   ha_mroonga(handlerton *hton, TABLE_SHARE *share_arg);
   ~ha_mroonga();
   const char *table_type() const;           // required
-  const char *index_type(uint inx);
+  const char *index_type(uint inx) mrn_override;
   const char **bas_ext() const;                                    // required
 
-  ulonglong table_flags() const;                                   // required
-  ulong index_flags(uint idx, uint part, bool all_parts) const;    // required
+  ulonglong table_flags() const mrn_override;                                   // required
+  ulong index_flags(uint idx, uint part, bool all_parts) const mrn_override;    // required
 
   // required
   int create(const char *name, TABLE *form, HA_CREATE_INFO *info
@@ -430,40 +430,40 @@ public:
 #ifndef MRN_HANDLER_HAVE_HA_CLOSE
   int close();                                                     // required
 #endif
-  int info(uint flag);                                             // required
+  int info(uint flag) mrn_override;                                             // required
 
-  uint lock_count() const;
+  uint lock_count() const mrn_override;
   THR_LOCK_DATA **store_lock(THD *thd,                             // required
                              THR_LOCK_DATA **to,
-                             enum thr_lock_type lock_type);
-  int external_lock(THD *thd, int lock_type);
+                             enum thr_lock_type lock_type) mrn_override;
+  int external_lock(THD *thd, int lock_type) mrn_override;
 
-  int rnd_init(bool scan);                                         // required
-  int rnd_end();
+  int rnd_init(bool scan) mrn_override;                                         // required
+  int rnd_end() mrn_override;
 #ifndef MRN_HANDLER_HAVE_HA_RND_NEXT
   int rnd_next(uchar *buf);                                        // required
 #endif
 #ifndef MRN_HANDLER_HAVE_HA_RND_POS
   int rnd_pos(uchar *buf, uchar *pos);                             // required
 #endif
-  void position(const uchar *record);                              // required
-  int extra(enum ha_extra_function operation);
-  int extra_opt(enum ha_extra_function operation, ulong cache_size);
+  void position(const uchar *record) mrn_override;                              // required
+  int extra(enum ha_extra_function operation) mrn_override;
+  int extra_opt(enum ha_extra_function operation, ulong cache_size) mrn_override;
 
-  int delete_table(const char *name);
-  int write_row(uchar *buf);
-  int update_row(const uchar *old_data, const uchar *new_data);
-  int delete_row(const uchar *buf);
+  int delete_table(const char *name) mrn_override;
+  int write_row(const uchar *buf) mrn_override;
+  int update_row(const uchar *old_data, const uchar *new_data) mrn_override;
+  int delete_row(const uchar *buf) mrn_override;
 
-  uint max_supported_record_length()   const;
-  uint max_supported_keys()            const;
-  uint max_supported_key_parts()       const;
-  uint max_supported_key_length()      const;
-  uint max_supported_key_part_length() const;
+  uint max_supported_record_length()   const mrn_override;
+  uint max_supported_keys()            const mrn_override;
+  uint max_supported_key_parts()       const mrn_override;
+  uint max_supported_key_length()      const mrn_override;
+  uint max_supported_key_part_length() const mrn_override;
 
-  ha_rows records_in_range(uint inx, key_range *min_key, key_range *max_key);
-  int index_init(uint idx, bool sorted);
-  int index_end();
+  ha_rows records_in_range(uint inx, key_range *min_key, key_range *max_key) mrn_override;
+  int index_init(uint idx, bool sorted) mrn_override;
+  int index_end() mrn_override;
 #ifndef MRN_HANDLER_HAVE_HA_INDEX_READ_MAP
   int index_read_map(uchar * buf, const uchar * key,
                      key_part_map keypart_map,
@@ -485,35 +485,35 @@ public:
 #ifndef MRN_HANDLER_HAVE_HA_INDEX_LAST
   int index_last(uchar *buf);
 #endif
-  int index_next_same(uchar *buf, const uchar *key, uint keylen);
+  int index_next_same(uchar *buf, const uchar *key, uint keylen) mrn_override;
 
-  int ft_init();
-  FT_INFO *ft_init_ext(uint flags, uint inx, String *key);
-  int ft_read(uchar *buf);
+  int ft_init() mrn_override;
+  FT_INFO *ft_init_ext(uint flags, uint inx, String *key) mrn_override;
+  int ft_read(uchar *buf) mrn_override;
 
-  const Item *cond_push(const Item *cond);
-  void cond_pop();
+  const Item *cond_push(const Item *cond) mrn_override;
+  void cond_pop() mrn_override;
 
-  bool get_error_message(int error, String *buf);
+  bool get_error_message(int error, String *buf) mrn_override;
 
-  int reset();
+  int reset() mrn_override;
 
-  handler *clone(const char *name, MEM_ROOT *mem_root);
-  uint8 table_cache_type();
+  handler *clone(const char *name, MEM_ROOT *mem_root) mrn_override;
+  uint8 table_cache_type() mrn_override;
 #ifdef MRN_HANDLER_HAVE_MULTI_RANGE_READ
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
-                                      uint *flags, Cost_estimate *cost);
+                                      uint *flags, Cost_estimate *cost) mrn_override;
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
 #ifdef MRN_HANDLER_HAVE_MULTI_RANGE_READ_INFO_KEY_PARTS
                                 uint key_parts,
 #endif
-                                uint *bufsz, uint *flags, Cost_estimate *cost);
+                                uint *bufsz, uint *flags, Cost_estimate *cost) mrn_override;
   int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
                             uint n_ranges, uint mode,
-                            HANDLER_BUFFER *buf);
-  int multi_range_read_next(range_id_t *range_info);
+                            HANDLER_BUFFER *buf) mrn_override;
+  int multi_range_read_next(range_id_t *range_info) mrn_override;
 #else // MRN_HANDLER_HAVE_MULTI_RANGE_READ
   int read_multi_range_first(KEY_MULTI_RANGE **found_range_p,
                              KEY_MULTI_RANGE *ranges,
@@ -523,38 +523,38 @@ public:
   int read_multi_range_next(KEY_MULTI_RANGE **found_range_p);
 #endif // MRN_HANDLER_HAVE_MULTI_RANGE_READ
 #ifdef MRN_HANDLER_START_BULK_INSERT_HAS_FLAGS
-  void start_bulk_insert(ha_rows rows, uint flags);
+  void start_bulk_insert(ha_rows rows, uint flags) mrn_override;
 #else
   void start_bulk_insert(ha_rows rows);
 #endif
-  int end_bulk_insert();
-  int delete_all_rows();
-  int truncate();
-  double scan_time();
-  double read_time(uint index, uint ranges, ha_rows rows);
+  int end_bulk_insert() mrn_override;
+  int delete_all_rows() mrn_override;
+  int truncate() mrn_override;
+  double scan_time() mrn_override;
+  double read_time(uint index, uint ranges, ha_rows rows) mrn_override;
 #ifdef MRN_HANDLER_HAVE_KEYS_TO_USE_FOR_SCANNING
-  const key_map *keys_to_use_for_scanning();
+  const key_map *keys_to_use_for_scanning() mrn_override;
 #endif
-  ha_rows estimate_rows_upper_bound();
-  void update_create_info(HA_CREATE_INFO* create_info);
-  int rename_table(const char *from, const char *to);
-  bool is_crashed() const;
-  bool auto_repair(int error) const;
+  ha_rows estimate_rows_upper_bound() mrn_override;
+  void update_create_info(HA_CREATE_INFO* create_info) mrn_override;
+  int rename_table(const char *from, const char *to) mrn_override;
+  bool is_crashed() const mrn_override;
+  bool auto_repair(int error) const mrn_override;
   bool auto_repair() const;
-  int disable_indexes(uint mode);
-  int enable_indexes(uint mode);
-  int check(THD* thd, HA_CHECK_OPT* check_opt);
-  int repair(THD* thd, HA_CHECK_OPT* check_opt);
-  bool check_and_repair(THD *thd);
-  int analyze(THD* thd, HA_CHECK_OPT* check_opt);
-  int optimize(THD* thd, HA_CHECK_OPT* check_opt);
-  bool is_fatal_error(int error_num, uint flags=0);
+  int disable_indexes(uint mode) mrn_override;
+  int enable_indexes(uint mode) mrn_override;
+  int check(THD* thd, HA_CHECK_OPT* check_opt) mrn_override;
+  int repair(THD* thd, HA_CHECK_OPT* check_opt) mrn_override;
+  bool check_and_repair(THD *thd) mrn_override;
+  int analyze(THD* thd, HA_CHECK_OPT* check_opt) mrn_override;
+  int optimize(THD* thd, HA_CHECK_OPT* check_opt) mrn_override;
+  bool is_fatal_error(int error_num, uint flags=0) mrn_override;
   bool check_if_incompatible_data(HA_CREATE_INFO *create_info,
-                                  uint table_changes);
+                                  uint table_changes) mrn_override;
 #ifdef MRN_HANDLER_HAVE_CHECK_IF_SUPPORTED_INPLACE_ALTER
   enum_alter_inplace_result
   check_if_supported_inplace_alter(TABLE *altered_table,
-                                   Alter_inplace_info *ha_alter_info);
+                                   Alter_inplace_info *ha_alter_info) mrn_override;
 #else
   alter_table_operations alter_table_flags(alter_table_operations flags);
 #  ifdef MRN_HANDLER_HAVE_FINAL_ADD_INDEX
@@ -570,78 +570,78 @@ public:
   int update_auto_increment();
   void set_next_insert_id(ulonglong id);
   void get_auto_increment(ulonglong offset, ulonglong increment, ulonglong nb_desired_values,
-                          ulonglong *first_value, ulonglong *nb_reserved_values);
-  void restore_auto_increment(ulonglong prev_insert_id);
-  void release_auto_increment();
-  int check_for_upgrade(HA_CHECK_OPT *check_opt);
+                          ulonglong *first_value, ulonglong *nb_reserved_values) mrn_override;
+  void restore_auto_increment(ulonglong prev_insert_id) mrn_override;
+  void release_auto_increment() mrn_override;
+  int check_for_upgrade(HA_CHECK_OPT *check_opt) mrn_override;
 #ifdef MRN_HANDLER_HAVE_RESET_AUTO_INCREMENT
-  int reset_auto_increment(ulonglong value);
+  int reset_auto_increment(ulonglong value) mrn_override;
 #endif
-  bool was_semi_consistent_read();
-  void try_semi_consistent_read(bool yes);
-  void unlock_row();
-  int start_stmt(THD *thd, thr_lock_type lock_type);
+  bool was_semi_consistent_read() mrn_override;
+  void try_semi_consistent_read(bool yes) mrn_override;
+  void unlock_row() mrn_override;
+  int start_stmt(THD *thd, thr_lock_type lock_type) mrn_override;
 
 protected:
 #ifdef MRN_HANDLER_RECORDS_RETURN_ERROR
   int records(ha_rows *num_rows);
 #else
-  ha_rows records();
+  ha_rows records() mrn_override;
 #endif
 #ifdef MRN_HANDLER_HAVE_HA_RND_NEXT
-  int rnd_next(uchar *buf);
+  int rnd_next(uchar *buf) mrn_override;
 #endif
 #ifdef MRN_HANDLER_HAVE_HA_RND_POS
-  int rnd_pos(uchar *buf, uchar *pos);
+  int rnd_pos(uchar *buf, uchar *pos) mrn_override;
 #endif
 #ifdef MRN_HANDLER_HAVE_HA_INDEX_READ_MAP
   int index_read_map(uchar *buf, const uchar *key,
                      key_part_map keypart_map,
-                     enum ha_rkey_function find_flag);
+                     enum ha_rkey_function find_flag) mrn_override;
 #endif
 #ifdef MRN_HANDLER_HAVE_HA_INDEX_NEXT
-  int index_next(uchar *buf);
+  int index_next(uchar *buf) mrn_override;
 #endif
 #ifdef MRN_HANDLER_HAVE_HA_INDEX_PREV
-  int index_prev(uchar *buf);
+  int index_prev(uchar *buf) mrn_override;
 #endif
 #ifdef MRN_HANDLER_HAVE_HA_INDEX_FIRST
-  int index_first(uchar *buf);
+  int index_first(uchar *buf) mrn_override;
 #endif
 #ifdef MRN_HANDLER_HAVE_HA_INDEX_LAST
-  int index_last(uchar *buf);
+  int index_last(uchar *buf) mrn_override;
 #endif
-  void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share_arg);
-  bool primary_key_is_clustered();
-  bool is_fk_defined_on_table_or_index(uint index);
-  char *get_foreign_key_create_info();
+  void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share_arg) mrn_override;
+  bool primary_key_is_clustered() mrn_override;
+  bool is_fk_defined_on_table_or_index(uint index) mrn_override;
+  char *get_foreign_key_create_info() mrn_override;
 #ifdef MRN_HANDLER_HAVE_GET_TABLESPACE_NAME
   char *get_tablespace_name(THD *thd, char *name, uint name_len);
 #endif
-  bool can_switch_engines();
-  int get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  int get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  uint referenced_by_foreign_key();
-  void init_table_handle_for_HANDLER();
-  void free_foreign_key_create_info(char* str);
+  bool can_switch_engines() mrn_override;
+  int get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
+  int get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
+  uint referenced_by_foreign_key() mrn_override;
+  void init_table_handle_for_HANDLER() mrn_override;
+  void free_foreign_key_create_info(char* str) mrn_override;
 #ifdef MRN_HAVE_HA_REBIND_PSI
-  void unbind_psi();
-  void rebind_psi();
+  void unbind_psi() mrn_override;
+  void rebind_psi() mrn_override;
 #endif
   my_bool register_query_cache_table(THD *thd,
                                      const char *table_key,
                                      uint key_length,
                                      qc_engine_callback *engine_callback,
-                                     ulonglong *engine_data);
+                                     ulonglong *engine_data) mrn_override;
 #ifdef MRN_HANDLER_HAVE_CHECK_IF_SUPPORTED_INPLACE_ALTER
   bool prepare_inplace_alter_table(TABLE *altered_table,
-                                   Alter_inplace_info *ha_alter_info);
+                                   Alter_inplace_info *ha_alter_info) mrn_override;
   bool inplace_alter_table(TABLE *altered_table,
-                           Alter_inplace_info *ha_alter_info);
+                           Alter_inplace_info *ha_alter_info) mrn_override;
   bool commit_inplace_alter_table(TABLE *altered_table,
                                   Alter_inplace_info *ha_alter_info,
-                                  bool commit);
-  void notify_table_changed();
+                                  bool commit) mrn_override;
+  void notify_table_changed() mrn_override;
 #endif
 
 private:
@@ -692,7 +692,7 @@ private:
   int generic_geo_open_cursor(const uchar *key, enum ha_rkey_function find_flag);
 
 #ifdef MRN_HANDLER_HAVE_HA_CLOSE
-  int close();
+  int close() mrn_override;
 #endif
   bool is_dry_write();
   bool is_enable_optimization();
@@ -908,20 +908,20 @@ private:
   int storage_end_bulk_insert();
   bool wrapper_is_target_index(KEY *key_info);
   bool wrapper_have_target_index();
-  int wrapper_write_row(uchar *buf);
-  int wrapper_write_row_index(uchar *buf);
-  int storage_write_row(uchar *buf);
-  int storage_write_row_multiple_column_index(uchar *buf,
+  int wrapper_write_row(const uchar *buf);
+  int wrapper_write_row_index(const uchar *buf);
+  int storage_write_row(const uchar *buf);
+  int storage_write_row_multiple_column_index(const uchar *buf,
                                               grn_id record_id,
                                               KEY *key_info,
                                               grn_obj *index_column);
-  int storage_write_row_multiple_column_indexes(uchar *buf, grn_id record_id);
+  int storage_write_row_multiple_column_indexes(const uchar *buf, grn_id record_id);
   int storage_write_row_unique_index(const uchar *buf,
                                      KEY *key_info,
                                      grn_obj *index_table,
                                      grn_obj *index_column,
                                      grn_id *key_id);
-  int storage_write_row_unique_indexes(uchar *buf);
+  int storage_write_row_unique_indexes(const uchar *buf);
   int wrapper_get_record_id(uchar *data, grn_id *record_id,
                             const char *context);
   int wrapper_update_row(const uchar *old_data, const uchar *new_data);

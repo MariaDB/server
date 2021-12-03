@@ -1,4 +1,5 @@
 drop table if exists t1;
+set @save_max_allowed_packet=@@max_allowed_packet;
 set global max_allowed_packet=1048576;
 connect  conn1,localhost,root,,;
 connection conn1;
@@ -95,7 +96,7 @@ Warning	1301	Result of cast_as_binary() was larger than max_allowed_packet (1048
 Warning	1301	Result of weight_string() was larger than max_allowed_packet (1048576) - truncated
 disconnect conn1;
 connection default;
-set global max_allowed_packet=default;
+set global max_allowed_packet=@save_max_allowed_packet;
 #
 # Start of 10.1 tests
 #

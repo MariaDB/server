@@ -350,7 +350,7 @@ class DllExport XLOAD : public BLOCK {
 
  protected:
   // Members
-#if defined(__WIN__)
+#if defined(_WIN32)
   HANDLE  Hfile;                // Handle to file or map
 #else    // UNIX
   int     Hfile;                // Descriptor to file or map

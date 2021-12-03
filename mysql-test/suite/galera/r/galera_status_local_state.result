@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state';
 VARIABLE_VALUE = 4
 1

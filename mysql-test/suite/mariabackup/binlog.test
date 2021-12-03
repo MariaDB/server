@@ -12,7 +12,7 @@ SHOW VARIABLES like 'log_bin';
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
 --enable_result_log
 
-exec $XTRABACKUP --prepare --binlog-info=1 --apply-log-only --target-dir=$basedir ;
+exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir ;
 
 let SEARCH_FILE=$MYSQLTEST_VARDIR/log/current_test;
 --let SEARCH_PATTERN= Last binlog file .*, position .*

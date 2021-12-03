@@ -6,6 +6,7 @@ create table t1 (f1 int primary key) engine=innodb;
 insert into t1 values (5);
 insert into t1 values (2882);
 insert into t1 values (10);
+# restart
 update t1 set f1 = 28 where f1 = 2882;
 select * from fk_120;
 f1
@@ -27,6 +28,7 @@ drop table t1;
 # Check if restrict is working fine.
 #
 create table t1 (f1 int primary key) engine=innodb;
+# restart
 delete from t1 where f1 = 29;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`fk_29`, CONSTRAINT `pc29` FOREIGN KEY (`f1`) REFERENCES `t1` (`f1`))
 select * from fk_29;
@@ -62,12 +64,12 @@ PRIMARY KEY (`id`),
 CONSTRAINT fk2 FOREIGN KEY (f2) REFERENCES t1 (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 ALTER TABLE t2 ADD CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;
 Level	Code	Message
 Warning	150	Alter  table `test`.`t2` with foreign key constraint failed. Referenced table `test`.`t3` not found in the data dictionary near ' FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE'.
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `#sql-temporary`
+Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+Warning	1215	Cannot add foreign key constraint for `t2`
 drop table t2;
 drop table t1;
 CREATE DATABASE kg_test1;

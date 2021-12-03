@@ -1,0 +1,66 @@
+#
+# Tests related to PS returning errors rather than doing successfull execution
+#
+
+--echo #
+--echo # MDEV-17741 Assertion `thd->Item_change_list::is_empty()' failed in mysql_parse after unsuccessful PS
+--echo #
+
+SET SQL_MODE= 'STRICT_ALL_TABLES';
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt;
+SELECT a FROM t1 GROUP BY NULL WITH ROLLUP;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+SET SQL_MODE= 'STRICT_ALL_TABLES';
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt;
+SET @a = REPLACE( @@global.optimizer_switch, '=on', '=off' ) ;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # MDEV-17738 Server crashes in Item::delete_self on closing connection after unsuccessful PS
+--echo #
+
+SET SQL_MODE='STRICT_ALL_TABLES';
+PREPARE stmt FROM "CREATE TABLE ps AS SELECT 1 FROM DUAL WHERE 'foo' && 0";
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt;
+--source include/restart_mysqld.inc
+SELECT 'All done';
+SET SQL_MODE=DEFAULT;
+
+SET SQL_MODE='STRICT_ALL_TABLES';
+PREPARE stmt FROM "CREATE TABLE ps AS SELECT 1 FROM DUAL WHERE 'foo' && 0";
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+SELECT 'All done';
+SET SQL_MODE=DEFAULT;
+
+SET SQL_MODE= 'STRICT_ALL_TABLES';
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt;
+SELECT a FROM t1 GROUP BY a;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET SQL_MODE=DEFAULT;
+
+SET SQL_MODE= 'STRICT_ALL_TABLES';
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt;
+SELECT a FROM t1 GROUP BY a;
+INSERT t1 SELECT * FROM ( SELECT * FROM t1 ) sq;
+DROP TABLE t1;
+SET SQL_MODE=DEFAULT;

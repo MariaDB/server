@@ -46,17 +46,23 @@ INSERT INTO t1 VALUES('aa','bb');
 
 SET SESSION sql_buffer_result = 1;
 
+--disable_ps_protocol
 SHOW STATUS LIKE 'Created_tmp_tables';
+--enable_ps_protocol
 --echo Expected value : 0.
 
 SELECT * FROM t1;
 
+--disable_ps_protocol
 SHOW STATUS LIKE 'Created_tmp_tables';
+--enable_ps_protocol
 --echo Expected value : 1.
 
 SELECT * FROM t1;
 
+--disable_ps_protocol
 SHOW STATUS LIKE 'Created_tmp_tables';
+--enable_ps_protocol
 --echo Expected value : 2.
 
 --echo '#--------------------FN_DYNVARS_156_02-------------------------#'
@@ -66,12 +72,16 @@ SHOW STATUS LIKE 'Created_tmp_tables';
 
 SET SESSION sql_buffer_result = 0;
 
+--disable_ps_protocol
 SHOW STATUS LIKE 'Created_tmp_tables';
+--enable_ps_protocol
 --echo Expected value : 2.
 
 SELECT * FROM t1;
 
+--disable_ps_protocol
 SHOW STATUS LIKE 'Created_tmp_tables';
+--enable_ps_protocol
 --echo Expected value : 2.
 
 --echo '#--------------------FN_DYNVARS_156_03-------------------------#'

@@ -38,7 +38,7 @@ drop table t1;
 remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql;
 
 #
-# Bootstrap with a query larger than 2*thd->net.max_packet
+# Bootstrap with a large thd->net.max_packet
 #
 --disable_query_log
 create table t1 select 2 as a, concat(repeat('MySQL', @@max_allowed_packet/10), ';') as b;
@@ -62,14 +62,23 @@ drop table t1;
 SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
  and SUPPORT='YES';
 
+--source include/kill_mysqld.inc
 #
 # MDEV-13063 Server crashes in intern_plugin_lock or assertion `plugin_ptr->ref_count == 1' fails in plugin_init
 #
---source include/kill_mysqld.inc
 --error 1
 --exec $MYSQLD_BOOTSTRAP_CMD --myisam_recover_options=NONE
---source include/start_mysqld.inc
 
+#
+# MDEV-19349 mysql_install_db: segfault at tmp_file_prefix check
+#
+--write_file $MYSQLTEST_VARDIR/tmp/1
+use test;
+EOF
+--exec $MYSQLD_BOOTSTRAP_CMD < $MYSQLTEST_VARDIR/tmp/1 >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/1
+
+--source include/start_mysqld.inc
 --echo End of 5.5 tests
 
 --source include/not_windows_embedded.inc

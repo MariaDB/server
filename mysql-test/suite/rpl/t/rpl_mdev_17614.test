@@ -1,0 +1,121 @@
+source include/have_debug.inc;
+source include/have_innodb.inc;
+-- source include/have_binlog_format_statement.inc
+source include/master-slave.inc;
+# MDEV-17614
+# INSERT on dup key update is replication unsafe
+# There can be three case
+#  1. 2 unique key, Replication is unsafe.
+#  2. 2 unique key , with one auto increment key, Safe to replicate because Innodb will acquire gap lock
+#  3. n no of unique keys (n>1) but insert is only in 1 unique key
+#  4. 2 unique key , with one auto increment key(but user gives auto inc value), unsafe to replicate
+
+# Case 1
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY , b INT,
+UNIQUE(b),  c int) engine=innodb;
+sync_slave_with_master;
+connection master;
+INSERT INTO t1 VALUES (1, 1, 1);
+BEGIN;
+INSERT INTO t1 VALUES (2, 1, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+  --connection master1
+  INSERT INTO t1 VALUES(2, 2, 3) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+--connection master
+COMMIT;
+SELECT * FROM t1;
+--connection slave
+# show the error message
+--let $slave_sql_errno= 1062
+--let $show_slave_sql_error= 1
+--source include/wait_for_slave_sql_error.inc
+--echo #Different value from server
+SELECT * FROM t1;
+
+# restart replication for the next testcase
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+reset slave;
+connection master;
+reset master;
+drop table t1;
+connection slave;
+start slave;
+--source include/wait_for_slave_to_start.inc
+# Case 2
+--connection master
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY auto_increment, b INT,
+UNIQUE(b),  c int) engine=innodb;
+sync_slave_with_master;
+connection master;
+INSERT INTO t1 VALUES (default, 1, 1);
+BEGIN;
+INSERT INTO t1 VALUES (default, 1, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+  --connection master1
+  INSERT INTO t1 VALUES(default, 2, 3) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+--connection master
+COMMIT;
+SELECT * FROM t1;
+--sync_slave_with_master
+--echo #same data as master
+SELECT * FROM t1;
+
+connection master;
+drop table t1;
+--sync_slave_with_master
+
+# Case 3
+--connection master
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b INT,
+UNIQUE(b),  c int, d int ) engine=innodb;
+sync_slave_with_master;
+connection master;
+INSERT INTO t1 VALUES (1, 1, 1, 1);
+BEGIN;
+INSERT INTO t1 VALUES (2, NULL, 2, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+  --connection master1
+  INSERT INTO t1 VALUES(3, NULL, 2, 3) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+--connection master
+COMMIT;
+SELECT * FROM t1;
+--sync_slave_with_master
+--echo #same data as master
+SELECT * FROM t1;
+connection master;
+drop table t1;
+--sync_slave_with_master
+
+# Case 4
+--connection master
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY auto_increment, b INT,
+UNIQUE(b),  c int) engine=innodb;
+sync_slave_with_master;
+connection master;
+INSERT INTO t1 VALUES (1, 1, 1);
+BEGIN;
+INSERT INTO t1 VALUES (2, 1, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+  --connection master1
+  INSERT INTO t1 VALUES(2, 2, 3) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+--connection master
+COMMIT;
+SELECT * FROM t1;
+--connection slave
+# show the error message
+--let $slave_sql_errno= 1062
+--let $show_slave_sql_error= 1
+--source include/wait_for_slave_sql_error.inc
+--echo #Different value from server
+SELECT * FROM t1;
+
+# restart replication for the next testcase
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+reset slave;
+connection master;
+reset master;
+drop table t1;
+connection slave;
+start slave;
+--source include/wait_for_slave_to_start.inc
+
+--source include/rpl_end.inc

@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
 ##############################################################################
 #
@@ -201,7 +201,7 @@ $flags->{libs} =
 $flags->{libs_r} =
   [@ldflags,@lib_r_opts,'@ZLIB_DEPS@','@LIBS@','@openssl_libs@'];
 $flags->{embedded_libs} =
-  [@ldflags,@lib_e_opts,'@LIBDL@','@ZLIB_DEPS@','@LIBS@','@WRAPLIBS@','@openssl_libs@'];
+  [@ldflags,@lib_e_opts,'@CMAKE_DL_LIBS@','@ZLIB_DEPS@','@LIBS@','@WRAPLIBS@','@openssl_libs@'];
 
 $flags->{include} = ["-I$pkgincludedir"];
 $flags->{cflags}  = [@{$flags->{include}},split(" ",'@CFLAGS@')];

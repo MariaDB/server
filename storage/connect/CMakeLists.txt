@@ -11,7 +11,16 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
+
+IF(WITHOUT_DYNAMIC_PLUGINS OR WITH_NONE OR ("${PLUGIN_CONNECT}" STREQUAL "NO"))
+  RETURN()
+ENDIF()
+
+SET(CPACK_RPM_connect-engine_PACKAGE_SUMMARY "Connect storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_connect-engine_PACKAGE_DESCRIPTION "Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
+connections to ODBC tables and remote MySQL tables, as well as a number of
+other interesting features." PARENT_SCOPE)
 
 SET(CONNECT_PLUGIN_STATIC  "connect")
 SET(CONNECT_PLUGIN_DYNAMIC "connect")
@@ -40,6 +49,10 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
 add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT )
 
+macro(DISABLE_WARNING W)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=${W}")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-${W}" DEBUG)
+endmacro()
 
 #
 # OS specific C flags, definitions and source files.
@@ -47,14 +60,15 @@ add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT )
 IF(UNIX)
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wall -Wmissing-declarations")
   if(NOT WITH_WARNINGS)
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-function")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-variable")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-value")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-parentheses")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-strict-aliasing")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-misleading-indentation")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-format-truncation")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
+    DISABLE_WARNING("unused-function")
+    DISABLE_WARNING("unused-variable")
+    DISABLE_WARNING("unused-value")
+    DISABLE_WARNING("parentheses")
+    DISABLE_WARNING("strict-aliasing")
+    DISABLE_WARNING("misleading-indentation")
+    DISABLE_WARNING("format-truncation")
+    DISABLE_WARNING("implicit-fallthrough")
+    DISABLE_WARNING("type-limits")
   endif(NOT WITH_WARNINGS)
 
   add_definitions( -DUNIX -DLINUX -DUBUNTU )
@@ -77,6 +91,19 @@ ENDIF(UNIX)
 
 
 #
+# BSON: the new handling of JSON data included temporarily for testing
+#
+
+OPTION(CONNECT_WITH_BSON "Compile CONNECT storage engine with BSON support" ON)
+
+IF(CONNECT_WITH_BSON)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES}
+ bson.cpp bsonudf.cpp tabbson.cpp bson.h bsonudf.h tabbson.h)
+  add_definitions(-DBSON_SUPPORT)
+ENDIF(CONNECT_WITH_BSON)
+
+
+#
 # VCT: the VEC format might be not supported in future versions
 #
 
@@ -86,6 +113,7 @@ IF(CONNECT_WITH_VCT)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} filamvct.cpp tabvct.cpp filamvct.h tabvct.h)
   add_definitions(-DVCT_SUPPORT)
 ENDIF(CONNECT_WITH_VCT)
+ADD_FEATURE_INFO(CONNECT_VCT CONNECT_WITH_VCT "Support for VCT in the CONNECT storage engine")
 
 
 #
@@ -111,14 +139,16 @@ IF(CONNECT_WITH_LIBXML2)
         D:/libxml/lib)
   ENDIF(WIN32)
   FIND_PACKAGE(LibXml2)
+  SET_PACKAGE_PROPERTIES(LibXml2 PROPERTIES TYPE OPTIONAL)
   IF (LIBXML2_FOUND)
     INCLUDE_DIRECTORIES(${LIBXML2_INCLUDE_DIR})
-    SET(ZLIB_LIBRARY "z") # see ZLIB_INCLUDE_DIR below
     SET(XML_LIBRARY  ${LIBXML2_LIBRARIES})
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} libdoc.cpp libdoc.h)
     add_definitions(-DLIBXML2_SUPPORT)
   ENDIF(LIBXML2_FOUND)
 ENDIF(CONNECT_WITH_LIBXML2)
+ADD_FEATURE_INFO(CONNECT_LIBXML2 CONNECT_WITH_LIBXML2
+                 "Support for LIBXML2 in the CONNECT storage engine")
 
 
 IF(WIN32)
@@ -132,6 +162,8 @@ IF(WIN32)
     SET(MSXML_FOUND 1)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
   ENDIF(CONNECT_WITH_MSXML)
+  ADD_FEATURE_INFO(CONNECT_MSXML CONNECT_WITH_MSXML
+                   "Support for MSXML in the CONNECT storage engine")
 ENDIF(WIN32)
 
 IF(LIBXML2_FOUND OR MSXML_FOUND)
@@ -168,7 +200,8 @@ IF(CONNECT_WITH_ODBC)
     # the library 'libiodbc' gets compiled with 'sql'h.
     # This will also need changes in the sources (e.g. #include <isql.h>).
 
-    find_path(ODBC_INCLUDE_DIR sql.h
+    find_file(ODBC_INCLUDES sql.h
+    PATHS
     /usr/include
     /usr/include/odbc
     /usr/local/include
@@ -178,7 +211,7 @@ IF(CONNECT_WITH_ODBC)
     #"C:/Program Files/Microsoft SDKs/Windows/v7.0A/include"
     #"C:/Program Files/Microsoft SDKs/Windows/v6.0a/include"
     #"C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/include"
-    DOC "Specify the directory containing sql.h."
+    DOC "Specify the path to sql.h."
     )
 
     find_library(ODBC_LIBRARY
@@ -197,9 +230,10 @@ IF(CONNECT_WITH_ODBC)
     DOC "Specify the ODBC driver manager library here."
     )
 
-    mark_as_advanced(ODBC_LIBRARY ODBC_INCLUDE_DIR)
+    mark_as_advanced(ODBC_LIBRARY ODBC_INCLUDES)
 
-    IF(ODBC_INCLUDE_DIR AND ODBC_LIBRARY)
+    IF(ODBC_INCLUDES AND ODBC_LIBRARY)
+      get_filename_component(ODBC_INCLUDE_DIR "${ODBC_INCLUDES}" PATH)
       set(CMAKE_REQUIRED_LIBRARIES ${ODBC_LIBRARY})
       set(CMAKE_REQUIRED_INCLUDES ${ODBC_INCLUDE_DIR})
       CHECK_CXX_SOURCE_COMPILES(
@@ -230,6 +264,7 @@ int main() {
     tabodbc.cpp tabodbc.h odbccat.h odbconn.cpp odbconn.h)
   ENDIF(UNIX)
 ENDIF(CONNECT_WITH_ODBC)
+ADD_FEATURE_INFO(CONNECT_ODBC ODBC_LIBRARY "Support for ODBC in the CONNECT storage engine")
 
 #
 # JDBC with MongoDB Java Driver included but disabled if without MONGO
@@ -239,7 +274,9 @@ OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 
 IF(CONNECT_WITH_JDBC)
   FIND_PACKAGE(Java 1.6)
+  SET_PACKAGE_PROPERTIES(Java PROPERTIES TYPE OPTIONAL)
   FIND_PACKAGE(JNI)
+  SET_PACKAGE_PROPERTIES(JNI PROPERTIES TYPE OPTIONAL)
   IF (JAVA_FOUND AND JNI_FOUND)
     INCLUDE(UseJava)
     INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH})
@@ -253,14 +290,21 @@ IF(CONNECT_WITH_JDBC)
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java
     Mongo2Interface.java Mongo3Interface.java
-    JavaWrappers.jar)
+    mysql-test/connect/std_data/JavaWrappers.jar)
     add_definitions(-DJAVA_SUPPORT)
+    ADD_FEATURE_INFO(CONNECT_JDBC "ON" "Support for JDBC in the CONNECT storage engine")
     IF(CONNECT_WITH_MONGO)
+      SET(CONNECT_SOURCES ${CONNECT_SOURCES}
+        mysql-test/connect/std_data/Mongo2.jar
+        mysql-test/connect/std_data/Mongo3.jar)
       add_definitions(-DMONGO_SUPPORT)
     ENDIF()
   ELSE()
     SET(JDBC_LIBRARY "")
+    ADD_FEATURE_INFO(CONNECT_JDBC "OFF" "Support for JDBC in the CONNECT storage engine")
   ENDIF()
+ELSE(CONNECT_WITH_JDBC)
+  ADD_FEATURE_INFO(CONNECT_JDBC "OFF" "Support for JDBC in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_JDBC)
 
 #
@@ -274,6 +318,7 @@ IF(CONNECT_WITH_ZIP)
     filamzip.h tabzip.h ioapi.h unzip.h zip.h)
   add_definitions(-DZIP_SUPPORT -DNOCRYPT)
 ENDIF(CONNECT_WITH_ZIP)
+ADD_FEATURE_INFO(CONNECT_ZIP CONNECT_WITH_ZIP "Support for ZIP in the CONNECT storage engine")
 
 #
 # MONGO C Driver
@@ -290,6 +335,7 @@ IF(CONNECT_WITH_MONGO)
         D:/mongo-c-driver/lib)
   ENDIF(WIN32)
   FIND_PACKAGE(libmongoc-1.0 1.7 QUIET)
+  SET_PACKAGE_PROPERTIES(libmongoc PROPERTIES TYPE OPTIONAL)
   IF (libmongoc-1.0_FOUND)
     INCLUDE_DIRECTORIES(${MONGOC_INCLUDE_DIRS})
     SET(MONGOC_LIBRARY  ${MONGOC_LIBRARIES})
@@ -297,13 +343,50 @@ IF(CONNECT_WITH_MONGO)
     cmgoconn.cpp cmgfam.cpp tabcmg.cpp
     cmgoconn.h cmgfam.h tabcmg.h)
     add_definitions(-DCMGO_SUPPORT)
+    ADD_FEATURE_INFO(CONNECT_MONGODB "ON" "Support for MongoDB in the CONNECT storage engine")
     IF (NOT JAVA_FOUND AND JNI_FOUND)
       SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongo.cpp mongo.h)
       add_definitions(-DMONGO_SUPPORT)
     ENDIF (NOT JAVA_FOUND AND JNI_FOUND)
+  ELSE(libmongoc-1.0_FOUND)
+    ADD_FEATURE_INFO(CONNECT_MONGODB "OFF" "Support for MongoDB in the CONNECT storage engine")
   ENDIF(libmongoc-1.0_FOUND)
+ELSE(CONNECT_WITH_MONGO)
+  ADD_FEATURE_INFO(CONNECT_MONGODB "OFF" "Support for MongoDB in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_MONGO)
 
+#
+# REST
+#
+
+OPTION(CONNECT_WITH_REST "Compile CONNECT storage engine with REST support" ON)
+
+IF(CONNECT_WITH_REST)
+# MESSAGE(STATUS "=====> REST support is ON")
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp tabrest.h)
+  add_definitions(-DREST_SUPPORT)
+# FIND_PACKAGE(cpprestsdk QUIET)
+# IF (cpprestsdk_FOUND)
+#	IF(UNIX)
+##    INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
+##    If needed edit next line to set the path to libcpprest.so
+#     SET(REST_LIBRARY -lcpprest)
+#     MESSAGE (STATUS ${REST_LIBRARY})
+#	ELSE(NOT UNIX)
+##    Next line sets debug compile mode matching cpprest_2_10d.dll
+##    when it was binary installed (can be change later in Visual Studio)
+##    Comment it out if not needed depending on your cpprestsdk installation.
+#	  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
+#	ENDIF(UNIX)
+##  IF(REST_LIBRARY)     why this? how about Windows
+#   SET(CONNECT_SOURCES ${CONNECT_SOURCES} restget.cpp)
+#   add_definitions(-DREST_SOURCE)
+##  ENDIF()
+##ELSE(NOT cpprestsdk_FOUND)
+##  MESSAGE(STATUS "=====> cpprestsdk package not found")
+# ENDIF (cpprestsdk_FOUND)
+ENDIF(CONNECT_WITH_REST)
+ADD_FEATURE_INFO(CONNECT_REST CONNECT_WITH_REST "Support for REST API in the CONNECT storage engine")
 
 #
 # XMAP
@@ -314,6 +397,7 @@ OPTION(CONNECT_WITH_XMAP "Compile CONNECT storage engine with index file mapping
 IF(CONNECT_WITH_XMAP)
   add_definitions(-DXMAP)
 ENDIF(CONNECT_WITH_XMAP)
+ADD_FEATURE_INFO(CONNECT_XMAP CONNECT_WITH_XMAP "Support for index file mapping in the CONNECT storage engine")
 
 #
 # Plugin definition
@@ -324,24 +408,16 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   COMPONENT connect-engine
   RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
-    ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY})
+    ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY} ${REST_LIBRARY})
 
 IF(NOT TARGET connect)
   RETURN()
 ENDIF()
 
-# Don't link with bundled zlib and systel libxml2 at the same time.
-# System libxml2 uses system zlib, might conflict with the bundled one.
-IF (XML_LIBRARY AND BUILD_BUNDLED_ZLIB)
-  GET_PROPERTY(INCS TARGET connect PROPERTY INCLUDE_DIRECTORIES)
-  LIST(REMOVE_ITEM INCS ${ZLIB_INCLUDE_DIR})
-  SET_PROPERTY(TARGET connect PROPERTY INCLUDE_DIRECTORIES ${INCS})
-ENDIF()
-
 IF(WIN32)
   IF (libmongoc-1.0_FOUND)
-	  SET_TARGET_PROPERTIES(connect PROPERTIES LINK_FLAGS
-	    "/DELAYLOAD:libbson-1.0.dll /DELAYLOAD:libmongoc-1.0.dll")
+    SET_TARGET_PROPERTIES(connect PROPERTIES LINK_FLAGS
+      "/DELAYLOAD:libbson-1.0.dll /DELAYLOAD:libmongoc-1.0.dll")
   ENDIF(libmongoc-1.0_FOUND)
 
 # Install some extra files that belong to connect engine
@@ -354,6 +430,7 @@ IF(MSVC)
   # Temporarily disable "conversion from size_t .."
   IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4267")
   ENDIF()
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4996")
   string(REPLACE "/permissive-" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -365,7 +442,13 @@ IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
   SET (JAVA_SOURCES JdbcInterface.java)
   add_jar(JdbcInterface ${JAVA_SOURCES})
   INSTALL(FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/JavaWrappers.jar
+    ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/JavaWrappers.jar
     ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
-    DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+    DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT connect-engine)
+  IF(CONNECT_WITH_MONGO)
+    INSTALL(FILES
+      ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/Mongo2.jar
+      ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/Mongo3.jar
+      DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT connect-engine)
+  ENDIF()
 ENDIF()

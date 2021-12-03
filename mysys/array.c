@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Handling of arrays that can grow dynamicly. */
 
@@ -138,8 +138,9 @@ void *alloc_dynamic(DYNAMIC_ARRAY *array)
                                         array->size_of_element,
                                         MYF(array->malloc_flags | MY_WME))))
         DBUG_RETURN(0);
-      memcpy(new_ptr, array->buffer,
-             array->elements * array->size_of_element);
+      if (array->elements)
+        memcpy(new_ptr, array->buffer,
+               array->elements * array->size_of_element);
       array->malloc_flags&= ~MY_INIT_BUFFER_USED;
     }
     else if (!(new_ptr=(char*)

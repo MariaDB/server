@@ -17,7 +17,7 @@
 /***********************************************************************/
 #include "my_global.h"
 #include "table.h"       // MySQL table definitions
-#if defined(__WIN__)
+#if defined(_WIN32)
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif
@@ -187,7 +187,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 		} // endif picol
 
 	  // Prepare the column list
-		for (pcrp = &Qryp->Colresp; crp = *pcrp; )
+		for (pcrp = &Qryp->Colresp; (crp = *pcrp); )
 			if (SkipColumn(crp, skc)) {
 				// Ignore this column
 				*pcrp = crp->Next;
@@ -340,7 +340,7 @@ int PIVAID::Qcompare(int *i1, int *i2)
 bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   char *p1, *p2;
-  PHC    hc = ((MYCAT*)Cat)->GetHandler();
+  PHC    hc __attribute__((unused))= ((MYCAT*)Cat)->GetHandler();
 
   if (PRXDEF::DefineAM(g, am, poff))
     return TRUE;
@@ -748,7 +748,9 @@ int TDBPIVOT::ReadDB(PGLOBAL g)
         colp->ReadColumn(g);
 
       for (colp = Columns; colp; colp = colp->GetNext())
+      {
         if (colp->GetAmType() == TYPE_AM_SRC)
+        {
           if (FileStatus) {
             if (((PSRCCOL)colp)->CompareLast()) {
               newrow = (RowFlag) ? TRUE : FALSE;
@@ -757,7 +759,8 @@ int TDBPIVOT::ReadDB(PGLOBAL g)
 
           } else
             ((PSRCCOL)colp)->SetColumn();
-
+        }
+      }
       FileStatus = 1;
       } // endif RowFlag
 

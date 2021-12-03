@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,6 +28,7 @@ Created 03/11/2014 Shaohua Wang
 #define btr0bulk_h
 
 #include "dict0dict.h"
+#include "rem0types.h"
 #include "page0cur.h"
 
 #include <vector>
@@ -102,11 +104,14 @@ public:
 	/** Insert a record in the page.
 	@param[in]	rec		record
 	@param[in]	offsets		record offsets */
-	void insert(const rec_t* rec, ulint* offsets);
+	void insert(const rec_t* rec, rec_offs* offsets);
 
 	/** Mark end of insertion to the page. Scan all records to set page
 	dirs, and set page header members. */
 	void finish();
+
+  /** @return whether finish() actually needs to do something */
+  inline bool needs_finish() const;
 
 	/** Commit mtr for a page
 	@param[in]	success		Flag whether all inserts succeed. */
@@ -126,7 +131,7 @@ public:
 	@param[in]	big_rec		external recrod
 	@param[in]	offsets		record offsets
 	@return	error code */
-	dberr_t storeExt(const big_rec_t* big_rec, ulint* offsets);
+	dberr_t storeExt(const big_rec_t* big_rec, rec_offs* offsets);
 
 	/** Get node pointer
 	@return node pointer */
@@ -284,10 +289,10 @@ public:
 		m_trx(trx),
 		m_flush_observer(observer)
 	{
+		ut_ad(!dict_index_is_spatial(index));
 #ifdef UNIV_DEBUG
 		if (m_flush_observer)
-		my_atomic_addlint(&m_index->table->space->redo_skipped_count,
-				  1);
+			m_index->table->space->redo_skipped_count++;
 #endif /* UNIV_DEBUG */
 	}
 
@@ -296,8 +301,7 @@ public:
 	{
 #ifdef UNIV_DEBUG
 		if (m_flush_observer)
-		my_atomic_addlint(&m_index->table->space->redo_skipped_count,
-				  ulint(-1));
+			m_index->table->space->redo_skipped_count--;
 #endif /* UNIV_DEBUG */
 	}
 
@@ -321,6 +325,8 @@ public:
 
 	/** Re-latch all latches */
 	void latch();
+
+	table_name_t table_name() { return m_index->table->name; }
 
 private:
 	/** Insert a tuple to a page in a level

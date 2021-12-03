@@ -311,7 +311,7 @@ EXPLAIN SELECT 1 FROM t1 WHERE NOT EXISTS
 (SELECT 1 FROM t2 WHERE d = (SELECT d FROM t2 WHERE a >= 1) ORDER BY d);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
-2	DEPENDENT SUBQUERY	t2	eq_ref	PRIMARY,d	PRIMARY	1	func	1	Using where
+2	DEPENDENT SUBQUERY	t2	unique_subquery	PRIMARY,d	PRIMARY	1	func	1	Using where
 3	DEPENDENT SUBQUERY	t2	index	NULL	d	2	NULL	1	Using index
 DROP TABLE t2;
 CREATE TABLE t2 (b INT, c INT, UNIQUE KEY (b), UNIQUE KEY (b, c )) ENGINE=INNODB;
@@ -458,7 +458,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM t2, t3 GROUP BY b HAVING b != 3 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	t2	index	NULL	PRIMARY	4	NULL	1	Using index; Using temporary; Using filesort
+2	SUBQUERY	t2	index	NULL	PRIMARY	4	NULL	1	Using index; Using temporary
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM t2, t3 GROUP BY b HAVING b != 3 );
 a
@@ -480,7 +480,7 @@ HAVING SQ2_alias1 . col_int_key >= 7
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	SQ2_alias2	index	NULL	col_int_key	5	NULL	1	Using index; Using temporary; Using filesort
+2	SUBQUERY	SQ2_alias2	index	NULL	col_int_key	5	NULL	1	Using index; Using temporary
 2	SUBQUERY	SQ2_alias1	ref	col_int_key	col_int_key	5	test.SQ2_alias2.col_int_key	1	Using where; Using index
 SELECT 1 FROM t1 AS alias1 
 WHERE EXISTS ( SELECT SQ2_alias1 . col_int_key AS SQ2_field1 
@@ -561,6 +561,7 @@ update t2 set key2=key1;
 alter table t2 add key(key2);
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 flush tables;
 # Table tsubq must use 'ref' + Using filesort (not 'index' w/o filesort)
@@ -615,3 +616,51 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t3`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` semi join (`test`.`t4`) join `test`.`t3` where `test`.`t4`.`f4` = 1 and `test`.`t1`.`f1` >= `test`.`t2`.`f2`
 DROP TABLE t1,t2,t3,t4;
+#
+# MDEV-23535: SIGSEGV, SIGABRT and SIGILL in typeinfo for Item_func_set_collation (on optimized builds)
+#
+set @save_character_set_connection=@@character_set_connection;
+set character_set_connection='utf8';
+CREATE TABLE t1(a DATETIME, b VARCHAR(50)) ENGINE=INNODB;
+INSERT INTO t1 VALUES ('2019-03-10 02:55:05', '2019-03-10 02:55:05');
+CREATE TABLE t2(a VARCHAR(50)) ENGINE=INNODB;
+INSERT INTO t2 VALUES ('2019-03-10 02:55:05');
+SELECT * FROM t1 WHERE (SELECT 1,CONCAT(a) FROM t1) = (SELECT 1,CONCAT(a) FROM t2);
+a	b
+2019-03-10 02:55:05	2019-03-10 02:55:05
+DROP TABLE t1,t2;
+set character_set_connection=@save_character_set_connection;
+# 
+# MDEV-17362: SIGSEGV in JOIN::optimize_inner or Assertion `fixed == 0'
+# failed in  Item_equal::fix_fields, server crashes after 2nd execution
+# of PS
+# 
+create table t1 (a int, b int);
+create table t2 (x int, y int);
+insert into t1 values (1,1),(2,2);
+insert into t2 values (1,1),(2,2),(2,3);
+# here we can see conditions pushdown (see HAVING):
+prepare stmt from "
+explain extended
+SELECT * FROM t1
+WHERE a = b
+      AND (a,b) IN (SELECT t2.x, COUNT(t2.y) FROM t2 WHERE 1=2 GROUP BY t2.x);";
+execute stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from  <materialize> (/* select#2 */ select `test`.`t2`.`x`,count(`test`.`t2`.`y`) from `test`.`t2` where 0 group by `test`.`t2`.`x` having `COUNT(t2.y)` = `test`.`t2`.`x`) join `test`.`t1` where 0
+# here re-execution of the pushdown does not crash:
+prepare stmt from "
+SELECT * FROM t1
+WHERE a = b
+      AND (a,b) IN (SELECT t2.x, COUNT(t2.y) FROM t2 WHERE 1=2 GROUP BY t2.x);";
+execute stmt;
+a	b
+execute stmt;
+a	b
+execute stmt;
+a	b
+drop table t1,t2;
+# End of 10.4 tests

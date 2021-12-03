@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2019, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   rdtsc3 -- multi-platform timer code
@@ -74,10 +75,6 @@
 #endif
 #endif
 
-#if defined(HAVE_ASM_MSR_H) && defined(HAVE_RDTSCLL)
-#include <asm/msr.h>         /* for rdtscll */
-#endif
-
 #if defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
 #include <sys/timeb.h>       /* for ftime */
 #endif
@@ -86,188 +83,8 @@
 #include <sys/times.h>       /* for times */
 #endif
 
-#if defined(__INTEL_COMPILER) && defined(__ia64__) && defined(HAVE_IA64INTRIN_H)
-#include <ia64intrin.h>    /* for __GetReg */
-#endif
-
 #if defined(__APPLE__) && defined(__MACH__)
 #include <mach/mach_time.h>
-#endif
-
-#if defined(__SUNPRO_CC) && defined(__sparcv9) && defined(_LP64) && !defined(__SunOS_5_7)
-extern "C" ulonglong my_timer_cycles_il_sparc64();
-#elif defined(__SUNPRO_CC) && defined(_ILP32) && !defined(__SunOS_5_7)
-extern "C" ulonglong my_timer_cycles_il_sparc32();
-#elif defined(__SUNPRO_CC) && defined(__i386) && defined(_ILP32)
-extern "C" ulonglong my_timer_cycles_il_i386();
-#elif defined(__SUNPRO_CC) && defined(__x86_64) && defined(_LP64)
-extern "C" ulonglong my_timer_cycles_il_x86_64();
-#elif defined(__SUNPRO_C) && defined(__sparcv9) && defined(_LP64) && !defined(__SunOS_5_7)
-ulonglong my_timer_cycles_il_sparc64();
-#elif defined(__SUNPRO_C) && defined(_ILP32) && !defined(__SunOS_5_7)
-ulonglong my_timer_cycles_il_sparc32();
-#elif defined(__SUNPRO_C) && defined(__i386) && defined(_ILP32)
-ulonglong my_timer_cycles_il_i386();
-#elif defined(__SUNPRO_C) && defined(__x86_64) && defined(_LP64)
-ulonglong my_timer_cycles_il_x86_64();
-#endif
-
-#if defined(__INTEL_COMPILER)
-/*
-  icc warning #1011 is:
-  missing return statement at end of non-void function
-*/
-#pragma warning (disable:1011)
-#endif
-
-/*
-  For cycles, we depend on RDTSC for x86 platforms,
-  or on time buffer (which is not really a cycle count
-  but a separate counter with less than nanosecond
-  resolution) for most PowerPC platforms, or on
-  gethrtime which is okay for hpux and solaris, or on
-  clock_gettime(CLOCK_SGI_CYCLE) for Irix platforms,
-  or on read_real_time for aix platforms. There is
-  nothing for Alpha platforms, they would be tricky.
-
-  On the platforms that do not have a CYCLE timer,
-  "wait" events are initialized to use NANOSECOND instead of CYCLE
-  during performance_schema initialization (at the server startup).
-
-  Linux performance monitor (see "man perf_event_open") can
-  provide cycle counter on the platforms that do not have
-  other kinds of cycle counters. But we don't use it so far.
-
-  ARM notes
-  ---------
-  During tests on ARMv7 Debian, perf_even_open() based cycle counter provided
-  too low frequency with too high overhead:
-  MariaDB [performance_schema]> SELECT * FROM performance_timers;
-  +-------------+-----------------+------------------+----------------+
-  | TIMER_NAME  | TIMER_FREQUENCY | TIMER_RESOLUTION | TIMER_OVERHEAD |
-  +-------------+-----------------+------------------+----------------+
-  | CYCLE       | 689368159       | 1                | 970            |
-  | NANOSECOND  | 1000000000      | 1                | 308            |
-  | MICROSECOND | 1000000         | 1                | 417            |
-  | MILLISECOND | 1000            | 1000             | 407            |
-  | TICK        | 127             | 1                | 612            |
-  +-------------+-----------------+------------------+----------------+
-  Therefore, it was decided not to use perf_even_open() on ARM
-  (i.e. go without CYCLE and have "wait" events use NANOSECOND by default).
-*/
-
-ulonglong my_timer_cycles(void)
-{
-#if defined(__GNUC__) && defined(__i386__)
-  /* This works much better if compiled with "gcc -O3". */
-  ulonglong result;
-  __asm__ __volatile__ ("rdtsc" : "=A" (result));
-  return result;
-#elif defined(__SUNPRO_C) && defined(__i386)
-  __asm("rdtsc");
-#elif defined(__GNUC__) && defined(__x86_64__)
-  ulonglong result;
-  __asm__ __volatile__ ("rdtsc\n\t" \
-                        "shlq $32,%%rdx\n\t" \
-                        "orq %%rdx,%%rax"
-                        : "=a" (result) :: "%edx");
-  return result;
-#elif defined(HAVE_ASM_MSR_H) && defined(HAVE_RDTSCLL)
-  {
-    ulonglong result;
-    rdtscll(result);
-    return result;
-  }
-#elif defined(_WIN32) && defined(_M_IX86)
-  __asm {rdtsc};
-#elif defined(_WIN64) && defined(_M_X64)
-  /* For 64-bit Windows: unsigned __int64 __rdtsc(); */
-  return __rdtsc();
-#elif defined(__INTEL_COMPILER) && defined(__ia64__) && defined(HAVE_IA64INTRIN_H)
-  return (ulonglong) __getReg(_IA64_REG_AR_ITC); /* (3116) */
-#elif defined(__GNUC__) && defined(__ia64__)
-  {
-    ulonglong result;
-    __asm __volatile__ ("mov %0=ar.itc" : "=r" (result));
-    return result;
-  }
-#elif defined(__GNUC__) && (defined(__powerpc__) || defined(__POWERPC__) || (defined(_POWER) && defined(_AIX52))) && (defined(__64BIT__) || defined(_ARCH_PPC64))
-  {
-    ulonglong result;
-    __asm __volatile__ ("mftb %0" : "=r" (result));
-    return result;
-  }
-#elif defined(__GNUC__) && (defined(__powerpc__) || defined(__POWERPC__) || (defined(_POWER) && defined(_AIX52))) && (!defined(__64BIT__) && !defined(_ARCH_PPC64))
-  {
-    /*
-      mftbu means "move from time-buffer-upper to result".
-      The loop is saying: x1=upper, x2=lower, x3=upper,
-      if x1!=x3 there was an overflow so repeat.
-    */
-    unsigned int x1, x2, x3;
-    ulonglong result;
-    for (;;)
-    {
-       __asm __volatile__ ( "mftbu %0" : "=r"(x1) );
-       __asm __volatile__ ( "mftb %0" : "=r"(x2) );
-       __asm __volatile__ ( "mftbu %0" : "=r"(x3) );
-       if (x1 == x3) break;
-    }
-    result = x1;
-    return ( result << 32 ) | x2;
-  }
-#elif (defined(__SUNPRO_CC) || defined(__SUNPRO_C)) && defined(__sparcv9) && defined(_LP64) && !defined(__SunOS_5_7)
-  return (my_timer_cycles_il_sparc64());
-#elif (defined(__SUNPRO_CC) || defined(__SUNPRO_C)) && defined(_ILP32) && !defined(__SunOS_5_7)
-  return (my_timer_cycles_il_sparc32());
-#elif (defined(__SUNPRO_CC) || defined(__SUNPRO_C)) && defined(__i386) && defined(_ILP32)
-  /* This is probably redundant for __SUNPRO_C. */
-  return (my_timer_cycles_il_i386());
-#elif (defined(__SUNPRO_CC) || defined(__SUNPRO_C)) && defined(__x86_64) && defined(_LP64)
-  return (my_timer_cycles_il_x86_64());
-#elif defined(__GNUC__) && defined(__sparcv9) && defined(_LP64)  && (__GNUC__>2)
-  {
-    ulonglong result;
-    __asm __volatile__ ("rd %%tick,%0" : "=r" (result));
-    return result;
-  }
-#elif defined(__GNUC__) && defined(__sparc__) && !defined(_LP64) && (__GNUC__>2)
-  {
-      union {
-              ulonglong wholeresult;
-              struct {
-                      ulong high;
-                      ulong low;
-              }       splitresult;
-      } result;
-    __asm __volatile__ ("rd %%tick,%1; srlx %1,32,%0" : "=r" (result.splitresult.high), "=r" (result.splitresult.low));
-    return result.wholeresult;
-  }
-#elif defined(__sgi) && defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_SGI_CYCLE)
-  {
-    struct timespec tp;
-    clock_gettime(CLOCK_SGI_CYCLE, &tp);
-    return (ulonglong) tp.tv_sec * 1000000000 + (ulonglong) tp.tv_nsec;
-  }
-#elif defined(__GNUC__) && defined(__s390__)
-  /* covers both s390 and s390x */
-  {
-    ulonglong result;
-    __asm__ __volatile__ ("stck %0" : "=Q" (result) : : "cc");
-    return result;
-  }
-#elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
-  /* gethrtime may appear as either cycle or nanosecond counter */
-  return (ulonglong) gethrtime();
-#else
-  return 0;
-#endif
-}
-
-#if defined(__INTEL_COMPILER)
-/* re-enable warning#1011 which was only for my_timer_cycles() */
-/* There may be an icc bug which means we must leave disabled. */
-#pragma warning (default:1011)
 #endif
 
 /*
@@ -518,7 +335,7 @@ static ulonglong my_timer_init_frequency(MY_TIMER_INFO *mti)
 /*
   Call my_timer_init before the first call to my_timer_xxx().
   If something must be initialized, it happens here.
-  Set: what routine is being used e.g. "asm_x86"
+  Set: what routine is being used e.g. "rdtsc"
   Set: function, overhead, actual frequency, resolution.
 */
 
@@ -531,42 +348,22 @@ void my_timer_init(MY_TIMER_INFO *mti)
 
   /* cycles */
   mti->cycles.frequency= 1000000000;
-#if defined(__GNUC__) && defined(__i386__)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_X86;
-#elif defined(__SUNPRO_C) && defined(__i386)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_X86;
-#elif defined(__GNUC__) && defined(__x86_64__)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_X86_64;
-#elif defined(HAVE_ASM_MSR_H) && defined(HAVE_RDTSCLL)
-  mti->cycles.routine= MY_TIMER_ROUTINE_RDTSCLL;
-#elif defined(_WIN32) && defined(_M_IX86)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_X86_WIN;
-#elif defined(_WIN64) && defined(_M_X64)
+#if defined _WIN32 || defined __i386__ || defined __x86_64__
   mti->cycles.routine= MY_TIMER_ROUTINE_RDTSC;
 #elif defined(__INTEL_COMPILER) && defined(__ia64__) && defined(HAVE_IA64INTRIN_H)
   mti->cycles.routine= MY_TIMER_ROUTINE_ASM_IA64;
 #elif defined(__GNUC__) && defined(__ia64__)
   mti->cycles.routine= MY_TIMER_ROUTINE_ASM_IA64;
-#elif defined(__GNUC__) && (defined(__powerpc__) || defined(__POWERPC__) || (defined(_POWER) && defined(_AIX52))) && (defined(__64BIT__) || defined(_ARCH_PPC64))
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_PPC64;
-#elif defined(__GNUC__) && (defined(__powerpc__) || defined(__POWERPC__) || (defined(_POWER) && defined(_AIX52))) && (!defined(__64BIT__) && !defined(_ARCH_PPC64))
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_PPC;
-#elif (defined(__SUNPRO_CC) || defined(__SUNPRO_C)) && defined(__sparcv9) && defined(_LP64) && !defined(__SunOS_5_7)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_SUNPRO_SPARC64;
-#elif (defined(__SUNPRO_CC) || defined(__SUNPRO_C)) && defined(_ILP32) && !defined(__SunOS_5_7)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_SUNPRO_SPARC32;
-#elif (defined(__SUNPRO_CC) || defined(__SUNPRO_C)) && defined(__i386) && defined(_ILP32)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_SUNPRO_I386;
-#elif (defined(__SUNPRO_CC) || defined(__SUNPRO_C)) && defined(__x86_64) && defined(_LP64)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_SUNPRO_X86_64;
+#elif defined __GNUC__ && defined __powerpc__
+  mti->cycles.routine= MY_TIMER_ROUTINE_PPC_GET_TIMEBASE;
 #elif defined(__GNUC__) && defined(__sparcv9) && defined(_LP64) && (__GNUC__>2)
   mti->cycles.routine= MY_TIMER_ROUTINE_ASM_GCC_SPARC64;
 #elif defined(__GNUC__) && defined(__sparc__) && !defined(_LP64) && (__GNUC__>2)
   mti->cycles.routine= MY_TIMER_ROUTINE_ASM_GCC_SPARC32;
-#elif defined(__sgi) && defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_SGI_CYCLE)
-  mti->cycles.routine= MY_TIMER_ROUTINE_SGI_CYCLE;
 #elif defined(__GNUC__) && defined(__s390__)
   mti->cycles.routine= MY_TIMER_ROUTINE_ASM_S390;
+#elif defined(__GNUC__) && defined (__aarch64__)
+  mti->cycles.routine= MY_TIMER_ROUTINE_AARCH64;
 #elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
   mti->cycles.routine= MY_TIMER_ROUTINE_GETHRTIME;
 #else
@@ -812,7 +609,11 @@ void my_timer_init(MY_TIMER_INFO *mti)
     time1= my_timer_cycles();
     time2= my_timer_ticks();
     time3= time2; /* Avoids a Microsoft/IBM compiler warning */
+#if defined(HAVE_SYS_TIMES_H) && defined(HAVE_TIMES)
+    for (i= 0; i < 1000; ++i)
+#else
     for (i= 0; i < MY_TIMER_ITERATIONS * 1000; ++i)
+#endif
     {
       time3= my_timer_ticks();
       if (time3 - time2 > 10) break;
@@ -931,8 +732,8 @@ void my_timer_init(MY_TIMER_INFO *mti)
    "include <linux/timex.h>" or "include <asm/timex.h>"
    can lead to autoconf or compile errors, depending on system.
 
-   rdtsc, __rdtsc, rdtscll: available for x86 with Linux BSD,
-   Solaris, Windows. See "possible flaws and dangers" comments.
+   __rdtsc(): available for IA-32 and AMD64.
+   See "possible flaws and dangers" comments.
 
    times(): what we use for ticks. Should just read the last
    (xtime) tick count, therefore should be fast, but usually
@@ -966,7 +767,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
    getclock(): documented for Alpha, but not found during tests.
 
    mach_absolute_time() and UpTime() are recommended for Apple.
-   Inititally they weren't tried, because asm_ppc seems to do the job.
+   Initially they weren't tried, because ppc_get_timebase seems to do the job.
    But now we use mach_absolute_time for nanoseconds.
 
    Any clock-based timer can be affected by NPT (ntpd program),

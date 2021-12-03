@@ -129,6 +129,30 @@ connection default;
 disconnect con1;
 drop database mysqltest_db1;
 drop user mysqltest_u1@localhost;
+# switching from mysql.global_priv to mysql.user
+call mtr.add_suppression("Table 'mysql.user' doesn't exist");
+call mtr.add_suppression("'mysql.user' is not of type 'TABLE'");
+rename table mysql.user to mysql.user1;
+create view mysql.user as select * from mysql.user1;
+flush privileges;
+ERROR HY000: 'mysql.user' is not of type 'TABLE'
+drop view mysql.user;
+create temporary table mysql.user select * from mysql.user1 limit 0;
+flush privileges;
+ERROR 42S02: Table 'mysql.user' doesn't exist
+drop temporary table mysql.user;
+rename table mysql.user1 to mysql.user;
+# switching back from mysql.user to mysql.global_priv
+# switching from mysql.global_priv to mysql.user
+call mtr.add_suppression('mysql.user table is damaged');
+rename table mysql.user to mysql.user1;
+create table mysql.user (Host char(100), User char(100));
+flush privileges;
+ERROR HY000: Fatal error: mysql.user table is damaged or in unsupported 3.20 format
+drop table mysql.user;
+rename table mysql.user1 to mysql.user;
+# switching back from mysql.user to mysql.global_priv
+End of 5.5 tests
 #
 # Additional coverage for refactoring which is made as part
 # of fix for bug #27480 "Extend CREATE TEMPORARY TABLES privilege
@@ -198,15 +222,15 @@ grant select on test.* to foo6 identified by password '2222222222222222';
 grant select on test.* to foo7 identified via mysql_native_password using '11111111111111111111111111111111111111111';
 grant select on test.* to foo8 identified via mysql_old_password using '2222222222222222';
 select user,password,plugin,authentication_string from mysql.user where user like 'foo%';
-user	password	plugin	authentication_string
-foo1		mysql_native_password	11111111111111111111111111111111111111111
-foo2		mysql_old_password	2222222222222222
-foo3		mysql_native_password	11111111111111111111111111111111111111111
-foo4		mysql_old_password	2222222222222222
-foo5		mysql_native_password	11111111111111111111111111111111111111111
-foo6		mysql_old_password	2222222222222222
-foo7		mysql_native_password	11111111111111111111111111111111111111111
-foo8		mysql_old_password	2222222222222222
+User	Password	plugin	authentication_string
+foo1	11111111111111111111111111111111111111111	mysql_native_password	11111111111111111111111111111111111111111
+foo2	2222222222222222	mysql_old_password	2222222222222222
+foo3	11111111111111111111111111111111111111111	mysql_native_password	11111111111111111111111111111111111111111
+foo4	2222222222222222	mysql_old_password	2222222222222222
+foo5	11111111111111111111111111111111111111111	mysql_native_password	11111111111111111111111111111111111111111
+foo6	2222222222222222	mysql_old_password	2222222222222222
+foo7	11111111111111111111111111111111111111111	mysql_native_password	11111111111111111111111111111111111111111
+foo8	2222222222222222	mysql_old_password	2222222222222222
 drop user foo1;
 drop user foo2;
 drop user foo3;
@@ -224,3 +248,4 @@ ERROR HY000: Password hash should be a 16-digit hexadecimal number
 create user foo4 identified via mysql_old_password using '11111111111111111111111111111111111111111';
 ERROR HY000: Password hash should be a 16-digit hexadecimal number
 set GLOBAL sql_mode=default;
+End of 10.1 tests

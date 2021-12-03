@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #include "mariadb.h"
@@ -24,9 +24,6 @@
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>
-#include "wsrep_mysqld.h"
-#include "wsrep_thd.h"
-
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
 
@@ -80,7 +77,7 @@ static void init_mdl_psi_keys(void)
 
 PSI_stage_info MDL_key::m_namespace_to_wait_state_name[NAMESPACE_END]=
 {
-  {0, "Waiting for global read lock", 0},
+  {0, "Waiting for backup lock", 0},
   {0, "Waiting for schema metadata lock", 0},
   {0, "Waiting for table metadata lock", 0},
   {0, "Waiting for stored function metadata lock", 0},
@@ -88,9 +85,43 @@ PSI_stage_info MDL_key::m_namespace_to_wait_state_name[NAMESPACE_END]=
   {0, "Waiting for stored package body metadata lock", 0},
   {0, "Waiting for trigger metadata lock", 0},
   {0, "Waiting for event metadata lock", 0},
-  {0, "Waiting for commit lock", 0},
   {0, "User lock", 0} /* Be compatible with old status. */
 };
+
+
+static const LEX_STRING lock_types[]=
+{
+  { C_STRING_WITH_LEN("MDL_INTENTION_EXCLUSIVE") },
+  { C_STRING_WITH_LEN("MDL_SHARED") },
+  { C_STRING_WITH_LEN("MDL_SHARED_HIGH_PRIO") },
+  { C_STRING_WITH_LEN("MDL_SHARED_READ") },
+  { C_STRING_WITH_LEN("MDL_SHARED_WRITE") },
+  { C_STRING_WITH_LEN("MDL_SHARED_UPGRADABLE") },
+  { C_STRING_WITH_LEN("MDL_SHARED_READ_ONLY") },
+  { C_STRING_WITH_LEN("MDL_SHARED_NO_WRITE") },
+  { C_STRING_WITH_LEN("MDL_SHARED_NO_READ_WRITE") },
+  { C_STRING_WITH_LEN("MDL_EXCLUSIVE") },
+};
+
+
+static const LEX_STRING backup_lock_types[]=
+{
+  { C_STRING_WITH_LEN("MDL_BACKUP_START") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_FLUSH") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_WAIT_FLUSH") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_WAIT_DDL") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_WAIT_COMMIT") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_FTWRL1") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_FTWRL2") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_DML") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_TRANS_DML") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_SYS_DML") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_DDL") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_BLOCK_DDL") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_ALTER_COPY") },
+  { C_STRING_WITH_LEN("MDL_BACKUP_COMMIT") }
+};
+
 
 #ifdef HAVE_PSI_INTERFACE
 void MDL_key::init_psi_keys()
@@ -128,11 +159,9 @@ public:
   LF_PINS *get_pins() { return lf_hash_get_pins(&m_locks); }
 private:
   LF_HASH m_locks; /**< All acquired locks in the server. */
-  /** Pre-allocated MDL_lock object for GLOBAL namespace. */
-  MDL_lock *m_global_lock;
-  /** Pre-allocated MDL_lock object for COMMIT namespace. */
-  MDL_lock *m_commit_lock;
-  friend int mdl_iterate(int (*)(MDL_ticket *, void *), void *);
+  /** Pre-allocated MDL_lock object for BACKUP namespace. */
+  MDL_lock *m_backup_lock;
+  friend int mdl_iterate(mdl_iterator_callback, void *);
 };
 
 
@@ -195,6 +224,35 @@ private:
   static const uint MAX_SEARCH_DEPTH= 32;
 };
 
+#ifndef DBUG_OFF
+
+/*
+  Print a list of all locks to DBUG trace to help with debugging
+*/
+
+static int mdl_dbug_print_lock(MDL_ticket *mdl_ticket, void *arg, bool granted)
+{
+  String *tmp= (String*) arg;
+  char buffer[128];
+  MDL_key *mdl_key= mdl_ticket->get_key();
+  size_t length;
+  length= my_snprintf(buffer, sizeof(buffer)-1,
+                      "\nname: %s  db: %.*s  key_name: %.*s (%s)",
+                      mdl_ticket->get_type_name()->str,
+                      (int) mdl_key->db_name_length(), mdl_key->db_name(),
+                      (int) mdl_key->name_length(),    mdl_key->name(),
+                      granted ? "granted" : "waiting");
+  tmp->append(buffer, length);
+  return 0;
+}
+
+const char *mdl_dbug_print_locks()
+{
+  static String tmp;
+  mdl_iterate(mdl_dbug_print_lock, (void*) &tmp);
+  return tmp.c_ptr();
+}
+#endif /* DBUG_OFF */
 
 /**
   Enter a node of a wait-for graph. After
@@ -279,8 +337,6 @@ Deadlock_detection_visitor::opt_change_victim_to(MDL_context *new_victim)
   and compatibility matrices.
 */
 
-#define MDL_BIT(A) static_cast<MDL_lock::bitmap_t>(1U << A)
-
 /**
   The lock context. Created internally for an acquired lock.
   For a given name, there exists only one MDL_lock instance,
@@ -295,7 +351,7 @@ Deadlock_detection_visitor::opt_change_victim_to(MDL_context *new_victim)
 class MDL_lock
 {
 public:
-  typedef unsigned short bitmap_t;
+  typedef mdl_bitmap_t bitmap_t;
 
   class Ticket_list
   {
@@ -328,9 +384,10 @@ public:
 
   /**
     Helper struct which defines how different types of locks are handled
-    for a specific MDL_lock. In practice we use only two strategies: "scoped"
-    lock strategy for locks in GLOBAL, COMMIT and SCHEMA namespaces and
-    "object" lock strategy for all other namespaces.
+    for a specific MDL_lock. In practice we use only three strategies:
+    "backup" lock strategy for locks in BACKUP namespace, "scoped" lock
+    strategy for locks in SCHEMA namespace and "object" lock strategy for
+    all other namespaces.
   */
   struct MDL_lock_strategy
   {
@@ -394,9 +451,10 @@ public:
     { return m_waiting_incompatible; }
     virtual bool needs_notification(const MDL_ticket *ticket) const
     {
-      return ticket->get_type() == MDL_SHARED_NO_WRITE ||
-             ticket->get_type() == MDL_SHARED_NO_READ_WRITE ||
-             ticket->get_type() == MDL_EXCLUSIVE;
+      return (MDL_BIT(ticket->get_type()) &
+              (MDL_BIT(MDL_SHARED_NO_WRITE) |
+               MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
+               MDL_BIT(MDL_EXCLUSIVE)));
     }
 
     /**
@@ -425,6 +483,43 @@ public:
   private:
     static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
     static const bitmap_t m_waiting_incompatible[MDL_TYPE_END];
+  };
+
+
+  struct MDL_backup_lock: public MDL_lock_strategy
+  {
+    MDL_backup_lock() {}
+    virtual const bitmap_t *incompatible_granted_types_bitmap() const
+    { return m_granted_incompatible; }
+    virtual const bitmap_t *incompatible_waiting_types_bitmap() const
+    { return m_waiting_incompatible; }
+    virtual bool needs_notification(const MDL_ticket *ticket) const
+    {
+      return (MDL_BIT(ticket->get_type()) & MDL_BIT(MDL_BACKUP_FTWRL1));
+    }
+
+    /**
+       Insert delayed threads may hold DML or TRANS_DML lock.
+       We need to kill such threads in order to get lock for FTWRL statements.
+       We do this by calling code outside of MDL.
+    */
+    virtual bool conflicting_locks(const MDL_ticket *ticket) const
+    {
+      return (MDL_BIT(ticket->get_type()) &
+              (MDL_BIT(MDL_BACKUP_DML) |
+               MDL_BIT(MDL_BACKUP_TRANS_DML)));
+    }
+
+    /*
+      In backup namespace DML/DDL may starve because of concurrent FTWRL or
+      BACKUP statements. This scenario is partically useless in real world,
+      so we just return 0 here.
+    */
+    virtual bitmap_t hog_lock_types_bitmap() const
+    { return 0; }
+  private:
+    static const bitmap_t m_granted_incompatible[MDL_BACKUP_END];
+    static const bitmap_t m_waiting_incompatible[MDL_BACKUP_END];
   };
 
 public:
@@ -538,10 +633,9 @@ public:
   MDL_lock(const MDL_key *key_arg)
   : key(key_arg),
     m_hog_lock_count(0),
-    m_strategy(&m_scoped_lock_strategy)
+    m_strategy(&m_backup_lock_strategy)
   {
-    DBUG_ASSERT(key_arg->mdl_namespace() == MDL_key::GLOBAL ||
-                key_arg->mdl_namespace() == MDL_key::COMMIT);
+    DBUG_ASSERT(key_arg->mdl_namespace() == MDL_key::BACKUP);
     mysql_prlock_init(key_MDL_lock_rwlock, &m_rwlock);
   }
 
@@ -557,8 +651,7 @@ public:
   static void lf_hash_initializer(LF_HASH *hash __attribute__((unused)),
                                   MDL_lock *lock, MDL_key *key_arg)
   {
-    DBUG_ASSERT(key_arg->mdl_namespace() != MDL_key::GLOBAL &&
-                key_arg->mdl_namespace() != MDL_key::COMMIT);
+    DBUG_ASSERT(key_arg->mdl_namespace() != MDL_key::BACKUP);
     new (&lock->key) MDL_key(key_arg);
     if (key_arg->mdl_namespace() == MDL_key::SCHEMA)
       lock->m_strategy= &m_scoped_lock_strategy;
@@ -568,11 +661,13 @@ public:
 
   const MDL_lock_strategy *m_strategy;
 private:
+  static const MDL_backup_lock m_backup_lock_strategy;
   static const MDL_scoped_lock m_scoped_lock_strategy;
   static const MDL_object_lock m_object_lock_strategy;
 };
 
 
+const MDL_lock::MDL_backup_lock MDL_lock::m_backup_lock_strategy;
 const MDL_lock::MDL_scoped_lock MDL_lock::m_scoped_lock_strategy;
 const MDL_lock::MDL_object_lock MDL_lock::m_object_lock_strategy;
 
@@ -636,7 +731,7 @@ void mdl_destroy()
 
 struct mdl_iterate_arg
 {
-  int (*callback)(MDL_ticket *ticket, void *arg);
+  mdl_iterator_callback callback;
   void *argument;
 };
 
@@ -649,16 +744,19 @@ static my_bool mdl_iterate_lock(MDL_lock *lock, mdl_iterate_arg *arg)
     must be empty for such locks anyway.
   */
   mysql_prlock_rdlock(&lock->m_rwlock);
-  MDL_lock::Ticket_iterator ticket_it(lock->m_granted);
+  MDL_lock::Ticket_iterator granted_it(lock->m_granted);
+  MDL_lock::Ticket_iterator waiting_it(lock->m_waiting);
   MDL_ticket *ticket;
-  while ((ticket= ticket_it++) && !(res= arg->callback(ticket, arg->argument)))
+  while ((ticket= granted_it++) && !(res= arg->callback(ticket, arg->argument, true)))
+    /* no-op */;
+  while ((ticket= waiting_it++) && !(res= arg->callback(ticket, arg->argument, false)))
     /* no-op */;
   mysql_prlock_unlock(&lock->m_rwlock);
   return MY_TEST(res);
 }
 
 
-int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
+int mdl_iterate(mdl_iterator_callback callback, void *arg)
 {
   DBUG_ENTER("mdl_iterate");
   mdl_iterate_arg argument= { callback, arg };
@@ -667,8 +765,7 @@ int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
 
   if (pins)
   {
-    res= mdl_iterate_lock(mdl_locks.m_global_lock, &argument) ||
-         mdl_iterate_lock(mdl_locks.m_commit_lock, &argument) ||
+    res= mdl_iterate_lock(mdl_locks.m_backup_lock, &argument) ||
          lf_hash_iterate(&mdl_locks.m_locks, pins,
                          (my_hash_walk_action) mdl_iterate_lock, &argument);
     lf_hash_put_pins(pins);
@@ -680,7 +777,7 @@ int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
 my_hash_value_type mdl_hash_function(CHARSET_INFO *cs,
                                      const uchar *key, size_t length)
 {
-  MDL_key *mdl_key= (MDL_key*) (key - my_offsetof(MDL_key, m_ptr));
+  MDL_key *mdl_key= (MDL_key*) (key - offsetof(MDL_key, m_ptr));
   return mdl_key->hash_value();
 }
 
@@ -689,11 +786,9 @@ my_hash_value_type mdl_hash_function(CHARSET_INFO *cs,
 
 void MDL_map::init()
 {
-  MDL_key global_lock_key(MDL_key::GLOBAL, "", "");
-  MDL_key commit_lock_key(MDL_key::COMMIT, "", "");
+  MDL_key backup_lock_key(MDL_key::BACKUP, "", "");
 
-  m_global_lock= new (std::nothrow) MDL_lock(&global_lock_key);
-  m_commit_lock= new (std::nothrow) MDL_lock(&commit_lock_key);
+  m_backup_lock= new (std::nothrow) MDL_lock(&backup_lock_key);
 
   lf_hash_init(&m_locks, sizeof(MDL_lock), LF_HASH_UNIQUE, 0, 0,
                mdl_locks_key, &my_charset_bin);
@@ -711,10 +806,9 @@ void MDL_map::init()
 
 void MDL_map::destroy()
 {
-  delete m_global_lock;
-  delete m_commit_lock;
+  delete m_backup_lock;
 
-  DBUG_ASSERT(!my_atomic_load32(&m_locks.count));
+  DBUG_ASSERT(!lf_hash_size(&m_locks));
   lf_hash_destroy(&m_locks);
 }
 
@@ -732,26 +826,18 @@ MDL_lock* MDL_map::find_or_insert(LF_PINS *pins, const MDL_key *mdl_key)
 {
   MDL_lock *lock;
 
-  if (mdl_key->mdl_namespace() == MDL_key::GLOBAL ||
-      mdl_key->mdl_namespace() == MDL_key::COMMIT)
+  if (mdl_key->mdl_namespace() == MDL_key::BACKUP)
   {
     /*
-      Avoid locking any m_mutex when lock for GLOBAL or COMMIT namespace is
-      requested. Return pointer to pre-allocated MDL_lock instance instead.
-      Such an optimization allows to save one mutex lock/unlock for any
-      statement changing data.
+      Return pointer to pre-allocated MDL_lock instance. Such an optimization
+      allows to save one hash lookup for any statement changing data.
 
-      It works since these namespaces contain only one element so keys
+      It works since this namespace contains only one element so keys
       for them look like '<namespace-id>\0\0'.
     */
     DBUG_ASSERT(mdl_key->length() == 3);
-
-    lock= (mdl_key->mdl_namespace() == MDL_key::GLOBAL) ? m_global_lock :
-                                                          m_commit_lock;
-
-    mysql_prlock_wrlock(&lock->m_rwlock);
-
-    return lock;
+    mysql_prlock_wrlock(&m_backup_lock->m_rwlock);
+    return m_backup_lock;
   }
 
 retry:
@@ -780,22 +866,18 @@ retry:
 unsigned long
 MDL_map::get_lock_owner(LF_PINS *pins, const MDL_key *mdl_key)
 {
-  MDL_lock *lock;
   unsigned long res= 0;
 
-  if (mdl_key->mdl_namespace() == MDL_key::GLOBAL ||
-      mdl_key->mdl_namespace() == MDL_key::COMMIT)
+  if (mdl_key->mdl_namespace() == MDL_key::BACKUP)
   {
-    lock= (mdl_key->mdl_namespace() == MDL_key::GLOBAL) ? m_global_lock :
-                                                          m_commit_lock;
-    mysql_prlock_rdlock(&lock->m_rwlock);
-    res= lock->get_lock_owner();
-    mysql_prlock_unlock(&lock->m_rwlock);
+    mysql_prlock_rdlock(&m_backup_lock->m_rwlock);
+    res= m_backup_lock->get_lock_owner();
+    mysql_prlock_unlock(&m_backup_lock->m_rwlock);
   }
   else
   {
-    lock= (MDL_lock*) lf_hash_search(&m_locks, pins, mdl_key->ptr(),
-                                     mdl_key->length());
+    MDL_lock *lock= (MDL_lock*) lf_hash_search(&m_locks, pins, mdl_key->ptr(),
+                                               mdl_key->length());
     if (lock)
     {
       /*
@@ -820,13 +902,9 @@ MDL_map::get_lock_owner(LF_PINS *pins, const MDL_key *mdl_key)
 
 void MDL_map::remove(LF_PINS *pins, MDL_lock *lock)
 {
-  if (lock->key.mdl_namespace() == MDL_key::GLOBAL ||
-      lock->key.mdl_namespace() == MDL_key::COMMIT)
+  if (lock->key.mdl_namespace() == MDL_key::BACKUP)
   {
-    /*
-      Never destroy pre-allocated MDL_lock objects for GLOBAL and
-      COMMIT namespaces.
-    */
+    /* Never destroy pre-allocated MDL_lock object in BACKUP namespace. */
     mysql_prlock_unlock(&lock->m_rwlock);
     return;
   }
@@ -975,9 +1053,14 @@ void MDL_ticket::destroy(MDL_ticket *ticket)
 
 uint MDL_ticket::get_deadlock_weight() const
 {
-  return (m_lock->key.mdl_namespace() == MDL_key::GLOBAL ||
-          m_type >= MDL_SHARED_UPGRADABLE ?
-          DEADLOCK_WEIGHT_DDL : DEADLOCK_WEIGHT_DML);
+  if (m_lock->key.mdl_namespace() == MDL_key::BACKUP)
+  {
+    if (m_type == MDL_BACKUP_FTWRL1)
+      return DEADLOCK_WEIGHT_FTWRL1;
+    return DEADLOCK_WEIGHT_DDL;
+  }
+  return m_type >= MDL_SHARED_UPGRADABLE ?
+         DEADLOCK_WEIGHT_DDL : DEADLOCK_WEIGHT_DML;
 }
 
 
@@ -1084,7 +1167,7 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
                    DBUG_ASSERT(!debug_sync_set_action((owner->get_thd()),
                                                       STRING_WITH_LEN(act)));
                  };);
-    if (wsrep_thd_is_BF(owner->get_thd(), false))
+    if (WSREP_ON && wsrep_thd_is_BF(owner->get_thd(), false))
     {
       wait_result= mysql_cond_wait(&m_COND_wait_status, &m_LOCK_wait_status);
     }
@@ -1157,16 +1240,15 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
   */
   DBUG_ASSERT(ticket->get_lock());
 #ifdef WITH_WSREP
-  if ((this == &(ticket->get_lock()->m_waiting)) &&
+  if (WSREP_ON && (this == &(ticket->get_lock()->m_waiting)) &&
       wsrep_thd_is_BF(ticket->get_ctx()->get_thd(), false))
   {
     Ticket_iterator itw(ticket->get_lock()->m_waiting);
-    Ticket_iterator itg(ticket->get_lock()->m_granted);
-
-    DBUG_ASSERT(WSREP_ON);
-    MDL_ticket *waiting, *granted;
+    MDL_ticket *waiting;
     MDL_ticket *prev=NULL;
     bool added= false;
+
+    DBUG_ASSERT(WSREP(ticket->get_ctx()->get_thd()));
 
     while ((waiting= itw++) && !added)
     {
@@ -1183,20 +1265,8 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
     }
 
     /* Otherwise, insert the ticket at the back of the waiting list. */
-    if (!added) m_list.push_back(ticket);
-
-    while ((granted= itg++))
-    {
-      if (granted->get_ctx() != ticket->get_ctx() &&
-          granted->is_incompatible_when_granted(ticket->get_type()))
-      {
-        if (!wsrep_grant_mdl_exception(ticket->get_ctx(), granted,
-                                       &ticket->get_lock()->key))
-        {
-          WSREP_DEBUG("MDL victim killed at add_ticket");
-        }
-      }
-    }
+    if (!added)
+      m_list.push_back(ticket);
   }
   else
 #endif /* WITH_WSREP */
@@ -1368,17 +1438,23 @@ void MDL_lock::reschedule_waiters()
 
 /**
   Compatibility (or rather "incompatibility") matrices for scoped metadata
-  lock. Arrays of bitmaps which elements specify which granted/waiting locks
+  lock.
+  Scoped locks are database (or schema) locks.
+  Arrays of bitmaps which elements specify which granted/waiting locks
   are incompatible with type of lock being requested.
 
   The first array specifies if particular type of request can be satisfied
   if there is granted scoped lock of certain type.
 
+  (*)  Since intention shared scoped locks (IS) are compatible with all other
+       type of locks, they don't need to be implemented and there is no code
+       for them.
+
              | Type of active   |
      Request |   scoped lock    |
       type   | IS(*)  IX   S  X |
     ---------+------------------+
-    IS       |  +      +   +  + |
+    IS(*)    |  +      +   +  + |
     IX       |  +      +   -  - |
     S        |  +      -   +  - |
     X        |  +      -   -  - |
@@ -1391,16 +1467,13 @@ void MDL_lock::reschedule_waiters()
      Request |  scoped lock    |
       type   | IS(*)  IX  S  X |
     ---------+-----------------+
-    IS       |  +      +  +  + |
+    IS(*)    |  +      +  +  + |
     IX       |  +      +  -  - |
     S        |  +      +  +  - |
     X        |  +      +  +  + |
 
   Here: "+" -- means that request can be satisfied
         "-" -- means that request can't be satisfied and should wait
-
-  (*)  Since intention shared scoped locks are compatible with all other
-       type of locks we don't even have any accounting for them.
 
   Note that relation between scoped locks and objects locks requested
   by statement is not straightforward and is therefore fully defined
@@ -1440,41 +1513,41 @@ MDL_lock::MDL_scoped_lock::m_waiting_incompatible[MDL_TYPE_END]=
   The first array specifies if particular type of request can be satisfied
   if there is granted lock of certain type.
 
-     Request  |  Granted requests for lock            |
-      type    | S  SH  SR  SW  SU  SRO  SNW  SNRW  X  |
-    ----------+---------------------------------------+
-    S         | +   +   +   +   +   +    +    +    -  |
-    SH        | +   +   +   +   +   +    +    +    -  |
-    SR        | +   +   +   +   +   +    +    -    -  |
-    SW        | +   +   +   +   +   -    -    -    -  |
-    SU        | +   +   +   +   -   +    -    -    -  |
-    SRO       | +   +   +   -   +   +    +    -    -  |
-    SNW       | +   +   +   -   -   +    -    -    -  |
-    SNRW      | +   +   -   -   -   -    -    -    -  |
-    X         | -   -   -   -   -   -    -    -    -  |
-    SU -> X   | -   -   -   -   0   -    0    0    0  |
-    SNW -> X  | -   -   -   0   0   -    0    0    0  |
-    SNRW -> X | -   -   0   0   0   0    0    0    0  |
+     Request  |  Granted requests for lock         |
+      type    | S  SH  SR  SW  SU  SRO SNW SNRW X  |
+    ----------+------------------------------------+
+    S         | +   +   +   +   +   +   +   +   -  |
+    SH        | +   +   +   +   +   +   +   +   -  |
+    SR        | +   +   +   +   +   +   +   -   -  |
+    SW        | +   +   +   +   +   -   -   -   -  |
+    SU        | +   +   +   +   -   +   -   -   -  |
+    SRO       | +   +   +   -   +   +   +   -   -  |
+    SNW       | +   +   +   -   -   +   -   -   -  |
+    SNRW      | +   +   -   -   -   -   -   -   -  |
+    X         | -   -   -   -   -   -   -   -   -  |
+    SU -> X   | -   -   -   -   0   -   0   0   0  |
+    SNW -> X  | -   -   -   0   0   -   0   0   0  |
+    SNRW -> X | -   -   0   0   0   0   0   0   0  |
 
   The second array specifies if particular type of request can be satisfied
   if there is waiting request for the same lock of certain type. In other
   words it specifies what is the priority of different lock types.
 
-     Request  |  Pending requests for lock           |
-      type    | S  SH  SR  SW  SU  SRO  SNW  SNRW  X |
-    ----------+--------------------------------------+
-    S         | +   +   +   +   +   +    +     +   - |
-    SH        | +   +   +   +   +   +    +     +   + |
-    SR        | +   +   +   +   +   +    +     -   - |
-    SW        | +   +   +   +   +   +    -     -   - |
-    SU        | +   +   +   +   +   +    +     +   - |
-    SRO       | +   +   +   -   +   +    +     -   - |
-    SNW       | +   +   +   +   +   +    +     +   - |
-    SNRW      | +   +   +   +   +   +    +     +   - |
-    X         | +   +   +   +   +   +    +     +   + |
-    SU -> X   | +   +   +   +   +   +    +     +   + |
-    SNW -> X  | +   +   +   +   +   +    +     +   + |
-    SNRW -> X | +   +   +   +   +   +    +     +   + |
+     Request  |  Pending requests for lock        |
+      type    | S  SH  SR  SW  SU  SRO SNW SNRW X |
+    ----------+-----------------------------------+
+    S         | +   +   +   +   +   +   +   +   - |
+    SH        | +   +   +   +   +   +   +   +   + |
+    SR        | +   +   +   +   +   +   +   -   - |
+    SW        | +   +   +   +   +   +   -   -   - |
+    SU        | +   +   +   +   +   +   +   +   - |
+    SRO       | +   +   +   -   +   +   +   -   - |
+    SNW       | +   +   +   +   +   +   +   +   - |
+    SNRW      | +   +   +   +   +   +   +   +   - |
+    X         | +   +   +   +   +   +   +   +   + |
+    SU -> X   | +   +   +   +   +   +   +   +   + |
+    SNW -> X  | +   +   +   +   +   +   +   +   + |
+    SNRW -> X | +   +   +   +   +   +   +   +   + |
 
   Here: "+" -- means that request can be satisfied
         "-" -- means that request can't be satisfied and should wait
@@ -1535,8 +1608,125 @@ MDL_lock::MDL_object_lock::m_waiting_incompatible[MDL_TYPE_END]=
 
 
 /**
+  Compatibility (or rather "incompatibility") matrices for backup metadata
+  lock. Arrays of bitmaps which elements specify which granted/waiting locks
+  are incompatible with type of lock being requested.
+
+  The first array specifies if particular type of request can be satisfied
+  if there is granted backup lock of certain type.
+
+     Request  |           Type of active backup lock                    |
+      type    | S0  S1  S2  S3  S4  F1  F2   D  TD  SD   DD  BL  AC  C  |
+    ----------+---------------------------------------------------------+
+    S0        |  -   -   -   -   -   +   +   +   +   +   +   +   +   +  |
+    S1        |  -   +   +   +   +   +   +   +   +   +   +   +   +   +  |
+    S2        |  -   +   +   +   +   +   +   -   +   +   +   +   +   +  |
+    S3        |  -   +   +   +   +   +   +   -   +   +   -   +   +   +  |
+    S4        |  -   +   +   +   +   +   +   -   +   -   -   +   +   -  |
+    FTWRL1    |  +   +   +   +   +   +   +   -   -   -   -   +   -   +  |
+    FTWRL2    |  +   +   +   +   +   +   +   -   -   -   -   +   -   -  |
+    D         |  +   -   -   -   -   -   -   +   +   +   +   +   +   +  |
+    TD        |  +   +   +   +   +   -   -   +   +   +   +   +   +   +  |
+    SD        |  +   +   +   +   -   -   -   +   +   +   +   +   +   +  |
+    DDL       |  +   +   +   -   -   -   -   +   +   +   +   -   +   +  |
+    BLOCK_DDL |  +   +   +   +   +   +   +   +   +   +   -   +   +   +  |
+    ALTER_COP |  +   +   +   +   +   -   -   +   +   +   +   +   +   +  |
+    COMMIT    |  +   +   +   +   -   +   -   +   +   +   +   +   +   +  |
+
+  The second array specifies if particular type of request can be satisfied
+  if there is already waiting request for the backup lock of certain type.
+  I.e. it specifies what is the priority of different lock types.
+
+     Request  |               Pending backup lock                       |
+      type    | S0  S1  S2  S3  S4  F1  F2   D  TD  SD   DD  BL  AC  C  |
+    ----------+---------------------------------------------------------+
+    S0        |  +   -   -   -   -   +   +   +   +   +   +   +   +   +  |
+    S1        |  +   +   +   +   +   +   +   +   +   +   +   +   +   +  |
+    S2        |  +   +   +   +   +   +   +   +   +   +   +   +   +   +  |
+    S3        |  +   +   +   +   +   +   +   +   +   +   +   +   +   +  |
+    S4        |  +   +   +   +   +   +   +   +   +   +   +   +   +   +  |
+    FTWRL1    |  +   +   +   +   +   +   +   +   +   +   +   +   +   +  |
+    FTWRL2    |  +   +   +   +   +   +   +   +   +   +   +   +   +   +  |
+    D         |  +   -   -   -   -   -   -   +   +   +   +   +   +   +  |
+    TD        |  +   +   +   +   +   -   -   +   +   +   +   +   +   +  |
+    SD        |  +   +   +   +   -   -   -   +   +   +   +   +   +   +  |
+    DDL       |  +   +   +   -   -   -   -   +   +   +   +   -   +   +  |
+    BLOCK_DDL |  +   +   +   +   +   +   +   +   +   +   +   +   +   +  |
+    ALTER_COP |  +   +   +   +   +   -   -   +   +   +   +   +   +   +  |
+    COMMIT    |  +   +   +   +   -   +   -   +   +   +   +   +   +   +  |
+
+  Here: "+" -- means that request can be satisfied
+        "-" -- means that request can't be satisfied and should wait
+*/
+
+/*
+  NOTE: If you add a new MDL_BACKUP_XXX level lock, you have to also add it
+  to MDL_BACKUP_START in the two arrays below!
+*/
+
+const MDL_lock::bitmap_t
+MDL_lock::MDL_backup_lock::m_granted_incompatible[MDL_BACKUP_END]=
+{
+  /* MDL_BACKUP_START */
+  MDL_BIT(MDL_BACKUP_START) | MDL_BIT(MDL_BACKUP_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_DDL) | MDL_BIT(MDL_BACKUP_WAIT_COMMIT),
+  MDL_BIT(MDL_BACKUP_START),
+  MDL_BIT(MDL_BACKUP_START) | MDL_BIT(MDL_BACKUP_DML),
+  MDL_BIT(MDL_BACKUP_START) | MDL_BIT(MDL_BACKUP_DML) | MDL_BIT(MDL_BACKUP_DDL),
+  MDL_BIT(MDL_BACKUP_START) | MDL_BIT(MDL_BACKUP_DML) | MDL_BIT(MDL_BACKUP_SYS_DML) | MDL_BIT(MDL_BACKUP_DDL) | MDL_BIT(MDL_BACKUP_COMMIT),
+
+  /* MDL_BACKUP_FTWRL1 */
+  MDL_BIT(MDL_BACKUP_DML) | MDL_BIT(MDL_BACKUP_TRANS_DML) | MDL_BIT(MDL_BACKUP_SYS_DML) | MDL_BIT(MDL_BACKUP_DDL) | MDL_BIT(MDL_BACKUP_ALTER_COPY),
+  MDL_BIT(MDL_BACKUP_DML) | MDL_BIT(MDL_BACKUP_TRANS_DML) | MDL_BIT(MDL_BACKUP_SYS_DML) | MDL_BIT(MDL_BACKUP_DDL) | MDL_BIT(MDL_BACKUP_ALTER_COPY) | MDL_BIT(MDL_BACKUP_COMMIT),
+  /* MDL_BACKUP_DML */
+  MDL_BIT(MDL_BACKUP_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_DDL) | MDL_BIT(MDL_BACKUP_WAIT_COMMIT) | MDL_BIT(MDL_BACKUP_FTWRL1) | MDL_BIT(MDL_BACKUP_FTWRL2),
+  MDL_BIT(MDL_BACKUP_FTWRL1) | MDL_BIT(MDL_BACKUP_FTWRL2),
+  MDL_BIT(MDL_BACKUP_WAIT_COMMIT) | MDL_BIT(MDL_BACKUP_FTWRL1) | MDL_BIT(MDL_BACKUP_FTWRL2),
+  /* MDL_BACKUP_DDL */
+  MDL_BIT(MDL_BACKUP_WAIT_DDL) | MDL_BIT(MDL_BACKUP_WAIT_COMMIT) | MDL_BIT(MDL_BACKUP_FTWRL1) | MDL_BIT(MDL_BACKUP_FTWRL2) | MDL_BIT(MDL_BACKUP_BLOCK_DDL),
+  /* MDL_BACKUP_BLOCK_DDL */
+  MDL_BIT(MDL_BACKUP_DDL),
+  MDL_BIT(MDL_BACKUP_FTWRL1) | MDL_BIT(MDL_BACKUP_FTWRL2),
+  /* MDL_BACKUP_COMMIT */
+  MDL_BIT(MDL_BACKUP_WAIT_COMMIT) | MDL_BIT(MDL_BACKUP_FTWRL2)
+};
+
+
+const MDL_lock::bitmap_t
+MDL_lock::MDL_backup_lock::m_waiting_incompatible[MDL_BACKUP_END]=
+{
+  /* MDL_BACKUP_START */
+  MDL_BIT(MDL_BACKUP_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_DDL) | MDL_BIT(MDL_BACKUP_WAIT_COMMIT),
+  0,
+  0,
+  0,
+  0,
+  /* MDL_BACKUP_FTWRL1 */
+  0,
+  0,
+
+  /* MDL_BACKUP_DML */
+  MDL_BIT(MDL_BACKUP_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_FLUSH) | MDL_BIT(MDL_BACKUP_WAIT_DDL) | MDL_BIT(MDL_BACKUP_WAIT_COMMIT) | MDL_BIT(MDL_BACKUP_FTWRL1) | MDL_BIT(MDL_BACKUP_FTWRL2),
+  MDL_BIT(MDL_BACKUP_FTWRL1) | MDL_BIT(MDL_BACKUP_FTWRL2),
+  MDL_BIT(MDL_BACKUP_WAIT_COMMIT) | MDL_BIT(MDL_BACKUP_FTWRL1) | MDL_BIT(MDL_BACKUP_FTWRL2),
+  /* MDL_BACKUP_DDL */
+  MDL_BIT(MDL_BACKUP_WAIT_DDL) | MDL_BIT(MDL_BACKUP_WAIT_COMMIT) | MDL_BIT(MDL_BACKUP_FTWRL1) | MDL_BIT(MDL_BACKUP_FTWRL2) | MDL_BIT(MDL_BACKUP_BLOCK_DDL),
+  /* MDL_BACKUP_BLOCK_DDL */
+  0,
+  MDL_BIT(MDL_BACKUP_FTWRL1) | MDL_BIT(MDL_BACKUP_FTWRL2),
+  /* MDL_BACKUP_COMMIT */
+  MDL_BIT(MDL_BACKUP_WAIT_COMMIT) | MDL_BIT(MDL_BACKUP_FTWRL2)
+};
+
+
+/**
   Check if request for the metadata lock can be satisfied given its
   current state.
+
+  New lock request can be satisfied iff:
+  - There are no incompatible types of satisfied requests
+    in other contexts
+  - There are no waiting requests which have higher priority
+    than this request when priority was not ignored.
 
   @param  type_arg             The requested lock type.
   @param  requestor_ctx        The MDL context of the requestor.
@@ -1555,78 +1745,72 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
                          MDL_context *requestor_ctx,
                          bool ignore_lock_priority) const
 {
-  bool can_grant= FALSE;
   bitmap_t waiting_incompat_map= incompatible_waiting_types_bitmap()[type_arg];
   bitmap_t granted_incompat_map= incompatible_granted_types_bitmap()[type_arg];
-  bool  wsrep_can_grant= TRUE;
 
-  /*
-    New lock request can be satisfied iff:
-    - There are no incompatible types of satisfied requests
-    in other contexts
-    - There are no waiting requests which have higher priority
-    than this request when priority was not ignored.
-  */
-  if (ignore_lock_priority || !(m_waiting.bitmap() & waiting_incompat_map))
-  {
-    if (! (m_granted.bitmap() & granted_incompat_map))
-      can_grant= TRUE;
-    else
-    {
-      Ticket_iterator it(m_granted);
-      MDL_ticket *ticket;
-
-      /* Check that the incompatible lock belongs to some other context. */
-      while ((ticket= it++))
-      {
-        if (ticket->get_ctx() != requestor_ctx &&
-            ticket->is_incompatible_when_granted(type_arg))
-        {
 #ifdef WITH_WSREP
-          if (wsrep_thd_is_BF(requestor_ctx->get_thd(),false) &&
-              key.mdl_namespace() == MDL_key::GLOBAL)
-          {
-            WSREP_DEBUG("global lock granted for BF: %lu %s",
-                        thd_get_thread_id(requestor_ctx->get_thd()),
-                        wsrep_thd_query(requestor_ctx->get_thd()));
-            can_grant = true;
-          }
-          else if (!wsrep_grant_mdl_exception(requestor_ctx, ticket, &key))
-          {
-            wsrep_can_grant= FALSE;
-            if (wsrep_log_conflicts)
-            {
-              MDL_lock * lock = ticket->get_lock();
-              WSREP_INFO(
-                         "MDL conflict db=%s table=%s ticket=%d solved by %s",
-                         lock->key.db_name(), lock->key.name(), ticket->get_type(),
-                         "abort" );
-            }
-          }
-          else
-            can_grant= TRUE;
-          /* Continue loop */
-#else
-          break;
-#endif /* WITH_WSREP */
-        }
-      }
-      if ((ticket == NULL) && wsrep_can_grant)
-        can_grant= TRUE; /* Incompatible locks are our own. */
-    }
-  }
-  else
+  /*
+    Approve lock request in BACKUP namespace for BF threads.
+    We should get rid of this code and forbid FTWRL/BACKUP statements
+    when wsrep is active.
+  */
+  if ((wsrep_thd_is_toi(requestor_ctx->get_thd()) ||
+       wsrep_thd_is_applying(requestor_ctx->get_thd())) &&
+      key.mdl_namespace() == MDL_key::BACKUP)
   {
-    if (wsrep_thd_is_BF(requestor_ctx->get_thd(), false) &&
-	key.mdl_namespace() == MDL_key::GLOBAL)
+    bool waiting_incompatible= m_waiting.bitmap() & waiting_incompat_map;
+    bool granted_incompatible= m_granted.bitmap() & granted_incompat_map;
+    if (waiting_incompatible || granted_incompatible)
     {
-      WSREP_DEBUG("global lock granted for BF (waiting queue): %lu %s",
+      WSREP_DEBUG("global lock granted for BF%s: %lu %s",
+                  waiting_incompatible ? " (waiting queue)" : "",
                   thd_get_thread_id(requestor_ctx->get_thd()),
                   wsrep_thd_query(requestor_ctx->get_thd()));
-      can_grant = true;
     }
+    return true;
   }
-  return can_grant;
+#endif /* WITH_WSREP */
+
+  if (!ignore_lock_priority && (m_waiting.bitmap() & waiting_incompat_map))
+    return false;
+
+  if (m_granted.bitmap() & granted_incompat_map)
+  {
+    Ticket_iterator it(m_granted);
+    bool can_grant= true;
+
+    /* Check that the incompatible lock belongs to some other context. */
+    while (auto ticket= it++)
+    {
+      if (ticket->get_ctx() != requestor_ctx &&
+          ticket->is_incompatible_when_granted(type_arg))
+      {
+        can_grant= false;
+#ifdef WITH_WSREP
+        /*
+          non WSREP threads must report conflict immediately
+          note: RSU processing wsrep threads, have wsrep_on==OFF
+        */
+        if (WSREP(requestor_ctx->get_thd()) ||
+            requestor_ctx->get_thd()->wsrep_cs().mode() ==
+            wsrep::client_state::m_rsu)
+        {
+          wsrep_handle_mdl_conflict(requestor_ctx, ticket, &key);
+          if (wsrep_log_conflicts)
+          {
+            auto key= ticket->get_key();
+            WSREP_INFO("MDL conflict db=%s table=%s ticket=%d solved by abort",
+                       key->db_name(), key->name(), ticket->get_type());
+          }
+          continue;
+        }
+#endif /* WITH_WSREP */
+        break;
+      }
+    }
+    return can_grant;
+  }
+  return true;
 }
 
 
@@ -1739,6 +1923,27 @@ bool MDL_ticket::is_incompatible_when_waiting(enum_mdl_type type) const
 }
 
 
+static const LEX_STRING
+*get_mdl_lock_name(MDL_key::enum_mdl_namespace mdl_namespace,
+                   enum_mdl_type type)
+{
+  return mdl_namespace == MDL_key::BACKUP ?
+         &backup_lock_types[type] :
+         &lock_types[type];
+}
+
+
+const LEX_STRING *MDL_ticket::get_type_name() const
+{
+  return get_mdl_lock_name(get_key()->mdl_namespace(), m_type);
+}
+
+const LEX_STRING *MDL_ticket::get_type_name(enum_mdl_type type) const
+{
+  return get_mdl_lock_name(get_key()->mdl_namespace(), type);
+}
+
+
 /**
   Check whether the context already holds a compatible lock ticket
   on an object.
@@ -1772,8 +1977,10 @@ MDL_context::find_ticket(MDL_request *mdl_request,
       if (mdl_request->key.is_equal(&ticket->m_lock->key) &&
           ticket->has_stronger_or_equal_type(mdl_request->type))
       {
-        DBUG_PRINT("info", ("Adding mdl lock %d to %d",
-                            mdl_request->type, ticket->m_type));
+        DBUG_PRINT("info", ("Adding mdl lock %s to %s",
+                            get_mdl_lock_name(mdl_request->key.mdl_namespace(),
+                                              mdl_request->type)->str,
+                            ticket->get_type_name()->str));
         *result_duration= duration;
         return ticket;
       }
@@ -1859,11 +2066,8 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
   MDL_ticket *ticket;
   enum_mdl_duration found_duration;
 
-  DBUG_ASSERT(mdl_request->type != MDL_EXCLUSIVE ||
-              is_lock_owner(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE));
-  DBUG_ASSERT(mdl_request->ticket == NULL);
-
   /* Don't take chances in production. */
+  DBUG_ASSERT(mdl_request->ticket == NULL);
   mdl_request->ticket= NULL;
 
   /*
@@ -2064,7 +2268,10 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   MDL_ticket *ticket;
   MDL_wait::enum_wait_status wait_status;
   DBUG_ENTER("MDL_context::acquire_lock");
-  DBUG_PRINT("enter", ("lock_type: %d", mdl_request->type));
+  DBUG_PRINT("enter", ("lock_type: %s  timeout: %f",
+                       get_mdl_lock_name(mdl_request->key.mdl_namespace(),
+                                         mdl_request->type)->str,
+                       lock_wait_timeout));
 
   if (try_acquire_lock_impl(mdl_request, &ticket))
     DBUG_RETURN(TRUE);
@@ -2180,6 +2387,9 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     switch (wait_status)
     {
     case MDL_wait::VICTIM:
+      DBUG_LOCK_FILE;
+      DBUG_PRINT("mdl_locks", ("%s", mdl_dbug_print_locks()));
+      DBUG_UNLOCK_FILE;
       my_error(ER_LOCK_DEADLOCK, MYF(0));
       break;
     case MDL_wait::TIMEOUT:
@@ -2319,15 +2529,23 @@ MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
   MDL_savepoint mdl_svp= mdl_savepoint();
   bool is_new_ticket;
   DBUG_ENTER("MDL_context::upgrade_shared_lock");
-  DBUG_PRINT("enter",("new_type: %d  lock_wait_timeout: %f", new_type,
+  DBUG_PRINT("enter",("old_type: %s  new_type: %s  lock_wait_timeout: %f",
+                      mdl_ticket->get_type_name()->str,
+                      mdl_ticket->get_type_name(new_type)->str,
                       lock_wait_timeout));
   DEBUG_SYNC(get_thd(), "mdl_upgrade_lock");
 
   /*
     Do nothing if already upgraded. Used when we FLUSH TABLE under
     LOCK TABLES and a table is listed twice in LOCK TABLES list.
+
+    In BACKUP namespace upgrade must always happen. Even though
+    MDL_BACKUP_START is not stronger than MDL_BACKUP_FLUSH from
+    has_stronger_or_equal_type(), the latter effectively blocks
+    new MDL_BACKUP_DML while the former doesn't.
   */
-  if (mdl_ticket->has_stronger_or_equal_type(new_type))
+  if (mdl_ticket->has_stronger_or_equal_type(new_type) &&
+      mdl_ticket->get_key()->mdl_namespace() != MDL_key::BACKUP)
     DBUG_RETURN(FALSE);
 
   mdl_xlock_request.init(&mdl_ticket->m_lock->key, new_type,
@@ -2595,6 +2813,7 @@ void MDL_context::find_deadlock()
       context was waiting is concurrently satisfied.
     */
     (void) victim->m_wait.set_status(MDL_wait::VICTIM);
+    victim->inc_deadlock_overweight();
     victim->unlock_deadlock_victim();
 
     if (victim == this)
@@ -2728,9 +2947,13 @@ void MDL_ticket::downgrade_lock(enum_mdl_type type)
   if (m_type == type || !has_stronger_or_equal_type(type))
     return;
 
-  /* Only allow downgrade from EXCLUSIVE and SHARED_NO_WRITE. */
-  DBUG_ASSERT(m_type == MDL_EXCLUSIVE ||
-              m_type == MDL_SHARED_NO_WRITE);
+  /* Only allow downgrade in some specific known cases */
+  DBUG_ASSERT((get_key()->mdl_namespace() != MDL_key::BACKUP &&
+               (m_type == MDL_EXCLUSIVE ||
+                m_type == MDL_SHARED_NO_WRITE)) ||
+              (get_key()->mdl_namespace() == MDL_key::BACKUP &&
+               (m_type == MDL_BACKUP_DDL ||
+                m_type == MDL_BACKUP_WAIT_FLUSH)));
 
   mysql_prlock_wrlock(&m_lock->m_rwlock);
   /*
@@ -2842,14 +3065,16 @@ void MDL_context::rollback_to_savepoint(const MDL_savepoint &mdl_savepoint)
   implementation of COMMIT (implicit or explicit) and ROLLBACK.
 */
 
-void MDL_context::release_transactional_locks()
+void MDL_context::release_transactional_locks(THD *thd)
 {
   DBUG_ENTER("MDL_context::release_transactional_locks");
+  /* Fail if there are active transactions */
+  DBUG_ASSERT(!(thd->server_status &
+                (SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY)));
   release_locks_stored_before(MDL_STATEMENT, NULL);
   release_locks_stored_before(MDL_TRANSACTION, NULL);
   DBUG_VOID_RETURN;
 }
-
 
 void MDL_context::release_statement_locks()
 {
@@ -3016,30 +3241,11 @@ bool MDL_context::has_explicit_locks()
 
 #ifdef WITH_WSREP
 static
-const char *wsrep_get_mdl_type_name(enum_mdl_type type)
-{
-  switch (type)
-  {
-  case MDL_INTENTION_EXCLUSIVE  : return "intention exclusive";
-  case MDL_SHARED               : return "shared";
-  case MDL_SHARED_HIGH_PRIO     : return "shared high prio";
-  case MDL_SHARED_READ          : return "shared read";
-  case MDL_SHARED_WRITE         : return "shared write";
-  case MDL_SHARED_UPGRADABLE    : return "shared upgradable";
-  case MDL_SHARED_NO_WRITE      : return "shared no write";
-  case MDL_SHARED_NO_READ_WRITE : return "shared no read write";
-  case MDL_EXCLUSIVE            : return "exclusive";
-  default: break;
-  }
-  return "UNKNOWN";
-}
-
-static
 const char *wsrep_get_mdl_namespace_name(MDL_key::enum_mdl_namespace ns)
 {
   switch (ns)
   {
-  case MDL_key::GLOBAL    : return "GLOBAL";
+  case MDL_key::BACKUP    : return "BACKUP";
   case MDL_key::SCHEMA    : return "SCHEMA";
   case MDL_key::TABLE     : return "TABLE";
   case MDL_key::FUNCTION  : return "FUNCTION";
@@ -3047,7 +3253,6 @@ const char *wsrep_get_mdl_namespace_name(MDL_key::enum_mdl_namespace ns)
   case MDL_key::PACKAGE_BODY: return "PACKAGE BODY";
   case MDL_key::TRIGGER   : return "TRIGGER";
   case MDL_key::EVENT     : return "EVENT";
-  case MDL_key::COMMIT    : return "COMMIT";
   case MDL_key::USER_LOCK : return "USER_LOCK";
   default: break;
   }
@@ -3060,7 +3265,7 @@ void MDL_ticket::wsrep_report(bool debug)
 
   const PSI_stage_info *psi_stage= m_lock->key.get_wait_state_name();
   WSREP_DEBUG("MDL ticket: type: %s space: %s db: %s name: %s (%s)",
-              wsrep_get_mdl_type_name(get_type()),
+              get_type_name()->str,
               wsrep_get_mdl_namespace_name(m_lock->key.mdl_namespace()),
               m_lock->key.db_name(),
               m_lock->key.name(),

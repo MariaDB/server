@@ -1,0 +1,66 @@
+connection node_2;
+connection node_1;
+CALL mtr.add_suppression("WSREP: discarding established.*");
+connection node_1;
+connection node_2;
+connection node_2;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+5
+connection node_1;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+5
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_cluster_address = '';
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_2;
+INSERT INTO t1 VALUES (6);
+ERROR HY000: Lost connection to MySQL server during query
+connection node_1;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+connection node_2a;
+connection node_1;
+connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2b;
+SELECT * FROM mysql.wsrep_streaming_log;
+node_uuid	trx_id	seqno	flags	frag
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+COMMIT;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+connection node_1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+5
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+DROP TABLE t1;
+connection node_2b;
+CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for");
+disconnect node_2;
+connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2;

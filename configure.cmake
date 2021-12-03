@@ -11,7 +11,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 #
 
 INCLUDE (CheckCSourceCompiles)
@@ -53,11 +53,6 @@ IF(NOT SYSTEM_TYPE)
 ENDIF()
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND (NOT MSVC))
-  # MySQL "canonical" GCC flags. At least -fno-rtti flag affects
-  # ABI and cannot be simply removed. 
-  SET(CMAKE_CXX_FLAGS 
-    "${CMAKE_CXX_FLAGS} -fno-rtti")
-
   IF (CMAKE_EXE_LINKER_FLAGS MATCHES " -static " 
      OR CMAKE_EXE_LINKER_FLAGS MATCHES " -static$")
      SET(HAVE_DLOPEN FALSE CACHE "Disable dlopen due to -static flag" FORCE)
@@ -72,6 +67,11 @@ IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "i686" AND CMAKE_COMPILER_IS_GNUCC AND
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=i686")
   # query_response_time.cc causes "error: unable to find a register to spill"
   SET(PLUGIN_QUERY_RESPONSE_TIME NO CACHE BOOL "Disabled, gcc is too old")
+ENDIF()
+
+# use runtime atomic-support detection in aarch64
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-moutline-atomics")
 ENDIF()
 
 IF(WITHOUT_DYNAMIC_PLUGINS)
@@ -130,15 +130,15 @@ IF(UNIX)
   MY_SEARCH_LIBS(bind "bind;socket" LIBBIND)
   MY_SEARCH_LIBS(crypt crypt LIBCRYPT)
   MY_SEARCH_LIBS(setsockopt socket LIBSOCKET)
-  MY_SEARCH_LIBS(dlopen dl LIBDL)
   MY_SEARCH_LIBS(sched_yield rt LIBRT)
   IF(NOT LIBRT)
     MY_SEARCH_LIBS(clock_gettime rt LIBRT)
   ENDIF()
+  set(THREADS_PREFER_PTHREAD_FLAG ON)
   FIND_PACKAGE(Threads)
 
   SET(CMAKE_REQUIRED_LIBRARIES 
-    ${LIBM} ${LIBNSL} ${LIBBIND} ${LIBCRYPT} ${LIBSOCKET} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT} ${LIBRT} ${LIBEXECINFO})
+    ${LIBM} ${LIBNSL} ${LIBBIND} ${LIBCRYPT} ${LIBSOCKET} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT} ${LIBRT} ${LIBEXECINFO})
   # Need explicit pthread for gcc -fsanitize=address
   IF(CMAKE_USE_PTHREADS_INIT AND CMAKE_C_FLAGS MATCHES "-fsanitize=")
     SET(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} pthread)
@@ -170,6 +170,7 @@ IF(UNIX)
       SET(LIBWRAP "wrap")
     ENDIF()
   ENDIF()
+  ADD_FEATURE_INFO(LIBWRAP HAVE_LIBWRAP "Support for tcp wrappers")
 ENDIF()
 
 #
@@ -196,7 +197,6 @@ CHECK_INCLUDE_FILES (inttypes.h HAVE_INTTYPES_H)
 CHECK_INCLUDE_FILES (langinfo.h HAVE_LANGINFO_H)
 CHECK_INCLUDE_FILES (link.h HAVE_LINK_H)
 CHECK_INCLUDE_FILES (linux/unistd.h HAVE_LINUX_UNISTD_H)
-CHECK_INCLUDE_FILES (linux/falloc.h HAVE_LINUX_FALLOC_H)
 CHECK_INCLUDE_FILES (limits.h HAVE_LIMITS_H)
 CHECK_INCLUDE_FILES (locale.h HAVE_LOCALE_H)
 CHECK_INCLUDE_FILES (malloc.h HAVE_MALLOC_H)
@@ -260,7 +260,7 @@ SET(CMAKE_REQUIRED_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS} -DPACKAGE=test) # b
 CHECK_INCLUDE_FILES (bfd.h BFD_H_EXISTS)
 IF(BFD_H_EXISTS)
   IF(NOT_FOR_DISTRIBUTION)
-    SET(NON_DISTRIBUTABLE_WARNING 1)
+    SET(NON_DISTRIBUTABLE_WARNING "GPLv3" CACHE INTERNAL "")
     SET(HAVE_BFD_H 1)
   ENDIF()
 ENDIF()
@@ -367,6 +367,7 @@ CHECK_FUNCTION_EXISTS (localtime_r HAVE_LOCALTIME_R)
 CHECK_FUNCTION_EXISTS (lstat HAVE_LSTAT)
 CHECK_FUNCTION_EXISTS (madvise HAVE_MADVISE)
 CHECK_FUNCTION_EXISTS (mallinfo HAVE_MALLINFO)
+CHECK_FUNCTION_EXISTS (mallinfo2 HAVE_MALLINFO2)
 CHECK_FUNCTION_EXISTS (memcpy HAVE_MEMCPY)
 CHECK_FUNCTION_EXISTS (memmove HAVE_MEMMOVE)
 CHECK_FUNCTION_EXISTS (mkstemp HAVE_MKSTEMP)
@@ -385,6 +386,7 @@ CHECK_FUNCTION_EXISTS (pthread_attr_setscope HAVE_PTHREAD_ATTR_SETSCOPE)
 CHECK_FUNCTION_EXISTS (pthread_attr_getguardsize HAVE_PTHREAD_ATTR_GETGUARDSIZE)
 CHECK_FUNCTION_EXISTS (pthread_attr_setstacksize HAVE_PTHREAD_ATTR_SETSTACKSIZE)
 CHECK_FUNCTION_EXISTS (pthread_condattr_create HAVE_PTHREAD_CONDATTR_CREATE)
+CHECK_FUNCTION_EXISTS (pthread_getaffinity_np HAVE_PTHREAD_GETAFFINITY_NP)
 CHECK_FUNCTION_EXISTS (pthread_key_delete HAVE_PTHREAD_KEY_DELETE)
 CHECK_FUNCTION_EXISTS (pthread_rwlock_rdlock HAVE_PTHREAD_RWLOCK_RDLOCK)
 CHECK_FUNCTION_EXISTS (pthread_sigmask HAVE_PTHREAD_SIGMASK)
@@ -400,6 +402,7 @@ CHECK_FUNCTION_EXISTS (setlocale HAVE_SETLOCALE)
 CHECK_FUNCTION_EXISTS (sigaction HAVE_SIGACTION)
 CHECK_FUNCTION_EXISTS (sigthreadmask HAVE_SIGTHREADMASK)
 CHECK_FUNCTION_EXISTS (sigwait HAVE_SIGWAIT)
+CHECK_FUNCTION_EXISTS (sigwaitinfo HAVE_SIGWAITINFO)
 CHECK_FUNCTION_EXISTS (sigset HAVE_SIGSET)
 CHECK_FUNCTION_EXISTS (sleep HAVE_SLEEP)
 CHECK_FUNCTION_EXISTS (snprintf HAVE_SNPRINTF)
@@ -442,8 +445,6 @@ SET(CMAKE_REQUIRED_FLAGS)
 CHECK_INCLUDE_FILES(time.h HAVE_TIME_H)
 CHECK_INCLUDE_FILES(sys/time.h HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILES(sys/times.h HAVE_SYS_TIMES_H)
-CHECK_INCLUDE_FILES(asm/msr.h HAVE_ASM_MSR_H)
-#msr.h has rdtscll()
 
 CHECK_INCLUDE_FILES(ia64intrin.h HAVE_IA64INTRIN_H)
 
@@ -457,9 +458,6 @@ CHECK_FUNCTION_EXISTS(ftime HAVE_FTIME)
 
 CHECK_FUNCTION_EXISTS(time HAVE_TIME)
 # We can use time() on Macintosh if there is no ftime().
-
-CHECK_FUNCTION_EXISTS(rdtscll HAVE_RDTSCLL)
-# I doubt that we'll ever reach the check for this.
 
 
 #
@@ -758,32 +756,6 @@ IF(NOT C_HAS_inline)
   ENDIF()
 ENDIF()
 
-IF(NOT CMAKE_CROSSCOMPILING AND NOT MSVC)
-  STRING(TOLOWER ${CMAKE_SYSTEM_PROCESSOR}  processor)
-  IF(processor MATCHES "86" OR processor MATCHES "amd64" OR processor MATCHES "x64")
-  #Check for x86 PAUSE instruction
-  # We have to actually try running the test program, because of a bug
-  # in Solaris on x86_64, where it wrongly reports that PAUSE is not
-  # supported when trying to run an application.  See
-  # http://bugs.opensolaris.org/bugdatabase/printableBug.do?bug_id=6478684
-  CHECK_C_SOURCE_RUNS("
-  int main()
-  { 
-    __asm__ __volatile__ (\"pause\"); 
-    return 0;
-  }"  HAVE_PAUSE_INSTRUCTION)
-  ENDIF()
-  IF (NOT HAVE_PAUSE_INSTRUCTION)
-    CHECK_C_SOURCE_COMPILES("
-    int main()
-    {
-     __asm__ __volatile__ (\"rep; nop\");
-     return 0;
-    }
-   " HAVE_FAKE_PAUSE_INSTRUCTION)
-  ENDIF()
-ENDIF()
-  
 CHECK_SYMBOL_EXISTS(tcgetattr "termios.h" HAVE_TCGETATTR 1)
 
 #
@@ -826,14 +798,6 @@ CHECK_CXX_SOURCE_COMPILES("
   }"
   HAVE_ABI_CXA_DEMANGLE)
 ENDIF()
-
-CHECK_C_SOURCE_COMPILES("
-  int main(int argc, char **argv) 
-  {
-    extern char *__bss_start;
-    return __bss_start ? 1 : 0;
-  }"
-HAVE_BSS_START)
 
 CHECK_C_SOURCE_COMPILES("
     int main()
@@ -898,35 +862,29 @@ MARK_AS_ADVANCED(NO_ALARM)
 CHECK_CXX_SOURCE_COMPILES("
 int main()
 {
-  int foo= -10; int bar= 10;
-  long long int foo64= -10; long long int bar64= 10;
-  if (!__sync_fetch_and_add(&foo, bar) || foo)
-    return -1;
-  bar= __sync_lock_test_and_set(&foo, bar);
-  if (bar || foo != 10)
-    return -1;
-  bar= __sync_val_compare_and_swap(&bar, foo, 15);
-  if (bar)
-    return -1;
-  if (!__sync_fetch_and_add(&foo64, bar64) || foo64)
-    return -1;
-  bar64= __sync_lock_test_and_set(&foo64, bar64);
-  if (bar64 || foo64 != 10)
-    return -1;
-  bar64= __sync_val_compare_and_swap(&bar64, foo, 15);
-  if (bar64)
-    return -1;
-  return 0;
-}"
-HAVE_GCC_ATOMIC_BUILTINS)
-CHECK_CXX_SOURCE_COMPILES("
-int main()
-{
   long long int var= 1;
   long long int *ptr= &var;
   return (int)__atomic_load_n(ptr, __ATOMIC_SEQ_CST);
 }"
-HAVE_GCC_C11_ATOMICS)
+HAVE_GCC_C11_ATOMICS_WITHOUT_LIBATOMIC)
+IF (HAVE_GCC_C11_ATOMICS_WITHOUT_LIBATOMIC)
+  SET(HAVE_GCC_C11_ATOMICS True)
+ELSE()
+  SET(OLD_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
+  LIST(APPEND CMAKE_REQUIRED_LIBRARIES "atomic")
+  CHECK_CXX_SOURCE_COMPILES("
+  int main()
+  {
+    long long int var= 1;
+    long long int *ptr= &var;
+    return (int)__atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+  }"
+  HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
+  IF(HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
+    SET(HAVE_GCC_C11_ATOMICS True)
+  ENDIF()
+  SET(CMAKE_REQUIRED_LIBRARIES ${OLD_CMAKE_REQUIRED_LIBRARIES})
+ENDIF()
 
 IF(WITH_VALGRIND)
   SET(HAVE_valgrind 1)

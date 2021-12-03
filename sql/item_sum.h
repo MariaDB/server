@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* classes for sum functions */
@@ -251,7 +251,7 @@ class Window_spec;
   The field 'aggr_level' is to contain the nest level of the subquery
   where the set function is aggregated.
 
-  The field 'max_arg_level' is for the maximun of the nest levels of the
+  The field 'max_arg_level' is for the maximum of the nest levels of the
   unbound column references occurred in the set function. A column reference
   is unbound  within a set function if it is not bound by any subquery
   used as a subexpression in this function. A column reference is bound by
@@ -384,7 +384,9 @@ protected:
   Item **orig_args, *tmp_orig_args[2];
   
   static size_t ram_limitation(THD *thd);
-
+public:
+  // Methods used by ColumnStore
+  Item **get_orig_args() const { return orig_args; }
 public:  
 
   void mark_as_sum_func();
@@ -585,6 +587,7 @@ public:
   virtual void setup_caches(THD *thd) {};
 
   bool with_sum_func() const { return true; }
+  virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
 };
 
 
@@ -720,33 +723,44 @@ public:
 
 class Item_sum_num :public Item_sum
 {
-protected:
-  /*
-   val_xxx() functions may be called several times during the execution of a 
-   query. Derived classes that require extensive calculation in val_xxx()
-   maintain cache of aggregate value. This variable governs the validity of 
-   that cache.
-  */
-  bool is_evaluated;
 public:
-  Item_sum_num(THD *thd): Item_sum(thd), is_evaluated(FALSE) {}
+  Item_sum_num(THD *thd): Item_sum(thd) {}
   Item_sum_num(THD *thd, Item *item_par):
-    Item_sum(thd, item_par), is_evaluated(FALSE) {}
+    Item_sum(thd, item_par) {}
   Item_sum_num(THD *thd, Item *a, Item* b):
-    Item_sum(thd, a, b), is_evaluated(FALSE) {}
+    Item_sum(thd, a, b) {}
   Item_sum_num(THD *thd, List<Item> &list):
-    Item_sum(thd, list), is_evaluated(FALSE) {}
+    Item_sum(thd, list) {}
   Item_sum_num(THD *thd, Item_sum_num *item):
-    Item_sum(thd, item),is_evaluated(item->is_evaluated) {}
+    Item_sum(thd, item) {}
   bool fix_fields(THD *, Item **);
-  longlong val_int() { return val_int_from_real();  /* Real as default */ }
-  String *val_str(String*str);
-  my_decimal *val_decimal(my_decimal *);
+};
+
+
+class Item_sum_double :public Item_sum_num
+{
+public:
+  Item_sum_double(THD *thd): Item_sum_num(thd) {}
+  Item_sum_double(THD *thd, Item *item_par): Item_sum_num(thd, item_par) {}
+  Item_sum_double(THD *thd, List<Item> &list): Item_sum_num(thd, list) {}
+  Item_sum_double(THD *thd, Item_sum_double *item) :Item_sum_num(thd, item) {}
+  longlong val_int()
+  {
+    return val_int_from_real();
+  }
+  String *val_str(String*str)
+  {
+    return val_string_from_real(str);
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    return val_decimal_from_real(to);
+  }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
+    return get_date_from_real(thd, ltime, fuzzydate);
   }
-  void reset_field();
+  const Type_handler *type_handler() const { return &type_handler_double; }
 };
 
 
@@ -760,6 +774,10 @@ public:
   double val_real() { DBUG_ASSERT(fixed == 1); return (double) val_int(); }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  {
+    return get_date_from_int(thd, ltime, fuzzydate);
+  }
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   bool fix_length_and_dec()
   { decimals=0; max_length=21; maybe_null=null_value=0; return FALSE; }
@@ -801,6 +819,10 @@ public:
   longlong val_int();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  {
+    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
+  }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   void fix_length_and_dec_double();
@@ -971,18 +993,38 @@ But, this falls prey to catastrophic cancellation.  Instead, use the recurrence 
 
 */
 
-class Item_sum_variance : public Item_sum_num
+class Stddev
 {
+  double m_m;
+  double m_s;
+  ulonglong m_count;
+public:
+  Stddev() :m_m(0), m_s(0), m_count(0) { }
+  Stddev(double nr) :m_m(nr), m_s(0.0), m_count(1) { }
+  Stddev(const uchar *);
+  void to_binary(uchar *) const;
+  void recurrence_next(double nr);
+  double result(bool is_simple_variance);
+  ulonglong count() const { return m_count; }
+  static uint32 binary_size()
+  {
+    return (uint32) (sizeof(double) * 2 + sizeof(ulonglong));
+  };
+};
+
+
+
+class Item_sum_variance : public Item_sum_double
+{
+  Stddev m_stddev;
   bool fix_length_and_dec();
 
 public:
-  double recurrence_m, recurrence_s;    /* Used in recurrence relation. */
-  ulonglong count;
   uint sample;
   uint prec_increment;
 
   Item_sum_variance(THD *thd, Item *item_par, uint sample_arg):
-    Item_sum_num(thd, item_par), count(0),
+    Item_sum_double(thd, item_par),
     sample(sample_arg)
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
@@ -992,7 +1034,6 @@ public:
   void clear();
   bool add();
   double val_real();
-  my_decimal *val_decimal(my_decimal *);
   void reset_field();
   void update_field();
   Item *result_item(THD *thd, Field *field);
@@ -1001,11 +1042,10 @@ public:
     { return sample ? "var_samp(" : "variance("; }
   Item *copy_or_same(THD* thd);
   Field *create_tmp_field(bool group, TABLE *table);
-  const Type_handler *type_handler() const { return &type_handler_double; }
   void cleanup()
   {
-    count= 0;
-    Item_sum_num::cleanup();
+    m_stddev= Stddev();
+    Item_sum_double::cleanup();
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_variance>(thd, this); }
@@ -1032,10 +1072,35 @@ class Item_sum_std :public Item_sum_variance
   { return get_item_copy<Item_sum_std>(thd, this); }
 };
 
+
+class Item_sum_hybrid: public Item_sum,
+                       public Type_handler_hybrid_field_type
+{
+public:
+  Item_sum_hybrid(THD *thd, Item *item_par):
+    Item_sum(thd, item_par),
+    Type_handler_hybrid_field_type(&type_handler_longlong)
+  { collation.set(&my_charset_bin); }
+  Item_sum_hybrid(THD *thd, Item *a, Item *b):
+    Item_sum(thd, a, b),
+    Type_handler_hybrid_field_type(&type_handler_longlong)
+  { collation.set(&my_charset_bin); }
+  Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
+    :Item_sum(thd, item),
+    Type_handler_hybrid_field_type(item)
+  { }
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
+  bool fix_length_and_dec_generic();
+  bool fix_length_and_dec_numeric(const Type_handler *h);
+  bool fix_length_and_dec_string();
+};
+
+
 // This class is a string or number function depending on num_func
 class Arg_comparator;
 class Item_cache;
-class Item_sum_hybrid :public Item_sum, public Type_handler_hybrid_field_type
+class Item_sum_min_max :public Item_sum_hybrid
 {
 protected:
   bool direct_added;
@@ -1046,16 +1111,14 @@ protected:
   bool was_values;  // Set if we have found at least one row (for max/min only)
   bool was_null_value;
 
-  public:
-  Item_sum_hybrid(THD *thd, Item *item_par,int sign):
-    Item_sum(thd, item_par),
-    Type_handler_hybrid_field_type(&type_handler_longlong),
+public:
+  Item_sum_min_max(THD *thd, Item *item_par,int sign):
+    Item_sum_hybrid(thd, item_par),
     direct_added(FALSE), value(0), arg_cache(0), cmp(0),
     cmp_sign(sign), was_values(TRUE)
   { collation.set(&my_charset_bin); }
-  Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
-    :Item_sum(thd, item),
-    Type_handler_hybrid_field_type(item),
+  Item_sum_min_max(THD *thd, Item_sum_min_max *item)
+    :Item_sum_hybrid(thd, item),
     direct_added(FALSE), value(item->value), arg_cache(0),
     cmp_sign(item->cmp_sign), was_values(item->was_values)
   { }
@@ -1070,18 +1133,18 @@ protected:
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   void reset_field();
   String *val_str(String *);
+  bool val_native(THD *thd, Native *);
   const Type_handler *real_type_handler() const
   {
     return get_arg(0)->real_type_handler();
   }
-  const Type_handler *type_handler() const
-  { return Type_handler_hybrid_field_type::type_handler(); }
   TYPELIB *get_typelib() const { return args[0]->get_typelib(); }
   void update_field();
   void min_max_update_str_field();
   void min_max_update_real_field();
   void min_max_update_int_field();
   void min_max_update_decimal_field();
+  void min_max_update_native_field();
   void cleanup();
   bool any_value() { return was_values; }
   void no_rows_in_result();
@@ -1091,11 +1154,11 @@ protected:
 };
 
 
-class Item_sum_min :public Item_sum_hybrid
+class Item_sum_min :public Item_sum_min_max
 {
 public:
-  Item_sum_min(THD *thd, Item *item_par): Item_sum_hybrid(thd, item_par, 1) {}
-  Item_sum_min(THD *thd, Item_sum_min *item) :Item_sum_hybrid(thd, item) {}
+  Item_sum_min(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, 1) {}
+  Item_sum_min(THD *thd, Item_sum_min *item) :Item_sum_min_max(thd, item) {}
   enum Sumfunctype sum_func () const {return MIN_FUNC;}
 
   bool add();
@@ -1106,11 +1169,11 @@ public:
 };
 
 
-class Item_sum_max :public Item_sum_hybrid
+class Item_sum_max :public Item_sum_min_max
 {
 public:
-  Item_sum_max(THD *thd, Item *item_par): Item_sum_hybrid(thd, item_par, -1) {}
-  Item_sum_max(THD *thd, Item_sum_max *item) :Item_sum_hybrid(thd, item) {}
+  Item_sum_max(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, -1) {}
+  Item_sum_max(THD *thd, Item_sum_max *item) :Item_sum_min_max(thd, item) {}
   enum Sumfunctype sum_func () const {return MAX_FUNC;}
 
   bool add();
@@ -1561,6 +1624,8 @@ public:
 
   void clear();
   bool add();
+  bool supports_removal() const;
+  void remove();
   void reset_field() {};
   void update_field() {};
   void cleanup();
@@ -1687,68 +1752,71 @@ public:
 
 #else /* Dummy functions to get sql_yacc.cc compiled */
 
-class Item_sum_udf_float :public Item_sum_num
+class Item_sum_udf_float :public Item_sum_double
 {
  public:
   Item_sum_udf_float(THD *thd, udf_func *udf_arg):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_float(THD *thd, udf_func *udf_arg, List<Item> &list):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_float(THD *thd, Item_sum_udf_float *item)
-    :Item_sum_num(thd, item) {}
+    :Item_sum_double(thd, item) {}
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   double val_real() { DBUG_ASSERT(fixed == 1); return 0.0; }
   void clear() {}
   bool add() { return 0; }  
+  void reset_field() { DBUG_ASSERT(0); };
   void update_field() {}
 };
 
 
-class Item_sum_udf_int :public Item_sum_num
+class Item_sum_udf_int :public Item_sum_double
 {
 public:
   Item_sum_udf_int(THD *thd, udf_func *udf_arg):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_int(THD *thd, udf_func *udf_arg, List<Item> &list):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_int(THD *thd, Item_sum_udf_int *item)
-    :Item_sum_num(thd, item) {}
+    :Item_sum_double(thd, item) {}
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   longlong val_int() { DBUG_ASSERT(fixed == 1); return 0; }
   double val_real() { DBUG_ASSERT(fixed == 1); return 0; }
   void clear() {}
   bool add() { return 0; }  
+  void reset_field() { DBUG_ASSERT(0); };
   void update_field() {}
 };
 
 
-class Item_sum_udf_decimal :public Item_sum_num
+class Item_sum_udf_decimal :public Item_sum_double
 {
  public:
   Item_sum_udf_decimal(THD *thd, udf_func *udf_arg):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_decimal(THD *thd, udf_func *udf_arg, List<Item> &list):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_decimal(THD *thd, Item_sum_udf_float *item)
-    :Item_sum_num(thd, item) {}
+    :Item_sum_double(thd, item) {}
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   double val_real() { DBUG_ASSERT(fixed == 1); return 0.0; }
   my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed == 1); return 0; }
   void clear() {}
   bool add() { return 0; }
+  void reset_field() { DBUG_ASSERT(0); };
   void update_field() {}
 };
 
 
-class Item_sum_udf_str :public Item_sum_num
+class Item_sum_udf_str :public Item_sum_double
 {
 public:
   Item_sum_udf_str(THD *thd, udf_func *udf_arg):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_str(THD *thd, udf_func *udf_arg, List<Item> &list):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_str(THD *thd, Item_sum_udf_str *item)
-    :Item_sum_num(thd, item) {}
+    :Item_sum_double(thd, item) {}
   String *val_str(String *)
     { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
   double val_real() { DBUG_ASSERT(fixed == 1); null_value=1; return 0.0; }
@@ -1757,6 +1825,7 @@ public:
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   void clear() {}
   bool add() { return 0; }  
+  void reset_field() { DBUG_ASSERT(0); };
   void update_field() {}
 };
 
@@ -1779,6 +1848,7 @@ class Item_func_group_concat : public Item_sum
   String *separator;
   TREE tree_base;
   TREE *tree;
+  size_t tree_len;
   Item **ref_pointer_array;
 
   /**
@@ -1801,7 +1871,8 @@ class Item_func_group_concat : public Item_sum
   bool warning_for_row;
   bool always_null;
   bool force_copy_fields;
-  bool no_appended;
+  /** True if entire result of GROUP_CONCAT has been written to output buffer. */
+  bool result_finalized;
   /** Limits the rows in the result */
   Item *row_limit;
   /** Skips a particular number of rows in from the result*/
@@ -1825,6 +1896,17 @@ class Item_func_group_concat : public Item_sum
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
+
+  bool repack_tree(THD *thd);
+
+public:
+  // Methods used by ColumnStore
+  bool get_distinct() const { return distinct; }
+  uint get_count_field() const { return arg_count_field; }
+  uint get_order_field() const { return arg_count_order; }
+  const String* get_separator() const { return separator; }
+  ORDER** get_order() const { return order; }
+
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                          bool is_distinct, List<Item> *is_select,
@@ -1881,8 +1963,8 @@ public:
   String* val_str(String* str);
   Item *copy_or_same(THD* thd);
   void no_rows_in_result() {}
-  virtual void print(String *str, enum_query_type query_type);
-  virtual bool change_context_processor(void *cntx)
+  void print(String *str, enum_query_type query_type);
+  bool change_context_processor(void *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_group_concat>(thd, this); }

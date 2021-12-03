@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -82,8 +83,16 @@ enum srv_checksum_algorithm_t {
 						innodb when reading */
 	SRV_CHECKSUM_ALGORITHM_NONE,		/*!< Write none, allow crc32,
 						innodb or none when reading */
-	SRV_CHECKSUM_ALGORITHM_STRICT_NONE	/*!< Write none, allow none
+	SRV_CHECKSUM_ALGORITHM_STRICT_NONE,	/*!< Write none, allow none
 						when reading */
+
+	/** For new files, always compute CRC-32C for the whole page.
+	For old files, allow crc32, innodb or none when reading. */
+	SRV_CHECKSUM_ALGORITHM_FULL_CRC32,
+
+	/** For new files, always compute CRC-32C for the whole page.
+	For old files, allow crc32 when reading. */
+	SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32
 };
 
 inline
@@ -124,6 +133,89 @@ the underlying memory is aligned by this amount:
 this must be equal to srv_page_size */
 #define BUF_BUDDY_HIGH	(BUF_BUDDY_LOW << BUF_BUDDY_SIZES)
 /* @} */
+
+/** Page identifier. */
+class page_id_t {
+public:
+
+	/** Constructor from (space, page_no).
+	@param[in]	space	tablespace id
+	@param[in]	page_no	page number */
+	page_id_t(ulint space, ulint page_no)
+		: m_space(uint32_t(space)), m_page_no(uint32(page_no))
+	{
+		ut_ad(space <= 0xFFFFFFFFU);
+		ut_ad(page_no <= 0xFFFFFFFFU);
+	}
+
+	bool operator==(const page_id_t& rhs) const
+	{
+		return m_space == rhs.m_space && m_page_no == rhs.m_page_no;
+	}
+	bool operator!=(const page_id_t& rhs) const { return !(*this == rhs); }
+
+	bool operator<(const page_id_t& rhs) const
+	{
+		if (m_space == rhs.m_space) {
+			return m_page_no < rhs.m_page_no;
+		}
+
+		return m_space < rhs.m_space;
+	}
+
+	/** Retrieve the tablespace id.
+	@return tablespace id */
+	uint32_t space() const { return m_space; }
+
+	/** Retrieve the page number.
+	@return page number */
+	uint32_t page_no() const { return m_page_no; }
+
+	/** Retrieve the fold value.
+	@return fold value */
+	ulint fold() const { return (m_space << 20) + m_space + m_page_no; }
+
+	/** Reset the page number only.
+	@param[in]	page_no	page number */
+	void set_page_no(ulint page_no)
+	{
+		m_page_no = uint32_t(page_no);
+
+		ut_ad(page_no <= 0xFFFFFFFFU);
+	}
+
+	/** Set the FIL_NULL for the space and page_no */
+	void set_corrupt_id()
+	{
+		m_space = m_page_no = ULINT32_UNDEFINED;
+	}
+
+private:
+
+	/** Tablespace id. */
+	uint32_t	m_space;
+
+	/** Page number. */
+	uint32_t	m_page_no;
+
+	/** Declare the overloaded global operator<< as a friend of this
+	class. Refer to the global declaration for further details.  Print
+	the given page_id_t object.
+	@param[in,out]	out	the output stream
+	@param[in]	page_id	the page_id_t object to be printed
+	@return the output stream */
+        friend
+        std::ostream&
+        operator<<(
+                std::ostream&           out,
+                const page_id_t        page_id);
+};
+
+/** A field reference full of zero, for use in assertions and checks,
+and dummy default values of instantly dropped columns.
+Initially, BLOB field references are set to zero, in
+dtuple_convert_big_rec(). */
+extern const byte field_ref_zero[UNIV_PAGE_SIZE_MAX];
 
 #ifndef UNIV_INNOCHECKSUM
 

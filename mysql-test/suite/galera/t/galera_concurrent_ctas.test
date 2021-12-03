@@ -1,32 +1,32 @@
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/big_test.inc
 
 --write_file $MYSQLTEST_VARDIR/tmp/galera_concurrent.sql
-CREATE table t1 as SELECT SLEEP(0);
+CREATE table t1 as SELECT SLEEP(0.1);
 DROP table t1;
-CREATE table t1 as SELECT SLEEP(0);
+CREATE table t1 as SELECT SLEEP(0.1);
 DROP table t1;
-CREATE table t1 as SELECT SLEEP(0);
+CREATE table t1 as SELECT SLEEP(0.1);
 DROP table t1;
-CREATE table t1 as SELECT SLEEP(0);
+CREATE table t1 as SELECT SLEEP(0.1);
 DROP table t1;
-CREATE table t1 as SELECT SLEEP(0);
+CREATE table t1 as SELECT SLEEP(0.1);
 DROP table t1;
-CREATE table t1 as SELECT SLEEP(0);
+CREATE table t1 as SELECT SLEEP(0.1);
 DROP table t1;
-CREATE table t1 as SELECT SLEEP(0);
+CREATE table t1 as SELECT SLEEP(0.1);
 DROP table t1;
-CREATE table t1 as SELECT SLEEP(0);
+CREATE table t1 as SELECT SLEEP(0.1);
 DROP table t1;
-CREATE table t1 as SELECT SLEEP(0);
-CREATE table t2 as SELECT SLEEP(0);
-CREATE table t3 as SELECT SLEEP(0);
-CREATE table t4 as SELECT SLEEP(0);
-CREATE table t5 as SELECT SLEEP(0);
-CREATE table t6 as SELECT SLEEP(0);
-CREATE table t7 as SELECT SLEEP(0);
-CREATE table t8 as SELECT SLEEP(0);
-CREATE table t9 as SELECT SLEEP(0);
+CREATE table t1 as SELECT SLEEP(0.2);
+CREATE table t2 as SELECT SLEEP(0.2);
+CREATE table t3 as SELECT SLEEP(0.2);
+CREATE table t4 as SELECT SLEEP(0.2);
+CREATE table t5 as SELECT SLEEP(0.2);
+CREATE table t6 as SELECT SLEEP(0.2);
+CREATE table t7 as SELECT SLEEP(0.2);
+CREATE table t8 as SELECT SLEEP(0.2);
+CREATE table t9 as SELECT SLEEP(0.2);
 DROP table t1;
 DROP table t2;
 DROP table t3;

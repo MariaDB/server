@@ -1,0 +1,60 @@
+# ==== Purpose ====
+#
+# Test verifies that, due to a temporary network error, if request dump
+# command specific packet write operation fails then the write error gets
+# handled appropriately. Further retry will be initiated with appropriate
+# slave registration on master. This will ensure that master has all the
+# details of slave and no warnings are reported on the master side.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Skip the slave start.
+#    1 - Enable debug simulation which will simulate packet write error during
+#        dump request command execution.
+#    2 - Start the slave. Observe that slave is able to reconnect post
+#        temporary network write error.
+#
+# ==== References ====
+#
+# MDEV-14203: rpl.rpl_extra_col_master_myisam,
+#             rpl.rpl_slave_load_tmpdir_not_exist failed in buildbot with a
+#             warning
+#
+# MDEV-13258: rpl.rpl_skip_replication, rpl.rpl_set_statement_default_master
+#             failed in buildbot
+#
+
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--let $rpl_skip_start_slave=1
+--source include/master-slave.inc
+
+# Do an insert on master
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES(1);
+
+# Add a debug point and start the slave so that dump request fails.
+connection slave;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET @@global.debug_dbug= 'd,simulate_error_on_packet_write';
+
+START SLAVE;
+SET DEBUG_SYNC= 'now WAIT_FOR parked';
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+SET DEBUG_SYNC= 'now SIGNAL continue';
+SET DEBUG_SYNC= 'RESET';
+
+--source include/wait_for_slave_io_to_start.inc
+--source include/wait_for_slave_sql_to_start.inc
+
+# Sync the slave and verify that slave has caught up with the master.
+connection master;
+--source include/sync_slave_sql_with_master.inc
+SELECT * FROM t1;
+
+# Cleanup
+connection master;
+DROP TABLE t1;
+
+--source include/rpl_end.inc

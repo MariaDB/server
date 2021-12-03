@@ -1,4 +1,3 @@
-drop table if exists t1;
 CREATE TABLE t1 (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 a VARCHAR(200),
@@ -409,7 +408,6 @@ AGAINST ('"following database"@10' IN BOOLEAN MODE);
 id
 105
 DROP TABLE t1;
-drop table if exists t50;
 set names utf8;
 "----------Test1---------"
 create table t50 (s1 varchar(60) character set utf8 collate utf8_bin) engine = innodb;
@@ -648,9 +646,6 @@ s1
 ŁŁŁŁ
 LLLL
 ŁŁŁŁ ŁŁŁŁ
-DROP TABLE if EXISTS t2;
-Warnings:
-Note	1051	Unknown table 'test.t2'
 CREATE TABLE t2 (s1 VARCHAR(60) CHARACTER SET UTF8 COLLATE UTF8_POLISH_CI) ENGINE = InnoDB;
 CREATE FULLTEXT INDEX i ON t2 ( s1);
 INSERT INTO t2 VALUES
@@ -700,19 +695,31 @@ count(*)
 DROP TABLE t1;
 "----------Test27---------"
 CREATE TABLE t1 (id INT,char_column VARCHAR(60));
-SET @@autocommit=0;
+CREATE TABLE t2 (FTS_DOC_ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, a TEXT)ENGINE=InnoDB;
+ALTER TABLE t2 DROP a;
 CREATE FULLTEXT INDEX i ON t1 (char_column);
 INSERT INTO t1 values (1,'aaa');
-"restart server..."
-# Restart the server
---source include/restart_mysqld.inc
-DELETE FROM t1 WHERE MATCH(char_column) AGAINST ('bbb')
-SET @@autocommit=1;
-DROP TABLE t1;
+CREATE TABLE mdev20987_1(f1 INT NOT NULL, PRIMARY KEY(f1))ENGINE=InnoDB;
+CREATE TABLE mdev20987_2(f1 INT NOT NULL, f2 CHAR(100),
+FULLTEXT(f2),
+FOREIGN KEY(f1) REFERENCES mdev20987_1(f1))ENGINE=InnoDB;
+INSERT INTO mdev20987_1 VALUES(1);
+INSERT INTO mdev20987_2 VALUES(1, 'mariadb');
+CREATE TABLE mdev22358 (a INT, b TEXT, FULLTEXT KEY ftidx (b)) ENGINE=InnoDB;
+ALTER TABLE mdev22358 DROP KEY ftidx;
+INSERT INTO mdev22358 (a) VALUES (2),(2);
+ALTER TABLE mdev22358 ADD UNIQUE KEY uidx (a), ADD FULLTEXT KEY ftidx (b);
+ERROR 23000: Duplicate entry '2' for key 'uidx'
+# restart
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `FTS_DOC_ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`FTS_DOC_ID`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DELETE FROM t1 WHERE MATCH(char_column) AGAINST ('bbb');
+DROP TABLE t1, t2, mdev20987_2, mdev20987_1, mdev22358;
 "----------Test28---------"
-drop table if exists `fts_test`;
-Warnings:
-Note	1051	Unknown table 'test.fts_test'
 create table `fts_test`(`a` text,fulltext key(`a`))engine=innodb;
 set session autocommit=0;
 insert into `fts_test` values ('');
@@ -902,9 +909,6 @@ id	title	body
 2	How To Use MySQL Well	After you went through a ...
 3	Optimizing MySQL	In this tutorial we will show ...
 DROP TABLE articles;
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
 create table t1 (FTS_DOC_ID bigint unsigned auto_increment not null primary key,
 title varchar(200),body text,fulltext(title,body)) engine=innodb;
 insert into t1 set body='test';
@@ -1383,4 +1387,9 @@ INSERT INTO t1 (a) VALUES
 SELECT * FROM t1 WHERE MATCH (a) AGAINST ('+"good database"' IN BOOLEAN MODE);
 id	a
 1	know mysql good database
+DROP TABLE t1;
+CREATE TABLE t1(f1 TEXT, FULLTEXT KEY(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(repeat("this is the test case", 500));
+ALTER TABLE t1 KEY_BLOCK_SIZE=4;
+ALTER TABLE t1 KEY_BLOCK_SIZE=0;
 DROP TABLE t1;

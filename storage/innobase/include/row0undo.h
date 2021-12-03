@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,13 +27,9 @@ Created 1/8/1997 Heikki Tuuri
 #ifndef row0undo_h
 #define row0undo_h
 
-#include "univ.i"
-#include "mtr0mtr.h"
 #include "trx0sys.h"
 #include "btr0types.h"
 #include "btr0pcur.h"
-#include "dict0types.h"
-#include "trx0types.h"
 #include "que0types.h"
 #include "row0types.h"
 
@@ -86,17 +82,20 @@ that index record. */
 enum undo_exec {
 	UNDO_NODE_FETCH_NEXT = 1,	/*!< we should fetch the next
 					undo log record */
-	UNDO_NODE_INSERT,		/*!< undo a fresh insert of a
-					row to a table */
-	UNDO_NODE_MODIFY		/*!< undo a modify operation
-					(DELETE or UPDATE) on a row
-					of a table */
+	/** rollback an insert into persistent table */
+	UNDO_INSERT_PERSISTENT,
+	/** rollback an update (or delete) in a persistent table */
+	UNDO_UPDATE_PERSISTENT,
+	/** rollback an insert into temporary table */
+	UNDO_INSERT_TEMPORARY,
+	/** rollback an update (or delete) in a temporary table */
+	UNDO_UPDATE_TEMPORARY,
 };
 
 /** Undo node structure */
 struct undo_node_t{
 	que_common_t	common;	/*!< node type: QUE_NODE_UNDO */
-	enum undo_exec	state;	/*!< node execution state */
+	undo_exec	state;	/*!< rollback execution state */
 	trx_t*		trx;	/*!< trx for which undo is done */
 	roll_ptr_t	roll_ptr;/*!< roll pointer to undo log record */
 	trx_undo_rec_t*	undo_rec;/*!< undo log record */

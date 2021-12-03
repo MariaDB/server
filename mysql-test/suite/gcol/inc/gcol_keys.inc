@@ -156,7 +156,6 @@ create table t1 (a int, b int generated always as (a+1) virtual,
                  foreign key (b) references t2(a));
 
 create table t1 (a int, b int generated always as (a+1) virtual);
---replace_regex /`#sql-.*`/`#sql-temporary`/
 --error ER_CANT_CREATE_TABLE
 alter table t1 add foreign key (b) references t2(a);
 drop table t1;
@@ -748,4 +747,74 @@ ANALYZE TABLE t1, t2;
 --eval $query
 DROP TABLE t1, t2;
 
+if($support_virtual_index)
+{
 --echo #
+--echo # MDEV-20618 Assertion `btr_validate_index(index, 0, false)' failed
+--echo # in row_upd_sec_index_entry
+--echo #
+CREATE TABLE t1 (A BIT(15), VA BIT(10) GENERATED ALWAYS AS (A),PK INT,
+                 PRIMARY KEY (PK), UNIQUE KEY (VA));
+
+INSERT IGNORE INTO t1 VALUES ( '\r1','a',1);
+--error ER_DATA_TOO_LONG
+REPLACE INTO t1 (PK) VALUES (1);
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17890 Record in index was not found on update, server crash in
+--echo # row_upd_build_difference_binary or
+--echo # Assertion `0' failed in row_upd_sec_index_entry
+--echo #
+CREATE TABLE t1 (
+  pk BIGINT AUTO_INCREMENT,
+  b BIT(15),
+  v BIT(10) AS (b) VIRTUAL,
+  PRIMARY KEY(pk),
+  UNIQUE(v)
+);
+
+INSERT IGNORE INTO t1 (b) VALUES (b'101110001110100'),(b'011101');
+SELECT pk, b INTO OUTFILE 'load.data' FROM t1;
+--error ER_DATA_TOO_LONG
+LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1 (pk, b);
+
+--let $datadir= `SELECT @@datadir`
+--remove_file $datadir/test/load.data
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17834 Server crashes in row_upd_build_difference_binary
+--echo # on LOAD DATA into table with indexed virtual column
+--echo #
+CREATE TABLE t1 (
+  pk INT,
+  i TINYINT,
+  ts TIMESTAMP NULL,
+  vi TINYINT AS (i+1) PERSISTENT,
+  vts TIMESTAMP(5) AS (ts) VIRTUAL,
+  PRIMARY KEY(pk),
+  UNIQUE(vts)
+);
+
+INSERT IGNORE INTO t1 (pk,i) VALUES (1,127);
+
+--write_file $MYSQLTEST_VARDIR/tmp/load.data
+1	4	2019-01-01 00:00:00
+EOF
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_WARN_DATA_OUT_OF_RANGE
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/load.data' REPLACE INTO TABLE t1 (pk,i,ts);
+
+--remove_file $MYSQLTEST_VARDIR/tmp/load.data
+DROP TABLE t1;
+
+--echo # MDEV-19011 Assertion `file->s->base.reclength < file->s->vreclength'
+--echo # failed in ha_myisam::setup_vcols_for_repair
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL);
+ALTER TABLE t1 ADD KEY (a);
+
+DROP TABLE t1;
+
+}

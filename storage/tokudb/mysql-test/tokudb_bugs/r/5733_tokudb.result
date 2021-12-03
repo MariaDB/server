@@ -10009,7 +10009,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	range	PRIMARY	PRIMARY	8	NULL	#	Using where
 explain select id from t where id>1000 limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	range	PRIMARY	PRIMARY	8	NULL	#	Using where; Using index
+1	SIMPLE	t	index	PRIMARY	PRIMARY	8	NULL	#	Using where; Using index
 explain select * from t where id>1000 limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	range	PRIMARY	PRIMARY	8	NULL	#	Using where

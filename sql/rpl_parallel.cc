@@ -4,6 +4,11 @@
 #include "rpl_mi.h"
 #include "sql_parse.h"
 #include "debug_sync.h"
+#include "sql_repl.h"
+#include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif
 
 /*
   Code for optional parallel execution of replicated events on the slave.
@@ -35,6 +40,13 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
 
   DBUG_ASSERT(qev->typ == rpl_parallel_thread::queued_event::QUEUED_EVENT);
   ev= qev->ev;
+#ifdef WITH_WSREP
+  if (wsrep_before_statement(thd))
+  {
+    WSREP_WARN("Parallel slave failed at wsrep_before_statement() hook");
+    return(1);
+  }
+#endif /* WITH_WSREP */
 
   thd->system_thread_info.rpl_sql_info->rpl_filter = rli->mi->rpl_filter;
   ev->thd= thd;
@@ -49,7 +61,14 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
     rgi->last_master_timestamp= ev->when + (time_t)ev->exec_time;
   err= apply_event_and_update_pos_for_parallel(ev, thd, rgi);
 
-  thread_safe_increment64(&rli->executed_entries);
+  rli->executed_entries++;
+#ifdef WITH_WSREP
+  if (wsrep_after_statement(thd))
+  {
+    WSREP_WARN("Parallel slave failed at wsrep_after_statement() hook");
+    err= 1;
+  }
+#endif /* WITH_WSREP */
   /* ToDo: error handling. */
   return err;
 }
@@ -75,23 +94,23 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
 
   /* Do not update position if an earlier event group caused an error abort. */
   DBUG_ASSERT(qev->typ == rpl_parallel_thread::queued_event::QUEUED_POS_UPDATE);
+  rli= qev->rgi->rli;
   e= qev->entry_for_queued;
-  if (e->stop_on_error_sub_id < (uint64)ULONGLONG_MAX || e->force_abort)
+  if (e->stop_on_error_sub_id < (uint64)ULONGLONG_MAX ||
+      (e->force_abort && !rli->stop_for_until))
     return;
 
-  rli= qev->rgi->rli;
   mysql_mutex_lock(&rli->data_lock);
-  cmp= strcmp(rli->group_relay_log_name, qev->event_relay_log_name);
+  cmp= compare_log_name(rli->group_relay_log_name, qev->event_relay_log_name);
   if (cmp < 0)
   {
     rli->group_relay_log_pos= qev->future_event_relay_log_pos;
     strmake_buf(rli->group_relay_log_name, qev->event_relay_log_name);
-    rli->notify_group_relay_log_name_update();
   } else if (cmp == 0 &&
              rli->group_relay_log_pos < qev->future_event_relay_log_pos)
     rli->group_relay_log_pos= qev->future_event_relay_log_pos;
 
-  cmp= strcmp(rli->group_master_log_name, qev->future_event_master_log_name);
+  cmp= compare_log_name(rli->group_master_log_name, qev->future_event_master_log_name);
   if (cmp < 0)
   {
     strcpy(rli->group_master_log_name, qev->future_event_master_log_name);
@@ -228,6 +247,12 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
       entry->stop_on_error_sub_id == (uint64)ULONGLONG_MAX)
     entry->stop_on_error_sub_id= sub_id;
   mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+  DBUG_EXECUTE_IF("hold_worker_on_schedule", {
+      if (entry->stop_on_error_sub_id < (uint64)ULONGLONG_MAX)
+      {
+        debug_sync_set_action(thd, STRING_WITH_LEN("now SIGNAL continue_worker"));
+      }
+    });
 
   DBUG_EXECUTE_IF("rpl_parallel_simulate_wait_at_retry", {
       if (rgi->current_gtid.seq_no == 1000) {
@@ -372,13 +397,14 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
 }
 
 
-static void
+static bool
 do_ftwrl_wait(rpl_group_info *rgi,
               bool *did_enter_cond, PSI_stage_info *old_stage)
 {
   THD *thd= rgi->thd;
   rpl_parallel_entry *entry= rgi->parallel_entry;
   uint64 sub_id= rgi->gtid_sub_id;
+  bool aborted= false;
   DBUG_ENTER("do_ftwrl_wait");
 
   mysql_mutex_assert_owner(&entry->LOCK_parallel_entry);
@@ -401,7 +427,10 @@ do_ftwrl_wait(rpl_group_info *rgi,
     do
     {
       if (entry->force_abort || rgi->worker_error)
+      {
+        aborted= true;
         break;
+      }
       if (unlikely(thd->check_killed()))
       {
         slave_output_error_info(rgi, thd);
@@ -420,7 +449,7 @@ do_ftwrl_wait(rpl_group_info *rgi,
   if (sub_id > entry->largest_started_sub_id)
     entry->largest_started_sub_id= sub_id;
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(aborted);
 }
 
 
@@ -443,6 +472,7 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
     So we protect the infrequent operations of FLUSH TABLES WITH READ LOCK and
     pool size changes with this condition wait.
   */
+  DBUG_EXECUTE_IF("mark_busy_mdev_22370",my_sleep(1000000););
   mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
   if (thd)
   {
@@ -505,7 +535,22 @@ rpl_unpause_after_ftwrl(THD *thd)
     mysql_mutex_lock(&e->LOCK_parallel_entry);
     rpt->pause_for_ftwrl = false;
     mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
-    e->pause_sub_id= (uint64)ULONGLONG_MAX;
+    /*
+      Do not change pause_sub_id if force_abort is set.
+      force_abort is set in case of STOP SLAVE.
+
+      Reason: If pause_sub_id is not changed and force_abort_is set,
+      any parallel slave thread waiting in do_ftwrl_wait() will
+      on wakeup return from do_ftwrl_wait() with 1. This will set
+      skip_event_group to 1 in handle_rpl_parallel_thread() and the
+      parallel thread will abort at once.
+
+      If pause_sub_id is changed, the code in handle_rpl_parallel_thread()
+      would continue to execute the transaction in the queue, which would
+      cause some transactions to be lost.
+    */
+    if (!e->force_abort)
+      e->pause_sub_id= (uint64)ULONGLONG_MAX;
     mysql_cond_broadcast(&e->COND_parallel_entry);
     mysql_mutex_unlock(&e->LOCK_parallel_entry);
   }
@@ -1023,13 +1068,13 @@ handle_rpl_parallel_thread(void *arg)
   my_thread_init();
   thd = new THD(next_thread_id());
   thd->thread_stack = (char*)&thd;
-  add_to_active_threads(thd);
+  server_threads.insert(thd);
   set_current_thd(thd);
   pthread_detach_this_thread();
+  thd->store_globals();
   thd->init_for_queries();
   thd->variables.binlog_annotate_row_events= 0;
   init_thr_lock();
-  thd->store_globals();
   thd->system_thread= SYSTEM_THREAD_SLAVE_SQL;
   thd->security_ctx->skip_grants();
   thd->variables.max_allowed_packet= slave_max_allowed_packet;
@@ -1060,6 +1105,14 @@ handle_rpl_parallel_thread(void *arg)
   mysql_cond_signal(&rpt->COND_rpl_thread);
 
   thd->set_command(COM_SLAVE_WORKER);
+#ifdef WITH_WSREP
+  wsrep_open(thd);
+  if (wsrep_before_command(thd))
+  {
+    WSREP_WARN("Parallel slave failed at wsrep_before_command() hook");
+    rpt->stop = true;
+  }
+#endif /* WITH_WSREP */
   while (!rpt->stop)
   {
     uint wait_count= 0;
@@ -1136,6 +1189,13 @@ handle_rpl_parallel_thread(void *arg)
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
 
+        DBUG_EXECUTE_IF("hold_worker_on_schedule", {
+            if (rgi->current_gtid.domain_id == 0 &&
+                rgi->current_gtid.seq_no == 100) {
+                  debug_sync_set_action(thd,
+                STRING_WITH_LEN("now SIGNAL reached_pause WAIT_FOR continue_worker"));
+            }
+          });
         DBUG_EXECUTE_IF("rpl_parallel_scheduled_gtid_0_x_100", {
             if (rgi->current_gtid.domain_id == 0 &&
                 rgi->current_gtid.seq_no == 100) {
@@ -1177,9 +1237,12 @@ handle_rpl_parallel_thread(void *arg)
         skip_event_group= do_gco_wait(rgi, gco, &did_enter_cond, &old_stage);
 
         if (unlikely(entry->stop_on_error_sub_id <= rgi->wait_commit_sub_id))
+        {
           skip_event_group= true;
+          rgi->worker_error= 1;
+        }
         if (likely(!skip_event_group))
-          do_ftwrl_wait(rgi, &did_enter_cond, &old_stage);
+          skip_event_group= do_ftwrl_wait(rgi, &did_enter_cond, &old_stage);
 
         /*
           Register ourself to wait for the previous commit, if we need to do
@@ -1420,6 +1483,11 @@ handle_rpl_parallel_thread(void *arg)
         rpt->pool->release_thread(rpt);
     }
   }
+#ifdef WITH_WSREP
+  wsrep_after_command_before_result(thd);
+  wsrep_after_command_after_result(thd);
+  wsrep_close(thd);
+#endif /* WITH_WSREP */
 
   rpt->thd= NULL;
   mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
@@ -1432,7 +1500,7 @@ handle_rpl_parallel_thread(void *arg)
   thd->temporary_tables= 0;
 
   THD_CHECK_SENTRY(thd);
-  unlink_not_visible_thd(thd);
+  server_threads.erase(thd);
   delete thd;
 
   mysql_mutex_lock(&rpt->LOCK_rpl_thread);
@@ -1728,7 +1796,7 @@ rpl_parallel_thread::inuse_relaylog_refcount_update()
   inuse_relaylog *ir= accumulated_ir_last;
   if (ir)
   {
-    my_atomic_add64(&ir->dequeued_count, accumulated_ir_count);
+    ir->dequeued_count+= accumulated_ir_count;
     accumulated_ir_count= 0;
     accumulated_ir_last= NULL;
   }
@@ -1964,9 +2032,23 @@ rpl_parallel_thread_pool::init(uint32 size)
 void
 rpl_parallel_thread_pool::destroy()
 {
+  deactivate();
+  destroy_cond_mutex();
+}
+
+void
+rpl_parallel_thread_pool::deactivate()
+{
   if (!inited)
     return;
   rpl_parallel_change_thread_count(this, 0, 1);
+}
+
+void
+rpl_parallel_thread_pool::destroy_cond_mutex()
+{
+  if (!inited)
+    return;
   mysql_mutex_destroy(&LOCK_rpl_thread_pool);
   mysql_cond_destroy(&COND_rpl_thread_pool);
   inited= false;

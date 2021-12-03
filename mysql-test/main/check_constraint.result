@@ -44,7 +44,7 @@ a	b
 103	103
 set check_constraint_checks=@save_check_constraint;
 alter table t1 add c int default 0 check (c < 10);
-ERROR 23000: CONSTRAINT `max` failed for table
+ERROR 23000: CONSTRAINT `max` failed for `test`.`t1`
 set check_constraint_checks=0;
 alter table t1 add c int default 0 check (c < 10);
 alter table t1 add check (a+b+c < 500);
@@ -222,3 +222,28 @@ ERROR 23000: CONSTRAINT `t.b` failed for `test`.`t`
 insert into t values (1,1);
 ERROR 23000: CONSTRAINT `b` failed for `test`.`t`
 drop table t;
+create table t1 (a int auto_increment primary key, b int, check (b > 5));
+insert t1 (b) values (1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+insert t1 (b) values (10);
+select * from t1 where a is null;
+a	b
+set sql_auto_is_null=1;
+select * from t1 where a is null;
+a	b
+1	10
+insert t1 (b) values (1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+drop table t1;
+#
+# MDEV-24274 ALTER TABLE with CHECK CONSTRAINTS gives "Out of Memory" error
+#
+create table t1 (id varchar(2), constraint id check (id regexp '[a-z]'));
+alter table t1 force;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` varchar(2) DEFAULT NULL,
+  CONSTRAINT `id` CHECK (`id` regexp '[a-z]')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;

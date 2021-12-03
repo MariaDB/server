@@ -4,6 +4,7 @@ create table foo (a int, b int, key(b,a), primary key (a))engine=TokuDB;
 create table bar (a bigint)engine=TokuDB;
 alter table foo drop index b;
 alter table bar add index (a);
+# restart
 show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (

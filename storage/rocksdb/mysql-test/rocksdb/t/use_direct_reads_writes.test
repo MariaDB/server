@@ -1,4 +1,5 @@
 --source include/have_rocksdb.inc
+--source include/have_direct_io.inc
 
 call mtr.add_suppression("rocksdb");
 call mtr.add_suppression("Aborting");

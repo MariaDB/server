@@ -1,3 +1,5 @@
+--source include/default_charset.inc
+
 CREATE DATABASE test_2;
 
 USE test;

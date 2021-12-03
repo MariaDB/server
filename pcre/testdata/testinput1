@@ -5742,4 +5742,22 @@ AbcdCBefgBhiBqz
 /X+(?#comment)?/
     >XXX<
 
+/   (?<word> \w+ )*    \.   /xi
+    pokus.
+    
+/(?(DEFINE) (?<word> \w+ ) ) (?&word)*   \./xi
+    pokus.
+
+/(?(DEFINE) (?<word> \w+ ) ) ( (?&word)* )   \./xi 
+    pokus.
+
+/(?&word)*  (?(DEFINE) (?<word> \w+ ) )  \./xi
+    pokus.
+
+/(?&word)*  \. (?<word> \w+ )/xi
+    pokus.hokus
+
+/(?:A(*:X))*+/K
+    A
+
 /-- End of testinput1 --/

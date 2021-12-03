@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -56,8 +56,8 @@
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
 ulong tc_size; /**< Table cache threshold for LRU eviction. */
 uint32 tc_instances;
-uint32 tc_active_instances= 1;
-static uint32 tc_contention_warning_reported;
+static std::atomic<uint32_t> tc_active_instances(1);
+static std::atomic<bool> tc_contention_warning_reported;
 
 /** Data collections. */
 static LF_HASH tdc_hash; /**< Collection of TABLE_SHARE objects. */
@@ -163,7 +163,7 @@ struct Table_cache_instance
     overhead on TABLE object release. All other table cache mutex acquistions
     are considered out of hot path and are not instrumented either.
   */
-  void lock_and_check_contention(uint32 n_instances, uint32 instance)
+  void lock_and_check_contention(uint32_t n_instances, uint32_t instance)
   {
     if (mysql_mutex_trylock(&LOCK_table_cache))
     {
@@ -172,11 +172,10 @@ struct Table_cache_instance
       {
         if (n_instances < tc_instances)
         {
-          if (my_atomic_cas32_weak_explicit((int32*) &tc_active_instances,
-                                            (int32*) &n_instances,
-                                            (int32) n_instances + 1,
-                                            MY_MEMORY_ORDER_RELAXED,
-                                            MY_MEMORY_ORDER_RELAXED))
+          if (tc_active_instances.
+              compare_exchange_weak(n_instances, n_instances + 1,
+                                    std::memory_order_relaxed,
+                                    std::memory_order_relaxed))
           {
             sql_print_information("Detected table cache mutex contention at instance %d: "
                                   "%d%% waits. Additional table cache instance "
@@ -187,8 +186,8 @@ struct Table_cache_instance
                                   n_instances + 1);
           }
         }
-        else if (!my_atomic_fas32_explicit((int32*) &tc_contention_warning_reported,
-                                           1, MY_MEMORY_ORDER_RELAXED))
+        else if (!tc_contention_warning_reported.exchange(true,
+                                                 std::memory_order_relaxed))
         {
           sql_print_warning("Detected table cache mutex contention at instance %d: "
                             "%d%% waits. Additional table cache instance "
@@ -232,7 +231,7 @@ static void intern_close_table(TABLE *table)
 uint tc_records(void)
 {
   ulong total= 0;
-  for (ulong i= 0; i < tc_instances; i++)
+  for (uint32 i= 0; i < tc_instances; i++)
   {
     mysql_mutex_lock(&tc[i].LOCK_table_cache);
     total+= tc[i].records;
@@ -277,7 +276,7 @@ static void tc_remove_all_unused_tables(TDC_element *element,
   */
   if (mark_flushed)
     element->flushed= true;
-  for (ulong i= 0; i < tc_instances; i++)
+  for (uint32 i= 0; i < tc_instances; i++)
   {
     mysql_mutex_lock(&tc[i].LOCK_table_cache);
     while ((table= element->free_tables[i].list.pop_front()))
@@ -354,8 +353,8 @@ void tc_purge(bool mark_flushed)
 
 void tc_add_table(THD *thd, TABLE *table)
 {
-  uint32 i= thd->thread_id % my_atomic_load32_explicit((int32*) &tc_active_instances,
-                                                       MY_MEMORY_ORDER_RELAXED);
+  uint32_t i=
+    thd->thread_id % tc_active_instances.load(std::memory_order_relaxed);
   TABLE *LRU_table= 0;
   TDC_element *element= table->s->tdc;
 
@@ -406,12 +405,10 @@ void tc_add_table(THD *thd, TABLE *table)
   @return TABLE object, or NULL if no unused objects.
 */
 
-static TABLE *tc_acquire_table(THD *thd, TDC_element *element)
+TABLE *tc_acquire_table(THD *thd, TDC_element *element)
 {
-  uint32 n_instances=
-    my_atomic_load32_explicit((int32*) &tc_active_instances,
-                              MY_MEMORY_ORDER_RELAXED);
-  uint32 i= thd->thread_id % n_instances;
+  uint32_t n_instances= tc_active_instances.load(std::memory_order_relaxed);
+  uint32_t i= thd->thread_id % n_instances;
   TABLE *table;
 
   tc[i].lock_and_check_contention(n_instances, i);
@@ -491,7 +488,7 @@ static void tdc_assert_clean_share(TDC_element *element)
   DBUG_ASSERT(element->m_flush_tickets.is_empty());
   DBUG_ASSERT(element->all_tables.is_empty());
 #ifndef DBUG_OFF
-  for (ulong i= 0; i < tc_instances; i++)
+  for (uint32 i= 0; i < tc_instances; i++)
     DBUG_ASSERT(element->free_tables[i].list.is_empty());
 #endif
   DBUG_ASSERT(element->all_tables_refs == 0);
@@ -564,7 +561,7 @@ static void lf_alloc_constructor(uchar *arg)
   mysql_cond_init(key_TABLE_SHARE_COND_release, &element->COND_release, 0);
   element->m_flush_tickets.empty();
   element->all_tables.empty();
-  for (ulong i= 0; i < tc_instances; i++)
+  for (uint32 i= 0; i < tc_instances; i++)
     element->free_tables[i].list.empty();
   element->all_tables_refs= 0;
   element->share= 0;
@@ -657,7 +654,7 @@ void tdc_start_shutdown(void)
     tdc_size= 0;
     tc_size= 0;
     /* Free all cached but unused TABLEs and TABLE_SHAREs. */
-    close_cached_tables(NULL, NULL, FALSE, LONG_TIMEOUT);
+    purge_tables(true);
   }
   DBUG_VOID_RETURN;
 }
@@ -689,7 +686,7 @@ void tdc_deinit(void)
 
 ulong tdc_records(void)
 {
-  return my_atomic_load32_explicit(&tdc_hash.count, MY_MEMORY_ORDER_RELAXED);
+  return lf_hash_size(&tdc_hash);
 }
 
 
@@ -945,7 +942,7 @@ end:
       table existed?
       Let's return an invalid pointer here to catch dereferencing attempts.
     */
-    share= (TABLE_SHARE*) 1;
+    share= UNUSABLE_TABLE_SHARE;
   }
   DBUG_RETURN(share);
 
@@ -1094,13 +1091,13 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
   TABLE *table;
   TDC_element *element;
   uint my_refs= 1;
+  bool res= false;
   DBUG_ENTER("tdc_remove_table");
   DBUG_PRINT("enter",("name: %s  remove_type: %d", table_name, remove_type));
 
   DBUG_ASSERT(remove_type == TDC_RT_REMOVE_UNUSED ||
               thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
                                              MDL_EXCLUSIVE));
-
 
   mysql_mutex_lock(&LOCK_unused_shares);
   if (!(element= tdc_lock_share(thd, db, table_name)))
@@ -1123,7 +1120,7 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
     mysql_mutex_unlock(&LOCK_unused_shares);
 
     tdc_delete_share_from_hash(element);
-    DBUG_RETURN(true);
+    DBUG_RETURN(false);
   }
   mysql_mutex_unlock(&LOCK_unused_shares);
 
@@ -1189,10 +1186,16 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
 #endif
     mysql_mutex_unlock(&element->LOCK_table_share);
   }
+  else
+  {
+    mysql_mutex_lock(&element->LOCK_table_share);
+    res= element->ref_count > 1;
+    mysql_mutex_unlock(&element->LOCK_table_share);
+  }
 
   tdc_release_share(element->share);
 
-  DBUG_RETURN(true);
+  DBUG_RETURN(res);
 }
 
 
@@ -1335,4 +1338,15 @@ int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
     free_root(&no_dups_argument.root, MYF(0));
   }
   return res;
+}
+
+
+int show_tc_active_instances(THD *thd, SHOW_VAR *var, char *buff,
+                             enum enum_var_type scope)
+{
+  var->type= SHOW_UINT;
+  var->value= buff;
+  *(reinterpret_cast<uint32_t*>(buff))=
+    tc_active_instances.load(std::memory_order_relaxed);
+  return 0;
 }

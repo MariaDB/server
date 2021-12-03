@@ -1,6 +1,7 @@
 # Test of the --aria-recover-options option.
 
 --source include/have_maria.inc
+--source include/default_charset.inc
 
 #
 # Ensure that we don't get warnings from mysql.proc (used by check_mysqld)

@@ -696,9 +696,10 @@ END|
 
 delimiter ;|
 
+SET @save_dbug = @@debug_dbug;
 SET SESSION debug_dbug="+d,bug23032_emit_warning";
 CALL p1();
-SET SESSION debug_dbug="-d,bug23032_emit_warning";
+SET SESSION debug_dbug=@save_dbug;
 
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -734,6 +735,30 @@ DROP PROCEDURE testp_bug11763507;
 DROP FUNCTION testf_bug11763507;
 
 --echo #END OF BUG#11763507 test.
+
+
+--echo #
+--echo # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+--echo #
+
+SET NAMES utf8;
+SET SESSION character_set_connection=latin1;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a VARCHAR(10) CHARACTER SET utf8;
+  SET a='ä';
+  SELECT a, 'ä' AS b;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
 
 
 --echo #
@@ -946,3 +971,7 @@ end|
 delimiter ;|
 show function code f1;
 drop function f1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

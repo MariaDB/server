@@ -2,7 +2,7 @@
 # MDEV-6830 Server crashes in best_access_path after a sequence of SELECTs invollving a temptable view
 #
 --source include/have_debug.inc
-
+SET @saved_dbug = @@SESSION.debug_dbug;
 set @@debug_dbug= 'd,opt';
 
 CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=MyISAM;
@@ -60,4 +60,4 @@ SELECT * FROM t1, v3, t4 WHERE v3.f1 = t4.f1 AND t4.f2 = 6 AND t1.pk = v3.f5;
 
 drop table t1,t2,t3,t4;
 drop view v2,v3;
-
+SET debug_dbug= @saved_dbug;

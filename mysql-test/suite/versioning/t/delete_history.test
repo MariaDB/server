@@ -1,0 +1,195 @@
+--source suite/versioning/common.inc
+--source include/have_partition.inc
+--source suite/versioning/engines.inc
+
+create table t (a int);
+--error ER_VERS_NOT_VERSIONED
+delete history from t before system_time now();
+
+# TRUNCATE is not DELETE and trigger must not be called.
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t (
+  a int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
+insert into t values (1);
+update t set a=2;
+set @test = 'correct';
+create trigger trg_before before delete on t for each row set @test = 'incorrect';
+create trigger trg_after after delete on t for each row set @test = 'incorrect';
+delete history from t;
+select @test from t;
+drop table t;
+
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t (
+  a int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
+insert into t values (1), (2);
+update t set a=11 where a=1;
+--real_sleep 0.01
+set @ts1=now(6);
+--real_sleep 0.01
+update t set a=22 where a=2;
+select * from t for system_time all;
+delete history from t before system_time timestamp @ts1;
+select * from t for system_time all;
+prepare stmt from 'delete history from t';
+execute stmt; drop prepare stmt;
+select * from t for system_time all;
+delete from t;
+
+delimiter ~~;
+create or replace procedure truncate_sp()
+begin
+  delete history from t before system_time timestamp now(6);
+end~~
+delimiter ;~~
+call truncate_sp;
+select * from t for system_time all;
+
+drop procedure truncate_sp;
+
+--echo # Truncate partitioned
+create or replace table t (a int)
+with system versioning
+partition by system_time limit 1 (
+    partition p0 history,
+    partition p1 history,
+    partition pn current);
+insert into t values (1);
+update t set a= 2;
+update t set a= 3;
+delete history from t;
+select * from t for system_time all;
+
+--echo # VIEW
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t (
+  i int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
+delete history from t;
+create or replace view v as select * from t;
+--error ER_IT_IS_A_VIEW
+delete history from v;
+
+create or replace table t (i int);
+--error ER_VERS_NOT_VERSIONED
+delete history from t;
+create or replace view v as select * from t;
+--error ER_IT_IS_A_VIEW
+delete history from v;
+--error ER_VERS_NOT_VERSIONED
+prepare stmt from 'delete history from t';
+
+drop table t;
+drop view v;
+
+#
+# MDEV-15402 Assertion `table' failed in mysql_delete on attempt to delete history from view
+#
+create or replace table t (i int);
+create or replace view v as select * from t;
+--error ER_IT_IS_A_VIEW
+drop table v;
+lock table v write;
+--error ER_IT_IS_A_VIEW
+delete history from v before system_time now(6);
+unlock tables;
+drop view v;
+drop table t;
+
+#
+# MDEV-16783 Assertion `!conds' failed in mysql_delete upon 2nd execution of SP with DELETE HISTORY
+#
+create table t1 (i int) with system versioning;
+create procedure pr() delete history from t1 before system_time now();
+call pr;
+call pr;
+drop procedure pr;
+drop table t1;
+
+--echo # MDEV-15966 Behavior for TRUNCATE versioned table is not documented and not covered by tests
+create or replace table t1 (id int);
+create or replace table t2 (id int) with system versioning;
+
+-- echo  # force cleaning table shares
+flush tables t1, t2;
+
+truncate table t1;
+--error ER_VERS_NOT_SUPPORTED
+truncate table t2;
+
+-- echo # fetch table shares
+describe t1;
+describe t2;
+
+truncate table t1;
+--error ER_VERS_NOT_SUPPORTED
+truncate table t2;
+
+--echo # enter locked tables mode
+lock tables t1 WRITE, t2 WRITE;
+
+truncate t1;
+--error ER_VERS_NOT_SUPPORTED
+truncate t2;
+
+unlock tables;
+drop table t2;
+
+--echo #
+--echo # MDEV-19814 Assertion `update->n_fields < ulint(table->n_cols + table->n_v_cols)' on DELETE HISTORY
+--echo #
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t1 (
+  f varchar(1),
+  row_start $sys_datatype_expl as row start,
+  row_end $sys_datatype_expl as row end,
+  period for system_time (row_start, row_end))
+with system versioning;
+insert into t1 (f) values ('a'), ('b'), ('c'), ('d'), ('e'), ('f'), ('g'), ('h');
+delete from t1;
+delete history from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-20186 Wrong result or Assertion on INSERT after DELETE HISTORY
+--echo #
+create or replace table t1 (a int check (a > 0)) with system versioning;
+delete history from t1;
+insert into t1 values (1);
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-25468 DELETE HISTORY may delete current data on system-versioned table
+--echo #
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+delete history from t1 before system_time '2039-01-01 23:00';
+select * from t1;
+explain extended delete history from t1 before system_time '2039-01-01 23:00';
+create or replace procedure p() delete history from t1 before system_time '2039-01-01 23:00';
+call p;
+select * from t1;
+call p;
+select * from t1;
+drop procedure p;
+prepare stmt from "delete history from t1 before system_time '2039-01-01 23:00'";
+execute stmt;
+select * from t1;
+execute stmt;
+select * from t1;
+drop prepare stmt;
+drop table t1;
+
+--source suite/versioning/common_finish.inc

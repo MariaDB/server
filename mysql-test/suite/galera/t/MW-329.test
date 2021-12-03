@@ -11,11 +11,6 @@ CREATE TABLE t1 (f1 INTEGER, f2 CHAR(20) DEFAULT 'abc') ENGINE=InnoDB;
 # We start with a populated table
 INSERT INTO t1 (f1) VALUES (1),(65535);
 
-# Clear the wsrep_local_replays counter
-
-FLUSH STATUS;
-SELECT VARIABLE_VALUE = 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays';
-
 #
 # Run concurrent INSERTs 
 #
@@ -27,6 +22,7 @@ BEGIN
         SET SESSION wsrep_sync_wait = 0;
         WHILE 1 DO
 		INSERT INTO t1 (f1) VALUES (FLOOR( 1 + RAND( ) * 65535 ));
+		SELECT SLEEP(0.1);
         END WHILE;
 END|
 DELIMITER ;|
@@ -34,6 +30,8 @@ DELIMITER ;|
 --connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1b
 --let $connection_id = `SELECT CONNECTION_ID()`
+--disable_query_log
+--disable_result_log
 --send CALL proc_insert();
 
 #
@@ -42,8 +40,9 @@ DELIMITER ;|
 #
 
 --connection node_2
-CALL mtr.add_suppression("WSREP: Failed to report last committed .*");
---let $count = 200
+--let $count = 10
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+
 while ($count)
 {
 	--let $signature = `SELECT LEFT(MD5(RAND()), 10)`
@@ -57,14 +56,28 @@ while ($count)
 			--die ROW_COUNT() = 0
 		}
 	}
-	--dec $count
+
+        #
+        # Ensure at least one replay happens
+        #
+
+        --let $wsrep_replays = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+        --disable_query_log
+        if (`SELECT $wsrep_replays - $wsrep_local_replays_old > 0`) {
+                --dec $count
+        }
+        --enable_query_log
 }
 
 #
 # Confirm that some transaction replays occurred
 #
 
-SELECT VARIABLE_VALUE > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays';
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old > 0 AS wsrep_local_replays;
+--enable_query_log
+
 
 #
 # Terminate the stored procedure
@@ -78,6 +91,8 @@ SELECT VARIABLE_VALUE > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_N
 --connection node_1b
 --error 0,2013,1317
 --reap
+--enable_query_log
+--enable_result_log
 
 --connection node_1
 DROP PROCEDURE proc_insert;

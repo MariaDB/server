@@ -1,3 +1,4 @@
+--source include/default_charset.inc
 
 SET sql_mode=ORACLE;
 
@@ -334,6 +335,7 @@ CREATE PACKAGE BODY test2 AS
 END;
 $$
 DELIMITER ;$$
+show warnings;
 
 DROP PACKAGE test2;
 
@@ -366,10 +368,13 @@ UPDATE mysql.proc SET `body`='garbage'
 --source sp-cache-invalidate.inc
 --error ER_SP_PROC_TABLE_CORRUPT
 SELECT test2.f1();
+show warnings;
 --error ER_SP_PROC_TABLE_CORRUPT
 SELECT test2.f1();
+show warnings;
 --error ER_SP_PROC_TABLE_CORRUPT
 SELECT test2.f1();
+show warnings;
 
 DROP PACKAGE test2;
 
@@ -402,10 +407,13 @@ UPDATE mysql.proc SET `body`='garbage'
 --source sp-cache-invalidate.inc
 --error ER_SP_PROC_TABLE_CORRUPT
 CALL test2.p1();
+show warnings;
 --error ER_SP_PROC_TABLE_CORRUPT
 CALL test2.p1();
+show warnings;
 --error ER_SP_PROC_TABLE_CORRUPT
 CALL test2.p1();
+show warnings;
 
 DROP PACKAGE test2;
 

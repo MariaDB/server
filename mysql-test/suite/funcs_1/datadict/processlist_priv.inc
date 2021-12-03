@@ -156,6 +156,7 @@ WHERE DB = 'information_schema' AND COMMAND = 'Sleep' AND USER = 'ddicttestuser1
 --source include/wait_condition.inc
 --replace_result ENGINE=MyISAM "" ENGINE=Aria "" " PAGE_CHECKSUM=1" "" " PAGE_CHECKSUM=0" ""
 eval SHOW CREATE TABLE $table;
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 eval SHOW $table;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID
@@ -176,6 +177,7 @@ connection con100;
 # but "ddicttestuser1" must not see anything of the root session.
 --replace_result ENGINE=MyISAM "" ENGINE=Aria "" " PAGE_CHECKSUM=1" "" " PAGE_CHECKSUM=0" ""
 eval SHOW CREATE TABLE $table;
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 eval SHOW $table;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID
@@ -202,6 +204,7 @@ GRANT PROCESS ON *.* TO ddicttestuser1@'localhost' IDENTIFIED BY 'ddictpass';
 --echo ####################################################################################
 connection con100;
 SHOW GRANTS;
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 SHOW processlist;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID
@@ -214,6 +217,7 @@ SELECT * FROM information_schema.processlist;
 --echo ####################################################################################
 connect (con101,localhost,ddicttestuser1,ddictpass,information_schema);
 SHOW GRANTS;
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 SHOW processlist;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID
@@ -237,6 +241,7 @@ GRANT PROCESS ON *.* TO ''@'localhost';
 --echo ####################################################################################
 connect (anonymous1,localhost,"''",,information_schema);
 SHOW GRANTS;
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 SHOW processlist;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID
@@ -259,6 +264,7 @@ connect (con102,localhost,ddicttestuser1,ddictpass,information_schema);
 --echo     ddicttestuser1 are visible.
 --echo ####################################################################################
 SHOW GRANTS;
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 SHOW processlist;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID
@@ -284,6 +290,7 @@ SHOW GRANTS FOR ''@'localhost';
 if ($fixed_bug_30395)
 {
 # Bug#30395 strange results after REVOKE PROCESS ON *.* FROM ...
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 SHOW processlist;
 }
@@ -306,6 +313,7 @@ connect (con103,localhost,ddicttestuser1,ddictpass,information_schema);
 --echo     Only the processes of ddicttestuser1 user are visible.
 --echo ####################################################################################
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 SHOW processlist;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID
@@ -328,6 +336,7 @@ connect (con104,localhost,ddicttestuser1,ddictpass,information_schema);
 --echo     Only the processes of ddicttestuser1 are visible.
 --echo ####################################################################################
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 SHOW processlist;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID
@@ -375,6 +384,7 @@ connect (con200,localhost,ddicttestuser2,ddictpass,information_schema);
 --echo      ddicttestuser2 has now the PROCESS privilege and sees all connections
 --echo ####################################################################################
 SHOW GRANTS FOR 'ddicttestuser2'@'localhost';
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 SHOW processlist;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID
@@ -396,6 +406,7 @@ connect (con201,localhost,ddicttestuser2,ddictpass,information_schema);
 --echo      ddicttestuser2 has no more the PROCESS privilege and can only see own connects
 --echo ####################################################################################
 SHOW GRANTS;
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 SHOW processlist;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID
@@ -419,6 +430,7 @@ connect (con107,localhost,ddicttestuser1,ddictpass,information_schema);
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 --error ER_ACCESS_DENIED_ERROR
 GRANT PROCESS ON *.* TO 'ddicttestuser2'@'localhost';
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 SHOW processlist;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID
@@ -443,6 +455,7 @@ connect (con108,localhost,ddicttestuser1,ddictpass,information_schema);
 --echo      Therefore the missing SELECT privilege does not affect SELECTs on PROCESSLIST.
 --echo ####################################################################################
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
+--replace_result Execute Query
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
 SHOW processlist;
 --replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS 13 MEMORY 14 MAX_MEMORY 15 ROWS 16 QUERY_ID 18 TID

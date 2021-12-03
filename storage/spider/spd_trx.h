@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 int spider_free_trx_conn(
   SPIDER_TRX *trx,
@@ -99,18 +100,22 @@ int spider_check_and_set_sql_log_off(
   int *need_mon
 );
 
-int spider_check_and_set_time_zone(
+int spider_check_and_set_wait_timeout(
   THD *thd,
   SPIDER_CONN *conn,
   int *need_mon
 );
 
-int spider_xa_lock(
-  XID_STATE *xid_state
+int spider_check_and_set_sql_mode(
+  THD *thd,
+  SPIDER_CONN *conn,
+  int *need_mon
 );
 
-int spider_xa_unlock(
-  XID_STATE *xid_state
+int spider_check_and_set_time_zone(
+  THD *thd,
+  SPIDER_CONN *conn,
+  int *need_mon
 );
 
 int spider_start_internal_consistent_snapshot(

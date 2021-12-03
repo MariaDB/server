@@ -2,7 +2,7 @@
 
 Copyright (c) 2009, 2010 Facebook, Inc. All Rights Reserved.
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -60,7 +60,7 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 
    You should have received a copy of the GNU General Public License along with
    this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* The below CRC32 implementation is based on the implementation included with
  * zlib with modifications to process 8 bytes at a time and using SSE 4.2
@@ -83,8 +83,8 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "my_config.h"
 #include <string.h>
 
-#include "univ.i"
 #include "ut0crc32.h"
+#include "my_valgrind.h"
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -196,15 +196,17 @@ ut_crc32_8_hw(
 	const byte**	data,
 	ulint*		len)
 {
-#ifdef _MSC_VER
+#  ifdef _MSC_VER
 	*crc = _mm_crc32_u8(*crc, (*data)[0]);
-#else
+#  elif __has_feature(memory_sanitizer)
+	*crc = __builtin_ia32_crc32qi(*crc, (*data)[0]);
+#  else
 	asm("crc32b %1, %0"
 	    /* output operands */
 	    : "+r" (*crc)
 	    /* input operands */
 	    : "rm" ((*data)[0]));
-#endif
+#  endif
 
 	(*data)++;
 	(*len)--;
@@ -221,22 +223,24 @@ ut_crc32_64_low_hw(
 	uint64_t	data)
 {
 	uint64_t	crc_64bit = crc;
-#ifdef _MSC_VER
-#ifdef _M_X64
+#  ifdef _MSC_VER
+#   ifdef _M_X64
 	crc_64bit = _mm_crc32_u64(crc_64bit, data);
-#elif defined(_M_IX86)
+#   elif defined(_M_IX86)
 	crc = _mm_crc32_u32(crc, static_cast<uint32_t>(data));
 	crc_64bit = _mm_crc32_u32(crc, static_cast<uint32_t>(data >> 32));
-#else
-#error Not Supported processors type.
-#endif
-#else
+#   else
+#    error Not Supported processors type.
+#   endif
+#  elif __has_feature(memory_sanitizer)
+	crc_64bit = __builtin_ia32_crc32di(crc_64bit, data);
+#  else
 	asm("crc32q %1, %0"
 	    /* output operands */
 	    : "+r" (crc_64bit)
 	    /* input operands */
 	    : "rm" (data));
-#endif
+#  endif
 
 	return(static_cast<uint32_t>(crc_64bit));
 }
@@ -470,32 +474,6 @@ ut_crc32_64_sw(
 	*len -= 8;
 }
 
-/** Calculate CRC32 over 64-bit byte string using a software implementation.
-The byte string is converted to a 64-bit integer using big endian byte order.
-@param[in,out]	crc	crc32 checksum so far when this function is called,
-when the function ends it will contain the new checksum
-@param[in,out]	data	data to be checksummed, the pointer will be advanced
-with 8 bytes
-@param[in,out]	len	remaining bytes, it will be decremented with 8 */
-inline
-void
-ut_crc32_64_legacy_big_endian_sw(
-	uint32_t*	crc,
-	const byte**	data,
-	ulint*		len)
-{
-	uint64_t	data_int = *reinterpret_cast<const uint64_t*>(*data);
-
-#ifndef WORDS_BIGENDIAN
-	data_int = ut_crc32_swap_byteorder(data_int);
-#endif /* WORDS_BIGENDIAN */
-
-	*crc = ut_crc32_64_low_sw(*crc, data_int);
-
-	*data += 8;
-	*len -= 8;
-}
-
 /** Calculates CRC32 in software, without using CPU instructions.
 @param[in]	buf	data over which to calculate CRC32
 @param[in]	len	data length
@@ -546,58 +524,6 @@ ut_crc32_sw(
 	return(~crc);
 }
 
-/** Calculates CRC32 in software, without using CPU instructions.
-This function uses big endian byte ordering when converting byte sequence to
-integers.
-@param[in]	buf	data over which to calculate CRC32
-@param[in]	len	data length
-@return CRC-32C (polynomial 0x11EDC6F41) */
-uint32_t
-ut_crc32_legacy_big_endian(
-	const byte*	buf,
-	ulint		len)
-{
-	uint32_t	crc = 0xFFFFFFFFU;
-
-	ut_a(ut_crc32_slice8_table_initialized);
-
-	/* Calculate byte-by-byte up to an 8-byte aligned address. After
-	this consume the input 8-bytes at a time. */
-	while (len > 0 && (reinterpret_cast<uintptr_t>(buf) & 7) != 0) {
-		ut_crc32_8_sw(&crc, &buf, &len);
-	}
-
-	while (len >= 128) {
-		/* This call is repeated 16 times. 16 * 8 = 128. */
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-	}
-
-	while (len >= 8) {
-		ut_crc32_64_legacy_big_endian_sw(&crc, &buf, &len);
-	}
-
-	while (len > 0) {
-		ut_crc32_8_sw(&crc, &buf, &len);
-	}
-
-	return(~crc);
-}
-
 /********************************************************************//**
 Initializes the data structures used by ut_crc32*(). Does not do any
 allocations, would not hurt if called twice, but would be pointless. */
@@ -617,23 +543,6 @@ ut_crc32_init()
 
 	ut_cpuid(vend, &model, &family, &stepping,
 		 &features_ecx, &features_edx);
-
-	/* Valgrind does not understand the CRC32 instructions:
-
-	vex amd64->IR: unhandled instruction bytes: 0xF2 0x48 0xF 0x38 0xF0 0xA
-	valgrind: Unrecognised instruction at address 0xad3db5.
-	Your program just tried to execute an instruction that Valgrind
-	did not recognise.  There are two possible reasons for this.
-	1. Your program has a bug and erroneously jumped to a non-code
-	   location.  If you are running Memcheck and you just saw a
-	   warning about a bad jump, it's probably your program's fault.
-	2. The instruction is legitimate but Valgrind doesn't handle it,
-	   i.e. it's Valgrind's fault.  If you think this is the case or
-	   you are not sure, please let us know and we'll try to fix it.
-	Either way, Valgrind will now raise a SIGILL signal which will
-	probably kill your program.
-
-	*/
 
 	if (features_ecx & 1 << 20) {
 		ut_crc32 = ut_crc32_hw;

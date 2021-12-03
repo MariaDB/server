@@ -1,3 +1,4 @@
+set @save_long_query_time=@@long_query_time;
 drop database if exists events_test;
 create database if not exists events_test;
 use events_test;
@@ -68,5 +69,5 @@ user_host	db	sql_text
 USER_HOST	events_test	select 'events_logs_test' as inside_event, sleep(1.5)
 drop database events_test;
 set global event_scheduler=off;
-set @@global.long_query_time=default;
-set @@session.long_query_time=default;
+set @@global.long_query_time=@save_long_query_time;
+set @@session.long_query_time=@save_long_query_time;

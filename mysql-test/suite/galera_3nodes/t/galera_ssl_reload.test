@@ -1,0 +1,71 @@
+#
+# Test reloading of Galera SSL certificate without shutting down node
+#
+
+--source include/galera_cluster.inc
+--source include/have_openssl.inc
+--source include/have_ssl_communication.inc
+
+--let $galera_version=26.4.8
+source ../../wsrep/include/check_galera_version.inc;
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+# Setup galera ports
+--connection node_1
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_1 = $_NODE_GALERAPORT
+
+--connection node_2
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
+
+# Setup temporary file for SSL reloading
+let $ssl_cert = $MYSQLTEST_VARDIR/tmp/ssl_cert.pem;
+let $ssl_key = $MYSQLTEST_VARDIR/tmp/ssl_key.pem;
+let $ssl_ca = $MYSQLTEST_VARDIR/tmp/ssl_ca.pem;
+
+copy_file std_data/galera_certs/galera.root.crt $ssl_ca;
+copy_file std_data/galera_certs/galera.1.crt $ssl_cert;
+copy_file std_data/galera_certs/galera.1.key $ssl_key;
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+--let $restart_noprint=1
+--let $restart_parameters = --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1 --wsrep_provider_options=base_port=$NODE_GALERAPORT_2;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera_certs/galera.root.crt;socket.ssl_cert=$MYSQLTEST_VARDIR/tmp/ssl_cert.pem;socket.ssl_key=$MYSQLTEST_VARDIR/tmp/ssl_key.pem
+--source include/start_mysqld.inc
+--source include/galera_wait_ready.inc
+
+# Set certificate and key and reload by setting directly `wsrep_provider_options`
+remove_file $ssl_cert;
+remove_file $ssl_key;
+copy_file std_data/galera_certs/galera.2.crt $ssl_cert;
+copy_file std_data/galera_certs/galera.2.key $ssl_key;
+SET GLOBAL wsrep_provider_options = 'socket.ssl_reload=1';
+
+--connection node_3
+--source include/shutdown_mysqld.inc
+--let $restart_parameters = --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_2
+--source include/start_mysqld.inc
+
+# Set certificate and key and reload by executing `FLUSH SSL`
+--connection node_2
+remove_file $ssl_cert;
+remove_file $ssl_key;
+copy_file std_data/galera_certs/galera.1.crt $ssl_cert;
+copy_file std_data/galera_certs/galera.1.key $ssl_key;
+FLUSH SSL;
+
+# Cleanup
+remove_file $ssl_ca;
+remove_file $ssl_cert;
+remove_file $ssl_key;
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

@@ -37,3 +37,17 @@ select * from t2;
 drop table t1;
 
 # End of 4.1 tests
+
+set sql_mode='ignore_bad_table_options';
+create table t1 (
+  f1 int invisible,
+  f2 int comment 'a comment',
+  f3 int foo="bar",
+  f4 int check(f4 < 10),
+  f5 int without system versioning
+) with system versioning as select 1 as f1,2 as f2,3 as f3,4 as f4,5 as f5;
+show create table t1;
+drop table t1;
+set sql_mode=default;
+
+# End of 10.4 tests

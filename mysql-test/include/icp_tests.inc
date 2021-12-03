@@ -226,6 +226,7 @@ EXPLAIN
 SELECT c1 FROM t3 WHERE c1 >= 'c-1004=w' and c1 <= 'c-1006=w' and i1 > 2;
 SELECT c1 FROM t3 WHERE c1 >= 'c-1004=w' and c1 <= 'c-1006=w' and i1 > 2;
 
+--replace_column 9 100
 EXPLAIN
 SELECT c1 FROM t3 WHERE c1 >= 'c-1004=w' and c1 <= 'c-1006=w' or i1 > 2;
 SELECT c1 FROM t3 WHERE c1 >= 'c-1004=w' and c1 <= 'c-1006=w' or i1 > 2;
@@ -483,11 +484,11 @@ CREATE TABLE t1 (
 
 INSERT INTO t1 VALUES (1,9),(2,7),(3,6),(4,3),(5,1);
 
-EXPLAIN SELECT pk, c1 FROM t1 WHERE pk <> 3;
+EXPLAIN SELECT pk, c1 FROM t1 WHERE (pk<3 or pk>3);
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
 
-SELECT pk, c1 FROM t1 WHERE pk <> 3;
+SELECT pk, c1 FROM t1 WHERE (pk<3 or pk>3);
 
 DROP TABLE t1;
 
@@ -633,6 +634,8 @@ CREATE TABLE t2 (
 );
 INSERT INTO t2 VALUES (4,1);
 
+ANALYZE TABLE t1,t2;
+
 EXPLAIN
 SELECT t1.d1, t2.pk, t2.i1 FROM t1 STRAIGHT_JOIN t2 ON t2.i1
   WHERE t2.pk <> t1.d1 AND t2.pk = 4;
@@ -690,6 +693,7 @@ INSERT INTO t1 VALUES
   ('fkxdmbdkpjdanpje','o'), ('f','Pennsylvan'), ('Virginia','ei');
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
+--replace_column 9 #
 EXPLAIN
 SELECT * FROM t1 
   WHERE NOT(b = 'Texas') AND b BETWEEN 'wy' AND 'y' OR b = 'Pennsylvania'
@@ -699,6 +703,7 @@ SELECT * FROM t1
   ORDER BY a;
 
 SET SESSION optimizer_switch='index_condition_pushdown=on';
+--replace_column 9 #
 EXPLAIN
 SELECT * FROM t1 
   WHERE NOT(b = 'Texas') AND b BETWEEN 'wy' AND 'y' OR b = 'Pennsylvania'
@@ -722,16 +727,16 @@ INSERT INTO t2 VALUES
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
 EXPLAIN
-SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0 
+SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
-SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0
+SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
 
 SET SESSION optimizer_switch='index_condition_pushdown=on';
 EXPLAIN
-SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0
+SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
-SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0
+SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
 
 DROP TABLE t1,t2;
@@ -839,6 +844,8 @@ INSERT INTO t2 (g,h) VALUES
 (0,'p'),(0,'f'),(0,'p'),(7,'d'),(7,'f'),(5,'j'),
 (3,'e'),(1,'u'),(4,'v'),(9,'u'),(6,'i'),(1,'x'),
 (7,'f'),(5,'j'),(3,'e'),(1,'u'),(4,'v'),(9,'u');
+
+ANALYZE TABLE t1,t2;
 
 SET @save_optimize_switch=@@optimizer_switch;
 SET optimizer_switch='materialization=on';

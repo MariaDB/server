@@ -1,0 +1,78 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connection node_1;
+SET SESSION wsrep_trx_fragment_size=1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+connection node_2;
+SET SESSION wsrep_trx_fragment_size=1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
+INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
+ERROR 23000: Duplicate entry '11' for key 'PRIMARY'
+INSERT INTO t1 VALUES (31),(32),(33);
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+0
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+0
+COMMIT;
+connection node_2;
+COMMIT;
+SELECT * FROM t1;
+f1
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+31
+32
+33
+connection node_1;
+SELECT * FROM t1;
+f1
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+31
+32
+33
+DROP TABLE t1;

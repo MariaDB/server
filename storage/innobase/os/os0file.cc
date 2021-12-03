@@ -1,8 +1,8 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -22,7 +22,7 @@ Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 ***********************************************************************/
 
@@ -38,14 +38,14 @@ Created 10/21/1995 Heikki Tuuri
 #include "sql_const.h"
 
 #ifdef UNIV_LINUX
-#include <sys/types.h>
-#include <sys/stat.h>
+# include <sys/types.h>
+# include <sys/stat.h>
 #endif
 
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "fil0fil.h"
-#include "srv0srv.h"
+#include "fsp0fsp.h"
 #ifdef HAVE_LINUX_UNISTD_H
 #include "unistd.h"
 #endif
@@ -70,17 +70,13 @@ Created 10/21/1995 Heikki Tuuri
 # endif
 #endif
 
-#if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
-#include <sys/statvfs.h>
-#endif
-
-#if defined(UNIV_LINUX) && defined(HAVE_LINUX_FALLOC_H)
-#include <linux/falloc.h>
-#endif
-
 #ifdef _WIN32
 #include <winioctl.h>
+#else
+// my_test_if_atomic_write()
+#include <my_sys.h>
 #endif
+
 
 /** Insert buffer segment id */
 static const ulint IO_IBUF_SEGMENT = 0;
@@ -413,7 +409,7 @@ public:
 	/** Accessor for the AIO context
 	@param[in]	segment	Segment for which to get the context
 	@return the AIO context for the segment */
-	io_context* io_ctx(ulint segment)
+	io_context_t io_ctx(ulint segment)
 		MY_ATTRIBUTE((warn_unused_result))
 	{
 		ut_ad(segment < get_n_segments());
@@ -421,11 +417,11 @@ public:
 		return(m_aio_ctx[segment]);
 	}
 
-	/** Creates an io_context for native linux AIO.
+	/** Creates an io_context_t for native linux AIO.
 	@param[in]	max_events	number of events
 	@param[out]	io_ctx		io_ctx to initialize.
 	@return true on success. */
-	static bool linux_create_io_ctx(unsigned max_events, io_context_t* io_ctx)
+	static bool linux_create_io_ctx(unsigned max_events, io_context_t& io_ctx)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Checks if the system supports native linux aio. On some kernel
@@ -622,7 +618,7 @@ private:
 
 	/** completion queue for IO. There is one such queue per
 	segment. Each thread will work on one ctx exclusively. */
-	io_context_t*		m_aio_ctx;
+	std::vector<io_context_t>		m_aio_ctx;
 
 	/** The array to collect completed IOs. There is one such
 	event for each possible pending IO. The size of the array
@@ -678,7 +674,7 @@ static ulint		os_aio_n_segments = ULINT_UNDEFINED;
 wait until a batch of new read requests have been posted */
 static bool		os_aio_recommend_sleep_for_read_threads;
 
-ulint	os_n_file_reads;
+Atomic_counter<ulint> os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
 ulint	os_n_file_writes;
 ulint	os_n_fsyncs;
@@ -820,108 +816,6 @@ os_win32_device_io_control(
 }
 
 #endif
-
-/***********************************************************************//**
-Try to get number of bytes per sector from file system.
-@return	file block size */
-UNIV_INTERN
-ulint
-os_file_get_block_size(
-/*===================*/
-	os_file_t	file,	/*!< in: handle to a file */
-	const char*	name)	/*!< in: file name */
-{
-	ulint		fblock_size = 512;
-
-#if defined(UNIV_LINUX)
-	struct stat local_stat;
-	int		err;
-
-	err = fstat((int)file, &local_stat);
-
-	if (err != 0) {
-		os_file_handle_error_no_exit(name, "fstat()", FALSE);
-	} else {
-		fblock_size = local_stat.st_blksize;
-	}
-#endif /* UNIV_LINUX */
-#ifdef _WIN32
-
-	fblock_size = 0;
-	BOOL result = false;
-	size_t len = 0;
-	// Open volume for this file, find out it "physical bytes per sector"
-
-	HANDLE volume_handle = INVALID_HANDLE_VALUE;
-	char volume[MAX_PATH + 4]="\\\\.\\"; // Special prefix required for volume names.
-	if (!GetVolumePathName(name , volume + 4, MAX_PATH)) {
-		os_file_handle_error_no_exit(name,
-			"GetVolumePathName()", FALSE);
-		goto end;
-	}
-
-	len = strlen(volume);
-	if (volume[len - 1] == '\\') {
-		// Trim trailing backslash from volume name.
-		volume[len - 1] = 0;
-	}
-
-	volume_handle = CreateFile(volume, FILE_READ_ATTRIBUTES,
-		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-		0, OPEN_EXISTING, 0, 0);
-
-	if (volume_handle == INVALID_HANDLE_VALUE) {
-		if (GetLastError() != ERROR_ACCESS_DENIED) {
-			os_file_handle_error_no_exit(volume,
-				"CreateFile()", FALSE);
-		}
-		goto end;
-	}
-
-	DWORD tmp;
-	STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR disk_alignment;
-
-	STORAGE_PROPERTY_QUERY storage_query;
-	memset(&storage_query, 0, sizeof(storage_query));
-	storage_query.PropertyId = StorageAccessAlignmentProperty;
-	storage_query.QueryType  = PropertyStandardQuery;
-
-	result = os_win32_device_io_control(volume_handle,
-		IOCTL_STORAGE_QUERY_PROPERTY,
-		&storage_query,
-		sizeof(storage_query),
-		&disk_alignment,
-		sizeof(disk_alignment),
-		&tmp);
-
-	if (!result) {
-		DWORD err = GetLastError();
-		if (err != ERROR_INVALID_FUNCTION && err != ERROR_NOT_SUPPORTED) {
-				os_file_handle_error_no_exit(volume,
-					"DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY)", FALSE);
-		}
-		goto end;
-	}
-
-	fblock_size = disk_alignment.BytesPerPhysicalSector;
-
-end:
-	if (volume_handle != INVALID_HANDLE_VALUE) {
-		CloseHandle(volume_handle);
-	}
-#endif /* _WIN32 */
-
-	/* Currently we support file block size up to 4Kb */
-	if (fblock_size > 4096 || fblock_size < 512) {
-		if (fblock_size < 512) {
-			fblock_size = 512;
-		} else {
-			fblock_size = 4096;
-		}
-	}
-
-	return fblock_size;
-}
 
 #ifdef WIN_ASYNC_IO
 /** This function is only used in Windows asynchronous i/o.
@@ -1084,15 +978,8 @@ os_aio_validate_skip()
 /** Try os_aio_validate() every this many times */
 # define OS_AIO_VALIDATE_SKIP	13
 
-	static int os_aio_validate_count;
-
-	if (my_atomic_add32_explicit(&os_aio_validate_count, -1,
-				     MY_MEMORY_ORDER_RELAXED)
-	    % OS_AIO_VALIDATE_SKIP) {
-		return true;
-	}
-
-	return(os_aio_validate());
+	static Atomic_counter<uint32_t> os_aio_validate_count;
+	return (os_aio_validate_count++ % OS_AIO_VALIDATE_SKIP) || os_aio_validate();
 }
 #endif /* UNIV_DEBUG */
 
@@ -1112,6 +999,10 @@ os_file_lock(
 	int		fd,
 	const char*	name)
 {
+	if (my_disable_locking) {
+		return 0;
+	}
+
 	struct flock lk;
 
 	lk.l_type = F_WRLCK;
@@ -1470,6 +1361,12 @@ os_file_get_parent_dir(
 		return(NULL);
 	}
 
+	if (last_slash - path < 0) {
+		/* Sanity check, it prevents gcc from trying to handle this case which
+		 * results in warnings for some optimized builds */
+		return (NULL);
+	}
+
 	/* Non-trivial directory component */
 
 	return(mem_strdupl(path, ulint(last_slash - path)));
@@ -1762,6 +1659,8 @@ LinuxAIOHandler::resubmit(Slot* slot)
 	slot->n_bytes = 0;
 	slot->io_already_done = false;
 
+	compile_time_assert(sizeof(off_t) >= sizeof(os_offset_t));
+
 	struct iocb*	iocb = &slot->control;
 
 	if (slot->type.is_read()) {
@@ -1771,7 +1670,7 @@ LinuxAIOHandler::resubmit(Slot* slot)
 			slot->file,
 			slot->ptr,
 			slot->len,
-			static_cast<off_t>(slot->offset));
+			slot->offset);
 	} else {
 
 		ut_a(slot->type.is_write());
@@ -1781,15 +1680,19 @@ LinuxAIOHandler::resubmit(Slot* slot)
 			slot->file,
 			slot->ptr,
 			slot->len,
-			static_cast<off_t>(slot->offset));
+			slot->offset);
 	}
 
 	iocb->data = slot;
 
+	ut_a(reinterpret_cast<size_t>(iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
+	     == 0);
+
 	/* Resubmit an I/O request */
 	int	ret = io_submit(m_array->io_ctx(m_segment), 1, &iocb);
+	ut_a(ret != -EINVAL);
 
-	if (ret < -1)  {
+	if (ret < 0)  {
 		errno = -ret;
 	}
 
@@ -1890,8 +1793,8 @@ LinuxAIOHandler::collect()
 	ut_ad(m_array != NULL);
 	ut_ad(m_segment < m_array->get_n_segments());
 
-	/* Which io_context we are going to use. */
-	io_context*	io_ctx = m_array->io_ctx(m_segment);
+	/* Which io_context_t we are going to use. */
+	io_context_t	io_ctx = m_array->io_ctx(m_segment);
 
 	/* Starting point of the m_segment we will be working on. */
 	ulint	start_pos = m_segment * m_n_slots;
@@ -1918,6 +1821,8 @@ LinuxAIOHandler::collect()
 		int	ret;
 
 		ret = io_getevents(io_ctx, 1, m_n_slots, events, &timeout);
+		ut_a(ret != -EINVAL);
+		ut_ad(ret != -EFAULT);
 
 		for (int i = 0; i < ret; ++i) {
 
@@ -1956,10 +1861,24 @@ LinuxAIOHandler::collect()
 			will be done in the calling function. */
 			m_array->acquire();
 
-			slot->ret = events[i].res2;
+			/* events[i].res2 should always be ZERO */
+			ut_ad(events[i].res2 == 0);
 			slot->io_already_done = true;
-			slot->n_bytes = events[i].res;
 
+			/*Even though events[i].res is an unsigned number
+			in libaio, it is used to return a negative value
+			(negated errno value) to indicate error and a positive
+			value to indicate number of bytes read or written. */
+
+			if (events[i].res > slot->len) {
+				/* failure */
+				slot->n_bytes = 0;
+				slot->ret = events[i].res;
+			} else {
+				/* success */
+				slot->n_bytes = events[i].res;
+				slot->ret = 0;
+			}
 			m_array->release();
 		}
 
@@ -2130,14 +2049,18 @@ AIO::linux_dispatch(Slot* slot)
 
 	/* Find out what we are going to work with.
 	The iocb struct is directly in the slot.
-	The io_context is one per segment. */
+	The io_context_t is one per segment. */
 
 	ulint		io_ctx_index;
 	struct iocb*	iocb = &slot->control;
 
 	io_ctx_index = (slot->pos * m_n_segments) / m_slots.size();
 
-	int	ret = io_submit(m_aio_ctx[io_ctx_index], 1, &iocb);
+	ut_a(reinterpret_cast<size_t>(iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
+	     == 0);
+
+	int	ret = io_submit(io_ctx(io_ctx_index), 1, &iocb);
+	ut_a(ret != -EINVAL);
 
 	/* io_submit() returns number of successfully queued requests
 	or -errno. */
@@ -2149,25 +2072,26 @@ AIO::linux_dispatch(Slot* slot)
 	return(ret == 1);
 }
 
-/** Creates an io_context for native linux AIO.
+/** Creates an io_context_t for native linux AIO.
 @param[in]	max_events	number of events
 @param[out]	io_ctx		io_ctx to initialize.
 @return true on success. */
 bool
 AIO::linux_create_io_ctx(
 	unsigned	max_events,
-	io_context_t*	io_ctx)
+	io_context_t&	io_ctx)
 {
 	ssize_t		n_retries = 0;
 
 	for (;;) {
 
-		memset(io_ctx, 0x0, sizeof(*io_ctx));
+		memset(&io_ctx, 0x0, sizeof(io_ctx));
 
 		/* Initialize the io_ctx. Tell it how many pending
 		IO requests this context will handle. */
 
-		int	ret = io_setup(max_events, io_ctx);
+		int	ret = io_setup(max_events, &io_ctx);
+		ut_a(ret != -EINVAL);
 
 		if (ret == 0) {
 			/* Success. Return now. */
@@ -2201,14 +2125,14 @@ AIO::linux_create_io_ctx(
 			}
 
 			/* Have tried enough. Better call it a day. */
-			ib::error()
+			ib::warn()
 				<< "io_setup() failed with EAGAIN after "
 				<< OS_AIO_IO_SETUP_RETRY_ATTEMPTS
 				<< " attempts.";
 			break;
 
 		case -ENOSYS:
-			ib::error()
+			ib::warn()
 				<< "Linux Native AIO interface"
 				" is not supported on this platform. Please"
 				" check your OS documentation and install"
@@ -2217,7 +2141,7 @@ AIO::linux_create_io_ctx(
 			break;
 
 		default:
-			ib::error()
+			ib::warn()
 				<< "Linux Native AIO setup"
 				<< " returned following error["
 				<< ret << "]";
@@ -2246,7 +2170,7 @@ AIO::is_linux_native_aio_supported()
 	io_context_t	io_ctx;
 	char		name[1000];
 
-	if (!linux_create_io_ctx(1, &io_ctx)) {
+	if (!linux_create_io_ctx(1, io_ctx)) {
 
 		/* The platform does not support native aio. */
 
@@ -2261,6 +2185,10 @@ AIO::is_linux_native_aio_supported()
 			ib::warn()
 				<< "Unable to create temp file to check"
 				" native AIO support.";
+
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != -EINVAL);
+			ut_ad(ret != -EFAULT);
 
 			return(false);
 		}
@@ -2291,6 +2219,10 @@ AIO::is_linux_native_aio_supported()
 				<< " \"" << name << "\" to check native"
 				<< " AIO read support.";
 
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != EINVAL);
+			ut_ad(ret != EFAULT);
+
 			return(false);
 		}
 	}
@@ -2315,15 +2247,19 @@ AIO::is_linux_native_aio_supported()
 		io_prep_pwrite(p_iocb, fd, ptr, srv_page_size, 0);
 
 	} else {
-		ut_a(srv_page_size >= 512);
-		io_prep_pread(p_iocb, fd, ptr, 512, 0);
+		ut_a(srv_page_size >= 4096);
+		io_prep_pread(p_iocb, fd, ptr, srv_page_size, 0);
 	}
 
+	ut_a(reinterpret_cast<size_t>(p_iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
+	     == 0);
 	int	err = io_submit(io_ctx, 1, &p_iocb);
+	ut_a(err != -EINVAL);
 
 	if (err >= 1) {
 		/* Now collect the submitted IO request. */
 		err = io_getevents(io_ctx, 1, 1, &io_event, NULL);
+		ut_a(err != -EINVAL);
 	}
 
 	ut_free(buf);
@@ -2331,7 +2267,13 @@ AIO::is_linux_native_aio_supported()
 
 	switch (err) {
 	case 1:
-		return(true);
+		{
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != -EINVAL);
+			ut_ad(ret != -EFAULT);
+
+			return(true);
+		}
 
 	case -EINVAL:
 	case -ENOSYS:
@@ -2351,6 +2293,10 @@ AIO::is_linux_native_aio_supported()
 			<< "returned error[" << -err << "]";
 	}
 
+	int ret = io_destroy(io_ctx);
+	ut_a(ret != -EINVAL);
+	ut_ad(ret != -EFAULT);
+
 	return(false);
 }
 
@@ -2359,12 +2305,12 @@ AIO::is_linux_native_aio_supported()
 /** Retrieves the last error number if an error occurs in a file io function.
 The number should be retrieved before any other OS calls (because they may
 overwrite the error number). If the number is not known to this program,
-the OS error number + 100 is returned.
+the OS error number + OS_FILE_ERROR_MAX is returned.
 @param[in]	report_all_errors	true if we want an error message
 					printed of all errors
 @param[in]	on_error_silent		true then don't print any diagnostic
 					to the log
-@return error number, or OS error number + 100 */
+@return error number, or OS error number + OS_FILE_ERROR_MAX */
 static
 ulint
 os_file_get_last_error_low(
@@ -2489,18 +2435,10 @@ os_file_fsync_posix(
 			ut_a(failures < 2000);
 			break;
 
-		case EIO:
-			ib::error() << "fsync() returned EIO, aborting";
-			/* fall through */
 		default:
-			ut_error;
-			break;
+			ib::fatal() << "fsync() returned " << errno;
 		}
 	}
-
-	ut_error;
-
-	return(-1);
 }
 
 /** Check the existence and type of the given file.
@@ -2746,133 +2684,6 @@ os_file_create_directory(
 	return(true);
 }
 
-/**
-The os_file_opendir() function opens a directory stream corresponding to the
-directory named by the dirname argument. The directory stream is positioned
-at the first entry. In both Unix and Windows we automatically skip the '.'
-and '..' items at the start of the directory listing.
-@param[in]	dirname		directory name; it must not contain a trailing
-				'\' or '/'
-@param[in]	is_fatal	true if we should treat an error as a fatal
-				error; if we try to open symlinks then we do
-				not wish a fatal error if it happens not to be
-				a directory
-@return directory stream, NULL if error */
-os_file_dir_t
-os_file_opendir(
-	const char*	dirname,
-	bool		error_is_fatal)
-{
-	os_file_dir_t		dir;
-	dir = opendir(dirname);
-
-	if (dir == NULL && error_is_fatal) {
-		os_file_handle_error(dirname, "opendir");
-	}
-
-	return(dir);
-}
-
-/** Closes a directory stream.
-@param[in]	dir		directory stream
-@return 0 if success, -1 if failure */
-int
-os_file_closedir(
-	os_file_dir_t	dir)
-{
-	int	ret = closedir(dir);
-
-	if (ret != 0) {
-		os_file_handle_error_no_exit(NULL, "closedir", false);
-	}
-
-	return(ret);
-}
-
-/** This function returns information of the next file in the directory. We jump
-over the '.' and '..' entries in the directory.
-@param[in]	dirname		directory name or path
-@param[in]	dir		directory stream
-@param[out]	info		buffer where the info is returned
-@return 0 if ok, -1 if error, 1 if at the end of the directory */
-int
-os_file_readdir_next_file(
-	const char*	dirname,
-	os_file_dir_t	dir,
-	os_file_stat_t*	info)
-{
-	struct dirent*	ent;
-	char*		full_path;
-	int		ret;
-	struct stat	statinfo;
-
-next_file:
-
-	ent = readdir(dir);
-
-	if (ent == NULL) {
-
-		return(1);
-	}
-
-	ut_a(strlen(ent->d_name) < OS_FILE_MAX_PATH);
-
-	if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
-
-		goto next_file;
-	}
-
-	strcpy(info->name, ent->d_name);
-
-	full_path = static_cast<char*>(
-		ut_malloc_nokey(strlen(dirname) + strlen(ent->d_name) + 10));
-
-	sprintf(full_path, "%s/%s", dirname, ent->d_name);
-
-	ret = stat(full_path, &statinfo);
-
-	if (ret) {
-
-		if (errno == ENOENT) {
-			/* readdir() returned a file that does not exist,
-			it must have been deleted in the meantime. Do what
-			would have happened if the file was deleted before
-			readdir() - ignore and go to the next entry.
-			If this is the last entry then info->name will still
-			contain the name of the deleted file when this
-			function returns, but this is not an issue since the
-			caller shouldn't be looking at info when end of
-			directory is returned. */
-
-			ut_free(full_path);
-
-			goto next_file;
-		}
-
-		os_file_handle_error_no_exit(full_path, "stat", false);
-
-		ut_free(full_path);
-
-		return(-1);
-	}
-
-	info->size = statinfo.st_size;
-
-	if (S_ISDIR(statinfo.st_mode)) {
-		info->type = OS_FILE_TYPE_DIR;
-	} else if (S_ISLNK(statinfo.st_mode)) {
-		info->type = OS_FILE_TYPE_LINK;
-	} else if (S_ISREG(statinfo.st_mode)) {
-		info->type = OS_FILE_TYPE_FILE;
-	} else {
-		info->type = OS_FILE_TYPE_UNKNOWN;
-	}
-
-	ut_free(full_path);
-
-	return(0);
-}
-
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
 Opens an existing file or creates a new.
@@ -2956,7 +2767,7 @@ os_file_create_func(
 
 	ut_a(type == OS_LOG_FILE
 	     || type == OS_DATA_FILE
-	     || type == OS_DATA_TEMP_FILE);
+	     || type == OS_DATA_FILE_NO_O_DIRECT);
 
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
@@ -3003,7 +2814,8 @@ os_file_create_func(
 	/* We disable OS caching (O_DIRECT) only on data files */
 	if (!read_only
 	    && *success
-	    && (type != OS_LOG_FILE && type != OS_DATA_TEMP_FILE)
+	    && (type != OS_LOG_FILE
+		&& type != OS_DATA_FILE_NO_O_DIRECT)
 	    && (srv_file_flush_method == SRV_O_DIRECT
 		|| srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)) {
 
@@ -3516,8 +3328,6 @@ static WinIoInit win_io_init;
 
 /** Free storage space associated with a section of the file.
 @param[in]	fh		Open file handle
-@param[in]	page_size	Tablespace page size
-@param[in]	block_size	File system block size
 @param[in]	off		Starting offset (SEEK_SET)
 @param[in]	len		Size of the hole
 @return 0 on success or errno */
@@ -3887,154 +3697,6 @@ os_file_create_directory(
 	return(true);
 }
 
-/** The os_file_opendir() function opens a directory stream corresponding to the
-directory named by the dirname argument. The directory stream is positioned
-at the first entry. In both Unix and Windows we automatically skip the '.'
-and '..' items at the start of the directory listing.
-@param[in]	dirname		directory name; it must not contain a trailing
-				'\' or '/'
-@param[in]	is_fatal	true if we should treat an error as a fatal
-				error; if we try to open symlinks then we do
-				not wish a fatal error if it happens not to
-				be a directory
-@return directory stream, NULL if error */
-os_file_dir_t
-os_file_opendir(
-	const char*	dirname,
-	bool		error_is_fatal)
-{
-	os_file_dir_t		dir;
-	LPWIN32_FIND_DATA	lpFindFileData;
-	char			path[OS_FILE_MAX_PATH + 3];
-
-	ut_a(strlen(dirname) < OS_FILE_MAX_PATH);
-
-	strcpy(path, dirname);
-	strcpy(path + strlen(path), "\\*");
-
-	/* Note that in Windows opening the 'directory stream' also retrieves
-	the first entry in the directory. Since it is '.', that is no problem,
-	as we will skip over the '.' and '..' entries anyway. */
-
-	lpFindFileData = static_cast<LPWIN32_FIND_DATA>(
-		ut_malloc_nokey(sizeof(WIN32_FIND_DATA)));
-
-	dir = FindFirstFile((LPCTSTR) path, lpFindFileData);
-
-	ut_free(lpFindFileData);
-
-	if (dir == INVALID_HANDLE_VALUE) {
-
-		if (error_is_fatal) {
-			os_file_handle_error(dirname, "opendir");
-		}
-
-		return(NULL);
-	}
-
-	return(dir);
-}
-
-/** Closes a directory stream.
-@param[in]	dir	directory stream
-@return 0 if success, -1 if failure */
-int
-os_file_closedir(
-	os_file_dir_t	dir)
-{
-	BOOL		ret;
-
-	ret = FindClose(dir);
-
-	if (!ret) {
-		os_file_handle_error_no_exit(NULL, "closedir", false);
-
-		return(-1);
-	}
-
-	return(0);
-}
-
-/** This function returns information of the next file in the directory. We
-jump over the '.' and '..' entries in the directory.
-@param[in]	dirname		directory name or path
-@param[in]	dir		directory stream
-@param[out]	info		buffer where the info is returned
-@return 0 if ok, -1 if error, 1 if at the end of the directory */
-int
-os_file_readdir_next_file(
-	const char*	dirname,
-	os_file_dir_t	dir,
-	os_file_stat_t*	info)
-{
-	BOOL		ret;
-	int		status;
-	WIN32_FIND_DATA	find_data;
-
-next_file:
-
-	ret = FindNextFile(dir, &find_data);
-
-	if (ret > 0) {
-
-		const char* name;
-
-		name = static_cast<const char*>(find_data.cFileName);
-
-		ut_a(strlen(name) < OS_FILE_MAX_PATH);
-
-		if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
-
-			goto next_file;
-		}
-
-		strcpy(info->name, name);
-
-		info->size = find_data.nFileSizeHigh;
-		info->size <<= 32;
-		info->size |= find_data.nFileSizeLow;
-
-		if (find_data.dwFileAttributes
-		    & FILE_ATTRIBUTE_REPARSE_POINT) {
-
-			/* TODO: test Windows symlinks */
-			/* TODO: MySQL has apparently its own symlink
-			implementation in Windows, dbname.sym can
-			redirect a database directory:
-			REFMAN "windows-symbolic-links.html" */
-
-			info->type = OS_FILE_TYPE_LINK;
-
-		} else if (find_data.dwFileAttributes
-			   & FILE_ATTRIBUTE_DIRECTORY) {
-
-			info->type = OS_FILE_TYPE_DIR;
-
-		} else {
-
-			/* It is probably safest to assume that all other
-			file types are normal. Better to check them rather
-			than blindly skip them. */
-
-			info->type = OS_FILE_TYPE_FILE;
-		}
-
-		status = 0;
-
-	} else if (GetLastError() == ERROR_NO_MORE_FILES) {
-
-		status = 1;
-
-	} else {
-
-		os_file_handle_error_no_exit(NULL, "readdir_next_file", false);
-
-		status = -1;
-	}
-
-	return(status);
-}
-
 /** Check that IO of specific size is possible for the file
 opened with FILE_FLAG_NO_BUFFERING.
 
@@ -4203,7 +3865,9 @@ os_file_create_func(
 
 	case SRV_ALL_O_DIRECT_FSYNC:
 		/*Traditional Windows behavior, no buffering for any files.*/
-		attributes |= FILE_FLAG_NO_BUFFERING;
+		if (type != OS_DATA_FILE_NO_O_DIRECT) {
+			attributes |= FILE_FLAG_NO_BUFFERING;
+		}
 		break;
 
 	case SRV_FSYNC:
@@ -4687,19 +4351,23 @@ os_file_get_status_win32(
 				CloseHandle(fh);
 			}
 		}
+		stat_info->block_size = 0;
 
+		/* What follows, is calculation of FS block size, which is not important
+		(it is just shown in I_S innodb tables). The error to calculate it will be ignored.*/
 		char	volname[MAX_PATH];
 		BOOL	result = GetVolumePathName(path, volname, MAX_PATH);
-
+		static	bool warned_once = false;
 		if (!result) {
-
-			ib::error()
-				<< "os_file_get_status_win32: "
-				<< "Failed to get the volume path name for: "
-				<< path
-				<< "- OS error number " << GetLastError();
-
-			return(DB_FAIL);
+			if (!warned_once) {
+				ib::warn()
+					<< "os_file_get_status_win32: "
+					<< "Failed to get the volume path name for: "
+					<< path
+					<< "- OS error number " << GetLastError();
+				warned_once = true;
+			}
+			return(DB_SUCCESS);
 		}
 
 		DWORD	sectorsPerCluster;
@@ -4715,15 +4383,15 @@ os_file_get_status_win32(
 			&totalNumberOfClusters);
 
 		if (!result) {
-
-			ib::error()
-				<< "GetDiskFreeSpace(" << volname << ",...) "
-				<< "failed "
-				<< "- OS error number " << GetLastError();
-
-			return(DB_FAIL);
+			if (!warned_once) {
+				ib::warn()
+					<< "GetDiskFreeSpace(" << volname << ",...) "
+					<< "failed "
+					<< "- OS error number " << GetLastError();
+				warned_once = true;
+			}
+			return(DB_SUCCESS);
 		}
-
 		stat_info->block_size = bytesPerSector * sectorsPerCluster;
 	} else {
 		stat_info->type = OS_FILE_TYPE_UNKNOWN;
@@ -4976,7 +4644,8 @@ Requests a synchronous write operation.
 @param[out]	buf		buffer from which to write
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
-@return DB_SUCCESS if request was successful, false if fail */
+@return error code
+@retval	DB_SUCCESS	if the operation succeeded */
 dberr_t
 os_file_write_func(
 	const IORequest&	type,
@@ -5270,6 +4939,34 @@ short_warning:
 
 #endif /* _WIN32 */
 
+/** Check if the file system supports sparse files.
+@param fh	file handle
+@return true if the file system supports sparse files */
+IF_WIN(static,) bool os_is_sparse_file_supported(os_file_t fh)
+{
+	/* In this debugging mode, we act as if punch hole is supported,
+	then we skip any calls to actually punch a hole.  In this way,
+	Transparent Page Compression is still being tested. */
+	DBUG_EXECUTE_IF("ignore_punch_hole",
+		return(true);
+	);
+
+#ifdef _WIN32
+	FILE_ATTRIBUTE_TAG_INFO info;
+	if (GetFileInformationByHandleEx(fh, FileAttributeTagInfo,
+		&info, (DWORD)sizeof(info))) {
+		if (info.FileAttributes != INVALID_FILE_ATTRIBUTES) {
+			return (info.FileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0;
+		}
+	}
+	return false;
+#else
+	/* We don't know the FS block size, use the sector size. The FS
+	will do the magic. */
+	return DB_SUCCESS == os_file_punch_hole_posix(fh, 0, srv_page_size);
+#endif /* _WIN32 */
+}
+
 /** Extend a file.
 
 On Windows, extending a file allocates blocks for the file,
@@ -5292,6 +4989,8 @@ os_file_set_size(
 	os_offset_t	size,
 	bool	is_sparse)
 {
+	ut_ad(!(size & 4095));
+
 #ifdef _WIN32
 	/* On Windows, changing file size works well and as expected for both
 	sparse and normal files.
@@ -5311,6 +5010,8 @@ os_file_set_size(
 
 fallback:
 #else
+	struct stat statbuf;
+
 	if (is_sparse) {
 		bool success = !ftruncate(file, size);
 		if (!success) {
@@ -5324,12 +5025,19 @@ fallback:
 # ifdef HAVE_POSIX_FALLOCATE
 	int err;
 	do {
-		os_offset_t current_size = os_file_get_size(file);
-		err = current_size >= size
-			? 0 : posix_fallocate(file, current_size,
+		if (fstat(file, &statbuf)) {
+			err = errno;
+		} else {
+			os_offset_t current_size = statbuf.st_size;
+			if (current_size >= size) {
+				return true;
+			}
+			current_size &= ~4095ULL;
+			err = posix_fallocate(file, current_size,
 					      size - current_size);
+		}
 	} while (err == EINTR
-		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
+		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
 	switch (err) {
 	case 0:
@@ -5343,11 +5051,32 @@ fallback:
 		errno = err;
 		return false;
 	case EINVAL:
+	case EOPNOTSUPP:
 		/* fall back to the code below */
 		break;
 	}
 # endif /* HAVE_POSIX_ALLOCATE */
 #endif /* _WIN32*/
+
+#ifdef _WIN32
+	os_offset_t	current_size = os_file_get_size(file);
+	FILE_STORAGE_INFO info;
+	if (GetFileInformationByHandleEx(file, FileStorageInfo, &info,
+					 sizeof info)) {
+		if (info.LogicalBytesPerSector) {
+			current_size &= ~os_offset_t(info.LogicalBytesPerSector
+						     - 1);
+		}
+	}
+#else
+	if (fstat(file, &statbuf)) {
+		return false;
+	}
+	os_offset_t current_size = statbuf.st_size & ~4095ULL;
+#endif
+	if (current_size >= size) {
+		return true;
+	}
 
 	/* Write up to 1 megabyte at a time. */
 	ulint	buf_size = ut_min(ulint(64),
@@ -5364,10 +5093,8 @@ fallback:
 	/* Write buffer full of zeros */
 	memset(buf, 0, buf_size);
 
-	os_offset_t	current_size = os_file_get_size(file);
-
 	while (current_size < size
-	       && srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+	       && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		ulint	n_bytes;
 
 		if (size - current_size < (os_offset_t) buf_size) {
@@ -5433,7 +5160,8 @@ Requests a synchronous positioned read operation.
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
-@return DB_SUCCESS or error code */
+@return error code
+@retval	DB_SUCCESS	if the operation succeeded */
 dberr_t
 os_file_read_func(
 	const IORequest&	type,
@@ -5497,15 +5225,16 @@ os_file_punch_hole(
 	os_offset_t	off,
 	os_offset_t	len)
 {
-	dberr_t err;
-
 #ifdef _WIN32
-	err = os_file_punch_hole_win32(fh, off, len);
+	return os_file_punch_hole_win32(fh, off, len);
 #else
-	err = os_file_punch_hole_posix(fh, off, len);
+	return os_file_punch_hole_posix(fh, off, len);
 #endif /* _WIN32 */
+}
 
-	return (err);
+inline bool IORequest::should_punch_hole() const
+{
+	return m_fil_node && m_fil_node->space->punch_hole;
 }
 
 /** Free storage space associated with a section of the file.
@@ -5545,49 +5274,14 @@ IORequest::punch_hole(os_file_t fh, os_offset_t off, ulint len)
 		/* If punch hole is not supported,
 		set space so that it is not used. */
 		if (err == DB_IO_NO_PUNCH_HOLE) {
-			space_no_punch_hole();
+			if (m_fil_node) {
+				m_fil_node->space->punch_hole = false;
+			}
 			err = DB_SUCCESS;
 		}
 	}
 
 	return (err);
-}
-
-/** Check if the file system supports sparse files.
-
-Warning: On POSIX systems we try and punch a hole from offset 0 to
-the system configured page size. This should only be called on an empty
-file.
-@param[in]	fh		File handle for the file - if opened
-@return true if the file system supports sparse files */
-bool
-os_is_sparse_file_supported(os_file_t fh)
-{
-	/* In this debugging mode, we act as if punch hole is supported,
-	then we skip any calls to actually punch a hole.  In this way,
-	Transparent Page Compression is still being tested. */
-	DBUG_EXECUTE_IF("ignore_punch_hole",
-		return(true);
-	);
-
-#ifdef _WIN32
-	FILE_ATTRIBUTE_TAG_INFO info;
-	if (GetFileInformationByHandleEx(fh, FileAttributeTagInfo,
-		&info, (DWORD)sizeof(info))) {
-		if (info.FileAttributes != INVALID_FILE_ATTRIBUTES) {
-			return (info.FileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0;
-		}
-	}
-	return false;
-#else
-	dberr_t	err;
-
-	/* We don't know the FS block size, use the sector size. The FS
-	will do the magic. */
-	err = os_file_punch_hole_posix(fh, 0, srv_page_size);
-
-	return(err == DB_SUCCESS);
-#endif /* _WIN32 */
 }
 
 /** This function returns information about the specified file
@@ -5709,8 +5403,7 @@ AIO::AIO(
 	m_n_segments(segments),
 	m_n_reserved()
 # ifdef LINUX_NATIVE_AIO
-	,m_aio_ctx(),
-	m_events(m_slots.size())
+	,m_events(m_slots.size())
 # endif /* LINUX_NATIVE_AIO */
 #ifdef WIN_ASYNC_IO
 	,m_completion_port(new_completion_port())
@@ -5724,7 +5417,7 @@ AIO::AIO(
 	m_not_full = os_event_create("aio_not_full");
 	m_is_empty = os_event_create("aio_is_empty");
 
-	memset(&m_slots[0], 0x0, sizeof(m_slots[0]) * m_slots.size());
+	memset((void*)&m_slots[0], 0x0, sizeof(m_slots[0]) * m_slots.size());
 #ifdef LINUX_NATIVE_AIO
 	memset(&m_events[0], 0x0, sizeof(m_events[0]) * m_events.size());
 #endif /* LINUX_NATIVE_AIO */
@@ -5766,29 +5459,20 @@ AIO::init_slots()
 dberr_t
 AIO::init_linux_native_aio()
 {
-	/* Initialize the io_context array. One io_context
+
+	/* Initialize the io_context_t array. One io_context_t
 	per segment in the array. */
+	m_aio_ctx.resize(get_n_segments());
 
-	ut_a(m_aio_ctx == NULL);
-
-	m_aio_ctx = static_cast<io_context**>(
-		ut_zalloc_nokey(m_n_segments * sizeof(*m_aio_ctx)));
-
-	if (m_aio_ctx == NULL) {
-		return(DB_OUT_OF_MEMORY);
-	}
-
-	io_context**	ctx = m_aio_ctx;
 	ulint		max_events = slots_per_segment();
 
-	for (ulint i = 0; i < m_n_segments; ++i, ++ctx) {
+	for (std::vector<io_context_t>::iterator it = m_aio_ctx.begin(),
+						 end = m_aio_ctx.end();
+	     it != end; ++it) {
 
-		if (!linux_create_io_ctx(max_events, ctx)) {
+		if (!linux_create_io_ctx(max_events, *it)) {
 			/* If something bad happened during aio setup
 			we disable linux native aio.
-			The disadvantage will be a small memory leak
-			at shutdown but that's ok compared to a crash
-			or a not working server.
 			This frequently happens when running the test suite
 			with many threads on a system with low fs.aio-max-nr!
 			*/
@@ -5800,8 +5484,15 @@ AIO::init_linux_native_aio()
 				<< "try increasing system "
 				<< "fs.aio-max-nr to 1048576 or larger or "
 				<< "setting innodb_use_native_aio = 0 in my.cnf";
-			ut_free(m_aio_ctx);
-			m_aio_ctx = 0;
+
+			for (std::vector<io_context_t>::iterator it2
+			     = m_aio_ctx.begin();
+			     it2 != it; ++it2) {
+				int ret = io_destroy(*it2);
+				ut_a(ret != -EINVAL);
+			}
+
+			m_aio_ctx.clear();
 			srv_use_native_aio = FALSE;
 			return(DB_SUCCESS);
 		}
@@ -5877,15 +5568,15 @@ AIO::~AIO()
 
 #if defined(LINUX_NATIVE_AIO)
 	if (srv_use_native_aio) {
-		m_events.clear();
-		ut_free(m_aio_ctx);
+		for (ulint i = 0; i < m_aio_ctx.size(); i++) {
+			int ret = io_destroy(m_aio_ctx[i]);
+			ut_a(ret != -EINVAL);
+		}
 	}
 #endif /* LINUX_NATIVE_AIO */
 #if defined(WIN_ASYNC_IO)
 	CloseHandle(m_completion_port);
 #endif
-
-	m_slots.clear();
 }
 
 /** Initializes the asynchronous io system. Creates one array each for ibuf
@@ -5996,7 +5687,7 @@ AIO::start(
 
 	os_aio_validate();
 
-	os_last_printout = ut_time();
+	os_last_printout = time(NULL);
 
 	if (srv_use_native_aio) {
 		return(true);
@@ -6179,6 +5870,10 @@ AIO::reserve_slot(
 	os_offset_t		offset,
 	ulint			len)
 {
+	ut_ad(reinterpret_cast<size_t>(buf) % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_ad(offset % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_ad(len % OS_FILE_LOG_BLOCK_SIZE == 0);
+
 #ifdef WIN_ASYNC_IO
 	ut_a((len & 0xFFFFFFFFUL) == len);
 #endif /* WIN_ASYNC_IO */
@@ -6252,7 +5947,7 @@ AIO::reserve_slot(
 	}
 
 	slot->is_reserved = true;
-	slot->reservation_time = ut_time();
+	slot->reservation_time = time(NULL);
 	slot->m1       = m1;
 	slot->m2       = m2;
 	slot->file     = file;
@@ -6260,7 +5955,7 @@ AIO::reserve_slot(
 #ifdef _WIN32
 	slot->len      = static_cast<DWORD>(len);
 #else
-	slot->len      = static_cast<ulint>(len);
+	slot->len      = len;
 #endif /* _WIN32 */
 	slot->type     = type;
 	slot->buf      = static_cast<byte*>(buf);
@@ -7062,7 +6757,7 @@ private:
 	{
 		ulint	age;
 
-		age = (ulint) difftime(ut_time(), slot->reservation_time);
+		age = (ulint) difftime(time(NULL), slot->reservation_time);
 
 		if ((age >= 2 && age > m_oldest)
 		    || (age >= 2
@@ -7464,7 +7159,7 @@ os_aio_print(FILE*	file)
 	AIO::print_all(file);
 
 	putc('\n', file);
-	current_time = ut_time();
+	current_time = time(NULL);
 	time_elapsed = 0.001 + difftime(current_time, os_last_printout);
 
 	fprintf(file,
@@ -7475,7 +7170,7 @@ os_aio_print(FILE*	file)
 		ULINTPF " OS fsyncs\n",
 		fil_n_pending_log_flushes,
 		fil_n_pending_tablespace_flushes,
-		os_n_file_reads,
+		ulint{os_n_file_reads},
 		os_n_file_writes,
 		os_n_fsyncs);
 
@@ -7530,7 +7225,7 @@ os_aio_refresh_stats()
 
 	os_bytes_read_since_printout = 0;
 
-	os_last_printout = ut_time();
+	os_last_printout = time(NULL);
 }
 
 /** Checks that all slots in the system have been freed, that is, there are
@@ -7617,6 +7312,357 @@ void
 os_file_set_umask(ulint umask)
 {
 	os_innodb_umask = umask;
+}
+
+#ifdef _WIN32
+
+/* Checks whether physical drive is on SSD.*/
+static bool is_drive_on_ssd(DWORD nr)
+{
+  char physical_drive_path[32];
+  snprintf(physical_drive_path, sizeof(physical_drive_path),
+           "\\\\.\\PhysicalDrive%lu", nr);
+
+  HANDLE h= CreateFile(physical_drive_path, 0,
+                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                 nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+  if (h == INVALID_HANDLE_VALUE)
+    return false;
+
+  DEVICE_SEEK_PENALTY_DESCRIPTOR seek_penalty;
+  STORAGE_PROPERTY_QUERY storage_query{};
+  storage_query.PropertyId= StorageDeviceSeekPenaltyProperty;
+  storage_query.QueryType= PropertyStandardQuery;
+
+  bool on_ssd= false;
+  DWORD bytes_written;
+  if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &storage_query,
+                      sizeof storage_query, &seek_penalty, sizeof seek_penalty,
+                      &bytes_written, nullptr))
+  {
+    on_ssd= seek_penalty.IncursSeekPenalty;
+  }
+  else
+  {
+    on_ssd= false;
+  }
+  CloseHandle(h);
+  return on_ssd;
+}
+
+/*
+  Checks whether volume is on SSD, by checking all physical drives
+  in that volume.
+*/
+static bool is_volume_on_ssd(const char *volume_mount_point)
+{
+  char volume_name[MAX_PATH];
+
+  if (!GetVolumeNameForVolumeMountPoint(volume_mount_point, volume_name,
+                                        array_elements(volume_name)))
+  {
+    /* This can fail, e.g if file is on network share */
+    return false;
+  }
+
+  /* Chomp last backslash, this is needed to open volume.*/
+  size_t length= strlen(volume_name);
+  if (length && volume_name[length - 1] == '\\')
+    volume_name[length - 1]= 0;
+
+  /* Open volume handle */
+  HANDLE volume_handle= CreateFile(
+      volume_name, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+      nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+
+  if (volume_handle == INVALID_HANDLE_VALUE)
+    return false;
+
+  /*
+   Enumerate all volume extends, check whether all of them are on SSD
+  */
+
+  /* Anticipate common case where there is only one extent.*/
+  VOLUME_DISK_EXTENTS single_extent;
+
+  /* But also have a place to manage allocated data.*/
+  std::unique_ptr<BYTE[]> lifetime;
+
+  DWORD bytes_written;
+  VOLUME_DISK_EXTENTS *extents= nullptr;
+  if (DeviceIoControl(volume_handle, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS,
+                      nullptr, 0, &single_extent, sizeof(single_extent),
+                      &bytes_written, nullptr))
+  {
+    /* Worked on the first try. Use the preallocated buffer.*/
+    extents= &single_extent;
+  }
+  else
+  {
+    VOLUME_DISK_EXTENTS *last_query= &single_extent;
+    while (GetLastError() == ERROR_MORE_DATA)
+    {
+      DWORD extentCount= last_query->NumberOfDiskExtents;
+      DWORD allocatedSize=
+          FIELD_OFFSET(VOLUME_DISK_EXTENTS, Extents[extentCount]);
+      lifetime.reset(new BYTE[allocatedSize]);
+      last_query= (VOLUME_DISK_EXTENTS *) lifetime.get();
+      if (DeviceIoControl(volume_handle, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS,
+                          nullptr, 0, last_query, allocatedSize,
+                          &bytes_written, nullptr))
+      {
+        extents= last_query;
+        break;
+      }
+    }
+  }
+  CloseHandle(volume_handle);
+  if (!extents)
+    return false;
+
+  for (DWORD i= 0; i < extents->NumberOfDiskExtents; i++)
+    if (!is_drive_on_ssd(extents->Extents[i].DiskNumber))
+      return false;
+
+  return true;
+}
+
+#include <unordered_map>
+static bool is_file_on_ssd(char *file_path)
+{
+  /* Cache of volume_path => volume_info, protected by rwlock.*/
+  static std::unordered_map<std::string, bool> cache;
+  static SRWLOCK lock= SRWLOCK_INIT;
+
+  /* Preset result, in case something fails, e.g we're on network drive.*/
+  char volume_path[MAX_PATH];
+  if (!GetVolumePathName(file_path, volume_path, array_elements(volume_path)))
+    return false;
+
+  /* Try cached volume info first.*/
+  std::string volume_path_str(volume_path);
+  bool found;
+  bool result;
+  AcquireSRWLockShared(&lock);
+  auto e= cache.find(volume_path_str);
+  if ((found= e != cache.end()))
+    result= e->second;
+  ReleaseSRWLockShared(&lock);
+
+  if (found)
+    return result;
+
+  result= is_volume_on_ssd(volume_path);
+
+  /* Update cache */
+  AcquireSRWLockExclusive(&lock);
+  cache[volume_path_str]= result;
+  ReleaseSRWLockExclusive(&lock);
+  return result;
+}
+
+#endif
+
+/** Determine some file metadata when creating or reading the file.
+@param	file	the file that is being created, or OS_FILE_CLOSED */
+void fil_node_t::find_metadata(os_file_t file
+#ifndef _WIN32
+			       , struct stat* statbuf
+#endif
+			       )
+{
+	if (file == OS_FILE_CLOSED) {
+		file = handle;
+		ut_ad(is_open());
+	}
+
+#ifdef _WIN32 /* FIXME: make this unconditional */
+	if (space->punch_hole) {
+		space->punch_hole = os_is_sparse_file_supported(file);
+	}
+#endif
+
+	/*
+	For the temporary tablespace and during the
+	non-redo-logged adjustments in
+	IMPORT TABLESPACE, we do not care about
+	the atomicity of writes.
+
+	Atomic writes is supported if the file can be used
+	with atomic_writes (not log file), O_DIRECT is
+	used (tested in ha_innodb.cc) and the file is
+	device and file system that supports atomic writes
+	for the given block size.
+	*/
+	space->atomic_write_supported = space->purpose == FIL_TYPE_TEMPORARY
+		|| space->purpose == FIL_TYPE_IMPORT;
+#ifdef _WIN32
+	on_ssd = is_file_on_ssd(name);
+	FILE_STORAGE_INFO info;
+	if (GetFileInformationByHandleEx(
+		file, FileStorageInfo, &info, sizeof(info))) {
+		block_size = info.PhysicalBytesPerSectorForAtomicity;
+	} else {
+		block_size = 512;
+	}
+#else
+	struct stat sbuf;
+	if (!statbuf && !fstat(file, &sbuf)) {
+		statbuf = &sbuf;
+	}
+	if (statbuf) {
+		block_size = statbuf->st_blksize;
+	}
+	on_ssd = space->atomic_write_supported
+# ifdef UNIV_LINUX
+		|| (statbuf && fil_system.is_ssd(statbuf->st_dev))
+# endif
+		;
+#endif
+	if (!space->atomic_write_supported) {
+		space->atomic_write_supported = atomic_write
+			&& srv_use_atomic_writes
+#ifndef _WIN32
+			&& my_test_if_atomic_write(file,
+						   space->physical_size())
+#else
+			/* On Windows, all single sector writes are atomic,
+			as per WriteFile() documentation on MSDN.
+			We also require SSD for atomic writes, eventhough
+			technically it is not necessary- the reason is that
+			on hard disks, we still want the benefit from
+			(non-atomic) neighbor page flushing in the buffer
+			pool code. */
+			&& srv_page_size == block_size
+			&& on_ssd
+#endif
+			;
+	}
+}
+
+/** Read the first page of a data file.
+@param[in]	first	whether this is the very first read
+@return	whether the page was found valid */
+bool fil_node_t::read_page0(bool first)
+{
+	ut_ad(mutex_own(&fil_system.mutex));
+	ut_a(space->purpose != FIL_TYPE_LOG);
+	const ulint psize = space->physical_size();
+#ifndef _WIN32
+	struct stat statbuf;
+	if (fstat(handle, &statbuf)) {
+		return false;
+	}
+	os_offset_t size_bytes = statbuf.st_size;
+#else
+	os_offset_t size_bytes = os_file_get_size(handle);
+	ut_a(size_bytes != (os_offset_t) -1);
+#endif
+	const ulint min_size = FIL_IBD_FILE_INITIAL_SIZE * psize;
+
+	if (size_bytes < min_size) {
+		ib::error() << "The size of the file " << name
+			    << " is only " << size_bytes
+			    << " bytes, should be at least " << min_size;
+		return false;
+	}
+
+	byte* buf2 = static_cast<byte*>(ut_malloc_nokey(2 * psize));
+
+	/* Align the memory for file i/o if we might have O_DIRECT set */
+	byte* page = static_cast<byte*>(ut_align(buf2, psize));
+	IORequest request(IORequest::READ);
+	if (os_file_read(request, handle, page, 0, psize) != DB_SUCCESS) {
+		ib::error() << "Unable to read first page of file " << name;
+		ut_free(buf2);
+		return false;
+	}
+	const ulint space_id = fsp_header_get_space_id(page);
+	ulint flags = fsp_header_get_flags(page);
+	const ulint size = fsp_header_get_field(page, FSP_SIZE);
+	const ulint free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
+	const ulint free_len = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
+					    + page);
+	if (!fil_space_t::is_valid_flags(flags, space->id)) {
+		ulint cflags = fsp_flags_convert_from_101(flags);
+		if (cflags == ULINT_UNDEFINED) {
+invalid:
+			ib::error()
+				<< "Expected tablespace flags "
+				<< ib::hex(space->flags)
+				<< " but found " << ib::hex(flags)
+				<< " in the file " << name;
+			ut_free(buf2);
+			return false;
+		}
+
+		ulint cf = cflags & ~FSP_FLAGS_MEM_MASK;
+		ulint sf = space->flags & ~FSP_FLAGS_MEM_MASK;
+
+		if (!fil_space_t::is_flags_equal(cf, sf)
+		    && !fil_space_t::is_flags_equal(sf, cf)) {
+			goto invalid;
+		}
+
+		flags = cflags;
+	}
+
+	ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
+
+	/* Try to read crypt_data from page 0 if it is not yet read. */
+	if (!space->crypt_data) {
+		space->crypt_data = fil_space_read_crypt_data(
+			fil_space_t::zip_size(flags), page);
+	}
+	ut_free(buf2);
+
+	if (UNIV_UNLIKELY(space_id != space->id)) {
+		ib::error() << "Expected tablespace id " << space->id
+			<< " but found " << space_id
+			<< " in the file " << name;
+		return false;
+	}
+
+	if (first) {
+		ut_ad(space->id != TRX_SYS_SPACE);
+#ifdef UNIV_LINUX
+		find_metadata(handle, &statbuf);
+#else
+		find_metadata();
+#endif
+
+		/* Truncate the size to a multiple of extent size. */
+		ulint	mask = psize * FSP_EXTENT_SIZE - 1;
+
+		if (size_bytes <= mask) {
+			/* .ibd files start smaller than an
+			extent size. Do not truncate valid data. */
+		} else {
+			size_bytes &= ~os_offset_t(mask);
+		}
+
+		space->flags = (space->flags & FSP_FLAGS_MEM_MASK) | flags;
+
+		this->size = ulint(size_bytes / psize);
+		space->committed_size = space->size += this->size;
+	} else if (space->id != TRX_SYS_SPACE || space->size_in_header) {
+		/* If this is not the first-time open, do nothing.
+		For the system tablespace, we always get invoked as
+		first=false, so we detect the true first-time-open based
+		on size_in_header and proceed to initialize the data. */
+		return true;
+	} else {
+		/* Initialize the size of predefined tablespaces
+		to FSP_SIZE. */
+		space->committed_size = size;
+	}
+
+	ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
+	ut_ad(space->free_len == 0 || space->free_len == free_len);
+	space->size_in_header = size;
+	space->free_limit = free_limit;
+	space->free_len = free_len;
+	return true;
 }
 
 #else

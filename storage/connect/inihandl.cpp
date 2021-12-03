@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
  */
 #include "my_global.h"
 
@@ -193,7 +193,7 @@ static void PROFILE_Save( FILE *file, PROFILESECTION *section )
       secno++;
     }
 
-    for (key = section->key; key; key = key->next)
+    for (key = section->key; key; key = key->next) {
       if (key->name[0]) {
         fprintf(file, "%s", SVP(key->name));
 
@@ -201,9 +201,9 @@ static void PROFILE_Save( FILE *file, PROFILESECTION *section )
           fprintf(file, "=%s", SVP(key->value));
 
         fprintf(file, "\n");
-        } // endif key->name
-
-    }  // endfor section
+      } // endif key->name
+    }
+  }  // endfor section
 
 } // end of PROFILE_Save
 
@@ -1340,6 +1340,7 @@ BOOL WritePrivateProfileSection(LPCSTR section,
  * Note that when the buffer is big enough then the return value may be any
  * value between 1 and len-1 (or len in Win95), including len-2.
  */
+#ifdef NOT_USED
 static DWORD
 GetPrivateProfileSectionNames(LPSTR buffer, DWORD size,  LPCSTR filename)
 {
@@ -1356,7 +1357,7 @@ GetPrivateProfileSectionNames(LPSTR buffer, DWORD size,  LPCSTR filename)
   LeaveCriticalSection(&PROFILE_CritSect);
   return ret;
 }  // end of GetPrivateProfileSectionNames
-
+#endif
 
 /************************************************************************
  * Program to test the above

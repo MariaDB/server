@@ -191,6 +191,7 @@ insert into t1 values (2, 'a',  'a');
 insert into t1 values (3, 'a  \t', 'a-tab');
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
@@ -306,6 +307,7 @@ insert into t1 values (2, 'a',  'a');
 insert into t1 values (3, 'a  \t', 'a-tab');
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
@@ -421,6 +423,7 @@ insert into t1 values (2, 'a',  'a');
 insert into t1 values (3, 'a  \t', 'a-tab');
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
@@ -536,6 +539,7 @@ insert into t1 values (2, 'a',  'a');
 insert into t1 values (3, 'a  \t', 'a-tab');
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
@@ -651,6 +655,7 @@ insert into t1 values (2, 'a',  'a');
 insert into t1 values (3, 'a  \t', 'a-tab');
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain

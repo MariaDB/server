@@ -246,7 +246,11 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 RESET MASTER;
 SET timestamp=UNIX_TIMESTAMP('2014-11-01 10:20:30');
 CREATE OR REPLACE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE OR REPLACE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO DROP TABLE IF EXISTS t2;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SELECT EVENT_NAME, EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
 EVENT_NAME	EVENT_DEFINITION
 ev1	DROP TABLE IF EXISTS t2
@@ -322,8 +326,6 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; CREATE TABLE t1(a INT, b INT)
 #	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	use `test`; CREATE TABLE IF NOT EXISTS t1(a INT, b INT)
-#	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; CREATE OR REPLACE INDEX i1 ON t1(a)
 #	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; CREATE OR REPLACE INDEX i1 ON t1(a)
@@ -376,8 +378,6 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; CREATE TABLE t1(a INT, b INT)
-#	#	Gtid	1	#	GTID #-#-#
-#	#	Query	1	#	use `test`; CREATE TABLE IF NOT EXISTS t1(a INT, b INT)
 #	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; CREATE INDEX IF NOT EXISTS i1 ON t1(a)
 #	#	Gtid	1	#	GTID #-#-#

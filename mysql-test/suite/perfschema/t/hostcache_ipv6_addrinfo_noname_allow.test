@@ -10,6 +10,7 @@
 --source include/have_debug.inc
 --source include/check_ipv6.inc
 --source include/have_perfschema.inc
+--source include/have_hostname_cache.inc
 
 # [Warning] Host name 'santa.claus.ipv6.example.com' could not be resolved:
 # Name or service not known
@@ -30,6 +31,7 @@ select current_user();
 disconnect con1;
 
 --connection default
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_error_noname";
 
 connect (con2,"::1",root,,test,$MASTER_MYPORT,);
@@ -53,5 +55,4 @@ revoke select on test.* from 'root'@'2001:db8::6:6';
 drop user 'root'@'santa.claus.ipv6.example.com';
 drop user 'root'@'2001:db8::6:6';
 
-set global debug_dbug= default;
-
+SET @@GLOBAL.debug_dbug = @saved_dbug;

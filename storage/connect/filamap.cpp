@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -17,12 +17,12 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else    // !__WIN__
+#else    // !_WIN32
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -30,7 +30,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -102,7 +102,7 @@ int MAPFAM::GetFileLength(PGLOBAL g)
 bool MAPFAM::OpenTableFile(PGLOBAL g)
   {
   char    filename[_MAX_PATH];
-  int     len;
+  size_t  len;
   MODE    mode = Tdbp->GetMode();
   PFBLOCK fp;
   PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
@@ -170,13 +170,18 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
         htrc("CreateFileMap: %s\n", g->Message);
 
       return (mode == MODE_READ && rc == ENOENT)
-              ? PushWarning(g, Tdbp) : true;
+        ? false : true;
+//      ? PushWarning(g, Tdbp) : true; --> assert fails into MariaDB
       } // endif hFile
 
     /*******************************************************************/
-    /*  Get the file size (assuming file is smaller than 4 GB)         */
+    /*  Get the file size.                                             */
     /*******************************************************************/
-    len = mm.lenL;
+		len = (size_t)mm.lenL;
+		
+		if (mm.lenH)
+			len += ((size_t)mm.lenH * 0x000000001LL);
+
     Memory = (char *)mm.memory;
 
     if (!len) {              // Empty or deleted file
@@ -192,11 +197,11 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
       return true;
       } // endif Memory
 
-#if defined(__WIN__)
+#if defined(_WIN32)
     if (mode != MODE_DELETE) {
-#else   // !__WIN__
+#else   // !_WIN32
     if (mode == MODE_READ) {
-#endif  // !__WIN__
+#endif  // !_WIN32
       CloseFileHandle(hFile);                    // Not used anymore
       hFile = INVALID_HANDLE_VALUE;              // For Fblock
       } // endif Mode
@@ -349,7 +354,8 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
 				if ((rc = GetNext(g)) != RC_OK)
 					return rc;
 
-			case RC_NF:
+      /* falls through */
+      case RC_NF:
         // Skip this record
         if ((rc = SkipRecord(g, false)) != RC_OK)
           return rc;
@@ -463,7 +469,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       n = (int)(Tpos - Memory);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
       if (drc == 0xFFFFFFFF) {
@@ -493,7 +499,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 #endif   // UNIX
     } // endif Abort
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   CloseHandle(fp->Handle);
 #else    // UNIX
   close(fp->Handle);

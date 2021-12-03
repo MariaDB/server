@@ -1,5 +1,5 @@
 
-!include include/default_mysqld_autosize.cnf
+!include suite/perfschema/include/default_mysqld_autosize.cnf
 
 [mysqld.1]
 

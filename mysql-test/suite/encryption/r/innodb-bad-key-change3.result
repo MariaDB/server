@@ -22,6 +22,7 @@ backup: t1
 UNLOCK TABLES;
 ALTER TABLE t1 DISCARD TABLESPACE;
 restore: t1 .ibd and .cfg files
+# restart
 ALTER TABLE t1 IMPORT TABLESPACE;
 ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
 SHOW CREATE TABLE t1;

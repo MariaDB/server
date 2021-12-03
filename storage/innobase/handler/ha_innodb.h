@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,9 +13,15 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
+#ifdef WITH_WSREP
+#include "wsrep_api.h"
+#include <mysql/service_wsrep.h>
+#endif /* WITH_WSREP */
+
+#include "table.h"
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
@@ -39,48 +45,41 @@ struct ha_table_option_struct
 	uint		atomic_writes;		/*!< Use atomic writes for this
 						table if this options is ON or
 						in DEFAULT if
-						srv_use_atomic_writes=1.
+						innodb_use_atomic_writes.
 						Atomic writes are not used if
 						value OFF.*/
 	uint		encryption;		/*!<  DEFAULT, ON, OFF */
 	ulonglong	encryption_key_id;	/*!< encryption key id  */
 };
-/* JAN: TODO: MySQL 5.7 handler.h */
-struct st_handler_tablename
-{
-  const char *db;
-  const char *tablename;
-};
+
 /** The class defining a handle to an Innodb table */
-class ha_innobase: public handler
+class ha_innobase final: public handler
 {
 public:
 	ha_innobase(handlerton* hton, TABLE_SHARE* table_arg);
-	~ha_innobase();
+	~ha_innobase() override;
 
 	/** Get the row type from the storage engine.  If this method returns
 	ROW_TYPE_NOT_USED, the information in HA_CREATE_INFO should be used. */
-	enum row_type get_row_type() const;
+        enum row_type get_row_type() const override;
 
-	const char* table_type() const;
+        const char* table_type() const;
 
-	const char* index_type(uint key_number);
+	const char* index_type(uint key_number) override;
 
-	const char** bas_ext() const;
+	Table_flags table_flags() const override;
 
-	Table_flags table_flags() const;
+	ulong index_flags(uint idx, uint part, bool all_parts) const override;
 
-	ulong index_flags(uint idx, uint part, bool all_parts) const;
+	uint max_supported_keys() const override;
 
-	uint max_supported_keys() const;
+	uint max_supported_key_length() const override;
 
-	uint max_supported_key_length() const;
+	uint max_supported_key_part_length() const override;
 
-	uint max_supported_key_part_length() const;
+	const key_map* keys_to_use_for_scanning() override;
 
-	const key_map* keys_to_use_for_scanning();
-
-	void column_bitmaps_signal();
+	void column_bitmaps_signal() override;
 
 	/** Opens dictionary table object using table name. For partition, we need to
 	try alternative lower/upper case names to support moving data files across
@@ -96,97 +95,97 @@ public:
 		bool			is_partition,
 		dict_err_ignore_t	ignore_err);
 
-	int open(const char *name, int mode, uint test_if_locked);
+	int open(const char *name, int mode, uint test_if_locked) override;
 
-	handler* clone(const char *name, MEM_ROOT *mem_root);
+	handler* clone(const char *name, MEM_ROOT *mem_root) override;
 
-	int close(void);
+	int close(void) override;
 
-	double scan_time();
+	double scan_time() override;
 
-	double read_time(uint index, uint ranges, ha_rows rows);
+	double read_time(uint index, uint ranges, ha_rows rows) override;
 
-	int delete_all_rows();
+	int delete_all_rows() override;
 
-	int write_row(uchar * buf);
+	int write_row(const uchar * buf) override;
 
-	int update_row(const uchar * old_data, const uchar * new_data);
+	int update_row(const uchar * old_data, const uchar * new_data) override;
 
-	int delete_row(const uchar * buf);
+	int delete_row(const uchar * buf) override;
 
-	bool was_semi_consistent_read();
+	bool was_semi_consistent_read() override;
 
-	void try_semi_consistent_read(bool yes);
+	void try_semi_consistent_read(bool yes) override;
 
-	void unlock_row();
+	void unlock_row() override;
 
-	int index_init(uint index, bool sorted);
+	int index_init(uint index, bool sorted) override;
 
-	int index_end();
+	int index_end() override;
 
 	int index_read(
 		uchar*			buf,
 		const uchar*		key,
 		uint			key_len,
-		ha_rkey_function	find_flag);
+		ha_rkey_function	find_flag) override;
 
-	int index_read_last(uchar * buf, const uchar * key, uint key_len);
+	int index_read_last(uchar * buf, const uchar * key,
+			    uint key_len) override;
 
-	int index_next(uchar * buf);
+        int index_next(uchar * buf) override;
 
-	int index_next_same(uchar * buf, const uchar *key, uint keylen);
+	int index_next_same(uchar * buf, const uchar * key,
+			    uint keylen) override;
 
-	int index_prev(uchar * buf);
+	int index_prev(uchar * buf) override;
 
-	int index_first(uchar * buf);
+	int index_first(uchar * buf) override;
 
-	int index_last(uchar * buf);
+	int index_last(uchar * buf) override;
 
 	/* Copy a cached MySQL row. If requested, also avoids
 	overwriting non-read columns. */
 	void copy_cached_row(uchar *to_rec, const uchar *from_rec,
 				uint rec_length);
-	int rnd_init(bool scan);
+	int rnd_init(bool scan) override;
 
-	int rnd_end();
+	int rnd_end() override;
 
-	int rnd_next(uchar *buf);
+	int rnd_next(uchar *buf) override;
 
-	int rnd_pos(uchar * buf, uchar *pos);
+	int rnd_pos(uchar * buf, uchar *pos) override;
 
-	int ft_init();
-	void ft_end() { rnd_end(); }
-	FT_INFO *ft_init_ext(uint flags, uint inx, String* key);
-	int ft_read(uchar* buf);
+	int ft_init() override;
+	void ft_end() override { rnd_end(); }
+	FT_INFO *ft_init_ext(uint flags, uint inx, String* key) override;
+	int ft_read(uchar* buf) override;
 
-	void position(const uchar *record);
+	void position(const uchar *record) override;
 
-	int info(uint);
+	int info(uint) override;
 
-	int analyze(THD* thd,HA_CHECK_OPT* check_opt);
+	int analyze(THD* thd,HA_CHECK_OPT* check_opt) override;
 
-	int optimize(THD* thd,HA_CHECK_OPT* check_opt);
+	int optimize(THD* thd,HA_CHECK_OPT* check_opt) override;
 
-	int discard_or_import_tablespace(my_bool discard);
+	int discard_or_import_tablespace(my_bool discard) override;
 
-	int extra(ha_extra_function operation);
+	int extra(ha_extra_function operation) override;
 
-	int reset();
+	int reset() override;
 
-	int external_lock(THD *thd, int lock_type);
+	int external_lock(THD *thd, int lock_type) override;
 
-	int start_stmt(THD *thd, thr_lock_type lock_type);
-
-	void position(uchar *record);
+	int start_stmt(THD *thd, thr_lock_type lock_type) override;
 
 	ha_rows records_in_range(
 		uint			inx,
 		key_range*		min_key,
-		key_range*		max_key);
+		key_range*		max_key) override;
 
-	ha_rows estimate_rows_upper_bound();
+	ha_rows estimate_rows_upper_bound() override;
 
-	void update_create_info(HA_CREATE_INFO* create_info);
+	void update_create_info(HA_CREATE_INFO* create_info) override;
 
 	inline int create(
 		const char*		name,
@@ -198,63 +197,55 @@ public:
 	int create(
 		const char*		name,
 		TABLE*			form,
-		HA_CREATE_INFO*		create_info);
-
-	const char* check_table_options(THD *thd, TABLE* table,
-		HA_CREATE_INFO*	create_info, const bool use_tablespace, const ulint file_format);
+		HA_CREATE_INFO*		create_info) override;
 
 	inline int delete_table(const char* name, enum_sql_command sqlcom);
 
-	int truncate();
+	int truncate() override;
 
-	int delete_table(const char *name);
+	int delete_table(const char *name) override;
 
-	int rename_table(const char* from, const char* to);
-	int defragment_table(const char* name, const char* index_name,
-						bool async);
-	int check(THD* thd, HA_CHECK_OPT* check_opt);
-	char* update_table_comment(const char* comment);
+	int rename_table(const char* from, const char* to) override;
+	inline int defragment_table(const char* name);
+	int check(THD* thd, HA_CHECK_OPT* check_opt) override;
 
-	char* get_foreign_key_create_info();
+	char* get_foreign_key_create_info() override;
 
-	int get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+        int get_foreign_key_list(THD *thd,
+                                 List<FOREIGN_KEY_INFO> *f_key_list) override;
 
 	int get_parent_foreign_key_list(
 		THD*			thd,
-		List<FOREIGN_KEY_INFO>*	f_key_list);
-	int get_cascade_foreign_key_table_list(
-		THD*				thd,
-		List<st_handler_tablename>*	fk_table_list);
+		List<FOREIGN_KEY_INFO>*	f_key_list) override;
 
+	bool can_switch_engines() override;
 
-	bool can_switch_engines();
+	uint referenced_by_foreign_key() override;
 
-	uint referenced_by_foreign_key();
+	void free_foreign_key_create_info(char* str) override;
 
-	void free_foreign_key_create_info(char* str);
-
-	uint lock_count(void) const;
+	uint lock_count(void) const override;
 
 	THR_LOCK_DATA** store_lock(
 		THD*			thd,
 		THR_LOCK_DATA**		to,
-		thr_lock_type		lock_type);
+		thr_lock_type		lock_type) override;
 
-	void init_table_handle_for_HANDLER();
+	void init_table_handle_for_HANDLER() override;
 
-	virtual void get_auto_increment(
+	void get_auto_increment(
 		ulonglong		offset,
 		ulonglong		increment,
 		ulonglong		nb_desired_values,
 		ulonglong*		first_value,
-		ulonglong*		nb_reserved_values);
-	int reset_auto_increment(ulonglong value);
+		ulonglong*		nb_reserved_values) override;
+	int reset_auto_increment(ulonglong value) override;
 
-	virtual bool get_error_message(int error, String *buf);
+	bool get_error_message(int error, String *buf) override;
 
-	virtual bool get_foreign_dup_key(char*, uint, char*, uint);
+	bool get_foreign_dup_key(char*, uint, char*, uint) override;
 
-	uint8 table_cache_type();
+	uint8 table_cache_type() override;
 
 	/**
 	Ask handler about permission to cache table during query registration
@@ -264,11 +255,11 @@ public:
 		const char*		table_key,
 		uint			key_length,
 		qc_engine_callback*	call_back,
-		ulonglong*		engine_data);
+		ulonglong*		engine_data) override;
 
-	bool primary_key_is_clustered();
+	bool primary_key_is_clustered() override;
 
-	int cmp_ref(const uchar* ref1, const uchar* ref2);
+	int cmp_ref(const uchar* ref1, const uchar* ref2) override;
 
 	/** On-line ALTER TABLE interface @see handler0alter.cc @{ */
 
@@ -298,7 +289,7 @@ public:
 
 	enum_alter_inplace_result check_if_supported_inplace_alter(
 		TABLE*			altered_table,
-		Alter_inplace_info*	ha_alter_info);
+		Alter_inplace_info*	ha_alter_info) override;
 
 	/** Allows InnoDB to update internal structures with concurrent
 	writes blocked (provided that check_if_supported_inplace_alter()
@@ -314,7 +305,7 @@ public:
 	*/
 	bool prepare_inplace_alter_table(
 		TABLE*			altered_table,
-		Alter_inplace_info*	ha_alter_info);
+		Alter_inplace_info*	ha_alter_info) override;
 
 	/** Alter the table structure in-place with operations
 	specified using HA_ALTER_FLAGS and Alter_inplace_information.
@@ -330,7 +321,7 @@ public:
 	*/
 	bool inplace_alter_table(
 		TABLE*			altered_table,
-		Alter_inplace_info*	ha_alter_info);
+		Alter_inplace_info*	ha_alter_info) override;
 
 	/** Commit or rollback the changes made during
 	prepare_inplace_alter_table() and inplace_alter_table() inside
@@ -349,12 +340,12 @@ public:
 	bool commit_inplace_alter_table(
 		TABLE*			altered_table,
 		Alter_inplace_info*	ha_alter_info,
-		bool			commit);
+		bool			commit) override;
 	/** @} */
 
 	bool check_if_incompatible_data(
 		HA_CREATE_INFO*		info,
-		uint			table_changes);
+		uint			table_changes) override;
 
 	/** @name Multi Range Read interface @{ */
 
@@ -369,11 +360,11 @@ public:
 		void*			seq_init_param,
 		uint			n_ranges,
 		uint			mode,
-		HANDLER_BUFFER*		buf);
+		HANDLER_BUFFER*		buf) override;
 
 	/** Process next multi range read @see DsMrr_impl::dsmrr_next
 	@param range_info */
-	int multi_range_read_next(range_id_t *range_info);
+	int multi_range_read_next(range_id_t *range_info) override;
 
 	/** Initialize multi range read and get information.
 	@see ha_myisam::multi_range_read_info_const
@@ -392,7 +383,7 @@ public:
 		uint			n_ranges,
 		uint*			bufsz,
 		uint*			flags,
-		Cost_estimate*		cost);
+		Cost_estimate*		cost) override;
 
 	/** Initialize multi range read and get information.
 	@see DsMrr_impl::dsmrr_info
@@ -405,26 +396,55 @@ public:
 	@param cost */
 	ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
 				      uint key_parts, uint* bufsz, uint* flags,
-				      Cost_estimate* cost);
+				      Cost_estimate* cost) override;
 
 	int multi_range_read_explain_info(uint mrr_mode,
-					  char *str, size_t size);
+					  char *str, size_t size) override;
 
 	/** Attempt to push down an index condition.
 	@param[in] keyno MySQL key number
 	@param[in] idx_cond Index condition to be checked
 	@return idx_cond if pushed; NULL if not pushed */
-	Item* idx_cond_push(uint keyno, Item* idx_cond);
+	Item* idx_cond_push(uint keyno, Item* idx_cond) override;
 	/* @} */
 
+	/** Check if InnoDB is not storing virtual column metadata for a table.
+	@param	s	table definition (based on .frm file)
+	@return	whether InnoDB will omit virtual column metadata */
+	static bool omits_virtual_cols(const TABLE_SHARE& s)
+	{
+		return s.frm_version<FRM_VER_EXPRESSSIONS && s.virtual_fields;
+	}
+
+	/** Push a primary key filter.
+	@param[in]	pk_filter	filter against which primary keys
+					are to be checked
+	@retval	false if pushed (always) */
+	bool rowid_filter_push(Rowid_filter *rowid_filter) override;
+
+	bool
+	can_convert_string(const Field_string* field,
+			   const Column_definition& new_field) const override;
+	bool can_convert_varstring(
+	    const Field_varstring* field,
+	    const Column_definition& new_field) const override;
+	bool
+	can_convert_blob(const Field_blob* field,
+			 const Column_definition& new_field) const override;
+
+	/** @return whether innodb_strict_mode is active */
+	static bool is_innodb_strict_mode(THD* thd);
+
+	/** @return whether innodb_strict_mode is active */
+	bool is_innodb_strict_mode()
+	{ return is_innodb_strict_mode(m_user_thd); }
+	Compare_keys
+	compare_key_parts(const Field& old_field,
+			  const Column_definition& new_field,
+			  const KEY_PART_INFO& old_part,
+			  const KEY_PART_INFO& new_part) const override;
+
 protected:
-
-	/**
-	MySQL calls this method at the end of each statement. This method
-	exists for readability only, called from reset(). The name reset()
-	doesn't give any clue that it is called at the end of a statement. */
-	int end_stmt();
-
 	dberr_t innobase_get_autoinc(ulonglong* value);
 	dberr_t innobase_lock_autoinc();
 	ulonglong innobase_peek_autoinc();
@@ -435,7 +455,6 @@ protected:
 	@see build_template() */
 	void reset_template();
 
-protected:
 	inline void update_thd(THD* thd);
 	void update_thd();
 
@@ -444,8 +463,11 @@ protected:
 	dict_index_t* innobase_get_index(uint keynr);
 
 #ifdef WITH_WSREP
-	int wsrep_append_keys(THD *thd, bool shared,
-			      const uchar* record0, const uchar* record1);
+	int wsrep_append_keys(
+		THD *thd,
+		Wsrep_service_key_type key_type,
+		const uchar* record0,
+		const uchar* record1);
 #endif
 	/** Builds a 'template' to the prebuilt struct.
 
@@ -455,17 +477,13 @@ protected:
 	false if accessing individual fields is enough */
 	void build_template(bool whole_row);
 
-	virtual int info_low(uint, bool);
+	int info_low(uint, bool);
 
 	/** The multi range read session object */
 	DsMrr_impl		m_ds_mrr;
 
 	/** Save CPU time with prebuilt/cached data structures */
 	row_prebuilt_t*		m_prebuilt;
-
-	/** prebuilt pointer for the right prebuilt. For native
-	partitioning, points to the current partition prebuilt. */
-	row_prebuilt_t**	m_prebuilt_ptr;
 
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
@@ -504,12 +522,7 @@ the definitions are bracketed with #ifdef INNODB_COMPATIBILITY_HOOKS */
 #error InnoDB needs MySQL to be built with #define INNODB_COMPATIBILITY_HOOKS
 #endif
 
-LEX_STRING* thd_query_string(MYSQL_THD thd);
-size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
-
 extern "C" {
-
-struct charset_info_st *thd_charset(MYSQL_THD thd);
 
 /** Check if a user thread is a replication slave thread
 @param thd user thread
@@ -559,35 +572,10 @@ bool thd_is_strict_mode(const MYSQL_THD thd);
  */
 extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
 
-/** Get the partition_info working copy.
-@param	thd	Thread object.
-@return	NULL or pointer to partition_info working copy. */
-/* JAN: TODO: MySQL 5.7 Partitioning
-partition_info*
-thd_get_work_part_info(
-	THD*	thd);
-*/
-
 struct trx_t;
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
-//extern "C" int wsrep_trx_order_before(void *thd1, void *thd2);
-
-extern "C" bool wsrep_thd_is_wsrep_on(THD *thd);
-
-
-extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
-extern "C" void wsrep_thd_set_query_state(
-	THD *thd, enum wsrep_query_state state);
-
-extern "C" void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
-
-extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
-extern "C" time_t wsrep_thd_query_start(THD *thd);
-extern "C" query_id_t wsrep_thd_query_id(THD *thd);
-extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
-extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
-#endif
+#endif /* WITH_WSREP */
 
 extern const struct _ft_vft ft_vft_result;
 
@@ -621,10 +609,6 @@ innobase_index_name_is_reserved(
 					be created. */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
-#ifdef WITH_WSREP
-//extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
-#endif
-
 /** Parse hint for table and its indexes, and update the information
 in dictionary.
 @param[in]	thd		Connection thread
@@ -646,20 +630,12 @@ public:
 	- all but name/path is used, when validating options and using flags. */
 	create_table_info_t(
 		THD*		thd,
-		TABLE*		form,
+		const TABLE*	form,
 		HA_CREATE_INFO*	create_info,
 		char*		table_name,
 		char*		remote_path,
 		bool		file_per_table,
-		trx_t*		trx = NULL)
-	:m_thd(thd),
-	m_trx(trx),
-	m_form(form),
-	m_create_info(create_info),
-	m_table_name(table_name), m_table(NULL),
-	m_remote_path(remote_path),
-	m_innodb_file_per_table(file_per_table)
-	{}
+		trx_t*		trx = NULL);
 
 	/** Initialize the object. */
 	int initialize();
@@ -702,6 +678,13 @@ public:
 
 	void allocate_trx();
 
+	/** Checks that every index have sane size. Depends on strict mode */
+	bool row_size_is_acceptable(const dict_table_t& table,
+				    bool strict) const;
+	/** Checks that given index have sane size. Depends on strict mode */
+	bool row_size_is_acceptable(const dict_index_t& index,
+				    bool strict) const;
+
 	/** Determines InnoDB table flags.
 	If strict_mode=OFF, this will adjust the flags to what should be assumed.
 	@retval true if successful, false if error */
@@ -728,6 +711,9 @@ public:
 	/** Return table name. */
 	const char* table_name() const
 	{ return(m_table_name); }
+
+	/** @return whether the table needs to be dropped on rollback */
+	bool drop_before_rollback() const { return m_drop_before_rollback; }
 
 	THD* thd() const
 	{ return(m_thd); }
@@ -765,6 +751,9 @@ private:
 	/** Information on table columns and indexes. */
 	const TABLE*	m_form;
 
+	/** Value of innodb_default_row_format */
+	const ulong	m_default_row_format;
+
 	/** Create options. */
 	HA_CREATE_INFO*	m_create_info;
 
@@ -772,6 +761,8 @@ private:
 	char*		m_table_name;
 	/** Table */
 	dict_table_t*	m_table;
+	/** Whether the table needs to be dropped before rollback */
+	bool		m_drop_before_rollback;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;
@@ -871,10 +862,8 @@ innodb_base_col_setup_for_stored(
 	const Field*		field,
 	dict_s_col_t*		s_col);
 
-/** whether this is a stored column */
+/** whether this is a stored generated column */
 #define innobase_is_s_fld(field) ((field)->vcol_info && (field)->stored_in_db())
-/** whether this is a computed virtual column */
-#define innobase_is_v_fld(field) ((field)->vcol_info && !(field)->stored_in_db())
 
 /** Always normalize table name to lower case on Windows */
 #ifdef _WIN32
@@ -962,3 +951,19 @@ ib_push_frm_error(
 	TABLE*		table,		/*!< in: MySQL table */
 	ulint		n_keys,		/*!< in: InnoDB #keys */
 	bool		push_warning);	/*!< in: print warning ? */
+
+/** Check each index part length whether they not exceed the max limit
+@param[in]	max_field_len	maximum allowed key part length
+@param[in]	key		MariaDB key definition
+@return true if index column length exceeds limit */
+MY_ATTRIBUTE((warn_unused_result))
+bool too_big_key_part_length(size_t max_field_len, const KEY& key);
+
+/** This function is used to rollback one X/Open XA distributed transaction
+which is in the prepared state
+
+@param[in] hton InnoDB handlerton
+@param[in] xid X/Open XA transaction identification
+
+@return 0 or error number */
+int innobase_rollback_by_xid(handlerton* hton, XID* xid);

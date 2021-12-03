@@ -1,0 +1,59 @@
+--source include/innodb_page_size.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # Bug #21950389 SMALL TABLESPACES WITH BLOBS TAKE UP TO 80 TIMES MORE
+--echo # SPACE IN 5.7 THAN IN 5.6
+--echo #
+
+#
+# Table 1: small rows
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+let MYSQLD_DATADIR=`select @@datadir`;
+perl;
+print "# bytes: ", (-s "$ENV{MYSQLD_DATADIR}/test/t1.ibd"), "\n";
+EOF
+
+INSERT INTO t1 SELECT * FROM seq_1_to_25000;
+perl;
+print "# bytes: ", (-s "$ENV{MYSQLD_DATADIR}/test/t1.ibd"), "\n";
+EOF
+DROP TABLE t1;
+
+#
+# Table 2: BLOB
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b BLOB) ENGINE=InnoDB;
+perl;
+print "# bytes: ", (-s "$ENV{MYSQLD_DATADIR}/test/t1.ibd"), "\n";
+EOF
+INSERT INTO t1 SELECT seq,REPEAT('a',30000) FROM seq_1_to_20;
+perl;
+print "# bytes: ", (-s "$ENV{MYSQLD_DATADIR}/test/t1.ibd"), "\n";
+EOF
+DROP TABLE t1;
+
+let $page_size=`SELECT @@innodb_page_size`;
+if ($page_size < 32768)
+{
+#
+# Table 3: compressed BLOB
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b BLOB)
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+perl;
+print "# bytes: ", (-s "$ENV{MYSQLD_DATADIR}/test/t1.ibd"), "\n";
+EOF
+INSERT INTO t1 SELECT seq,REPEAT('a',30000) FROM seq_1_to_20;
+# Ensure that the file will be extended with the last 1024-byte page
+# after the file was pre-extended in 4096-byte increments.
+--disable_query_log
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+--enable_query_log
+perl;
+print "# bytes: ", (-s "$ENV{MYSQLD_DATADIR}/test/t1.ibd"), "\n";
+EOF
+DROP TABLE t1;
+}

@@ -47,20 +47,18 @@ include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
 ## adds a compiler flag if the compiler supports it
-macro(set_cflags_if_supported)
+macro(prepend_cflags_if_supported)
   foreach(flag ${ARGN})
     MY_CHECK_AND_SET_COMPILER_FLAG(${flag})
   endforeach(flag)
-endmacro(set_cflags_if_supported)
+endmacro(prepend_cflags_if_supported)
 
 if (NOT DEFINED MYSQL_PROJECT_NAME_DOCSTRING)
   set (OPTIONAL_CFLAGS "${OPTIONAL_CFLAGS} -Wmissing-format-attribute")
 endif()
 
 ## disable some warnings
-## missing-format-attribute causes warnings in some MySQL include files
-## if the library is built as a part of TokuDB MySQL storage engine
-set_cflags_if_supported(
+prepend_cflags_if_supported(
   -Wno-missing-field-initializers
   -Wstrict-null-sentinel
   -Winit-self
@@ -73,31 +71,23 @@ set_cflags_if_supported(
   -Wno-error=tautological-constant-out-of-range-compare
   -Wno-error=maybe-uninitialized
   -Wno-error=extern-c-compat
-  -fno-rtti
   -fno-exceptions
   -Wno-error=nonnull-compare
   )
-## set_cflags_if_supported_named("-Weffc++" -Weffcpp)
 
 ## Clang has stricter POD checks.  So, only enable this warning on our other builds (Linux + GCC)
 if (NOT CMAKE_CXX_COMPILER_ID MATCHES Clang)
-  set_cflags_if_supported(
+  prepend_cflags_if_supported(
     -Wpacked
     )
 endif ()
 
 option (PROFILING "Allow profiling and debug" ON)
 if (PROFILING)
-  set_cflags_if_supported(
+  prepend_cflags_if_supported(
     -fno-omit-frame-pointer
   )
 endif ()
-
-## this hits with optimized builds somewhere in ftleaf_split, we don't
-## know why but we don't think it's a big deal
-set_cflags_if_supported(
-  -Wno-error=strict-overflow
-  )
 
 # new flag sets in MySQL 8.0 seem to explicitly disable this
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions")
@@ -136,7 +126,7 @@ else ()
 endif ()
 
 ## set warnings
-set_cflags_if_supported(
+prepend_cflags_if_supported(
   -Wextra
   -Wbad-function-cast
   -Wno-missing-noreturn
@@ -159,12 +149,12 @@ set_cflags_if_supported(
 
 if (NOT CMAKE_CXX_COMPILER_ID STREQUAL Clang)
   # Disabling -Wcast-align with clang.  TODO: fix casting and re-enable it, someday.
-  set_cflags_if_supported(-Wcast-align)
+  prepend_cflags_if_supported(-Wcast-align)
 endif ()
 
-## always want these in debug builds
-set(CMAKE_C_FLAGS_DEBUG "-Wall -Werror ${CMAKE_C_FLAGS_DEBUG}")
-set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Werror ${CMAKE_CXX_FLAGS_DEBUG}")
+## never want these
+set(CMAKE_C_FLAGS "-Wno-error ${CMAKE_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "-Wno-error ${CMAKE_CXX_FLAGS}")
 
 # pick language dialect
 set(CMAKE_C_FLAGS "-std=c99 ${CMAKE_C_FLAGS}")

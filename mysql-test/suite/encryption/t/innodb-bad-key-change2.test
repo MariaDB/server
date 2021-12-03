@@ -14,8 +14,13 @@ call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]
 # Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
 call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as discarded\\.");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
+call mtr.add_suppression("InnoDB: Cannot delete tablespace .* because it is not found in the tablespace memory cache");
+call mtr.add_suppression("InnoDB: ALTER TABLE `test`\\.`t1` DISCARD TABLESPACE failed to find tablespace");
+# for innodb_checksum_algorithm=full_crc32 only
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 
---let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+--let $restart_parameters=--plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
 SET GLOBAL innodb_file_per_table = ON;
@@ -24,7 +29,7 @@ CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(8)) ENGINE=InnoDB
 ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
 INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
 
---let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+--let $restart_parameters=--plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
 --error ER_NO_SUCH_TABLE_IN_ENGINE
@@ -43,7 +48,7 @@ CHECK TABLE t1;
 --replace_regex /key_id [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 
---let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+--let $restart_parameters=--plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
@@ -55,7 +60,7 @@ ib_backup_tablespaces("test", "t1");
 EOF
 UNLOCK TABLES;
 
---let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+--let $restart_parameters=--plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
 --error ER_NO_SUCH_TABLE_IN_ENGINE
@@ -73,13 +78,21 @@ ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
 
---let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+--let $restart_parameters=--plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
 
 ALTER TABLE t1 IMPORT TABLESPACE;
 SHOW CREATE TABLE t1;
 
---let $restart_parameters= --innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+--let $restart_parameters= --innodb-encrypt-tables --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
 --error ER_ERROR_ON_RENAME
@@ -87,5 +100,4 @@ RENAME TABLE t1 TO t1new;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 ALTER TABLE t1 RENAME TO t1new;
 # Drop should pass even with incorrect keys
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 DROP TABLE t1;

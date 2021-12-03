@@ -3,7 +3,6 @@
 
 # MDEV-7513: ib_warn_row_too_big dereferences null thd
 
-call mtr.add_suppression("InnoDB: Cannot add field .* in table");
 
 --disable_warnings
 CREATE TABLE t1 ( text1 TEXT,

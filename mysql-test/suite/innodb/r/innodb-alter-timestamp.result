@@ -8,12 +8,17 @@ ALGORITHM=COPY;
 ERROR 01000: Data truncated for column 'i1' at row 1
 ALTER TABLE t1 CHANGE i1 id INT UNSIGNED NOT NULL AUTO_INCREMENT,
 ADD PRIMARY KEY(id), ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 ALTER IGNORE TABLE t1 ADD PRIMARY KEY(i1), ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Creating unique indexes with IGNORE requires COPY algorithm to remove duplicate rows. Try ALGORITHM=COPY
+SET @old_sql_mode = @@sql_mode;
+SET sql_mode = '';
+ALTER TABLE t1 ADD PRIMARY KEY(i1), ALGORITHM=INPLACE;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
 Warning	1265	Data truncated for column 'i1' at row 1
+SET sql_mode = @old_sql_mode;
 ALTER TABLE t1 CHANGE i1 id INT UNSIGNED NOT NULL AUTO_INCREMENT;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
@@ -119,3 +124,30 @@ SELECT DISTINCT (CURRENT_TIMESTAMP()-d4) <= 60 FROM t1;
 (CURRENT_TIMESTAMP()-d4) <= 60
 1
 DROP TABLE t1;
+CREATE TABLE t1(f1 int) ENGINE=InnoDB;
+INSERT INTO t1 SELECT * FROM seq_1_to_4096;
+connect purge_control,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE FROM t1;
+SET sql_mode='STRICT_ALL_TABLES,STRICT_TRANS_TABLES,NO_ZERO_DATE';
+ALTER TABLE t1 ADD f2 DATE NOT NULL, ALGORITHM=INPLACE;
+INSERT INTO t1 VALUES (1, now());
+Warnings:
+Note	1265	Data truncated for column 'f2' at row 1
+ALTER TABLE t1 ADD f3 DATE NOT NULL, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+disconnect purge_control;
+#
+# MDEV-26458 SIGSEGV in innobase_table_is_empty() on ALTER TABLE
+#
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t DISCARD TABLESPACE;
+SET sql_mode='NO_ZERO_DATE';
+ALTER TABLE t ADD c DATE NOT NULL;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t`
+SET sql_mode=DEFAULT;
+DROP TABLE t;
+# End of 10.3 tests

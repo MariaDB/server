@@ -1695,6 +1695,7 @@ DO CONVERT(CAST(SUBSTRING_INDEX(FORMAT(1,'1111'), FORMAT('','Zpq'),1)
 AS BINARY(0)) USING utf8);
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'Zpq'
+Warning	1292	Truncated incorrect INTEGER value: 'Zpq'
 Warning	1292	Truncated incorrect DOUBLE value: ''
 Warning	1292	Truncated incorrect BINARY(0) value: '1.'
 #
@@ -1767,8 +1768,8 @@ CREATE TABLE t2 (a VARCHAR(10) CHARACTER SET ucs2);
 INSERT INTO t1 VALUES (0x10082), (0x12345);
 INSERT IGNORE INTO t2 SELECT * FROM t1;
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x01\x00\x82' for column 'a' at row 1
-Warning	1366	Incorrect string value: '\x00\x01\x23\x45' for column 'a' at row 2
+Warning	1366	Incorrect string value: '\x00\x01\x00\x82' for column `test`.`t2`.`a` at row 1
+Warning	1366	Incorrect string value: '\x00\x01\x23\x45' for column `test`.`t2`.`a` at row 2
 SELECT HEX(a) FROM t2;
 HEX(a)
 003F

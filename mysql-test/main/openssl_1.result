@@ -4,52 +4,38 @@ drop table if exists t1;
 create table t1(f1 int);
 insert into t1 values (5);
 grant select on test.* to ssl_user1@localhost require SSL;
-grant select on test.* to ssl_user2@localhost require cipher "AES256-SHA";
-grant select on test.* to ssl_user3@localhost require cipher "AES256-SHA" AND SUBJECT "/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB/CN=client";
-grant select on test.* to ssl_user4@localhost require cipher "AES256-SHA" AND SUBJECT "/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB/CN=client" ISSUER "/CN=cacert/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB";
-grant select on test.* to ssl_user5@localhost require cipher "AES256-SHA" AND SUBJECT "xxx";
+grant select on test.* to ssl_user3@localhost require SUBJECT "/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB/CN=client";
+grant select on test.* to ssl_user4@localhost require SUBJECT "/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB/CN=client" ISSUER "/CN=cacert/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB";
+grant select on test.* to ssl_user5@localhost require SUBJECT "xxx";
 flush privileges;
-connect  con1,localhost,ssl_user1,,,,,SSL-CIPHER=AES256-SHA;
-connect(localhost,ssl_user2,,test,MASTER_PORT,MASTER_SOCKET);
-connect  con2,localhost,ssl_user2,,,,,SSL-CIPHER=AES128-SHA;
-ERROR 28000: Access denied for user 'ssl_user2'@'localhost' (using password: NO)
-connect  con2,localhost,ssl_user2,,,,,SSL-CIPHER=AES256-SHA;
-connect  con3,localhost,ssl_user3,,,,,SSL-CIPHER=AES256-SHA;
-connect  con4,localhost,ssl_user4,,,,,SSL-CIPHER=AES256-SHA;
+connect  con1,localhost,ssl_user1,,,,,SSL;
+connect  con3,localhost,ssl_user3,,,,,SSL;
+connect  con4,localhost,ssl_user4,,,,,SSL;
 connect(localhost,ssl_user5,,test,MASTER_PORT,MASTER_SOCKET);
-connect  con5,localhost,ssl_user5,,,,,SSL-CIPHER=AES256-SHA;
+connect  con5,localhost,ssl_user5,,,,,SSL;
 ERROR 28000: Access denied for user 'ssl_user5'@'localhost' (using password: NO)
 connection con1;
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	AES256-SHA
+SELECT VARIABLE_VALUE <> '' AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+have_ssl
+1
 select * from t1;
 f1
 5
 delete from t1;
 ERROR 42000: DELETE command denied to user 'ssl_user1'@'localhost' for table 't1'
-connection con2;
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	AES256-SHA
-select * from t1;
-f1
-5
-delete from t1;
-ERROR 42000: DELETE command denied to user 'ssl_user2'@'localhost' for table 't1'
 connection con3;
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	AES256-SHA
+SELECT VARIABLE_VALUE <> '' AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+have_ssl
+1
 select * from t1;
 f1
 5
 delete from t1;
 ERROR 42000: DELETE command denied to user 'ssl_user3'@'localhost' for table 't1'
 connection con4;
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	AES256-SHA
+SELECT VARIABLE_VALUE <> '' AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+have_ssl
+1
 select * from t1;
 f1
 5
@@ -57,20 +43,15 @@ delete from t1;
 ERROR 42000: DELETE command denied to user 'ssl_user4'@'localhost' for table 't1'
 connection default;
 disconnect con1;
-disconnect con2;
 disconnect con3;
 disconnect con4;
-drop user ssl_user1@localhost, ssl_user2@localhost,
-ssl_user3@localhost, ssl_user4@localhost, ssl_user5@localhost;
+drop user ssl_user1@localhost, ssl_user3@localhost, ssl_user4@localhost, ssl_user5@localhost;
 drop table t1;
 mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
 mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
 mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
 mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
 mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	AES256-SHA
 have_ssl
 1
 End of 5.0 tests
@@ -94,13 +75,7 @@ SSL_ACCEPTS	#
 SSL_CALLBACK_CACHE_HITS	#
 DROP TABLE thread_status;
 SET GLOBAL event_scheduler=0;
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	AES128-SHA
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	AES128-SHA
-mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxxCREATE TABLE t1(a int);
+CREATE TABLE t1(a int);
 INSERT INTO t1 VALUES (1), (2);
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
@@ -204,19 +179,12 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
-mysqldump: Got error: 2026: SSL connection error: xxxx
+mysqldump: Got error: 2026: "SSL connection error: xxxx
 DROP TABLE t1;
-Variable_name	Value
-Ssl_cipher	AES256-SHA
-Variable_name	Value
-Ssl_cipher	AES128-SHA
-select 'is still running; no cipher request crashed the server' as result from dual;
-result
-is still running; no cipher request crashed the server
 GRANT SELECT ON test.* TO bug42158@localhost REQUIRE X509;
 FLUSH PRIVILEGES;
 connect con1,localhost,bug42158,,,,,SSL;
-SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+SELECT VARIABLE_VALUE <> '' AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 have_ssl
 1
 disconnect con1;

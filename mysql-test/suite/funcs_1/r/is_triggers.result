@@ -1,3 +1,4 @@
+set @save_sql_mode=@@global.sql_mode;
 set global sql_mode="";
 SHOW TABLES FROM information_schema LIKE 'TRIGGERS';
 Tables_in_information_schema (TRIGGERS)
@@ -144,8 +145,8 @@ trg1	INSERT	t1	SET @test_before = 2, new.f1 = @test_before	BEFORE	#		testuser1@l
 connect  testuser2, localhost, testuser2, , db_datadict;
 SHOW GRANTS FOR 'testuser2'@'localhost';
 Grants for testuser2@localhost
-GRANT USAGE ON *.* TO 'testuser2'@'localhost'
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, INDEX, ALTER, CREATE VIEW, SHOW VIEW, DELETE VERSIONING ROWS ON `db_datadict`.`t1` TO 'testuser2'@'localhost'
+GRANT USAGE ON *.* TO `testuser2`@`localhost`
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, INDEX, ALTER, CREATE VIEW, SHOW VIEW, DELETE HISTORY ON `db_datadict`.`t1` TO `testuser2`@`localhost`
 # No TRIGGER Privilege --> no result for query
 SELECT * FROM information_schema.triggers
 WHERE trigger_name = 'trg1';
@@ -155,8 +156,8 @@ Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_clie
 connect  testuser3, localhost, testuser3, , test;
 SHOW GRANTS FOR 'testuser3'@'localhost';
 Grants for testuser3@localhost
-GRANT TRIGGER ON *.* TO 'testuser3'@'localhost'
-GRANT SELECT ON `db_datadict`.`t1` TO 'testuser3'@'localhost'
+GRANT TRIGGER ON *.* TO `testuser3`@`localhost`
+GRANT SELECT ON `db_datadict`.`t1` TO `testuser3`@`localhost`
 # TRIGGER Privilege + SELECT Privilege on t1 --> result for query
 SELECT * FROM information_schema.triggers
 WHERE trigger_name = 'trg1';
@@ -168,7 +169,7 @@ trg1	INSERT	t1	SET @test_before = 2, new.f1 = @test_before	BEFORE	#		testuser1@l
 connect  testuser4, localhost, testuser4, , test;
 SHOW GRANTS FOR 'testuser4'@'localhost';
 Grants for testuser4@localhost
-GRANT TRIGGER ON *.* TO 'testuser4'@'localhost'
+GRANT TRIGGER ON *.* TO `testuser4`@`localhost`
 # TRIGGER Privilege + no SELECT Privilege on t1 --> result for query
 SELECT * FROM db_datadict.t1;
 ERROR 42000: SELECT command denied to user 'testuser4'@'localhost' for table 't1'
@@ -234,4 +235,4 @@ ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_
 ALTER TABLE information_schema.triggers RENAME information_schema.xtriggers;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 DROP DATABASE db_datadict;
-set global sql_mode=default;
+set global sql_mode=@save_sql_mode;

@@ -42,6 +42,10 @@ SET @@global.rocksdb_update_cf_options = 'cf1={prefix_extractor=capped:26};';
 # Restart no longer needed
 SELECT * FROM information_schema.rocksdb_cf_options WHERE option_type like '%prefix_extractor%';
 
+# set cf_options for non-existent cf2, cf2 should be created automatically
+SET @@global.rocksdb_update_cf_options = 'cf2={prefix_extractor=capped:28};';
+SELECT * FROM information_schema.rocksdb_cf_options WHERE option_type like '%prefix_extractor%';
+
 # Satisfies can_use_bloom_filter (4+8+8+8), but can't use because the old SST
 # files have old prefix extractor
 select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';

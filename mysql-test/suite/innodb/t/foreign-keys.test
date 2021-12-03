@@ -112,6 +112,52 @@ drop table t2;
 drop table t1;
 set debug_sync='reset';
 
+
+--echo #
+--echo # MDEV-17595 - Server crashes in copy_data_between_tables or
+--echo #              Assertion `thd->transaction.stmt.is_empty() ||
+--echo #              (thd->state_flags & Open_tables_state::BACKUPS_AVAIL)'
+--echo #              fails in close_tables_for_reopen upon concurrent
+--echo #              ALTER TABLE and FLUSH
+--echo #
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2);
+CREATE TABLE t2 (b INT, KEY(b)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(2);
+ALTER TABLE t2 ADD FOREIGN KEY(b) REFERENCES t1(a), LOCK=EXCLUSIVE;
+DROP TABLE t2, t1;
+
+
+--echo #
+--echo # MDEV-16060 - InnoDB: Failing assertion: ut_strcmp(index->name, key->name)
+--echo #
+CREATE TABLE t1 (`pk` INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+FLUSH TABLES;
+
+SET debug_sync='alter_table_intermediate_table_created SIGNAL ready WAIT_FOR go';
+send ALTER TABLE t1 ADD FOREIGN KEY(pk) REFERENCES t2(pk) ON UPDATE CASCADE;
+
+connect con1, localhost, root;
+SET debug_sync='now WAIT_FOR ready';
+SET lock_wait_timeout=0;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t2 SET pk=10 WHERE pk=1;
+PREPARE stmt FROM 'UPDATE t2 SET pk=10 WHERE pk=1';
+DEALLOCATE PREPARE stmt;
+SET debug_sync='now SIGNAL go';
+
+connection default;
+reap;
+
+# Cleanup
+disconnect con1;
+
+connection default;
+SET debug_sync='reset';
+SHOW OPEN TABLES FROM test;
+DROP TABLE t1, t2;
+
 #
 # FK and prelocking:
 # child table accesses (reads and writes) wait for locks.
@@ -157,3 +203,68 @@ connection default;
 select * from t2;
 drop table t2, t1;
 drop user foo;
+
+--echo #
+--echo # MDEV-17187 table doesn't exist in engine after ALTER other tables
+--echo # with CONSTRAINTs
+--echo #
+
+set foreign_key_checks=on;
+create table t1 (id int not null primary key) engine=innodb;
+create table t2 (id int not null primary key, fid int not null,
+CONSTRAINT fk_fid FOREIGN KEY (fid) REFERENCES t1 (id))engine=innodb;
+
+insert into t1 values (1), (2), (3);
+insert into t2 values (1, 1), (2, 1), (3, 2);
+
+set foreign_key_checks=off;
+alter table t2 drop index fk_fid;
+set foreign_key_checks=on;
+
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id=2;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values(4, 99);
+
+select * from t1;
+select * from t2;
+
+set foreign_key_checks=off;
+delete from t1 where id=2;
+insert into t2 values(4, 99);
+set foreign_key_checks=on;
+
+select * from t1;
+select * from t2;
+
+show create table t1;
+show create table t2;
+
+# Optional: test DROP TABLE without any prior ha_innobase::open().
+# This was tested manually, but it would cause --embedded to skip the test,
+# and the restart would significantly increase the running time.
+# --source include/restart_mysqld.inc
+
+--error ER_ROW_IS_REFERENCED_2
+drop table t1,t2;
+--error ER_BAD_TABLE_ERROR
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-23470 InnoDB: Failing assertion: cmp < 0 in
+--echo #	row_ins_check_foreign_constraint
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY, f2 INT NOT NULL)ENGINE=InnoDB;
+CREATE TABLE t2(f1 VARCHAR(100), f2 INT NOT NULL,
+                INDEX(f2))ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES(99, 2);
+ALTER TABLE t2 ADD FOREIGN KEY(f2) REFERENCES t1(f1);
+
+SET FOREIGN_KEY_CHECKS=0;
+DROP INDEX f2 ON t2;
+SET FOREIGN_KEY_CHECKS=1;
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO t2 VALUES('G', 3);
+DROP TABLE t2, t1;
+SET FOREIGN_KEY_CHECKS=DEFAULT;

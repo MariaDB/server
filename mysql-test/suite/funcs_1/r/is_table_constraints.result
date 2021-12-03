@@ -63,6 +63,8 @@ def	mysql	PRIMARY	mysql	column_stats
 def	mysql	PRIMARY	mysql	db
 def	mysql	PRIMARY	mysql	event
 def	mysql	PRIMARY	mysql	func
+def	mysql	PRIMARY	mysql	global_priv
+def	mysql	Priv	mysql	global_priv
 def	mysql	PRIMARY	mysql	gtid_slave_pos
 def	mysql	name	mysql	help_category
 def	mysql	PRIMARY	mysql	help_category
@@ -89,7 +91,6 @@ def	mysql	PRIMARY	mysql	time_zone_transition
 def	mysql	PRIMARY	mysql	time_zone_transition_type
 def	mysql	commit_id	mysql	transaction_registry
 def	mysql	PRIMARY	mysql	transaction_registry
-def	mysql	PRIMARY	mysql	user
 #########################################################################################
 # Testcase 3.2.7.2 + 3.2.7.3: INFORMATION_SCHEMA.TABLE_CONSTRAINTS accessible information
 #########################################################################################
@@ -108,8 +109,8 @@ CREATE USER 'testuser1'@'localhost';
 GRANT SELECT(f5) ON db_datadict.t1 TO 'testuser1'@'localhost';
 SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
-GRANT SELECT (f5) ON `db_datadict`.`t1` TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
+GRANT SELECT (f5) ON `db_datadict`.`t1` TO `testuser1`@`localhost`
 SELECT * FROM information_schema.table_constraints
 WHERE table_schema = 'db_datadict'
 ORDER BY table_schema,table_name, constraint_name;
@@ -132,8 +133,8 @@ t2	0	PRIMARY	2	f2	###	###	###	###	###	###	###
 connect  testuser1, localhost, testuser1, , db_datadict;
 SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
-GRANT SELECT (f5) ON `db_datadict`.`t1` TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
+GRANT SELECT (f5) ON `db_datadict`.`t1` TO `testuser1`@`localhost`
 SELECT * FROM information_schema.table_constraints
 WHERE table_schema = 'db_datadict'
 ORDER BY table_schema,table_name, constraint_name;

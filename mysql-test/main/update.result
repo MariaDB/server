@@ -234,7 +234,9 @@ insert into t2 values ( 1, 'abcd1e');
 insert into t2 values ( 2, 'abcd2e');
 analyze table t1,t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 update t1, t2 set t1.a = t2.a where t2.b = t1.b;
 show warnings;
@@ -326,7 +328,7 @@ delete from t1 order by a limit 1;
 show status like 'handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	0
+Handler_read_key	4
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -719,3 +721,16 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 drop table t1, t2;
 # End of MariaDB 10.0 tests
+#
+# MDEV-18945: multi-table update with constant table and
+#             comparison of date field with integer field
+#
+CREATE TABLE t1 (i1 int, d1 date , i2 int , d2 date) engine=myisam;
+INSERT INTO t1 VALUES (19,'0000-00-00',73,'2008-05-21');
+CREATE TABLE t2 (d1 date , i1 int, i2 int , d2 date) engine=myisam;
+INSERT INTO t2 VALUES
+('2006-01-12',-102,45,'2023-11-25'),('2034-12-19',-102,45,'2001-11-20');
+UPDATE t1,t2 SET t1.i1 = -39 WHERE t2.d1 <> t1.i1 AND t2.d1 = t1.d2;
+ERROR 22007: Incorrect datetime value: '19' for column `test`.`t1`.`i1` at row 1
+DROP TABLE t1,t2;
+# End of MariaDB 10.2 tests

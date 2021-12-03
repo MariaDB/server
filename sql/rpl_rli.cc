@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -62,6 +62,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    slave_running(MYSQL_SLAVE_NOT_RUN), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
    sql_delay(0), sql_delay_end(0),
+   until_relay_log_names_defer(false),
    m_flags(0)
 {
   DBUG_ENTER("Relay_log_info::Relay_log_info");
@@ -206,8 +207,8 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       */
       sql_print_warning("Neither --relay-log nor --relay-log-index were used;"
                         " so replication "
-                        "may break when this MySQL server acts as a "
-                        "slave and has his hostname changed!! Please "
+                        "may break when this MariaDB server acts as a "
+                        "replica and has its hostname changed. Please "
                         "use '--log-basename=#' or '--relay-log=%s' to avoid "
                         "this problem.", ln);
       name_warning_sent= 1;
@@ -458,7 +459,7 @@ static inline int add_relay_log(Relay_log_info* rli,LOG_INFO* linfo)
     DBUG_RETURN(1);
   }
   rli->log_space_total += s.st_size;
-  DBUG_PRINT("info",("log_space_total: %llu", rli->log_space_total));
+  DBUG_PRINT("info",("log_space_total: %llu", uint64(rli->log_space_total)));
   DBUG_RETURN(0);
 }
 
@@ -503,6 +504,8 @@ void Relay_log_info::clear_until_condition()
   until_condition= Relay_log_info::UNTIL_NONE;
   until_log_name[0]= 0;
   until_log_pos= 0;
+  until_relay_log_names_defer= false;
+
   DBUG_VOID_RETURN;
 }
 
@@ -988,12 +991,11 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
   if (rgi->is_parallel_exec)
   {
     /* In case of parallel replication, do not update the position backwards. */
-    int cmp= strcmp(group_relay_log_name, rgi->event_relay_log_name);
+    int cmp= compare_log_name(group_relay_log_name, rgi->event_relay_log_name);
     if (cmp < 0)
     {
       group_relay_log_pos= rgi->future_event_relay_log_pos;
       strmake_buf(group_relay_log_name, rgi->event_relay_log_name);
-      notify_group_relay_log_name_update();
     } else if (cmp == 0 && group_relay_log_pos < rgi->future_event_relay_log_pos)
       group_relay_log_pos= rgi->future_event_relay_log_pos;
 
@@ -1001,7 +1003,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
       In the parallel case we need to update the master_log_name here, rather
       than in Rotate_log_event::do_update_pos().
     */
-    cmp= strcmp(group_master_log_name, rgi->future_event_master_log_name);
+    cmp= compare_log_name(group_master_log_name, rgi->future_event_master_log_name);
     if (cmp <= 0)
     {
       if (cmp < 0)
@@ -1250,7 +1252,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     mysql_mutex_unlock(rli->relay_log.get_log_lock());
   }
 err:
-  DBUG_PRINT("info",("log_space_total: %llu",rli->log_space_total));
+  DBUG_PRINT("info",("log_space_total: %llu", uint64(rli->log_space_total)));
   mysql_mutex_unlock(&rli->data_lock);
   DBUG_RETURN(error);
 }
@@ -1283,29 +1285,78 @@ err:
      autoincrement or if we have transactions).
 
      Should be called ONLY if until_condition != UNTIL_NONE !
+
+     In the parallel execution mode and UNTIL_MASTER_POS the file name is
+     presented by future_event_master_log_name which may be ahead of
+     group_master_log_name. Log_event::log_pos does relate to it nevertheless
+     so the pair comprises a correct binlog coordinate.
+     Internal group events and events that have zero log_pos also
+     produce the zero for the local log_pos which may not lead to the
+     function falsely return true.
+     In UNTIL_RELAY_POS the original caching and notification are simplified
+     to straightforward files comparison when the current event can't be
+     a part of an event group.
+
    RETURN VALUE
      true - condition met or error happened (condition seems to have
             bad log file name)
      false - condition not met
 */
 
-bool Relay_log_info::is_until_satisfied(my_off_t master_beg_pos)
+bool Relay_log_info::is_until_satisfied(Log_event *ev)
 {
   const char *log_name;
   ulonglong log_pos;
+  /* Prevents stopping within transaction; needed solely for Relay UNTIL. */
+  bool in_trans= false;
+
   DBUG_ENTER("Relay_log_info::is_until_satisfied");
 
   if (until_condition == UNTIL_MASTER_POS)
   {
     log_name= (mi->using_parallel() ? future_event_master_log_name
                                     : group_master_log_name);
-    log_pos= master_beg_pos;
+    log_pos= (get_flag(Relay_log_info::IN_TRANSACTION) || !ev || !ev->log_pos) ?
+      (mi->using_parallel() ? 0 : group_master_log_pos) :
+      ev->log_pos - ev->data_written;
   }
   else
   {
     DBUG_ASSERT(until_condition == UNTIL_RELAY_POS);
-    log_name= group_relay_log_name;
-    log_pos= group_relay_log_pos;
+    if (!mi->using_parallel())
+    {
+      log_name= group_relay_log_name;
+      log_pos= group_relay_log_pos;
+    }
+    else
+    {
+      log_name= event_relay_log_name;
+      log_pos=  event_relay_log_pos;
+      in_trans= get_flag(Relay_log_info::IN_TRANSACTION);
+      /*
+        until_log_names_cmp_result is set to UNKNOWN either
+        -  by a non-group event *and* only when it is in the middle of a group
+        -  or by a group event when the preceding group made the above
+           non-group event to defer the resetting.
+      */
+      if ((ev && !Log_event::is_group_event(ev->get_type_code())))
+      {
+        if (in_trans)
+        {
+          until_relay_log_names_defer= true;
+        }
+        else
+        {
+          until_log_names_cmp_result= UNTIL_LOG_NAMES_CMP_UNKNOWN;
+          until_relay_log_names_defer= false;
+        }
+      }
+      else if (!in_trans && until_relay_log_names_defer)
+      {
+        until_log_names_cmp_result= UNTIL_LOG_NAMES_CMP_UNKNOWN;
+        until_relay_log_names_defer= false;
+      }
+    }
   }
 
   DBUG_PRINT("info", ("group_master_log_name='%s', group_master_log_pos=%llu",
@@ -1359,8 +1410,8 @@ bool Relay_log_info::is_until_satisfied(my_off_t master_beg_pos)
   }
 
   DBUG_RETURN(((until_log_names_cmp_result == UNTIL_LOG_NAMES_CMP_EQUAL &&
-           log_pos >= until_log_pos) ||
-          until_log_names_cmp_result == UNTIL_LOG_NAMES_CMP_GREATER));
+                (log_pos >= until_log_pos && !in_trans)) ||
+               until_log_names_cmp_result == UNTIL_LOG_NAMES_CMP_GREATER));
 }
 
 
@@ -1420,8 +1471,14 @@ bool Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
     }
     DBUG_EXECUTE_IF("inject_crash_before_flush_rli", DBUG_SUICIDE(););
     if (mi->using_gtid == Master_info::USE_GTID_NO)
+    {
+      if (rgi->is_parallel_exec)
+        mysql_mutex_lock(&data_lock);
       if (flush())
         error= 1;
+      if (rgi->is_parallel_exec)
+        mysql_mutex_unlock(&data_lock);
+    }
     DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
   }
   DBUG_RETURN(error);
@@ -1435,31 +1492,27 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
   uint32 gtid_count;
   rpl_gtid *gtid_list;
 
-  if (!(ir= (inuse_relaylog *)my_malloc(sizeof(*ir), MYF(MY_WME|MY_ZEROFILL))))
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*ir));
-    return 1;
-  }
   gtid_count= relay_log_state.count();
   if (!(gtid_list= (rpl_gtid *)my_malloc(sizeof(*gtid_list)*gtid_count,
                                          MYF(MY_WME))))
   {
-    my_free(ir);
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*gtid_list)*gtid_count);
+    return 1;
+  }
+  if (!(ir= new inuse_relaylog(this, gtid_list, gtid_count, name)))
+  {
+    my_free(gtid_list);
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(*ir));
     return 1;
   }
   if (relay_log_state.get_gtid_list(gtid_list, gtid_count))
   {
     my_free(gtid_list);
-    my_free(ir);
+    delete ir;
     DBUG_ASSERT(0 /* Should not be possible as we allocated correct length */);
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return 1;
   }
-  ir->rli= this;
-  strmake_buf(ir->name, name);
-  ir->relay_log_state= gtid_list;
-  ir->relay_log_state_count= gtid_count;
 
   if (!inuse_relaylog_list)
     inuse_relaylog_list= ir;
@@ -1478,7 +1531,7 @@ void
 Relay_log_info::free_inuse_relaylog(inuse_relaylog *ir)
 {
   my_free(ir->relay_log_state);
-  my_free(ir);
+  delete ir;
 }
 
 
@@ -1561,7 +1614,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
     sub_id= (ulonglong)table->field[1]->val_int();
     server_id= (uint32)table->field[2]->val_int();
     seq_no= (ulonglong)table->field[3]->val_int();
-    DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu\n",
+    DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu",
                         (unsigned)domain_id, (unsigned)server_id,
                         (ulong)seq_no, (ulong)sub_id));
 
@@ -1622,7 +1675,7 @@ end:
   {
     *out_hton= table->s->db_type();
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->mdl_context.release_transactional_locks(thd);
   }
   return err;
 }
@@ -1649,7 +1702,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
   {
     my_error(ER_FILE_NOT_FOUND, MYF(0), path, my_errno);
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     return 1;
   }
   else
@@ -1662,7 +1715,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
     err= ha_discover_table_names(thd, &MYSQL_SCHEMA_NAME, dirp, &tl, false);
     my_dirend(dirp);
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     if (err)
       return err;
 
@@ -1820,6 +1873,7 @@ rpl_load_gtid_slave_state(THD *thd)
   int err= 0;
   uint32 i;
   load_gtid_state_cb_data cb_data;
+  rpl_slave_state::list_element *old_gtids_list;
   DBUG_ENTER("rpl_load_gtid_slave_state");
 
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
@@ -1905,6 +1959,13 @@ rpl_load_gtid_slave_state(THD *thd)
   rpl_global_gtid_slave_state->loaded= true;
   mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
 
+  /* Clear out no longer needed elements now. */
+  old_gtids_list=
+    rpl_global_gtid_slave_state->gtid_grab_pending_delete_list();
+  rpl_global_gtid_slave_state->gtid_delete_pending(thd, &old_gtids_list);
+  if (old_gtids_list)
+    rpl_global_gtid_slave_state->put_back_list(old_gtids_list);
+
 end:
   if (array_inited)
     delete_dynamic(&array);
@@ -1939,7 +2000,7 @@ end:
     ha_commit_trans(thd, FALSE);
     ha_commit_trans(thd, TRUE);
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   }
 
   return err;
@@ -2011,10 +2072,9 @@ find_gtid_slave_pos_tables(THD *thd)
       However we can add new entries, and warn about any tables that
       disappeared, but may still be visible to running SQL threads.
     */
-    rpl_slave_state::gtid_pos_table *old_entry, *new_entry, **next_ptr_ptr;
-
-    old_entry= (rpl_slave_state::gtid_pos_table *)
-      rpl_global_gtid_slave_state->gtid_pos_tables;
+    rpl_slave_state::gtid_pos_table *new_entry, **next_ptr_ptr;
+    auto old_entry= rpl_global_gtid_slave_state->
+                    gtid_pos_tables.load(std::memory_order_relaxed);
     while (old_entry)
     {
       new_entry= cb_data.table_list;
@@ -2036,8 +2096,8 @@ find_gtid_slave_pos_tables(THD *thd)
     while (new_entry)
     {
       /* Check if we already have a table with this storage engine. */
-      old_entry= (rpl_slave_state::gtid_pos_table *)
-        rpl_global_gtid_slave_state->gtid_pos_tables;
+      old_entry= rpl_global_gtid_slave_state->
+                 gtid_pos_tables.load(std::memory_order_relaxed);
       while (old_entry)
       {
         if (new_entry->table_hton == old_entry->table_hton)
@@ -2086,7 +2146,6 @@ rpl_group_info::reinit(Relay_log_info *rli)
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
   gtid_ev_flags2= 0;
-  pending_gtid_delete_list= NULL;
   last_master_timestamp = 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
@@ -2217,19 +2276,13 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       erroneously update the GTID position.
     */
     gtid_pending= false;
-
-    /*
-      Rollback will have undone any deletions of old rows we might have made
-      in mysql.gtid_slave_pos. Put those rows back on the list to be deleted.
-    */
-    pending_gtid_deletes_put_back();
   }
   m_table_map.clear_tables();
   slave_close_thread_tables(thd);
 
   if (unlikely(error))
   {
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
 
     if (thd == rli->sql_driver_thd)
     {
@@ -2343,10 +2396,10 @@ void rpl_group_info::slave_close_thread_tables(THD *thd)
   if (thd->transaction_rollback_request)
   {
     trans_rollback_implicit(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   }
   else if (! thd->in_multi_stmt_transaction_mode())
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   else
     thd->mdl_context.release_statement_locks();
 
@@ -2445,78 +2498,6 @@ rpl_group_info::unmark_start_commit()
   mysql_mutex_lock(&e->LOCK_parallel_entry);
   --e->count_committing_event_groups;
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
-}
-
-
-/*
-  When record_gtid() has deleted any old rows from the table
-  mysql.gtid_slave_pos as part of a replicated transaction, save the list of
-  rows deleted here.
-
-  If later the transaction fails (eg. optimistic parallel replication), the
-  deletes will be undone when the transaction is rolled back. Then we can
-  put back the list of rows into the rpl_global_gtid_slave_state, so that
-  we can re-do the deletes and avoid accumulating old rows in the table.
-*/
-void
-rpl_group_info::pending_gtid_deletes_save(uint32 domain_id,
-                                          rpl_slave_state::list_element *list)
-{
-  /*
-    We should never get to a state where we try to save a new pending list of
-    gtid deletes while we still have an old one. But make sure we handle it
-    anyway just in case, so we avoid leaving stray entries in the
-    mysql.gtid_slave_pos table.
-  */
-  DBUG_ASSERT(!pending_gtid_delete_list);
-  if (unlikely(pending_gtid_delete_list))
-    pending_gtid_deletes_put_back();
-
-  pending_gtid_delete_list= list;
-  pending_gtid_delete_list_domain= domain_id;
-}
-
-
-/*
-  Take the list recorded by pending_gtid_deletes_save() and put it back into
-  rpl_global_gtid_slave_state. This is needed if deletion of the rows was
-  rolled back due to transaction failure.
-*/
-void
-rpl_group_info::pending_gtid_deletes_put_back()
-{
-  if (pending_gtid_delete_list)
-  {
-    rpl_global_gtid_slave_state->put_back_list(pending_gtid_delete_list_domain,
-                                               pending_gtid_delete_list);
-    pending_gtid_delete_list= NULL;
-  }
-}
-
-
-/*
-  Free the list recorded by pending_gtid_deletes_save(). Done when the deletes
-  in the list have been permanently committed.
-*/
-void
-rpl_group_info::pending_gtid_deletes_clear()
-{
-  pending_gtid_deletes_free(pending_gtid_delete_list);
-  pending_gtid_delete_list= NULL;
-}
-
-
-void
-rpl_group_info::pending_gtid_deletes_free(rpl_slave_state::list_element *list)
-{
-  rpl_slave_state::list_element *next;
-
-  while (list)
-  {
-    next= list->next;
-    my_free(list);
-    list= next;
-  }
 }
 
 

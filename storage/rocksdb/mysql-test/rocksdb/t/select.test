@@ -40,11 +40,11 @@ SELECT SQL_BIG_RESULT SQL_CALC_FOUND_ROWS DISTINCT(t2.a)
   FROM t1 t1_1, t2, t1 t1_2;
 SELECT FOUND_ROWS();
 
-let $query_cache = `SELECT @@query_cache_size`;
+SET @save_query_cache=@@global.query_cache_size;
 SET GLOBAL query_cache_size = 1024*1024;
 --sorted_result
 SELECT SQL_CACHE * FROM t1, t2;
-eval SET GLOBAL query_cache_size = $query_cache;
+SET @@global.query_cache_size=@save_query_cache;
 
 # Combination of main clauses
 

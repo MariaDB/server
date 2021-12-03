@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef _SP_H_
 #define _SP_H_
@@ -522,12 +522,11 @@ inline const Sp_handler *Sp_handler::handler(MDL_key::enum_mdl_namespace type)
     return &sp_handler_procedure;
   case MDL_key::PACKAGE_BODY:
     return &sp_handler_package_body;
-  case MDL_key::GLOBAL:
+  case MDL_key::BACKUP:
   case MDL_key::SCHEMA:
   case MDL_key::TABLE:
   case MDL_key::TRIGGER:
   case MDL_key::EVENT:
-  case MDL_key::COMMIT:
   case MDL_key::USER_LOCK:
   case MDL_key::NAMESPACE_END:
     break;

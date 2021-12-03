@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,12 +27,10 @@ Created 5/7/1996 Heikki Tuuri
 #ifndef lock0lock_h
 #define lock0lock_h
 
-#include "univ.i"
 #include "buf0types.h"
 #include "trx0types.h"
 #include "mtr0types.h"
 #include "rem0types.h"
-#include "dict0types.h"
 #include "que0types.h"
 #include "lock0types.h"
 #include "hash0hash.h"
@@ -302,7 +300,7 @@ lock_clust_rec_modify_check_and_lock(
 	const rec_t*		rec,	/*!< in: record which should be
 					modified */
 	dict_index_t*		index,	/*!< in: clustered index */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	que_thr_t*		thr)	/*!< in: query thread */
 	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
@@ -340,7 +338,7 @@ lock_sec_rec_read_check_and_lock(
 					be read or passed over by a
 					read cursor */
 	dict_index_t*		index,	/*!< in: secondary index */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	lock_mode		mode,	/*!< in: mode of the lock which
 					the read cursor should set on
 					records: LOCK_S or LOCK_X; the
@@ -368,7 +366,7 @@ lock_clust_rec_read_check_and_lock(
 					be read or passed over by a
 					read cursor */
 	dict_index_t*		index,	/*!< in: clustered index */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	lock_mode		mode,	/*!< in: mode of the lock which
 					the read cursor should set on
 					records: LOCK_S or LOCK_X; the
@@ -417,7 +415,7 @@ lock_clust_rec_cons_read_sees(
 	const rec_t*	rec,	/*!< in: user record which should be read or
 				passed over by a read cursor */
 	dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ReadView*	view);	/*!< in: consistent read view */
 /*********************************************************************//**
 Checks that a non-clustered index record is seen in a consistent read.
@@ -484,14 +482,10 @@ lock_rec_unlock(
 	const buf_block_t*	block,	/*!< in: buffer block containing rec */
 	const rec_t*		rec,	/*!< in: record */
 	lock_mode		lock_mode);/*!< in: LOCK_S or LOCK_X */
-/*********************************************************************//**
-Releases a transaction's locks, and releases possible other transactions
-waiting because of these locks. Change the state of the transaction to
-TRX_STATE_COMMITTED_IN_MEMORY. */
-void
-lock_trx_release_locks(
-/*===================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+
+/** Release the explicit locks of a committing transaction,
+and release possible other transactions waiting because of these locks. */
+void lock_release(trx_t* trx);
 
 /*********************************************************************//**
 Calculates the fold value of a page file address: used in inserting or
@@ -547,13 +541,14 @@ lock_has_to_wait(
 				locks are record locks */
 /*********************************************************************//**
 Reports that a transaction id is insensible, i.e., in the future. */
+ATTRIBUTE_COLD
 void
 lock_report_trx_id_insanity(
 /*========================*/
 	trx_id_t	trx_id,		/*!< in: trx id */
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
-	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec, index) */
 	trx_id_t	max_trx_id);	/*!< in: trx_sys.get_max_trx_id() */
 /*********************************************************************//**
 Prints info of locks for all transactions.
@@ -568,11 +563,10 @@ lock_print_info_summary(
 
 /** Prints transaction lock wait and MVCC state.
 @param[in,out]	file	file where to print
-@param[in]	trx	transaction */
+@param[in]	trx	transaction
+@param[in]	now	current time */
 void
-lock_trx_print_wait_and_mvcc_state(
-	FILE*		file,
-	const trx_t*	trx);
+lock_trx_print_wait_and_mvcc_state(FILE* file, const trx_t* trx, time_t now);
 
 /*********************************************************************//**
 Prints info of locks for each transaction. This function assumes that the
@@ -779,7 +773,7 @@ lock_check_trx_id_sanity(
 	trx_id_t	trx_id,		/*!< in: trx id */
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
-	const ulint*	offsets);	/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets);	/*!< in: rec_get_offsets(rec, index) */
 #ifdef UNIV_DEBUG
 /*******************************************************************//**
 Check if the transaction holds any locks on the sys tables
@@ -1050,10 +1044,6 @@ Get lock mode and table/index name
 std::string
 lock_get_info(
 	const lock_t*);
-
-/*******************************************************************//**
-@return whether wsrep_on is true on trx->mysql_thd*/
-#define wsrep_on_trx(trx) ((trx)->mysql_thd && wsrep_on((trx)->mysql_thd))
 
 #endif /* WITH_WSREP */
 

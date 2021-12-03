@@ -400,15 +400,20 @@ set big_tables=0;
 # Test of GROUP BY ... ORDER BY NULL optimization
 #
 
+SET @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='outer_join_with_cache=off',@@optimizer_use_condition_selectivity=4;
 create table t1 (a int not null, b int not null);
 insert into t1 values (1,1),(1,2),(3,1),(3,2),(2,2),(2,1);
 create table t2 (a int not null, b int not null, key(a));
 insert into t2 values (1,3),(3,1),(2,2),(1,1);
 select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b;
+--sorted_result
 select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b ORDER BY NULL;
 explain select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b;
 explain select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b ORDER BY NULL;
 drop table t1,t2;
+SET @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity,@@optimizer_switch=@save_optimizer_switch;
+
 
 #
 # group function arguments in some functions
@@ -1545,7 +1550,9 @@ CREATE TABLE t1 (
   b varchar(1),
   KEY (b,a)
 );
-INSERT INTO t1 VALUES (1,NULL),(0,'a'),(1,NULL),(0,'a');
+INSERT INTO t1 VALUES
+  (1,NULL),(0,'a'),(1,NULL),(0,'a'), (1,'a'),(0,'a'),(2,'a'),(1,'a');
+ANALYZE TABLE t1;
 
 let $query=
   SELECT SQL_BUFFER_RESULT MIN(a), b FROM t1 WHERE t1.b = 'a' GROUP BY b;
@@ -1941,6 +1948,20 @@ SELECT 1 IN ( SELECT COUNT( DISTINCT f2 ) FROM t1 WHERE f1 <= 4 );
 drop table t1;
 
 --echo #
+--echo # MDEV-20922: Adding an order by changes the query results
+--echo #
+
+CREATE TABLE t1(a int, b int);
+INSERT INTO t1 values (1, 100), (2, 200), (3, 100), (4, 200), (5, 200);
+
+create view v1 as select a, b+1 as x from t1;
+
+SELECT x, COUNT(DISTINCT a) AS y FROM v1 GROUP BY x ORDER BY y;
+SELECT b+1 AS x, COUNT(DISTINCT a) AS y FROM t1 GROUP BY x ORDER BY y;
+
+drop view v1;
+drop table t1;
+--echo #
 --echo # MDEV-10694 - SIGFPE and/or huge memory allocation in maria_create with distinct/group by/ rollup
 --echo #
 create table t1 (a int,b int) ;
@@ -1962,6 +1983,56 @@ GROUP BY REPEAT((BINARY pk), v1), AES_DECRYPT((@A := i1), 20852) WITH ROLLUP HAV
 drop table t1;
 
 --echo #
+--echo # MDEV-22019: Sig 11 in next_breadth_first_tab | max_sort_length setting + double
+--echo # GROUP BY leads to crash
+--echo #
+
+CALL mtr.add_suppression("Out of sort memory");
+CALL mtr.add_suppression("Sort aborted");
+SET @save_max_sort_length= @@max_sort_length;
+SET max_sort_length=2000000;
+--error ER_OUT_OF_SORTMEMORY
+SELECT * FROM information_schema.tables t JOIN information_schema.columns c
+ON t.table_schema=c.table_schema
+WHERE c.table_schema=(SELECT COUNT(*) FROM INFORMATION_SCHEMA.columns GROUP BY column_type)
+GROUP BY t.table_name;
+SET max_sort_length= @save_max_sort_length;
+
+--echo #
+--echo # MDEV-23826: ORDER BY in view definition leads to wrong result with GROUP BY on query using view
+--echo #
+
+CREATE TABLE t1
+(
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  dt datetime,
+  INDEX(dt),
+  foo int
+);
+
+INSERT INTO t1 VALUES (1,'2020-09-26 12:00:00',1);
+INSERT INTO t1 VALUES (2,'2020-09-26 13:00:00',1);
+INSERT INTO t1 VALUES (3,'2020-09-27 13:00:00',1);
+INSERT INTO t1 VALUES (4,'2020-09-27 12:00:00',1);
+INSERT INTO t1 VALUES (5,'2020-09-28 12:00:00',1);
+INSERT INTO t1 VALUES (6,'2020-09-28 13:00:00',1);
+INSERT INTO t1 VALUES (7,'2020-09-25 12:00:00',1);
+INSERT INTO t1 VALUES (8,'2020-09-25 13:00:00',1);
+INSERT INTO t1 VALUES (9,'2020-09-26 13:00:00',1);
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM t1 ORDER BY dt;
+SELECT dt, sum(foo) AS foo FROM v1 WHERE dt>DATE_SUB('2020-09-27 00:00:00', INTERVAL 3 DAY) GROUP BY dt;
+SELECT dt, sum(foo) AS foo FROM v2 WHERE dt>DATE_SUB('2020-09-27 00:00:00', INTERVAL 3 DAY) GROUP BY dt;
+
+DROP TABLE t1;
+DROP VIEW v1,v2;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
 --echo # MDEV-16170
 --echo # Server crashes in Item_null_result::type_handler on SELECT with ROLLUP
 --echo #
@@ -1970,3 +2041,30 @@ CREATE TABLE t1 (d DATE);
 INSERT INTO t1 VALUES ('2032-10-08');
 SELECT d != '2023-03-04' AS f, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-24710 Uninitialized value upon CREATE .. SELECT ... VALUE
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(8) NOT NULL DEFAULT '');
+INSERT INTO t1 (a) VALUES ('foo');
+CREATE TABLE t2 AS SELECT MAX(a) AS f1, a AS f2 FROM t1 WHERE VALUE(a) IS NOT NULL;
+SELECT * from t2;
+SELECT MAX(a) AS f1, a AS f2 FROM t1 WHERE VALUE(a) IS NOT NULL;
+SELECT MAX(a) AS f1, a AS f2 FROM t1 WHERE 1=0;
+drop table t1,t2;
+
+--echo # Extra test by to check the fix for MDEV-24710
+
+create table t20 (pk int primary key, a int);
+insert into t20 values (1,1);create table t21 (pk int primary key, b int not null);
+insert into t21 values (1,1);
+create table t22 (a int);
+insert into t22 values (1),(2);
+select a, (select max(t21.b) from t20 left join t21 on t21.pk=t20.a+10
+           where t20.pk=1 and rand(123) < 0.5) as SUBQ from t22;
+drop table t20, t21, t22;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

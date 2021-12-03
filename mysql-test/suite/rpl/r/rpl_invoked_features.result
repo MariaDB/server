@@ -50,11 +50,15 @@ BEGIN
 ALTER EVENT e1 DISABLE;
 CALL p1(10, '');  
 END|
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE EVENT e11 ON SCHEDULE EVERY 1 SECOND DISABLE DO
 BEGIN
 ALTER EVENT e11 DISABLE;
 CALL p11(10, '');  
 END|
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE FUNCTION f1 (x INT) RETURNS VARCHAR(64)
 BEGIN
 IF x > 5 THEN

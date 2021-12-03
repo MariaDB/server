@@ -1,0 +1,227 @@
+source suite/period/engines.inc;
+source include/have_log_bin.inc;
+
+create table t (id int, s date, e date, period for apptime(s,e));
+
+insert into t values(1, '1999-01-01', '2018-12-12');
+insert into t values(1, '1999-01-01', '2017-01-01');
+insert into t values(1, '2017-01-01', '2019-01-01');
+insert into t values(2, '1998-01-01', '2018-12-12');
+insert into t values(3, '1997-01-01', '2015-01-01');
+insert into t values(4, '2016-01-01', '2020-01-01');
+insert into t values(5, '2010-01-01', '2015-01-01');
+
+create or replace table t1 (id int, s date, e date, period for apptime(s,e));
+insert t1 select * from t;
+create or replace table t2 (id int, s date, e date, period for apptime(s,e));
+insert t2 select * from t;
+create or replace table t3 (id int, s date, e date, period for apptime(s,e));
+insert t3 select * from t;
+
+--let $trig_cols=id, s, e
+--let $trig_table=t1
+--source suite/period/create_triggers.inc
+
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+delete from t1 for portion of APPTIME from '2000-01-01' to '2018-01-01';
+--sorted_result
+select * from t;
+--sorted_result
+select * from t1;
+select * from log_tbl order by id;
+
+--echo # INSERT trigger only also works
+--let $trig_cols=id, s, e
+--let $trig_table=t2
+--source suite/period/create_triggers.inc
+drop trigger tr1del_t2;
+drop trigger tr2del_t2;
+delete from t2 for portion of APPTIME from '2000-01-01' to '2018-01-01';
+select * from log_tbl order by id;
+
+--echo # removing BEFORE INSERT trigger enables internal substitution
+--echo # DELETE+INSERT -> UPDATE, but without any side effects.
+--echo # The optimization is disabled for non-transactional engines
+--let $trig_table=t3
+--source suite/period/create_triggers.inc
+drop trigger tr1ins_t3;
+delete from t3 for portion of APPTIME from '2000-01-01' to '2018-01-01';
+select * from log_tbl order by id;
+
+--echo # multi-table DELETE is not possible
+--error ER_PARSE_ERROR
+delete t, t1 from t1, t for portion of apptime from '2000-01-01' to '2018-01-01';
+
+--error ER_PARSE_ERROR
+delete t for portion of apptime from '2000-01-01' to '2018-01-01', t1 from t, t1;
+
+--echo # Here another check fails before parsing ends
+--error ER_UNKNOWN_TABLE
+delete t, t1 from t for portion of apptime from '2000-01-01' to '2018-01-01', t1;
+
+--error ER_PARSE_ERROR
+delete history from t2 for portion of apptime from '2000-01-01' to '2018-01-01';
+
+--error ER_PERIOD_NOT_FOUND
+delete from t for portion of othertime from '2000-01-01' to '2018-01-01';
+--error ER_PARSE_ERROR
+delete from t for portion of system_time from '2000-01-01' to '2018-01-01';
+
+create or replace table t (id int, str text, s date, e date,
+    period for apptime(s,e));
+
+insert into t values(1, 'data', '1999-01-01', '2018-12-12');
+insert into t values(1, 'other data', '1999-01-01', '2018-12-12');
+insert into t values(1, 'deleted', '2000-01-01', '2018-01-01');
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+show warnings;
+--sorted_result
+select * from t;
+
+drop table t1;
+
+--echo # SQL16, Part 2, 15.7 <Effect of deleting rows from base tables>,
+--echo #        General rules, 8)b)i)
+--echo # If the column descriptor that corresponds to the i-th field of BR
+--echo # describes an identity column, a generated column, a system-time period
+--echo # start column, or a system-time period end column, then let V i be
+--echo # DEFAULT.
+
+--echo # auto_increment field is updated
+create or replace table t (id int primary key auto_increment, s date, e date,
+                           period for apptime(s, e));
+insert into t values (default, '1999-01-01', '2018-12-12');
+select * from t;
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+--sorted_result
+select * from t;
+truncate t;
+--echo # same for trigger case
+insert into t values (default, '1999-01-01', '2018-12-12');
+--let $trig_table=t
+--source suite/period/create_triggers.inc
+
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+--sorted_result
+select * from t;
+select * from log_tbl order by id;
+
+--echo # generated columns are updated
+create or replace table t (s date, e date,
+                           xs date as (s) stored, xe date as (e) stored,
+                           period for apptime(s, e));
+insert into t values('1999-01-01', '2018-12-12', default, default);
+--sorted_result
+select * from t;
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+--sorted_result
+select * from t;
+truncate t;
+--echo # same for trigger case
+insert into t values('1999-01-01', '2018-12-12', default, default);
+--let $trig_table=t
+--source suite/period/create_triggers.inc
+
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+--sorted_result
+select * from t;
+select * from log_tbl order by id;
+
+--echo # View can't be used
+create or replace view v as select * from t;
+--error ER_IT_IS_A_VIEW
+delete from v for portion of p from '2000-01-01' to '2018-01-01';
+
+--echo # View can't be used
+create or replace view v as select t.* from t, t as t1;
+--error ER_VIEW_DELETE_MERGE_VIEW
+delete from v for portion of p from '2000-01-01' to '2018-01-01';
+
+--echo # auto_increment field overflow
+create or replace table t (id tinyint auto_increment primary key,
+                           s date, e date, period for apptime(s,e));
+
+insert into t values(127, '1999-01-01', '2018-12-12');
+
+--error HA_ERR_AUTOINC_ERANGE
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select * from t;
+
+--echo # same for trigger case
+--let $trig_table=t
+--source suite/period/create_triggers.inc
+--echo # negotiate side effects of non-transactional MyISAM engine
+replace into t values(127, '1999-01-01', '2018-12-12');
+select * from t;
+truncate table log_tbl;
+
+--error HA_ERR_AUTOINC_ERANGE
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select * from t;
+select * from log_tbl order by id;
+
+--echo # custom constraint for period fields
+create or replace table t(id int, s date, e date, period for apptime(s,e),
+                          constraint dist2days check (datediff(e, s) >= 2));
+insert into t values(1, '1999-01-01', '2018-12-12'),
+                    (2, '1999-01-01', '1999-12-12');
+--error ER_CONSTRAINT_FAILED
+delete from t for portion of apptime from '1999-01-02' to '2018-12-12';
+--echo # negotiate side effects of non-transactional MyISAM engine
+truncate t;
+insert into t values(1, '1999-01-01', '2018-12-12'),
+                    (2, '1999-01-01', '1999-12-12');
+--error ER_CONSTRAINT_FAILED
+delete from t for portion of apptime from '1999-01-01' to '2018-12-11';
+truncate t;
+insert into t values(1, '1999-01-01', '2018-12-12'),
+                    (2, '1999-01-01', '1999-12-12');
+
+delete from t for portion of apptime from '1999-01-03' to '2018-12-10';
+--sorted_result
+select *, datediff(e, s) from t;
+
+--echo #
+--echo # MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+--echo #
+create or replace table t1 (id int, s date, e date, period for apptime(s,e));
+create or replace procedure sp()
+delete from t1 for portion of othertime from '2000-01-01' to '2018-01-01';
+--error ER_PERIOD_NOT_FOUND
+call sp;
+--error ER_PERIOD_NOT_FOUND
+call sp;
+drop table t1;
+drop procedure sp;
+
+drop table t,t2,t3,log_tbl;
+drop view v;
+drop procedure log;
+
+--echo # MDEV-19130 Assertion
+--echo # `next_insert_id >= auto_inc_interval_for_cur_row.minimum()'
+--echo # failed in handler::update_auto_increment after error 167
+
+create or replace table t (f tinyint auto_increment null,
+                           s timestamp, e timestamp,
+                           period for app(s,e), key(f, s));
+insert into t (s,e) values
+  ('2021-08-22 10:28:43', '2023-09-17 00:00:00'),
+  ('2019-05-09 21:45:24', '2020-04-22 14:38:49');
+insert into t (s,e) select s,e from t;
+insert into t (s,e) select s,e from t;
+insert into t (s,e) select s,e from t;
+insert into t (s,e) values ('2015-07-07 00:00:00','2020-03-11 08:48:52');
+insert into t (s,e) select s,e from t;
+insert into t (s,e) select s,e from t;
+
+--replace_regex /row \d+/row ROW/
+--error HA_ERR_AUTOINC_ERANGE
+insert into t select * from t;
+
+--disable_warnings
+delete ignore from t
+       for portion of app from '2015-07-07 00:00:00' to '2020-03-11 08:48:52';
+--enable_warnings
+
+drop table t;

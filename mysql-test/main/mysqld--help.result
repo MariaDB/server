@@ -1,4 +1,4 @@
-Windows bug: happens when a new line is exactly at the right offset.
+Windows bug: new line disappears when it is exactly at the right offset.
 The following options may be given as the first argument:
 --print-defaults Print the program argument list and exit.
 --no-defaults Don't read default options from any option file.
@@ -15,6 +15,10 @@ The following specify which files/extra groups are read (specified before remain
  --alter-algorithm[=name] 
  Specify the alter table algorithm. One of: DEFAULT, COPY,
  INPLACE, NOCOPY, INSTANT
+ --analyze-sample-percentage=# 
+ Percentage of rows from the table ANALYZE TABLE will
+ sample to collect table statistics. Set to 0 to let
+ MariaDB decide what percentage of rows to sample.
  -a, --ansi          Use ANSI SQL syntax instead of MySQL syntax. This mode
  will also set transaction isolation level 'serializable'.
  --auto-increment-increment[=#] 
@@ -184,6 +188,12 @@ The following specify which files/extra groups are read (specified before remain
  --deadlock-timeout-short=# 
  Short timeout for the two-step deadlock detection (in
  microseconds)
+ --default-password-lifetime=# 
+ This defines the global password expiration policy. 0
+ means automatic password expiration is disabled. If the
+ value is a positive integer N, the passwords must be
+ changed every N days. This behavior can be overridden
+ using the password expiration options in ALTER USER.
  --default-regex-flags=name 
  Default flags for the regex library. Any combination of: 
  DOTALL, DUPNAMES, EXTENDED, EXTRA, MULTILINE, UNGREEDY
@@ -220,6 +230,11 @@ The following specify which files/extra groups are read (specified before remain
  handling INSERT DELAYED. If the queue becomes full, any
  client that does INSERT DELAYED will wait until there is
  room in the queue again
+ --disconnect-on-expired-password 
+ This variable controls how the server handles clients
+ that are not aware of the sandbox mode. If enabled, the
+ server disconnects the client, otherwise the server puts
+ the client in a sandbox mode.
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
@@ -294,6 +309,15 @@ The following specify which files/extra groups are read (specified before remain
  --group-concat-max-len=# 
  The maximum length of the result of function
  GROUP_CONCAT()
+ --gtid-cleanup-batch-size=# 
+ Normally does not need tuning. How many old rows must
+ accumulate in the mysql.gtid_slave_pos table before a
+ background job will be run to delete them. Can be
+ increased to reduce number of commits if using many
+ different engines with --gtid_pos_auto_engines, or to
+ reduce CPU overhead if using a huge number of different
+ gtid_domain_ids. Can be decreased to reduce number of old
+ rows in the table.
  --gtid-domain-id=#  Used with global transaction ID to identify logically
  independent replication streams. When events can
  propagate through multiple parallel paths (for example
@@ -346,6 +370,10 @@ The following specify which files/extra groups are read (specified before remain
  Specifies a directory to add to the ignore list when
  collecting database names from the datadir. Put a blank
  argument to reset the list accumulated so far.
+ --in-predicate-conversion-threshold=# 
+ The minimum number of scalar elements in the value list
+ of IN predicate that triggers its conversion to IN
+ subquery. Set to 0 to disable the conversion.
  --init-connect=name Command(s) that are executed for each new connection
  (unless the user has SUPER privilege)
  --init-file=name    Read SQL commands from this file at startup
@@ -537,6 +565,10 @@ The following specify which files/extra groups are read (specified before remain
  The maximum BLOB length to send to server from
  mysql_send_long_data API. Deprecated option; use
  max_allowed_packet instead.
+ --max-password-errors=# 
+ If there is more than this number of failed connect
+ attempts due to invalid password, user will be blocked
+ from further connections until FLUSH_PRIVILEGES.
  --max-prepared-stmt-count=# 
  Maximum number of prepared statements in the server
  --max-recursive-iterations[=#] 
@@ -546,6 +578,8 @@ The following specify which files/extra groups are read (specified before remain
  relay log will be rotated automatically when the size
  exceeds this value.  If 0 at startup, it's set to
  max_binlog_size
+ --max-rowid-filter-size=# 
+ The maximum size of the container of a rowid filter
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
  based on a key
@@ -679,7 +713,14 @@ The following specify which files/extra groups are read (specified before remain
  optimize_join_buffer_size, table_elimination, 
  extended_keys, exists_to_in, orderby_uses_equalities, 
  condition_pushdown_for_derived, split_materialized, 
- condition_pushdown_for_subquery
+ condition_pushdown_for_subquery, rowid_filter, 
+ condition_pushdown_from_having
+ --optimizer-trace=name 
+ Controls tracing of the Optimizer:
+ optimizer_trace=option=val[,option=val...], where option
+ is one of {enabled} and val is one of {on, off, default}
+ --optimizer-trace-max-mem-size=# 
+ Maximum allowed size of an optimizer trace
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial
@@ -1066,7 +1107,7 @@ The following specify which files/extra groups are read (specified before remain
  disable; STATE to track just transaction state (Is there
  an active transaction? Does it have any data? etc.);
  CHARACTERISTICS to track transaction state and report all
- statements needed to start a transaction withthe same
+ statements needed to start a transaction with the same
  characteristics (isolation level, read only/read
  write,snapshot - but not any work done / data modified
  within the transaction).
@@ -1170,8 +1211,10 @@ The following specify which files/extra groups are read (specified before remain
  --slave-transaction-retry-errors=name 
  Tells the slave thread to retry transaction for
  replication when a query event returns an error from the
- provided list. Deadlock and elapsed lock wait timeout
- errors are automatically added to this list
+ provided list. Deadlock error, elapsed lock wait timeout,
+ net read error, net read timeout, net write error, net
+ write timeout, connect error and 2 types of lost
+ connection error are automatically added to this list
  --slave-transaction-retry-interval=# 
  Interval of the slave SQL thread will retry a transaction
  in case it failed with a deadlock or elapsed lock wait
@@ -1209,7 +1252,8 @@ The following specify which files/extra groups are read (specified before remain
  ERROR_FOR_DIVISION_BY_ZERO, TRADITIONAL, 
  NO_AUTO_CREATE_USER, HIGH_NOT_PRECEDENCE, 
  NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH, 
- EMPTY_STRING_IS_NULL, SIMULTANEOUS_ASSIGNMENT
+ EMPTY_STRING_IS_NULL, SIMULTANEOUS_ASSIGNMENT, 
+ TIME_ROUND_FRACTIONAL
  --sql-safe-updates  If set to 1, UPDATEs and DELETEs need either a key in the
  WHERE clause, or a LIMIT clause, or else they will
  aborted. Prevents the common mistake of accidentally
@@ -1270,10 +1314,10 @@ The following specify which files/extra groups are read (specified before remain
  application layer.If set to 0, system dependent default
  is used. (Automatically configured unless set explicitly)
  --tcp-keepalive-time=# 
- Timeout, in milliseconds, with no activity until the
- first TCP keep-alive packet is sent.If set to 0, system
- dependent default is used. (Automatically configured
- unless set explicitly)
+ Timeout, in seconds, with no activity until the first TCP
+ keep-alive packet is sent.If set to 0, system dependent
+ default is used. (Automatically configured unless set
+ explicitly)
  --tcp-nodelay       Set option TCP_NODELAY (disable Nagle's algorithm) on
  socket
  (Defaults to on; use --skip-tcp-nodelay to disable.)
@@ -1312,6 +1356,8 @@ The following specify which files/extra groups are read (specified before remain
  --time-format=name  The TIME format (ignored)
  --timed-mutexes     Specify whether to time mutexes. Deprecated, has no
  effect.
+ --tls-version=name  TLS protocol version for secure connections.. Any
+ combination of: TLSv1.0, TLSv1.1, TLSv1.2, TLSv1.3
  --tmp-disk-table-size=# 
  Max size for data for an internal temporary on-disk
  MyISAM or Aria table.
@@ -1348,7 +1394,8 @@ The following specify which files/extra groups are read (specified before remain
  (usually get from GUI tools)
  --use-stat-tables=name 
  Specifies how to use system statistics tables. One of: 
- NEVER, COMPLEMENTARY, PREFERABLY
+ NEVER, COMPLEMENTARY, PREFERABLY, 
+ COMPLEMENTARY_FOR_QUERIES, PREFERABLY_FOR_QUERIES
  -u, --user=name     Run mysqld daemon as user.
  --userstat          Enables statistics gathering for USER_STATISTICS,
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
@@ -1362,6 +1409,7 @@ The following specify which files/extra groups are read (specified before remain
 Variables (--variable-name=value)
 allow-suspicious-udfs FALSE
 alter-algorithm DEFAULT
+analyze-sample-percentage 100
 auto-increment-increment 1
 auto-increment-offset 1
 autocommit TRUE
@@ -1399,6 +1447,7 @@ deadlock-search-depth-long 15
 deadlock-search-depth-short 4
 deadlock-timeout-long 50000000
 deadlock-timeout-short 10000
+default-password-lifetime 0
 default-regex-flags 
 default-storage-engine myisam
 default-time-zone (No default value)
@@ -1408,12 +1457,13 @@ delay-key-write ON
 delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
+disconnect-on-expired-password FALSE
 div-precision-increment 4
 encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE
 encrypt-tmp-files FALSE
 enforce-storage-engine (No default value)
-eq-range-index-dive-limit 0
+eq-range-index-dive-limit 200
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
@@ -1433,19 +1483,21 @@ gdb FALSE
 general-log FALSE
 getopt-prefix-matching FALSE
 group-concat-max-len 1048576
+gtid-cleanup-batch-size 64
 gtid-domain-id 0
 gtid-ignore-duplicates FALSE
 gtid-pos-auto-engines 
 gtid-strict-mode FALSE
 help TRUE
-histogram-size 0
-histogram-type SINGLE_PREC_HB
+histogram-size 254
+histogram-type DOUBLE_PREC_HB
 host-cache-size 279
 idle-readonly-transaction-timeout 0
 idle-transaction-timeout 0
 idle-write-transaction-timeout 0
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
+in-predicate-conversion-threshold 1000
 init-connect 
 init-file (No default value)
 init-rpl-role MASTER
@@ -1467,7 +1519,7 @@ lc-messages-dir MYSQL_SHAREDIR/
 lc-time-names en_US
 local-infile TRUE
 lock-wait-timeout 86400
-log-bin (No default value)
+log-bin foo
 log-bin-compress FALSE
 log-bin-compress-min-len 256
 log-bin-index (No default value)
@@ -1498,7 +1550,6 @@ max-binlog-cache-size 18446744073709547520
 max-binlog-size 1073741824
 max-binlog-stmt-cache-size 18446744073709547520
 max-connect-errors 100
-max-connections 151
 max-delayed-threads 20
 max-digest-length 1024
 max-error-count 64
@@ -1506,9 +1557,11 @@ max-heap-table-size 16777216
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
 max-long-data-size 16777216
+max-password-errors 18446744073709551615
 max-prepared-stmt-count 16382
 max-recursive-iterations 18446744073709551615
 max-relay-log-size 1073741824
+max-rowid-filter-size 131072
 max-seeks-for-key 18446744073709551615
 max-session-mem-used 9223372036854775807
 max-sort-length 1024
@@ -1545,8 +1598,10 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on
-optimizer-use-condition-selectivity 1
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on
+optimizer-trace 
+optimizer-trace-max-mem-size 1048576
+optimizer-use-condition-selectivity 4
 performance-schema FALSE
 performance-schema-accounts-size -1
 performance-schema-consumer-events-stages-current FALSE
@@ -1570,7 +1625,7 @@ performance-schema-events-waits-history-long-size -1
 performance-schema-events-waits-history-size -1
 performance-schema-hosts-size -1
 performance-schema-instrument 
-performance-schema-max-cond-classes 80
+performance-schema-max-cond-classes 90
 performance-schema-max-cond-instances -1
 performance-schema-max-digest-length 1024
 performance-schema-max-file-classes 50
@@ -1583,7 +1638,7 @@ performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 160
-performance-schema-max-statement-classes 200
+performance-schema-max-statement-classes 202
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50
@@ -1665,7 +1720,7 @@ slave-run-triggers-for-rbr NO
 slave-skip-errors OFF
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10
-slave-transaction-retry-errors 1213,1205
+slave-transaction-retry-errors 1158,1159,1160,1161,1205,1213,1429,2013,12701
 slave-transaction-retry-interval 0
 slave-type-conversions 
 slow-launch-time 2
@@ -1685,10 +1740,7 @@ sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
 system-versioning-alter-history ERROR
-table-cache 421
 table-definition-cache 400
-table-open-cache 421
-table-open-cache-instances 8
 tc-heuristic-recover OFF
 tcp-keepalive-interval 0
 tcp-keepalive-probes 0
@@ -1712,10 +1764,10 @@ transaction-isolation REPEATABLE-READ
 transaction-prealloc-size 4096
 transaction-read-only FALSE
 updatable-views-with-limit YES
-use-stat-tables NEVER
+use-stat-tables PREFERABLY_FOR_QUERIES
 userstat FALSE
 verbose TRUE
 wait-timeout 28800
 
-To see what values a running MySQL server is using, type
+To see what variables a running MySQL server is using, type
 'mysqladmin variables' instead of 'mysqld --verbose --help'.

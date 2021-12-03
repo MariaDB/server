@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -148,7 +148,6 @@ trx_sysf_create(
 	ulint		slot_no;
 	buf_block_t*	block;
 	page_t*		page;
-	ulint		page_no;
 	byte*		ptr;
 
 	ut_ad(mtr);
@@ -157,11 +156,11 @@ trx_sysf_create(
 	then enter the kernel: we must do it in this order to conform
 	to the latching order rules. */
 
-	mtr_x_lock(&fil_system.sys_space->latch, mtr);
+	mtr_x_lock_space(fil_system.sys_space, mtr);
 	compile_time_assert(TRX_SYS_SPACE == 0);
 
 	/* Create the trx sys file block in a new allocated file segment */
-	block = fseg_create(fil_system.sys_space, 0,
+	block = fseg_create(fil_system.sys_space,
 			    TRX_SYS + TRX_SYS_FSEG_HEADER,
 			    mtr);
 	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
@@ -196,11 +195,11 @@ trx_sysf_create(
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
-	page_no = trx_rseg_header_create(fil_system.sys_space, slot_no, block,
-					 mtr);
+	buf_block_t* rblock = trx_rseg_header_create(fil_system.sys_space,
+						     slot_no, 0, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
-	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
+	ut_a(rblock->page.id.page_no() == FSP_FIRST_RSEG_PAGE_NO);
 }
 
 /** Create the instance */
@@ -212,7 +211,7 @@ trx_sys_t::create()
 	m_initialised = true;
 	mutex_create(LATCH_ID_TRX_SYS, &mutex);
 	UT_LIST_INIT(trx_list, &trx_t::trx_list);
-	my_atomic_store32(&rseg_history_len, 0);
+	rseg_history_len= 0;
 
 	rw_trx_hash.init();
 }

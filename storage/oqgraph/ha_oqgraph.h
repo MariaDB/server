@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
@@ -83,7 +83,7 @@ public:
 
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
-  int write_row(byte * buf);
+  int write_row(const byte * buf);
   int update_row(const uchar * old_data, const uchar * new_data);
   int delete_row(const byte * buf);
   int index_read(byte * buf, const byte * key,

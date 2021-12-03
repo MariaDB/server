@@ -9,8 +9,8 @@ show create table tf;
 Table	Create Table
 tf	CREATE TABLE `tf` (
   `x` int(11) DEFAULT NULL,
-  `row_start` SYS_TYPE NOT NULL INVISIBLE DEFAULT 0,
-  `row_end` SYS_TYPE NOT NULL INVISIBLE DEFAULT 0
+  `row_start` SYS_TYPE INVISIBLE DEFAULT '1971-01-01 00:00:00.000000',
+  `row_end` SYS_TYPE INVISIBLE DEFAULT '1971-01-01 00:00:00.000000'
 ) ENGINE=FEDERATED DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:MASTER_MYPORT/test/t1'
 # INSERT
 insert into t1 values (1);
@@ -46,8 +46,12 @@ x	check_row(row_start, row_end)
 4	HISTORICAL ROW
 select * from tf;
 x
-# TRUNCATE
+# MDEV-15966: Behavior for TRUNCATE versioned table is not documented
+# and not covered by tests
+# As of standard, TRUNCATE on versioned tables is forbidden
 truncate tf;
+ERROR HY000: Got error 10000 'Error on remote system: 4137: System-versioned tables do not support TRUNCATE TABLE' from FEDERATED
+delete history from t1;
 select * from t1 for system_time all;
 x
 # REPLACE
@@ -81,8 +85,10 @@ x	check_row(row_start, row_end)
 3	HISTORICAL ROW
 4	HISTORICAL ROW
 # multi-UPDATE
-truncate t1;
-truncate t2;
+delete from t1;
+delete history from t1;
+delete from t2;
+delete history from t2;
 insert into t1 values (1);
 insert into t2 values (2, 2);
 update tf, t2f set tf.x= 11, t2f.y= 22;
@@ -96,5 +102,5 @@ order by y;
 id	y	check_row(row_start, row_end)
 2	2	HISTORICAL ROW
 2	22	CURRENT ROW
-drop database test;
-create database test;
+drop view vt1;
+drop tables t1, t2, t2f, tf;

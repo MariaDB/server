@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
 
@@ -282,5 +282,84 @@ private:
     other          - value
   */
   ulonglong sort_buffer_size;
+};
+
+
+/**
+  A class to collect data about how rowid filter is executed.
+
+  It stores information about how rowid filter container is filled,
+  containers size and observed selectivity.
+
+  The observed selectivity is calculated in this way.
+  Some elements elem_set are checked if they belong to container.
+  Observed selectivity is calculated as the count of elem_set
+  elements that belong to container devided by all elem_set elements.
+*/
+
+class Rowid_filter_tracker : public Sql_alloc
+{
+private:
+  /* A member to track the time to fill the rowid filter */
+  Time_and_counter_tracker time_tracker;
+
+  /* Size of the rowid filter container buffer */
+  size_t container_buff_size;
+
+  /* Count of elements that were used to fill the rowid filter container */
+  uint container_elements;
+
+  /* Elements counts used for observed selectivity calculation */
+  uint n_checks;
+  uint n_positive_checks;
+public:
+  Rowid_filter_tracker(bool do_timing) :
+    time_tracker(do_timing), container_buff_size(0),
+    container_elements(0), n_checks(0), n_positive_checks(0)
+  {}
+
+  inline void start_tracking()
+  {
+    ANALYZE_START_TRACKING(&time_tracker);
+  }
+
+  inline void stop_tracking()
+  {
+    ANALYZE_STOP_TRACKING(&time_tracker);
+  }
+
+  /* Save container buffer size in bytes */
+  inline void report_container_buff_size(uint elem_size)
+  {
+   container_buff_size= container_elements * elem_size / 8;
+  }
+
+  Time_and_counter_tracker *get_time_tracker()
+  {
+    return &time_tracker;
+  }
+
+  double get_time_fill_container_ms()
+  {
+    return time_tracker.get_time_ms();
+  }
+
+  void increment_checked_elements_count(bool was_checked)
+  {
+    n_checks++;
+    if (was_checked)
+     n_positive_checks++;
+  }
+
+  inline void increment_container_elements_count() { container_elements++; }
+
+  uint get_container_elements() { return container_elements; }
+
+  double get_r_selectivity_pct()
+  {
+    return (double)n_positive_checks/(double)n_checks;
+  }
+
+  size_t get_container_buff_size() { return container_buff_size; }
 };
 

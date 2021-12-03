@@ -1,0 +1,69 @@
+--source ../include/xa_cmd_init.inc
+--echo
+--echo this test is for MDEV-19794
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+--enable_query_log
+
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+XA START 'test';
+INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+XA END 'test';
+XA PREPARE 'test';
+XA COMMIT 'test';
+
+--connection child2_1
+eval $CHILD2_1_SELECT_ARGUMENT1;
+eval $CHILD2_1_SELECT_TABLES;
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+
+--enable_warnings
+--source ../include/xa_cmd_deinit.inc
+--echo
+--echo end of test

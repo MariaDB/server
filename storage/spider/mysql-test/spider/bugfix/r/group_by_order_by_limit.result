@@ -1,0 +1,117 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+this test is for MDEV-16520
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+
+create table and insert
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection child2_2;
+CHILD2_2_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+skey int NOT NULL,
+PRIMARY KEY (pkey),
+KEY idx1 (skey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+INSERT INTO tbl_a (pkey,skey) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+INSERT INTO tbl_a (pkey,skey) VALUES (10,10),(11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17),(18,18),(19,19);
+INSERT INTO tbl_a (pkey,skey) VALUES (20,5),(21,6),(22,7),(23,8),(24,9),(25,10),(26,11),(27,12),(28,13),(29,14);
+
+select test 1
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection child2_2;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT skey, count(*) cnt FROM tbl_a GROUP BY skey ORDER BY cnt DESC, skey DESC LIMIT 5;
+skey	cnt
+14	2
+13	2
+12	2
+11	2
+10	2
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select count(0),`skey` from `auto_test_remote`.`tbl_a` group by `skey` order by `skey`
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey, skey FROM tbl_a ORDER BY pkey;
+pkey	skey
+1	1
+3	3
+5	5
+7	7
+9	9
+11	11
+13	13
+15	15
+17	17
+19	19
+21	6
+23	8
+25	10
+27	12
+29	14
+connection child2_2;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select count(0),`skey` from `auto_test_remote2`.`tbl_a` group by `skey` order by `skey`
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey, skey FROM tbl_a ORDER BY pkey;
+pkey	skey
+0	0
+2	2
+4	4
+6	6
+8	8
+10	10
+12	12
+14	14
+16	16
+18	18
+20	5
+22	7
+24	9
+26	11
+28	13
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

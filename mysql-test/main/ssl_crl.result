@@ -1,23 +1,5 @@
-# test --crl for the client : should connect
+# try logging in with a certificate not in the server's --ssl-crl : should succeed
 Variable_name	Value
-have_openssl	YES
-have_ssl	YES
-ssl_ca	MYSQL_TEST_DIR/std_data/crl-ca-cert.pem
-ssl_capath	
-ssl_cert	MYSQL_TEST_DIR/std_data/crl-server-cert.pem
-ssl_cipher	
-ssl_crl	MYSQL_TEST_DIR/std_data/crl-client-revoked.crl
-ssl_crlpath	
-ssl_key	MYSQL_TEST_DIR/std_data/crl-server-key.pem
-# test --crlpath for the client : should connect
-Variable_name	Value
-have_openssl	YES
-have_ssl	YES
-ssl_ca	MYSQL_TEST_DIR/std_data/crl-ca-cert.pem
-ssl_capath	
-ssl_cert	MYSQL_TEST_DIR/std_data/crl-server-cert.pem
-ssl_cipher	
-ssl_crl	MYSQL_TEST_DIR/std_data/crl-client-revoked.crl
-ssl_crlpath	
-ssl_key	MYSQL_TEST_DIR/std_data/crl-server-key.pem
+Ssl_version	TLS_VERSION
 # try logging in with a certificate in the server's --ssl-crl : should fail
+ERROR 2026 (HY000): SSL connection error: sslv3 alert certificate revoked

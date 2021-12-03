@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 
 SET @save_per_table= @@GLOBAL.innodb_file_per_table;
 SET GLOBAL innodb_file_per_table= 1;
@@ -47,6 +48,25 @@ SELECT * FROM t1;
 COMMIT;
 SELECT * FROM t1;
 
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23198 Crash in REPLACE
+--echo #
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT DEFAULT(SELECT CONCAT('CREATE TABLE t1(id INT PRIMARY KEY, c',
+                                       GROUP_CONCAT(seq SEPARATOR ' INT, c'),
+                                       ' INT NOT NULL UNIQUE) ENGINE=InnoDB')
+                                       FROM seq_1_to_294);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
+
+INSERT INTO t1 SET id=1,c294=1;
+REPLACE t1 SET id=1,c294=1;
 DROP TABLE t1;
 
 SET GLOBAL innodb_file_per_table= @save_per_table;

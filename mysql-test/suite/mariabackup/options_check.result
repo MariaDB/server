@@ -1,0 +1,8 @@
+# Check for unknown options in command-line
+# Check for unknown options in "mariabackup" group
+# Check for unknown options in "xtrabackup" group
+# Check for unknown options in "mariadb-backup" group
+# Check for options overwriting
+# Check if uknown options that follow --mysqld-args are ingored
+# Check if [mariadb-client] group is not loaded (MDEV-22894)
+# Check if --help presents

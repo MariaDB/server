@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -200,7 +200,8 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     "'STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES',"
     "'ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER',"
     "'HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH',"
-    "'EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT')") },
+    "'EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT',"
+    "'TIME_ROUND_FRACTIONAL')") },
     { NULL, 0 }
   },
   {
@@ -854,7 +855,7 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   if (parse_sql(thd, & parser_state, creation_ctx) || thd->lex == NULL)
   {
     sp= thd->lex->sphead;
-    delete sp;
+    sp_head::destroy(sp);
     sp= 0;
   }
   else
@@ -1180,8 +1181,6 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
 
   CHARSET_INFO *db_cs= get_default_db_collation(thd, sp->m_db.str);
 
-  enum_check_fields saved_count_cuted_fields;
-
   bool store_failed= FALSE;
   DBUG_ENTER("sp_create_routine");
   DBUG_PRINT("enter", ("type: %s  name: %.*s",
@@ -1215,8 +1214,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
   /* Reset sql_mode during data dictionary operations. */
   thd->variables.sql_mode= 0;
 
-  saved_count_cuted_fields= thd->count_cuted_fields;
-  thd->count_cuted_fields= CHECK_FIELD_WARN;
+  Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
 
   if (!(table= open_proc_table_for_update(thd)))
   {
@@ -1233,20 +1231,20 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
         switch (type()) {
         case TYPE_ENUM_PACKAGE:
           // Drop together with its PACKAGE BODY mysql.proc record
-          ret= sp_handler_package_spec.sp_find_and_drop_routine(thd, table, sp);
+          if (sp_handler_package_spec.sp_find_and_drop_routine(thd, table, sp))
+            goto done;
           break;
         case TYPE_ENUM_PACKAGE_BODY:
         case TYPE_ENUM_FUNCTION:
         case TYPE_ENUM_PROCEDURE:
-          ret= sp_drop_routine_internal(thd, sp, table);
+          if (sp_drop_routine_internal(thd, sp, table))
+            goto done;
           break;
         case TYPE_ENUM_TRIGGER:
         case TYPE_ENUM_PROXY:
           DBUG_ASSERT(0);
           ret= SP_OK;
         }
-        if (ret != SP_OK)
-          goto done;
       }
       else if (lex->create_info.if_not_exists())
       {
@@ -1466,7 +1464,7 @@ log:
     /* Such a statement can always go directly to binlog, no trans cache */
     if (thd->binlog_query(THD::STMT_QUERY_TYPE,
                           log_query.ptr(), log_query.length(),
-                          FALSE, FALSE, FALSE, 0))
+                          FALSE, FALSE, FALSE, 0) > 0)
     {
       my_error(ER_ERROR_ON_WRITE, MYF(0), "binary log", -1);
       goto done;
@@ -1476,7 +1474,6 @@ log:
   ret= FALSE;
 
 done:
-  thd->count_cuted_fields= saved_count_cuted_fields;
   thd->variables.sql_mode= saved_mode;
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
   DBUG_RETURN(ret);
@@ -1793,8 +1790,8 @@ bool lock_db_routines(THD *thd, const char *db)
   close_system_tables(thd, &open_tables_state_backup);
 
   /* We should already hold a global IX lock and a schema X lock. */
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::GLOBAL, "", "",
-                                             MDL_INTENTION_EXCLUSIVE) &&
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
+                                             MDL_BACKUP_DDL) &&
               thd->mdl_context.is_lock_owner(MDL_key::SCHEMA, db, "",
                                              MDL_EXCLUSIVE));
   DBUG_RETURN(thd->mdl_context.acquire_locks(&mdl_requests,
@@ -1894,8 +1891,6 @@ bool
 Sp_handler::sp_show_create_routine(THD *thd,
                                    const Database_qualified_name *name) const
 {
-  sp_head *sp;
-
   DBUG_ENTER("sp_show_create_routine");
   DBUG_PRINT("enter", ("type: %s name: %.*s",
                        type_str(),
@@ -1908,20 +1903,28 @@ Sp_handler::sp_show_create_routine(THD *thd,
     It is "safe" to do as long as it doesn't affect the results
     of the binary log or the query cache, which currently it does not.
   */
-  if (sp_cache_routine(thd, name, false, &sp))
-    DBUG_RETURN(TRUE);
+  sp_head *sp= 0;
 
-  if (sp == NULL || sp->show_create_routine(thd, this))
+  DBUG_EXECUTE_IF("cache_sp_in_show_create",
+    /* Some tests need just need a way to cache SP without other side-effects.*/
+    sp_cache_routine(thd, name, false, &sp);
+    sp->show_create_routine(thd, this);
+    DBUG_RETURN(false);
+  );
+
+  bool free_sp= db_find_routine(thd, name, &sp) == SP_OK;
+  bool ret= !sp || sp->show_create_routine(thd, this);
+  if (ret)
   {
     /*
       If we have insufficient privileges, pretend the routine
       does not exist.
     */
     my_error(ER_SP_DOES_NOT_EXIST, MYF(0), type_str(), name->m_name.str);
-    DBUG_RETURN(TRUE);
   }
-
-  DBUG_RETURN(FALSE);
+  if (free_sp)
+    sp_head::destroy(sp);
+  DBUG_RETURN(ret);
 }
 
 
@@ -2952,7 +2955,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
       buf->append(STRING_WITH_LEN(" RETURN "));
     else
       buf->append(STRING_WITH_LEN(" RETURNS "));
-    buf->append(&returns);
+    buf->append(returns.str, returns.length);   // Not \0 terminated
   }
   buf->append('\n');
   switch (chistics.daccess) {

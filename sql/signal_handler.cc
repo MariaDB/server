@@ -12,9 +12,10 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "mariadb.h"
+#include "my_dbug.h"
 #include <signal.h>
 
 //#include "sys_vars.h"
@@ -30,6 +31,15 @@
 #define SIGNAL_FMT "signal %d"
 #endif
 
+
+#if defined(__APPLE__) || defined(__FreeBSD__)
+#include <sys/sysctl.h>
+#endif
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
 /*
   We are handling signals/exceptions in this file.
   Any global variables we read should be 'volatile sig_atomic_t'
@@ -43,6 +53,50 @@ extern volatile sig_atomic_t ld_assume_kernel_is_set;
 #endif
 
 extern const char *optimizer_switch_names[];
+
+static inline void output_core_info()
+{
+  /* proc is optional on some BSDs so it can't hurt to look */
+#if defined(HAVE_READLINK) && !defined(__APPLE__) && !defined(__FreeBSD__)
+  char buff[PATH_MAX];
+  ssize_t len;
+  int fd;
+  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff))) >= 0)
+  {
+    my_safe_printf_stderr("Writing a core file...\nWorking directory at %.*s\n",
+                          (int) len, buff);
+  }
+  if ((fd= my_open("/proc/self/limits", O_RDONLY, MYF(0))) >= 0)
+  {
+    my_safe_printf_stderr("Resource Limits:\n");
+    while ((len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0))) > 0)
+    {
+      my_write_stderr(buff, len);
+    }
+    my_close(fd, MYF(0));
+  }
+#ifdef __linux__
+  if ((fd= my_open("/proc/sys/kernel/core_pattern", O_RDONLY, MYF(0))) >= 0)
+  {
+    len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0));
+    my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
+    my_close(fd, MYF(0));
+  }
+#endif
+#elif defined(__APPLE__) || defined(__FreeBSD__)
+  char buff[PATH_MAX];
+  size_t len = sizeof(buff);
+  if (sysctlbyname("kern.corefile", buff, &len, NULL, 0) == 0)
+  {
+    my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
+  }
+#else
+  char buff[80];
+  my_getwd(buff, sizeof(buff), 0);
+  my_safe_printf_stderr("Writing a core file at %s\n", buff);
+  fflush(stderr);
+#endif
+}
 
 /**
  * Handler for fatal signals on POSIX, exception handler on Windows.
@@ -77,8 +131,8 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     my_safe_printf_stderr("Fatal " SIGNAL_FMT " while backtracing\n", sig);
     goto end;
   }
-
   segfaulted = 1;
+  DBUG_PRINT("error", ("handling fatal signal"));
 
   curr_time= my_time(0);
   localtime_r(&curr_time, &tm);
@@ -131,7 +185,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
                           (uint) thread_scheduler->max_threads +
                           (uint) extra_max_connections);
 
-  my_safe_printf_stderr("thread_count=%u\n", (uint) thread_count);
+  my_safe_printf_stderr("thread_count=%u\n", THD_count::value());
 
   if (dflt_key_cache && thread_scheduler)
   {
@@ -236,7 +290,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   }
   my_safe_printf_stderr("%s",
     "The manual page at "
-    "http://dev.mysql.com/doc/mysql/en/crashing.html contains\n"
+    "https://mariadb.com/kb/en/how-to-produce-a-full-stack-trace-for-mysqld/ contains\n"
     "information that should help you find out what is causing the crash.\n");
 
 #endif /* HAVE_STACKTRACE */
@@ -295,13 +349,10 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   }
 #endif
 
+  output_core_info();
 #ifdef HAVE_WRITE_CORE
   if (test_flags & TEST_CORE_ON_SIGNAL)
   {
-    char buff[80];
-    my_getwd(buff, sizeof(buff), 0);
-    my_safe_printf_stderr("Writing a core file at %s\n", buff);
-    fflush(stderr);
     my_write_core(sig);
   }
 #endif

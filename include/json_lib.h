@@ -172,13 +172,14 @@ enum json_states {
 
 enum json_value_types
 {
+  JSON_VALUE_UNINITALIZED=0,
   JSON_VALUE_OBJECT=1,
   JSON_VALUE_ARRAY=2,
-  JSON_VALUE_STRING,
-  JSON_VALUE_NUMBER,
-  JSON_VALUE_TRUE,
-  JSON_VALUE_FALSE,
-  JSON_VALUE_NULL
+  JSON_VALUE_STRING=3,
+  JSON_VALUE_NUMBER=4,
+  JSON_VALUE_TRUE=5,
+  JSON_VALUE_FALSE=6,
+  JSON_VALUE_NULL=7
 };
 
 
@@ -423,10 +424,15 @@ int json_path_parts_compare(
 int json_path_compare(const json_path_t *a, const json_path_t *b,
                       enum json_value_types vt);
 
+int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs);
+
+int json_locate_key(const char *js, const char *js_end,
+                    const char *kname,
+                    const char **key_start, const char **key_end,
+                    int *comma_pos);
 
 #ifdef  __cplusplus
 }
 #endif
 
 #endif /* JSON_LIB_INCLUDED */
-

@@ -1084,7 +1084,9 @@ CREATE TABLE t1 AS SELECT 1 LIMIT 1 UNION SELECT 2;
 --echo # For now, we're testing the parser.
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
+--error ER_AGGREGATE_ORDER_FOR_UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a);
+--error ER_AGGREGATE_ORDER_FOR_UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
 DROP TABLE t1;
 
@@ -1125,8 +1127,11 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
+--error ER_AGGREGATE_ORDER_FOR_UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a);
+--error ER_AGGREGATE_ORDER_FOR_UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a);
+--error ER_AGGREGATE_ORDER_FOR_UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 1;
 DROP TABLE t1;
 
@@ -1341,6 +1346,66 @@ create table t1 ( id serial );
 show create table t1;
 drop table t1;
 
+#
+# BETWEEN syntax
+#
+create or replace view v1 as select 1 between (2 between 3 and 4) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 between (2 in (3,4)) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 not between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+
+drop view v1;
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+--echo #
+
+--echo # MDEV-27066 Fixed scientific notation parser
+--echo #
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e*1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e/1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e^1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e%1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e&1;
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e|1;
+
+--error ER_PARSE_ERROR
+SELECT 1.e(1);
+
+--error ER_PARSE_ERROR
+SELECT (1 1.e);
+
+--error ER_PARSE_ERROR
+SELECT 1 1.e, 1;
+
+CREATE TABLE scientific_notation (test int);
+
+--error ER_PARSE_ERROR
+SELECT tmp 1.e.test FROM scientific_notation AS tmp;
+
+DROP TABLE scientific_notation;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
 --echo #
 --echo # MDEV-10343 Providing compatibility for basic SQL data types
 --echo #
@@ -1536,4 +1601,271 @@ SELECT @@GLOBAL.password;
 --error ER_UNKNOWN_SYSTEM_VARIABLE
 SELECT @@GLOBAL.role;
 
---echo End of 10.3 tests
+--echo #
+--echo # MDEV-22022 Various mangled SQL statements will crash 10.3 to 10.5 debug builds
+--echo #
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'if(`systeminfo /FO LIST';
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'if(`systeminfo';
+
+--echo #
+--echo # MDEV-23666 Assertion failed in Lex_input_stream::body_utf8_append
+--echo #
+SET @@sql_mode='ANSI_QUOTES';
+
+# Without a patch execution of the following statements results in assertion
+# in Lex_input_stream::body_utf8_append on parsing the statement
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"';
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"abc';
+
+SET @@sql_mode=@save_sql_mode;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-19540: 10.4 allow lock options with SELECT in brackets
+--echo # which previous version do not
+--echo #
+
+create table t1 (a int);
+(select * from t1) for update;
+--error ER_WRONG_USAGE
+(select * from t1) union (select * from t1) for update;
+(select * from t1 for update);
+select * from t1 for update;
+drop table t1;
+
+--echo #
+--echo # MDEV-20108: [ERROR] mysqld got signal 11 in
+--echo # st_select_lex::add_table_to_list
+--echo #
+CREATE TABLE t1 (c1 INT NULL);
+CREATE TABLE t2 (c1 INT NULL);
+
+SET STATEMENT max_statement_time=900 FOR LOCK TABLES `t1` WRITE;
+select * from t1;
+--error ER_TABLE_NOT_LOCKED
+select * from t2;
+SET STATEMENT max_statement_time=900 FOR unlock tables;
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-21616: Server crash when using
+--echo # "SET STATEMENT max_statement_time=0 FOR desc xxx" lead to collapse
+--echo #
+
+create table t1 (a int);
+SET STATEMENT max_statement_time=0 FOR desc t1;
+drop table t1;
+SET STATEMENT max_statement_time=0 FOR do 1;
+
+set @save_sql_mode=@@SQL_MODE;
+set SQL_MODE=ORACLE;
+create table t1 (a int);
+SET STATEMENT max_statement_time=0 FOR desc t1;
+drop table t1;
+SET STATEMENT max_statement_time=0 FOR do 1;
+set SQL_MODE=@save_sql_mode;
+
+
+--echo #
+--echo # MDEV-21684: mysqld crash with signal 11 when renaming
+--echo # table+max_statement_time
+--echo #
+
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR RENAME TABLE bleh TO blah;
+SET STATEMENT max_statement_time=180 FOR load index into cache t1_base;
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR DROP INDEX i1 ON t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
+
+set @save_sql_mode=@@SQL_MODE;
+set SQL_MODE=ORACLE;
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR RENAME TABLE bleh TO blah;
+SET STATEMENT max_statement_time=180 FOR load index into cache t1_base;
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR DROP INDEX i1 ON t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
+set SQL_MODE=@save_sql_mode;
+
+
+--echo #
+--echo # MDEV-21997: Server crashes in LEX::create_item_ident_sp
+--echo # upon use of unknown identifier
+--echo #
+
+--error ER_SP_UNDECLARED_VAR
+/*! IF 1 IN ( SELECT 2 ) OR foo = 3 THEN */ SELECT 4;
+
+
+DELIMITER $$;
+
+--error ER_SP_UNDECLARED_VAR
+BEGIN NOT ATOMIC
+  IF (SELECT 2) OR foo = 3 THEN
+    SELECT 4;
+  END IF ;
+END;
+$$
+
+--echo # ... but if declare it then it still work
+BEGIN NOT ATOMIC
+  DECLARE foo int;
+  IF (SELECT 2) OR foo = 3 THEN
+    SELECT 4;
+  END IF ;
+END;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+CASE (SELECT 2) OR foo
+WHEN 1 THEN
+  SET @x=10;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+/*! WHILE (SELECT 2) OR foo */
+  SET @x=10;
+END WHILE;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+REPEAT
+  SET @x=10;
+UNTIL (SELECT 2) OR foo
+END REPEAT;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+FOR i IN 1..(SELECT 2) OR foo
+DO
+  SET @x=10;
+END FOR;
+$$
+
+--echo # ... but automatic FOR variable still work
+FOR i IN 1..2
+DO
+  SELECT i;
+END FOR;
+$$
+
+DELIMITER ;$$
+
+--echo #
+--echo # MDEV-21998: Server crashes in st_select_lex::add_table_to_list
+--echo # upon mix of KILL and sequences
+--echo #
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+KILL ( SELECT 1 ) + LASTVAL(s);
+--error ER_SUBQUERIES_NOT_SUPPORTED
+KILL LASTVAL(s);
+
+--echo #
+--echo # MDEV-23094: Multiple calls to a Stored Procedure from another
+--echo # Stored Procedure crashes server
+--echo #
+
+create table t1 (id1 int primary key, data1 int);
+create table t2 (id2 int primary key, data2 int);
+
+delimiter //;
+create procedure p1(IN id int, IN dt int)
+begin
+  if (exists(select * from t1 where id1 = id and data1 = dt) or
+      not exists (select * from t2 where id2 = id and data2 = dt))
+  then
+      select 1;
+  end if;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(IN id int, IN dt int)
+begin
+case (exists(select * from t1 where id1 = id and data1 = dt) or
+      not exists (select * from t2 where id2 = id and data2 = dt))
+when 1 then
+  select 1;
+else
+  select 0;
+end case;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(IN id int, IN dt int)
+begin
+declare wcont int default 1;
+while (exists(select * from t1 where id1 = id and data1 = dt) or
+      not exists (select * from t2 where id2 = id and data2 = dt)) and wcont
+do
+  select 1;
+  set wcont=0;
+end while;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(IN id int, IN dt int)
+begin
+declare count int default 1;
+repeat
+  select 1;
+  set count=count+1;
+until (exists(select * from t1 where id1 = id and data1 = dt) or
+      not exists (select * from t2 where id2 = id and data2 = dt)) and
+      count < 3
+end repeat;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(IN id int, IN dt int)
+begin
+for i in 1..(exists(select * from t1 where id1 = id and data1 = dt) or
+             not exists (select * from t2 where id2 = id and data2 = dt))
+do
+  select 1;
+end for;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+drop table t1,t2;
+
+--echo # End of 10.4 tests

@@ -1,10 +1,8 @@
 SET @start_global_value = @@global.log_slow_verbosity;
-select @@global.log_slow_verbosity;
-@@global.log_slow_verbosity
-
-select @@session.log_slow_verbosity;
-@@session.log_slow_verbosity
-
+select @@global.log_slow_verbosity = @@session.log_slow_verbosity;
+@@global.log_slow_verbosity = @@session.log_slow_verbosity
+1
+SET @@global.log_slow_verbosity="",@@session.log_slow_verbosity="";
 show global variables like 'log_slow_verbosity';
 Variable_name	Value
 log_slow_verbosity	

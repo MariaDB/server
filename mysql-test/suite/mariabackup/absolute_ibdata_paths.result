@@ -1,9 +1,11 @@
 CREATE TABLE t(i INT) ENGINE INNODB;
 INSERT INTO t VALUES(1);
+# restart
 # xtrabackup backup
 # remove datadir
 # xtrabackup copy back
 # restart server
+# restart
 SELECT * from t;
 i
 1

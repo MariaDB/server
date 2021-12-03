@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* This file is included in all heap-files */
 
@@ -81,7 +81,6 @@ extern uchar *hp_search(HP_INFO *info,HP_KEYDEF *keyinfo,const uchar *key,
 		       uint nextflag);
 extern uchar *hp_search_next(HP_INFO *info, HP_KEYDEF *keyinfo,
 			    const uchar *key, HASH_INFO *pos);
-extern ulong hp_hashnr(HP_KEYDEF *keyinfo,const uchar *key);
 extern ulong hp_rec_hashnr(HP_KEYDEF *keyinfo,const uchar *rec);
 extern void hp_movelink(HASH_INFO *pos,HASH_INFO *next_link,
 			 HASH_INFO *newlink);

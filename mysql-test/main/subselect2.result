@@ -132,7 +132,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
 1	PRIMARY	t3	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
 1	PRIMARY	t3	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
-1	PRIMARY	t3	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
+1	PRIMARY	t3	ref|filter	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	FFOLDERID_IDX|CMFLDRPARNT_IDX	34|35	test.t3.PARENTID	1 (29%)	Using where; Using rowid filter
 drop table t1, t2, t3, t4;
 CREATE TABLE t1 (a int(10) , PRIMARY KEY (a)) Engine=InnoDB;
 INSERT INTO t1 VALUES (1),(2);
@@ -286,8 +286,8 @@ WHERE date < '2012-12-12 12:12:12'
 ORDER BY mirror_date ASC
 ) AS calculated_result;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t1	range	date	date	6	NULL	2	Using index condition; Using where; Rowid-ordered scan; Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t1	ALL	date	NULL	NULL	NULL	3	Using where; Using filesort
 SELECT * FROM (
 SELECT node_uid, date, mirror_date, @result := 0 AS result
 FROM t1
@@ -309,8 +309,8 @@ WHERE date < '2012-12-12 12:12:12'
 ORDER BY mirror_date ASC
 ) AS calculated_result;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t1	range	date	date	6	NULL	2	Using index condition; Using where; Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t1	ALL	date	NULL	NULL	NULL	3	Using where; Using filesort
 SELECT * FROM (
 SELECT node_uid, date, mirror_date, @result := 0 AS result
 FROM t1
@@ -383,7 +383,7 @@ key_code	value_string
 DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
-set optimizer_switch=@subselect2_test_tmp;
+set optimizer_switch=@save_optimizer_switch;
 create table t1 (a int);
 create table t2 (a int);
 create table t3(a int);
@@ -394,3 +394,25 @@ select null in (select a from t1 where a < out3.a union select a from t2 where
 (select a from t3) +1 < out3.a+1) from t3 out3;
 ERROR 21000: Subquery returns more than 1 row
 drop table t1, t2, t3;
+CREATE TABLE t1(
+q11 int, q12 int, q13 int, q14 int, q15 int, q16 int, q17 int, q18 int, q19 int,
+q21 int, q22 int, q23 int, q24 int, q25 int, q26 int, q27 int, q28 int, q29 int,
+f1 int
+);
+CREATE TABLE t2(f2 int, f21 int, f3 timestamp, f4 int, f5 int, f6 int);
+INSERT INTO t1 (f1) VALUES (1),(1),(2),(2);
+INSERT INTO t2 VALUES (1,1,"2004-02-29 11:11:11",0,0,0), (2,2,"2004-02-29 11:11:11",0,0,0);
+SELECT f1,
+(SELECT t.f21 from t2 t where max(
+q11+q12+q13+q14+q15+q16+q17+q18+q19+
+q21+q22+q23+q24+q25+q26+q27+q28+q29) = t.f2 UNION
+SELECT t.f3 FROM t2 AS t WHERE t1.f1=t.f2 AND t.f3=MAX(t1.f1) UNION
+SELECT 1 LIMIT 1) AS test
+FROM t1 GROUP BY f1;
+f1	test
+1	1
+2	1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '2'
+DROP TABLE t1,t2;

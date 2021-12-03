@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,11 +28,8 @@ Created 9/5/1995 Heikki Tuuri
 #define sync0types_h
 
 #include <vector>
-#include <iostream>
-#include <my_atomic.h>
 
 #include "ut0new.h"
-#include "ut0counter.h"
 
 #ifdef _WIN32
 /** Native mutex */
@@ -211,7 +208,6 @@ enum latch_level_t {
 
 	SYNC_FTS_TOKENIZE,
 	SYNC_FTS_OPTIMIZE,
-	SYNC_FTS_BG_THREADS,
 	SYNC_FTS_CACHE_INIT,
 	SYNC_RECV,
 	SYNC_LOG_FLUSH_ORDER,
@@ -220,7 +216,6 @@ enum latch_level_t {
 	SYNC_PAGE_CLEANER,
 	SYNC_PURGE_QUEUE,
 	SYNC_TRX_SYS_HEADER,
-	SYNC_REC_LOCK,
 	SYNC_THREADS,
 	SYNC_TRX,
 	SYNC_RW_TRX_HASH_ELEMENT,
@@ -256,13 +251,10 @@ enum latch_level_t {
 	SYNC_IBUF_HEADER,
 	SYNC_DICT_HEADER,
 	SYNC_STATS_AUTO_RECALC,
-	SYNC_DICT_AUTOINC_MUTEX,
 	SYNC_DICT,
 	SYNC_FTS_CACHE,
 
 	SYNC_DICT_OPERATION,
-
-	SYNC_TRX_I_S_LAST_READ,
 
 	SYNC_TRX_I_S_RWLOCK,
 
@@ -285,19 +277,15 @@ enum latch_level_t {
 up its meta-data. See sync0debug.c. */
 enum latch_id_t {
 	LATCH_ID_NONE = 0,
-	LATCH_ID_AUTOINC,
 	LATCH_ID_BUF_BLOCK_MUTEX,
 	LATCH_ID_BUF_POOL,
 	LATCH_ID_BUF_POOL_ZIP,
-	LATCH_ID_CACHE_LAST_READ,
 	LATCH_ID_DICT_FOREIGN_ERR,
 	LATCH_ID_DICT_SYS,
 	LATCH_ID_FILE_FORMAT_MAX,
 	LATCH_ID_FIL_SYSTEM,
 	LATCH_ID_FLUSH_LIST,
-	LATCH_ID_FTS_BG_THREADS,
 	LATCH_ID_FTS_DELETE,
-	LATCH_ID_FTS_OPTIMIZE,
 	LATCH_ID_FTS_DOC_ID,
 	LATCH_ID_FTS_PLL_TOKENIZE,
 	LATCH_ID_HASH_TABLE_MUTEX,
@@ -317,7 +305,6 @@ enum latch_id_t {
 	LATCH_ID_REDO_RSEG,
 	LATCH_ID_NOREDO_RSEG,
 	LATCH_ID_RW_LOCK_DEBUG,
-	LATCH_ID_RTR_SSN_MUTEX,
 	LATCH_ID_RTR_ACTIVE_MUTEX,
 	LATCH_ID_RTR_MATCH_MUTEX,
 	LATCH_ID_RTR_PATH_MUTEX,
@@ -339,7 +326,6 @@ enum latch_id_t {
 	LATCH_ID_EVENT_MANAGER,
 	LATCH_ID_EVENT_MUTEX,
 	LATCH_ID_SYNC_ARRAY_MUTEX,
-	LATCH_ID_ZIP_PAD_MUTEX,
 	LATCH_ID_OS_AIO_READ_MUTEX,
 	LATCH_ID_OS_AIO_WRITE_MUTEX,
 	LATCH_ID_OS_AIO_LOG_MUTEX,
@@ -367,7 +353,6 @@ enum latch_id_t {
 	LATCH_ID_SCRUB_STAT_MUTEX,
 	LATCH_ID_DEFRAGMENT_MUTEX,
 	LATCH_ID_BTR_DEFRAGMENT_MUTEX,
-	LATCH_ID_FIL_CRYPT_MUTEX,
 	LATCH_ID_FIL_CRYPT_STAT_MUTEX,
 	LATCH_ID_FIL_CRYPT_DATA_MUTEX,
 	LATCH_ID_FIL_CRYPT_THREADS_MUTEX,
@@ -653,10 +638,10 @@ public:
 	}
 
 	/** Iterate over the counters */
-	template <typename Callback>
-	void iterate(Callback& callback) const
-		UNIV_NOTHROW
+	template<typename C> void iterate(const C& callback) UNIV_NOTHROW
 	{
+		m_mutex.enter();
+
 		Counters::const_iterator	end = m_counters.end();
 
 		for (Counters::const_iterator it = m_counters.begin();
@@ -665,6 +650,8 @@ public:
 
 			callback(*it);
 		}
+
+		m_mutex.exit();
 	}
 
 	/** Disable the monitoring */
@@ -1001,9 +988,6 @@ struct latch_t {
 	@return the string representation */
 	virtual std::string to_string() const = 0;
 
-	/** @return "filename:line" from where the latch was last locked */
-	virtual std::string locked_from() const = 0;
-
 	/** @return the latch level */
 	latch_level_t get_level() const
 		UNIV_NOTHROW
@@ -1044,7 +1028,7 @@ struct sync_checker : public sync_check_functor_t
 	/** Check the latching constraints
 	@param[in]	level		The level held by the thread
 	@return whether a latch violation was detected */
-	bool operator()(const latch_level_t level) const
+	bool operator()(const latch_level_t level) const override
 	{
 		if (some_allowed) {
 			switch (level) {
@@ -1088,7 +1072,7 @@ struct sync_allowed_latches : public sync_check_functor_t {
 
 	@param[in]	latch	The latch level to check
 	@return true if there is a latch violation */
-	bool operator()(const latch_level_t level) const
+	bool operator()(const latch_level_t level) const override
 	{
 		return(std::find(begin, end, level) == end);
 	}
@@ -1119,51 +1103,6 @@ enum rw_lock_flag_t {
 
 #endif /* UNIV_INNOCHECKSUM */
 
-static inline ulint my_atomic_addlint(ulint *A, ulint B)
-{
-#ifdef _WIN64
-  return ulint(my_atomic_add64((volatile int64*)A, B));
-#else
-  return ulint(my_atomic_addlong(A, B));
-#endif
-}
-
-static inline ulint my_atomic_loadlint(const ulint *A)
-{
-#ifdef _WIN64
-  return ulint(my_atomic_load64((volatile int64*)A));
-#else
-  return ulint(my_atomic_loadlong(A));
-#endif
-}
-
-static inline lint my_atomic_addlint(volatile lint *A, lint B)
-{
-#ifdef _WIN64
-  return my_atomic_add64((volatile int64*)A, B);
-#else
-  return my_atomic_addlong(A, B);
-#endif
-}
-
-static inline lint my_atomic_loadlint(const lint *A)
-{
-#ifdef _WIN64
-  return lint(my_atomic_load64((volatile int64*)A));
-#else
-  return my_atomic_loadlong(A);
-#endif
-}
-
-static inline void my_atomic_storelint(ulint *A, ulint B)
-{
-#ifdef _WIN64
-  my_atomic_store64((volatile int64*)A, B);
-#else
-  my_atomic_storelong(A, B);
-#endif
-}
-
 /** Simple non-atomic counter aligned to CACHE_LINE_SIZE
 @tparam	Type	the integer type of the counter */
 template <typename Type>
@@ -1186,28 +1125,4 @@ private:
 	/** The counter */
 	Type	m_counter;
 };
-
-/** Simple atomic counter aligned to CACHE_LINE_SIZE
-@tparam	Type	lint or ulint */
-template <typename Type = ulint>
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_atomic_counter
-{
-	/** Increment the counter */
-	Type inc() { return add(1); }
-	/** Decrement the counter */
-	Type dec() { return add(Type(~0)); }
-
-	/** Add to the counter
-	@param[in]	i	amount to be added
-	@return	the value of the counter before adding */
-	Type add(Type i) { return my_atomic_addlint(&m_counter, i); }
-
-	/** @return the value of the counter (non-atomic access)! */
-	operator Type() const { return m_counter; }
-
-private:
-	/** The counter */
-	Type	m_counter;
-};
-
 #endif /* sync0types_h */

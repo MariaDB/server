@@ -24,3 +24,13 @@ ERROR 42S02: 'test.v1' is not a SEQUENCE
 SELECT PREVIOUS VALUE FOR v1;
 ERROR 42S02: 'test.v1' is not a SEQUENCE
 drop view v1;
+#
+# MDEV 17978 Server crashes in mysqld_show_create_get_fields
+# upon SHOW CREATE SEQUENCE on a broken view
+#
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+DROP TABLE t1;
+SHOW CREATE SEQUENCE v1;
+ERROR 42S02: 'test.v1' is not a SEQUENCE
+DROP VIEW v1;

@@ -306,7 +306,7 @@ select json_merge('string', 123);
 json_merge('string', 123)
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge_preserve' at position 1
 select json_merge('"string"', 123);
 json_merge('"string"', 123)
 ["string", 123]
@@ -326,7 +326,7 @@ select json_merge('a','b');
 json_merge('a','b')
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge_preserve' at position 1
 select json_merge('{"a":"b"}','{"c":"d"}');
 json_merge('{"a":"b"}','{"c":"d"}')
 {"a": "b", "c": "d"}
@@ -619,6 +619,8 @@ JSON_search( '{"x": "\\""}', "one", '"')
 SELECT JSON_search( '{"x": "\\""}', "one", '\\"');
 JSON_search( '{"x": "\\""}', "one", '\\"')
 "$.x"
+set @save_max_allowed_packet=@@max_allowed_packet;
+set @save_net_buffer_length=@@net_buffer_length;
 set @@global.net_buffer_length=1024;
 set @@global.max_allowed_packet=2048;
 connect  newconn, localhost, root,,;
@@ -639,8 +641,8 @@ NULL
 Warnings:
 Warning	1301	Result of json_object() was larger than max_allowed_packet (2048) - truncated
 connection default;
-set @@global.max_allowed_packet = default;
-set @@global.net_buffer_length = default;
+set @@global.max_allowed_packet = @save_max_allowed_packet;
+set @@global.net_buffer_length = @save_net_buffer_length;
 disconnect newconn;
 create table t1(j longtext, p longtext);
 insert into t1 values
@@ -831,6 +833,113 @@ select JSON_VALID( '{"a":1]' );
 JSON_VALID( '{"a":1]' )
 0
 #
+# MDEV-18886 JSON_ARRAY() does not recognise JSON argument.
+#
+SELECT JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket'));
+JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket'))
+["str", {"plugin": "unix_socket"}]
+SELECT CHARSET(JSON_ARRAY());
+CHARSET(JSON_ARRAY())
+latin1
+SELECT CHARSET(JSON_OBJECT());
+CHARSET(JSON_OBJECT())
+latin1
+#
+# MDEV-13992 Implement JSON_MERGE_PATCH
+#
+CREATE TABLE merge_t(
+id INT PRIMARY KEY AUTO_INCREMENT,
+target VARCHAR(100), patch VARCHAR(100)
+);
+INSERT INTO merge_t(target, patch) VALUES
+('{"a":"b"}', '{"a":"c"}'),
+('{"a":"b"}', '{"b":"c"}'),
+('{"a":"b"}', '{"a":null}'),
+('{"a":"b", "b":"c"}', '{"a":null}'),
+('{"a":["b"]}', '{"a":"c"}'),
+('{"a":"c"}', '{"a":["b"]}'),
+('{"a": {"b":"c"}}', '{"a": {"b":"d", "c":null}}'),
+('{"a":[{"b":"c"}]}', '{"a": [1]}'),
+('["a","b"]', '["c","d"]'),
+('{"a":"b"}', '["c"]'),
+('{"a":"foo"}', 'null'),
+('{"a":"foo"}', '"bar"'),
+('{"e":null}', '{"a":1}'),
+('[1,2]', '{"a":"b", "c":null}'),
+('{}', '{"a":{"bb":{"ccc":null}}}'),
+(NULL, '{}'),
+('{}', NULL);
+SELECT id, target, patch,
+JSON_MERGE_PATCH(target, patch) AS merged,
+JSON_EXTRACT(JSON_MERGE_PATCH(target, patch), '$.a') AS a
+FROM merge_t ORDER BY id;
+id	target	patch	merged	a
+1	{"a":"b"}	{"a":"c"}	{"a": "c"}	"c"
+2	{"a":"b"}	{"b":"c"}	{"a": "b", "b": "c"}	"b"
+3	{"a":"b"}	{"a":null}	{}	NULL
+4	{"a":"b", "b":"c"}	{"a":null}	{"b": "c"}	NULL
+5	{"a":["b"]}	{"a":"c"}	{"a": "c"}	"c"
+6	{"a":"c"}	{"a":["b"]}	{"a": ["b"]}	["b"]
+7	{"a": {"b":"c"}}	{"a": {"b":"d", "c":null}}	{"a": {"b": "d"}}	{"b": "d"}
+8	{"a":[{"b":"c"}]}	{"a": [1]}	{"a": [1]}	[1]
+9	["a","b"]	["c","d"]	["c", "d"]	NULL
+10	{"a":"b"}	["c"]	["c"]	NULL
+11	{"a":"foo"}	null	null	NULL
+12	{"a":"foo"}	"bar"	"bar"	NULL
+13	{"e":null}	{"a":1}	{"e": null, "a": 1}	1
+14	[1,2]	{"a":"b", "c":null}	{"a": "b"}	"b"
+15	{}	{"a":{"bb":{"ccc":null}}}	{"a": {"bb": {}}}	{"bb": {}}
+16	NULL	{}	NULL	NULL
+17	{}	NULL	NULL	NULL
+DROP TABLE merge_t;
+SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '{"c":"d"}');
+JSON_MERGE_PATCH('{"a":"b"}', NULL, '{"c":"d"}')
+NULL
+SELECT JSON_MERGE_PATCH(NULL, '[1,2,3]');
+JSON_MERGE_PATCH(NULL, '[1,2,3]')
+[1, 2, 3]
+SELECT JSON_MERGE_PATCH(NULL, 'a');
+JSON_MERGE_PATCH(NULL, 'a')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 1
+SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}');
+JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}')
+{"d": "e"}
+SELECT JSON_MERGE_PATCH();
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_MERGE_PATCH'
+SELECT JSON_MERGE_PATCH('{}');
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_MERGE_PATCH'
+SELECT JSON_MERGE_PATCH('{', '[1,2,3]');
+JSON_MERGE_PATCH('{', '[1,2,3]')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_merge_patch'
+SELECT JSON_MERGE_PATCH('{"a":"b"}', '[1,');
+JSON_MERGE_PATCH('{"a":"b"}', '[1,')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_patch'
+#
+# MDEV-22976 CAST(JSON_EXTRACT() AS DECIMAL) does not handle boolean values
+#
+SELECT
+CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DOUBLE) AS cf,
+CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DECIMAL) AS cd;
+cf	cd
+1	1
+SELECT
+CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DOUBLE) AS cf,
+CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
+cf	cd
+0	0
+#
+# MDEV-24585 Assertion `je->s.cs == nice_js->charset()' failed in json_nice.
+#
+SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
+JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' )
+["x"]
+#
 # End of 10.2 tests
 #
 #
@@ -856,6 +965,27 @@ def					json_length	3	10	1	Y	32896	0	63
 def					json_depnth	3	10	1	N	32897	0	63
 json_length	json_depnth
 2	3
+#
+# MDEV-19670 json escaped unicode parse error
+#
+SELECT json_valid('{"value":"\\ud83d\\ude0a"}');
+json_valid('{"value":"\\ud83d\\ude0a"}')
+1
+SELECT json_valid('{"test": "\\ud83d\\ude0b"}');
+json_valid('{"test": "\\ud83d\\ude0b"}')
+1
+#
+# MDEV-19670 json escaped unicode parse error
+#
+SELECT JSON_VALID('{"admin\\"": null}'), '{"admin\\"": null}'
+    UNION
+SELECT JSON_VALID('{"\\"admin": null}'), '{"\\"admin": null}'
+      UNION
+SELECT JSON_VALID('{"\\"": null}'), '{"\\"": null}';
+JSON_VALID('{"admin\\"": null}')	{"admin\"": null}
+1	{"admin\"": null}
+1	{"\"admin": null}
+1	{"\"": null}
 #
 # End of 10.3 tests
 #

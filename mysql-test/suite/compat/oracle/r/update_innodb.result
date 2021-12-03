@@ -1,0 +1,26 @@
+#
+# MDEV-19535 sql_mode=ORACLE: 'SELECT INTO @var FOR UPDATE' does not lock the table
+#
+SET sql_mode='ORACLE';
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO t1 VALUES (1);
+START TRANSACTION;
+SELECT a AS a_con1 FROM t1 INTO @a FOR UPDATE;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+connect con2,localhost,root,,;
+SET sql_mode='ORACLE';
+START TRANSACTION;
+SELECT a AS a_con2 FROM t1 INTO @a FOR UPDATE;;
+connection default;
+UPDATE t1 SET a=a+100;
+COMMIT;
+connection con2;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+SELECT a AS con2 FROM t1;
+con2
+101
+COMMIT;
+connection default;
+DROP TABLE t1;

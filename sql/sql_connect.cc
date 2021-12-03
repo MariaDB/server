@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2007, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2016, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -37,7 +37,11 @@
                       // reset_host_errors
 #include "sql_acl.h"  // acl_getroot, NO_ACCESS, SUPER_ACL
 #include "sql_callback.h"
+
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h" /* wsrep open/close */
 #include "wsrep_mysqld.h"
+#endif /* WITH_WSREP */
 #include "proxy_protocol.h"
 
 HASH global_user_stats, global_client_stats, global_table_stats;
@@ -88,7 +92,6 @@ int get_or_create_user_conn(THD *thd, const char *user,
     uc->host= uc->user + user_len +  1;
     uc->len= (uint)temp_len;
     uc->connections= uc->questions= uc->updates= uc->conn_per_hour= 0;
-    uc->user_resources= *mqh;
     uc->reset_utime= thd->thr_create_utime;
     if (my_hash_insert(&hash_user_connections, (uchar*) uc))
     {
@@ -98,6 +101,7 @@ int get_or_create_user_conn(THD *thd, const char *user,
       goto end;
     }
   }
+  uc->user_resources= *mqh;
   thd->user_connect=uc;
   uc->connections++;
 end:
@@ -796,6 +800,7 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
                cs->csname);
       return true;
     }
+    thd->org_charset= cs;
     thd->update_charset(cs,cs,cs);
   }
   return false;
@@ -1031,12 +1036,16 @@ static int check_connection(THD *thd)
       */
       statistic_increment(connection_errors_peer_addr, &LOCK_status);
       my_error(ER_BAD_HOST_ERROR, MYF(0));
+      statistic_increment(aborted_connects_preauth, &LOCK_status);
       return 1;
     }
 
     if (thd_set_peer_addr(thd, &net->vio->remote, ip, peer_port,
                           true, &connect_errors))
+    {
+      statistic_increment(aborted_connects_preauth, &LOCK_status);
       return 1;
+    }
   }
   else /* Hostname given means that the connection was on a socket */
   {
@@ -1064,6 +1073,7 @@ static int check_connection(THD *thd)
     */
     statistic_increment(aborted_connects,&LOCK_status);
     statistic_increment(connection_errors_internal, &LOCK_status);
+    statistic_increment(aborted_connects_preauth, &LOCK_status);
     return 1; /* The error is set by alloc(). */
   }
 
@@ -1177,19 +1187,17 @@ exit:
 void end_connection(THD *thd)
 {
   NET *net= &thd->net;
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    wsrep_status_t rcode= wsrep->free_connection(wsrep, thd->thread_id);
-    if (rcode) {
-      WSREP_WARN("wsrep failed to free connection context: %lld  code: %d",
-                 (longlong) thd->thread_id, rcode);
-    }
-  }
-  thd->wsrep_client_thread= 0;
-#endif
-  plugin_thdvar_cleanup(thd);
 
+#ifdef WITH_WSREP
+  if (thd->wsrep_cs().state() == wsrep::client_state::s_exec)
+  {
+    /* Error happened after the thread acquired ownership to wsrep
+       client state, but before command was processed. Clean up the
+       state before wsrep_close(). */
+    wsrep_after_command_ignore_result(thd);
+  }
+  wsrep_close(thd);
+#endif /* WITH_WSREP */
   if (thd->user_connect)
   {
     /*
@@ -1322,7 +1330,8 @@ bool thd_prepare_connection(THD *thd)
 
   prepare_new_connection_state(thd);
 #ifdef WITH_WSREP
-  thd->wsrep_client_thread= 1;
+  thd->wsrep_client_thread= true;
+  wsrep_open(thd);
 #endif /* WITH_WSREP */
   return FALSE;
 }
@@ -1351,6 +1360,14 @@ void do_handle_one_connection(CONNECT *connect)
     return;
   }
 
+  DBUG_EXECUTE_IF("CONNECT_wait",
+  {
+    extern MYSQL_SOCKET unix_sock;
+    DBUG_ASSERT(unix_sock.fd >= 0);
+    while (unix_sock.fd >= 0)
+      my_sleep(1000);
+  });
+
   /*
     If a thread was created to handle this connection:
     increment slow_launch_threads counter if it took more than
@@ -1364,10 +1381,10 @@ void do_handle_one_connection(CONNECT *connect)
     if (launch_time >= slow_launch_time*1000000L)
       statistic_increment(slow_launch_threads, &LOCK_status);
   }
-  delete connect;
 
-  /* Make THD visible in show processlist */
-  add_to_active_threads(thd);
+  server_threads.insert(thd); // Make THD visible in show processlist
+
+  delete connect; // must be after server_threads.insert, see close_connections()
   
   thd->thr_create_utime= thr_create_utime;
   /* We need to set this because of time_out_user_resource_limits */
@@ -1398,20 +1415,13 @@ void do_handle_one_connection(CONNECT *connect)
 
     while (thd_is_connection_alive(thd))
     {
-      mysql_audit_release(thd);
+      if (mysql_audit_release_required(thd))
+        mysql_audit_release(thd);
       if (do_command(thd))
 	break;
     }
     end_connection(thd);
 
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
-    thd->wsrep_query_state= QUERY_EXITING;
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
-  }
-#endif
 end_thread:
     close_connection(thd);
 
@@ -1480,6 +1490,7 @@ CONNECT::~CONNECT()
 {
   if (vio)
     vio_delete(vio);
+  count--;
 }
 
 

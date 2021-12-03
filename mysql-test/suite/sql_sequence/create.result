@@ -375,6 +375,40 @@ CREATE OR REPLACE TABLE t1 (
 key key1 (next_not_cached_value)
 ) sequence=1;
 ERROR HY000: Sequence 'test.t1' table structure is invalid (Sequence tables cannot have any keys)
+CREATE TABLE t1 (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL,
+`cycle_count` bigint(21) NOT NULL,
+CHECK (start_value < minimum_value)
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (Sequence tables cannot have any constraints)
+CREATE TABLE t1 (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL CHECK (start_value < minimum_value),
+`increment` bigint(21) NOT NULL,
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL,
+`cycle_count` bigint(21) NOT NULL
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (start_value)
+CREATE TABLE t1 (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL,
+`cycle_count` bigint(21) generated always as (1) virtual
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (cycle_count)
 drop sequence if exists t1;
 Warnings:
 Note	4091	Unknown SEQUENCE: 'test.t1'
@@ -632,7 +666,7 @@ create temporary sequence s;
 drop temporary table s;
 create temporary table s (i int);
 drop temporary sequence s;
-ERROR 42S02: Unknown SEQUENCE: 'test.s'
+ERROR 42S02: 'test.s' is not a SEQUENCE
 drop table s;
 #
 # MDEV-15115 Assertion failure in CREATE SEQUENCE...ROW_FORMAT=REDUNDANT

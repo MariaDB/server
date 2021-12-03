@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -81,7 +81,6 @@ enum buf_buddy_state_t {
 				are in use */
 };
 
-#ifdef UNIV_DEBUG_VALGRIND
 /**********************************************************************//**
 Invalidate memory area that we won't access while page is free */
 UNIV_INLINE
@@ -91,15 +90,11 @@ buf_buddy_mem_invalid(
 	buf_buddy_free_t*	buf,	/*!< in: block to check */
 	ulint			i)	/*!< in: index of zip_free[] */
 {
-	const size_t	size	= BUF_BUDDY_LOW << i;
-	ut_ad(i <= BUF_BUDDY_SIZES);
+  ut_ad(i <= BUF_BUDDY_SIZES);
 
-	UNIV_MEM_ASSERT_W(buf, size);
-	UNIV_MEM_INVALID(buf, size);
+  MEM_CHECK_ADDRESSABLE(buf, BUF_BUDDY_LOW << i);
+  MEM_UNDEFINED(buf, BUF_BUDDY_LOW << i);
 }
-#else /* UNIV_DEBUG_VALGRIND */
-# define buf_buddy_mem_invalid(buf, i) ut_ad((i) <= BUF_BUDDY_SIZES)
-#endif /* UNIV_DEBUG_VALGRIND */
 
 /**********************************************************************//**
 Check if a buddy is stamped free.
@@ -171,13 +166,13 @@ buf_buddy_get(
 struct	CheckZipFree {
 	CheckZipFree(ulint i) : m_i(i) {}
 
-	void	operator()(const buf_buddy_free_t* elem) const
+	void operator()(const buf_buddy_free_t* elem) const
 	{
-		ut_a(buf_buddy_stamp_is_free(elem));
-		ut_a(elem->stamp.size <= m_i);
+		ut_ad(buf_buddy_stamp_is_free(elem));
+		ut_ad(elem->stamp.size <= m_i);
 	}
 
-	ulint		m_i;
+	const ulint m_i;
 };
 
 /** Validate a buddy list.
@@ -189,8 +184,7 @@ buf_buddy_list_validate(
 	const buf_pool_t*	buf_pool,
 	ulint			i)
 {
-	CheckZipFree	check(i);
-	ut_list_validate(buf_pool->zip_free[i], check);
+	ut_list_validate(buf_pool->zip_free[i], CheckZipFree(i));
 }
 
 /**********************************************************************//**
@@ -348,7 +342,7 @@ buf_buddy_alloc_zip(
 		if (buf) {
 			buf_buddy_free_t* buddy =
 				reinterpret_cast<buf_buddy_free_t*>(
-					buf->stamp.bytes
+					reinterpret_cast<byte*>(buf)
 					+ (BUF_BUDDY_LOW << i));
 
 			ut_ad(!buf_pool_contains_zip(buf_pool, buddy));
@@ -358,11 +352,10 @@ buf_buddy_alloc_zip(
 
 	if (buf) {
 		/* Trash the page other than the BUF_BUDDY_STAMP_NONFREE. */
-		UNIV_MEM_TRASH(buf, ~i, BUF_BUDDY_STAMP_OFFSET);
-		UNIV_MEM_TRASH(BUF_BUDDY_STAMP_OFFSET + 4
-			       + buf->stamp.bytes, ~i,
-			       (BUF_BUDDY_LOW << i)
-			       - (BUF_BUDDY_STAMP_OFFSET + 4));
+		MEM_UNDEFINED(buf, BUF_BUDDY_STAMP_OFFSET);
+		MEM_UNDEFINED(BUF_BUDDY_STAMP_OFFSET + 4 + buf->stamp.bytes,
+			      (BUF_BUDDY_LOW << i)
+			      - (BUF_BUDDY_STAMP_OFFSET + 4));
 		ut_ad(mach_read_from_4(buf->stamp.bytes
 				       + BUF_BUDDY_STAMP_OFFSET)
 		      == BUF_BUDDY_STAMP_NONFREE);
@@ -400,7 +393,7 @@ buf_buddy_block_free(
 	HASH_DELETE(buf_page_t, hash, buf_pool->zip_hash, fold, bpage);
 
 	ut_d(memset(buf, 0, srv_page_size));
-	UNIV_MEM_INVALID(buf, srv_page_size);
+	MEM_UNDEFINED(buf, srv_page_size);
 
 	block = (buf_block_t*) bpage;
 	buf_page_mutex_enter(block);
@@ -493,7 +486,6 @@ buf_buddy_alloc_low(
 {
 	buf_block_t*	block;
 
-	ut_ad(lru);
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(!mutex_own(&buf_pool->zip_mutex));
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
@@ -557,17 +549,16 @@ buf_buddy_relocate(
 	ut_ad(!ut_align_offset(src, size));
 	ut_ad(!ut_align_offset(dst, size));
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
-	UNIV_MEM_ASSERT_W(dst, size);
+	MEM_CHECK_ADDRESSABLE(dst, size);
 
 	space	= mach_read_from_4((const byte*) src
 				   + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	offset	= mach_read_from_4((const byte*) src
 				   + FIL_PAGE_OFFSET);
 
-	/* Suppress Valgrind warnings about conditional jump
-	on uninitialized value. */
-	UNIV_MEM_VALID(&space, sizeof space);
-	UNIV_MEM_VALID(&offset, sizeof offset);
+	/* Suppress Valgrind or MSAN warnings. */
+	MEM_MAKE_DEFINED(&space, sizeof space);
+	MEM_MAKE_DEFINED(&offset, sizeof offset);
 
 	ut_ad(space != BUF_BUDDY_STAMP_FREE);
 
@@ -629,7 +620,7 @@ buf_buddy_relocate(
 
 	/* The block must have been allocated, but it may
 	contain uninitialized data. */
-	UNIV_MEM_ASSERT_W(src, size);
+	MEM_CHECK_ADDRESSABLE(src, size);
 
 	BPageMutex*	block_mutex = buf_page_get_mutex(bpage);
 
@@ -637,7 +628,7 @@ buf_buddy_relocate(
 
 	if (buf_page_can_relocate(bpage)) {
 		/* Relocate the compressed page. */
-		uintmax_t	usec = ut_time_us(NULL);
+		const ulonglong ns = my_interval_timer();
 
 		ut_a(bpage->zip.data == src);
 
@@ -653,7 +644,7 @@ buf_buddy_relocate(
 
 		buf_buddy_stat_t*	buddy_stat = &buf_pool->buddy_stat[i];
 		buddy_stat->relocated++;
-		buddy_stat->relocated_usec += ut_time_us(NULL) - usec;
+		buddy_stat->relocated_usec+= (my_interval_timer() - ns) / 1000;
 		return(true);
 	}
 
@@ -684,7 +675,7 @@ buf_buddy_free_low(
 
 	buf_pool->buddy_stat[i].used--;
 recombine:
-	UNIV_MEM_ALLOC(buf, BUF_BUDDY_LOW << i);
+	MEM_UNDEFINED(buf, BUF_BUDDY_LOW << i);
 
 	if (i == BUF_BUDDY_SIZES) {
 		buf_buddy_block_free(buf_pool, buf);

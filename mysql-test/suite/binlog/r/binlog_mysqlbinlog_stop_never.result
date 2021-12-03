@@ -1,0 +1,16 @@
+RESET MASTER;
+include/stop_dump_threads.inc
+# Step-1: Execute some dummy statements.
+CREATE TABLE t1(i int);
+INSERT INTO t1 values (1);
+# Step-2: Disable binary log temporarily and drop the table 't1'.
+set @@SESSION.SQL_LOG_BIN = 0;
+DROP TABLE t1;
+set @@SESSION.SQL_LOG_BIN = 1;
+# Step-3: Execute MYSQL_BINLOG with --stop-never and source it to mysql client.
+# Step-4: Wait till dump thread transfer is completed.
+# Step-5: Check that the data is there.
+# Step-6: Cleanup
+# kill the dump thread serving the mysqlbinlog --stop-never process
+include/stop_dump_threads.inc
+DROP TABLE t1;

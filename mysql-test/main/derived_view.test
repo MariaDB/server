@@ -1,3 +1,5 @@
+--source include/default_optimizer_switch.inc
+
 --disable_warnings
 drop table if exists t1,t2;
 drop view if exists v1,v2,v3,v4;
@@ -5,6 +7,7 @@ drop view if exists v1,v2,v3,v4;
 
 set @exit_optimizer_switch=@@optimizer_switch;
 set @exit_join_cache_level=@@join_cache_level;
+set @exit_join_buffer_size=@@join_buffer_size;
 set optimizer_switch='derived_merge=on,derived_with_keys=on';
 # The 'default' value within the scope of this test:
 set @save_optimizer_switch=@@optimizer_switch;
@@ -1077,8 +1080,8 @@ EXPLAIN
 SELECT t2.d FROM t1,t2,v3 WHERE v3.e = t2.d AND v3.i < 3;
 SELECT t2.d FROM t1,t2,v3 WHERE v3.e = t2.d AND v3.i < 3;
 
-SET SESSION join_cache_level = DEFAULT;
-SET SESSION join_buffer_size = DEFAULT;
+SET SESSION join_cache_level = @exit_join_cache_level;
+SET SESSION join_buffer_size = @exit_join_buffer_size;
 
 DROP VIEW v3;
 DROP TABLE t1,t2,t3,t4,t5;
@@ -1167,7 +1170,7 @@ SELECT * FROM t3
 SELECT * FROM t3
   WHERE t3.b <> ANY (SELECT t1.b  FROM t1 LEFT JOIN v2 ON v2.a = t1.a);
 
-SET SESSION join_cache_level = default;
+SET SESSION join_cache_level = @exit_join_cache_level;
 
 SET optimizer_switch=@save_optimizer_switch;
 
@@ -1976,3 +1979,314 @@ DROP TABLE t1;
 # The following command must be the last one the file 
 set optimizer_switch=@exit_optimizer_switch;
 set join_cache_level=@exit_join_cache_level;
+
+--echo #
+--echo # Bug mdev-18479: EXPLAIN for query with many expensive derived
+--echo #
+
+CREATE TABLE t1
+(id int auto_increment primary key,
+ uid int NOT NULL,
+ gp_id int NOT NULL,
+ r int NOT NULL
+);
+
+INSERT INTO t1(uid,gp_id,r)  VALUES
+(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),
+(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),
+(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),
+(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),
+(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,1,1),
+(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),
+(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),
+(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),
+(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),
+(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),(1,2,1),
+(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),
+(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),
+(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),
+(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),
+(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),(1,3,1),
+(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),
+(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),
+(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),
+(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),
+(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),(1,4,1),
+(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),
+(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),
+(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),
+(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),
+(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),(1,5,1),
+(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),
+(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),
+(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),
+(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),
+(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),(1,6,1),
+(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),
+(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),
+(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),
+(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),
+(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),(1,7,1),
+(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),
+(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),
+(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),
+(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),
+(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),(1,8,1),
+(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),
+(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),
+(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),
+(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),
+(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),(1,9,1),
+(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),
+(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),
+(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),
+(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),
+(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),
+(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,10,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),
+(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),
+(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),
+(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),
+(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),
+(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),(1,11,1),
+(1,11,1);
+
+CREATE TABLE t2 (id int) ;
+INSERT INTO t2 VALUES (1);
+
+explain SELECT 1 FROM t2 JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+   )   gp_1 ON gp_1.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  )   gp_2 ON gp_2.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p1 ON p1.r=1 AND p1.uid=t2.id
+  JOIN t1 p3 ON p3.r=3 AND p3.uid=t2.id
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  ) gp_3 ON gp_3.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p1 ON p1.r=1 AND p1.uid=t2.id
+  JOIN t1 p3 ON p3.r=3 AND p3.uid=t2.id
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  )   gp_4 ON gp_4.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p1 ON p1.r=1 AND p1.uid=t2.id
+  JOIN t1 p3 ON p3.r=3 AND p3.uid=t2.id
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  )   gp_5 ON gp_5.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p1 ON p1.r=1 AND p1.uid=t2.id
+  JOIN t1 p3 ON p3.r=3 AND p3.uid=t2.id
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  )   gp_6 ON gp_6.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p1 ON p1.r=1 AND p1.uid=t2.id
+  JOIN t1 p3 ON p3.r=3 AND p3.uid=t2.id
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  WHERE p1.gp_id=7)   gp_7 ON gp_7.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  )   gp_8 ON gp_8.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  )   gp_9 ON gp_9.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  )   gp_14 ON gp_14.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  )   gp_15 ON gp_15.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  )  gp_16 ON gp_16.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+    JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+    JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+
+    JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+    JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+    JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+    JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+    )gp_17 ON gp_17.id=t2.id
+JOIN
+(SELECT t2.id
+  FROM t2
+  JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+  JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+  JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+  JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+  JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+  JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+  JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+  )gp_18 ON gp_18.id=t2.id
+JOIN
+(SELECT t2.id
+ FROM t2
+ JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+ JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+ JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+ JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+ JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+ JOIN t1 p9 ON p9.r=9 AND p9.uid=t2.id
+ JOIN t1 p10 ON p10.r=10 AND p10.uid=t2.id
+ )gp_19 ON gp_19.id=t2.id
+JOIN
+(SELECT t2.id
+ FROM t2
+ JOIN t1 p4 ON p4.r=4 AND p4.uid=t2.id
+ JOIN t1 p5 ON p5.r=5 AND p5.uid=t2.id
+ JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
+ JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
+ JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
+ ) gp_20 ON gp_20.id=t2.id ;
+
+DROP TABLE  t1, t2;
+
+--echo #
+--echo # MDEV-19778: equality condition for mergeable view returning constants
+--echo #             in its columns and used as inner table of outer join
+--echo #
+
+create table t1 (pk int, a int);
+insert into t1 values (1,7), (2,3), (3,2), (4,3);
+create table t2 (b int);
+insert into t2 values (5), (1), (NULL), (3);
+create table t3 (c int);
+insert into t3 values (1), (8);
+
+create view v1 as
+select 3 as d, t2.b from t2;
+
+let $q=
+select * from t1 left join v1 on t1.pk <= 2 where t1.a=v1.d;
+eval $q;
+eval explain extended $q;
+
+let $q=
+select * from t1 left join (select 3 as d, t2.b from t2) dt on t1.pk <= 2
+  where t1.a=dt.d;
+eval $q;
+eval explain extended $q;
+
+let $q=
+select * from t1 left join (v1,t3) on t1.pk <= 2 where t1.a=v1.d;
+eval $q;
+eval explain extended $q;
+
+drop view v1;
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-25679: view / derived table defined as ordered select with LIMIT
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+create view v1 as (select a from t1 limit 2) order by a desc;
+(select a from t1 limit 2) order by a desc;
+select * from v1;
+select * from ((select a from t1 limit 2) order by a desc) dt;
+
+drop view v1;
+drop table t1;
+
+--echo # End of 10.2 tests

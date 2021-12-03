@@ -22,3 +22,5 @@ SELECT COUNT(*) = 1 FROM mysql.slow_log WHERE sql_text = 'SELECT 2 = 2 FROM t1';
 
 --connection node_1
 DROP TABLE t1;
+truncate table mysql.slow_log;
+truncate table mysql.general_log;

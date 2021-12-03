@@ -74,8 +74,8 @@ Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8385959.000000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8390000.000000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '20180102.000000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '876494155959.000000000'
-Warning	1292	Incorrect interval value: '876494160000.000000000' for column 'a' at row 8
-Warning	1292	Incorrect interval value: '876494160000.000000000' for column 'a' at row 8
+Warning	1292	Incorrect interval value: '876494160000.000000000' for column `test`.`t1`.`a` at row 8
+Warning	1292	Incorrect interval value: '876494160000.000000000' for column `test`.`t1`.`a` at row 8
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '876494160000.000000000'
 DROP TABLE t1;
 #

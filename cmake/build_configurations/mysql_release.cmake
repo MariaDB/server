@@ -1,5 +1,5 @@
 # Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2011, 2018, MariaDB Corporation
+# Copyright (c) 2011, 2021, MariaDB Corporation.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 # This file includes build settings used for MySQL release
 
@@ -86,8 +86,14 @@ IF(FEATURE_SET)
   ENDIF()
 ENDIF()
 
-OPTION(ENABLED_LOCAL_INFILE "" ON)
 SET(WITH_INNODB_SNAPPY OFF CACHE STRING "")
+SET(WITH_NUMA 0 CACHE BOOL "")
+SET(CPU_LEVEL1_DCACHE_LINESIZE 0)
+
+IF(NOT EXISTS ${CMAKE_SOURCE_DIR}/.git)
+  SET(GIT_EXECUTABLE GIT_EXECUTABLE-NOTFOUND CACHE FILEPATH "")
+ENDIF()
+
 IF(WIN32)
   SET(INSTALL_MYSQLTESTDIR "" CACHE STRING "")
   SET(INSTALL_SQLBENCHDIR  "" CACHE STRING "")
@@ -95,20 +101,43 @@ IF(WIN32)
 ELSEIF(RPM)
   SET(WITH_SSL system CACHE STRING "")
   SET(WITH_ZLIB system CACHE STRING "")
-  SET(CHECKMODULE /usr/bin/checkmodule CACHE STRING "")
-  SET(SEMODULE_PACKAGE /usr/bin/semodule_package CACHE STRING "")
-  SET(WITH_LIBARCHIVE ON CACHE STRING "")
+  SET(CHECKMODULE /usr/bin/checkmodule CACHE FILEPATH "")
+  SET(SEMODULE_PACKAGE /usr/bin/semodule_package CACHE FILEPATH "")
+  SET(WITH_JEMALLOC "yes" CACHE STRING "")
+  SET(PLUGIN_AUTH_SOCKET YES CACHE STRING "")
+  IF(RPM MATCHES "fedora|centos|rhel")
+    SET(WITH_INNODB_BZIP2 OFF CACHE STRING "")
+    SET(WITH_INNODB_LZO OFF CACHE STRING "")
+    SET(WITH_ROCKSDB_BZip2 OFF CACHE STRING "")
+  ENDIF()
+  IF(RPM MATCHES "opensuse|sles|centos|rhel")
+    SET(WITH_INNODB_LZ4 OFF CACHE STRING "")
+    SET(WITH_ROCKSDB_LZ4 OFF CACHE STRING "")
+    SET(GRN_WITH_LZ4 no CACHE STRING "")
+  ENDIF()
 ELSEIF(DEB)
   SET(WITH_SSL system CACHE STRING "")
   SET(WITH_ZLIB system CACHE STRING "")
   SET(WITH_LIBWRAP ON)
   SET(HAVE_EMBEDDED_PRIVILEGE_CONTROL ON)
-  SET(WITH_LIBARCHIVE ON CACHE STRING "")
+  SET(WITH_JEMALLOC "yes" CACHE STRING "")
+  SET(PLUGIN_AUTH_SOCKET YES CACHE STRING "")
+  SET(WITH_INNODB_BZIP2 OFF CACHE STRING "")
+  SET(WITH_INNODB_LZMA OFF CACHE STRING "")
+  SET(WITH_INNODB_LZO OFF CACHE STRING "")
+  SET(WITH_ROCKSDB_BZip2 OFF CACHE STRING "")
 ELSE()
   SET(WITH_SSL bundled CACHE STRING "")
+  SET(WITH_PCRE bundled CACHE STRING "")
   SET(WITH_ZLIB bundled CACHE STRING "")
   SET(WITH_JEMALLOC static CACHE STRING "")
-  SET(WITH_LIBARCHIVE STATIC CACHE STRING "")
+  SET(PLUGIN_AUTH_SOCKET STATIC CACHE STRING "")
+  SET(WITH_INNODB_BZIP2 OFF CACHE STRING "")
+  SET(WITH_INNODB_LZ4 OFF CACHE STRING "")
+  SET(WITH_INNODB_LZO OFF CACHE STRING "")
+  SET(WITH_ROCKSDB_BZip2 OFF CACHE STRING "")
+  SET(WITH_ROCKSDB_LZ4 OFF CACHE STRING "")
+  SET(GRN_WITH_LZ4 no CACHE STRING "")
 ENDIF()
 
 IF(NOT COMPILATION_COMMENT)
@@ -124,6 +153,7 @@ ENDIF()
 
 IF(UNIX)
   SET(WITH_EXTRA_CHARSETS all CACHE STRING "")
+  SET(PLUGIN_AUTH_PAM YES CACHE BOOL "")
 
   IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     IF(NOT IGNORE_AIO_CHECK)
@@ -140,7 +170,7 @@ IF(UNIX)
           RedHat/Fedora/Oracle Linux: yum install libaio-devel
           SuSE:                       zypper install libaio-devel
 
-        If you really do not want it, pass -DIGNORE_AIO_CHECK to cmake.
+          If you really do not want it, pass -DIGNORE_AIO_CHECK=ON to cmake.
         ")
       ENDIF()
 
@@ -207,7 +237,7 @@ IF(UNIX)
   IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
     IF(CMAKE_C_COMPILER_ID MATCHES "Intel")
       SET(COMMON_C_FLAGS                 "-static-intel -static-libgcc -g -mp -restrict")
-      SET(COMMON_CXX_FLAGS               "-static-intel -static-libgcc -g -mp -restrict -fno-exceptions -fno-rtti")
+      SET(COMMON_CXX_FLAGS               "-static-intel -static-libgcc -g -mp -restrict -fno-exceptions")
       IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ia64")
         SET(COMMON_C_FLAGS               "${COMMON_C_FLAGS} -no-ftz -no-prefetch")
         SET(COMMON_CXX_FLAGS             "${COMMON_CXX_FLAGS} -no-ftz -no-prefetch")

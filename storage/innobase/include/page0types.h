@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,9 +26,9 @@ Created 2/2/1994 Heikki Tuuri
 #ifndef page0types_h
 #define page0types_h
 
-#include "univ.i"
 #include "dict0types.h"
 #include "mtr0types.h"
+#include "rem0types.h"
 
 #include <map>
 
@@ -173,7 +173,7 @@ page_zip_dir_delete(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	byte*		rec,	/*!< in: deleted record */
 	dict_index_t*	index,	/*!< in: index of rec */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec) */
 	const byte*	free)	/*!< in: previous start of the free list */
 	MY_ATTRIBUTE((nonnull(1,2,3,4)));
 

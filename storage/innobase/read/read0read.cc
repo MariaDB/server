@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -200,7 +200,7 @@ inline void ReadView::snapshot(trx_t *trx)
 void ReadView::open(trx_t *trx)
 {
   ut_ad(this == &trx->read_view);
-  switch (m_state)
+  switch (state())
   {
   case READ_VIEW_STATE_OPEN:
     ut_ad(!srv_read_only_mode);
@@ -235,7 +235,7 @@ void ReadView::open(trx_t *trx)
       may get started, committed and purged meanwhile. It is acceptable as
       well, since this view doesn't see it.
     */
-    if (trx_is_autocommit_non_locking(trx) && m_ids.empty() &&
+    if (trx->is_autocommit_non_locking() && m_ids.empty() &&
         m_low_limit_id == trx_sys.get_max_trx_id())
       goto reopen;
 
@@ -254,8 +254,7 @@ void ReadView::open(trx_t *trx)
     */
     mutex_enter(&trx_sys.mutex);
     mutex_exit(&trx_sys.mutex);
-    my_atomic_store32_explicit(&m_state, READ_VIEW_STATE_SNAPSHOT,
-                               MY_MEMORY_ORDER_RELAXED);
+    m_state.store(READ_VIEW_STATE_SNAPSHOT, std::memory_order_relaxed);
     break;
   default:
     ut_ad(0);
@@ -264,8 +263,7 @@ void ReadView::open(trx_t *trx)
   snapshot(trx);
 reopen:
   m_creator_trx_id= trx->id;
-  my_atomic_store32_explicit(&m_state, READ_VIEW_STATE_OPEN,
-                             MY_MEMORY_ORDER_RELEASE);
+  m_state.store(READ_VIEW_STATE_OPEN, std::memory_order_release);
 }
 
 
@@ -284,7 +282,7 @@ void trx_sys_t::clone_oldest_view()
   for (const trx_t *trx= UT_LIST_GET_FIRST(trx_list); trx;
        trx= UT_LIST_GET_NEXT(trx_list, trx))
   {
-    int32_t state;
+    uint32_t state;
 
     while ((state= trx->read_view.get_state()) == READ_VIEW_STATE_SNAPSHOT)
       ut_delay(1);

@@ -1,0 +1,42 @@
+# ==== Purpose ====
+#
+# Test verifies that when applier thread tries to access 'variable_name' of
+# INFORMATION_SCHEMA.SESSION_VARIABLES table through triggers it successfully
+# retrieves all the session variables.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Create two tables t1 and t2.
+#    1 - Create a trigger such that it reads the names of all session variables
+#        from INFORMATION_SCHEMA.SESSION_VARIABLES table and populates one of the
+#        tables.
+#    2 - Do a DML on master and wait for it to be replicated and ensure that
+#        slave is in sync with master and it is up and running.
+#
+# ==== References ====
+#
+# MDEV-14784: Slave crashes in show_status_array upon running a trigger with
+# select from I_S
+
+--source include/master-slave.inc
+--source include/have_binlog_format_mixed.inc
+--enable_connect_log
+CREATE USER test_user@localhost;
+SET PASSWORD FOR test_user@localhost = password('PWD');
+GRANT ALL ON *.* TO test_user@localhost WITH GRANT OPTION;
+connect(conn_test,localhost,test_user,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+
+--connection conn_test
+CREATE TABLE t1 (f1 INT);
+CREATE TABLE t2 (f2 VARCHAR(64));
+CREATE TRIGGER tr_before BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 SELECT variable_name FROM INFORMATION_SCHEMA.SESSION_VARIABLES;
+CREATE DEFINER='root'@'localhost' TRIGGER tr_after AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 SELECT variable_name FROM INFORMATION_SCHEMA.SESSION_VARIABLES;
+
+INSERT INTO t1 VALUES (1);
+--disable_connect_log
+# Cleanup
+--connection master
+DROP USER 'test_user'@'localhost';
+DROP TABLE t1, t2;
+--source include/rpl_end.inc

@@ -122,6 +122,7 @@ INSERT INTO articles (title, body) VALUES
 ('Optimizing MySQL','In this tutorial we will show ...'),
 ('1001 MySQL Tricks','How to use full-text search engine'),
 ('Go MySQL Tricks','How to use full text search engine');
+# restart
 SELECT COUNT(*) FROM articles;
 COUNT(*)
 0
@@ -134,6 +135,7 @@ INSERT INTO articles (title, body) VALUES
 ('Optimizing MySQL','In this tutorial we will show ...'),
 ('1001 MySQL Tricks','How to use full-text search engine'),
 ('Go MariaDB Tricks','How to use full text search engine');
+# restart
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('MySQL');
 id	title	body

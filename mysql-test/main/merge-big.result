@@ -7,7 +7,7 @@ drop table if exists t1,t2,t3,t4,t5,t6;
 CREATE TABLE t1 (c1 INT) ENGINE= MyISAM;
 LOCK TABLE t1 WRITE;
 connect  con1,localhost,root,,;
-SET @orig_debug=@@debug;
+SET @orig_debug=@@global.debug_dbug;
 SET GLOBAL debug_dbug="+d,sleep_open_and_lock_after_open";
 INSERT INTO t1 VALUES (1);
 connection default;

@@ -36,4 +36,7 @@ SELECT COUNT(*) = 95000 FROM t1;
 --connection node_1
 --eval SET GLOBAL wsrep_load_data_splitting = $wsrep_load_data_splitting_orig;
 
+--connection node_2
+--eval SET GLOBAL wsrep_load_data_splitting = $wsrep_load_data_splitting_orig;
+
 DROP TABLE t1;

@@ -34,10 +34,10 @@ use `test`/*!*/;
 SET TIMESTAMP=X/*!*/;
 SET @@session.pseudo_thread_id=5/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
-SET @@session.sql_mode=1411383296/*!*/;
+SET @@session.sql_mode=#/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
-SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=#/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1))
@@ -53,7 +53,7 @@ CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMIN
 # at 727
 #<date> server id 1  end_log_pos 769 CRC32 XXX 	GTID 0-1-3
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 769
 # at 843
@@ -61,7 +61,7 @@ BEGIN
 #Q> INSERT INTO t1 VALUES (10, 1, 2, 3, 4, 5, 6, 7, "")
 #<date> server id 1  end_log_pos 899 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 899
-#<date> server id 1  end_log_pos 967 CRC32 XXX 	Write_compressed_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 967 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -82,7 +82,7 @@ COMMIT
 # at 1040
 #<date> server id 1  end_log_pos 1082 CRC32 XXX 	GTID 0-1-4
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 1082
 # at 1158
@@ -90,7 +90,7 @@ BEGIN
 #Q> INSERT INTO t1 VALUES (11, 1, 2, 3, 4, 5, 6, 7, NULL)
 #<date> server id 1  end_log_pos 1214 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1214
-#<date> server id 1  end_log_pos 1281 CRC32 XXX 	Write_compressed_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1281 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
@@ -111,7 +111,7 @@ COMMIT
 # at 1354
 #<date> server id 1  end_log_pos 1396 CRC32 XXX 	GTID 0-1-5
 /*!100001 SET @@session.gtid_seq_no=5*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 1396
 # at 1474
@@ -119,7 +119,7 @@ BEGIN
 #Q> INSERT INTO t1 VALUES (12, 1, 2, 3, NULL, 5, 6, 7, "A")
 #<date> server id 1  end_log_pos 1530 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1530
-#<date> server id 1  end_log_pos 1596 CRC32 XXX 	Write_compressed_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1596 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
@@ -140,7 +140,7 @@ COMMIT
 # at 1669
 #<date> server id 1  end_log_pos 1711 CRC32 XXX 	GTID 0-1-6
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 1711
 # at 1786
@@ -148,7 +148,7 @@ BEGIN
 #Q> INSERT INTO t1 VALUES (13, 1, 2, 3, 0, 5, 6, 7, "A")
 #<date> server id 1  end_log_pos 1842 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1842
-#<date> server id 1  end_log_pos 1909 CRC32 XXX 	Write_compressed_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1909 CRC32 XXX 	Write_compressed_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
@@ -169,7 +169,7 @@ COMMIT
 # at 1982
 #<date> server id 1  end_log_pos 2024 CRC32 XXX 	GTID 0-1-7
 /*!100001 SET @@session.gtid_seq_no=7*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 2024
 # at 2078
@@ -177,7 +177,7 @@ BEGIN
 #Q> INSERT INTO t2 SELECT * FROM t1
 #<date> server id 1  end_log_pos 2134 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 2134
-#<date> server id 1  end_log_pos 2225 CRC32 XXX 	Write_compressed_rows: table id 31 flags: STMT_END_F
+#<date> server id 1  end_log_pos 2225 CRC32 XXX 	Write_compressed_rows: table id 33 flags: STMT_END_F
 ### INSERT INTO `test`.`t2`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -231,7 +231,7 @@ COMMIT
 # at 2298
 #<date> server id 1  end_log_pos 2340 CRC32 XXX 	GTID 0-1-8
 /*!100001 SET @@session.gtid_seq_no=8*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 2340
 # at 2406
@@ -239,7 +239,7 @@ BEGIN
 #Q> UPDATE t2 SET f4=5 WHERE f4>0 or f4 is NULL
 #<date> server id 1  end_log_pos 2462 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 2462
-#<date> server id 1  end_log_pos 2561 CRC32 XXX 	Update_compressed_rows: table id 31 flags: STMT_END_F
+#<date> server id 1  end_log_pos 2561 CRC32 XXX 	Update_compressed_rows: table id 33 flags: STMT_END_F
 ### UPDATE `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -312,7 +312,7 @@ COMMIT
 # at 2634
 #<date> server id 1  end_log_pos 2676 CRC32 XXX 	GTID 0-1-9
 /*!100001 SET @@session.gtid_seq_no=9*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 2676
 # at 2713
@@ -320,7 +320,7 @@ BEGIN
 #Q> DELETE FROM t1
 #<date> server id 1  end_log_pos 2769 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 2769
-#<date> server id 1  end_log_pos 2861 CRC32 XXX 	Delete_compressed_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 2861 CRC32 XXX 	Delete_compressed_rows: table id 32 flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -374,7 +374,7 @@ COMMIT
 # at 2934
 #<date> server id 1  end_log_pos 2976 CRC32 XXX 	GTID 0-1-10
 /*!100001 SET @@session.gtid_seq_no=10*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at 2976
 # at 3013
@@ -382,7 +382,7 @@ BEGIN
 #Q> DELETE FROM t2
 #<date> server id 1  end_log_pos 3069 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 3069
-#<date> server id 1  end_log_pos 3154 CRC32 XXX 	Delete_compressed_rows: table id 31 flags: STMT_END_F
+#<date> server id 1  end_log_pos 3154 CRC32 XXX 	Delete_compressed_rows: table id 33 flags: STMT_END_F
 ### DELETE FROM `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */

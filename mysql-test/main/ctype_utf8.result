@@ -67,13 +67,13 @@ select _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%');
 _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%')
 1
 select convert(_latin1'G�nter Andr�' using utf8) like CONVERT(_latin1'G�NTER%' USING utf8);
-convert(_latin1'G�nter Andr�' using utf8) like CONVERT(_latin1'G�NTER%' USING utf8)
+convert(_latin1'G\xFCnter Andr\xE9' using utf8) like CONVERT(_latin1'G\xDCNTER%' USING utf8)
 1
 select CONVERT(_koi8r'����' USING utf8) LIKE CONVERT(_koi8r'����' USING utf8);
-CONVERT(_koi8r'����' USING utf8) LIKE CONVERT(_koi8r'����' USING utf8)
+CONVERT(_koi8r'\xD7\xC1\xD3\xD1' USING utf8) LIKE CONVERT(_koi8r'\xF7\xE1\xF3\xF1' USING utf8)
 1
 select CONVERT(_koi8r'����' USING utf8) LIKE CONVERT(_koi8r'����' USING utf8);
-CONVERT(_koi8r'����' USING utf8) LIKE CONVERT(_koi8r'����' USING utf8)
+CONVERT(_koi8r'\xF7\xE1\xF3\xF1' USING utf8) LIKE CONVERT(_koi8r'\xD7\xC1\xD3\xD1' USING utf8)
 1
 SELECT 'a' = 'a ';
 'a' = 'a '
@@ -222,7 +222,7 @@ drop table t1;
 create table t1 (s1 char(10) character set utf8);
 insert ignore into t1 values (0x41FF);
 Warnings:
-Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xFF' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 413F
@@ -230,7 +230,7 @@ drop table t1;
 create table t1 (s1 varchar(10) character set utf8);
 insert ignore into t1 values (0x41FF);
 Warnings:
-Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xFF' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 413F
@@ -238,7 +238,7 @@ drop table t1;
 create table t1 (s1 text character set utf8);
 insert ignore into t1 values (0x41FF);
 Warnings:
-Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xFF' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 413F
@@ -1032,6 +1032,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf8_general_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 "BEGIN ctype_german.inc"
 drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
@@ -1263,6 +1269,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf8_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 CREATE TABLE t1 (
 user varchar(255) NOT NULL default ''
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
@@ -1283,7 +1295,7 @@ concat(concat(_latin1'->',f1),_latin1'<-')
 -><-
 drop table t1;
 select convert(_koi8r'�' using utf8) < convert(_koi8r'�' using utf8);
-convert(_koi8r'�' using utf8) < convert(_koi8r'�' using utf8)
+convert(_koi8r'\xC9' using utf8) < convert(_koi8r'\xCA' using utf8)
 1
 set names latin1;
 create table t1 (a varchar(10)) character set utf8;
@@ -2559,7 +2571,7 @@ create table t1 as select concat(1 % 2) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET utf8 DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(-1));
@@ -2805,21 +2817,23 @@ drop table t1;
 select hex(concat(ceiling(0.5)));
 hex(concat(ceiling(0.5)))
 31
-create table t1 as select concat(ceiling(0.5)) as c1;
+create table t1 as select ceiling(0.5) as c0, concat(ceiling(0.5)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(4) CHARACTER SET utf8 DEFAULT NULL
+  `c0` int(3) NOT NULL,
+  `c1` varchar(3) CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(floor(0.5)));
 hex(concat(floor(0.5)))
 30
-create table t1 as select concat(floor(0.5)) as c1;
+create table t1 as select floor(0.5) as c0, concat(floor(0.5)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(4) CHARACTER SET utf8 DEFAULT NULL
+  `c0` int(3) NOT NULL,
+  `c1` varchar(3) CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(round(0.5)));
@@ -5223,11 +5237,11 @@ KEY(date_column));
 INSERT INTO t1 VALUES (1,'2010-09-01'),(2,'2010-10-01');
 EXPLAIN SELECT * FROM t1 WHERE date_column BETWEEN '2010-09-01' AND '2010-10-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	date_column	date_column	4	NULL	1	Using index condition
+1	SIMPLE	t1	range	date_column	date_column	4	NULL	2	Using index condition
 ALTER TABLE t1 MODIFY date_column DATETIME DEFAULT NULL;
 EXPLAIN SELECT * FROM t1 WHERE date_column BETWEEN '2010-09-01' AND '2010-10-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	date_column	date_column	6	NULL	1	Using index condition
+1	SIMPLE	t1	range	date_column	date_column	6	NULL	2	Using index condition
 DROP TABLE t1;
 #
 # Bug #31384 	DATE_ADD() and DATE_SUB() return binary data
@@ -5455,14 +5469,13 @@ t1	CREATE TABLE `t1` (
 INSERT INTO t1 (ch) VALUES ('admin'),('admin1');
 SELECT ch FROM t1 WHERE ch='admin𝌆';
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+EXPLAIN SELECT ch FROM t1 WHERE ch='admin𝌆';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='admin𝌆';
 ch
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='admin𝌆';
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 DELETE FROM t1;
 INSERT INTO t1 (ch) VALUES ('a'), ('a?'), ('a??'), ('a???'), ('a????');
 INSERT INTO t1 (ch) VALUES ('ab'),('a?b'),('a??b'),('a???b'),('a????b');
@@ -5478,22 +5491,14 @@ EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -5536,8 +5541,6 @@ EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -5557,14 +5560,10 @@ ab
 az
 aЀ
 aր
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 ch
 a
@@ -5584,8 +5583,6 @@ ab
 az
 aЀ
 aր
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
@@ -5596,24 +5593,16 @@ EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 ch
 z
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 ALTER TABLE t1 DROP KEY ch;
 # 0xD18F would be a good 2-byte character, 0xD1 is an incomplete sequence
 SET @query=CONCAT('SELECT ch FROM t1 WHERE ch=''a', 0xD1,'''');
@@ -5699,14 +5688,13 @@ t1	CREATE TABLE `t1` (
 INSERT INTO t1 (ch) VALUES ('admin'),('admin1');
 SELECT ch FROM t1 WHERE ch='admin𝌆';
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+EXPLAIN SELECT ch FROM t1 WHERE ch='admin𝌆';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='admin𝌆';
 ch
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='admin𝌆';
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 DELETE FROM t1;
 INSERT INTO t1 (ch) VALUES ('a'), ('a?'), ('a??'), ('a???'), ('a????');
 INSERT INTO t1 (ch) VALUES ('ab'),('a?b'),('a??b'),('a???b'),('a????b');
@@ -5722,22 +5710,14 @@ EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -5780,8 +5760,6 @@ EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -5801,14 +5779,10 @@ ab
 az
 aЀ
 aր
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 ch
 a
@@ -5828,8 +5802,6 @@ ab
 az
 aЀ
 aր
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
@@ -5840,24 +5812,16 @@ EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 ch
 z
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 ALTER TABLE t1 DROP KEY ch;
 # 0xD18F would be a good 2-byte character, 0xD1 is an incomplete sequence
 SET @query=CONCAT('SELECT ch FROM t1 WHERE ch=''a', 0xD1,'''');
@@ -5943,14 +5907,13 @@ t1	CREATE TABLE `t1` (
 INSERT INTO t1 (ch) VALUES ('admin'),('admin1');
 SELECT ch FROM t1 WHERE ch='admin𝌆';
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
+EXPLAIN SELECT ch FROM t1 WHERE ch='admin𝌆';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='admin𝌆';
 ch
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='admin𝌆';
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 DELETE FROM t1;
 INSERT INTO t1 (ch) VALUES ('a'), ('a?'), ('a??'), ('a???'), ('a????');
 INSERT INTO t1 (ch) VALUES ('ab'),('a?b'),('a??b'),('a???b'),('a????b');
@@ -5966,22 +5929,14 @@ EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -6801,10 +6756,12 @@ DFFFDFFF9CFF9DFF9EFF
 #
 # Checking strnxfrm() with odd length
 #
-set max_sort_length=5;
+set max_sort_length=9;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '9'
 select @@max_sort_length;
 @@max_sort_length
-5
+64
 create table t1 (a varchar(128) character set utf8 collate utf8_general_ci);
 insert into t1 values ('a'),('b'),('c');
 select * from t1 order by a;
@@ -10579,6 +10536,18 @@ SELECT CONVERT(1, CHAR) IN ('100', '10', '1');
 CONVERT(1, CHAR) IN ('100', '10', '1')
 1
 #
+# MDEV-23535 SIGSEGV, SIGABRT and SIGILL in typeinfo for Item_func_set_collation (on optimized builds)
+#
+SET NAMES utf8;
+CREATE OR REPLACE TABLE t1(a DATETIME) ENGINE=MYISAM;
+INSERT INTO t1 VALUES ('2019-03-10 02:55:05');
+CREATE OR REPLACE TABLE t2(a VARCHAR(50) CHARACTER SET latin1) ENGINE=MYISAM;
+INSERT INTO t2 VALUES ('2019-03-10 02:55:05');
+SELECT * FROM t1 WHERE (SELECT 1,CONCAT(a) FROM t1) = (SELECT 1,CONCAT(a) FROM t2);
+a
+2019-03-10 02:55:05
+DROP TABLE t1, t2;
+#
 # End of 10.1 tests
 #
 #
@@ -10611,11 +10580,11 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
 LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' IGNORE INTO TABLE t1 CHARACTER SET utf8 IGNORE 4 LINES;
 Warnings:
-Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
-Warning	1366	Incorrect string value: '\xE1\x80' for column 'a' at row 3
-Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 5
-Warning	1366	Incorrect string value: '\xF0\x9F\x98\x8E' for column 'a' at row 7
-Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column 'a' at row 8
+Warning	1366	Incorrect string value: '\xD0' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect string value: '\xE1\x80' for column `test`.`t1`.`a` at row 3
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column `test`.`t1`.`a` at row 5
+Warning	1366	Incorrect string value: '\xF0\x9F\x98\x8E' for column `test`.`t1`.`a` at row 7
+Warning	1366	Incorrect string value: '\xF0\x9F\x98' for column `test`.`t1`.`a` at row 8
 SELECT HEX(a) FROM t1;
 HEX(a)
 3F
@@ -10633,7 +10602,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
 LOAD XML INFILE '../../std_data/loaddata/mdev9874.xml' IGNORE INTO TABLE t1 CHARACTER SET utf8 ROWS IDENTIFIED BY '<row>';
 Warnings:
-Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
+Warning	1366	Incorrect string value: '\xD0' for column `test`.`t1`.`a` at row 1
 SELECT HEX(a) FROM t1;
 HEX(a)
 613F
@@ -11272,6 +11241,34 @@ DROP TABLE t1;
 #
 SET STORAGE_ENGINE=Default;
 #
+# MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+#
+SET NAMES utf8;
+SET SESSION character_set_connection=latin1;
+CREATE VIEW v1 AS SELECT 'ä' AS c1;
+SELECT c1, HEX(c1) FROM v1;
+c1	HEX(c1)
+ä	E4
+CREATE TABLE kv (v BLOB);
+LOAD DATA INFILE 'MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv;
+SELECT * FROM kv WHERE v LIKE _binary'query=%';
+v
+query=select 'ä' AS `c1`
+DROP TABLE kv;
+DROP VIEW v1;
+SET NAMES utf8;
+#
+# MDEV-24335 Unexpected question mark in the end of a TINYTEXT column
+#
+CREATE TABLE t1 (a TINYTEXT character set utf8);
+INSERT IGNORE INTO t1 VALUES (REPEAT(_utf8 0xD184, 250));
+Warnings:
+Warning	1366	Incorrect string value: '\xD1\x84\xD1\x84\xD1\x84...' for column `test`.`t1`.`a` at row 1
+SELECT LENGTH(a), CHAR_LENGTH(a), RIGHT(a,3) FROM t1;
+LENGTH(a)	CHAR_LENGTH(a)	RIGHT(a,3)
+254	127	ффф
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #
@@ -11299,6 +11296,86 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+#
+# MDEV-19239 ERROR 1300 (HY000): Invalid utf8 character string in 10.3.13-MariaDB
+#
+SET NAMES utf8;
+SELECT
+x.消息ID,
+x.消息TITLE,
+x.消息类型,
+x.发送时间,
+x.阅读时间,x.老师ID,
+IF(x.四天内最近一次登录时间='2100-01-01 00:00:00','',x.四天内最近一次登录时间) 四天内最近一次登录时间
+FROM (
+SELECT
+msg.*,
+CASE
+WHEN login.login_time BETWEEN msg.发送时间 AND DATE_ADD(msg.发送时间,INTERVAL 4 DAY)
+THEN login.login_time
+WHEN (login.login_time NOT BETWEEN msg.发送时间 AND DATE_ADD(msg.发送时间,INTERVAL 4 DAY)) AND login.login_time>0
+THEN '2100-01-01 00:00:00' ELSE ''
+      END 四天内最近一次登录时间
+FROM (
+SELECT
+me.id 消息ID,
+me.title 消息TITLE,
+CASE
+WHEN me.type=1
+THEN 'Interview Message'
+        WHEN me.type=2
+THEN 'Orientation Message'
+        WHEN me.type=3
+THEN 'Warning Message'
+        WHEN me.type=4
+THEN 'Fail Message'
+        WHEN me.type=5
+THEN 'FM Message'
+        WHEN me.type=6
+THEN 'Training Message'
+        WHEN me.type=7
+THEN 'TUrgent Message'
+      END 消息类型,
+FROM_UNIXTIME(me.sending_time) 发送时间,
+IF(tar.is_read=1,FROM_UNIXTIME(tar.read_time),'') 阅读时间,
+tar.tid 老师ID
+FROM ebk_message me
+LEFT JOIN ebk_message_target tar
+ON me.id=tar.msg_id
+WHERE
+FROM_UNIXTIME(me.sending_time,'%Y-%m-%d') BETWEEN 'start' AND 'end' AND me.status=1 AND tar.tid>0
+GROUP BY
+tar.tid,
+me.sending_time,me.id) msg
+LEFT JOIN (
+SELECT tid,FROM_UNIXTIME(login_time) login_time
+FROM ebk_teacher_login_log
+WHERE FROM_UNIXTIME(login_time,'%Y-%m-%d') BETWEEN 'start' AND DATE_ADD('end',INTERVAL 4 DAY)
+ORDER BY tid,FROM_UNIXTIME(login_time)) login
+ON
+msg.老师ID=login.tid
+ORDER BY msg.消息ID,msg.发送时间,msg.老师ID,login_time) x
+GROUP BY x.消息ID,x.发送时间,x.老师ID;
+ERROR 42S02: Table 'test.ebk_message' doesn't exist
+SET NAMES utf8;
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (1);
+SELECT x AS 5天内最近一次登录时间 FROM t1;
+5天内最近一次登录时间
+1
+DROP TABLE t1;
+#
+# MDEV-22391 Assertion `0' failed in Item_type_holder::val_str on utf16 charset table query
+#
+SET NAMES utf8;
+VALUES (_latin1 0xDF) UNION SELECT _utf8'a' COLLATE utf8_bin;
+_latin1 0xDF
+ß
+a
+VALUES (_latin1 0xDF) UNION VALUES(_utf8'a' COLLATE utf8_bin);
+_latin1 0xDF
+ß
+a
 #
 # End of 10.3 tests
 #

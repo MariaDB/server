@@ -4,6 +4,7 @@
 # PAGE OF SYSTEM TABLESPACE
 #
 SET GLOBAL innodb_fast_shutdown = 0;
+# restart
 show variables like 'innodb_doublewrite';
 Variable_name	Value
 innodb_doublewrite	ON
@@ -43,6 +44,7 @@ set global innodb_buf_flush_list_now = 1;
 # full of zeroes.
 #
 # MDEV-11623: Use old FSP_SPACE_FLAGS in the doublewrite buffer.
+# restart
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -73,6 +75,7 @@ set global innodb_fil_make_page_dirty_debug = @space_id;
 set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # Corrupt the first page (page_no=0) of the user tablespace.
+# restart
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -103,6 +106,7 @@ set global innodb_fil_make_page_dirty_debug = @space_id;
 set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # Make the 2nd page (page_no=1) of the tablespace all zeroes.
+# restart
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -133,6 +137,7 @@ set global innodb_fil_make_page_dirty_debug = @space_id;
 set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # Corrupt the 2nd page (page_no=1) of the user tablespace.
+# restart
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -159,6 +164,7 @@ set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # Make the first page (page_no=0) of the system tablespace
 # all zeroes.
+# restart
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -184,6 +190,7 @@ set global innodb_fil_make_page_dirty_debug = 0;
 set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # Corrupt the first page (page_no=0) of the system tablespace.
+# restart
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -210,6 +217,7 @@ set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # Make the 2nd page (page_no=1) of the system tablespace
 # all zeroes.
+# restart
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -236,10 +244,11 @@ set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # Make the 2nd page (page_no=1) of the system tablespace
 # all zeroes.
+# restart
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
-FOUND 1 /\[ERROR\] InnoDB: .*test.t1\.ibd.*/ in mysqld.1.err
+FOUND 1 /InnoDB: .*test.t1\.ibd/ in mysqld.1.err
 select f1, f2 from t1;
 f1	f2
 1	############
@@ -252,8 +261,10 @@ drop table t1;
 # MDEV-12600 crash during install_db with innodb_page_size=32K
 # and ibdata1=3M
 #
+# restart: --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/doublewrite --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/doublewrite --innodb-data-file-path=ibdata1:1M;ibdata2:1M:autoextend
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 1 /\[ERROR\] InnoDB: Cannot create doublewrite buffer/ in mysqld.1.err
+# restart

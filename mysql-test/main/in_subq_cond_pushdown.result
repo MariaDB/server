@@ -605,7 +605,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "119",
       "join_type": "BNL",
       "attached_condition": "t1.c = t3.y and t1.a is not null"
     },
@@ -1505,7 +1505,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "119",
       "join_type": "BNL",
       "attached_condition": "t1.a = t3.x and t1.c is not null"
     },
@@ -3836,7 +3836,7 @@ DROP TABLE t1;
 #             of multiple equalities
 #
 CREATE TABLE t1 (a varchar(1));
-INSERT INTO `t1` VALUES ('x'), ('y'), ('z');
+INSERT INTO t1 VALUES ('x'), ('y'), ('z');
 CREATE TABLE t2 (b varchar(1));
 INSERT INTO t2 VALUES ('x');
 CREATE TABLE t3 (c varchar(1));

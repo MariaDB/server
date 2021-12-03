@@ -10,6 +10,8 @@ tt  char(255) not null
 insert into t1 values (1,'Aa');
 insert into t1 values (2,'Aas');
 alter table t1 add primary key aaa(tt);
+Warnings:
+Warning	1280	Name 'aaa' ignored for PRIMARY key.
 select * from t1 where tt like 'Aa%';
 id	tt
 1	Aa

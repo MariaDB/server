@@ -281,8 +281,9 @@ WHERE table_schema = 'information_schema';
 #          2. This user (testuser1) is also able to GRANT the SELECT privilege
 #             on this VIEW to another user (testuser2).
 #          3. The other user (testuser2) must be able to SELECT on this VIEW
-#             but gets a different result set than testuser1.
-CREATE VIEW db_datadict.v2 AS
+#             but gets a different result set than testuser1, if the view
+#             has SQL SECURITY INVOKER.
+CREATE SQL SECURITY INVOKER VIEW db_datadict.v2 AS
 SELECT TABLE_SCHEMA,TABLE_NAME,TABLE_TYPE
 FROM information_schema.tables WHERE table_schema = 'db_datadict';
 SELECT TABLE_SCHEMA,TABLE_NAME,TABLE_TYPE

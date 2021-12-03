@@ -1,4 +1,5 @@
 --source include/not_embedded.inc
+--source include/default_charset.inc
 
 SET sql_mode=ORACLE;
 

@@ -68,5 +68,32 @@ reap;
 --disable_info
 SELECT * FROM t1;
 DROP TABLE t1;
-disconnect con1;
 SET DEBUG_SYNC='RESET';
+
+--echo #
+--echo # MDEV-21539 Assertion ...prtype... in row_log_table_apply_convert_mrec
+--echo #
+CREATE TABLE t1 (f VARCHAR(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci)
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES('ZERO');
+connection con1;
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL scanned WAIT_FOR insert_done';
+send ALTER TABLE t1 MODIFY f VARCHAR(256) COLLATE latin1_german2_ci NOT NULL;
+
+--echo # session default
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR scanned';
+INSERT INTO t1 VALUES('one');
+SET DEBUG_SYNC = 'now SIGNAL insert_done';
+
+connection con1;
+reap;
+disconnect con1;
+connection default;
+SET DEBUG_SYNC=RESET;
+
+ALTER TABLE t1 CHANGE f eins VARCHAR(257) COLLATE latin1_german1_ci NOT NULL,
+ALGORITHM=INSTANT;
+
+SELECT * FROM t1;
+DROP TABLE t1;

@@ -1,0 +1,13 @@
+#
+# This test performs server kill and IST while innodb_flush_logs_on_trx_commit = 0
+# This confirms that IST can properly catch up even in the face of relaxed single-node durability
+#
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+--source suite/galera/include/galera_st_kill_slave.inc
+--source suite/galera/include/galera_st_kill_slave_ddl.inc

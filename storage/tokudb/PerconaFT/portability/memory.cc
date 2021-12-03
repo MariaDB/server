@@ -32,6 +32,20 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
     You should have received a copy of the GNU Affero General Public License
     along with PerconaFT.  If not, see <http://www.gnu.org/licenses/>.
+
+----------------------------------------
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
 ======= */
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
@@ -65,7 +79,7 @@ static realloc_fun_t t_xrealloc = 0;
 static LOCAL_MEMORY_STATUS_S status;
 int toku_memory_do_stats = 0;
 
-static bool memory_startup_complete;
+static bool memory_startup_complete = false;
 
 int
 toku_memory_startup(void) {
@@ -83,8 +97,10 @@ toku_memory_startup(void) {
     if (success) {
         status.mallocator_version = "libc";
         status.mmap_threshold = mmap_threshold;
-    } else
+    } else {
         result = EINVAL;
+    }
+    assert(result == 0);
 #else
     // just a guess
     status.mallocator_version = "darwin";
@@ -100,18 +116,17 @@ toku_memory_startup(void) {
     if (mallctl_f) { // jemalloc is loaded
         size_t version_length = sizeof status.mallocator_version;
         result = mallctl_f("version", &status.mallocator_version, &version_length, NULL, 0);
+        assert(result == 0);
         if (result == 0) {
             size_t lg_chunk; // log2 of the mmap threshold
             size_t lg_chunk_length = sizeof lg_chunk;
             result  = mallctl_f("opt.lg_chunk", &lg_chunk, &lg_chunk_length, NULL, 0);
-            if (result)
-            {
-                status.mmap_threshold = 1 << 21; // Default value.
-                                                 // Incompatible jemalloc change.
+            if (result == 0) {
+                status.mmap_threshold = 1 << lg_chunk;
+            } else {
+                status.mmap_threshold = 1 << 22;
                 result = 0;
             }
-            else
-                status.mmap_threshold = 1 << lg_chunk;
         }
     }
 

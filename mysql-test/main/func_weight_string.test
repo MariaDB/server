@@ -2,7 +2,7 @@
 drop table if exists t1;
 --enable_warnings
 
-
+set @save_max_allowed_packet=@@max_allowed_packet;
 set global max_allowed_packet=1048576;
 connect (conn1,localhost,root,,);
 connection conn1;
@@ -118,7 +118,7 @@ SELECT HEX(WEIGHT_STRING('ab' AS BINARY(1000000000000000000)));
 
 disconnect conn1;
 connection default;
-set global max_allowed_packet=default;
+set global max_allowed_packet=@save_max_allowed_packet;
 
 --echo #
 --echo # Start of 10.1 tests

@@ -3,6 +3,7 @@ set sql_mode="";
 flush status;
 show status like "feature%";
 Variable_name	Value
+Feature_application_time_periods	0
 Feature_check_constraint	0
 Feature_custom_aggregate_functions	0
 Feature_delay_key_write	0

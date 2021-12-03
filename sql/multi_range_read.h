@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @defgroup DS-MRR declarations
@@ -364,7 +364,7 @@ class Mrr_ordered_rndpos_reader : public Mrr_reader
 {
 public:
   int init(handler *file, Mrr_index_reader *index_reader, uint mode,
-           Lifo_buffer *buf);
+           Lifo_buffer *buf, Rowid_filter *filter);
   int get_next(range_id_t *range_info);
   int refill_buffer(bool initial);
 private:
@@ -399,6 +399,9 @@ private:
   /* Buffer to store (rowid, range_id) pairs */
   Lifo_buffer *rowid_buffer;
   
+  /* Rowid filter to be checked against (if any) */
+  Rowid_filter *rowid_filter;
+
   int refill_from_index_reader();
 };
 
@@ -554,7 +557,8 @@ public:
   typedef void (handler::*range_check_toggle_func_t)(bool on);
 
   DsMrr_impl()
-    : secondary_file(NULL) {};
+    : secondary_file(NULL),
+      rowid_filter(NULL) {};
   
   void init(handler *h_arg, TABLE *table_arg)
   {
@@ -591,7 +595,13 @@ private:
     to run both index scan and rnd_pos() scan at the same time)
   */
   handler *secondary_file;
-  
+
+  /*
+    The rowid filter that DS-MRR has "unpushed" from the storage engine.
+    If it's present, DS-MRR will use it.
+  */
+  Rowid_filter *rowid_filter;
+
   uint keyno; /* index we're running the scan on */
   /* TRUE <=> need range association, buffers hold {rowid, range_id} pairs */
   bool is_mrr_assoc;
@@ -631,8 +641,9 @@ private:
   
   bool choose_mrr_impl(uint keyno, ha_rows rows, uint *flags, uint *bufsz, 
                        Cost_estimate *cost);
-  bool get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags, 
-                               uint *buffer_size, Cost_estimate *cost);
+  bool get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
+                               uint *buffer_size, uint extra_mem_overhead,
+                               Cost_estimate *cost);
   bool check_cpk_scan(THD *thd, TABLE_SHARE *share, uint keyno, uint mrr_flags);
 
   bool setup_buffer_sharing(uint key_size_in_keybuf, key_part_map key_tuple_map);

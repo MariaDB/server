@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Written by Sergei A. Golubchik, who has a shared copyright to this code */
 
@@ -90,7 +90,8 @@ void ft_free_stopwords(void);
 
 FT_INFO *ft_init_search(uint,void *, uint, uchar *, size_t,
                         CHARSET_INFO *, uchar *);
-my_bool ft_boolean_check_syntax_string(const uchar *);
+my_bool ft_boolean_check_syntax_string(const uchar *, size_t length,
+                                       CHARSET_INFO *cs);
 
 /* Internal symbols for fulltext between maria and MyISAM */
 

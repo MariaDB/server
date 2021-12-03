@@ -6,6 +6,7 @@
 
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
+--source include/default_charset.inc
 
 --disable_warnings
 drop database if exists mysqltest1;

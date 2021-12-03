@@ -1,0 +1,95 @@
+connection node_2;
+connection node_1;
+SET SESSION wsrep_trx_fragment_size=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SET SESSION wsrep_trx_fragment_size=0;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SET GLOBAL wsrep_trx_fragment_size=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SET GLOBAL wsrep_trx_fragment_size=0;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SET GLOBAL wsrep_trx_fragment_size=-1;
+Warnings:
+Warning	1292	Truncated incorrect wsrep_trx_fragment_size value: '-1'
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SET SESSION wsrep_trx_fragment_size=-1;
+Warnings:
+Warning	1292	Truncated incorrect wsrep_trx_fragment_size value: '-1'
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SET GLOBAL wsrep_trx_fragment_size=100;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	0
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	100
+SET SESSION wsrep_trx_fragment_size=100;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	100
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	100
+SET GLOBAL wsrep_trx_fragment_size='A';
+ERROR 42000: Incorrect argument type to variable 'wsrep_trx_fragment_size'
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	100
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	100
+SET SESSION wsrep_trx_fragment_size='A';
+ERROR 42000: Incorrect argument type to variable 'wsrep_trx_fragment_size'
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	100
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	100
+SET GLOBAL wsrep_trx_fragment_size=NULL;
+ERROR 42000: Incorrect argument type to variable 'wsrep_trx_fragment_size'
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	100
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	100
+SET SESSION wsrep_trx_fragment_size=NULL;
+ERROR 42000: Incorrect argument type to variable 'wsrep_trx_fragment_size'
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	100
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+Variable_name	Value
+wsrep_trx_fragment_size	100
+SET GLOBAL wsrep_trx_fragment_size=DEFAULT;

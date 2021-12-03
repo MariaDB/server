@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mysys_priv.h"
 #include <my_rnd.h>
@@ -78,20 +78,11 @@ double my_rnd(struct my_rnd_struct *rand_st)
 
 double my_rnd_ssl(struct my_rnd_struct *rand_st)
 {
-
-#if defined(HAVE_YASSL) || defined(HAVE_OPENSSL)
-  int rc;
-  unsigned int res;
-
-#if defined(HAVE_YASSL)
-  rc= yaSSL::RAND_bytes((unsigned char *) &res, sizeof (unsigned int));
-#else
+#if defined(HAVE_OPENSSL)
   rc= RAND_bytes((unsigned char *) &res, sizeof (unsigned int));
-#endif /* HAVE_YASSL */
-
   if (rc)
     return (double)res / (double)UINT_MAX;
-#endif /* defined(HAVE_YASSL) || defined(HAVE_OPENSSL) */
+#endif /* defined(HAVE_OPENSSL) */
 
   return my_rnd(rand_st);
 }

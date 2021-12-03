@@ -1,8 +1,7 @@
-install plugin unix_socket soname 'auth_socket.so';
 #
 # with named user
 #
-create user USER identified via unix_socket;
+create user 'USER' identified via unix_socket;
 #
 # name match = ok
 #
@@ -12,7 +11,7 @@ USER@localhost	USER@%	test
 #
 # name does not match = failure
 #
-drop user USER;
+drop user 'USER';
 #
 # and now with anonymous user
 #
@@ -28,4 +27,3 @@ USER@localhost	@%	test
 #
 delete from mysql.user where user='';
 FLUSH PRIVILEGES;
-uninstall plugin unix_socket;

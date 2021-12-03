@@ -211,7 +211,7 @@ static xmlStrdupFunc Strdup;
 void xmlMyFree(void *mem)
 {
   if (trace(1)) { 
-    htrc("%.4d Freeing          at %p   %s\n", ++m, mem, s);
+    htrc("%.4d Freeing          at %p   %-.256s\n", ++m, mem, s);
     *s = 0;
     } // endif trace
   Free(mem);
@@ -221,7 +221,7 @@ void *xmlMyMalloc(size_t size)
 {
   void *p = Malloc(size);
   if (trace(1)) { 
-    htrc("%.4d Allocating %.5d at %p   %s\n", ++m, size, p, s);
+    htrc("%.4d Allocating %.5d at %p   %-.256s\n", ++m, size, p, s);
     *s = 0;
     } // endif trace
   return p;
@@ -231,7 +231,7 @@ void *xmlMyMallocAtomic(size_t size)
 {
   void *p = MallocA(size);
   if (trace(1)) { 
-    htrc("%.4d Atom alloc %.5d at %p   %s\n", ++m, size, p, s);
+    htrc("%.4d Atom alloc %.5d at %p   %-.256s\n", ++m, size, p, s);
     *s = 0;
     } // endif trace
   return p;
@@ -241,7 +241,7 @@ void *xmlMyRealloc(void *mem, size_t size)
 {
   void *p = Realloc(mem, size);
   if (trace(1)) { 
-    htrc("%.4d ReAlloc    %.5d to %p from %p   %s\n", ++m, size, p, mem, s);
+    htrc("%.4d ReAlloc    %.5d to %p from %p   %-.256s\n", ++m, size, p, mem, s);
     *s = 0;
     } // endif trace
   return p;
@@ -251,7 +251,7 @@ char *xmlMyStrdup(const char *str)
 {
   char *p = Strdup(str);
   if (trace(1)) { 
-    htrc("%.4d Duplicating      to %p from %p %s   %s\n", ++m, p, str, str, s);
+    htrc("%.4d Duplicating      to %p from %p %-.256s   %-.256s\n", ++m, p, str, str, s);
     *s = 0;
     } // endif trace
   return p;
@@ -378,7 +378,7 @@ bool LIBXMLDOC::Initialize(PGLOBAL g, PCSZ entry, bool zipped)
 	if (zipped && InitZip(g, entry))
 		return true;
 
-  int n = xmlKeepBlanksDefault(1);
+  xmlKeepBlanksDefault(1);
   return MakeNSlist(g);
 } // end of Initialize
 
@@ -448,7 +448,7 @@ bool LIBXMLDOC::NewDoc(PGLOBAL g, PCSZ ver)
 void LIBXMLDOC::AddComment(PGLOBAL g, char *txtp)
   {
   if (trace(1))
-    htrc("AddComment: %s\n", txtp);
+    htrc("AddComment: %-.256s\n", txtp);
 
   xmlNodePtr cp = xmlNewDocComment(Docp, BAD_CAST txtp);
   xmlAddChild((xmlNodePtr)Docp, cp);
@@ -476,7 +476,7 @@ PXNODE LIBXMLDOC::GetRoot(PGLOBAL g)
 PXNODE LIBXMLDOC::NewRoot(PGLOBAL g, char *name)
   {
   if (trace(1))
-    htrc("NewRoot: %s\n", name);
+    htrc("NewRoot: %-.256s\n", name);
 
   xmlNodePtr root = xmlNewDocNode(Docp, NULL, BAD_CAST name, NULL);
 
@@ -494,7 +494,7 @@ PXNODE LIBXMLDOC::NewRoot(PGLOBAL g, char *name)
 PXNODE LIBXMLDOC::NewPnode(PGLOBAL g, char *name)
   {
   if (trace(1))
-    htrc("NewNode: %s\n", name);
+    htrc("NewNode: %-.256s\n", name);
 
   xmlNodePtr nop;
 
@@ -535,7 +535,7 @@ int LIBXMLDOC::DumpDoc(PGLOBAL g, char *ofn)
   FILE *of;
 
   if (trace(1))
-    htrc("DumpDoc: %s\n", ofn);
+    htrc("DumpDoc: %-.256s\n", ofn);
 
   if (!(of= global_fopen(g, MSGID_CANNOT_OPEN, ofn, "w")))
     return -1;
@@ -554,8 +554,8 @@ int LIBXMLDOC::DumpDoc(PGLOBAL g, char *ofn)
   xmlNodePtr Rootp;
 
   // Save the modified document
-  fprintf(of, "<?xml version=\"1.0\" encoding=\"%s\"?>\n", Encoding);
-  fprintf(of, "<!-- Created by CONNECT %s -->\n", version);
+  fprintf(of, "<?xml version=\"1.0\" encoding=\"%-.256s\"?>\n", Encoding);
+  fprintf(of, "<!-- Created by CONNECT %-.256s -->\n", version);
 
   if (!(Rootp = xmlDocGetRootElement(Docp)))
     return 1;
@@ -631,7 +631,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
   xmlNodeSetPtr nl;
 
   if (trace(1))
-    htrc("GetNodeList: %s np=%p\n", xp, np);
+    htrc("GetNodeList: %-.256s np=%p\n", xp, np);
 
   if (!Ctxp) {
     // Init Xpath
@@ -648,7 +648,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
       strcpy(g->Message, MSG(XPATH_CNTX_ERR));
 
       if (trace(1))
-        htrc("Context error: %s\n", g->Message);
+        htrc("Context error: %-.256s\n", g->Message);
 
       return NULL;
       } // endif xpathCtx
@@ -656,7 +656,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
     // Register namespaces from list (if any)
     for (PNS nsp = Namespaces; nsp; nsp = nsp->Next) {
       if (trace(1))
-        htrc("Calling xmlXPathRegisterNs Prefix=%s Uri=%s\n", 
+        htrc("Calling xmlXPathRegisterNs Prefix=%-.256s Uri=%-.512s\n", 
              nsp->Prefix, nsp->Uri);
 
       if (xmlXPathRegisterNs(Ctxp, BAD_CAST nsp->Prefix,
@@ -664,7 +664,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
         sprintf(g->Message, MSG(REGISTER_ERR), nsp->Prefix, nsp->Uri);
 
         if (trace(1))
-          htrc("Ns error: %s\n", g->Message);
+          htrc("Ns error: %-.256s\n", g->Message);
 
         return NULL;
         } // endif Registering
@@ -699,14 +699,14 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
   Ctxp->node = np;
 
   if (trace(1))
-    htrc("Calling xmlXPathEval %s Ctxp=%p\n", xp, Ctxp);
+    htrc("Calling xmlXPathEval %-.256s Ctxp=%p\n", xp, Ctxp);
 
   // Evaluate table xpath
   if (!(Xop = xmlXPathEval(BAD_CAST xp, Ctxp))) {
     sprintf(g->Message, MSG(XPATH_EVAL_ERR), xp);
 
     if (trace(1))
-      htrc("Path error: %s\n", g->Message);
+      htrc("Path error: %-.256s\n", g->Message);
 
     return NULL;
   } else
@@ -882,14 +882,14 @@ RCODE XML2NODE::GetContent(PGLOBAL g, char *buf, int len)
         } // endif p1
 
       } else {
-        sprintf(g->Message, "Truncated %s content", Nodep->name);
+        sprintf(g->Message, "Truncated %-.256s content", Nodep->name);
         rc = RC_INFO;
       } // endif len
 
     *p2 = 0;
 
     if (trace(1))
-      htrc("GetText buf='%s' len=%d\n", buf, len);
+      htrc("GetText buf='%-.256s' len=%d\n", buf, len);
 
     xmlFree(Content);
     Content = NULL;
@@ -897,7 +897,7 @@ RCODE XML2NODE::GetContent(PGLOBAL g, char *buf, int len)
     *buf = '\0';
 
   if (trace(1))
-    htrc("GetContent: %s\n", buf);
+    htrc("GetContent: %-.256s\n", buf);
 
   return rc;
   } // end of GetContent
@@ -908,12 +908,12 @@ RCODE XML2NODE::GetContent(PGLOBAL g, char *buf, int len)
 bool XML2NODE::SetContent(PGLOBAL g, char *txtp, int len)
   {
   if (trace(1))
-    htrc("SetContent: %s\n", txtp);
+    htrc("SetContent: %-.256s\n", txtp);
 
   xmlChar *buf = xmlEncodeEntitiesReentrant(Docp, BAD_CAST txtp);
 
   if (trace(1))
-    htrc("SetContent: %s -> %s\n", txtp, buf);
+    htrc("SetContent: %-.256s -> %-.256s\n", txtp, buf);
 
   xmlNodeSetContent(Nodep, buf);
   xmlFree(buf);
@@ -942,7 +942,7 @@ PXNODE XML2NODE::Clone(PGLOBAL g, PXNODE np)
 PXLIST XML2NODE::GetChildElements(PGLOBAL g, char *xp, PXLIST lp)
   {
   if (trace(1))
-    htrc("GetChildElements: %s\n", xp);
+    htrc("GetChildElements: %-.256s\n", xp);
 
   return SelectNodes(g, (xp) ? xp : (char*)"*", lp);
   } // end of GetChildElements
@@ -953,7 +953,7 @@ PXLIST XML2NODE::GetChildElements(PGLOBAL g, char *xp, PXLIST lp)
 PXLIST XML2NODE::SelectNodes(PGLOBAL g, char *xp, PXLIST lp)
   {
   if (trace(1))
-    htrc("SelectNodes: %s\n", xp);
+    htrc("SelectNodes: %-.256s\n", xp);
 
   xmlNodeSetPtr nl = ((PXDOC2)Doc)->GetNodeList(g, Nodep, xp);
 
@@ -971,7 +971,7 @@ PXLIST XML2NODE::SelectNodes(PGLOBAL g, char *xp, PXLIST lp)
 PXNODE XML2NODE::SelectSingleNode(PGLOBAL g, char *xp, PXNODE np)
   {
   if (trace(1))
-    htrc("SelectSingleNode: %s\n", xp);
+    htrc("SelectSingleNode: %-.256s\n", xp);
 
   xmlNodeSetPtr nl = ((PXDOC2)Doc)->GetNodeList(g, Nodep, xp);
 
@@ -995,7 +995,7 @@ PXATTR XML2NODE::GetAttribute(PGLOBAL g, char *name, PXATTR ap)
   xmlAttrPtr atp;
 
   if (trace(1))
-    htrc("GetAttribute: %s\n", SVP(name));
+    htrc("GetAttribute: %-.256s\n", SVP(name));
 
   if (name)
     atp = xmlHasProp(Nodep, BAD_CAST name);
@@ -1024,7 +1024,7 @@ PXNODE XML2NODE::AddChildNode(PGLOBAL g, PCSZ name, PXNODE np)
   char *p, *pn, *pf = NULL, *nmp = PlugDup(g, name);
 
   if (trace(1))
-    htrc("AddChildNode: %s\n", name);
+    htrc("AddChildNode: %-.256s\n", name);
 
   // Is a prefix specified
   if ((pn = strchr(nmp, ':'))) {
@@ -1035,7 +1035,7 @@ PXNODE XML2NODE::AddChildNode(PGLOBAL g, PCSZ name, PXNODE np)
 
   // If name has the format m[n] only m is taken as node name
   if ((p = strchr(pn, '[')))
-    p = BufAlloc(g, pn, p - pn);
+    p = BufAlloc(g, pn, int(p - pn));
   else
     p = pn;
 
@@ -1075,7 +1075,7 @@ PXNODE XML2NODE::AddChildNode(PGLOBAL g, PCSZ name, PXNODE np)
 PXATTR XML2NODE::AddProperty(PGLOBAL g, char *name, PXATTR ap)
   {
   if (trace(1))
-    htrc("AddProperty: %s\n", name);
+    htrc("AddProperty: %-.256s\n", name);
 
   xmlAttrPtr atp = xmlNewProp(Nodep, BAD_CAST name, NULL);
 
@@ -1098,7 +1098,7 @@ PXATTR XML2NODE::AddProperty(PGLOBAL g, char *name, PXATTR ap)
 void XML2NODE::AddText(PGLOBAL g, PCSZ txtp)
   {
   if (trace(1))
-    htrc("AddText: %s\n", txtp);
+    htrc("AddText: %-.256s\n", txtp);
 
   // This is to avoid a blank line when inserting a new line
   xmlNodePtr np = xmlGetLastChild(Nodep);
@@ -1158,7 +1158,7 @@ void XML2NODE::DeleteChild(PGLOBAL g, PXNODE dnp)
 
 err:
   if (trace(1))
-    htrc("DeleteChild: errmsg=%s\n", xerr->message);
+    htrc("DeleteChild: errmsg=%-.256s\n", xerr->message);
 
   xmlResetError(xerr);
   } // end of DeleteChild
@@ -1260,7 +1260,7 @@ RCODE XML2ATTR::GetText(PGLOBAL g, char *buf, int len)
     if (strlen((char*)txt) >= (unsigned)len) {
       memcpy(buf, txt, len - 1);
       buf[len - 1] = 0;
-      sprintf(g->Message, "Truncated %s content", Atrp->name);
+      sprintf(g->Message, "Truncated %-.256s content", Atrp->name);
       rc = RC_INFO;
     } else
       strcpy(buf, (const char*)txt);
@@ -1270,7 +1270,7 @@ RCODE XML2ATTR::GetText(PGLOBAL g, char *buf, int len)
     *buf = '\0';
 
   if (trace(1))
-    htrc("GetText: %s\n", buf);
+    htrc("GetText: %-.256s\n", buf);
 
   return rc;
   } // end of GetText
@@ -1281,7 +1281,7 @@ RCODE XML2ATTR::GetText(PGLOBAL g, char *buf, int len)
 bool XML2ATTR::SetText(PGLOBAL g, char *txtp, int len)
   {
   if (trace(1))
-    htrc("SetText: %s %d\n", txtp, len);
+    htrc("SetText: %-.256s %d\n", txtp, len);
 
   xmlSetProp(Parent, Atrp->name, BAD_CAST txtp);
   return false;

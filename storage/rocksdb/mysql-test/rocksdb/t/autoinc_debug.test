@@ -3,6 +3,8 @@
 --source include/have_log_bin.inc
 --source include/not_valgrind.inc
 
+--let $restart_noprint=2
+
 --echo #
 --echo # Testing upgrading from server without merges for auto_increment
 --echo # to new server with such support.

@@ -12,7 +12,7 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /******************************************************************//**
  @file Parser.cc
@@ -96,14 +96,6 @@ openssl enc -aes-256-cbc -md sha1 -k "secret" -in keys.txt -out keys.enc
    @param secret [in]  the given secret as String, provided by the user
    @param key    [out] 32 Bytes of key are written to this pointer
    @param iv     [out] 16 Bytes of iv are written to this pointer
-
-   Note, that in openssl this whole function can be reduced to
-
-    #include <openssl/evp.h>
-    EVP_BytesToKey(EVP_aes_256_cbc(), EVP_sha1(), salt,
-                   secret, strlen(secret), 1, key, iv);
-
-   but alas! we want to support yassl too
 */
 
 void Parser::bytes_to_key(const unsigned char *salt, const char *input,

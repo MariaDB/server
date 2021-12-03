@@ -12,7 +12,7 @@ PLUGIN_STATUS	ACTIVE
 PLUGIN_TYPE	STORAGE ENGINE
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.13
+PLUGIN_LIBRARY_VERSION	1.14
 PLUGIN_AUTHOR	Brian Aker, MySQL AB
 PLUGIN_DESCRIPTION	Example storage engine
 PLUGIN_LICENSE	GPL
@@ -25,7 +25,7 @@ PLUGIN_STATUS	ACTIVE
 PLUGIN_TYPE	DAEMON
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.13
+PLUGIN_LIBRARY_VERSION	1.14
 PLUGIN_AUTHOR	Sergei Golubchik
 PLUGIN_DESCRIPTION	Unusable Daemon
 PLUGIN_LICENSE	GPL
@@ -64,7 +64,7 @@ PLUGIN_STATUS	DELETED
 PLUGIN_TYPE	STORAGE ENGINE
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.13
+PLUGIN_LIBRARY_VERSION	1.14
 PLUGIN_AUTHOR	Brian Aker, MySQL AB
 PLUGIN_DESCRIPTION	Example storage engine
 PLUGIN_LICENSE	GPL
@@ -318,6 +318,15 @@ UNUSABLE
 uninstall soname 'ha_example';
 select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
 plugin_name
+set names utf8;
+select convert('admin𝌆' using utf8);
+convert('admin\xF0\x9D\x8C\x86' using utf8)
+admin????
+Warnings:
+Warning	1300	Invalid utf8 character string: '\xF0\x9D\x8C\x86'
+install plugin foo soname 'admin𝌆';
+ERROR HY000: No paths allowed for shared library
+# End of 5.5 test
 #
 # MDEV-5309 - RENAME TABLE does not check for existence of the table's
 #             engine
@@ -331,6 +340,22 @@ UNINSTALL PLUGIN example;
 RENAME TABLE t1 TO t2;
 ERROR 42S02: Table 'test.t1' doesn't exist
 DROP TABLE t1;
+# End of 10.1 test
+#
+# MDEV-21258: Can't uninstall plugin if the library file doesn't exist
+#
+insert into  mysql.plugin values ("unexisting_plugin", "soname");
+select * from mysql.plugin WHERE name='unexisting_plugin';
+name	dl
+unexisting_plugin	soname
+UNINSTALL PLUGIN unexisting_plugin;
+select * from mysql.plugin WHERE name='unexisting_plugin';
+name	dl
+UNINSTALL PLUGIN unexisting_plugin;
+ERROR 42000: PLUGIN unexisting_plugin does not exist
+# End of 10.2 tests
+#
+# MDEV-16294: INSTALL PLUGIN IF NOT EXISTS / UNINSTALL PLUGIN IF EXISTS
 #
 # INSTALL IF NOT EXISTS PLUGIN name SONAME library /
 # UNINSTALL IF EXISTS PLUGIN|SONAME name
@@ -376,3 +401,19 @@ select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins whe
 PLUGIN_NAME	PLUGIN_STATUS	PLUGIN_TYPE
 UNINSTALL SONAME 'ha_example';
 ERROR 42000: SONAME ha_example.so does not exist
+#
+# Make sure temporary tables maintain plugin references properly
+#
+INSTALL PLUGIN example SONAME 'ha_example';
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=example;
+UNINSTALL PLUGIN example;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+INSTALL PLUGIN example SONAME 'ha_example';
+ERROR HY000: Plugin 'example' already installed
+DROP TABLE t1;
+INSTALL PLUGIN example SONAME 'ha_example';
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=example;
+DROP TABLE t1;
+UNINSTALL PLUGIN example;
+# End of 10.4 tests

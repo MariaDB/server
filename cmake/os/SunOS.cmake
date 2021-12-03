@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 INCLUDE(CheckSymbolExists)
 INCLUDE(CheckCSourceRuns)
@@ -70,7 +70,7 @@ CHECK_C_SOURCE_RUNS(
 
 
 # Check is special processor flag needs to be set on older GCC
-#that defaults to v8 sparc . Code here is taken from my_rdtsc.c 
+#that defaults to v8 sparc . Code here is taken from my_rdtsc.h
 IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_SIZEOF_VOID_P EQUAL 4
   AND CMAKE_SYSTEM_PROCESSOR MATCHES "sparc")
   SET(SOURCE

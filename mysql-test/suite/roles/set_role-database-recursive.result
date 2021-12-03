@@ -5,7 +5,8 @@ grant test_role1 to test_user@localhost;
 grant test_role2 to test_user@localhost;
 grant test_role2 to test_role1;
 select user, host from mysql.user where user not like 'root';
-user	host
+User	Host
+mariadb.sys	localhost
 test_role1	
 test_role2	
 test_user	localhost
@@ -67,17 +68,17 @@ set role test_role1;
 delete from mysql.user where user='no such user';
 show grants;
 Grants for test_user@localhost
-GRANT DELETE ON `mysql`.* TO 'test_role4'
-GRANT SELECT ON `mysql`.* TO 'test_role2'
-GRANT USAGE ON *.* TO 'test_role1'
-GRANT USAGE ON *.* TO 'test_role2'
-GRANT USAGE ON *.* TO 'test_role3'
-GRANT USAGE ON *.* TO 'test_role4'
-GRANT USAGE ON *.* TO 'test_user'@'localhost'
-GRANT test_role1 TO 'test_user'@'localhost'
-GRANT test_role2 TO 'test_role1'
-GRANT test_role2 TO 'test_user'@'localhost'
-GRANT test_role3 TO 'test_role2'
-GRANT test_role4 TO 'test_role3'
+GRANT DELETE ON `mysql`.* TO `test_role4`
+GRANT SELECT ON `mysql`.* TO `test_role2`
+GRANT USAGE ON *.* TO `test_role1`
+GRANT USAGE ON *.* TO `test_role2`
+GRANT USAGE ON *.* TO `test_role3`
+GRANT USAGE ON *.* TO `test_role4`
+GRANT USAGE ON *.* TO `test_user`@`localhost`
+GRANT `test_role1` TO `test_user`@`localhost`
+GRANT `test_role2` TO `test_role1`
+GRANT `test_role2` TO `test_user`@`localhost`
+GRANT `test_role3` TO `test_role2`
+GRANT `test_role4` TO `test_role3`
 drop user test_user@localhost;
 drop role test_role1, test_role2, test_role3, test_role4;

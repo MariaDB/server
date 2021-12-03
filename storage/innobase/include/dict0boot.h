@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,13 +27,10 @@ Created 4/18/1996 Heikki Tuuri
 #ifndef dict0boot_h
 #define dict0boot_h
 
-#include "univ.i"
-
 #include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "ut0byte.h"
 #include "buf0buf.h"
-#include "fsp0fsp.h"
 #include "dict0dict.h"
 
 typedef	byte	dict_hdr_t;
@@ -53,12 +51,8 @@ dict_hdr_get_new_id(
 						(not assigned if NULL) */
 	index_id_t*		index_id,	/*!< out: index id
 						(not assigned if NULL) */
-	ulint*			space_id,	/*!< out: space id
+	ulint*			space_id);	/*!< out: space id
 						(not assigned if NULL) */
-	const dict_table_t*	table,		/*!< in: table */
-	bool			disable_redo);	/*!< in: if true and table
-						object is NULL
-						then disable-redo */
 /**********************************************************************//**
 Writes the current value of the row id counter to the dictionary header file
 page. */
@@ -126,13 +120,6 @@ dict_is_sys_table(
 #define DICT_FIELDS_ID		4
 /* The following is a secondary index on SYS_TABLES */
 #define DICT_TABLE_IDS_ID	5
-
-#define	DICT_HDR_FIRST_ID	10	/* the ids for tables etc. start
-					from this number, except for basic
-					system tables and their above defined
-					indexes; ibuf tables and indexes are
-					assigned as the id the number
-					DICT_IBUF_ID_MIN plus the space id */
 
 /* The offset of the dictionary header on the page */
 #define	DICT_HDR		FSEG_PAGE_DATA

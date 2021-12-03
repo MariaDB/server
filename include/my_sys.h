@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef _my_sys_h
 #define _my_sys_h
@@ -260,11 +260,13 @@ extern ulonglong my_collation_statistics_get_use_count(uint id);
 extern const char *my_collation_get_tailoring(uint id);
 
 /* statistics */
-extern ulong	my_file_opened,my_stream_opened, my_tmp_file_created;
+extern ulong    my_stream_opened, my_tmp_file_created;
 extern ulong    my_file_total_opened;
 extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
+extern int32    my_file_opened;
 extern my_bool	my_init_done, my_thr_key_mysys_exists;
+extern my_bool my_assert;
 extern my_bool  my_assert_on_error;
 extern myf      my_global_flags;        /* Set to MY_WME for more error messages */
 					/* Point to current my_message() */
@@ -280,7 +282,8 @@ extern int my_umask_dir,
 extern my_bool my_use_symdir;
 
 extern ulong	my_default_record_cache_size;
-extern my_bool  my_disable_locking, my_disable_async_io,
+extern MYSQL_PLUGIN_IMPORT my_bool my_disable_locking;
+extern my_bool  my_disable_async_io,
                 my_disable_flush_key_blocks, my_disable_symlinks;
 extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;
@@ -477,18 +480,19 @@ typedef struct st_io_cache		/* Used when caching files */
     partial.
   */
   int	seek_not_done,error;
-  /* buffer_length is memory size allocated for buffer or write_buffer */
+  /* length of the buffer used for storing un-encrypted data */
   size_t	buffer_length;
   /* read_length is the same as buffer_length except when we use async io */
   size_t  read_length;
   myf	myflags;			/* Flags used to my_read/my_write */
   /*
-    alloced_buffer is 1 if the buffer was allocated by init_io_cache() and
-    0 if it was supplied by the user.
+    alloced_buffer is set to the size of the buffer allocated for the IO_CACHE.
+    Includes the overhead(storing key to ecnrypt and decrypt) for encryption.
+    Set to 0 if nothing is allocated.
     Currently READ_NET is the only one that will use a buffer allocated
     somewhere else
   */
-  my_bool alloced_buffer;
+  size_t alloced_buffer;
 #ifdef HAVE_AIOWAIT
   /*
     As inidicated by ifdef, this is for async I/O, which is not currently
@@ -532,10 +536,14 @@ static inline int my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
 static inline int my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 {
+  MEM_CHECK_DEFINED(Buffer, Count);
   if (info->write_pos + Count <= info->write_end)
   {
-    memcpy(info->write_pos, Buffer, Count);
-    info->write_pos+= Count;
+    if (Count)
+    {
+      memcpy(info->write_pos, Buffer, Count);
+      info->write_pos+= Count;
+    }
     return 0;
   }
   return _my_b_write(info, Buffer, Count);
@@ -553,6 +561,7 @@ static inline int my_b_get(IO_CACHE *info)
 
 static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 {
+  MEM_CHECK_DEFINED(&chr, 1);
   if (info->write_pos >= info->write_end)
     if (my_b_flush_io_cache(info, 1))
       return 1;
@@ -613,7 +622,9 @@ static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
   return (size_t) (info->read_end - info->read_pos);
 }
 
-int      my_b_copy_to_file(IO_CACHE *cache, FILE *file);
+int my_b_copy_to_file    (IO_CACHE *cache, FILE *file, size_t count);
+int my_b_copy_all_to_file(IO_CACHE *cache, FILE *file);
+
 my_off_t my_b_append_tell(IO_CACHE* info);
 my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */
 int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos);
@@ -627,6 +638,7 @@ extern int (*mysys_test_invalid_symlink)(const char *filename);
 
 extern int my_copy(const char *from,const char *to,myf MyFlags);
 extern int my_delete(const char *name,myf MyFlags);
+extern int my_rmtree(const char *name, myf Myflags);
 extern int my_getwd(char * buf,size_t size,myf MyFlags);
 extern int my_setwd(const char *dir,myf MyFlags);
 extern int my_lock(File fd,int op,my_off_t start, my_off_t length,myf MyFlags);
@@ -959,8 +971,6 @@ extern ulonglong my_getcputime(void);
 #endif
 
 #ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-
 #ifndef MAP_NOSYNC
 #define MAP_NOSYNC      0
 #endif
@@ -989,6 +999,16 @@ extern ulonglong my_getcputime(void);
 #define HAVE_MMAP
 void *my_mmap(void *, size_t, int, int, int, my_off_t);
 int my_munmap(void *, size_t);
+#endif
+
+#ifdef _WIN32
+extern FILE* my_win_popen(const char*, const char*);
+extern int my_win_pclose(FILE*);
+#define my_popen(A,B) my_win_popen(A,B)
+#define my_pclose(A) my_win_pclose(A)
+#else
+#define my_popen(A,B) popen(A,B)
+#define my_pclose(A) pclose(A)
 #endif
 
 /* my_getpagesize */
@@ -1045,6 +1065,7 @@ extern char *get_tty_password(const char *opt_message);
 /* File system character set */
 extern CHARSET_INFO *fs_character_set(void);
 #endif
+extern const char *my_default_csname(void);
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
@@ -1055,13 +1076,6 @@ extern void thd_increment_net_big_packet_count(void *thd, size_t length);
 
 #ifdef __WIN__
 extern my_bool have_tcpip;		/* Is set if tcpip is used */
-
-/* implemented in my_windac.c */
-
-int my_security_attr_create(SECURITY_ATTRIBUTES **psa, const char **perror,
-                            DWORD owner_rights, DWORD everybody_rights);
-
-void my_security_attr_free(SECURITY_ATTRIBUTES *sa);
 
 /* implemented in my_conio.c */
 char* my_cgets(char *string, size_t clen, size_t* plen);

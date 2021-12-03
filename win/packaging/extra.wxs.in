@@ -279,7 +279,7 @@
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next">
           <Publish Property="WarningText" Value="Passwords do not match."><![CDATA[PASSWORD <> RootPasswordConfirm]]></Publish>
           <Publish Event="SpawnDialog" Value="WarningDlg"><![CDATA[WarningText <>""]]></Publish>
-          <Publish Property="SERVICENAME" Value="MySQL">NOT SERVICENAME AND NOT WarningText</Publish>
+          <Publish Property="SERVICENAME" Value="MariaDB">NOT SERVICENAME AND NOT WarningText</Publish>
           <Publish Event="NewDialog" Value="ServicePortDlg"><![CDATA[WarningText=""]]></Publish>
           <Condition Action="enable"><![CDATA[NOT ModifyRootPassword OR PASSWORD]]> </Condition>
           <Condition Action="disable"><![CDATA[ModifyRootPassword AND (NOT PASSWORD)]]> </Condition>
@@ -660,11 +660,27 @@
     <MergeRef Id="VCRedist"/>
    </Feature>
    <?endif?>
+   
+    <!-- Custom action, create symlinks -->
+    <CustomAction Id="Symlinks.SetProperty" Return="check" Property="Symlinks" Value="[INSTALLDIR]" />
+    <CustomAction Id="Symlinks" BinaryKey="wixca.dll" DllEntry="FixSymlinks" Execute="deferred" Impersonate="no" Return="ignore"/>
+    <CustomAction Id="SymlinksRollback.SetProperty" Return="check" Property="SymlinksRollback" Value="[INSTALLDIR]" />
+    <CustomAction Id="SymlinksRollback" BinaryKey="wixca.dll" DllEntry="FixSymlinksRollback" Execute="rollback" Impersonate="no" Return="ignore"/>
+    <CustomAction Id="SymlinksUninstall.SetProperty" Return="check" Property="SymlinksUninstall" Value="[INSTALLDIR]" />
+    <CustomAction Id="SymlinksUninstall" BinaryKey="wixca.dll" DllEntry="SymlinksUninstall" Execute="deferred" Impersonate="no" Return="ignore"/>
+    <InstallExecuteSequence>
+      <Custom Action="Symlinks.SetProperty" Before="Symlinks">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="Symlinks" After="SymlinksRollback">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksRollback.SetProperty" Before="SymlinksRollback">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksRollback" After="InstallFiles">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksUninstall.SetProperty" Before="SymlinksUninstall">Installed AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksUninstall" Before="RemoveFiles">Installed AND NOT UPGRADINGPRODUCTCODE</Custom>
+    </InstallExecuteSequence>
 
-    <!--  Custom action, call mysql_install_db  -->
-    <SetProperty  Sequence='execute'  Before='CreateDatabaseCommand' Id="SKIPNETWORKING"  Value="--skip-networking" >SKIPNETWORKING</SetProperty>
-    <SetProperty Sequence='execute'  Before='CreateDatabaseCommand'  Id="ALLOWREMOTEROOTACCESS" Value="--allow-remote-root-access">ALLOWREMOTEROOTACCESS</SetProperty>
-    <SetProperty Sequence='execute'  Before='CreateDatabaseCommand' Id="DEFAULTUSER" Value="--default-user">DEFAULTUSER</SetProperty>
+    <!-- Custom action, call mysql_install_db -->
+    <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="SKIPNETWORKING" Value="--skip-networking" >SKIPNETWORKING</SetProperty>
+    <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="ALLOWREMOTEROOTACCESS" Value="--allow-remote-root-access">ALLOWREMOTEROOTACCESS</SetProperty>
+    <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="DEFAULTUSER" Value="--default-user">DEFAULTUSER</SetProperty>
     <CustomAction Id='CheckDatabaseProperties' BinaryKey='wixca.dll' DllEntry='CheckDatabaseProperties' />
     <CustomAction Id='PresetDatabaseProperties' BinaryKey='wixca.dll' DllEntry='PresetDatabaseProperties' />
     <CustomAction Id="CreateDatabaseCommand" Property="CreateDatabase"
@@ -676,7 +692,7 @@
     <CustomAction Id="CreateDatabaseRollbackCommand" Property="CreateDatabaseRollback"
         Value="[SERVICENAME]\[DATADIR]"
         Execute="immediate"/>
-    <CustomAction Id="CreateDatabase" BinaryKey="WixCA" DllEntry="CAQuietExec"
+    <CustomAction Id="CreateDatabase" BinaryKey="WixCA" DllEntry="@CA_QUIET_EXEC@"
             Execute="deferred" Return="check" Impersonate="no" />
     <CustomAction Id="CreateDatabaseRollback" BinaryKey="wixca.dll" DllEntry="CreateDatabaseRollback"
         Execute="rollback" Return="check" Impersonate="no"/>

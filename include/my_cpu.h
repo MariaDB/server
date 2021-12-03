@@ -1,6 +1,6 @@
 #ifndef MY_CPU_INCLUDED
 #define MY_CPU_INCLUDED
-/* Copyright (c) 2013, MariaDB foundation Ab and SkySQL
+/* Copyright (c) 2013, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02111-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA
 */
 
 /* instructions for specific cpu's */
@@ -46,10 +46,28 @@
 #define HMT_high()
 #endif
 
+#if defined __i386__ || defined __x86_64__ || defined _WIN32
+# define HAVE_PAUSE_INSTRUCTION /* added in Intel Pentium 4 */
+#endif
+
+#ifdef _WIN32
+#elif defined HAVE_PAUSE_INSTRUCTION
+#elif defined(_ARCH_PWR8)
+#elif defined __GNUC__ && (defined __arm__ || defined __aarch64__)
+#else
+# include "my_atomic.h"
+#endif
 
 static inline void MY_RELAX_CPU(void)
 {
-#ifdef HAVE_PAUSE_INSTRUCTION
+#ifdef _WIN32
+  /*
+    In the Win32 API, the x86 PAUSE instruction is executed by calling
+    the YieldProcessor macro defined in WinNT.h. It is a CPU architecture-
+    independent way by using YieldProcessor.
+  */
+  YieldProcessor();
+#elif defined HAVE_PAUSE_INSTRUCTION
   /*
     According to the gcc info page, asm volatile means that the
     instruction has important side-effects and must not be removed.
@@ -61,18 +79,11 @@ static inline void MY_RELAX_CPU(void)
 #else
   __asm__ __volatile__ ("pause");
 #endif
-
-#elif defined(HAVE_FAKE_PAUSE_INSTRUCTION)
-  __asm__ __volatile__ ("rep; nop");
-#elif defined _WIN32
-  /*
-    In the Win32 API, the x86 PAUSE instruction is executed by calling
-    the YieldProcessor macro defined in WinNT.h. It is a CPU architecture-
-    independent way by using YieldProcessor.
-  */
-  YieldProcessor();
 #elif defined(_ARCH_PWR8)
   __ppc_get_timebase();
+#elif defined __GNUC__ && (defined __arm__ || defined __aarch64__)
+  /* Mainly, prevent the compiler from optimizing away delay loops */
+  __asm__ __volatile__ ("":::"memory");
 #else
   int32 var, oldval = 0;
   my_atomic_cas32_strong_explicit(&var, &oldval, 1, MY_MEMORY_ORDER_RELAXED,
@@ -80,6 +91,20 @@ static inline void MY_RELAX_CPU(void)
 #endif
 }
 
+
+#ifdef HAVE_PAUSE_INSTRUCTION
+# ifdef __cplusplus
+extern "C" {
+# endif
+extern unsigned my_cpu_relax_multiplier;
+void my_cpu_init(void);
+# ifdef __cplusplus
+}
+# endif
+#else
+# define my_cpu_relax_multiplier 200
+# define my_cpu_init() /* nothing */
+#endif
 
 /*
   LF_BACKOFF should be used to improve performance on hyperthreaded CPUs. Intel
@@ -94,9 +119,23 @@ static inline void MY_RELAX_CPU(void)
 
 static inline int LF_BACKOFF(void)
 {
-  int i;
-  for (i= 0; i < 200; i++)
+  unsigned i= my_cpu_relax_multiplier;
+  while (i--)
     MY_RELAX_CPU();
   return 1;
 }
+
+/**
+  Run a delay loop while waiting for a shared resource to be released.
+  @param delay originally, roughly microseconds on 100 MHz Intel Pentium
+*/
+static inline void ut_delay(unsigned delay)
+{
+  unsigned i= my_cpu_relax_multiplier / 4 * delay;
+  HMT_low();
+  while (i--)
+    MY_RELAX_CPU();
+  HMT_medium();
+}
+
 #endif

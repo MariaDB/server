@@ -101,6 +101,7 @@ variable_value >= 0
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_decompressed';
 variable_value >= 0
 1
+# restart
 update innodb_normal set c1 = c1 + 1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;

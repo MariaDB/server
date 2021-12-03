@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* close a heap-database */
 
@@ -35,12 +35,6 @@ int hp_close(register HP_INFO *info)
 {
   int error=0;
   DBUG_ENTER("hp_close");
-#ifndef DBUG_OFF
-  if (info->s->changed && heap_check_heap(info,0))
-  {
-    error=my_errno=HA_ERR_CRASHED;
-  }
-#endif
   info->s->changed=0;
   if (info->open_list.data)
     heap_open_list=list_delete(heap_open_list,&info->open_list);

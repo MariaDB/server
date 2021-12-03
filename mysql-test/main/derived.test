@@ -1,4 +1,6 @@
 # Initialize
+--source include/default_optimizer_switch.inc
+
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings
@@ -109,6 +111,7 @@ create user mysqltest_1;
 create table t1 select 1 as a;
 connect (con1,localhost,mysqltest_1,,*NO-ONE*,$MASTER_MYPORT,$MASTER_MYSOCK);
 connection con1;
+--source include/default_optimizer_switch.inc
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
 --error 1046
 select 2 as a from (select * from t1) b;
@@ -536,6 +539,10 @@ insert into t2 values(4),(5),(6);
 select x.id, message from (select id from t1) x left join
 (select id, 1 as message from t2) y on x.id=y.id
 where coalesce(message,0) <> 0;
+explain extended
+select x.id, message from (select id from t1) x left join
+(select id, 1 as message from t2) y on x.id=y.id
+where message <> 0;
 drop table t1,t2;
 
 --echo #
@@ -1032,3 +1039,33 @@ drop table t1,t2,t3;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-9959: A serious MariaDB server performance bug
+--echo #
+
+create table t1(a int);
+insert into t1 values (1),(2),(3),(4),(5),(6);
+create table t2(a int, b int,c int);
+insert into t2(a,b,c) values (1,1,2),(2,2,3),(3,1,4),(4,2,2),(5,1,1),(6,2,5);
+create table t3(a int, b int);
+insert into t3(a,b) values (1,1),(2,2),(2,1),(1,2),(5,1),(9,2);
+
+--echo table "<derived2>" should have type=ref and rows=1
+--echo one select in derived table
+
+--echo with distinct
+analyze select * from t1 , ((select distinct t2.a from t2 order by c))q  where t1.a=q.a; 
+analyze select * from t1 , ((select distinct t2.a, t2.b from t2 order by c))q  where t1.a=q.a;
+
+--echo # multiple selects in derived table
+--echo # NO UNION ALL
+analyze select * from t1 , ( (select t2.a from t2 order by c) union  (select t2.a from t2 order by c))q  where t1.a=q.a;
+select * from t1 , ( (select t2.a from t2 order by c) union  (select t2.a from t2 order by c))q  where t1.a=q.a;
+
+--echo # UNION ALL and EXCEPT
+analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
+
+select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
+
+drop table t1,t2,t3;

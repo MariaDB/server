@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 # Make source distribution
 # If bzr is present, run bzr export.
@@ -43,8 +43,23 @@ IF(GIT_EXECUTABLE)
   MESSAGE(STATUS "Running git checkout-index")
   EXECUTE_PROCESS(
     COMMAND "${GIT_EXECUTABLE}" checkout-index --all --prefix=${PACKAGE_DIR}/
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    RESULT_VARIABLE RESULT
+  )
+  IF(NOT RESULT EQUAL 0)
+    SET(GIT_EXECUTABLE)
+  ENDIF()
+  EXECUTE_PROCESS(
     COMMAND "${GIT_EXECUTABLE}" submodule foreach "${GIT_EXECUTABLE} checkout-index --all --prefix=${PACKAGE_DIR}/$path/"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    RESULT_VARIABLE RESULT
+  )
+  IF(NOT RESULT EQUAL 0)
+    SET(GIT_EXECUTABLE)
+  ENDIF()
+  EXECUTE_PROCESS(
+    COMMAND "${GIT_EXECUTABLE}" submodule foreach "${GIT_EXECUTABLE} checkout-index --all --prefix=${PACKAGE_DIR}/wsrep-lib/$path/"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/wsrep-lib
     RESULT_VARIABLE RESULT
   )
   IF(NOT RESULT EQUAL 0)

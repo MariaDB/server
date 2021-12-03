@@ -689,3 +689,33 @@ FTS_DOC_ID	t
 2	foo bar
 3	foo
 DROP TABLE t;
+#
+# MDEV-25295 Aborted FTS_DOC_ID_INDEX considered as
+# 	existing FTS_DOC_ID_INDEX during DDL
+#
+SET sql_mode='';
+CREATE TABLE t1 (FTS_DOC_ID BIGINT UNSIGNED NOT NULL,title CHAR(1),body TEXT)engine=innodb;
+INSERT INTO t1 (FTS_DOC_ID,title,body)VALUES(1,0,0), (1,0,0);
+CREATE FULLTEXT INDEX idx1 ON t1 (title,body);
+ERROR 23000: Duplicate entry '' for key '*UNKNOWN*'
+CREATE FULLTEXT INDEX idx1 ON t1 (title,body);
+ERROR 23000: Duplicate entry '' for key '*UNKNOWN*'
+DROP TABLE t1;
+SET sql_mode = DEFAULT;
+#
+# MDEV-25070 SIGSEGV in fts_create_in_mem_aux_table
+#
+CREATE TABLE t1 (a CHAR, FULLTEXT KEY(a)) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 ADD FULLTEXT INDEX (a);
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t1`
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(1) DEFAULT NULL,
+  FULLTEXT KEY `a` (`a`),
+  FULLTEXT KEY `a_2` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+# End of 10.3 tests

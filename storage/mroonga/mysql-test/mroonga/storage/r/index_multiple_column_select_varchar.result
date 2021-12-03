@@ -6,6 +6,8 @@ family_name varchar(30) not null,
 score int not null,
 primary key property (given_name, family_name, score)
 ) default charset utf8;
+Warnings:
+Warning	1280	Name 'property' ignored for PRIMARY key.
 show create table scores;
 Table	Create Table
 scores	CREATE TABLE `scores` (

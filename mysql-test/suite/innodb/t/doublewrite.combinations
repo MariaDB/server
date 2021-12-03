@@ -1,0 +1,7 @@
+[strict_crc32]
+--innodb-checksum-algorithm=strict_crc32
+--innodb-use-atomic-writes=0
+
+[strict_full_crc32]
+--innodb-checksum-algorithm=strict_full_crc32
+--innodb-use-atomic-writes=0

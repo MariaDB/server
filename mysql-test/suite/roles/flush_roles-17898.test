@@ -1,0 +1,37 @@
+source include/not_embedded.inc;
+#
+# MDEV-17898 FLUSH PRIVILEGES crashes server with segfault
+#
+use mysql;
+insert db (db,user,select_priv) values ('foo','dwr_foo','Y'), ('bar','dwr_bar','Y');
+insert roles_mapping (user,role) values ('dwr_qux_dev','dwr_foo'),('dwr_qux_dev','dwr_bar');
+insert global_priv values ('','dwr_foo','{"is_role":true}'), ('','dwr_bar','{"is_role":true}'),
+                          ('','dwr_qux_dev','{"access":16384,"is_role":true}');
+flush privileges;
+drop role dwr_foo;
+drop role dwr_bar;
+drop role dwr_qux_dev;
+use test;
+
+#
+# MDEV-18298 Crashes server with segfault during role grants
+#
+create table db_copy as select * from mysql.db;
+delete from mysql.db;
+flush privileges;
+
+create user u1@localhost;
+create role r1;
+create role r2;
+grant r1 to u1@localhost;
+grant select on test.* to r2;
+grant select on m_.* to r2;
+grant r2 to r1;
+show grants for u1@localhost;
+show grants for r1;
+drop user u1@localhost;
+drop role r1, r2;
+
+insert mysql.db select * from db_copy;
+flush privileges;
+drop table db_copy;

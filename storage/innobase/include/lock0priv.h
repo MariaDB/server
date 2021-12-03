@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,8 +34,8 @@ those functions in lock/ */
 #error Do not include lock0priv.h outside of the lock/ module
 #endif
 
-#include "univ.i"
 #include "hash0hash.h"
+#include "rem0types.h"
 #include "trx0trx.h"
 
 #ifndef UINT32_MAX
@@ -469,7 +469,7 @@ lock_clust_rec_some_has_impl(
 /*=========================*/
 	const rec_t*		rec,	/*!< in: user record */
 	const dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets)/*!< in: rec_get_offsets(rec, index) */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**

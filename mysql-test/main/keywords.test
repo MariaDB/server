@@ -259,3 +259,39 @@ DROP TABLE raise;
 
 CREATE TABLE reuse (reuse int);
 DROP TABLE reuse;
+
+
+--echo #
+--echo # MDEV-17363 Compressed columns cannot be restored from dump
+--echo # COMPRESSED is not valid as an SP label any more
+--echo # but is still valid as an SP variable name.
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+BEGIN NOT ATOMIC
+compressed:
+  BEGIN
+    SELECT 1 AS a;
+  END;
+END
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+`compressed`:
+  BEGIN
+    SELECT 1 AS a;
+  END;
+END
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE compressed INT DEFAULT 1;
+  SELECT compressed;
+END
+$$
+DELIMITER ;$$

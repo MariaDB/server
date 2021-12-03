@@ -1,6 +1,7 @@
 # Can't test with embedded server that doesn't support grants
 -- source include/not_embedded.inc
 
+set @save_long_query_time=@@long_query_time;
 --disable_warnings
 drop database if exists events_test;
 --enable_warnings
@@ -78,8 +79,8 @@ select user_host, db, sql_text from mysql.slow_log
 
 drop database events_test;
 set global event_scheduler=off;
-set @@global.long_query_time=default;
-set @@session.long_query_time=default;
+set @@global.long_query_time=@save_long_query_time;
+set @@session.long_query_time=@save_long_query_time;
 
 #
 # Safety

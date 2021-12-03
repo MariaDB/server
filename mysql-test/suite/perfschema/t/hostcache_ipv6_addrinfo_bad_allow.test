@@ -10,6 +10,7 @@
 --source include/have_debug.inc
 --source include/check_ipv6.inc
 --source include/have_perfschema.inc
+--source include/have_hostname_cache.inc
 
 # [Warning] Hostname 'santa.claus.ipv6.example.com' does not resolve to '2001:db8::6:6'.
 # [Note] Hostname 'santa.claus.ipv6.example.com' has the following IP addresses:
@@ -30,6 +31,7 @@ select current_user();
 disconnect con1;
 
 --connection default
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_bad_ipv6";
 
 connect (con2,"::1",root,,test,$MASTER_MYPORT,);
@@ -51,5 +53,5 @@ disconnect con3;
 revoke select on test.* from 'root'@'2001:db8::6:6';
 drop user 'root'@'2001:db8::6:6';
 
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 

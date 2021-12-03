@@ -51,7 +51,7 @@ options with which the server is started, restart the server during
 execution, etc.)
 
 You can create your own test cases. To create a test case, create a new
-file in the t subdirectory using a text editor. The file should have a .test
+file in the main subdirectory using a text editor. The file should have a .test
 extension. For example:
 
   # xemacs t/test_case_name.test
@@ -60,7 +60,7 @@ In the file, put a set of SQL statements that create some tables,
 load test data, and run some queries to manipulate it.
 
 Your test should begin by dropping the tables you are going to create and
-end by dropping them again.  This ensures that you can run the test over
+end by dropping them again. This ensures that you can run the test over
 and over again.
 
 If you are using mysqltest commands in your test case, you should create
@@ -81,7 +81,7 @@ comments, you can create the result file in one of the following ways:
 
   # mysqltest --record --database test --result-file=r/test_case_name.result < t/test_case_name.test
 
-When this is done, take a look at r/test_case_name.result .
+When this is done, take a look at r/test_case_name.result.
 If the result is incorrect, you have found a bug. In this case, you should
 edit the test result to the correct results so that we can verify that
 the bug is corrected in future releases.

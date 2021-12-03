@@ -221,6 +221,8 @@ end|
 # called below.
 #
 connection con1;
+set @save_dbug=@@debug_dbug;
+set debug_dbug="+d,cache_sp_in_show_create";
 # Cache all functions used in the tests below so statements
 # calling them won't need to open and lock mysql.proc table
 # and we can assume that each statement locks its tables
@@ -245,6 +247,7 @@ show create function f14;
 show create function f15;
 show create function f16;
 show create function f17;
+set debug_dbug=@save_dbug;
 connection default;
 #
 # 1. Statements that read tables and do not use subqueries.
@@ -745,7 +748,11 @@ disconnect con2;
 # Bug#51391 Deadlock involving events during rqg_info_schema test
 #
 CREATE EVENT e1 ON SCHEDULE EVERY 5 HOUR DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE EVENT e2 ON SCHEDULE EVERY 5 HOUR DO SELECT 2;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 connect con1, localhost, root;
 SET DEBUG_SYNC="before_lock_tables_takes_lock SIGNAL drop WAIT_FOR query";
 # Sending:
@@ -782,7 +789,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR opened';
 SET DEBUG_SYNC= 'now SIGNAL dropped';
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 # Sending:
-FLUSH TABLES;
+FLUSH TABLES t1;
 connection default;
 # Waiting for FLUSH TABLES to be blocked.
 SET DEBUG_SYNC= 'now SIGNAL dropped';

@@ -458,6 +458,26 @@ EXECUTE stmt USING @a,@a;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-11015 Assertion failed: precision > 0 in decimal_bin_size upon SELECT with DISTINCT, CAST and other functions
+--echo #
+
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATETIME ) ) AS f FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS TIME) ) AS f FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATE) ) AS f FROM t1;
+DROP TABLE t1;
+
 --echo #
 --echo # End of 10.1 tests
 --echo #
@@ -612,11 +632,96 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
---echo # End of 10.3 tests
+--echo # MDEV-17759 Assertion `precision > 0' failed in decimal_bin_size upon CREATE TABLE .. SELECT
 --echo #
 
+SET sql_mode='';
+CREATE TABLE t1 (d DECIMAL(43,0) UNSIGNED);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 AS SELECT
+  IFNULL(SLEEP(0.01), NULL DIV d) AS f0,
+  IFNULL(SLEEP(0.01), '' DIV d) AS f1
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+
+
 --echo #
---echo # Start of 10.4 tests
+--echo # MDEV-17325 NULL-ability problems with LEAST() in combination with NO_ZERO_DATE and NO_ZERO_IN_DATE
+--echo #
+
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+  LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+  LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+  LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+  LEAST(0,DATE'2001-01-01') AS i1,
+  LEAST(20010001,DATE'2001-01-01') AS i2,
+  LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+  LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+--disable_metadata
+--enable_ps_protocol
+
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+CREATE TABLE t1 AS SELECT
+  LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+  LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+  LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+  LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+  LEAST(0,DATE'2001-01-01') AS i1,
+  LEAST(20010001,DATE'2001-01-01') AS i2,
+  LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+  LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+
+# A TIME always converts to a non-NULL DATETIME with the new CAST style
+# Expect a NOT NULL column
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# A TIME can convert to a NULL DATETIME with old CAST style
+# Expect a NULL-able column
+SET old_mode=ZERO_DATE_TIME_CAST;
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET old_mode=DEFAULT;
+SET timestamp=DEFAULT;
+
+SET sql_mode=DEFAULT;
+
+SET sql_mode='';
+SELECT LEAST(999,TIME'10:20:30') AS c1;
+CREATE TABLE t1 AS SELECT LEAST(999,TIME'10:20:30') AS c1;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-18456 Assertion `item->maybe_null' failed in Type_handler_temporal_result::make_sort_key
+--echo #
+
+CREATE TABLE t1 (t TIME NOT NULL);
+INSERT INTO t1 VALUES ('00:20:11'),('14:52:05');
+SELECT GREATEST('9999', t) FROM t1 ORDER BY 1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.3 tests
 --echo #
 
 --echo #

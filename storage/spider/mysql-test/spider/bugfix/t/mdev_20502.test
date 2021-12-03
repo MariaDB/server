@@ -1,0 +1,78 @@
+--source ../include/mdev_20502_init.inc
+--echo
+--echo this test is for MDEV-20502
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  val int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY(id)
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  val int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY(id)
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_2_1;
+--enable_query_log
+INSERT INTO tbl_a (val) VALUES (1);
+
+--echo
+--echo test 1
+
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+SELECT id, 0 AS const, val FROM tbl_a;
+SELECT 1+2, id, 0 AS const, val, val+10, (SELECT tbl_a.val+1 FROM tbl_a) AS sq
+FROM tbl_a;
+INSERT INTO tbl_a (val) VALUES (2), (1);
+SELECT val+10, 0 AS const, val, (SELECT tbl_a.val+1 FROM tbl_a LIMIT 1) AS sq
+FROM tbl_a GROUP BY val;
+SELECT MAX(id) AS m, 0 AS const, val, (SELECT tbl_a.val+1 FROM tbl_a LIMIT 1) AS sq
+FROM tbl_a GROUP BY val;
+
+--connection child2_1
+eval $CHILD2_1_SELECT_ARGUMENT1;
+eval $CHILD2_1_SELECT_TABLES;
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+
+--enable_warnings
+--source ../include/mdev_20502_deinit.inc
+--echo
+--echo end of test

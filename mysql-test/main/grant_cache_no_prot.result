@@ -1,3 +1,6 @@
+set @save_query_cache_size=@@global.query_cache_size;
+set @save_sql_mode=@@global.sql_mode;
+set @save_query_cache_type=@@global.query_cache_type;
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 drop table if exists test.t1,mysqltest.t1,mysqltest.t2;
@@ -11,11 +14,11 @@ connect  root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection root;
 show grants for current_user;
 Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 show grants;
 Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 create database if not exists mysqltest;
 create table mysqltest.t1 (a int,b int,c int);
@@ -62,8 +65,8 @@ connect  user1,localhost,mysqltest_1,,mysqltest,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection user1;
 show grants for current_user();
 Grants for mysqltest_1@localhost
-GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost'
-GRANT SELECT ON `mysqltest`.* TO 'mysqltest_1'@'localhost'
+GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
+GRANT SELECT ON `mysqltest`.* TO `mysqltest_1`@`localhost`
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	6
@@ -128,7 +131,7 @@ connect  unkuser,localhost,unkuser,,,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection unkuser;
 show grants for current_user();
 Grants for @localhost
-GRANT USAGE ON *.* TO ''@'localhost'
+GRANT USAGE ON *.* TO ``@`localhost`
 connect  user2,localhost,mysqltest_2,,mysqltest,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection user2;
 select "user2";
@@ -194,8 +197,8 @@ user4
 user4
 show grants;
 Grants for mysqltest_1@localhost
-GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost'
-GRANT SELECT ON `mysqltest`.* TO 'mysqltest_1'@'localhost'
+GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
+GRANT SELECT ON `mysqltest`.* TO `mysqltest_1`@`localhost`
 select a from t1;
 ERROR 3D000: No database selected
 select * from mysqltest.t1,test.t1;
@@ -242,8 +245,8 @@ delete from mysql.columns_priv where user in ("mysqltest_1","mysqltest_2","mysql
 flush privileges;
 drop table test.t1,mysqltest.t1,mysqltest.t2;
 drop database mysqltest;
-set GLOBAL query_cache_size=default;
 set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;
-set GLOBAL sql_mode=default;
-set GLOBAL query_cache_type=default;
+set GLOBAL query_cache_size=@save_query_cache_size;
+set GLOBAL sql_mode=@save_sql_mode;
+set GLOBAL query_cache_type=@save_query_cache_type;

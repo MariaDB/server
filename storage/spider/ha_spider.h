@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface
@@ -170,7 +171,7 @@ public:
   bool               high_priority;
   bool               insert_delayed;
   bool               use_pre_call;
-  bool               use_pre_records;
+  bool               use_pre_action;
   bool               pre_bitmap_checked;
   enum thr_lock_type lock_type;
   int                lock_mode;
@@ -243,6 +244,11 @@ public:
   SPIDER_ITEM_HLD    *direct_aggregate_item_current;
 #endif
   ha_rows            table_rows;
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  ha_checksum        checksum_val;
+  bool               checksum_null;
+  uint               action_flags;
+#endif
 
   /* for fulltext search */
   bool               ft_init_and_first;
@@ -349,6 +355,8 @@ public:
     bool sorted
   );
   int read_range_next();
+  void reset_no_where_cond();
+  bool check_no_where_cond();
 #ifdef HA_MRR_USE_DEFAULT_IMPL
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   ha_rows multi_range_read_info_const(
@@ -512,6 +520,10 @@ public:
   int check_crd();
   int pre_records();
   ha_rows records();
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  int pre_calculate_checksum();
+  int calculate_checksum();
+#endif
   const char *table_type() const;
   ulonglong table_flags() const;
   const char *index_type(
@@ -558,7 +570,7 @@ public:
 #endif
   int end_bulk_insert();
   int write_row(
-    uchar *buf
+    const uchar *buf
   );
 #ifdef HA_CAN_BULK_ACCESS
   int pre_write_row(
@@ -576,6 +588,7 @@ public:
     ha_rows *dup_key_found
   );
   int end_bulk_update();
+#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
   int bulk_update_row(
     const uchar *old_data,
     const uchar *new_data,
@@ -585,48 +598,111 @@ public:
     const uchar *old_data,
     const uchar *new_data
   );
+#else
+  int bulk_update_row(
+    const uchar *old_data,
+    uchar *new_data,
+    ha_rows *dup_key_found
+  );
+  int update_row(
+    const uchar *old_data,
+    uchar *new_data
+  );
+#endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int direct_update_rows_init(List<Item> *update_fields)
-  {
+#ifdef SPIDER_MDEV_16246
+  inline int direct_update_rows_init(
+    List<Item> *update_fields
+  ) {
     return direct_update_rows_init(update_fields, 2, NULL, 0, FALSE, NULL);
   }
-  int direct_update_rows_init(List<Item> *update_fields, uint mode,
-                              KEY_MULTI_RANGE *ranges, uint range_count,
-                              bool sorted, const uchar *new_data);
+  int direct_update_rows_init(
+    List<Item> *update_fields,
+    uint mode,
+    KEY_MULTI_RANGE *ranges,
+    uint range_count,
+    bool sorted,
+    uchar *new_data
+  );
 #else
-  int direct_update_rows_init(List<Item> *update_fields);
+  inline int direct_update_rows_init()
+  {
+    return direct_update_rows_init(2, NULL, 0, FALSE, NULL);
+  }
+  int direct_update_rows_init(
+    uint mode,
+    KEY_MULTI_RANGE *ranges,
+    uint range_count,
+    bool sorted,
+    uchar *new_data
+  );
+#endif
+#else
+#ifdef SPIDER_MDEV_16246
+  int direct_update_rows_init(
+    List<Item> *update_fields
+  );
+#else
+  int direct_update_rows_init();
+#endif
 #endif
 #ifdef HA_CAN_BULK_ACCESS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int pre_direct_update_rows_init(List<Item> *update_fields)
-  {
-    return pre_direct_update_rows_init(update_fields,
-                                       2, NULL, 0, FALSE, NULL);
+#ifdef SPIDER_MDEV_16246
+  inline int pre_direct_update_rows_init(
+    List<Item> *update_fields
+  ) {
+    return pre_direct_update_rows_init(update_fields, 2, NULL, 0, FALSE, NULL);
   }
-  int pre_direct_update_rows_init(List<Item> *update_fields,
-                                  uint mode, KEY_MULTI_RANGE *ranges,
-                                  uint range_count, bool sorted,
-                                  uchar *new_data);
+  int pre_direct_update_rows_init(
+    List<Item> *update_fields,
+    uint mode,
+    KEY_MULTI_RANGE *ranges,
+    uint range_count,
+    bool sorted,
+    uchar *new_data
+  );
 #else
-  int pre_direct_update_rows_init(List<Item> *update_fields);
+  inline int pre_direct_update_rows_init()
+  {
+    return pre_direct_update_rows_init(2, NULL, 0, FALSE, NULL);
+  }
+  int pre_direct_update_rows_init(
+    uint mode,
+    KEY_MULTI_RANGE *ranges,
+    uint range_count,
+    bool sorted,
+    uchar *new_data
+  );
+#endif
+#else
+#ifdef SPIDER_MDEV_16246
+  int pre_direct_update_rows_init(
+    List<Item> *update_fields
+  );
+#else
+  int pre_direct_update_rows_init();
+#endif
 #endif
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int direct_update_rows(ha_rows *update_rows)
+  inline int direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
   {
-    return direct_update_rows(NULL, 0, FALSE, NULL, update_rows);
+    return direct_update_rows(NULL, 0, FALSE, NULL, update_rows, found_rows);
   }
   int direct_update_rows(
     KEY_MULTI_RANGE *ranges,
     uint range_count,
     bool sorted,
     uchar *new_data,
-    ha_rows *update_rows
+    ha_rows *update_rows,
+    ha_rows *found_row
   );
 #else
   int direct_update_rows(
-    ha_rows *update_rows
+    ha_rows *update_rows,
+    ha_rows *found_row
   );
 #endif
 #ifdef HA_CAN_BULK_ACCESS
@@ -634,15 +710,18 @@ public:
   inline int pre_direct_update_rows()
   {
     ha_rows update_rows;
+    ha_rows found_rows;
 
-    return pre_direct_update_rows(NULL, 0, FALSE, NULL, &update_rows);
+    return pre_direct_update_rows(NULL, 0, FALSE, NULL, &update_rows,
+      &found_rows);
   }
   int pre_direct_update_rows(
     KEY_MULTI_RANGE *ranges,
     uint range_count,
     bool sorted,
     uchar *new_data,
-    ha_rows *update_rows
+    ha_rows *update_rows,
+    ha_rows *found_row
   );
 #else
   int pre_direct_update_rows();

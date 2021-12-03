@@ -523,6 +523,8 @@ NULL	9
 b	1
 drop table t1;
 set big_tables=0;
+SET @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='outer_join_with_cache=off',@@optimizer_use_condition_selectivity=4;
 create table t1 (a int not null, b int not null);
 insert into t1 values (1,1),(1,2),(3,1),(3,2),(2,2),(2,1);
 create table t2 (a int not null, b int not null, key(a));
@@ -535,19 +537,20 @@ a	b
 3	1
 select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b ORDER BY NULL;
 a	b
-1	3
-3	1
-2	2
 1	1
+1	3
+2	2
+3	1
 explain select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
 explain select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b ORDER BY NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using temporary
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
 drop table t1,t2;
+SET @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity,@@optimizer_switch=@save_optimizer_switch;
 create table t1 (a int, b int);
 insert into t1 values (1, 4),(10, 40),(1, 4),(10, 43),(1, 4),(10, 41),(1, 4),(10, 43),(1, 4);
 select a, MAX(b), INTERVAL (MAX(b), 1,3,10,30,39,40,50,60,100,1000) from t1 group by a;
@@ -1330,6 +1333,7 @@ INSERT INTO t1 SELECT a + 64,b FROM t1;
 INSERT INTO t1 SELECT a + 128,b FROM t1 limit 16;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT a FROM t1 WHERE a < 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1607,7 +1611,8 @@ EXPLAIN SELECT 1 FROM t2 WHERE a IN
 (SELECT a FROM t1 USE INDEX (i2) IGNORE INDEX (i2));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	index	a	a	5	NULL	4	Using index
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	144	Using where; FirstMatch(t2)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	144	
 SET optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1, t2;
 CREATE TABLE t1(
@@ -2429,7 +2434,12 @@ a int,
 b varchar(1),
 KEY (b,a)
 );
-INSERT INTO t1 VALUES (1,NULL),(0,'a'),(1,NULL),(0,'a');
+INSERT INTO t1 VALUES
+(1,NULL),(0,'a'),(1,NULL),(0,'a'), (1,'a'),(0,'a'),(2,'a'),(1,'a');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 
 EXPLAIN SELECT SQL_BUFFER_RESULT MIN(a), b FROM t1 WHERE t1.b = 'a' GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -2749,6 +2759,7 @@ create table t2 (c int, col1 int, key(c));
 insert into t2 select t1.a, 100000 from t1;
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 explain 
 select 
@@ -2824,6 +2835,22 @@ SELECT 1 IN ( SELECT COUNT( DISTINCT f2 ) FROM t1 WHERE f1 <= 4 );
 0
 drop table t1;
 #
+# MDEV-20922: Adding an order by changes the query results
+#
+CREATE TABLE t1(a int, b int);
+INSERT INTO t1 values (1, 100), (2, 200), (3, 100), (4, 200), (5, 200);
+create view v1 as select a, b+1 as x from t1;
+SELECT x, COUNT(DISTINCT a) AS y FROM v1 GROUP BY x ORDER BY y;
+x	y
+101	2
+201	3
+SELECT b+1 AS x, COUNT(DISTINCT a) AS y FROM t1 GROUP BY x ORDER BY y;
+x	y
+101	2
+201	3
+drop view v1;
+drop table t1;
+#
 # MDEV-10694 - SIGFPE and/or huge memory allocation in maria_create with distinct/group by/ rollup
 #
 create table t1 (a int,b int) ;
@@ -2843,6 +2870,66 @@ GROUP BY REPEAT((BINARY pk), v1), AES_DECRYPT((@A := i1), 20852) WITH ROLLUP HAV
 1
 drop table t1;
 #
+# MDEV-22019: Sig 11 in next_breadth_first_tab | max_sort_length setting + double
+# GROUP BY leads to crash
+#
+CALL mtr.add_suppression("Out of sort memory");
+CALL mtr.add_suppression("Sort aborted");
+SET @save_max_sort_length= @@max_sort_length;
+SET max_sort_length=2000000;
+SELECT * FROM information_schema.tables t JOIN information_schema.columns c
+ON t.table_schema=c.table_schema
+WHERE c.table_schema=(SELECT COUNT(*) FROM INFORMATION_SCHEMA.columns GROUP BY column_type)
+GROUP BY t.table_name;
+ERROR HY001: Out of sort memory, consider increasing server sort buffer size
+SET max_sort_length= @save_max_sort_length;
+#
+# MDEV-23826: ORDER BY in view definition leads to wrong result with GROUP BY on query using view
+#
+CREATE TABLE t1
+(
+id INT PRIMARY KEY AUTO_INCREMENT,
+dt datetime,
+INDEX(dt),
+foo int
+);
+INSERT INTO t1 VALUES (1,'2020-09-26 12:00:00',1);
+INSERT INTO t1 VALUES (2,'2020-09-26 13:00:00',1);
+INSERT INTO t1 VALUES (3,'2020-09-27 13:00:00',1);
+INSERT INTO t1 VALUES (4,'2020-09-27 12:00:00',1);
+INSERT INTO t1 VALUES (5,'2020-09-28 12:00:00',1);
+INSERT INTO t1 VALUES (6,'2020-09-28 13:00:00',1);
+INSERT INTO t1 VALUES (7,'2020-09-25 12:00:00',1);
+INSERT INTO t1 VALUES (8,'2020-09-25 13:00:00',1);
+INSERT INTO t1 VALUES (9,'2020-09-26 13:00:00',1);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM t1 ORDER BY dt;
+SELECT dt, sum(foo) AS foo FROM v1 WHERE dt>DATE_SUB('2020-09-27 00:00:00', INTERVAL 3 DAY) GROUP BY dt;
+dt	foo
+2020-09-25 12:00:00	1
+2020-09-25 13:00:00	1
+2020-09-26 12:00:00	1
+2020-09-26 13:00:00	2
+2020-09-27 12:00:00	1
+2020-09-27 13:00:00	1
+2020-09-28 12:00:00	1
+2020-09-28 13:00:00	1
+SELECT dt, sum(foo) AS foo FROM v2 WHERE dt>DATE_SUB('2020-09-27 00:00:00', INTERVAL 3 DAY) GROUP BY dt;
+dt	foo
+2020-09-25 12:00:00	1
+2020-09-25 13:00:00	1
+2020-09-26 12:00:00	1
+2020-09-26 13:00:00	2
+2020-09-27 12:00:00	1
+2020-09-27 13:00:00	1
+2020-09-28 12:00:00	1
+2020-09-28 13:00:00	1
+DROP TABLE t1;
+DROP VIEW v1,v2;
+#
+# End of 10.2 tests
+#
+#
 # MDEV-16170
 # Server crashes in Item_null_result::type_handler on SELECT with ROLLUP
 #
@@ -2853,3 +2940,35 @@ f	COUNT(*)
 1	1
 NULL	1
 DROP TABLE t1;
+#
+# MDEV-24710 Uninitialized value upon CREATE .. SELECT ... VALUE
+#
+CREATE TABLE t1 (a VARCHAR(8) NOT NULL DEFAULT '');
+INSERT INTO t1 (a) VALUES ('foo');
+CREATE TABLE t2 AS SELECT MAX(a) AS f1, a AS f2 FROM t1 WHERE VALUE(a) IS NOT NULL;
+SELECT * from t2;
+f1	f2
+NULL	NULL
+SELECT MAX(a) AS f1, a AS f2 FROM t1 WHERE VALUE(a) IS NOT NULL;
+f1	f2
+NULL	NULL
+SELECT MAX(a) AS f1, a AS f2 FROM t1 WHERE 1=0;
+f1	f2
+NULL	NULL
+drop table t1,t2;
+# Extra test by to check the fix for MDEV-24710
+create table t20 (pk int primary key, a int);
+insert into t20 values (1,1);
+create table t21 (pk int primary key, b int not null);
+insert into t21 values (1,1);
+create table t22 (a int);
+insert into t22 values (1),(2);
+select a, (select max(t21.b) from t20 left join t21 on t21.pk=t20.a+10
+where t20.pk=1 and rand(123) < 0.5) as SUBQ from t22;
+a	SUBQ
+1	NULL
+2	NULL
+drop table t20, t21, t22;
+#
+# End of 10.3 tests
+#

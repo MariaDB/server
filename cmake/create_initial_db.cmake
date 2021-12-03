@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 # This script creates initial database for packaging on Windows
 # Force Visual Studio to output to stdout
@@ -52,7 +52,7 @@ SET(BOOTSTRAP_COMMAND
   --datadir=.
   --default-storage-engine=MyISAM
   --max_allowed_packet=8M
-  --net_buffer_length=16K
+  --net_buffer_length=32K
 )
 
 GET_FILENAME_COMPONENT(CWD . ABSOLUTE)

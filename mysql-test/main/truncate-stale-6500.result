@@ -1,3 +1,4 @@
+set @save_query_cache_size=@@query_cache_size;
 SET GLOBAL query_cache_size=1024*1024*8;
 CREATE TABLE `test` (
 `uniqueId` INT NOT NULL,
@@ -30,4 +31,4 @@ uniqueId	partitionId
 SELECT SQL_NO_CACHE * FROM `test`;
 uniqueId	partitionId
 DROP TABLE test;
-SET GLOBAL query_cache_size=DEFAULT;
+SET GLOBAL query_cache_size=@save_query_cache_size;

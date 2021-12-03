@@ -11,7 +11,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef MYSQL_SERVICE_MY_PRINT_ERROR_INCLUDED
 #define MYSQL_SERVICE_MY_PRINT_ERROR_INCLUDED
@@ -51,11 +51,9 @@ extern struct my_print_error_service_st {
 #define my_printv_error(A,B,C,D) my_print_error_service->my_printv_error_func(A,B,C,D)
 
 #else
-#ifndef MY_ERROR_DEFINED
 extern void my_error(unsigned int nr, unsigned long MyFlags, ...);
 extern void my_printf_error(unsigned int my_err, const char *format, unsigned long MyFlags, ...);
 extern void my_printv_error(unsigned int error, const char *format, unsigned long MyFlags,va_list ap);
-#endif /* MY_ERROR_DEFINED */
 #endif /* MYSQL_DYNAMIC_PLUGIN */
 
 #ifdef __cplusplus

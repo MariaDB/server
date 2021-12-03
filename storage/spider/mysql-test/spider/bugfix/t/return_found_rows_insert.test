@@ -1,0 +1,98 @@
+--source ../include/return_found_rows_insert_init.inc
+--echo
+--echo this test is for MDEV-18973
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    skey int NOT NULL,
+    dt date NOT NULL,
+    tm time NOT NULL,
+    PRIMARY KEY (skey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+    skey int NOT NULL,
+    dt date NOT NULL,
+    tm time NOT NULL,
+    PRIMARY KEY (skey)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+--enable_query_log
+INSERT INTO tbl_a (skey, dt, tm) VALUES (0, '2012-01-01', '12:00:00'),(1, '2012-02-01', '12:00:00'),(2, '2012-03-01', '12:00:00'),(3, '2012-04-01', '12:00:00'),(4, '2012-05-01', '12:00:00'),(5, '2012-06-01', '12:00:00'),(6, '2012-07-01', '12:00:00'),(7, '2012-08-01', '12:00:00'),(8, '2012-09-01', '12:00:00'),(9, '2012-10-01', '12:00:00');
+FLUSH TABLES;
+
+--echo
+--echo select test 1
+
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+
+--disable_query_log
+echo MYSQL -v -v -u root -h localhost -P MASTER_1_MYPORT -S MASTER_1_MYSOCK -e "MASTER_1_SET_COMMAND INSERT IGNORE INTO tbl_a (skey, dt, tm) VALUES (0, '2013-01-01', '13:00:00'),(2, '2013-02-01', '13:00:00'),(4, '2013-03-01', '13:00:00'),(7, '2013-04-01', '13:00:00'),(8, '2013-05-01', '13:00:00'),(10, '2013-06-01', '13:00:00'),(11, '2013-07-01', '13:00:00'),(12, '2013-08-01', '13:00:00'),(13, '2013-09-01', '13:00:00'),(14, '2013-10-01', '13:00:00')" auto_test_local;
+exec $MYSQL -v -v -u root -h localhost -P $MASTER_1_MYPORT -S $MASTER_1_MYSOCK -e "$MASTER_1_SET_COMMAND INSERT IGNORE INTO tbl_a (skey, dt, tm) VALUES (0, '2013-01-01', '13:00:00'),(2, '2013-02-01', '13:00:00'),(4, '2013-03-01', '13:00:00'),(7, '2013-04-01', '13:00:00'),(8, '2013-05-01', '13:00:00'),(10, '2013-06-01', '13:00:00'),(11, '2013-07-01', '13:00:00'),(12, '2013-08-01', '13:00:00'),(13, '2013-09-01', '13:00:00'),(14, '2013-10-01', '13:00:00')" auto_test_local;
+--enable_query_log
+
+--connection child2_1
+eval $CHILD2_1_SELECT_ARGUMENT1;
+eval $CHILD2_1_SELECT_TABLES;
+
+TRUNCATE TABLE mysql.general_log;
+
+--disable_query_log
+echo MYSQL -v -v -u root -h localhost -P MASTER_1_MYPORT -S MASTER_1_MYSOCK -e "MASTER_1_SET_COMMAND REPLACE INTO tbl_a (skey, dt, tm) VALUES (1, '2012-02-01', '12:00:00'),(3, '2012-12-01', '11:00:00'),(8, '2012-11-30', '11:00:00'),(9, '2012-11-29', '11:00:00'),(10, '2012-11-28', '11:00:00'),(15, '2012-11-27', '11:00:00'),(16, '2012-11-26', '11:00:00'),(17, '2012-11-25', '11:00:00'),(18, '2012-11-24', '11:00:00'),(19, '2012-11-23', '11:00:00')" auto_test_local;
+exec $MYSQL -v -v -u root -h localhost -P $MASTER_1_MYPORT -S $MASTER_1_MYSOCK -e "$MASTER_1_SET_COMMAND REPLACE INTO tbl_a (skey, dt, tm) VALUES (1, '2012-02-01', '12:00:00'),(3, '2012-12-01', '11:00:00'),(8, '2012-11-30', '11:00:00'),(9, '2012-11-29', '11:00:00'),(10, '2012-11-28', '11:00:00'),(15, '2012-11-27', '11:00:00'),(16, '2012-11-26', '11:00:00'),(17, '2012-11-25', '11:00:00'),(18, '2012-11-24', '11:00:00'),(19, '2012-11-23', '11:00:00')" auto_test_local;
+--enable_query_log
+
+--connection child2_1
+eval $CHILD2_1_SELECT_ARGUMENT1;
+eval $CHILD2_1_SELECT_TABLES;
+
+TRUNCATE TABLE mysql.general_log;
+
+--disable_query_log
+echo MYSQL -v -v -u root -h localhost -P MASTER_1_MYPORT -S MASTER_1_MYSOCK -e "MASTER_1_SET_COMMAND INSERT INTO tbl_a (skey, dt, tm) VALUES (1, '2012-11-01', '11:00:00'),(3, '2012-12-01', '11:00:00'),(11, '2012-11-30', '11:00:00'),(15, '2012-11-29', '11:00:00'),(16, '2012-11-28', '11:00:00'),(20, '2012-11-27', '11:00:00'),(21, '2012-11-26', '11:00:00'),(22, '2012-11-25', '11:00:00'),(23, '2012-11-24', '11:00:00'),(24, '2012-11-23', '11:00:00') ON DUPLICATE KEY UPDATE dt=VALUE(dt), tm=VALUE(tm)" auto_test_local;
+exec $MYSQL -v -v -u root -h localhost -P $MASTER_1_MYPORT -S $MASTER_1_MYSOCK -e "$MASTER_1_SET_COMMAND INSERT INTO tbl_a (skey, dt, tm) VALUES (1, '2012-11-01', '11:00:00'),(3, '2012-12-01', '11:00:00'),(11, '2012-11-30', '11:00:00'),(15, '2012-11-29', '11:00:00'),(16, '2012-11-28', '11:00:00'),(20, '2012-11-27', '11:00:00'),(21, '2012-11-26', '11:00:00'),(22, '2012-11-25', '11:00:00'),(23, '2012-11-24', '11:00:00'),(24, '2012-11-23', '11:00:00') ON DUPLICATE KEY UPDATE dt=VALUE(dt), tm=VALUE(tm)" auto_test_local;
+--enable_query_log
+
+--connection child2_1
+eval $CHILD2_1_SELECT_ARGUMENT1;
+eval $CHILD2_1_SELECT_TABLES;
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+
+--enable_warnings
+--source ../include/return_found_rows_insert_deinit.inc
+--echo
+--echo end of test

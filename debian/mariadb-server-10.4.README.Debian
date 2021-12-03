@@ -2,12 +2,7 @@
 =============================
 You may never ever delete the mysql user "root". Although it has no password
 is set, the unix_auth plugin ensure that it can only be run locally as the root
-user. The credentials in /etc/mysql/debian.cnf specify the user are used by the
-init scripts to stop the server and perform logrotation. So in most of the
-time you can fix the situation by making sure that the /etc/mysql/debian.cnf
-file specifies the root user and no password.
-
-This used to be the debian-sys-maint user which is no longer used.
+user.
 
 * WHAT TO DO AFTER UPGRADES:
 ============================
@@ -57,7 +52,13 @@ the DB server over the network:
 
   sudo /usr/bin/mysql -e "GRANT ALL ON *.* TO 'USERNAME'@'%' IDENTIFIED BY 'password' WITH GRANT OPTION"
 
-Scripts should run as a user have the required grants and be identified via unix_socket.
+Scripts should run as a user have the required grants and be authenticated via
+unix_socket.
+
+It is wise to run scripts as the "mysql" system user. Like root,
+mysql@localhost is created by default to have all privileges in MariaDB
+and to use unix_socket authentication. But scripts running under "mysql"
+won't have system-wide root so they won't be able to corrupt your system.
 
 If you are too tired to type the password in every time and unix_socket auth
 doesn't suit your needs, you can store it in the file $HOME/.my.cnf. It should
@@ -66,18 +67,6 @@ can read it.  Every other configuration parameter can be stored there, too.
 
 For more information in the MariaDB manual in/usr/share/doc/mariadb-doc or
 https://mariadb.com/kb/en/configuring-mariadb-with-mycnf/.
-
-ATTENTION: It is necessary, that a ~/.my.cnf from root always contains a "user"
-line wherever there is a "password" line, else, the Debian maintenance
-scripts, that use /etc/mysql/debian.cnf, will use the username
-"root" but the password that is in root's .my.cnf. Also note,
-that every change you make in the /root/.my.cnf will affect the mysql cron
-script, too.
-
-        # an example of $HOME/.my.cnf
-	[client]
-	user		= your-mysql-username
-	password	= enter-your-good-new-password-here
 
 * FURTHER NOTES ON REPLICATION
 ===============================

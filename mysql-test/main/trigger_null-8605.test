@@ -149,6 +149,7 @@ EOF
 load data infile 'mdev8605.txt' into table t1 fields terminated by ',';
 select * from t1;
 drop table t1;
+--remove_file $datadir/test/mdev8605.txt
 
 # timestamps (on NULL = NOW())
 create table t1 (a timestamp, b int auto_increment primary key);
@@ -218,6 +219,7 @@ load data infile 'sep8605.txt' into table t1 fields terminated by ','
    (@a,a2,a3,b,c) set a1=100-@a;
 select 100-a1,a2,a3,b,c from t1;
 delete from t1;
+--remove_file $datadir/test/sep8605.txt
 
 --write_file $datadir/test/fix8605.txt
 00012010-11-12 01:02:030010000000000000000
@@ -231,6 +233,7 @@ set statement timestamp=777777777 for
 load data infile 'fix8605.txt' into table t1 fields terminated by '';
 select * from t1;
 delete from t1;
+--remove_file $datadir/test/fix8605.txt
 
 --write_file $datadir/test/xml8605.txt
 <data>
@@ -300,6 +303,7 @@ set statement timestamp=777777777 for
 load xml infile 'xml8605.txt' into table t1 rows identified by '<row>';
 select * from t1;
 drop table t1;
+--remove_file $datadir/test/xml8605.txt
 
 # explicit DEFAULT
 create table t1 (a int not null default 5, b int, c int);

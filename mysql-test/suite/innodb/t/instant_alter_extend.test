@@ -1,0 +1,258 @@
+--source include/have_innodb.inc
+--source include/innodb_row_format.inc
+--source include/maybe_debug.inc
+
+-- echo #
+-- echo # MDEV-15563: Instant ROW_FORMAT=REDUNDANT column type change&extension
+-- echo # (reverted in MDEV-18627)
+-- echo #
+
+# Use character-set-server in test db
+create database best;
+use best;
+
+set default_storage_engine=innodb;
+set @bigval= repeat('0123456789', 30);
+
+delimiter ~~;
+create procedure check_table(table_name varchar(255))
+begin
+  select table_id into @table_id
+  from information_schema.innodb_sys_tables
+  where name = concat('best/', table_name);
+  select name, mtype, hex(prtype) as prtype, len
+  from information_schema.innodb_sys_columns
+  where table_id = @table_id;
+end~~
+delimiter ;~~
+
+
+--echo # VARCHAR -> CHAR, VARBINARY -> BINARY conversion
+set @bigval= repeat('0123456789', 20);
+
+create table t (a varchar(300));
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a char(255), algorithm=instant;
+alter table t modify a char(255), algorithm=copy;
+
+create or replace table t (a varchar(200));
+insert into t values (@bigval);
+insert into t values ('z');
+if ($have_debug) {
+--disable_query_log
+# This should not be reachable.
+set @save_debug= @@SESSION.debug_dbug;
+set debug_dbug= '+d,ib_instant_error';
+--enable_query_log
+}
+--enable_info
+alter table t modify a char(200);
+--disable_info
+select count(a) from t where a = @bigval;
+select a, length(a) from t where a = 'z';
+
+check table t extended;
+call check_table('t');
+
+--echo # CHAR enlargement
+--enable_info
+alter table t modify a char(220);
+--disable_info
+select count(a) from t where a = @bigval;
+select a, length(a) from t where a = 'z';
+
+check table t extended;
+call check_table('t');
+
+--enable_info
+ALTER TABLE t CHANGE COLUMN a a CHAR(230) BINARY;
+ALTER TABLE t ADD COLUMN b INT FIRST;
+ALTER TABLE t DROP b;
+--disable_info
+
+check table t extended;
+call check_table('t');
+
+--echo # Convert from VARCHAR to a bigger CHAR
+--enable_info
+alter table t modify a varchar(200);
+alter table t modify a char(255);
+--disable_info
+select count(a) from t where a = @bigval;
+select a, length(a) from t where a = 'z';
+
+select * from t;
+check table t extended;
+call check_table('t');
+
+--echo # BINARY/VARBINARY test
+create or replace table t (a varbinary(300));
+insert into t values(NULL);
+--enable_info
+alter table t modify a binary(255);
+--disable_info
+
+create or replace table t (a varbinary(200));
+insert into t values (@bigval);
+insert into t values ('z');
+--enable_info
+alter table t modify a binary(200);
+--disable_info
+select count(a) from t where a = @bigval;
+select length(a) from t where left(a, 1) = 'z';
+
+check table t extended;
+call check_table('t');
+
+--echo # BINARY enlargement
+--enable_info
+alter table t modify a binary(220);
+--disable_info
+
+check table t extended;
+call check_table('t');
+
+--echo # Convert from VARBINARY to a bigger BINARY
+--enable_info
+alter table t modify a varbinary(220);
+alter table t modify a binary(255);
+--disable_info
+select count(a) from t where a = @bigval;
+select a, length(a) from t where a = 'z';
+
+select * from t;
+check table t extended;
+call check_table('t');
+
+
+--echo # Integer conversions
+create or replace table t (x tinyint);
+insert into t values (127);
+--enable_info
+alter table t modify x smallint;
+--disable_info
+select * from t;
+check table t extended;
+call check_table('t');
+
+update t set x= 32767;
+--enable_info
+alter table t modify x mediumint;
+--disable_info
+select * from t;
+check table t extended;
+call check_table('t');
+
+update t set x= 8388607;
+--enable_info
+alter table t modify x int;
+--disable_info
+select * from t;
+check table t extended;
+call check_table('t');
+
+update t set x= 2147483647;
+--enable_info
+alter table t modify x bigint;
+--disable_info
+select * from t;
+check table t extended;
+call check_table('t');
+
+if ($have_debug) {
+--disable_query_log
+# This should not be reachable.
+set debug_dbug= @save_debug;
+--enable_query_log
+}
+
+--echo # Check IMPORT TABLESPACE
+--let $MYSQLD_DATADIR= `select @@datadir`
+create or replace table t2 (x int);
+alter table t2 discard tablespace;
+
+create or replace table t1 (x tinyint);
+insert into t1 set x= 42;
+alter table t1 modify x int;
+flush tables t1 for export;
+--move_file $MYSQLD_DATADIR/best/t1.cfg $MYSQLD_DATADIR/best/t2.cfg
+--copy_file $MYSQLD_DATADIR/best/t1.ibd $MYSQLD_DATADIR/best/t2.ibd
+unlock tables;
+
+alter table t2 import tablespace;
+
+select * from t2;
+check table t2 extended;
+call check_table('t2');
+
+--echo # Check innobase_col_to_mysql() len < flen
+create or replace table t1 (x mediumint);
+insert into t1 values (1);
+insert into t1 values (1);
+--enable_info
+alter table t1 add column y int first, modify x int;
+--error ER_DUP_ENTRY
+alter table t1 add column z int first, add primary key (x);
+--disable_info
+
+--echo # Check assertion in wrong instant operation
+create or replace table t1 (a varchar(26) not null) default character set utf8mb4;
+insert into t1 values ('abcdef'), (repeat('x',26));
+--enable_info
+alter ignore table t1 modify a varchar(25) not null;
+--disable_info
+select * from t1;
+
+--echo # Check row_mysql_store_col_in_innobase_format()
+create or replace table t1(x int primary key, a varchar(20));
+insert into t1 (x) values (1);
+update t1 set a= 'foo' where x = 2;
+
+--echo #
+--echo # MDEV-18124 PK on inplace-enlarged type fails
+--echo #
+create or replace table t1 (x int, y int);
+insert into t1 (x, y) values (11, 22);
+--enable_info
+alter table t1 modify x bigint;
+alter table t1 add primary key (x);
+--disable_info
+select * from t1;
+check table t1;
+
+create or replace table t1 (a varchar(10), y int);
+insert into t1 (a, y) values ("0123456789", 33);
+--enable_info
+alter table t1 modify a char(15);
+alter table t1 add primary key (a);
+--disable_info
+select * from t1;
+check table t1;
+
+create or replace table t1 (x int primary key, y int);
+insert into t1 (x, y) values (44, 55);
+--enable_info
+alter table t1 modify x bigint;
+--disable_info
+select * from t1;
+check table t1;
+
+create or replace table t1 (x int primary key, y int);
+insert into t1 values (66, 77);
+--enable_info
+alter table t1 add column z int;
+alter table t1 drop column y;
+--disable_info
+select * from t1;
+check table t1;
+
+create or replace table t1 (x integer, a varchar(20));
+--enable_info
+insert into t1 (x, a) values (73, 'a');
+alter table t1 add index idx3 (a);
+alter table t1 modify a char(20);
+--disable_info
+select * from t1;
+check table t1;
+
+drop database best;

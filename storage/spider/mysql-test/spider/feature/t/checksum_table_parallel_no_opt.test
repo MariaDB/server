@@ -1,0 +1,5 @@
+--source ../include/checksum_table_parallel_no_opt_init.inc
+--source checksum_table_parallel.inc
+--source ../include/checksum_table_parallel_no_opt_deinit.inc
+--echo
+--echo end of test

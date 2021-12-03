@@ -1,5 +1,5 @@
 /* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2017, MariaDB
+   Copyright (c) 2012, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifdef _WIN32
 #define SERVICE_VERSION __declspec(dllexport) void *
@@ -41,4 +41,5 @@
 #define VERSION_thd_specifics           0x0100
 #define VERSION_thd_timezone            0x0100
 #define VERSION_thd_wait                0x0100
-#define VERSION_wsrep                   0x0202
+#define VERSION_wsrep                   0x0400
+#define VERSION_json                    0x0100

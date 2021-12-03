@@ -1,7 +1,10 @@
+
 # This runs the mysql_client_test using the non-blocking API.
 
 # The non-blocking API is not supported in the embedded server.
 -- source include/not_embedded.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 SET @old_general_log= @@global.general_log;
 SET @old_slow_query_log= @@global.slow_query_log;

@@ -1,0 +1,168 @@
+#
+# Test user account locking
+#
+
+--source include/not_embedded.inc
+
+create user user1@localhost;
+create user user2@localhost;
+
+--echo #
+--echo # Only privileged users should be able to lock/unlock.
+--echo #
+alter user user1@localhost account lock;
+alter user user1@localhost account unlock;
+create user user3@localhost account lock;
+drop user user3@localhost;
+
+connect(con1,localhost,user1);
+connection con1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+alter user user2@localhost account lock;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # ALTER USER USER1 ACCOUNT LOCK should deny the connection of user1,
+--echo # but it should allow user2 to connect.
+--echo #
+
+alter user user1@localhost account lock;
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect(con1,localhost,user1);
+connect(con2,localhost,user2);
+disconnect con2;
+connection default;
+alter user user1@localhost account unlock;
+
+--echo #
+--echo # Passing an incorrect user should return an error unless
+--echo # IF EXISTS is used
+--echo #
+
+--error ER_CANNOT_USER
+alter user inexistentUser@localhost account lock;
+
+alter user if exists inexistentUser@localhost account lock;
+
+--echo #
+--echo # Passing an existing user to CREATE should not be allowed
+--echo # and it should not change the locking state of the current user
+--echo #
+
+show create user user1@localhost;
+--error ER_CANNOT_USER
+create user user1@localhost account lock;
+show create user user1@localhost;
+
+--echo #
+--echo # Passing multiple users should lock them all
+--echo #
+
+alter user user1@localhost, user2@localhost account lock;
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect(con1,localhost,user1);
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect(con2,localhost,user2);
+alter user user1@localhost, user2@localhost account unlock;
+
+--echo #
+--echo # The locking state is preserved after acl reload
+--echo #
+
+alter user user1@localhost account lock;
+flush privileges;
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect(con1,localhost,user1);
+alter user user1@localhost account unlock;
+
+--echo #
+--echo # JSON functions on global_priv reflect the locking state of an account
+--echo #
+
+alter user user1@localhost account lock;
+select host, user, JSON_VALUE(Priv, '$.account_locked') from mysql.global_priv where user='user1';
+alter user user1@localhost account unlock;
+select host, user, JSON_VALUE(Priv, '$.account_locked') from mysql.global_priv where user='user1';
+
+--echo #
+--echo # SHOW CREATE USER correctly displays the locking state of an user
+--echo #
+
+show create user user1@localhost;
+alter user user1@localhost account lock;
+show create user user1@localhost;
+alter user user1@localhost account unlock;
+show create user user1@localhost;
+create user newuser@localhost account lock;
+show create user newuser@localhost;
+drop user newuser@localhost;
+
+--echo #
+--echo # Users should be able to lock themselves
+--echo #
+grant CREATE USER on *.* to user1@localhost;
+connect(con1,localhost,user1);
+connection con1;
+alter user user1@localhost account lock;
+disconnect con1;
+connection default;
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect(con1,localhost,user1);
+alter user user1@localhost account unlock;
+
+--echo #
+--echo # Users should be able to unlock themselves if the connections
+--echo # had been established before the accounts were locked
+--echo #
+grant CREATE USER on *.* to user1@localhost;
+connect(con1,localhost,user1);
+alter user user1@localhost account lock;
+connection con1;
+alter user user1@localhost account unlock;
+show create user user1@localhost;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # COM_CHANGE_USER should return error if the destination
+--echo # account is locked
+--echo #
+alter user user1@localhost account lock;
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+--change_user user1
+
+--echo #
+--echo # MDEV-24098 SHOW CREATE USER invalid for both PASSWORD EXPIRE and
+--echo # and LOCKED
+--echo #
+alter user user1@localhost PASSWORD EXPIRE;
+show create user user1@localhost;
+drop user user1@localhost;
+
+--echo #
+--echo # MDEV-24098 CREATE USER/ALTER USER PASSWORD EXPIRE/LOCK in
+--echo # either order.
+--echo #
+create user user1@localhost PASSWORD EXPIRE ACCOUNT LOCK;
+show create user user1@localhost;
+drop user user1@localhost;
+create user user1@localhost ACCOUNT LOCK PASSWORD EXPIRE;
+show create user user1@localhost;
+alter user user1@localhost  PASSWORD EXPIRE NEVER ACCOUNT UNLOCK ;
+show create user user1@localhost;
+alter user user1@localhost  ACCOUNT LOCK PASSWORD EXPIRE DEFAULT;
+show create user user1@localhost;
+# note output needs to be corrected by MDEV-24114: password expire users cannot be unexpired
+alter user user1@localhost  PASSWORD EXPIRE INTERVAL 60 DAY ACCOUNT UNLOCK;
+select * from mysql.global_priv where user='user1';
+show create user user1@localhost;
+
+drop user user1@localhost;
+drop user user2@localhost;
+

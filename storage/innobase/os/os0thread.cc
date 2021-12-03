@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,11 +25,10 @@ Created 9/8/1995 Heikki Tuuri
 *******************************************************/
 
 #include "univ.i"
-#include "os0thread.h"
 #include "srv0srv.h"
 
 /** Number of threads active. */
-ulint	os_thread_count;
+Atomic_counter<ulint>	os_thread_count;
 
 /***************************************************************//**
 Compares two thread ids for equality.
@@ -119,18 +118,24 @@ os_thread_create_func(
 
 	CloseHandle(handle);
 
-	my_atomic_addlint(&os_thread_count, 1);
+	os_thread_count++;
 
 	return((os_thread_t)new_thread_id);
 #else /* _WIN32 else */
 
 	pthread_attr_t	attr;
 
-	pthread_attr_init(&attr);
+	int	ret = pthread_attr_init(&attr);
+	if (UNIV_UNLIKELY(ret)) {
+		fprintf(stderr,
+			"InnoDB: Error: pthread_attr_init() returned %d\n",
+			ret);
+		abort();
+	}
 
-	my_atomic_addlint(&os_thread_count, 1);
+	os_thread_count++;
 
-	int	ret = pthread_create(&new_thread_id, &attr, func, arg);
+	ret = pthread_create(&new_thread_id, &attr, func, arg);
 
 	ut_a(ret == 0);
 
@@ -183,7 +188,7 @@ os_thread_exit(bool detach)
 	pfs_delete_thread();
 #endif
 
-	my_atomic_addlint(&os_thread_count, ulint(-1));
+	os_thread_count--;
 
 #ifdef _WIN32
 	ExitThread(0);

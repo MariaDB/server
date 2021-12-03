@@ -16,10 +16,11 @@ let MYSQLD_DATADIR=`select @@datadir`;
 CREATE TABLE t1(id INT PRIMARY KEY, c2 INT UNIQUE)
 ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE t2 LIKE t1;
-INSERT INTO t1 VALUES(1,2);
-BEGIN;
+INSERT INTO t1 VALUES(0,2);
 INSERT INTO t2 VALUES(2,1);
 ALTER TABLE t2 ADD COLUMN (c3 TEXT NOT NULL DEFAULT 'De finibus bonorum');
+BEGIN;
+INSERT INTO t2 VALUES(3,4,'accusantium doloremque laudantium');
 
 connect ddl, localhost, root;
 SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
@@ -54,7 +55,8 @@ ALTER TABLE t2 DROP COLUMN c3, ADD COLUMN c5 TEXT DEFAULT 'naturam abhorrere';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-DELETE FROM t1;
+SET debug_dbug='+d,dict_sys_mutex_avoid';
+UPDATE t1 SET c2=c2+1;
 
 --source include/kill_mysqld.inc
 disconnect ddl;
@@ -82,14 +84,18 @@ ALTER TABLE t2 ADD COLUMN (c4 TEXT NOT NULL DEFAULT ' et malorum');
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
+SET debug_dbug='+d,dict_sys_mutex_avoid';
 DELETE FROM t1;
 
 --source include/kill_mysqld.inc
 disconnect ddl;
 --source include/start_mysqld.inc
 
-SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= \[Note\] InnoDB: Rolled back recovered transaction ;
+-- source include/search_pattern_in_file.inc
 
 SELECT * FROM t1;
 SELECT * FROM t2;
@@ -170,11 +176,32 @@ UNLOCK TABLES;
 DELETE FROM t2;
 --source include/wait_all_purged.inc
 
+--echo #
+--echo # MDEV-24323 Crash on recovery after kill during instant ADD COLUMN
+--echo #
+connect ddl, localhost, root;
+CREATE TABLE t3(id INT PRIMARY KEY, c2 INT, v2 INT AS(c2) VIRTUAL, UNIQUE(v2))
+ENGINE=InnoDB;
+INSERT INTO t3 SET id=1,c2=1;
+
+SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
+--send
+ALTER TABLE t3 ADD COLUMN c3 TEXT NOT NULL DEFAULT 'sic transit gloria mundi';
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR ddl';
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+SET debug_dbug='+d,dict_sys_mutex_avoid';
+INSERT INTO t1 VALUES(0,0);
+
+--source include/kill_mysqld.inc
+disconnect ddl;
+--source include/start_mysqld.inc
+
 SHOW CREATE TABLE t1;
 SHOW CREATE TABLE t2;
-DROP TABLE t1,t2;
+SHOW CREATE TABLE t3;
+DROP TABLE t1,t2,t3;
 
 --remove_files_wildcard $MYSQLD_DATADIR/test #sql*.frm
 --list_files $MYSQLD_DATADIR/test
-
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@saved_frequency;

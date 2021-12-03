@@ -3,6 +3,7 @@
 # prune, so the test is EXPLAINs.
 #
 -- source include/have_partition.inc
+--source include/default_optimizer_switch.inc
 
 --disable_warnings
 drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
@@ -892,6 +893,8 @@ create table t1 (a int not null, b int not null, key(a), key(b))
   partition by hash(a) partitions 4;
 insert into t1 values (1,1),(2,2),(3,3),(4,4);
 insert into t1 values (5,5),(6,6),(7,7),(8,8);
+insert into t1 values (9,9),(10,10),(11,11),(12,12);
+insert into t1 values (13,13),(14,14),(15,15),(16,16);
 
 explain partitions 
 select * from t1 X, t1 Y 
@@ -1534,6 +1537,19 @@ insert into t1 values (1,'a','b',1),(2,'a','b',2),(3,'a','b',3);
 select * from t1 where (a = 1 AND b < 'd' AND (c = 'b' OR (c = 'c' AND d = 1)) OR
                        (a = 1 AND b >= 'a' AND (c = 'c' OR (c = 'd' AND d = 2))));
 drop table t1;
+
+--echo #
+--echo # MDEV-14667 Assertion `used_parts > 0' failed in ha_partition::init_record_priority_queue.
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2);
+
+create table t2 (b int, c int, key(c,b)) partition by hash(b) partitions 2;
+insert into t2 values (3,4),(5,6);
+
+select straight_join * from t1, t2 where b != NULL;
+drop table t1, t2;
 
 --echo #
 --echo # MDEV-17493: Partition pruning doesn't work for nested outer joins

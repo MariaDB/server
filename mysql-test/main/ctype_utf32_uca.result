@@ -2952,6 +2952,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf32_unicode_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 "BEGIN ctype_german.inc"
 drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
@@ -4019,7 +4025,7 @@ hex(c)	hex(weight_string(c))	c
 ALTER TABLE t1 ADD KEY(c);
 EXPLAIN SELECT hex(c) FROM t1 WHERE c LIKE 'a%' ORDER BY c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	c	c	43	NULL	2	Using where; Using index
+1	SIMPLE	t1	range	c	c	43	NULL	3	Using where; Using index
 SELECT hex(c), hex(weight_string(c)) FROM t1 WHERE c LIKE 'a%' ORDER BY c;
 hex(c)	hex(weight_string(c))
 00000061	120F
@@ -7913,5 +7919,45 @@ a	b
 DROP TABLE t1;
 SET NAMES utf8;
 #
+# MDEV-25402 Assertion `!str || str != Ptr' failed in String::copy
+#
+SET @c:="SET SESSION collation_connection=utf32_spanish_ci";
+PREPARE s FROM @c;
+EXECUTE s;
+CREATE PROCEDURE p (IN i INT) EXECUTE s;
+SET SESSION character_set_connection=latin1;
+SET @c:="SET @b=get_format(DATE,'EUR')";
+PREPARE s FROM @c;
+EXECUTE s;
+CALL p (@a);
+DEALLOCATE PREPARE s;
+DROP PROCEDURE p;
+SET NAMES utf8;
+SET @c:="SET @b=get_format(DATE,'EUR')";
+PREPARE s FROM @c;
+EXECUTE s;
+SET collation_connection=utf32_spanish_ci;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+SET NAMES utf8;
+#
 # End of 10.2 tests
+#
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-22499 Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed in TABLE_SHARE::init_from_binary_frm_image
+#
+SET @@SESSION.collation_connection=utf32_estonian_ci;
+CREATE TABLE t1(c1 SET('a') COLLATE 'Binary',c2 JSON);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` set('\0\0\0a') CHARACTER SET binary DEFAULT NULL,
+  `c2` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`c2`))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# End of 10.4 tests
 #

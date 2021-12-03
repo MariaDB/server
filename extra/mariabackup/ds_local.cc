@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -23,7 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <mysys_err.h>
 #include "common.h"
 #include "datasink.h"
-#include "univ.i"
 #include "fsp0fsp.h"
 #ifdef _WIN32
 #include <winioctl.h>
@@ -44,12 +43,18 @@ static int local_write(ds_file_t *file, const uchar *buf, size_t len);
 static int local_close(ds_file_t *file);
 static void local_deinit(ds_ctxt_t *ctxt);
 
+static int local_remove(const char *path)
+{
+	return unlink(path);
+}
+
 extern "C" {
 datasink_t datasink_local = {
 	&local_init,
 	&local_open,
 	&local_write,
 	&local_close,
+	&local_remove,
 	&local_deinit
 };
 }
@@ -179,7 +184,9 @@ static void init_ibd_data(ds_local_file_t *local_file, const uchar *buf, size_t 
 	ulint flags = mach_read_from_4(&buf[FIL_PAGE_DATA + FSP_SPACE_FLAGS]);
 	ulint ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
 	local_file->pagesize= ssize == 0 ? UNIV_PAGE_SIZE_ORIG : ((UNIV_ZIP_SIZE_MIN >> 1) << ssize);
-	local_file->compressed =  (my_bool)FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
+	local_file->compressed = fil_space_t::full_crc32(flags)
+		? fil_space_t::is_compressed(flags)
+		: bool(FSP_FLAGS_HAS_PAGE_COMPRESSION(flags));
 
 #if defined(_WIN32) && (MYSQL_VERSION_ID > 100200)
 	/* Make compressed file sparse, on Windows.

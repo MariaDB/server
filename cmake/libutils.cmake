@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 
 # This file exports macros that emulate some functionality found  in GNU libtool
@@ -166,7 +166,7 @@ MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
   ENDFOREACH()
   IF(OSLIBS)
     LIST(REMOVE_DUPLICATES OSLIBS)
-    TARGET_LINK_LIBRARIES(${TARGET} ${OSLIBS})
+    TARGET_LINK_LIBRARIES(${TARGET} LINK_PRIVATE ${OSLIBS})
   ENDIF()
 
   # Make the generated dummy source file depended on all static input
@@ -317,7 +317,7 @@ ELSEIF(UNIX)
   ENDIF()
 ENDIF()
 
-# We try to hide the symbols in yassl/zlib to avoid name clashes with
+# We try to hide the symbols in bundled libraries to avoid name clashes with
 # other libraries like openssl.
 FUNCTION(RESTRICT_SYMBOL_EXPORTS target)
   IF(VISIBILITY_HIDDEN_FLAG)

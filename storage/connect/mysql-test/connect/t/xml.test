@@ -300,6 +300,7 @@ CREATE TABLE t1 (node VARCHAR(50))
   ENGINE=connect TABLE_TYPE=xml FILE_NAME='t1.xml'
   OPTION_LIST='xmlsup=domdoc,rownode=line,encoding=iso-8859-1';
 INSERT INTO t1 VALUES (_latin1 0xC0C1C2C3);
+--replace_regex /.*iso-8859-1.*/warning about characters outside of iso-8859-1/
 INSERT INTO t1 VALUES (_cp1251 0xC0C1C2C3);
 INSERT INTO t1 VALUES ('&<>"\'');
 SELECT node, hex(node) FROM t1;

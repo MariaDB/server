@@ -1,9 +1,6 @@
 #
 # Test year
 #
---disable_warnings
-drop table if exists t1;
---enable_warnings
 
 create table t1 (y year,y2 year(2));
 insert into t1 values (0,0),(1999,1999),(2000,2000),(2001,2001),(70,70),(69,69);
@@ -12,24 +9,27 @@ select * from t1 order by y;
 select * from t1 order by y2;
 drop table t1;
 
-#
-# Bug 2335
-#
+--echo #
+--echo # Bug 2335
+--echo #
 
 create table t1 (y year);
 insert ignore into t1 values (now());
 select if(y = now(), 1, 0) from t1;
 drop table t1;
 
-#
-# Bug #27176: Assigning a string to an year column has unexpected results
-#
+--echo #
+--echo # Bug #27176: Assigning a string to an year column has unexpected results
+--echo #
+
 create table t1(a year);
 insert into t1 values (2000.5), ('2000.5'), ('2001a'), ('2.001E3');
 select * from t1;
 drop table t1;
 
---echo End of 5.0 tests
+--echo #
+--echo # End of 5.0 tests
+--echo #
 
 --echo #
 --echo # Bug #49480: WHERE using YEAR columns returns unexpected results
@@ -169,8 +169,9 @@ ALTER TABLE t1 MODIFY COLUMN c2 YEAR(2);
 DROP TABLE t1;
 
 --echo #
+--echo # End of 5.1 tests
+--echo #
 
---echo End of 5.1 tests
 #
 # fun with convert_const_to_int
 # in some cases 00 is equal to 2000, in others it is not.
@@ -214,12 +215,19 @@ SELECT * FROM t1 WHERE a=10 AND a>=10;
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10 AND a>=10;
 DROP TABLE t1;
 
---echo #
---echo # End of 10.1 tests
---echo #
 
 --echo #
---echo # Start of 10.2 tests
+--echo # MDEV-16958 Assertion `field_length < 5' failed in Field_year::val_str or data corruption upon SELECT with UNION and aggregate functions
+--echo #
+
+CREATE TABLE t1 (f YEAR);
+INSERT IGNORE INTO t1 VALUES (1971),(1972);
+SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1 UNION SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
 --echo #
 
 --echo #
@@ -257,6 +265,17 @@ SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY a YEAR;
 DROP TABLE t1;
 
+--echo #
+--echo # Various widths of the YEAR
+--echo #
+create or replace table t1 (a YEAR(0)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(1)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(2)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(3)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(4)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(5)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(100)); SHOW CREATE TABLE t1;
+drop table t1;
 
 --echo #
 --echo # End of 10.2 tests
@@ -314,6 +333,21 @@ CREATE TABLE t1 (a YEAR);
 INSERT INTO t1 VALUES (NULL);
 SELECT COALESCE(a), DATE(COALESCE(a)) FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23337 Rounding functions create a wrong data type for numeric input
+--echo #
+
+CREATE TABLE t1 (a YEAR(2));
+CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+DESC t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 (a YEAR(4));
+CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+DESC t2;
+DROP TABLE t2,t1;
+
 
 --echo #
 --echo # End of 10.4 tests

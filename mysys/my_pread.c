@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include "mysys_err.h"
@@ -68,6 +68,8 @@ size_t my_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset,
 
     if (readbytes != Count)
     {
+      /* We should never read with wrong file descriptor! */
+      DBUG_ASSERT(readbytes != (size_t)-1 || errno != EBADF);
       my_errno= errno;
       if (errno == 0 || (readbytes != (size_t) -1 &&
                          (MyFlags & (MY_NABP | MY_FNABP))))

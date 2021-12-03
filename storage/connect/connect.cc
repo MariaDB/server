@@ -13,10 +13,10 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /***********************************************************************/
-/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2017    */
+/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2019    */
 /*                                                                     */
 /*  WHAT THIS PROGRAM DOES:                                            */
 /*  -----------------------                                            */
@@ -73,8 +73,7 @@ PGLOBAL CntExit(PGLOBAL g)
 			g->Activityp = NULL;
 		}	// endif Activityp
 
-    PlugExit(g);
-    g= NULL;
+    g= PlugExit(g);
     } // endif g
 
   return g;
@@ -295,9 +294,9 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 		/* its column blocks in mode write (required by XML tables).       */
 		/*******************************************************************/
 		if (mode == MODE_UPDATE) {
-			PTDBASE utp;
+			PTDB utp;
 
-			if (!(utp = (PTDBASE)tdbp->Duplicate(g))) {
+			if (!(utp = tdbp->Duplicate(g))) {
 				sprintf(g->Message, MSG(INV_UPDT_TABLE), tdbp->GetName());
 				throw 4;
 			} // endif tp
@@ -355,7 +354,6 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 		} // endif mode
 
 		rcop = false;
-
 	} catch (int n) {
 		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
@@ -389,6 +387,9 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
 	try {
 		for (colp = tdbp->GetColumns(); rc == RC_OK && colp;
 			colp = colp->GetNext()) {
+			xtrc(2, "Going to read column %s of table %s\n",
+				colp->GetName(), tdbp->GetName());
+
 			if (reset)
 				colp->Reset();
 
@@ -563,7 +564,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 			rc = tdbp->DeleteDB(g, RC_EF);    // Specific A.M. delete routine
 
 	} else if (tdbp->GetMode() == MODE_UPDATE && tdbp->IsIndexed())
-		rc = ((PTDBDOX)tdbp)->Txfp->UpdateSortedRows(g);
+		rc = ((PTDBDOS)tdbp)->GetTxfp()->UpdateSortedRows(g);
 
 	switch (rc) {
 		case RC_FX:
@@ -590,7 +591,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 
 			if (!tdbp->IsRemote()) {
 				// Make all the eventual indexes
-				PTDBDOX tbxp = (PTDBDOX)tdbp;
+				PTDBASE tbxp = (PTDBASE)tdbp;
 				tbxp->ResetKindex(g, NULL);
 				tbxp->SetKey_Col(NULL);
 				rc = tbxp->ResetTableOpt(g, true, tbxp->GetDef()->Indexable() == 1);
@@ -619,8 +620,8 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   {
   PIXDEF  xdp;
-  PTDBDOX tdbp;
-  DOXDEF *dfp;
+  PTDBDOS tdbp;
+  DOSDEF *dfp;
 
   if (!ptdb)
     return -1;
@@ -630,9 +631,9 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   } else if (ptdb->GetDef()->Indexable() == 3) {
     return 1;
   } else
-    tdbp= (PTDBDOX)ptdb;
+    tdbp= (PTDBDOS)ptdb;
 
-  dfp= (DOXDEF*)tdbp->To_Def;
+  dfp= (DOSDEF*)tdbp->GetDef();
 
 //if (!(k= colp->GetKey()))
 //  if (colp->GetOpt() >= 2) {
@@ -642,16 +643,18 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
       // This is a pseudo indexed sorted block optimized column
 //    return 0;
 
-  if (tdbp->To_Kindex)
-    if (((XXBASE*)tdbp->To_Kindex)->GetID() == id) {
-      tdbp->To_Kindex->Reset();                // Same index
-      return (tdbp->To_Kindex->IsMul()) ? 2 : 1;
+  if (tdbp->GetKindex())
+  {
+    if (((XXBASE*)tdbp->GetKindex())->GetID() == id) {
+      tdbp->GetKindex()->Reset();                // Same index
+      return (tdbp->GetKindex()->IsMul()) ? 2 : 1;
     } else {
-      tdbp->To_Kindex->Close();
-      tdbp->To_Kindex= NULL;
+      tdbp->GetKindex()->Close();
+      tdbp->SetKindex(NULL);
     } // endif colp
+  }
 
-  for (xdp= dfp->To_Indx; xdp; xdp= xdp->GetNext())
+  for (xdp= dfp->GetIndx(); xdp; xdp= xdp->GetNext())
     if (xdp->GetID() == id)
       break;
 
@@ -673,7 +676,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   if (tdbp->InitialyzeIndex(g, xdp, sorted))
     return 0;
 
-  return (tdbp->To_Kindex->IsMul()) ? 2 : 1;
+  return (tdbp->GetKindex()->IsMul()) ? 2 : 1;
   } // end of CntIndexInit
 
 #if defined(WORDS_BIGENDIAN)
@@ -707,7 +710,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   int     n, x;
   RCODE   rc;
   XXBASE *xbp;
-	PTDBDOX tdbp;
+	PTDBDOS tdbp;
 
   if (!ptdb)
     return RC_FX;
@@ -733,12 +736,12 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 
     goto rnd;
   } else
-    tdbp= (PTDBDOX)ptdb;
+    tdbp= (PTDBDOS)ptdb;
 
   // Set reference values and index operator
-  if (!tdbp->To_Link || !tdbp->To_Kindex) {
+  if (!tdbp->GetLink() || !tdbp->GetKindex()) {
 //  if (!tdbp->To_Xdp) {
-      sprintf(g->Message, "Index not initialized for table %s", tdbp->Name);
+      sprintf(g->Message, "Index not initialized for table %s", tdbp->GetName());
       return RC_FX;
 #if 0
       } // endif !To_Xdp
@@ -751,7 +754,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 #endif // 0
     } // endif !To_Kindex
 
-  xbp= (XXBASE*)tdbp->To_Kindex;
+  xbp= (XXBASE*)tdbp->GetKindex();
 
   if (kr) {
 		char   *kp= (char*)kr->key;
@@ -761,13 +764,13 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 		PVAL    valp;
 		PCOL    colp;
 
-    for (n= 0; n < tdbp->Knum; n++) {
-      colp= (PCOL)tdbp->To_Key_Col[n];
+    for (n= 0; n < tdbp->GetKnum(); n++) {
+      colp= (PCOL)tdbp->Key(n);
 
       if (colp->GetColUse(U_NULLS))
         kp++;                   // Skip null byte
 
-      valp= tdbp->To_Link[n]->GetValue();
+      valp= tdbp->Link(n)->GetValue();
 
       if (!valp->IsTypeNum()) {
         if (colp->GetColUse(U_VAR)) {
@@ -837,7 +840,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   bool    b, rcb;
   PVAL    valp;
   PCOL    colp;
-  PTDBDOX tdbp;
+  PTDBDOS tdbp;
   XXBASE *xbp;
 
   if (!ptdb)
@@ -862,35 +865,35 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
     return k[1] - k[0] + 1;
   } else
-    tdbp= (PTDBDOX)ptdb;
+    tdbp= (PTDBDOS)ptdb;
 
-  if (!tdbp->To_Kindex || !tdbp->To_Link) {
-    if (!tdbp->To_Xdp) {
-      sprintf(g->Message, "Index not initialized for table %s", tdbp->Name);
+  if (!tdbp->GetKindex() || !tdbp->GetLink()) {
+    if (!tdbp->GetXdp()) {
+      sprintf(g->Message, "Index not initialized for table %s", tdbp->GetName());
       DBUG_PRINT("Range", ("%s", g->Message));
       return -1;
     } else       // Dynamic index
-      return tdbp->To_Xdp->GetMaxSame();     // TODO a better estimate
+      return tdbp->GetXdp()->GetMaxSame();     // TODO a better estimate
 
   } else
-    xbp= (XXBASE*)tdbp->To_Kindex;
+    xbp= (XXBASE*)tdbp->GetKindex();
 
   for (b= false, i= 0; i < 2; i++) {
     p= kp= key[i];
 
     if (kp) {
-      for (n= 0; n < tdbp->Knum; n++) {
+      for (n= 0; n < tdbp->GetKnum(); n++) {
         if (kmap[i] & (key_part_map)(1 << n)) {
           if (b == true)
             // Cannot do indexing with missing intermediate key
             return -1;
 
-          colp= (PCOL)tdbp->To_Key_Col[n];
+          colp= (PCOL)tdbp->Key(n);
 
           if (colp->GetColUse(U_NULLS))
             p++;                   // Skip null byte  ???
 
-          valp= tdbp->To_Link[n]->GetValue();
+          valp= tdbp->Link(n)->GetValue();
 
           if (!valp->IsTypeNum()) {
             if (colp->GetColUse(U_VAR)) {

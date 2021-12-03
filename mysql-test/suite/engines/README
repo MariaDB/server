@@ -2,6 +2,11 @@ This directory includes a set of three test suites aimed as testing
 functionality in an engine independent way, that is - the tests should
 work identically against different engines.
 
+If you are an engine writer and wants to test if your engine is compatible with
+other engines in MariaDB, you should instead of using this test suite use
+the storage_engine test suite which is more suitable for that purpose.
+
+
 The following suites are included:
 
 1) 'funcs' suite

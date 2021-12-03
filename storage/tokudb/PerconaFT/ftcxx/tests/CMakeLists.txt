@@ -2,9 +2,9 @@ include_directories(..)
 include_directories(../../src)
 include_directories(../../src/tests)
 
-find_library(JEMALLOC_STATIC_LIBRARY libjemalloc.a)
-
 if (BUILD_TESTING)
+  find_library(JEMALLOC_STATIC_LIBRARY libjemalloc.a)
+
   ## reference implementation with simple size-doubling buffer without
   ## jemalloc size tricks
   add_library(doubling_buffer_ftcxx STATIC

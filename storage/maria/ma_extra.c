@@ -11,12 +11,9 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "maria_def.h"
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 #include "ma_blockrec.h"
 
 static void maria_extra_keyflag(MARIA_HA *info,
@@ -213,7 +210,13 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
 	    info->last_key.data + share->base.max_key_length*2,
 	    info->save_lastkey_data_length + info->save_lastkey_ref_length);
       info->update=	info->save_update | HA_STATE_WRITTEN;
-      info->lastinx=	info->save_lastinx;
+      if (info->lastinx != info->save_lastinx)             /* Index changed */
+      {
+        info->lastinx = info->save_lastinx;
+        info->last_key.keyinfo= info->s->keyinfo + info->lastinx;
+        info->last_key.flag= 0;
+        info->page_changed=1;
+      }
       info->cur_row.lastpos= info->save_lastpos;
       info->last_key.data_length= info->save_lastkey_data_length;
       info->last_key.ref_length= info->save_lastkey_ref_length;
@@ -286,7 +289,6 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       We however do a flush here for additional safety.
     */
     /** @todo consider porting these flush-es to MyISAM */
-    DBUG_ASSERT(share->reopen == 1);
     error= _ma_flush_table_files(info, MARIA_FLUSH_DATA | MARIA_FLUSH_INDEX,
                                  FLUSH_FORCE_WRITE, FLUSH_FORCE_WRITE);
     if (!error && share->changed)
@@ -314,6 +316,8 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     share->state.open_count= 1;
     share->changed= 1;
     _ma_mark_file_changed_now(share);
+    if (share->temporary)
+      break;
     /* fall through */
   case HA_EXTRA_PREPARE_FOR_RENAME:
   {
@@ -420,7 +424,11 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       error= _ma_flush_table_files(info, MARIA_FLUSH_DATA | MARIA_FLUSH_INDEX,
                                    FLUSH_KEEP, FLUSH_KEEP);
 
+    mysql_mutex_lock(&share->intern_lock);
+    /* Tell maria_lock_database() that we locked the intern_lock mutex */
+    info->intern_lock_locked= 1;
     _ma_decrement_open_count(info, 1);
+    info->intern_lock_locked= 0;
     if (share->not_flushed)
     {
       share->not_flushed= 0;
@@ -433,6 +441,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
         _ma_set_fatal_error(share, HA_ERR_CRASHED);
       }
     }
+    mysql_mutex_unlock(&share->intern_lock);
     break;
   case HA_EXTRA_NORMAL:				/* Theese isn't in use */
     info->quick_mode= 0;
@@ -530,6 +539,7 @@ int maria_reset(MARIA_HA *info)
 {
   int error= 0;
   MARIA_SHARE *share= info->s;
+  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("maria_reset");
   /*
     Free buffers and reset the following flags:
@@ -550,13 +560,13 @@ int maria_reset(MARIA_HA *info)
     {
       info->rec_buff_size= 1;                 /* Force realloc */
       _ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
-                       share->base.default_rec_buff_size);
+                       share->base.default_rec_buff_size, flag);
     }
     if (info->blob_buff_size > MARIA_SMALL_BLOB_BUFFER)
     {
       info->blob_buff_size= 1;                 /* Force realloc */
       _ma_alloc_buffer(&info->blob_buff, &info->blob_buff_size,
-                       MARIA_SMALL_BLOB_BUFFER);
+                       MARIA_SMALL_BLOB_BUFFER, flag);
     }
   }
 #if defined(HAVE_MMAP) && defined(HAVE_MADVISE)

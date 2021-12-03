@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -69,22 +69,30 @@ fil_get_page_type_name(
 	case FIL_PAGE_TYPE_ZBLOB2:
 		return "ZBLOB2";
 	case FIL_PAGE_TYPE_UNKNOWN:
-		return "OLD UNKOWN PAGE TYPE";
+		return "OLD UNKNOWN PAGE TYPE";
 	default:
 		return "PAGE TYPE CORRUPTED";
 	}
 }
 
-/****************************************************************//**
-Validate page type.
+#ifdef UNIV_DEBUG
+/** Validate page type.
+@param[in]	space	Tablespace object
+@param[in]	page	page to validate
 @return true if valid, false if not */
 UNIV_INLINE
 bool
 fil_page_type_validate(
-	const byte*	page)	/*!< in: page */
+	fil_space_t*	space,
+	const byte*	page)
 {
-#ifdef UNIV_DEBUG
 	ulint page_type = mach_read_from_2(page + FIL_PAGE_TYPE);
+
+	if ((page_type & 1U << FIL_PAGE_COMPRESS_FCRC32_MARKER)
+	    && space->full_crc32()
+	    && space->is_compressed()) {
+		return true;
+	}
 
 	/* Validate page type */
 	if (!((page_type == FIL_PAGE_PAGE_COMPRESSED ||
@@ -106,25 +114,31 @@ fil_page_type_validate(
 		page_type == FIL_PAGE_TYPE_ZBLOB2 ||
 		page_type == FIL_PAGE_TYPE_UNKNOWN))) {
 
-		ulint space = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+		ulint space_id = mach_read_from_4(
+			page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+
 		ulint offset = mach_read_from_4(page + FIL_PAGE_OFFSET);
-		fil_system_enter();
-		fil_space_t* rspace = fil_space_get_by_id(space);
-		fil_system_exit();
+
+		ulint key_version = mach_read_from_4(
+			page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+
+		if (space && space->full_crc32()) {
+			key_version = mach_read_from_4(
+				page + FIL_PAGE_FCRC32_KEY_VERSION);
+		}
 
 		/* Dump out the page info */
-		ib::fatal() << "Page " << space << ":" << offset
-			<< " name " << (rspace ? rspace->name : "???")
+		ib::fatal() << "Page " << space_id << ":" << offset
+			<< " name " << (space ? space->name : "???")
 			<< " page_type " << page_type
-			<< " key_version "
-			<< mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
+			<< " key_version " << key_version
 			<< " lsn " << mach_read_from_8(page + FIL_PAGE_LSN)
 			<< " compressed_len " << mach_read_from_2(page + FIL_PAGE_DATA);
 		return false;
 	}
 
-#endif /* UNIV_DEBUG */
 	return true;
 }
+#endif /* UNIV_DEBUG */
 
 #endif /* fil0fil_ic */

@@ -319,6 +319,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "sql_analyse.h"                        // append_escaped()
 #include "sql_show.h"                           // append_identifier()
 #include "tztime.h"                             // my_tz_find()
+#include "sql_select.h"
 
 #ifdef I_AM_PARANOID
 #define MIN_PORT 1023
@@ -401,6 +402,12 @@ static void init_federated_psi_keys(void)
 #define init_federated_psi_keys() /* no-op */
 #endif /* HAVE_PSI_INTERFACE */
 
+handlerton* federatedx_hton;
+
+static derived_handler*
+create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived);
+static select_handler*
+create_federatedx_select_handler(THD* thd, SELECT_LEX *sel);
 
 /*
   Initialize the federatedx handler.
@@ -418,7 +425,7 @@ int federatedx_db_init(void *p)
 {
   DBUG_ENTER("federatedx_db_init");
   init_federated_psi_keys();
-  handlerton *federatedx_hton= (handlerton *)p;
+  federatedx_hton= (handlerton *)p;
   federatedx_hton->state= SHOW_OPTION_YES;
   /* Needed to work with old .frm files */
   federatedx_hton->db_type= DB_TYPE_FEDERATED_DB;
@@ -432,6 +439,8 @@ int federatedx_db_init(void *p)
   federatedx_hton->discover_table_structure= ha_federatedx::discover_assisted;
   federatedx_hton->create= federatedx_create_handler;
   federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
+  federatedx_hton->create_derived= create_federatedx_derived_handler;
+  federatedx_hton->create_select= create_federatedx_select_handler;
 
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))
@@ -798,12 +807,12 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
       goto error;
 
     if (share->hostname[0] == '\0')
-      share->hostname= NULL;
+      share->hostname= strdup_root(mem_root, my_localhost);
 
   }
   if (!share->port)
   {
-    if (!share->hostname || strcmp(share->hostname, my_localhost) == 0)
+    if (0 == strcmp(share->hostname, my_localhost))
       share->socket= (char *) MYSQL_UNIX_ADDR;
     else
       share->port= MYSQL_PORT;
@@ -862,7 +871,7 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
   ulong *lengths;
   Field **field;
   int column= 0;
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   Time_zone *saved_time_zone= table->in_use->variables.time_zone;
   DBUG_ENTER("ha_federatedx::convert_row_to_internal_format");
 
@@ -891,7 +900,7 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
     (*field)->move_field_offset(-old_ptr);
   }
   table->in_use->variables.time_zone= saved_time_zone;
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   DBUG_RETURN(0);
 }
 
@@ -1220,7 +1229,6 @@ bool ha_federatedx::create_where_from_key(String *to,
   String tmp(tmpbuff, sizeof(tmpbuff), system_charset_info);
   const key_range *ranges[2]= { start_key, end_key };
   Time_zone *saved_time_zone= table->in_use->variables.time_zone;
-  my_bitmap_map *old_map;
   DBUG_ENTER("ha_federatedx::create_where_from_key");
 
   tmp.length(0); 
@@ -1228,7 +1236,7 @@ bool ha_federatedx::create_where_from_key(String *to,
     DBUG_RETURN(1);
 
   table->in_use->variables.time_zone= UTC;
-  old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   for (uint i= 0; i <= 1; i++)
   {
     bool needs_quotes;
@@ -1404,7 +1412,7 @@ prepare_for_next_key_part:
                   tmp.c_ptr_quick()));
     }
   }
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   table->in_use->variables.time_zone= saved_time_zone;
 
   if (both_not_null)
@@ -1420,7 +1428,7 @@ prepare_for_next_key_part:
   DBUG_RETURN(0);
 
 err:
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   table->in_use->variables.time_zone= saved_time_zone;
   DBUG_RETURN(1);
 }
@@ -1978,7 +1986,7 @@ bool ha_federatedx::append_stmt_insert(String *query)
   sql_insert.cc, sql_select.cc, sql_table.cc, sql_udf.cc, and sql_update.cc.
 */
 
-int ha_federatedx::write_row(uchar *buf)
+int ha_federatedx::write_row(const uchar *buf)
 {
   char values_buffer[FEDERATEDX_QUERY_BUFFER_SIZE];
   char insert_field_value_buffer[STRING_BUFFER_USUAL_SIZE];
@@ -1995,7 +2003,7 @@ int ha_federatedx::write_row(uchar *buf)
                                    sizeof(insert_field_value_buffer),
                                    &my_charset_bin);
   Time_zone *saved_time_zone= table->in_use->variables.time_zone;
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   DBUG_ENTER("ha_federatedx::write_row");
 
   table->in_use->variables.time_zone= UTC;
@@ -2050,7 +2058,7 @@ int ha_federatedx::write_row(uchar *buf)
       values_string.append(STRING_WITH_LEN(", "));
     }
   }
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   table->in_use->variables.time_zone= saved_time_zone;
 
   /*
@@ -2375,7 +2383,7 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
       else
       {
         /* otherwise = */
-        my_bitmap_map *old_map= tmp_use_all_columns(table, table->read_set);
+        MY_BITMAP *old_map= tmp_use_all_columns(table, &table->read_set);
         bool needs_quote= (*field)->str_needs_quotes();
 	(*field)->val_str(&field_value);
         if (needs_quote)
@@ -2384,7 +2392,7 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
         if (needs_quote)
           update_string.append(value_quote_char);
         field_value.length(0);
-        tmp_restore_column_map(table->read_set, old_map);
+        tmp_restore_column_map(&table->read_set, old_map);
       }
       update_string.append(STRING_WITH_LEN(", "));
     }
@@ -2933,7 +2941,7 @@ int ha_federatedx::read_next(uchar *buf, FEDERATEDX_IO_RESULT *result)
     DBUG_RETURN(retval);
 
   /* Fetch a row, insert it back in a row format. */
-  if (!(row= io->fetch_row(result)))
+  if (!(row= io->fetch_row(result, &current)))
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   if (!(retval= convert_row_to_internal_format(buf, row, result)))
@@ -2977,7 +2985,7 @@ void ha_federatedx::position(const uchar *record __attribute__ ((unused)))
   if (txn->acquire(share, ha_thd(), TRUE, &io))
     DBUG_VOID_RETURN;
 
-  io->mark_position(stored_result, ref);
+  io->mark_position(stored_result, ref, current);
 
   position_called= TRUE;
 
@@ -3385,8 +3393,7 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
     goto error;
 
   /* loopback socket connections hang due to LOCK_open mutex */
-  if ((!tmp_share.hostname || !strcmp(tmp_share.hostname,my_localhost)) &&
-      !tmp_share.port)
+  if (0 == strcmp(tmp_share.hostname, my_localhost) && !tmp_share.port)
     goto error;
 
   /*
@@ -3412,7 +3419,9 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
   {
     FEDERATEDX_SERVER server;
 
-    fill_server(thd->mem_root, &server, &tmp_share, create_info->table_charset);
+    // It's possibly wrong to use alter_table_convert_to_charset here.
+    fill_server(thd->mem_root, &server, &tmp_share,
+                create_info->alter_table_convert_to_charset);
 
 #ifndef DBUG_OFF
     mysql_mutex_init(fe_key_mutex_FEDERATEDX_SERVER_mutex,
@@ -3612,6 +3621,9 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   char buf[1024];
   String query(buf, sizeof(buf), cs);
   static LEX_CSTRING cut_clause={STRING_WITH_LEN(" WITH SYSTEM VERSIONING")};
+  static LEX_CSTRING cut_start={STRING_WITH_LEN("GENERATED ALWAYS AS ROW START")};
+  static LEX_CSTRING cut_end={STRING_WITH_LEN("GENERATED ALWAYS AS ROW END")};
+  static LEX_CSTRING set_ts={STRING_WITH_LEN("DEFAULT TIMESTAMP'1971-01-01 00:00:00'")};
   int cut_offset;
   MYSQL_RES *res;
   MYSQL_ROW rdata;
@@ -3650,7 +3662,21 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   cut_offset= (int)query.length() - (int)cut_clause.length;
   if (cut_offset > 0 && !memcmp(query.ptr() + cut_offset,
                                 cut_clause.str, cut_clause.length))
+  {
     query.length(cut_offset);
+    const char *ptr= strstr(query.ptr(), cut_start.str);
+    if (ptr)
+    {
+      query.replace((uint32) (ptr - query.ptr()), (uint32) cut_start.length,
+                    set_ts.str, (uint32) set_ts.length);
+    }
+    ptr= strstr(query.ptr(), cut_end.str);
+    if (ptr)
+    {
+      query.replace((uint32) (ptr - query.ptr()), (uint32) cut_end.length,
+                    set_ts.str, (uint32) set_ts.length);
+    }
+  }
   query.append(STRING_WITH_LEN(" CONNECTION='"), cs);
   query.append_for_single_quote(table_s->connect_string.str,
                                 table_s->connect_string.length);
@@ -3672,6 +3698,13 @@ err1:
 struct st_mysql_storage_engine federatedx_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+my_bool use_pushdown;
+static MYSQL_SYSVAR_BOOL(pushdown, use_pushdown, 0,
+  "Use query fragments pushdown capabilities", NULL, NULL, FALSE);
+static struct st_mysql_sys_var* sysvars[]= { MYSQL_SYSVAR(pushdown), NULL };
+
+#include "federatedx_pushdown.cc"
+
 maria_declare_plugin(federatedx)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -3684,8 +3717,9 @@ maria_declare_plugin(federatedx)
   federatedx_done, /* Plugin Deinit */
   0x0201 /* 2.1 */,
   NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
+  sysvars,                    /* system variables                */
   "2.1",                      /* string version */
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;
+

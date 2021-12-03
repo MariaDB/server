@@ -1,0 +1,158 @@
+connect  con1,localhost,root,,;
+SET SESSION lock_wait_timeout = 1;
+#-----------------------------------------------------------------------
+# Single-threaded tests
+#-----------------------------------------------------------------------
+# Show the fate and impact of some SELECT /HANDLER ... READ
+# sliding through the sequence.
+CREATE TABLE t_permanent_aria (col1 INT) ENGINE = Aria TRANSACTIONAL = 0;
+INSERT INTO t_permanent_aria SET col1 = 1;
+BACKUP STAGE START;
+SELECT COUNT(*) FROM t_permanent_aria;
+COUNT(*)
+1
+HANDLER t_permanent_aria OPEN;
+HANDLER t_permanent_aria READ FIRST;
+col1
+1
+HANDLER t_permanent_aria CLOSE;
+BACKUP STAGE FLUSH;
+SELECT COUNT(*) FROM t_permanent_aria;
+COUNT(*)
+1
+HANDLER t_permanent_aria OPEN;
+HANDLER t_permanent_aria READ FIRST;
+col1
+1
+HANDLER t_permanent_aria CLOSE;
+BACKUP STAGE BLOCK_DDL;
+SELECT COUNT(*) FROM t_permanent_aria;
+COUNT(*)
+1
+HANDLER t_permanent_aria OPEN;
+HANDLER t_permanent_aria READ FIRST;
+col1
+1
+HANDLER t_permanent_aria CLOSE;
+BACKUP STAGE BLOCK_COMMIT;
+SELECT COUNT(*) FROM t_permanent_aria;
+COUNT(*)
+1
+HANDLER t_permanent_aria OPEN;
+HANDLER t_permanent_aria READ FIRST;
+col1
+1
+HANDLER t_permanent_aria CLOSE;
+BACKUP STAGE END;
+# In case the backup lock is taken by the current connection than
+# - DML modifying some permanent table is not allowed
+BACKUP STAGE START;
+SET AUTOCOMMIT = 0;
+INSERT INTO t_permanent_aria SET col1 = 1;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+SET AUTOCOMMIT = 1;
+INSERT INTO t_permanent_aria SET col1 = 1;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+# - DDL creating or renaming a permanent table or a procedure is not
+#   allowed.
+#   The latter tries to modify a permanent system table.
+CREATE TABLE throw_away (col1 INT) ENGINE = Aria TRANSACTIONAL = 0;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+RENAME TABLE t_permanent_aria To throw_away;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+# - DDL creating a temporary table is allowed.
+CREATE TEMPORARY TABLE t_temporary_aria (col1 INT) ENGINE = Aria TRANSACTIONAL = 0;
+# - DML modifying that temporary table is allowed.
+INSERT INTO t_temporary_aria SET col1 = 1;
+SELECT COUNT(*) FROM t_temporary_aria;
+COUNT(*)
+1
+BACKUP STAGE END;
+# Show the fate and impact of some auto committed INSERT into temporary
+# table sliding through the sequence.
+SET AUTOCOMMIT = 1;
+BACKUP STAGE START;
+INSERT INTO t_temporary_aria SET col1 = 1;
+BACKUP STAGE FLUSH;
+INSERT INTO t_temporary_aria SET col1 = 1;
+BACKUP STAGE BLOCK_DDL;
+INSERT INTO t_temporary_aria SET col1 = 1;
+BACKUP STAGE BLOCK_COMMIT;
+INSERT INTO t_temporary_aria SET col1 = 1;
+BACKUP STAGE END;
+SELECT COUNT(*) FROM t_temporary_aria;
+COUNT(*)
+5
+# Show the fate and impact of some DROP/CREATE TEMPORARY TABLE sliding
+# through the sequence.
+SET AUTOCOMMIT = 1;
+BACKUP STAGE START;
+DROP TEMPORARY TABLE t_temporary_aria;
+CREATE TEMPORARY TABLE t_temporary_aria (col1 INT) ENGINE = Aria TRANSACTIONAL = 0;
+BACKUP STAGE FLUSH;
+DROP TEMPORARY TABLE t_temporary_aria;
+CREATE TEMPORARY TABLE t_temporary_aria (col1 INT) ENGINE = Aria TRANSACTIONAL = 0;
+BACKUP STAGE BLOCK_DDL;
+DROP TEMPORARY TABLE t_temporary_aria;
+CREATE TEMPORARY TABLE t_temporary_aria (col1 INT) ENGINE = Aria TRANSACTIONAL = 0;
+BACKUP STAGE BLOCK_COMMIT;
+DROP TEMPORARY TABLE t_temporary_aria;
+CREATE TEMPORARY TABLE t_temporary_aria (col1 INT) ENGINE = Aria TRANSACTIONAL = 0;
+BACKUP STAGE END;
+# Show that even more DDL on the temporary table is allowed.
+BACKUP STAGE START;
+TRUNCATE t_temporary_aria;
+ALTER TABLE t_temporary_aria ADD COLUMN col2 INT;
+ALTER TABLE t_temporary_aria ADD KEY idx(col2);
+BACKUP STAGE END;
+DROP TABLE t_permanent_aria;
+#-----------------------------------------------------------------------
+# Show that non transactional tables locks with BACKUP STAGE FLUSH
+#-----------------------------------------------------------------------
+set session lock_wait_timeout=default;
+create table t1 (a int) engine=aria transactional=0;
+insert into t1 values (1), (2);
+connection con1;
+backup stage start;
+backup stage flush;
+connection default;
+select * from t1;
+a
+1
+2
+SET STATEMENT lock_wait_timeout=0 FOR INSERT INTO t1 values (3);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+INSERT INTO t1 values (4);
+connection con1;
+backup stage end;
+connection default;
+select * from t1;
+a
+1
+2
+4
+drop table t1;
+#-----------------------------------------------------------------------
+# Show that transactional tables doesn't lock with BACKUP STAGE FLUSH
+#-----------------------------------------------------------------------
+set session lock_wait_timeout=default;
+create table t1 (a int) engine=aria transactional=1 page_checksum=1;
+insert into t1 values (1), (2);
+connection con1;
+backup stage start;
+backup stage flush;
+connection default;
+INSERT INTO t1 values (4);
+connection con1;
+backup stage end;
+connection default;
+select * from t1;
+a
+1
+2
+4
+drop table t1;
+#
+# Cleanup
+#
+disconnect con1;

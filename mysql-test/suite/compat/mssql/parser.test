@@ -1,0 +1,68 @@
+SET sql_mode=MSSQL;
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-19142 sql_mode=MSSQL: Bracket identifiers
+--echo #
+
+# Brackets inside bracket identifiers:
+# - When we want a left bracket inside a bracket identifier,
+#   we just add a single left bracket: [
+# - When we want a right bracket inside a bracket identifier,
+#   we add two right brackets: ]]
+
+
+SELECT 'test' AS [[];
+SELECT 'test' AS []]];
+SELECT 'test' AS [[a]]];
+
+# Backslash has no special meaning
+SELECT 'test' AS [\n];
+
+
+CREATE TABLE [t 1] ([a b] INT);
+SHOW CREATE TABLE [t 1];
+INSERT INTO [t 1] VALUES (10);
+SELECT [a b] FROM [t 1];
+SELECT [a b] [a b alias] FROM [t 1] [t 1 alias];
+SELECT [a b] FROM [test].[t 1];
+SELECT [a b], COUNT(*) FROM [t 1] GROUP BY [a b];
+SELECT [a b], COUNT(*) FROM [t 1] GROUP BY [a b] HAVING [a b]>0;
+DROP TABLE [t 1];
+
+CREATE TABLE [t[1]]] (a INT);
+SHOW CREATE TABLE [t[1]]];
+DROP TABLE [t[1]]];
+
+CREATE TABLE [t 1] ([a b] INT);
+CREATE VIEW [v 1] AS SELECT [a b] FROM [t 1];
+SHOW CREATE VIEW [v 1];
+SELECT * FROM [v 1];
+DROP VIEW [v 1];
+DROP TABLE [t 1];
+
+DELIMITER $$;
+CREATE PROCEDURE [p 1]()
+BEGIN
+  SELECT 'test' [a b];
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE PROCEDURE [p 1];
+CALL [p 1];
+DROP PROCEDURE [p 1];
+
+CREATE TABLE [t1] ([a] INT);
+INSERT INTO t1 VALUES (10);
+PREPARE [stmt] FROM 'SELECT [a] FROM [test].[t1]';
+EXECUTE [stmt];
+DEALLOCATE PREPARE [stmt];
+EXECUTE IMMEDIATE 'SELECT [a] FROM [test].[t1]';
+DROP TABLE [t1];
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

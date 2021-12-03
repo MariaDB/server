@@ -1,0 +1,2 @@
+--plugin-load=$HA_ROCKSDB_SO --default-storage-engine=rocksdb
+

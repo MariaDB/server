@@ -654,3 +654,22 @@ show status like 'Handler_read%';
 drop table t1, t2;
 
 --echo # End of MariaDB 10.0 tests
+
+--echo #
+--echo # MDEV-18945: multi-table update with constant table and
+--echo #             comparison of date field with integer field
+--echo #
+
+CREATE TABLE t1 (i1 int, d1 date , i2 int , d2 date) engine=myisam;
+INSERT INTO t1 VALUES (19,'0000-00-00',73,'2008-05-21');
+
+CREATE TABLE t2 (d1 date , i1 int, i2 int , d2 date) engine=myisam;
+INSERT INTO t2 VALUES
+  ('2006-01-12',-102,45,'2023-11-25'),('2034-12-19',-102,45,'2001-11-20');
+
+--error ER_TRUNCATED_WRONG_VALUE
+UPDATE t1,t2 SET t1.i1 = -39 WHERE t2.d1 <> t1.i1 AND t2.d1 = t1.d2;
+
+DROP TABLE t1,t2;
+
+--echo # End of MariaDB 10.2 tests

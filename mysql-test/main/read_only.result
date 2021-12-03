@@ -170,11 +170,24 @@ flush privileges;
 drop database mysqltest_db1;
 set global read_only= @start_read_only;
 #
+# MDEV-16987 - ALTER DATABASE possible in read-only mode
+#
+CREATE USER user1@localhost;
+GRANT ALTER ON test1.* TO user1@localhost;
+CREATE DATABASE test1;
+SET GLOBAL read_only=1;
+ALTER DATABASE test1 CHARACTER SET utf8;
+ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+SET GLOBAL read_only=0;
+DROP DATABASE test1;
+DROP USER user1@localhost;
+USE test;
+# End of 5.5 tests
+#
 # WL#5968 Implement START TRANSACTION READ (WRITE|ONLY);
 #
 #
 # Test interaction with read_only system variable.
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1), (2);
 CREATE USER user1;
@@ -211,3 +224,4 @@ connection default;
 DROP USER user1;
 SET GLOBAL read_only= 0;
 DROP TABLE t1;
+# End of 10.0 tests

@@ -88,13 +88,13 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
 
   /*
     If min_value is not set, set it to LONGLONG_MIN or 1, depending on
-    increment
+    real_increment
   */
   if (!(used_fields & seq_field_used_min_value))
     min_value= real_increment < 0 ? LONGLONG_MIN+1 : 1;
 
   /*
-    If min_value is not set, set it to LONGLONG_MAX or -1, depending on
+    If max_value is not set, set it to LONGLONG_MAX or -1, depending on
     real_increment
   */
   if (!(used_fields & seq_field_used_max_value))
@@ -136,7 +136,7 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
 
 void sequence_definition::read_fields(TABLE *table)
 {
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   reserved_until= table->field[0]->val_int();
   min_value=      table->field[1]->val_int();
   max_value=      table->field[2]->val_int();
@@ -145,7 +145,7 @@ void sequence_definition::read_fields(TABLE *table)
   cache=          table->field[5]->val_int();
   cycle=          table->field[6]->val_int();
   round=          table->field[7]->val_int();
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   used_fields= ~(uint) 0;
   print_dbug();
 }
@@ -157,7 +157,7 @@ void sequence_definition::read_fields(TABLE *table)
 
 void sequence_definition::store_fields(TABLE *table)
 {
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
 
   /* zero possible delete markers & null bits */
   memcpy(table->record[0], table->s->default_values, table->s->null_bytes);
@@ -170,13 +170,13 @@ void sequence_definition::store_fields(TABLE *table)
   table->field[6]->store((longlong) cycle != 0, 0);
   table->field[7]->store((longlong) round, 1);
 
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   print_dbug();
 }
 
 
 /*
-  Check the sequence fields through seq_fields when createing a sequence.
+  Check the sequence fields through seq_fields when creating a sequence.
 
   RETURN VALUES
     false       Success
@@ -203,6 +203,16 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
     reason= "Sequence tables cannot have any keys";
     goto err;
   }
+  if (lex->alter_info.check_constraint_list.elements > 0)
+  {
+    reason= "Sequence tables cannot have any constraints";
+    goto err;
+  }
+  if (lex->alter_info.flags & ALTER_ORDER)
+  {
+    reason= "ORDER BY";
+    goto err;
+  }
 
   for (field_no= 0; (field= it++); field_no++)
   {
@@ -210,7 +220,8 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
     if (my_strcasecmp(system_charset_info, field_def->field_name,
                       field->field_name.str) ||
         field->flags != field_def->flags ||
-        field->type_handler() != field_def->type_handler)
+        field->type_handler() != field_def->type_handler ||
+        field->check_constraint || field->vcol_info)
     {
       reason= field->field_name.str;
       goto err;
@@ -355,8 +366,10 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   seq->reserved_until= seq->start;
   error= seq->write_initial_sequence(table);
 
-  trans_commit_stmt(thd);
-  trans_commit_implicit(thd);
+  if (trans_commit_stmt(thd))
+    error= 1;
+  if (trans_commit_implicit(thd))
+    error= 1;
 
   if (!temporary_table)
   {
@@ -472,6 +485,10 @@ int SEQUENCE::read_initial_values(TABLE *table)
       if (mdl_lock_used)
         thd->mdl_context.release_lock(mdl_request.ticket);
       write_unlock(table);
+
+      if (!has_active_transaction && !thd->transaction.stmt.is_empty() &&
+          !thd->in_sub_stmt)
+        trans_commit_stmt(thd);
       DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
     }
     DBUG_ASSERT(table->reginfo.lock_type == TL_READ);
@@ -487,9 +504,12 @@ int SEQUENCE::read_initial_values(TABLE *table)
       Doing mysql_lock_tables() may have started a read only transaction.
       If that happend, it's better that we commit it now, as a lot of
       code assumes that there is no active stmt transaction directly after
-      open_tables()
+      open_tables().
+      But we also don't want to commit the stmt transaction while in a
+      substatement, see MDEV-15977.
     */
-    if (!has_active_transaction && !thd->transaction.stmt.is_empty())
+    if (!has_active_transaction && !thd->transaction.stmt.is_empty() &&
+        !thd->in_sub_stmt)
       trans_commit_stmt(thd);
   }
   write_unlock(table);
@@ -507,12 +527,11 @@ int SEQUENCE::read_initial_values(TABLE *table)
 int SEQUENCE::read_stored_values(TABLE *table)
 {
   int error;
-  my_bitmap_map *save_read_set;
   DBUG_ENTER("SEQUENCE::read_stored_values");
 
-  save_read_set= tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *save_read_set= tmp_use_all_columns(table, &table->read_set);
   error= table->file->ha_read_first_row(table->record[0], MAX_KEY);
-  tmp_restore_column_map(table->read_set, save_read_set);
+  tmp_restore_column_map(&table->read_set, save_read_set);
 
   if (unlikely(error))
   {
@@ -711,8 +730,8 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
 
   if (real_increment > 0)
   {
-    if (reserved_until + add_to > max_value ||
-        reserved_until > max_value - add_to)
+    if (reserved_until > max_value - add_to ||
+        reserved_until + add_to > max_value)
     {
       reserved_until= max_value + 1;
       out_of_values= res_value >= reserved_until;

@@ -4,6 +4,13 @@
 
 --source include/have_innodb.inc
 
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+
 --disable_warnings
 create table t1 (USR_ID integer not null, MAX_REQ integer not null, constraint PK_SEA_USER primary key (USR_ID)) engine=InnoDB;
 --enable_warnings
@@ -181,7 +188,9 @@ SET storage_engine=@old_engine;
 CREATE TABLE t1(a BLOB, b VARCHAR(255) CHARSET LATIN1, c INT,
                 KEY(b, c, a(765))) ENGINE=INNODB;
 INSERT INTO t1(a, b, c) VALUES 
-('', 'a', 0), ('', 'a', null), ('', 'a', 0), ('', 'a', null), ('', 'a', 0);
+('', 'a', 0), ('', 'a', null), ('', 'a', 0), ('', 'a', null), ('', 'a', 0),
+('', 'a', 1), ('', 'a', 1), ('', 'a', 2), ('', 'a', 2), ('', 'a', 3),
+('', 'a', 3), ('', 'a', 4), ('', 'a', 4), ('', 'a', 5), ('', 'a', 5);
                                
 -- disable_result_log
 ANALYZE TABLE t1;
@@ -192,4 +201,27 @@ EXPLAIN SELECT MIN(c) FROM t1 GROUP BY b;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-17589: Stack-buffer-overflow with indexed varchar (utf8) field
+--echo #
+
+CREATE TABLE t1 (v1 varchar(1020), v2 varchar(2), v3 varchar(2),
+                KEY k1 (v3,v2,v1)) ENGINE=InnoDB CHARACTER SET=utf8 ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES ('king', 'qu','qu'), ('bad','go','go');
+explain
+SELECT MIN(t1.v1) FROM t1 where t1.v2='qu' and t1.v3='qu';
+SELECT MIN(t1.v1) FROM t1 where t1.v2='qu' and t1.v3='qu';
+drop table t1;
+
+CREATE TABLE t1 (v1 varchar(1024) CHARACTER SET utf8, KEY v1 (v1)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES ('king'), ('bad');
+explain
+SELECT MIN(x.v1) FROM (SELECT t1.* FROM t1 WHERE t1.v1 >= 'p') x;
+SELECT MIN(x.v1) FROM (SELECT t1.* FROM t1 WHERE t1.v1 >= 'p') x;
+drop table t1;
+
 --echo End of 5.5 tests
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;

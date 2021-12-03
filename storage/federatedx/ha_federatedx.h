@@ -1,3 +1,5 @@
+#ifndef HA_FEDERATEDX_INCLUDED
+#define HA_FEDERATEDX_INCLUDED
 /*
 Copyright (c) 2008, Patrick Galbraith
 All rights reserved.
@@ -129,6 +131,7 @@ typedef struct st_federatedx_share {
 
 typedef struct st_federatedx_result FEDERATEDX_IO_RESULT;
 typedef struct st_federatedx_row FEDERATEDX_IO_ROW;
+typedef struct st_federatedx_rows FEDERATEDX_IO_ROWS;
 typedef ptrdiff_t FEDERATEDX_IO_OFFSET;
 
 class federatedx_io
@@ -205,7 +208,8 @@ public:
   virtual void free_result(FEDERATEDX_IO_RESULT *io_result)=0;
   virtual unsigned int get_num_fields(FEDERATEDX_IO_RESULT *io_result)=0;
   virtual my_ulonglong get_num_rows(FEDERATEDX_IO_RESULT *io_result)=0;
-  virtual FEDERATEDX_IO_ROW *fetch_row(FEDERATEDX_IO_RESULT *io_result)=0;
+  virtual FEDERATEDX_IO_ROW *fetch_row(FEDERATEDX_IO_RESULT *io_result,
+                                       FEDERATEDX_IO_ROWS **current= NULL)=0;
   virtual ulong *fetch_lengths(FEDERATEDX_IO_RESULT *io_result)=0;
   virtual const char *get_column_data(FEDERATEDX_IO_ROW *row,
                                       unsigned int column)=0;
@@ -214,7 +218,7 @@ public:
 
   virtual size_t get_ref_length() const=0;
   virtual void mark_position(FEDERATEDX_IO_RESULT *io_result,
-                             void *ref)=0;
+                             void *ref, FEDERATEDX_IO_ROWS *current)=0;
   virtual int seek_position(FEDERATEDX_IO_RESULT **io_result,
                             const void *ref)=0;
   virtual void set_thd(void *thd) { }
@@ -267,12 +271,12 @@ class ha_federatedx: public handler
   federatedx_txn *txn;
   federatedx_io *io;
   FEDERATEDX_IO_RESULT *stored_result;
+  FEDERATEDX_IO_ROWS *current;
   /**
       Array of all stored results we get during a query execution.
   */
   DYNAMIC_ARRAY results;
   bool position_called;
-  uint fetch_num; // stores the fetch num
   int remote_error_number;
   char remote_error_buf[FEDERATEDX_QUERY_BUFFER_SIZE];
   bool ignore_duplicates, replace_duplicates;
@@ -333,7 +337,7 @@ public:
     return (HA_PRIMARY_KEY_IN_READ_INDEX | HA_FILE_BASED
             | HA_REC_NOT_IN_SEQ | HA_AUTO_PART_KEY | HA_CAN_INDEX_BLOBS |
             HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE | HA_CAN_REPAIR |
-            HA_PRIMARY_KEY_REQUIRED_FOR_DELETE |
+            HA_PRIMARY_KEY_REQUIRED_FOR_DELETE | HA_CAN_ONLINE_BACKUPS |
             HA_PARTIAL_COLUMN_READ | HA_NULL_IN_KEY);
   }
   /*
@@ -396,7 +400,7 @@ public:
 
   void start_bulk_insert(ha_rows rows, uint flags);
   int end_bulk_insert();
-  int write_row(uchar *buf);
+  int write_row(const uchar *buf);
   int update_row(const uchar *old_data, const uchar *new_data);
   int delete_row(const uchar *buf);
   int index_init(uint keynr, bool sorted);
@@ -445,6 +449,9 @@ public:
   int external_lock(THD *thd, int lock_type);
   int reset(void);
   int free_result(void);
+
+  friend class ha_federatedx_derived_handler;
+  friend class ha_federatedx_select_handler;
 };
 
 extern const char ident_quote_char;              // Character for quoting
@@ -460,3 +467,7 @@ extern federatedx_io *instantiate_io_mysql(MEM_ROOT *server_root,
                                            FEDERATEDX_SERVER *server);
 extern federatedx_io *instantiate_io_null(MEM_ROOT *server_root,
                                           FEDERATEDX_SERVER *server);
+
+#include "federatedx_pushdown.h"
+
+#endif /* HA_FEDERATEDX_INCLUDED */

@@ -5,6 +5,10 @@ drop table if exists t1,t2;
 --enable_warnings
 
 set @save_use_stat_tables=@@use_stat_tables;
+set @save_histogram_size=@@global.histogram_size;
+set @@global.histogram_size=0,@@local.histogram_size=0;
+set @save_hist_type=@@histogram_type;
+set histogram_type='single_prec_hb';
 
 DELETE FROM mysql.table_stats;
 --sorted_result
@@ -196,7 +200,7 @@ SELECT db_name, table_name, column_name,
 DELETE FROM mysql.column_stats;
 
 set histogram_size= 0;
-set histogram_type=default;
+set histogram_type='single_prec_hb';
 ANALYZE TABLE t1;
 
 
@@ -657,8 +661,8 @@ FLUSH TABLES;
 --query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='COUNTRYLANGUAGE' and UPPER(column_name) = 'PERCENTAGE';
 --query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='CITY' and UPPER(column_name) = 'POPULATION';
 
-set histogram_type=default;
-set histogram_size=default;
+set histogram_type='single_prec_hb';
+set histogram_size=0;
 
 use test;
 DROP DATABASE world;
@@ -732,8 +736,8 @@ select db_name, table_name, column_name,
        hist_size, hist_type, HEX(histogram)
   FROM mysql.column_stats;
 
-set histogram_size=default;
-set histogram_type=default;
+set histogram_size=0;
+set histogram_type='single_prec_hb';
 
 drop table t1;
 
@@ -776,7 +780,7 @@ select db_name, table_name, column_name,
        hist_size, hist_type, HEX(histogram)
   FROM mysql.column_stats;
 
-set histogram_size=default;
+set histogram_size=0;
 
 drop table t1, t2;
 
@@ -879,6 +883,21 @@ rename table t1 to t2, t3 to t4;
 drop table t1, mysql.table_stats;
 rename table test.table_stats to mysql.table_stats;
 
+--echo #
+--echo # MDEV-19334: bool is_eits_usable(Field*): Assertion `field->table->stats_is_read' failed.
+--echo #
+
+create temporary table t1(a int);
+insert into t1 values (1),(2),(3);
+ 
+set use_stat_tables=preferably;
+set @optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=4;
+ 
+select * from t1 where a >= 2;
+drop table t1;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+
 set use_stat_tables=@save_use_stat_tables;
 
 --echo #
@@ -898,3 +917,96 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+set histogram_size=@save_histogram_size, histogram_type=@save_hist_type;
+
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # Test analyze_sample_percentage system variable.
+--echo #
+set @save_use_stat_tables=@@use_stat_tables;
+set @save_analyze_sample_percentage=@@analyze_sample_percentage;
+
+set session rand_seed1=42;
+set session rand_seed2=62;
+
+set use_stat_tables=PREFERABLY;
+set histogram_size=10;
+
+CREATE TABLE t1 (id int);
+INSERT INTO t1 (id) VALUES (1), (1), (1), (1), (1), (1), (1);
+INSERT INTO t1 (id) SELECT id FROM t1;
+INSERT INTO t1 SELECT id+1 FROM t1;
+INSERT INTO t1 SELECT id+2 FROM t1;
+INSERT INTO t1 SELECT id+4 FROM t1;
+INSERT INTO t1 SELECT id+8 FROM t1;
+INSERT INTO t1 SELECT id+16 FROM t1;
+INSERT INTO t1 SELECT id+32 FROM t1;
+INSERT INTO t1 SELECT id+64 FROM t1;
+INSERT INTO t1 SELECT id+128 FROM t1;
+INSERT INTO t1 SELECT id+256 FROM t1;
+INSERT INTO t1 SELECT id+512 FROM t1;
+INSERT INTO t1 SELECT id+1024 FROM t1;
+INSERT INTO t1 SELECT id+2048 FROM t1;
+INSERT INTO t1 SELECT id+4096 FROM t1;
+INSERT INTO t1 SELECT id+9192 FROM t1;
+
+--echo #
+--echo # This query will should show a full table scan analysis.
+--echo #
+ANALYZE TABLE t1;
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+       DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+
+set analyze_sample_percentage=0.1;
+
+--echo #
+--echo # This query will show an innacurate avg_frequency value.
+--echo #
+ANALYZE TABLE t1;
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+       DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+
+--echo #
+--echo # This query will show a better avg_frequency value.
+--echo #
+set analyze_sample_percentage=25;
+ANALYZE TABLE t1;
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+       DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+
+
+set analyze_sample_percentage=0;
+--echo #
+--echo # Test self adjusting sampling level.
+--echo #
+ANALYZE TABLE t1;
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+       DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+-- echo #
+-- echo # Test record estimation is working properly.
+-- echo #
+select count(*) from t1;
+explain select * from t1;
+
+set analyze_sample_percentage=100;
+ANALYZE TABLE t1;
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+       DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+explain select * from t1;
+
+
+drop table t1;
+set analyze_sample_percentage=@save_analyze_sample_percentage;
+set histogram_size=@save_histogram_size;
+set use_stat_tables=@save_use_stat_tables;
+set @@global.histogram_size=@save_histogram_size;

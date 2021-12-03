@@ -98,10 +98,61 @@ call mtr.check_testcase();
 let $datadir=`select @@datadir`;
 list_files $datadir mysql_upgrade_info;
 list_files_write_file $datadir.tempfiles.txt $datadir/test #sql*;
---replace_regex /#sql-ib[0-9a-f]+-[0-9a-f]+\.ibd\n//
+--replace_regex /#sql-ib[0-9a-f]+\.ibd\n//
 cat_file $datadir.tempfiles.txt;
 remove_file $datadir.tempfiles.txt;
 list_files $datadir/mysql #sql*;
+
+#
+# Check that SHOW ENGINE INNODB STATUS does not show any active transactions
+# We do this only if wsrep provider is loaded, to avoid disturbing any non-Galera MTR tests
+#
+if (`SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`) {
+  if (`SELECT @@wsrep_on`) {
+    if (`SELECT COUNT(*) FROM information_schema.innodb_trx WHERE trx_mysql_thread_id != 0`) {
+      if ($before) {
+        --echo Before test start.
+      }
+      if (!$before) {
+        --echo After test end.
+      }
+      --echo There is one or more active InnoDB transaction(s) when there should be none. Dumping some diagnostics.
+
+      --let $status_locks = `SELECT @@innodb_status_output_locks`
+      --let $status_output = `SELECT @@innodb_status_output`
+      --enable_query_log
+      SET GLOBAL innodb_status_output_locks=ON;
+      SHOW ENGINE INNODB STATUS;
+      --disable_query_log
+      --eval SET GLOBAL innodb_status_output_locks=$status_locks;
+      --eval SET GLOBAL innodb_status_output=$status_output;
+      --enable_query_log
+
+      --vertical_results
+      if ($before) {
+        --replace_regex /$/ /
+      }
+      SELECT * FROM information_schema.processlist;
+
+      if ($before) {
+        --replace_regex /$/ /
+      }
+      SELECT * FROM information_schema.innodb_trx;
+
+      if ($before) {
+        --replace_regex /$/ /
+      }
+      SELECT * FROM information_schema.innodb_locks;
+
+      if ($before) {
+        --replace_regex /$/ /
+      }
+      SELECT * FROM information_schema.innodb_lock_waits;
+      --horizontal_results
+      --disable_query_log
+    }
+  }
+}
 
 --enable_query_log
 

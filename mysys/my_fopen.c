@@ -12,12 +12,13 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "mysys_priv.h"
 #include "my_static.h"
 #include <errno.h>
 #include "mysys_err.h"
+#include "my_atomic.h"
 
 static void make_ftype(char * to,int flag);
 
@@ -171,10 +172,7 @@ int my_fclose(FILE *fd, myf MyFlags)
     my_file_info[file].type= UNOPEN;
   }
 #ifndef _WIN32
-  do
-  {
-    err= fclose(fd);
-  } while (err == -1 && errno == EINTR);
+  err= fclose(fd);
 #else
   err= my_win_fclose(fd);
 #endif
@@ -225,7 +223,8 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
     {
       if (my_file_info[Filedes].type != UNOPEN)
       {
-        statistic_decrement(my_file_opened, &THR_LOCK_open);		/* File is opened with my_open ! */
+        /* File is opened with my_open ! */
+        my_atomic_add32_explicit(&my_file_opened, -1, MY_MEMORY_ORDER_RELAXED);
       }
       else
       {

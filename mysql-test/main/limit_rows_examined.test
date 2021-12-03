@@ -2,6 +2,7 @@
 # Tests for LIMIT ROWS EXAMINED, MDEV-28
 #
 
+--source include/default_optimizer_switch.inc
 call mtr.add_suppression("Sort aborted.*");
 
 set @save_join_cache_level = @@join_cache_level;
@@ -576,3 +577,34 @@ EXECUTE ps;
 
 drop view v;
 drop table t1, t2;
+
+--echo #
+--echo # 10.1 Test
+--echo #
+--echo # MDEV-17729: Assertion `! is_set() || m_can_overwrite_status'
+--echo # failed in Diagnostics_area::set_error_status
+--echo #
+set @old_mode= @@sql_mode;
+
+CREATE TABLE t1(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,k INT, c CHAR(20));
+INSERT INTO t1 (k,c) VALUES(0,'0'), (0,'0'),(0,'0'),(0,'0'),(0,'0'),(0,'0'),(0,'0');
+
+SET @@sql_mode='STRICT_TRANS_TABLES';
+INSERT INTO t1 (c) SELECT k FROM t1 LIMIT ROWS EXAMINED 2;
+
+SET @@sql_mode=@old_mode;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18117: Crash with Explain extended when using limit rows examined
+--echo #
+
+create table t1 (c1 char(2));
+create table t2 (c2 char(2));
+insert into t1 values ('bb'), ('cc'), ('aa'), ('dd');
+insert into t2 values ('bb'), ('cc'), ('dd'), ('ff');
+explain extended
+select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 2;
+drop table t1,t2;
+
+--echo # End of 10.4 tests

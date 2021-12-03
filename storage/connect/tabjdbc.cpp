@@ -1,11 +1,11 @@
 /************* TabJDBC C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABJDBC                                               */
 /* -------------                                                       */
-/*  Version 1.2                                                        */
+/*  Version 1.3                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2016-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2016-2019    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -38,7 +38,7 @@
 #include "my_global.h"
 #include "sql_class.h"
 #include "sql_servers.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
@@ -72,7 +72,6 @@
 #include "tabext.h"
 #include "tabjdbc.h"
 #include "tabmul.h"
-//#include "reldef.h"
 #include "tabcol.h"
 #include "valblk.h"
 #include "ha_connect.h"
@@ -89,6 +88,9 @@ extern int num_read, num_there, num_eq[2];                // Statistics
 /*  External function.                                                 */
 /***********************************************************************/
 bool ExactInfo(void);
+#if defined(DEVELOPMENT)
+extern char *GetUserVariable(PGLOBAL g, const uchar *varname);
+#endif  // DEVELOPMENT
 
 /* -------------------------- Class JDBCDEF -------------------------- */
 
@@ -147,10 +149,6 @@ int JDBCDEF::ParseURL(PGLOBAL g, char *url, bool b)
 				return RC_FX;
 
 			Tabname = p;
-//  } else if (b) {
-//	  // Otherwise, straight server name, 
-//	  Tabname = GetStringCatInfo(g, "Name", NULL);
-//	  Tabname = GetStringCatInfo(g, "Tabname", Tabname);
 		} // endif
 
 		if (trace(1))
@@ -165,6 +163,11 @@ int JDBCDEF::ParseURL(PGLOBAL g, char *url, bool b)
 			return RC_FX;
 		} // endif server
 
+#if defined(DEVELOPMENT)
+		if (*server->host == '@') {
+			Url = GetUserVariable(g, (const uchar*)&server->host[1]);
+		} else
+#endif // 0
 		if (strncmp(server->host, "jdbc:", 5)) {
 			// Now make the required URL
 			Url = (PSZ)PlugSubAlloc(g, NULL, 0);
@@ -185,12 +188,18 @@ int JDBCDEF::ParseURL(PGLOBAL g, char *url, bool b)
 		} else		 // host is a URL
 			Url = PlugDup(g, server->host);
 
-		if (server->username)
+		if (!Tabschema && server->db)
+			Tabschema = PlugDup(g, server->db);
+
+		if (!Username && server->username)
 			Username = PlugDup(g, server->username);
 
-		if (server->password)
+		if (!Password && server->password)
 			Password = PlugDup(g, server->password);
 
+		Driver = PlugDup(g, GetListOption(g, "Driver", server->owner, NULL));
+		Wrapname = PlugDup(g, GetListOption(g, "Wrapper", server->owner, NULL));
+		Memory = atoi(GetListOption(g, "Memory", server->owner, "0"));
 		return RC_NF;
 	} // endif
 
@@ -208,7 +217,6 @@ bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	if (EXTDEF::DefineAM(g, am, poff))
 		return true;
 
-	Driver = GetStringCatInfo(g, "Driver", NULL);
 	Desc = Url = GetStringCatInfo(g, "Connect", NULL);
 
 	if (!Url && !Catfunc) {
@@ -228,7 +236,10 @@ bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 			return true;
 		} // endif rc
 
-	Wrapname = GetStringCatInfo(g, "Wrapper", NULL);
+	// Default values may have been set in ParseURL
+	Memory = GetIntCatInfo("Memory", Memory);
+	Driver = GetStringCatInfo(g, "Driver", Driver);
+	Wrapname = GetStringCatInfo(g, "Wrapper", Wrapname);
 	return false;
 } // end of DefineAM
 
@@ -558,33 +569,42 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 		     this, Tdb_No, Use, Mode);
 
 	if (Use == USE_OPEN) {
-		/*******************************************************************/
-		/*  Table already open, just replace it at its beginning.          */
-		/*******************************************************************/
-		if (Memory == 1) {
-			if ((Qrp = Jcp->AllocateResult(g, this)))
-				Memory = 2;            // Must be filled
-			else
-				Memory = 0;            // Allocation failed, don't use it
+		if (Mode == MODE_READ || Mode == MODE_READX) {
+			/*****************************************************************/
+			/*  Table already open, just replace it at its beginning.        */
+			/*****************************************************************/
+			if (Memory == 1) {
+				if ((Qrp = Jcp->AllocateResult(g, this)))
+					Memory = 2;            // Must be filled
+				else
+					Memory = 0;            // Allocation failed, don't use it
 
-		} else if (Memory == 2)
-			Memory = 3;              // Ok to use memory result
+			} else if (Memory == 2)
+				Memory = 3;              // Ok to use memory result
 
-		if (Memory < 3) {
-			// Method will depend on cursor type
-			if ((Rbuf = Query ? Jcp->Rewind(Query->GetStr()) : 0) < 0)
-				if (Mode != MODE_READX) {
-					Jcp->Close();
-				  return true;
-			  } else
-				  Rbuf = 0;
+			if (Memory < 3) {
+				// Method will depend on cursor type
+				if ((Rbuf = Query ? Jcp->Rewind(Query->GetStr()) : 0) < 0)
+					if (Mode != MODE_READX) {
+						Jcp->Close();
+						return true;
+					} else
+						Rbuf = 0;
 
-		} else
-			Rbuf = Qrp->Nblin;
+			} else
+				Rbuf = Qrp->Nblin;
 
-		CurNum = 0;
-		Fpos = 0;
-		Curpos = 1;
+			CurNum = 0;
+			Fpos = 0;
+			Curpos = 1;
+		} else if (Mode == MODE_UPDATE || Mode == MODE_DELETE) {
+			// new update coming from a trigger or procedure
+			Query = NULL;
+			SetCondFil(NULL);
+			Qrystr = To_Def->GetStringCatInfo(g, "Query_String", "?");
+		} else {  //if (Mode == MODE_INSERT)
+		} // endif Mode
+
 		return false;
 	} // endif use
 
@@ -624,7 +644,9 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 				Cnp->InitValue(g);
 
 				if ((n = Jcp->GetResultSize(Query->GetStr(), Cnp)) < 0) {
-					sprintf(g->Message, "Cannot get result size rc=%d", n);
+					char* msg = PlugDup(g, g->Message);
+
+					sprintf(g->Message, "Get result size: %s (rc=%d)", msg, n);
 					return true;
 				} else if (n) {
 					Jcp->m_Rows = n;

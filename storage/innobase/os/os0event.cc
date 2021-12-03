@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,24 +26,17 @@ Created 2012-09-23 Sunny Bains
 
 #include "os0event.h"
 #include "ut0mutex.h"
+#include <my_sys.h>
 
 #ifdef _WIN32
 #include <windows.h>
 #include <synchapi.h>
-#endif /* _WIN32 */
-
-#include <list>
-
-#ifdef _WIN32
 /** Native condition variable. */
 typedef CONDITION_VARIABLE	os_cond_t;
 #else
 /** Native condition variable */
 typedef pthread_cond_t		os_cond_t;
 #endif /* _WIN32 */
-
-typedef std::list<os_event_t, ut_allocator<os_event_t> >	os_event_list_t;
-typedef os_event_list_t::iterator				event_iter_t;
 
 /** InnoDB condition variable. */
 struct os_event {
@@ -123,7 +117,10 @@ struct os_event {
 	/** @return true if the event is in the signalled state. */
 	bool is_set() const UNIV_NOTHROW
 	{
-		return(m_set);
+		mutex.enter();
+		bool is_set = m_set;
+		mutex.exit();
+		return is_set;
 	}
 
 private:
@@ -221,16 +218,13 @@ private:
 	int64_t			signal_count;	/*!< this is incremented
 						each time the event becomes
 						signaled */
-	EventMutex		mutex;		/*!< this mutex protects
+	mutable OSMutex		mutex;		/*!< this mutex protects
 						the next fields */
 
 
 	os_cond_t		cond_var;	/*!< condition variable is
 						used in waiting for the event */
 
-public:
-	event_iter_t		event_iter;	/*!< For O(1) removal from
-						list */
 protected:
 	// Disable copying
 	os_event(const os_event&);
@@ -363,21 +357,9 @@ os_event::wait_time_low(
 	struct timespec	abstime;
 
 	if (time_in_usec != OS_SYNC_INFINITE_TIME) {
-		struct timeval	tv;
-		int		ret;
-		ulint		sec;
-		ulint		usec;
-
-		ret = ut_usectime(&sec, &usec);
-		ut_a(ret == 0);
-
-		tv.tv_sec = sec;
-		tv.tv_usec = usec;
-
-		tv.tv_usec += time_in_usec;
-
-		abstime.tv_sec = tv.tv_sec + tv.tv_usec / 1000000;
-		abstime.tv_nsec = tv.tv_usec % 1000000 * 1000;
+		ulonglong usec = ulonglong(time_in_usec) + my_hrtime().val;
+		abstime.tv_sec = usec / 1000000;
+		abstime.tv_nsec = (usec % 1000000) * 1000;
 	} else {
 		abstime.tv_nsec = 999999999;
 		abstime.tv_sec = (time_t) ULINT_MAX;
@@ -528,8 +510,6 @@ os_event_destroy(
 	os_event_t&	event)			/*!< in/own: event to free */
 
 {
-	if (event != NULL) {
-		UT_DELETE(event);
-		event = NULL;
-	}
+	UT_DELETE(event);
+	event = NULL;
 }

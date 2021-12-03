@@ -1,4 +1,5 @@
 /* Copyright (c) 2009, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2013, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* see include/mysql/service_debug_sync.h for debug sync documentation */
 
@@ -33,7 +34,7 @@
 /*
   Action to perform at a synchronization point.
   NOTE: This structure is moved around in memory by realloc(), qsort(),
-        and memmove(). Do not add objects with non-trivial constuctors
+        and memmove(). Do not add objects with non-trivial constructors
         or destructors, which might prevent moving of this structure
         with these functions.
 */
@@ -319,7 +320,8 @@ static char *debug_sync_bmove_len(char *to, char *to_end,
   DBUG_ASSERT(to_end);
   DBUG_ASSERT(!length || from);
   set_if_smaller(length, (size_t) (to_end - to));
-  memcpy(to, from, length);
+  if (length)
+    memcpy(to, from, length);
   return (to + length);
 }
 
@@ -542,7 +544,7 @@ static void debug_sync_reset(THD *thd)
   @description
     Removing an action mainly means to decrement the ds_active counter.
     But if the action is between other active action in the array, then
-    the array needs to be shrinked. The active actions above the one to
+    the array needs to be shrunk. The active actions above the one to
     be removed have to be moved down by one slot.
 */
 
@@ -584,7 +586,7 @@ static void debug_sync_remove_action(st_debug_sync_control *ds_control,
     memmove(save_action, action, sizeof(st_debug_sync_action));
 
     /* Move actions down. */
-    memmove(ds_control->ds_action + dsp_idx,
+    memmove((void*)(ds_control->ds_action + dsp_idx),
             ds_control->ds_action + dsp_idx + 1,
             (ds_control->ds_active - dsp_idx) *
             sizeof(st_debug_sync_action));
@@ -595,8 +597,8 @@ static void debug_sync_remove_action(st_debug_sync_control *ds_control,
       produced by the shift. Again do not use an assignment operator to
       avoid string allocation/copy.
     */
-    memmove(ds_control->ds_action + ds_control->ds_active, save_action,
-            sizeof(st_debug_sync_action));
+    memmove((void*)(ds_control->ds_action + ds_control->ds_active),
+            save_action, sizeof(st_debug_sync_action));
   }
 
   DBUG_VOID_RETURN;

@@ -390,7 +390,7 @@ DROP TABLE t1;
 --echo #
 --echo # Bug#12352846 - TRANS_XA_START(THD*):
 --echo #                ASSERTION THD->TRANSACTION.XID_STATE.XID.IS_NULL()
---echo #                FAILED 
+--echo #                FAILED
 --echo #
 
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
@@ -447,7 +447,7 @@ CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1),(2);
 CREATE TABLE t3 (i INT) ENGINE=InnoDB;
- 
+
 XA BEGIN 'xid1';
 REPLACE INTO t1 SELECT * FROM t2;
 
@@ -476,5 +476,105 @@ XA END 'xid1';
 XA ROLLBACK 'xid1';
 DROP TABLE t1, t2, t3;
 
+--echo #
+--echo # MDEV 15532 XA: Assertion `!log->same_pk' failed in
+--echo # row_log_table_apply_delete
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+
+--connect (con1,localhost,root,,test)
+
+XA START 'xid';
+UPDATE t1 SET a = 5;
+
+--connection default
+SET innodb_lock_wait_timeout= 2, lock_wait_timeout= 2;
+
+--error ER_NO_SUCH_TABLE
+ALTER TABLE non_existing_table1;
+
+--send ALTER TABLE t1 FORCE;
+
+--connection con1
+--error ER_XAER_RMFAIL
+
+ALTER TABLE non_existing_table2;
+DELETE FROM t1 LIMIT 1;
+
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+--reap
+
+# Cleanup
+--connection con1
+XA END 'xid';
+XA ROLLBACK 'xid';
+DROP TABLE t1;
+--disconnect con1
+connection default;
+
 --source include/wait_until_count_sessions.inc
 
+--echo #
+--echo # XA states and SHOW commands
+--echo #
+create table t1 (pk int primary key) engine=innodb;
+xa start 'foo';
+insert t1 set pk=1;
+xa end 'foo';
+xa prepare 'foo';
+show status like 'foo';
+--query_vertical select table_name,table_comment from information_schema.tables where table_schema='test'
+--query_vertical select table_name,table_rows,table_comment from information_schema.tables where table_schema='test'
+xa commit 'foo';
+drop table t1;
+
+--echo #
+--echo # MDEV-22445 Crash on HANDLER READ NEXT after XA PREPARE
+--echo #
+
+CREATE TABLE t (a INT KEY) ENGINE=InnoDB;
+HANDLER t OPEN AS t;
+XA START '0';
+SELECT * FROM t;
+XA END '0';
+XA PREPARE '0';
+--error ER_XAER_RMFAIL
+HANDLER t READ NEXT;
+
+--echo # Cleanup
+XA COMMIT '0';
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+#
+# MDEV-22002 Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())'
+# failed upon CREATE TEMPORARY SEQUENCE under XA
+#
+
+XA BEGIN 'xid';
+
+--error ER_XAER_RMFAIL
+CREATE TEMPORARY SEQUENCE s;
+
+XA END 'xid';
+
+XA ROLLBACK 'xid';
+
+XA BEGIN 'xid';
+
+--error ER_XAER_RMFAIL
+CREATE SEQUENCE s;
+
+XA END 'xid';
+
+XA ROLLBACK 'xid';
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

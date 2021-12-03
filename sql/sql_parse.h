@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_PARSE_INCLUDED
 #define SQL_PARSE_INCLUDED
@@ -99,10 +99,10 @@ void create_table_set_open_action_and_adjust_tables(LEX *lex);
 void mysql_init_multi_delete(LEX *lex);
 bool multi_delete_set_locks_and_link_aux_tables(LEX *lex);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
-pthread_handler_t handle_bootstrap(void *arg);
+int bootstrap(MYSQL_FILE *file);
+bool run_set_statement_if_requested(THD *thd, LEX *lex);
 int mysql_execute_command(THD *thd);
 bool do_command(THD *thd);
-void do_handle_bootstrap(THD *thd);
 bool dispatch_command(enum enum_server_command command, THD *thd,
 		      char* packet, uint packet_length,
                       bool is_com_multi, bool is_next_command);

@@ -1,0 +1,57 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test that a SR transaction that was just ROLLBACKed on one node can be 
+# run against another node without any conflicts
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+--let $wsrep_trx_fragment_size_orig = `SELECT @@wsrep_trx_fragment_size`
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+--connection node_1
+ROLLBACK;
+
+#
+# After ROLLBACK, the table on node #2 should be empty
+#
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
+--source include/wait_condition.inc
+SELECT * FROM t1;
+
+#
+# It should be possible to reissue the same transaction against node #2
+#
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+COMMIT;
+
+SELECT COUNT(*) AS EXPECT_5 FROM t1;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_5 FROM t1;
+
+DROP TABLE t1;

@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #include "item.h"
@@ -81,33 +81,7 @@ public:
   {
     null_value= false;
   }
-
-public:
-  virtual longlong val_int();
   bool need_parentheses_in_default() { return false; }
-
-protected:
-  virtual bool calc_value(const String *arg) = 0;
-};
-
-
-/*************************************************************************
-  Item_func_inet_str_base implements common code for INET6/IP-related
-  functions returning string value.
-*************************************************************************/
-
-class Item_func_inet_str_base : public Item_str_ascii_func
-{
-public:
-  inline Item_func_inet_str_base(THD *thd, Item *arg):
-    Item_str_ascii_func(thd, arg)
-  { }
-
-public:
-  virtual String *val_str_ascii(String *buffer);
-
-protected:
-  virtual bool calc_value(const String *arg, String *buffer) = 0;
 };
 
 
@@ -115,11 +89,11 @@ protected:
   Item_func_inet6_aton implements INET6_ATON() SQL-function.
 *************************************************************************/
 
-class Item_func_inet6_aton : public Item_func_inet_str_base
+class Item_func_inet6_aton : public Item_str_func
 {
 public:
   inline Item_func_inet6_aton(THD *thd, Item *ip_addr):
-    Item_func_inet_str_base(thd, ip_addr)
+    Item_str_func(thd, ip_addr)
   { }
 
 public:
@@ -136,8 +110,7 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_inet6_aton>(thd, this); }
 
-protected:
-  virtual bool calc_value(const String *arg, String *buffer);
+  String *val_str(String *to);
 };
 
 
@@ -145,11 +118,11 @@ protected:
   Item_func_inet6_ntoa implements INET6_NTOA() SQL-function.
 *************************************************************************/
 
-class Item_func_inet6_ntoa : public Item_func_inet_str_base
+class Item_func_inet6_ntoa : public Item_str_ascii_func
 {
 public:
   inline Item_func_inet6_ntoa(THD *thd, Item *ip_addr):
-    Item_func_inet_str_base(thd, ip_addr)
+    Item_str_ascii_func(thd, ip_addr)
   { }
 
 public:
@@ -168,11 +141,9 @@ public:
     maybe_null= 1;
     return FALSE;
   }
+  String *val_str_ascii(String *to);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_inet6_ntoa>(thd, this); }
-
-protected:
-  virtual bool calc_value(const String *arg, String *buffer);
 };
 
 
@@ -193,8 +164,7 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv4>(thd, this); }
 
-protected:
-  virtual bool calc_value(const String *arg);
+  longlong val_int();
 };
 
 
@@ -209,14 +179,12 @@ public:
     Item_func_inet_bool_base(thd, ip_addr)
   { }
 
-public:
   virtual const char *func_name() const
   { return "is_ipv6"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv6>(thd, this); }
 
-protected:
-  virtual bool calc_value(const String *arg);
+  longlong val_int();
 };
 
 
@@ -230,15 +198,11 @@ public:
   inline Item_func_is_ipv4_compat(THD *thd, Item *ip_addr):
     Item_func_inet_bool_base(thd, ip_addr)
   { }
-
-public:
   virtual const char *func_name() const
   { return "is_ipv4_compat"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv4_compat>(thd, this); }
-
-protected:
-  virtual bool calc_value(const String *arg);
+  longlong val_int();
 };
 
 
@@ -252,15 +216,11 @@ public:
   inline Item_func_is_ipv4_mapped(THD *thd, Item *ip_addr):
     Item_func_inet_bool_base(thd, ip_addr)
   { }
-
-public:
   virtual const char *func_name() const
   { return "is_ipv4_mapped"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv4_mapped>(thd, this); }
-
-protected:
-  virtual bool calc_value(const String *arg);
+  longlong val_int();
 };
 
 #endif // ITEM_INETFUNC_INCLUDED

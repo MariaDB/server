@@ -13,7 +13,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
 make -k clean || true
 /bin/rm -f */.deps/*.P config.cache
@@ -24,6 +24,6 @@ PATH=$PATH:/usr/ccs/bin:/usr/local/bin
 path=`dirname $0`
 . "$path/autorun.sh"
 
-CFLAGS="-g -Wimplicit -Wreturn-type -Wswitch -Wtrigraphs -Wcomment -W -Wchar-subscripts -Wformat -Wparentheses -Wsign-compare -Wwrite-strings -Wunused  -O3 -fno-omit-frame-pointer -mcpu=v8 -Wa,-xarch=v8plusa $EXTRA_FLAGS $EXTRA_CFLAGS" CXX=g++ CXXFLAGS="-Wimplicit -Wreturn-type -Wswitch -Wtrigraphs -Wcomment -W -Wchar-subscripts -Wformat -Wparentheses -Wsign-compare -Wwrite-strings -Woverloaded-virtual -Wsign-promo -Wreorder -Wctor-dtor-privacy -Wnon-virtual-dtor -felide-constructors -fno-exceptions -fno-rtti  -O3 -fno-omit-frame-pointer -mcpu=v8 -Wa,-xarch=v8plusa -g $EXTRA_FLAGS $EXTRA_CXXFLAGS" LIBS="-lmtmalloc" ./configure --prefix=/usr/local/mysql --enable-assembler --with-extra-charsets=complex --enable-thread-safe-client
+CFLAGS="-g -Wimplicit -Wreturn-type -Wswitch -Wtrigraphs -Wcomment -W -Wchar-subscripts -Wformat -Wparentheses -Wsign-compare -Wwrite-strings -Wunused  -O3 -fno-omit-frame-pointer -mcpu=v8 -Wa,-xarch=v8plusa $EXTRA_FLAGS $EXTRA_CFLAGS" CXX=g++ CXXFLAGS="-Wimplicit -Wreturn-type -Wswitch -Wtrigraphs -Wcomment -W -Wchar-subscripts -Wformat -Wparentheses -Wsign-compare -Wwrite-strings -Woverloaded-virtual -Wsign-promo -Wreorder -Wctor-dtor-privacy -Wnon-virtual-dtor -felide-constructors -fno-exceptions -O3 -fno-omit-frame-pointer -mcpu=v8 -Wa,-xarch=v8plusa -g $EXTRA_FLAGS $EXTRA_CXXFLAGS" LIBS="-lmtmalloc" ./configure --prefix=/usr/local/mysql --enable-assembler --with-extra-charsets=complex --enable-thread-safe-client
 
 make -j 4

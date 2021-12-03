@@ -110,15 +110,9 @@ autocommit,character_set_client,character_set_connection,character_set_results,t
 connection default;
 # Testing NULL
 SET @@global.session_track_system_variables = NULL;
+ERROR 42000: Variable 'session_track_system_variables' can't be set to the value of 'NULL'
 SET @@session.session_track_system_variables = NULL;
-# Global - expect "" instead of NULL
-SELECT @@global.session_track_system_variables;
-@@global.session_track_system_variables
-NULL
-# Session - expect "" instead of NULL
-SELECT @@session.session_track_system_variables;
-@@session.session_track_system_variables
-
+ERROR 42000: Variable 'session_track_system_variables' can't be set to the value of 'NULL'
 # testing with duplicate entries.
 SET @@global.session_track_system_variables= "time_zone";
 SET @@session.session_track_system_variables= "time_zone";
@@ -159,6 +153,8 @@ SELECT @@session.session_track_system_variables;
 @@session.session_track_system_variables
 
 
+# MDEV-22524 SIGABRT in safe_mutex_unlock with session_track_system_variables and max_relay_log_size.
+SET SESSION session_track_system_variables="sql_slave_skip_counter", sql_slave_skip_counter= 0;
 # Restoring the original values.
 SET @@global.session_track_system_variables = @global_saved_tmp;
 # End of tests.

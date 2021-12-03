@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h" // For HAVE_REPLICATION
 #include "sql_priv.h"
@@ -115,15 +115,6 @@ void Master_info::wait_until_free()
 Master_info::~Master_info()
 {
   wait_until_free();
-#ifdef WITH_WSREP
-  /*
-    Do not free "wsrep" rpl_filter. It will eventually be freed by
-    free_all_rpl_filters() when server terminates.
-  */
-  if (strncmp(connection_name.str, STRING_WITH_LEN("wsrep")))
-#endif
-  rpl_filters.delete_element(connection_name.str, connection_name.length,
-                             (void (*)(const char*, uchar*)) free_rpl_filter);
   my_free(const_cast<char*>(connection_name.str));
   delete_dynamic(&ignore_server_ids);
   mysql_mutex_destroy(&run_lock);
@@ -179,6 +170,8 @@ void Master_info::clear_in_memory_info(bool all)
   {
     port= MYSQL_PORT;
     host[0] = 0; user[0] = 0; password[0] = 0;
+    domain_id_filter.clear_ids();
+    reset_dynamic(&ignore_server_ids);
   }
 }
 
@@ -1182,7 +1175,7 @@ bool Master_info_index::init_all_master_info()
     }
     else
     {
-      /* Initialization of Master_info succeded. Add it to HASH */
+      /* Initialization of Master_info succeeded. Add it to HASH */
       if (global_system_variables.log_warnings > 1)
         sql_print_information("Initialized Master_info from '%s'",
                               buf_master_info_file);
@@ -1233,7 +1226,7 @@ bool Master_info_index::init_all_master_info()
   if (!err_num) // No Error on read Master_info
   {
     if (global_system_variables.log_warnings > 1)
-      sql_print_information("Reading of all Master_info entries succeded");
+      sql_print_information("Reading of all Master_info entries succeeded");
     DBUG_RETURN(0);
   }
   if (succ_num) // Have some Error and some Success
@@ -1436,7 +1429,7 @@ bool Master_info_index::add_master_info(Master_info *mi, bool write_to_file)
     We have to protect against shutdown to ensure we are not calling
     my_hash_insert() while my_hash_free() is in progress
   */
-  if (unlikely(shutdown_in_progress) ||
+  if (unlikely(abort_loop) ||
       !my_hash_insert(&master_info_hash, (uchar*) mi))
   {
     if (global_system_variables.log_warnings > 1)
@@ -1579,7 +1572,7 @@ uint any_slave_sql_running(bool already_locked)
 
   if (!already_locked)
     mysql_mutex_lock(&LOCK_active_mi);
-  if (unlikely(shutdown_in_progress || !master_info_index))
+  if (unlikely(abort_loop || !master_info_index))
     count= 1;
   else
   {
@@ -1800,6 +1793,12 @@ void Domain_id_filter::do_filter(ulong domain_id)
 void Domain_id_filter::reset_filter()
 {
   m_filter= false;
+}
+
+void Domain_id_filter::clear_ids()
+{
+  reset_dynamic(&m_domain_ids[DO_DOMAIN_IDS]);
+  reset_dynamic(&m_domain_ids[IGNORE_DOMAIN_IDS]);
 }
 
 /**

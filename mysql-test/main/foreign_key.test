@@ -117,4 +117,28 @@ alter table t_34455
 
 drop table t_34455;
 
+--echo #
+--echo # MDEV-18460 Don't allow multiple table CONSTRAINTs with the same name.
+--echo #
+
+CREATE TABLE tpk (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,name VARCHAR(100) NOT NULL) ENGINE=Innodb;
+--error ER_DUP_CONSTRAINT_NAME
+CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT sid UNIQUE (c1), CONSTRAINT sid CHECK (c2>15));
+
+CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT sid UNIQUE (c1));
+--error ER_DUP_CONSTRAINT_NAME
+ALTER TABLE tfk ADD CONSTRAINT sid CHECK (c2>15);
+DROP TABLE tfk;
+
+CREATE TABLE tfk (c1 INT, c2 INT,
+  CONSTRAINT sid FOREIGN KEY (c1) REFERENCES tpk (id)) ENGINE=Innodb;
+show create table tfk;
+--error ER_DUP_CONSTRAINT_NAME
+ALTER TABLE tfk ADD CONSTRAINT sid CHECK (c2>15);
+--error ER_DUP_KEYNAME
+ALTER TABLE tfk ADD CONSTRAINT sid UNIQUE(c2);
+DROP TABLE tfk;
+
+DROP TABLE tpk;
+
 

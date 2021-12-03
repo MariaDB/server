@@ -1,3 +1,4 @@
+--source include/have_innodb.inc
 --source include/have_wsrep_provider.inc
 --source include/have_binlog_format_row.inc
 
@@ -7,7 +8,5 @@
 --echo #
 
 SELECT @@wsrep_on;
---replace_regex /.*libgalera_smm.so/libgalera_smm.so/
-SELECT @@GLOBAL.wsrep_provider;
 SET @@GLOBAL.wsrep_cluster_address='gcomm://';
 

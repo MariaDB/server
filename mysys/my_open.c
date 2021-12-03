@@ -11,12 +11,13 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include "mysys_err.h"
 #include <m_string.h>
 #include <errno.h>
+#include "my_atomic.h"
 
 CREATE_NOSYMLINK_FUNCTION(
   open_nosymlinks(const char *pathname, int flags, int mode),
@@ -89,10 +90,7 @@ int my_close(File fd, myf MyFlags)
     my_file_info[fd].type= UNOPEN;
   }
 #ifndef _WIN32
-  do
-  {
-    err= close(fd);
-  } while (err == -1 && errno == EINTR);
+  err= close(fd);
 #else
   err= my_win_close(fd);
 #endif
@@ -108,7 +106,7 @@ int my_close(File fd, myf MyFlags)
   {
     my_free(name);
   }
-  statistic_decrement(my_file_opened, &THR_LOCK_open);
+  my_atomic_add32_explicit(&my_file_opened, -1, MY_MEMORY_ORDER_RELAXED);
   DBUG_RETURN(err);
 } /* my_close */
 
@@ -136,13 +134,10 @@ File my_register_filename(File fd, const char *FileName, enum file_type
   DBUG_ENTER("my_register_filename");
   if ((int) fd >= MY_FILE_MIN)
   {
+    my_atomic_add32_explicit(&my_file_opened, 1, MY_MEMORY_ORDER_RELAXED);
     if ((uint) fd >= my_file_limit)
-    {
-      statistic_increment(my_file_opened,&THR_LOCK_open);
-      DBUG_RETURN(fd);				/* safeguard */
-    }
+      DBUG_RETURN(fd);
     my_file_info[fd].name = (char*) my_strdup(FileName, MyFlags);
-    statistic_increment(my_file_opened,&THR_LOCK_open);
     statistic_increment(my_file_total_opened,&THR_LOCK_open);
     my_file_info[fd].type = type_of_file;
     DBUG_PRINT("exit",("fd: %d",fd));

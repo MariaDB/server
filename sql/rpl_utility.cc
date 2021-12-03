@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "mariadb.h"
 #include <my_bit.h>
@@ -352,7 +352,8 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 /**
  */
-void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_INFO *field_cs)
+void show_sql_type(enum_field_types type, uint16 metadata, String *str,
+                   bool char_with_octets)
 {
   DBUG_ENTER("show_sql_type");
   DBUG_PRINT("enter", ("type: %d, metadata: 0x%x", type, metadata));
@@ -420,11 +421,13 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
   case MYSQL_TYPE_VARCHAR_COMPRESSED:
     {
       CHARSET_INFO *cs= str->charset();
-      size_t length=
-        cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
-                           "varchar(%u)%s", metadata,
-                           type == MYSQL_TYPE_VARCHAR_COMPRESSED ? " compressed"
-                                                                 : "");
+      size_t length=0;
+      if (char_with_octets)
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "varchar(%u octets)", metadata);
+      else
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "varbinary(%u)", metadata);
       str->length(length);
     }
     break;
@@ -475,22 +478,22 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
       it is necessary to check the pack length to figure out what kind
       of blob it really is.
      */
-    switch (get_blob_type_from_length(metadata))
+    switch (metadata)
     {
-    case MYSQL_TYPE_TINY_BLOB:
+    case 1:
       str->set_ascii(STRING_WITH_LEN("tinyblob"));
       break;
 
-    case MYSQL_TYPE_MEDIUM_BLOB:
+    case 2:
+      str->set_ascii(STRING_WITH_LEN("blob"));
+      break;
+
+    case 3:
       str->set_ascii(STRING_WITH_LEN("mediumblob"));
       break;
 
-    case MYSQL_TYPE_LONG_BLOB:
+    case 4:
       str->set_ascii(STRING_WITH_LEN("longblob"));
-      break;
-
-    case MYSQL_TYPE_BLOB:
-      str->set_ascii(STRING_WITH_LEN("blob"));
       break;
 
     default:
@@ -509,9 +512,13 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
       */
       CHARSET_INFO *cs= str->charset();
       uint bytes= (((metadata >> 4) & 0x300) ^ 0x300) + (metadata & 0x00ff);
-      size_t length=
-        cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
-                           "char(%d)", bytes / field_cs->mbmaxlen);
+      size_t length=0;
+      if (char_with_octets)
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "char(%u octets)", bytes);
+      else
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "binary(%u)", bytes);
       str->length(length);
     }
     break;
@@ -948,9 +955,13 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
       String source_type(source_buf, sizeof(source_buf), &my_charset_latin1);
       String target_type(target_buf, sizeof(target_buf), &my_charset_latin1);
       THD *thd= table->in_use;
+      bool char_with_octets= field->cmp_type() == STRING_RESULT ?
+                             field->has_charset() : true;
 
-      show_sql_type(type(col), field_metadata(col), &source_type, field->charset());
-      field->sql_type(target_type);
+      show_sql_type(type(col), field_metadata(col), &source_type,
+                    char_with_octets);
+      field->sql_rpl_type(&target_type);
+
       rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),
                   ER_THD(thd, ER_SLAVE_CONVERSION_FAILED),
                   col, db_name, tbl_name,

@@ -455,6 +455,16 @@ INSERT INTO t1(id, dept, age, name) VALUES
   (4011, 'cs7', 10, 'rs4'), (4012, 'cs8', 20, 'rs4'), (4019, 'cs9', 10, 'rs5'),
   (4020, 'cs10', 20, 'rs5'),(4027, 'cs11', 10, 'rs6'),(4028, 'cs12', 20, 'rs6');
 
+set 
+  @tmp_uss=@@use_stat_tables,
+  @tmp_occ=@@optimizer_use_condition_selectivity;
+set 
+  use_stat_tables='preferably',
+  optimizer_use_condition_selectivity=4;
+
+analyze table t1 persistent for all;
+flush tables;
+
 EXPLAIN SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 DELETE FROM t1;
@@ -464,6 +474,9 @@ EXPLAIN SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 
 DROP TABLE t1;
+set 
+  use_stat_tables=@tmp_uss,
+  optimizer_use_condition_selectivity=@tmp_occ;
 
 --source include/innodb_rollback_on_timeout.inc
 

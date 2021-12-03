@@ -1,0 +1,59 @@
+##################################################################
+# rpl_row_big_table_id
+#
+# MDEV-17803 Row-based event is not applied when
+# table map id is greater 32 bit int
+#
+# Verify row-based events applying when table map id value is about and greater
+# than 1 << 32.
+##################################################################
+--source include/not_valgrind.inc
+--source include/word_size.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+# To reset last table id
+--let $rpl_server_number= 1
+--source include/rpl_restart_server.inc
+
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET @@debug_dbug="d,simulate_big_table_id";
+CREATE TABLE t (a int);
+
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_pos=  query_get_value(SHOW MASTER STATUS, Position, 1)
+INSERT INTO t SET a= 0;
+ALTER TABLE t comment '';
+INSERT INTO t SET a= 1;
+ALTER TABLE t comment '';
+INSERT INTO t SET a= 2;
+ALTER TABLE t comment '';
+INSERT INTO t SET a= 3;
+
+# display simulated big table_id
+--let $_in_from=in '$binlog_file' from $binlog_pos
+--replace_result "$_in_from" "in <file> from  <pos>"
+--replace_column 2 # 5 #
+--replace_regex /\/\* xid=.* \*\//\/* XID *\// /file_id=[0-9]+/file_id=#/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/
+--eval show binlog events in '$binlog_file' from $binlog_pos
+
+
+--sync_slave_with_master
+
+if (`SELECT sum(a) != 6 FROM t`)
+{
+  --echo *** unexpected result; check slave applier ***
+  --die
+}
+
+
+# Cleanup
+
+--connection master
+DROP TABLE t;
+SET debug_dbug= @saved_dbug;
+--sync_slave_with_master
+
+--source include/rpl_end.inc

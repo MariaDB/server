@@ -1,0 +1,85 @@
+#
+# This test verifies that an orphaned SR gets cleanup upon cluster
+# reconnection.  Specifically, the case where the cluster goes through
+# a state of no primary components, and the nodes rejoin with the
+# same IDs.
+#
+
+--source include/galera_cluster.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+SET SESSION wsrep_trx_fragment_size=1;
+BEGIN;
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (11);
+INSERT INTO t1 VALUES (12);
+
+--connection node_2
+SET SESSION wsrep_trx_fragment_size=1;
+BEGIN;
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (21);
+INSERT INTO t1 VALUES (22);
+SELECT COUNT(*) `expect 6` FROM mysql.wsrep_streaming_log;
+
+# isolate node 2
+--connection node_2a
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'OFF' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'wsrep_cluster_size';
+SHOW STATUS LIKE 'wsrep_cluster_status';
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'OFF' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'wsrep_cluster_size';
+SHOW STATUS LIKE 'wsrep_cluster_status';
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+--connection node_2a
+# reconnect node 2
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+--source include/galera_wait_ready.inc
+SHOW STATUS LIKE 'wsrep_cluster_size';
+
+--connection node_1a
+# wait for reconnection and check that the streaming log has been cleared
+--source include/galera_wait_ready.inc
+SHOW STATUS LIKE 'wsrep_cluster_size';
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+--connection node_2a
+# check that the streaming log has been cleared and there are no locks
+# from the SRs by issuing conflicting inserts
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+INSERT INTO t1 VALUES(10);
+INSERT INTO t1 VALUES(20);
+SELECT * FROM t1;
+
+# check that both SRs have been rolled back
+--connection node_1
+--error ER_LOCK_DEADLOCK
+INSERT INTO t1 VALUES(13);
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+INSERT INTO t1 VALUES(23);
+
+DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

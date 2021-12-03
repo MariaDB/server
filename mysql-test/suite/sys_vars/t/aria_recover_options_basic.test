@@ -2,6 +2,7 @@
 --source include/have_maria.inc
 
 SET @start_global_value = @@global.aria_recover_options;
+set @@global.aria_recover_options=default;
 
 #
 # exists as global only

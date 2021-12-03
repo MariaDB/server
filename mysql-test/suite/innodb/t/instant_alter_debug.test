@@ -1,9 +1,14 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/have_sequence.inc
 
 SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+SET @old_instant=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column');
 
 CREATE TABLE t1 (
  pk INT AUTO_INCREMENT PRIMARY KEY,
@@ -181,6 +186,7 @@ connect stop_purge,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connect ddl,localhost,root,,test;
 DELETE FROM t1;
+INSERT INTO t1 VALUES(1, 2);
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
 send ALTER TABLE t1 FORCE;
 connection default;
@@ -212,6 +218,15 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 SET a=0;
 ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2, ADD COLUMN c INT;
 
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT DEFAULT(SELECT CONCAT('ALTER TABLE t1 ADD (c',
+                                       GROUP_CONCAT(seq SEPARATOR ' INT, c'), ' INT), ALGORITHM=INSTANT;') FROM seq_1_to_130);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
+
 connection stop_purge;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
@@ -222,13 +237,14 @@ connection ddl;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
 send ALTER TABLE t1 FORCE;
 
-connection stop_purge;
-COMMIT;
-
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR copied';
+connection stop_purge;
+COMMIT;
+connection default;
 let $wait_all_purged = 1;
 --source include/wait_all_purged.inc
+let $wait_all_purged = 0;
 INSERT INTO t1 SET a=1;
 INSERT INTO t1 SET a=2,b=3,c=4;
 SET DEBUG_SYNC = 'now SIGNAL logged';
@@ -238,7 +254,7 @@ reap;
 
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c FROM t1;
 ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
 connection stop_purge;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
@@ -250,12 +266,12 @@ connection ddl;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
 send ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2 AFTER a, FORCE;
 
-disconnect stop_purge;
-
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR copied';
+disconnect stop_purge;
 let $wait_all_purged = 1;
 --source include/wait_all_purged.inc
+let $wait_all_purged = 0;
 INSERT INTO t1 SET a=1;
 INSERT INTO t1 SET a=2,c=4;
 SET DEBUG_SYNC = 'now SIGNAL logged';
@@ -266,7 +282,7 @@ UPDATE t1 SET b = b + 1 WHERE a = 2;
 
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c FROM t1;
 
 --echo #
 --echo # MDEV-15872 Crash in online ALTER TABLE...ADD PRIMARY KEY
@@ -277,7 +293,7 @@ UPDATE t1 SET d=1;
 
 connection ddl;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
-send ALTER IGNORE TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY (a,d);
+send ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY (a,d);
 
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR copied';
@@ -293,7 +309,239 @@ disconnect ddl;
 
 connection default;
 SET DEBUG_SYNC = RESET;
+SELECT a, b, c, d FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19916 Corruption after instant ADD/DROP and shrinking the tree
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+# Create an index tree with 2 levels of node pointer pages.
+
+SET @old_limit = @@innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
+INSERT INTO t1 VALUES (1),(5),(4),(3),(2);
+SET GLOBAL innodb_limit_optimistic_insert_debug = @old_limit;
+
+ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM=INSTANT;
+
+SET @old_defragment = @@innodb_defragment;
+SET GLOBAL innodb_defragment = 1;
+OPTIMIZE TABLE t1;
+SET GLOBAL innodb_defragment = @old_defragment;
+
+# Exploit MDEV-17468 to force the table definition to be reloaded
+ALTER TABLE t1 ADD vb INT AS (b) VIRTUAL;
+CHECK TABLE t1;
 SELECT * FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-21045 AddressSanitizer: use-after-poison in mem_heap_dup / row_log_table_get_pk_col
+--echo #
+CREATE TABLE t1 (a TEXT) ENGINE = InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 (a) VALUES ('foo');
+
+ALTER TABLE t1 ADD COLUMN b INT DEFAULT 0,algorithm=instant;
+
+--connect (con2,localhost,root,,test)
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL onlinealter WAIT_FOR update';
+--send
+ALTER TABLE t1 ADD PRIMARY KEY (b);
+
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR onlinealter';
+UPDATE t1 SET b = 1;
+SET DEBUG_SYNC='now SIGNAL update';
+
+--connection con2
+--reap
+
+--connection default
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-21658 Error on online ADD PRIMARY KEY after instant DROP/reorder
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c INT, col INT) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES ();
+ALTER TABLE t1 DROP b, DROP c, DROP col;
+ALTER TABLE t1 ADD COLUMN col INT;
+ALTER TABLE t1 DROP a, DROP col, ADD COLUMN b INT;
+
+--connection con2
+SET SQL_MODE= '';
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL scanned WAIT_FOR dml';
+send ALTER TABLE t1 ADD PRIMARY KEY(b);
+
+--connection default
+SET DEBUG_SYNC = 'now WAIT_FOR scanned';
+UPDATE t1 SET b = 1;
+SET DEBUG_SYNC = 'now SIGNAL dml';
+--connection con2
+reap;
+--connection default
+SELECT * FROM t1;
+
+SET DEBUG_SYNC='RESET';
+--disconnect con2
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-24653 Assertion block->page.id.page_no() == index->page failed
+--echo # in innobase_add_instant_try()
+--echo #
+
+SET @saved_limit = @@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+ALTER TABLE t1 ADD COLUMN b INT;
+DELETE FROM t1;
+--source include/wait_all_purged.inc
+ALTER TABLE t1 ADD COLUMN c INT;
+
+SELECT * FROM t1;
+DROP TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+
+--echo #
+--echo # MDEV-24796 Assertion page_has_next... failed
+--echo # in btr_pcur_store_position()
+--echo #
+
+CREATE TABLE t1 (c INT KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2);
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+ALTER TABLE t1 ADD COLUMN d INT;
+DELETE FROM t1;
+--source include/wait_all_purged.inc
+SELECT * FROM t1 WHERE c<>1 ORDER BY c DESC;
+DROP TABLE t1;
+
+SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+
+--echo #
+--echo # MDEV-24620 ASAN heap-buffer-overflow in btr_pcur_restore_position()
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(1) PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connect (stop_purge,localhost,root,,);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+ALTER TABLE t1 ADD c INT;
+BEGIN;
+DELETE FROM t1;
+
+connect (dml,localhost,root,,test);
+SET DEBUG_SYNC='row_mysql_handle_errors SIGNAL s1 WAIT_FOR s2';
+send UPDATE t1 SET c=1;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR s1';
+COMMIT;
+
+connection stop_purge;
+COMMIT;
+disconnect stop_purge;
+
+connection default;
+--source include/wait_all_purged.inc
+SET DEBUG_SYNC='now SIGNAL s2';
+
+connection dml;
+reap;
+disconnect dml;
+
+connection default;
+SET DEBUG_SYNC=RESET;
+DROP TABLE t1;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-17899 Assertion failures on rollback of instant ADD/DROP
+--echo # MDEV-18098 Crash after rollback of instant DROP COLUMN
+--echo #
+
+SET @save_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='+d,ib_commit_inplace_fail_1';
+CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,2);
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 DROP COLUMN b;
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 DROP COLUMN b;
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 ADD COLUMN c INT;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 ADD COLUMN c INT;
+BEGIN;
+INSERT INTO t1 VALUES(1, 1);
+ROLLBACK;
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 DROP COLUMN b;
+INSERT INTO t1 values (1,1);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SET debug_dbug = @save_dbug;
+
+--echo #
+--echo # MDEV-24512 Assertion failed in rec_is_metadata()
+--echo #            in btr_discard_only_page_on_level()
+--echo #
+
+SET @save_limit= @@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+CREATE TABLE t1 (c CHAR(1) UNIQUE) ENGINE=InnoDB;
+
+ALTER TABLE t1 ADD c2 INT NOT NULL DEFAULT 0 FIRST;
+--error ER_DUP_ENTRY
+INSERT INTO t1 (c) VALUES ('x'),('d'),('r'),('f'),('y'),('u'),('m'),('d');
+SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25236 Online log apply fails for ROW_FORMAT=REDUNDANT tables
+--echo #
+
+CREATE TABLE t1
+(a INT NOT NULL, b INT, c INT, d INT, e INT, f INT, g INT, h INT, i TEXT)
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 2, 3, 4, 5, 6, 7, 8, "test");
+ALTER TABLE t1 MODIFY a INT NULL;
+
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL alter WAIT_FOR go';
+send ALTER TABLE t1 ADD PRIMARY KEY (a);
+connect(con1,localhost,root,,);
+set DEBUG_SYNC='now WAIT_FOR alter';
+BEGIN;
+INSERT INTO t1 SET a=0, i=REPEAT('1', 10000);
+ROLLBACK;
+set DEBUG_SYNC='now SIGNAL go';
+connection default;
+reap;
+
+disconnect con1;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET DEBUG_SYNC=RESET;
+
+--echo # End of 10.4 tests
+
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
+
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';

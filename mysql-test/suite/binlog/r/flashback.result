@@ -64,7 +64,7 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
-SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.character_set_client=X,@@session.collation_connection=X,@@session.collation_server=X/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (
@@ -81,7 +81,7 @@ c08 TEXT
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 trans
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -107,7 +107,7 @@ COMMIT/*!*/;
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -133,7 +133,7 @@ COMMIT/*!*/;
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -159,7 +159,7 @@ COMMIT/*!*/;
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-5 trans
 /*!100001 SET @@session.gtid_seq_no=5*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -213,7 +213,7 @@ COMMIT/*!*/;
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-6 trans
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -296,7 +296,7 @@ ROLLBACK/*!*/;
 # Number of rows: 3
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Rotate to master-bin.000002  pos: 4
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
-BEGIN/*!*/;
+START TRANSACTION/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
@@ -331,7 +331,7 @@ BEGIN/*!*/;
 COMMIT
 /*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
-BEGIN/*!*/;
+START TRANSACTION/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
 ### UPDATE `test`.`t1`
 ### WHERE
@@ -374,7 +374,7 @@ BEGIN/*!*/;
 COMMIT
 /*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
-BEGIN/*!*/;
+START TRANSACTION/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
@@ -389,7 +389,7 @@ BEGIN/*!*/;
 COMMIT
 /*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
-BEGIN/*!*/;
+START TRANSACTION/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
@@ -404,7 +404,7 @@ BEGIN/*!*/;
 COMMIT
 /*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
-BEGIN/*!*/;
+START TRANSACTION/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
@@ -426,7 +426,7 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
-SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.character_set_client=X,@@session.collation_connection=X,@@session.collation_server=X/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 COMMIT
@@ -684,6 +684,24 @@ world.city	563256876
 DROP TABLE test.test;
 DROP TABLE world.city;
 DROP DATABASE world;
+# < CASE 7 >
+# Test Case for MDEV-17260
+#
+RESET MASTER;
+CREATE TABLE t1 ( f INT PRIMARY KEY ) ENGINE=innodb;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6);
+# 6- Rows must be present
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+6
+FLUSH LOGS;
+DELETE  FROM t1;
+FLUSH LOGS;
+# 0- Rows must be present
+include/assert.inc [Table t1 should have 0 rows.]
+# 6- Rows must be present upon restoring from flashback
+include/assert.inc [Table t1 should have six rows.]
+DROP TABLE t1;
 SET binlog_format=statement;
 Warnings:
 Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT

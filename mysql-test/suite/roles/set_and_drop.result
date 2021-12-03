@@ -56,9 +56,9 @@ drop role role2;
 connection foo;
 show grants;
 Grants for foo@localhost
-GRANT role1 TO 'foo'@'localhost'
-GRANT USAGE ON *.* TO 'foo'@'localhost'
-GRANT USAGE ON *.* TO 'role1'
+GRANT `role1` TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role1`
 select * from information_schema.enabled_roles;
 ROLE_NAME
 role1
@@ -112,7 +112,7 @@ select a from mysqltest1.t2;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
 show grants;
 Grants for foo@localhost
-GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT USAGE ON *.* TO `foo`@`localhost`
 select * from information_schema.enabled_roles;
 ROLE_NAME
 NULL

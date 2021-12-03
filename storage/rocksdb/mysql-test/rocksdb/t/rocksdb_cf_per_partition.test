@@ -421,6 +421,7 @@ SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='
 
 # Verify that correct partition and key are used when searching.
 ANALYZE TABLE t2;
+--replace_column 10 #
 EXPLAIN PARTITIONS SELECT  * FROM t2 WHERE col3 = 0x4 AND col2 = 0x34567;
 
 DROP TABLE t2;

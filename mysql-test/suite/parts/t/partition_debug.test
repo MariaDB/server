@@ -8,9 +8,9 @@
 # Crash tests don't work with embedded
 --source include/not_embedded.inc
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
+# Make sure system tables are not open, as the test will kill the server
+# and it will cause corruption errors in the log
+FLUSH TABLES;
 
 # Partitioning test that require debug features
 
@@ -22,10 +22,11 @@ CREATE TABLE t1 (a INT, b VARCHAR(64), KEY(b,a))
   PARTITION BY HASH (a) PARTITIONS 3;
   INSERT INTO t1 VALUES (1, "1"), (2, "2"), (3, "3"), (4, "Four"), (5, "Five"),
   (6, "Six"), (7, "Seven"), (8, "Eight"), (9, "Nine");
+SET @saved_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,ha_partition_fail_index_init";
 --error ER_NO_PARTITION_FOR_GIVEN_VALUE
 SELECT * FROM t1 WHERE b = "Seven";
-SET SESSION debug_dbug="-d,ha_partition_fail_index_init";
+SET SESSION debug_dbug=@saved_dbug;
 SELECT * FROM t1 WHERE b = "Seven";
 DROP TABLE t1;
 

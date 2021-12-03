@@ -1,4 +1,4 @@
-# Restart mysqld --loose-file-key-management-filename=keys2.txt
+# restart: --loose-file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 show warnings;
 Level	Code	Message
@@ -65,7 +65,7 @@ variable_value >= 0
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 variable_value >= 0
 1
-# Restart mysqld --loose-file-key-management-filename=keys3.txt
+# restart: --loose-file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt
 select * from innodb_normal;
 c1	b
 1	test1

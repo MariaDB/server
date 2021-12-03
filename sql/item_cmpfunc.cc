@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /**
@@ -31,7 +31,6 @@
 #include <m_ctype.h>
 #include "sql_select.h"
 #include "sql_parse.h"                          // check_stack_overrun
-#include "sql_time.h"                  // make_truncated_value_warning
 #include "sql_base.h"                  // dynamic_column_error_message
 
 
@@ -320,21 +319,18 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
   if ((*item)->const_item() && !(*item)->is_expensive())
   {
     TABLE *table= field->table;
-    sql_mode_t orig_sql_mode= thd->variables.sql_mode;
-    enum_check_fields orig_count_cuted_fields= thd->count_cuted_fields;
-    my_bitmap_map *old_maps[2];
+    Sql_mode_save sql_mode(thd);
+    Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
+    MY_BITMAP *old_maps[2] = { NULL, NULL };
     ulonglong UNINIT_VAR(orig_field_val); /* original field value if valid */
-
-    LINT_INIT_STRUCT(old_maps);
 
     /* table->read_set may not be set if we come here from a CREATE TABLE */
     if (table && table->read_set)
-      dbug_tmp_use_all_columns(table, old_maps, 
-                               table->read_set, table->write_set);
+      dbug_tmp_use_all_columns(table, old_maps,
+                               &table->read_set, &table->write_set);
     /* For comparison purposes allow invalid dates like 2000-01-32 */
-    thd->variables.sql_mode= (orig_sql_mode & ~MODE_NO_ZERO_DATE) | 
+    thd->variables.sql_mode= (thd->variables.sql_mode & ~MODE_NO_ZERO_DATE) |
                              MODE_INVALID_DATES;
-    thd->count_cuted_fields= CHECK_FIELD_IGNORE;
 
     /*
       Store the value of the field/constant because the call to save_in_field
@@ -371,10 +367,8 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
       /* orig_field_val must be a valid value that can be restored back. */
       DBUG_ASSERT(!result);
     }
-    thd->variables.sql_mode= orig_sql_mode;
-    thd->count_cuted_fields= orig_count_cuted_fields;
     if (table && table->read_set)
-      dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_maps);
+      dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_maps);
   }
   return result;
 }
@@ -423,6 +417,23 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
   convert_const_compared_to_int_field(thd);
 
   return cmp->set_cmp_func(this, &args[0], &args[1], true);
+}
+
+
+/*
+  Comparison operators remove arguments' dependency on PAD_CHAR_TO_FULL_LENGTH
+  in case of PAD SPACE comparison collations: trailing spaces do not affect
+  the comparison result for such collations.
+*/
+Sql_mode_dependency
+Item_bool_rowready_func2::value_depends_on_sql_mode() const
+{
+  if (compare_collation()->state & MY_CS_NOPAD)
+    return Item_func::value_depends_on_sql_mode();
+  return ((args[0]->value_depends_on_sql_mode() |
+           args[1]->value_depends_on_sql_mode()) &
+          Sql_mode_dependency(~0, ~MODE_PAD_CHAR_TO_FULL_LENGTH)).
+         soft_to_hard();
 }
 
 
@@ -562,6 +573,18 @@ bool Arg_comparator::set_cmp_func_datetime()
   m_compare_collation= &my_charset_numeric;
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
                                 &Arg_comparator::compare_datetime;
+  a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type_handler());
+  return false;
+}
+
+
+bool Arg_comparator::set_cmp_func_native()
+{
+  THD *thd= current_thd;
+  m_compare_collation= &my_charset_numeric;
+  func= is_owner_equal_func() ? &Arg_comparator::compare_e_native :
+                                &Arg_comparator::compare_native;
   a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
   b= cache_converted_constant(thd, b, &b_cache, compare_type_handler());
   return false;
@@ -771,6 +794,39 @@ int Arg_comparator::compare_e_string()
 }
 
 
+int Arg_comparator::compare_native()
+{
+  THD *thd= current_thd;
+  if (!(*a)->val_native_with_conversion(thd, &m_native1,
+                                        compare_type_handler()))
+  {
+    if (!(*b)->val_native_with_conversion(thd, &m_native2,
+                                          compare_type_handler()))
+    {
+      if (set_null)
+        owner->null_value= 0;
+      return compare_type_handler()->cmp_native(m_native1, m_native2);
+    }
+  }
+  if (set_null)
+    owner->null_value= 1;
+  return -1;
+}
+
+
+int Arg_comparator::compare_e_native()
+{
+  THD *thd= current_thd;
+  bool res1= (*a)->val_native_with_conversion(thd, &m_native1,
+                                              compare_type_handler());
+  bool res2= (*b)->val_native_with_conversion(thd, &m_native2,
+                                              compare_type_handler());
+  if (res1 || res2)
+    return MY_TEST(res1 == res2);
+  return MY_TEST(compare_type_handler()->cmp_native(m_native1, m_native2) == 0);
+}
+
+
 int Arg_comparator::compare_real()
 {
   /*
@@ -807,6 +863,8 @@ int Arg_comparator::compare_decimal()
     {
       if (set_null)
         owner->null_value= 0;
+      val1.round_self_if_needed((*a)->decimals, HALF_UP);
+      val2.round_self_if_needed((*b)->decimals, HALF_UP);
       return val1.cmp(val2);
     }
   }
@@ -829,6 +887,8 @@ int Arg_comparator::compare_e_decimal()
   VDec val1(*a), val2(*b);
   if (val1.is_null() || val2.is_null())
     return MY_TEST(val1.is_null() && val2.is_null());
+  val1.round_self_if_needed((*a)->decimals, HALF_UP);
+  val2.round_self_if_needed((*b)->decimals, HALF_UP);
   return MY_TEST(val1.cmp(val2) == 0);
 }
 
@@ -1138,7 +1198,9 @@ longlong Item_func_truth::val_int()
 
 bool Item_in_optimizer::is_top_level_item()
 {
-  return ((Item_in_subselect *)args[1])->is_top_level_item();
+  if (!invisible_mode())
+    return ((Item_in_subselect *)args[1])->is_top_level_item();
+  return false;
 }
 
 
@@ -1171,8 +1233,13 @@ bool Item_in_optimizer::eval_not_null_tables(void *opt_arg)
 
 void Item_in_optimizer::print(String *str, enum_query_type query_type)
 {
-   restore_first_argument();
-   Item_func::print(str, query_type);
+  if (query_type & QT_PARSABLE)
+    args[1]->print(str, query_type);
+  else
+  {
+     restore_first_argument();
+     Item_func::print(str, query_type);
+  }
 }
 
 
@@ -1188,8 +1255,7 @@ void Item_in_optimizer::print(String *str, enum_query_type query_type)
 
 void Item_in_optimizer::restore_first_argument()
 {
-  if (args[1]->type() == Item::SUBSELECT_ITEM &&
-      ((Item_subselect *)args[1])->is_in_predicate())
+  if (!invisible_mode())
   {
     args[0]= ((Item_in_subselect *)args[1])->left_expr;
   }
@@ -1206,8 +1272,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
     it is args[0].
   */
   Item **ref0= args;
-  if (args[1]->type() == Item::SUBSELECT_ITEM &&
-      ((Item_subselect *)args[1])->is_in_predicate())
+  if (!invisible_mode())
   {
     /*
        left_expr->fix_fields() may cause left_expr to be substituted for
@@ -1318,6 +1383,9 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
     maybe_null=1;
   m_with_subquery= true;
   join_with_sum_func(args[1]);
+  with_window_func= args[0]->with_window_func;
+  // The subquery cannot have window functions aggregated in this select
+  DBUG_ASSERT(!args[1]->with_window_func);
   with_field= with_field || args[1]->with_field;
   with_param= args[0]->with_param || args[1]->with_param; 
   used_tables_and_const_cache_join(args[1]);
@@ -1332,7 +1400,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   @note 
    Item_in_optimizer should work as pass-through for
     - subqueries that were processed by ALL/ANY->MIN/MAX rewrite
-    - subqueries taht were originally EXISTS subqueries (and were coverted by
+    - subqueries that were originally EXISTS subqueries (and were coinverted by
       the EXISTS->IN rewrite)
 
    When Item_in_optimizer is not not working as a pass-through, it
@@ -1500,7 +1568,7 @@ longlong Item_in_optimizer::val_int()
     DBUG_RETURN(res);
   }
 
-  if (cache->null_value)
+  if (cache->null_value_inside)
   {
      DBUG_PRINT("info", ("Left NULL..."));
     /*
@@ -1922,8 +1990,8 @@ longlong Item_func_interval::val_int()
       interval_range *range= intervals + mid;
       my_bool cmp_result;
       /*
-        The values in the range intervall may have different types,
-        Only do a decimal comparision of the first argument is a decimal
+        The values in the range interval may have different types,
+        Only do a decimal comparison if the first argument is a decimal
         and we are comparing against a decimal
       */
       if (dec && range->type == DECIMAL_RESULT)
@@ -2122,6 +2190,29 @@ longlong Item_func_between::val_int_cmp_time()
 }
 
 
+longlong Item_func_between::val_int_cmp_native()
+{
+  THD *thd= current_thd;
+  const Type_handler *h= m_comparator.type_handler();
+  NativeBuffer<STRING_BUFFER_USUAL_SIZE> value, a, b;
+  if (val_native_with_conversion_from_item(thd, args[0], &value, h))
+    return 0;
+  bool ra= args[1]->val_native_with_conversion(thd, &a, h);
+  bool rb= args[2]->val_native_with_conversion(thd, &b, h);
+  if (!ra && !rb)
+    return (longlong)
+      ((h->cmp_native(value, a) >= 0 &&
+        h->cmp_native(value, b) <= 0) != negated);
+  if (ra && rb)
+    null_value= true;
+  else if (ra)
+    null_value= h->cmp_native(value, b) <= 0;
+  else
+    null_value= h->cmp_native(value, a) >= 0;
+  return (longlong) (!null_value && negated);
+}
+
+
 longlong Item_func_between::val_int_cmp_string()
 {
   String *value,*a,*b;
@@ -2229,7 +2320,7 @@ longlong Item_func_between::val_int_cmp_real()
 
 void Item_func_between::print(String *str, enum_query_type query_type)
 {
-  args[0]->print_parenthesised(str, query_type, precedence());
+  args[0]->print_parenthesised(str, query_type, higher_precedence());
   if (negated)
     str->append(STRING_WITH_LEN(" not"));
   str->append(STRING_WITH_LEN(" between "));
@@ -2307,12 +2398,22 @@ Item_func_ifnull::str_op(String *str)
 }
 
 
+bool Item_func_ifnull::native_op(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (!val_native_with_conversion_from_item(thd, args[0], to, type_handler()))
+    return false;
+  return val_native_with_conversion_from_item(thd, args[1], to, type_handler());
+}
+
+
 bool Item_func_ifnull::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < 2; i++)
   {
-    Datetime dt(thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    Datetime_truncation_not_needed dt(thd, args[i],
+                                      fuzzydate & ~TIME_FUZZY_DATES);
     if (!(dt.copy_to_mysql_time(ltime, mysql_timestamp_type())))
       return (null_value= false);
   }
@@ -2522,7 +2623,7 @@ Item_func_nullif::fix_length_and_dec()
       Some examples of what NULLIF can end up with after argument
       substitution (we don't mention args[1] in some cases for simplicity):
 
-      1. l_expr is not an aggragate function:
+      1. l_expr is not an aggregate function:
 
         a. No conversion happened.
            args[0] and args[2] were not replaced to something else
@@ -2646,7 +2747,7 @@ Item_func_nullif::fix_length_and_dec()
     In this case we remember and reuse m_arg0 during EXECUTE time as args[2].
 
     QQ: How to make sure that m_args0 does not point
-    to something temporary which will be destoyed between PREPARE and EXECUTE.
+    to something temporary which will be destroyed between PREPARE and EXECUTE.
     The condition below should probably be more strict and somehow check that:
     - change_item_tree() was called for the new args[0]
     - m_args0 is referenced from inside args[0], e.g. as a function argument,
@@ -2812,7 +2913,7 @@ Item_func_nullif::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   DBUG_ASSERT(fixed == 1);
   if (!compare())
     return (null_value= true);
-  Datetime dt(thd, args[2], fuzzydate);
+  Datetime_truncation_not_needed dt(thd, args[2], fuzzydate);
   return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
 }
 
@@ -2825,6 +2926,16 @@ Item_func_nullif::time_op(THD *thd, MYSQL_TIME *ltime)
     return (null_value= true);
   return (null_value= Time(thd, args[2]).copy_to_mysql_time(ltime));
 
+}
+
+
+bool
+Item_func_nullif::native_op(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (!compare())
+    return (null_value= true);
+  return val_native_with_conversion_from_item(thd, args[2], to, type_handler());
 }
 
 
@@ -2987,7 +3098,7 @@ bool Item_func_case::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   Item *item= find_item();
   if (!item)
     return (null_value= true);
-  Datetime dt(thd, item, fuzzydate);
+  Datetime_truncation_not_needed dt(thd, item, fuzzydate);
   return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
 }
 
@@ -2999,6 +3110,16 @@ bool Item_func_case::time_op(THD *thd, MYSQL_TIME *ltime)
   if (!item)
     return (null_value= true);
   return (null_value= Time(thd, item).copy_to_mysql_time(ltime));
+}
+
+
+bool Item_func_case::native_op(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  Item *item= find_item();
+  if (!item)
+    return (null_value= true);
+  return val_native_with_conversion_from_item(thd, item, to, type_handler());
 }
 
 
@@ -3078,7 +3199,7 @@ bool Item_func_decode_oracle::fix_length_and_dec()
 /*
   Aggregate all THEN and ELSE expression types
   and collations when string result
-  
+
   @param THD       - current thd
   @param start     - an element in args to start aggregating from
 */
@@ -3216,27 +3337,28 @@ Item* Item_func_case_simple::propagate_equal_fields(THD *thd,
 }
 
 
-void Item_func_case::print_when_then_arguments(String *str,
-                                               enum_query_type query_type,
-                                               Item **items, uint count)
+inline void Item_func_case::print_when_then_arguments(String *str,
+                                                      enum_query_type
+                                                      query_type,
+                                                      Item **items, uint count)
 {
-  for (uint i=0 ; i < count ; i++)
+  for (uint i= 0; i < count; i++)
   {
     str->append(STRING_WITH_LEN("when "));
-    items[i]->print_parenthesised(str, query_type, precedence());
+    items[i]->print(str, query_type);
     str->append(STRING_WITH_LEN(" then "));
-    items[i + count]->print_parenthesised(str, query_type, precedence());
+    items[i + count]->print(str, query_type);
     str->append(' ');
   }
 }
 
 
-void Item_func_case::print_else_argument(String *str,
-                                         enum_query_type query_type,
-                                         Item *item)
+inline void Item_func_case::print_else_argument(String *str,
+                                                enum_query_type query_type,
+                                                Item *item)
 {
   str->append(STRING_WITH_LEN("else "));
-  item->print_parenthesised(str, query_type, precedence());
+  item->print(str, query_type);
   str->append(' ');
 }
 
@@ -3339,7 +3461,8 @@ bool Item_func_coalesce::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzyd
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < arg_count; i++)
   {
-    Datetime dt(thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    Datetime_truncation_not_needed dt(thd, args[i],
+                                      fuzzydate & ~TIME_FUZZY_DATES);
     if (!dt.copy_to_mysql_time(ltime, mysql_timestamp_type()))
       return (null_value= false);
   }
@@ -3354,6 +3477,18 @@ bool Item_func_coalesce::time_op(THD *thd, MYSQL_TIME *ltime)
   {
     if (!Time(thd, args[i]).copy_to_mysql_time(ltime))
       return (null_value= false);
+  }
+  return (null_value= true);
+}
+
+
+bool Item_func_coalesce::native_op(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (!val_native_with_conversion_from_item(thd, args[i], to, type_handler()))
+      return false;
   }
   return (null_value= true);
 }
@@ -3633,6 +3768,53 @@ Item *in_longlong::create_item(THD *thd)
      general case (see BUG#19342).
   */
   return new (thd->mem_root) Item_int(thd, (longlong)0);
+}
+
+
+static int cmp_timestamp(void *cmp_arg,
+                         Timestamp_or_zero_datetime *a,
+                         Timestamp_or_zero_datetime *b)
+{
+  return a->cmp(*b);
+}
+
+
+in_timestamp::in_timestamp(THD *thd, uint elements)
+  :in_vector(thd, elements, sizeof(Value), (qsort2_cmp) cmp_timestamp, 0)
+{}
+
+
+void in_timestamp::set(uint pos, Item *item)
+{
+  Timestamp_or_zero_datetime *buff= &((Timestamp_or_zero_datetime *) base)[pos];
+  Timestamp_or_zero_datetime_native_null native(current_thd, item, true);
+  if (native.is_null())
+    *buff= Timestamp_or_zero_datetime();
+  else
+    *buff= Timestamp_or_zero_datetime(native);
+}
+
+
+uchar *in_timestamp::get_value(Item *item)
+{
+  Timestamp_or_zero_datetime_native_null native(current_thd, item, true);
+  if (native.is_null())
+    return 0;
+  tmp= Timestamp_or_zero_datetime(native);
+  return (uchar*) &tmp;
+}
+
+
+Item *in_timestamp::create_item(THD *thd)
+{
+  return new (thd->mem_root) Item_timestamp_literal(thd);
+}
+
+
+void in_timestamp::value_to_item(uint pos, Item *item)
+{
+  const Timestamp_or_zero_datetime &buff= (((Timestamp_or_zero_datetime*) base)[pos]);
+  static_cast<Item_timestamp_literal*>(item)->set_value(buff);
 }
 
 
@@ -4041,6 +4223,49 @@ cmp_item *cmp_item_time::make_same()
 {
   return new cmp_item_time();
 }
+
+
+void cmp_item_timestamp::store_value(Item *item)
+{
+  item->val_native_with_conversion(current_thd, &m_native,
+                                   &type_handler_timestamp2);
+  m_null_value= item->null_value;
+}
+
+
+int cmp_item_timestamp::cmp_not_null(const Value *val)
+{
+  /*
+    This method will be implemented when we add this syntax:
+      SELECT TIMESTAMP WITH LOCAL TIME ZONE '2001-01-01 10:20:30'
+    For now TIMESTAMP is compared to non-TIMESTAMP using DATETIME.
+  */
+  DBUG_ASSERT(0);
+  return 0;
+}
+
+
+int cmp_item_timestamp::cmp(Item *arg)
+{
+  THD *thd= current_thd;
+  Timestamp_or_zero_datetime_native_null tmp(thd, arg, true);
+  return m_null_value || tmp.is_null() ? UNKNOWN :
+         type_handler_timestamp2.cmp_native(m_native, tmp) != 0;
+}
+
+
+int cmp_item_timestamp::compare(cmp_item *arg)
+{
+  cmp_item_timestamp *tmp= static_cast<cmp_item_timestamp*>(arg);
+  return type_handler_timestamp2.cmp_native(m_native, tmp->m_native);
+}
+
+
+cmp_item* cmp_item_timestamp::make_same()
+{
+  return new cmp_item_timestamp();
+}
+
 
 
 bool Item_func_in::count_sargable_conds(void *arg)
@@ -4565,7 +4790,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
   List_iterator<Item> li(list);
   Item *item;
   uchar buff[sizeof(char*)];			// Max local vars in function
-  longlong is_and_cond= functype() == Item_func::COND_AND_FUNC;
+  bool is_and_cond= functype() == Item_func::COND_AND_FUNC;
   not_null_tables_cache= 0;
   used_tables_and_const_cache_init();
 
@@ -4629,7 +4854,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
     {
-      if (item->val_int() == is_and_cond && top_level())
+      if (item->eval_const_cond() == is_and_cond && top_level())
       {
         /* 
           a. This is "... AND true_cond AND ..."
@@ -4681,7 +4906,7 @@ bool
 Item_cond::eval_not_null_tables(void *opt_arg)
 {
   Item *item;
-  longlong is_and_cond= functype() == Item_func::COND_AND_FUNC;
+  bool is_and_cond= functype() == Item_func::COND_AND_FUNC;
   List_iterator<Item> li(list);
   not_null_tables_cache= (table_map) 0;
   and_tables_cache= ~(table_map) 0;
@@ -4691,7 +4916,7 @@ Item_cond::eval_not_null_tables(void *opt_arg)
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
     {
-      if (item->val_int() == is_and_cond && top_level())
+      if (item->eval_const_cond() == is_and_cond && top_level())
       {
         /* 
           a. This is "... AND true_cond AND ..."
@@ -4981,7 +5206,7 @@ void Item_cond::neg_arguments(THD *thd)
       
    @retval
      clone of the item
-     0 if an error occured
+     0 if an error occurred
 */ 
 
 Item *Item_cond::build_clone(THD *thd)
@@ -5004,8 +5229,27 @@ Item *Item_cond::build_clone(THD *thd)
 }
 
 
+bool Item_cond::excl_dep_on_table(table_map tab_map)
+{
+  if (used_tables() & OUTER_REF_TABLE_BIT)
+    return false;
+  if (!(used_tables() & ~tab_map))
+    return true;
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+    if (!item->excl_dep_on_table(tab_map))
+      return false;
+  }
+  return true;
+}
+
+
 bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
+  if (has_rand_bit())
+    return false;
   List_iterator_fast<Item> li(list);
   Item *item;
   while ((item= li++))
@@ -5218,18 +5462,21 @@ void Item_func_like::print(String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN(" not "));
   str->append(func_name());
   str->append(' ');
-  args[1]->print_parenthesised(str, query_type, precedence());
   if (escape_used_in_parsing)
   {
+    args[1]->print_parenthesised(str, query_type, precedence());
     str->append(STRING_WITH_LEN(" escape "));
-    escape_item->print(str, query_type);
+    escape_item->print_parenthesised(str, query_type, higher_precedence());
   }
+  else
+    args[1]->print_parenthesised(str, query_type, higher_precedence());
 }
 
 
 longlong Item_func_like::val_int()
 {
   DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(escape != ESCAPE_NOT_INITIALIZED);
   String* res= args[0]->val_str(&cmp_value1);
   if (args[0]->null_value)
   {
@@ -5277,6 +5524,29 @@ bool Item_func_like::with_sargable_pattern() const
 }
 
 
+/*
+  subject LIKE pattern
+  removes subject's dependency on PAD_CHAR_TO_FULL_LENGTH
+  if pattern ends with the '%' wildcard.
+*/
+Sql_mode_dependency Item_func_like::value_depends_on_sql_mode() const
+{
+  if (!args[1]->value_depends_on_sql_mode_const_item())
+    return Item_func::value_depends_on_sql_mode();
+  StringBuffer<64> patternbuf;
+  String *pattern= args[1]->val_str_ascii(&patternbuf);
+  if (!pattern || !pattern->length())
+    return Sql_mode_dependency();                  // Will return NULL or 0
+  DBUG_ASSERT(pattern->charset()->mbminlen == 1);
+  if (pattern->ptr()[pattern->length() - 1] != '%')
+    return Item_func::value_depends_on_sql_mode();
+  return ((args[0]->value_depends_on_sql_mode() |
+           args[1]->value_depends_on_sql_mode()) &
+          Sql_mode_dependency(~0, ~MODE_PAD_CHAR_TO_FULL_LENGTH)).
+         soft_to_hard();
+}
+
+
 SEL_TREE *Item_func_like::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
   MEM_ROOT *tmp_root= param->mem_root;
@@ -5293,15 +5563,29 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
                      bool escape_used_in_parsing, CHARSET_INFO *cmp_cs,
                      int *escape)
 {
-  if (!escape_item->const_during_execution())
+  /*
+    ESCAPE clause accepts only constant arguments and Item_param.
+
+    Subqueries during context_analysis_only might decide they're
+    const_during_execution, but not quite const yet, not evaluate-able.
+    This is fine, as most of context_analysis_only modes will never
+    reach val_int(), so we won't need the value.
+    CONTEXT_ANALYSIS_ONLY_DERIVED being a notable exception here.
+  */
+  if (!escape_item->const_during_execution() ||
+     (!escape_item->const_item() &&
+      !(thd->lex->context_analysis_only & ~CONTEXT_ANALYSIS_ONLY_DERIVED)))
   {
     my_error(ER_WRONG_ARGUMENTS,MYF(0),"ESCAPE");
     return TRUE;
   }
-  
+
+  IF_DBUG(*escape= ESCAPE_NOT_INITIALIZED,);
+
   if (escape_item->const_item())
   {
     /* If we are on execution stage */
+    /* XXX is it safe to evaluate is_expensive() items here? */
     String *escape_str= escape_item->val_str(tmp_str);
     if (escape_str)
     {
@@ -5376,13 +5660,17 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
       if (!res2)
         return FALSE;				// Null argument
       
-      const size_t len   = res2->length();
-      const char*  first = res2->ptr();
-      const char*  last  = first + len - 1;
+      const size_t len= res2->length();
+
       /*
         len must be > 2 ('%pattern%')
         heuristic: only do TurboBM for pattern_len > 2
       */
+      if (len <= 2)
+        return FALSE;
+
+      const char*  first= res2->ptr();
+      const char*  last=  first + len - 1;
       
       if (len > MIN_TURBOBM_PATTERN_LEN + 2 &&
           *first == wild_many &&
@@ -6892,7 +7180,7 @@ Item* Item_equal::get_first(JOIN_TAB *context, Item *field_item)
     and not ot2.col.
     
     eliminate_item_equal() also has code that deals with equality substitution
-    in presense of SJM nests.
+    in presence of SJM nests.
   */
 
   TABLE_LIST *emb_nest;
@@ -7117,4 +7405,187 @@ Item_bool_rowready_func2* Le_creator::create(THD *thd, Item *a, Item *b) const
 Item_bool_rowready_func2* Le_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
   return new(thd->mem_root) Item_func_ge(thd, b, a);
+}
+
+
+bool
+Item_equal::excl_dep_on_grouping_fields(st_select_lex *sel)
+{
+  Item_equal_fields_iterator it(*this);
+  Item *item;
+
+  while ((item=it++))
+  {
+    if (item->excl_dep_on_grouping_fields(sel))
+    {
+      set_extraction_flag(FULL_EXTRACTION_FL);
+      return true;
+    }
+  }
+  return false;
+}
+
+
+/**
+  @brief
+    Transform multiple equality into list of equalities
+
+  @param thd         the thread handle
+  @param equalities  the list where created equalities are stored
+  @param checker     the checker callback function to be applied to the nodes
+                     of the tree of the object to check if multiple equality
+                     elements can be used to create equalities
+  @param arg         parameter to be passed to the checker
+  @param clone_const true <=> clone the constant member if there is any
+
+  @details
+    How the method works on examples:
+
+    Example 1:
+    It takes MULT_EQ(x,a,b) and tries to create from its elements a set of
+    equalities {(x=a),(x=b)}.
+
+    Example 2:
+    It takes MULT_EQ(1,a,b) and tries to create from its elements a set of
+    equalities {(a=1),(a=b)}.
+
+    How it is done:
+
+    1. If there is a constant member c the first non-constant member x for
+       which the function checker returns true is taken and an item for
+       the equality x=c is created. When constructing the equality item
+       the left part of the equality is always taken as a clone of x while
+       the right part is taken as a clone of c only if clone_const == true.
+
+    2. After this all equalities of the form x=a (where x designates the first
+       non-constant member for which checker returns true and a is some other
+       such member of the multiplle equality) are created. When constructing
+       an equality item both its parts are taken as clones of x and a.
+    
+       Suppose in the examples above that for 'x', 'a', and 'b' the function
+       checker returns true.
+
+       Example 1:
+         the equality (x=a) is built
+         the equality (x=b) is built
+
+       Example 2:
+         the equality (a=1) is built
+         the equality (a=b) is built
+
+    3. As a result we get a set of equalities built with the elements of
+       this multiple equality. They are saved in the equality list.
+
+       Example 1:
+       {(x=a),(x=b)}
+
+       Example 2:
+       {(a=1),(a=b)}
+
+  @note
+    This method is called for condition pushdown into materialized
+    derived table/view, and IN subquery, and pushdown from HAVING into WHERE.
+    When it is called for pushdown from HAVING the empty checker is passed.
+    This is because in this case the elements of the multiple equality don't
+    need to be  checked if they can be used to build equalities: either all
+    equalities can be pushed or none of them can be pushed.
+    When the function is called for pushdown from HAVING the value of the
+    parameter clone_const is always false. In other cases it's always true.
+
+  @retval true   if an error occurs
+  @retval false  otherwise
+*/
+
+bool Item_equal::create_pushable_equalities(THD *thd,
+                                            List<Item> *equalities,
+                                            Pushdown_checker checker,
+                                            uchar *arg,
+                                            bool clone_const)
+{
+  Item *item;
+  Item *left_item= NULL;
+  Item *right_item = get_const();
+  Item_equal_fields_iterator it(*this);
+
+  while ((item=it++))
+  {
+    left_item= item;
+    if (checker && !((item->*checker) (arg)))
+      continue;
+    break;
+  }
+
+  if (!left_item)
+    return false;
+
+  if (right_item)
+  {
+    Item_func_eq *eq= 0;
+    Item *left_item_clone= left_item->build_clone(thd);
+    Item *right_item_clone= !clone_const ?
+                            right_item : right_item->build_clone(thd);
+    if (!left_item_clone || !right_item_clone)
+      return true;
+    eq= new (thd->mem_root) Item_func_eq(thd,
+                                         left_item_clone,
+                                         right_item_clone);
+    if (!eq ||  equalities->push_back(eq, thd->mem_root))
+      return true;
+    if (!clone_const)
+      right_item->set_extraction_flag(IMMUTABLE_FL);
+  }
+
+  while ((item=it++))
+  {
+    if (checker && !((item->*checker) (arg)))
+      continue;
+    Item_func_eq *eq= 0;
+    Item *left_item_clone= left_item->build_clone(thd);
+    Item *right_item_clone= item->build_clone(thd);
+    if (!(left_item_clone && right_item_clone))
+      return true;
+    left_item_clone->set_item_equal(NULL);
+    right_item_clone->set_item_equal(NULL);
+    eq= new (thd->mem_root) Item_func_eq(thd,
+                                         right_item_clone,
+                                         left_item_clone);
+    if (!eq || equalities->push_back(eq, thd->mem_root))
+      return true;
+  }
+  return false;
+}
+
+
+/**
+  Transform multiple equality into the AND condition of equalities.
+
+  Example:
+  MULT_EQ(x,a,b)
+  =>
+  (x=a) AND (x=b)
+
+  Equalities are built in Item_equal::create_pushable_equalities() method
+  using elements of this multiple equality. The result of this method is
+  saved in an equality list.
+  This method returns the condition where the elements of the equality list
+  are anded.
+*/
+
+Item *Item_equal::multiple_equality_transformer(THD *thd, uchar *arg)
+{
+  List<Item> equalities;
+  if (create_pushable_equalities(thd, &equalities, 0, 0, false))
+    return 0;
+
+  switch (equalities.elements)
+  {
+  case 0:
+    return 0;
+  case 1:
+    return equalities.head();
+    break;
+  default:
+    return new (thd->mem_root) Item_cond_and(thd, equalities);
+    break;
+  }
 }

@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Library General Public
 # License along with this library; if not, write to the Free
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA
+# MA 02110-1335  USA
 
 use strict;
 use Getopt::Long;
@@ -296,7 +296,7 @@ foreach my $rdb ( @db_desc ) {
     if ($db =~ m/^mysql$/i)
     {
       @dbh_base_tables = grep 
-        { !/^(apply_status|schema|general_log|slow_log)$/ } @dbh_base_tables
+        { !/^(apply_status|schema|general_log|slow_log|transaction_registry)$/ } @dbh_base_tables
     }
 
     ## generate regex for tables/files

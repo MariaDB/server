@@ -94,3 +94,17 @@ DROP TABLE t1;
 CREATE TABLE t1(a INT ZEROFILL);
 SELECT 1 FROM t1 WHERE t1.a IN (1, t1.a) AND t1.a=2;
 DROP TABLE t1;
+
+#
+# Check what happens when comparing to long string
+#
+
+CREATE TABLE t1 (a char(2), index (a));
+insert into t1 values ("aa"),("bb");
+select * from t1 where a="aa";
+select * from t1 where a="aaa";
+select * from t1 where a="aa ";
+select * from t1 where a>="aaa";
+explain select * from t1 where a="aaa";
+explain select * from t1 where a="aa ";
+drop table t1;

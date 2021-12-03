@@ -40,3 +40,58 @@ INSERT IGNORE INTO t1 VALUES (1),(2);
 CREATE OR REPLACE TABLE t2 ENGINE=Aria AS SELECT SUM(a) AS f1, IFNULL( 'qux', ExtractValue( 'foo', 'bar' ) ) AS f2 FROM t1;
 select * from t2;
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-23159 Assertion `table_share->tmp_table != NO_TMP_TABLE ||
+--echo # m_lock_type != 2' + SIGSEGV in trnman_can_read_from
+--echo # (on optimized builds)
+--echo #
+
+SET @org_sql_mode=@@SQL_MODE;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=Aria ROW_FORMAT=COMPRESSED;
+INSERT INTO t1 VALUES(1);
+CREATE TEMPORARY TABLE t2(b INT);
+EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT MAX(a) FROM t2);
+DROP TABLE t1,t2;
+
+SET SQL_MODE='';
+CREATE TABLE t1 (c INT PRIMARY KEY) ENGINE=Aria;
+CREATE TABLE t2 (d INT);
+INSERT INTO t1 VALUES (1);
+SELECT c FROM t1 WHERE (c) IN (SELECT MIN(c) FROM t2);
+DROP TABLE t1,t2;
+
+USE test;
+SET SQL_MODE='ONLY_FULL_GROUP_BY';
+CREATE TABLE t3 (c1 DECIMAL(1,1) PRIMARY KEY,c2 DATE,c3 NUMERIC(10) UNSIGNED) ENGINE=Aria;
+CREATE TABLE t2 (f1 INTEGER ) ENGINE=Aria;
+INSERT INTO t3 VALUES (0,0,0);
+SELECT c1 FROM t3 WHERE (c1) IN (SELECT MIN(DISTINCT c1) FROM t2);
+DROP TABLE t2,t3;
+SET @@SQL_MODE=@org_sql_mode;
+
+--echo #
+--echo # MDEV-23222 SIGSEGV in maria_status | Assertion `(longlong)
+--echo # thd->status_var.local_memory_used >= 0
+--echo #
+
+let $mysqld_datadir= `select @@datadir`;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval CREATE TABLE MDEV_23222 (i INT) DATA DIRECTORY = '$MYSQL_TMP_DIR', ENGINE=Aria TRANSACTIONAL=1;
+flush tables;
+--remove_file $mysqld_datadir/test/MDEV_23222.frm
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--error 1,ER_TABLE_EXISTS_ERROR
+--eval CREATE TABLE MDEV_23222 (i INT) DATA DIRECTORY = '$MYSQL_TMP_DIR', ENGINE=Aria TRANSACTIONAL=1;
+DROP TABLE t1;
+--disable_warnings
+--remove_file $mysqld_datadir/test/MDEV_23222.MAD
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--remove_file $MYSQL_TMP_DIR/MDEV_23222.MAD
+--enable_warnings
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

@@ -2,6 +2,7 @@
 # We need the Debug Sync Facility.
 #
 --source include/have_debug_sync.inc
+--source include/have_metadata_lock_info.inc
 
 # We need InnoDB tables for some of the tests.
 --source include/have_innodb.inc
@@ -2690,17 +2691,20 @@ connection con1;
 --echo # Wait till FLUSH TABLES <list> WITH READ LOCK stops.
 set debug_sync='now WAIT_FOR parked';
 
+# Simple flush tables should not block
+flush tables;
+
 --echo # Start a statement which will flush all tables and thus
 --echo # invalidate table t1 open by FLUSH TABLES <list> WITH READ LOCK.
 --echo # Sending:
-send flush tables;
+send flush tables t1;
 
 connection default;
 --echo # Wait till the above FLUSH TABLES blocks.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush" and
-        info = "flush tables";
+  where state = "Waiting for table metadata lock" and
+        info = "flush tables t1";
 --source include/wait_condition.inc
 
 --echo # Resume FLUSH TABLES <list> WITH READ LOCK, so it tries to open t2
@@ -3245,6 +3249,7 @@ connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
 --echo # Check that FLUSH must wait to get the GRL
 --echo # and let DROP PROCEDURE continue
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
 --send FLUSH TABLES WITH READ LOCK
 
@@ -3261,12 +3266,63 @@ connection con2;
 --echo # Reaping FTWRL.
 --reap
 UNLOCK TABLES;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+
+--echo #
+--echo # UPDATE should wait for FTWRL with non transactional table second
+--echo #
+
+create table t1 (a int) engine=myisam;
+create table t2 (a int) engine=innodb;
+insert into t1 values (1);
+insert into t2 values (1);
+
+SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
+--send update t1,t2 set t1.a=2,t2.a=3
+
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'now SIGNAL grlwait';
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
+FLUSH TABLES WITH READ LOCK;
+
+connection default;
+--echo # Reaping UPDATE
+--reap
+
+connection con2;
+UNLOCK TABLES;
 
 connection default;
 SET DEBUG_SYNC= 'RESET';
 
-disconnect con2;
+# This will cause a wait as we first get lock for innodb table t2 but FTWRL
+# will cause lock for t1 to wait
 
+SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
+--send update t2,t1 set t1.a=2,t2.a=3
+
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'now SIGNAL grlwait';
+SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
+FLUSH TABLES WITH READ LOCK;
+
+let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.metadata_lock_info;
+--source include/wait_condition.inc
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+
+unlock tables;
+
+connection default;
+--echo # Reaping UPDATE
+--reap
+SET DEBUG_SYNC= 'RESET';
+drop table t1,t2;
+disconnect con2;
 
 --echo #
 --echo # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 
@@ -3275,9 +3331,6 @@ disconnect con2;
 
 --echo # Supress warnings written to the log file
 call mtr.add_suppression("Wait on a lock was aborted due to a pending exclusive lock");
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
 
 connect (con1,localhost,root);
 connect (con2,localhost,root);
@@ -3966,7 +4019,7 @@ connection con2;
 
 connection default;
 let $wait_condition=SELECT COUNT(*)=1 FROM information_schema.processlist
-  WHERE state='Waiting for global read lock'
+  WHERE state='Waiting for backup lock'
   AND info='CREATE TABLE db1.t2(a INT)';
 --source include/wait_condition.inc
 UNLOCK TABLES;
@@ -3984,7 +4037,7 @@ connection con2;
 
 connection default;
 let $wait_condition=SELECT COUNT(*)=1 FROM information_schema.processlist
-  WHERE state='Waiting for global read lock'
+  WHERE state='Waiting for backup lock'
   AND info='ALTER DATABASE db1 DEFAULT CHARACTER SET utf8';
 --source include/wait_condition.inc
 UNLOCK TABLES;
@@ -4079,9 +4132,10 @@ disconnect con3;
 --echo # MDEV-12620 - set lock_wait_timeout = 1;flush tables with read lock;
 --echo #              lock not released after timeout
 --echo #
+
 CREATE TABLE t1(a INT) ENGINE=InnoDB;
 SET debug_sync='open_tables_after_open_and_process_table SIGNAL ready WAIT_FOR go';
-send SELECT * FROM t1;
+send INSERT INTO t1 values (1);
 
 connect (con1,localhost,root,,);
 SET debug_sync='now WAIT_FOR ready';
@@ -4093,11 +4147,30 @@ SET debug_sync='now SIGNAL go';
 
 connection default;
 reap;
+
+--echo # After MDEV-5536, SELECT will not block FLUSH TABLES
+
+SET debug_sync='RESET';
+SET debug_sync='open_tables_after_open_and_process_table SIGNAL ready WAIT_FOR go';
+send SELECT * FROM t1;
+
+connection con1;
+SET debug_sync='now WAIT_FOR ready';
+# lock_wait_timeout should be 0 in 10.3, so that we don't have to wait at all
+SET lock_wait_timeout=1;
+FLUSH TABLES WITH READ LOCK;
+SET debug_sync='now SIGNAL go';
+
+connection default;
+reap;
+connection con1;
+unlock tables;
+connection default;
+
 SET debug_sync='RESET';
 DROP TABLE t1;
 
 disconnect con1;
-
 
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.

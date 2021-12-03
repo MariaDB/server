@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -130,6 +130,7 @@ row_undo_node_create(
 	undo_node_t*	undo;
 
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE)
+	      || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	      || trx_state_eq(trx, TRX_STATE_PREPARED));
 	ut_ad(parent);
 
@@ -167,8 +168,8 @@ row_undo_search_clust_to_pcur(
 	row_ext_t**	ext;
 	const rec_t*	rec;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(!node->table->skip_alter_undo);
@@ -186,7 +187,8 @@ row_undo_search_clust_to_pcur(
 
 	rec = btr_pcur_get_rec(&node->pcur);
 
-	offsets = rec_get_offsets(rec, clust_index, offsets, true,
+	offsets = rec_get_offsets(rec, clust_index, offsets,
+				  clust_index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	found = row_get_rec_roll_ptr(rec, clust_index, offsets)
@@ -194,7 +196,7 @@ row_undo_search_clust_to_pcur(
 
 	if (found) {
 		ut_ad(row_get_rec_trx_id(rec, clust_index, offsets)
-		      == node->trx->id);
+		      == node->trx->id || node->table->is_temporary());
 
 		if (dict_table_has_atomic_blobs(node->table)) {
 			/* There is no prefix of externally stored
@@ -217,7 +219,8 @@ row_undo_search_clust_to_pcur(
 		log, first mark them DATA_MISSING. So we will know if the
 		value gets updated */
 		if (node->table->n_v_cols
-		    && node->state != UNDO_NODE_INSERT
+		    && (node->state == UNDO_UPDATE_PERSISTENT
+			|| node->state == UNDO_UPDATE_TEMPORARY)
 		    && !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
 			for (ulint i = 0;
 			     i < dict_table_get_n_v_cols(node->table); i++) {
@@ -253,6 +256,136 @@ func_exit:
 	return(found);
 }
 
+/** Try to truncate the undo logs.
+@param[in,out]	trx	transaction */
+static void row_undo_try_truncate(trx_t* trx)
+{
+	if (trx_undo_t*	undo = trx->rsegs.m_redo.undo) {
+		ut_ad(undo->rseg == trx->rsegs.m_redo.rseg);
+		trx_undo_truncate_end(*undo, trx->undo_no, false);
+	}
+
+	if (trx_undo_t* undo = trx->rsegs.m_noredo.undo) {
+		ut_ad(undo->rseg == trx->rsegs.m_noredo.rseg);
+		trx_undo_truncate_end(*undo, trx->undo_no, true);
+	}
+}
+
+/** Get the latest undo log record for rollback.
+@param[in,out]	node		rollback context
+@return	whether an undo log record was fetched */
+static bool row_undo_rec_get(undo_node_t* node)
+{
+	trx_t* trx = node->trx;
+
+	if (trx->pages_undone) {
+		trx->pages_undone = 0;
+		row_undo_try_truncate(trx);
+	}
+
+	trx_undo_t*	undo	= NULL;
+	trx_undo_t*	update	= trx->rsegs.m_redo.undo;
+	trx_undo_t*	temp	= trx->rsegs.m_noredo.undo;
+	const undo_no_t	limit	= trx->roll_limit;
+
+	ut_ad(!update || !temp || update->empty() || temp->empty()
+	      || update->top_undo_no != temp->top_undo_no);
+
+	if (update && !update->empty() && update->top_undo_no >= limit) {
+		if (!undo) {
+			undo = update;
+		} else if (undo->top_undo_no < update->top_undo_no) {
+			undo = update;
+		}
+	}
+
+	if (temp && !temp->empty() && temp->top_undo_no >= limit) {
+		if (!undo) {
+			undo = temp;
+		} else if (undo->top_undo_no < temp->top_undo_no) {
+			undo = temp;
+		}
+	}
+
+	if (undo == NULL) {
+		row_undo_try_truncate(trx);
+		/* Mark any ROLLBACK TO SAVEPOINT completed, so that
+		if the transaction object is committed and reused
+		later, we will default to a full ROLLBACK. */
+		trx->roll_limit = 0;
+		trx->in_rollback = false;
+		return false;
+	}
+
+	ut_ad(!undo->empty());
+	ut_ad(limit <= undo->top_undo_no);
+
+	node->roll_ptr = trx_undo_build_roll_ptr(
+		false, undo->rseg->id, undo->top_page_no, undo->top_offset);
+
+	mtr_t	mtr;
+	mtr.start();
+
+	page_t*	undo_page = trx_undo_page_get_s_latched(
+		page_id_t(undo->rseg->space->id, undo->top_page_no), &mtr);
+
+	ulint	offset = undo->top_offset;
+
+	trx_undo_rec_t*	prev_rec = trx_undo_get_prev_rec(
+		undo_page + offset, undo->hdr_page_no, undo->hdr_offset,
+		true, &mtr);
+
+	if (prev_rec == NULL) {
+		undo->top_undo_no = IB_ID_MAX;
+		ut_ad(undo->empty());
+	} else {
+		page_t*	prev_rec_page = page_align(prev_rec);
+
+		if (prev_rec_page != undo_page) {
+
+			trx->pages_undone++;
+		}
+
+		undo->top_page_no = page_get_page_no(prev_rec_page);
+		undo->top_offset  = ulint(prev_rec - prev_rec_page);
+		undo->top_undo_no = trx_undo_rec_get_undo_no(prev_rec);
+		ut_ad(!undo->empty());
+	}
+
+	{
+		const trx_undo_rec_t* undo_rec = undo_page + offset;
+		node->undo_rec = trx_undo_rec_copy(undo_rec, node->heap);
+	}
+
+	mtr.commit();
+
+	switch (trx_undo_rec_get_type(node->undo_rec)) {
+	case TRX_UNDO_INSERT_METADATA:
+		/* This record type was introduced in MDEV-11369
+		instant ADD COLUMN, which was implemented after
+		MDEV-12288 removed the insert_undo log. There is no
+		instant ADD COLUMN for temporary tables. Therefore,
+		this record can only be present in the main undo log. */
+		/* fall through */
+	case TRX_UNDO_RENAME_TABLE:
+		ut_ad(undo == update);
+		/* fall through */
+	case TRX_UNDO_INSERT_REC:
+		node->roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
+		node->state = undo == temp
+			? UNDO_INSERT_TEMPORARY : UNDO_INSERT_PERSISTENT;
+		break;
+	default:
+		node->state = undo == temp
+			? UNDO_UPDATE_TEMPORARY : UNDO_UPDATE_PERSISTENT;
+		break;
+	}
+
+	trx->undo_no = node->undo_no = trx_undo_rec_get_undo_no(
+		node->undo_rec);
+	return true;
+}
+
 /***********************************************************//**
 Fetches an undo log record and does the undo for the recorded operation.
 If none left, or a partial rollback completed, returns control to the
@@ -265,47 +398,41 @@ row_undo(
 	undo_node_t*	node,	/*!< in: row undo node */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	trx_t*		trx = node->trx;
-	ut_ad(trx->in_rollback);
+	ut_ad(node->trx->in_rollback);
 
-	if (node->state == UNDO_NODE_FETCH_NEXT) {
-
-		node->undo_rec = trx_roll_pop_top_rec_of_trx(
-			trx, &node->roll_ptr, node->heap);
-
-		if (!node->undo_rec) {
-			/* Rollback completed for this query thread */
-			thr->run_node = que_node_get_parent(node);
-			return(DB_SUCCESS);
-		}
-
-		node->undo_no = trx_undo_rec_get_undo_no(node->undo_rec);
-		node->state = trx_undo_roll_ptr_is_insert(node->roll_ptr)
-			? UNDO_NODE_INSERT : UNDO_NODE_MODIFY;
+	if (node->state == UNDO_NODE_FETCH_NEXT && !row_undo_rec_get(node)) {
+		/* Rollback completed for this query thread */
+		thr->run_node = que_node_get_parent(node);
+		return DB_SUCCESS;
 	}
 
-	/* Prevent DROP TABLE etc. while we are rolling back this row.
-	If we are doing a TABLE CREATE or some other dictionary operation,
-	then we already have dict_operation_lock locked in x-mode. Do not
-	try to lock again, because that would cause a hang. */
+	/* Prevent prepare_inplace_alter_table_dict() from adding
+	dict_table_t::indexes while we are processing the record.
+	Recovered transactions are not protected by MDL, and the
+	secondary index creation is not protected by table locks
+	for online operation. (A table lock would only be acquired
+	when committing the ALTER TABLE operation.) */
+	trx_t* trx = node->trx;
+	const bool locked_data_dict = !trx->dict_operation_lock_mode;
 
-	const bool locked_data_dict = (trx->dict_operation_lock_mode == 0);
-
-	if (locked_data_dict) {
-
+	if (UNIV_UNLIKELY(locked_data_dict)) {
 		row_mysql_freeze_data_dictionary(trx);
 	}
 
 	dberr_t err;
 
-	if (node->state == UNDO_NODE_INSERT) {
-
+	switch (node->state) {
+	case UNDO_INSERT_PERSISTENT:
+	case UNDO_INSERT_TEMPORARY:
 		err = row_undo_ins(node, thr);
-
-		node->state = UNDO_NODE_FETCH_NEXT;
-	} else {
-		ut_ad(node->state == UNDO_NODE_MODIFY);
+		break;
+	case UNDO_UPDATE_PERSISTENT:
+	case UNDO_UPDATE_TEMPORARY:
 		err = row_undo_mod(node, thr);
+		break;
+	default:
+		ut_ad(!"wrong state");
+		err = DB_CORRUPTION;
 	}
 
 	if (locked_data_dict) {
@@ -313,7 +440,7 @@ row_undo(
 		row_mysql_unfreeze_data_dictionary(trx);
 	}
 
-	/* Do some cleanup */
+	node->state = UNDO_NODE_FETCH_NEXT;
 	btr_pcur_close(&(node->pcur));
 
 	mem_heap_empty(node->heap);
@@ -348,7 +475,7 @@ row_undo_step(
 
 	if (UNIV_UNLIKELY(trx_get_dict_operation(trx) == TRX_DICT_OP_NONE
 			  && !srv_undo_sources
-			  && !srv_is_being_started)
+			  && srv_shutdown_state != SRV_SHUTDOWN_NONE)
 	    && (srv_fast_shutdown == 3 || trx == trx_roll_crash_recv_trx)) {
 		/* Shutdown has been initiated. */
 		trx->error_state = DB_INTERRUPTED;
@@ -361,17 +488,16 @@ row_undo_step(
 
 	err = row_undo(node, thr);
 
+#ifdef ENABLED_DEBUG_SYNC
+	if (trx->mysql_thd) {
+		DEBUG_SYNC_C("trx_after_rollback_row");
+	}
+#endif /* ENABLED_DEBUG_SYNC */
+
 	trx->error_state = err;
 
-	if (err != DB_SUCCESS) {
-		/* SQL error detected */
-
-		if (err == DB_OUT_OF_FILE_SPACE) {
-			ib::fatal() << "Out of tablespace during rollback."
-				" Consider increasing your tablespace.";
-		}
-
-		ib::fatal() << "Error (" << ut_strerr(err) << ") in rollback.";
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+		ib::fatal() << "Error (" << err << ") in rollback.";
 	}
 
 	return(thr);

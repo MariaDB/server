@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2017, MariaDB
+   Copyright (c) 2017, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include <my_global.h>
 #include <sys/statvfs.h>
@@ -20,6 +20,7 @@
 #include <mntent.h>
 #include <sql_class.h>
 #include <table.h>
+#include <sql_acl.h>                            /* check_global_access() */
 
 bool schema_table_store_record(THD *thd, TABLE *table);
 
@@ -32,9 +33,9 @@ ST_FIELD_INFO disks_table_fields[]=
 {
     { "Disk",      PATH_MAX, MYSQL_TYPE_STRING, 0, 0 ,0, 0 },
     { "Path",      PATH_MAX, MYSQL_TYPE_STRING, 0, 0 ,0, 0 },
-    { "Total",           32, MYSQL_TYPE_LONG,   0, 0 ,0 ,0 }, // Total amount available
-    { "Used",            32, MYSQL_TYPE_LONG,   0, 0 ,0 ,0 }, // Amount of space used
-    { "Available",       32, MYSQL_TYPE_LONG,   0, 0 ,0 ,0 }, // Amount available to users other than root.
+    { "Total",           32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Total amount available
+    { "Used",            32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Amount of space used
+    { "Available",       32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Amount available to users other than root.
     { 0, 0, MYSQL_TYPE_NULL, 0, 0, 0, 0 }
 };
 
@@ -51,9 +52,10 @@ int disks_table_add_row(THD* pThd,
     // f_bfree    Total number of free blocks.
     // f_bavail   Number of free blocks available to non-privileged process.
 
-    size_t total = (info.f_frsize * info.f_blocks) / 1024;
-    size_t used  = (info.f_frsize * (info.f_blocks - info.f_bfree)) / 1024;
-    size_t avail = (info.f_frsize * info.f_bavail) / 1024;
+    ulonglong total = ((ulonglong)info.f_frsize * info.f_blocks) / 1024;
+    ulonglong used  = ((ulonglong)info.f_frsize *
+                            (info.f_blocks - info.f_bfree)) / 1024;
+    ulonglong avail = ((ulonglong)info.f_frsize * info.f_bavail) / 1024;
 
     pTable->field[0]->store(zDisk, strlen(zDisk), system_charset_info);
     pTable->field[1]->store(zPath, strlen(zPath), system_charset_info);
@@ -83,6 +85,9 @@ int disks_fill_table(THD* pThd, TABLE_LIST* pTables, Item* pCond)
 {
     int rv = 1;
     TABLE* pTable = pTables->table;
+
+    if (check_global_access(pThd, FILE_ACL, true))
+      return 0;
 
     FILE* pFile = setmntent("/etc/mtab", "r");
 
@@ -145,11 +150,11 @@ maria_declare_plugin(disks)
     PLUGIN_LICENSE_GPL,                /* license type */
     disks_table_init,                  /* init function */
     NULL,                              /* deinit function */
-    0x0100,                            /* version = 1.0 */
+    0x0101,                            /* version = 1.1 */
     NULL,                              /* no status variables */
     NULL,                              /* no system variables */
-    "1.0",                             /* String version representation */
-    MariaDB_PLUGIN_MATURITY_BETA       /* Maturity (see include/mysql/plugin.h)*/
+    "1.1",                             /* String version representation */
+    MariaDB_PLUGIN_MATURITY_STABLE     /* Maturity (see include/mysql/plugin.h)*/
 }
 mysql_declare_plugin_end;
 

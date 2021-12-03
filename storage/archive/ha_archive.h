@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
@@ -46,19 +46,7 @@ public:
   bool dirty;               /* Flag for if a flush should occur */
   bool crashed;             /* Meta file is crashed */
   Archive_share();
-  ~Archive_share()
-  {
-    DBUG_PRINT("ha_archive", ("~Archive_share: %p",
-                              this));
-    if (archive_write_open)
-    {
-      mysql_mutex_lock(&mutex);
-      (void) close_archive_writer();
-      mysql_mutex_unlock(&mutex);
-    }
-    thr_lock_delete(&lock);
-    mysql_mutex_destroy(&mutex);
-  }
+  virtual ~Archive_share();
   int init_archive_writer();
   void close_archive_writer();
   int write_v1_metafile();
@@ -95,7 +83,7 @@ class ha_archive: public handler
   void destroy_record_buffer(archive_record_buffer *r);
   int frm_copy(azio_stream *src, azio_stream *dst);
   int frm_compare(azio_stream *src);
-  unsigned int pack_row_v1(uchar *record);
+  unsigned int pack_row_v1(const uchar *record);
 
 public:
   ha_archive(handlerton *hton, TABLE_SHARE *table_arg);
@@ -131,8 +119,8 @@ public:
   int index_next(uchar * buf);
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
-  int write_row(uchar * buf);
-  int real_write_row(uchar *buf, azio_stream *writer);
+  int write_row(const uchar * buf);
+  int real_write_row(const uchar *buf, azio_stream *writer);
   int truncate();
   int rnd_init(bool scan=1);
   int rnd_next(uchar *buf);
@@ -148,6 +136,7 @@ public:
   int read_data_header(azio_stream *file_to_read);
   void position(const uchar *record);
   int info(uint);
+  int extra(enum ha_extra_function operation);
   void update_create_info(HA_CREATE_INFO *create_info);
   int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
@@ -167,7 +156,10 @@ public:
   uint32 max_row_length(const uchar *buf);
   bool fix_rec_buff(unsigned int length);
   int unpack_row(azio_stream *file_to_read, uchar *record);
-  unsigned int pack_row(uchar *record, azio_stream *writer);
+  unsigned int pack_row(const uchar *record, azio_stream *writer);
   bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
+  int external_lock(THD *thd, int lock_type);
+private:
+  void flush_and_clear_pending_writes();
 };
 

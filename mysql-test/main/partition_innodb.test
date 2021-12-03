@@ -1,11 +1,19 @@
 --source include/not_embedded.inc
 --source include/have_partition.inc
 --source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
 
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 
 set global default_storage_engine='innodb';
 set session default_storage_engine='innodb';
+
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
 
 --disable_warnings
 drop table if exists t1, t2;
@@ -38,6 +46,9 @@ INSERT INTO t1 VALUES (0, 'Mod Zero'), (1, 'One'), (2, 'Two'), (3, 'Three'),
 (20, '0'), (21, '1'), (22, '2'), (23, '3'),
 (4, '4'), (5, '5'), (6, '6'), (7, '7'), (8, '8'), (9, '9');
 INSERT INTO t1 SELECT a + 30, b FROM t1 WHERE a >= 0;
+INSERT INTO t1 SELECT a + 60, b FROM t1 WHERE a >= 0;
+INSERT INTO t1 SELECT a + 120, b FROM t1 WHERE a >= 0;
+INSERT INTO t1 SELECT a + 240, b FROM t1 WHERE a >= 0;
 ANALYZE TABLE t1;
 EXPLAIN SELECT b FROM t1 WHERE b between 'L' and 'N' AND a > -100;
 DROP TABLE t1;
@@ -400,9 +411,7 @@ DROP TABLE t1;
 # Bug #14673: Wrong InnoDB default row format
 #
 create table t1 (a int) engine=innodb partition by hash(a) ;
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 #
 show table status like 't1';
 drop table t1;
 
@@ -412,33 +421,23 @@ drop table t1;
 create table t1 (a int)
 engine = innodb
 partition by key (a);
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 Create_time
 show table status;
 insert into t1 values (0), (1), (2), (3);
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 Create_time 13 Update_time
 show table status;
 drop table t1;
 
 create table t1 (a int auto_increment primary key)
 engine = innodb
 partition by key (a);
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 Create_time
 show table status;
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 Create_time 13 Update_time
 show table status;
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
-# Data_free for InnoDB tablespace varies depending on which
-# tests have been run before this one
---replace_column 10 # 12 #
+--replace_column 12 Create_time 13 Update_time
 show table status;
 drop table t1;
 
@@ -655,6 +654,25 @@ OPTIMIZE TABLE t1;
 SET SESSION sql_mode = @old_mode;
 DROP TABLE t1;
 
+
+--echo #
+--echo # Bug#57985 "ONLINE/FAST ALTER PARTITION can fail and leave the
+--echo #            table unusable".
+--echo #
+CREATE TABLE t1 (a bigint not null, b int not null, PRIMARY KEY (a))
+  ENGINE = InnoDB PARTITION BY KEY(a) PARTITIONS 2;
+INSERT INTO t1 values (0,1), (1,2);
+--echo # The below ALTER should fail. It should leave the
+--echo # table in its original, non-corrupted, usable state.
+--error ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF
+ALTER TABLE t1 ADD UNIQUE KEY (b);
+--echo # The below statements should succeed, as ALTER should
+--echo # have left table intact.
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
 --echo #
 --echo # Bug#57985 "ONLINE/FAST ALTER PARTITION can fail and leave the
 --echo #            table unusable".
@@ -772,8 +790,10 @@ insert into t1 select 10+A.a + 10*B.a + 100*C.a + 1000*D.a,
 
 # This should show index_merge, using intersect
 --replace_column 9 #
+set statement optimizer_switch='rowid_filter=off' for
 explain select * from t1 where a=1 and b=2 and  pk between 1 and 999999 ;
 # 794 rows in output
+set statement optimizer_switch='rowid_filter=off' for
 create temporary table t3 as
 select * from t1 where a=1 and b=2 and  pk between 1 and 999 ;
 select count(*) from t3;
@@ -1021,6 +1041,31 @@ DROP TABLE t;
 set sql_mode= @save_sql_mode;
 
 --echo #
+--echo # Bug#28573894 ALTER PARTITIONED TABLE ADD AUTO_INCREMENT DIFF RESULT
+--echo #
+CREATE TABLE t (a VARCHAR(10) NOT NULL,b INT,PRIMARY KEY (b)) ENGINE=INNODB
+PARTITION BY RANGE (b)
+(PARTITION pa VALUES LESS THAN (2),
+ PARTITION pb VALUES LESS THAN (20),
+ PARTITION pc VALUES LESS THAN (30),
+ PARTITION pd VALUES LESS THAN (40));
+
+INSERT INTO t
+VALUES('A',0),('B',1),('C',2),('D',3),('E',4),('F',5),('G',25),('H',35);
+CREATE TABLE t_copy LIKE t;
+INSERT INTO t_copy SELECT * FROM t;
+
+--enable_info
+ALTER TABLE t ADD COLUMN r INT UNSIGNED NOT NULL AUTO_INCREMENT,
+ADD UNIQUE KEY (r,b);
+ALTER TABLE t_copy ADD COLUMN r INT UNSIGNED NOT NULL AUTO_INCREMENT,
+ADD UNIQUE KEY (r,b), ALGORITHM=COPY;
+--disable_info
+SELECT * FROM t;
+SELECT * FROM t_copy;
+DROP TABLE t,t_copy;
+
+--echo #
 --echo # Bug#26390658 RENAMING A PARTITIONED TABLE DOES NOT UPDATE
 --echo #              MYSQL.INNODB_TABLE_STATS
 --echo #
@@ -1048,6 +1093,30 @@ database_name = 'test_jfg';
 
 DROP DATABASE test_jfg;
 
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;
+#
+# MDEV-17755 Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index) || (!(ptr >= table->record[0] && ptr < table->record[0] + table->s->reclength)))' failed in Field_bit::val_int upon SELECT with JOIN, partitions, indexed virtual column
+#
+create table t1 (a int) engine=innodb;
+create table t2 (
+  b int,
+  c int,
+  d bit not null default 0,
+  v bit as (d) virtual,
+  key (b,v)
+) engine=innodb partition by hash (b);
+insert into t1 values (1),(2);
+insert into t2 (b,c,d) values (1,1,0),(2,2,0);
+explain select t1.* from t1 join t2 on (v = a);
+select t1.* from t1 join t2 on (v = a);
+drop table t1, t2;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
 --echo #
 --echo # MDEV-16241 Assertion `inited==RND' failed in handler::ha_rnd_end()
 --echo #
@@ -1057,3 +1126,27 @@ PARTITION BY SYSTEM_TIME (PARTITION p1 HISTORY, PARTITION pn CURRENT);
 INSERT INTO t1 VALUES (1, 7, 8, 9), (2, NULL, NULL, NULL), (3, NULL, NULL, NULL);
 SELECT COUNT(*) FROM t1 WHERE x IS NULL AND y IS NULL AND z IS NULL;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18244 Server crashes in ha_innobase::update_thd / ... / ha_partition::update_next_auto_inc_val
+--echo #
+
+CREATE TABLE t1 (a INT)
+  ENGINE=InnoDB 
+  PARTITION BY RANGE (a) (
+        PARTITION p0 VALUES LESS THAN (6),
+          PARTITION pn VALUES LESS THAN MAXVALUE
+      );
+INSERT INTO t1 VALUES (4),(5),(6);
+ALTER TABLE t1 MODIFY a INT AUTO_INCREMENT PRIMARY KEY;
+UPDATE t1 PARTITION (p0) SET a = 3 WHERE a = 5;
+--error ER_ROW_DOES_NOT_MATCH_GIVEN_PARTITION_SET
+INSERT INTO t1 PARTITION(p0) VALUES ();
+INSERT INTO t1 PARTITION(p0) VALUES (-1);
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

@@ -2,13 +2,14 @@
 # and run a number of tests
 
 -- source include/have_pool_of_threads.inc
-SET @save_optimizer_switch=@@optimizer_switch;
+-- source include/default_optimizer_switch.inc
+
 SET optimizer_switch='outer_join_with_cache=off';
 # Slow test, don't run during staging part
 -- source include/not_staging.inc
 -- source include/long_test.inc
 -- source include/common-tests.inc
-SET optimizer_switch=@save_optimizer_switch;
+SET optimizer_switch=default;
 
 # Test that we cannot have more simultaneous connections than
 # --thread-pool-size on the standard port, but _can_ have additional
@@ -85,9 +86,17 @@ eval KILL QUERY $con1_id;
 eval KILL QUERY $con2_id;
 
 connection default;
+--error ER_QUERY_INTERRUPTED
 --reap
 connection con2;
+--error ER_QUERY_INTERRUPTED
 --reap
 
 connection extracon;
 --reap
+
+# Check if compression works OK
+connect (comp_con,localhost,root,,,,,COMPRESS);
+SELECT 1;
+disconnect comp_con;
+

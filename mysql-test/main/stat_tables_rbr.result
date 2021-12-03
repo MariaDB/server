@@ -1,15 +1,15 @@
 #
 # Bug mdev-463: assertion failure when running ANALYZE with RBR on
 # 
-SET GLOBAL use_stat_tables = PREFERABLY;
 connect  con1,localhost,root,,;
 CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+set use_stat_tables= PREFERABLY;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
-SET GLOBAL use_stat_tables = DEFAULT;
+SET use_stat_tables = DEFAULT;
 disconnect con1;
 connection default;
 SET use_stat_tables = PREFERABLY;

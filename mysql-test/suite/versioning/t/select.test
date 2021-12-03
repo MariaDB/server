@@ -1,5 +1,6 @@
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
+--source include/default_optimizer_switch.inc
 
 # test_01
 
@@ -47,8 +48,8 @@ if ($MTR_COMBINATION_TRX_ID)
 
 select x, y from t1;
 select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
-select x as FROMTO_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
-select x as BETWAND_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+select x as FROMTO_x, y from t1 for system_time from timestamp '1970-01-01 00:00:00' to timestamp @t1;
+select x as BETWAND_x, y from t1 for system_time between timestamp '1970-01-01 00:00:00' and timestamp @t1;
 select x as ALL_x, y from t1 for system_time all;
 
 --disable_query_log
@@ -61,8 +62,8 @@ if ($MTR_COMBINATION_TRX_ID)
 if ($MTR_COMBINATION_TIMESTAMP)
 {
   select x as ASOF2_x, y from t1 for system_time as of @t0;
-  select x as FROMTO2_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
-  select x as BETWAND2_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+  select x as FROMTO2_x, y from t1 for system_time from timestamp '1970-01-01 00:00:00' to timestamp @t1;
+  select x as BETWAND2_x, y from t1 for system_time between timestamp '1970-01-01 00:00:00' and timestamp @t1;
 }
 --enable_query_log
 
@@ -107,6 +108,32 @@ for system_time as of timestamp @t0 as t;
 drop table t1;
 drop table t2;
 
+# Query conditions check
+
+create or replace table t1(x int) with system versioning;
+insert into t1 values (1);
+delete from t1;
+insert into t1 values (2);
+delete from t1;
+insert into t1 values (3);
+delete from t1;
+
+select row_start into @start1 from t1 for system_time all where x = 1;
+select row_end into @end1 from t1 for system_time all where x = 1;
+select row_start into @start2 from t1 for system_time all where x = 2;
+select row_end into @end2 from t1 for system_time all where x = 2;
+select row_start into @start3 from t1 for system_time all where x = 3;
+select row_end into @end3 from t1 for system_time all where x = 3;
+
+select x as ASOF_x from t1 for system_time as of @start2;
+select x as ASOF_x from t1 for system_time as of @end2;
+select x as FROMTO_x from t1 for system_time from @start1 to @end3;
+select x as FROMTO_x from t1 for system_time from @end1 to @start2;
+select x as BETWAND_x from t1 for system_time between @start1 and @end3;
+select x as BETWAND_x from t1 for system_time between @end1 and @start2;
+
+drop table t1;
+
 # Wildcard expansion on hidden fields
 
 create table t1(
@@ -122,6 +149,7 @@ select * from t1 for system_time all;
 
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
 select * from t1 for system_time all for update;
 
 create or replace table t1 (a int not null auto_increment primary key) with system versioning;
@@ -159,7 +187,7 @@ insert into t1 values (1);
 insert into t2 values (2);
 select * from (select * from t1 cross join t2) as tmp;
 select * from (select * from (select * from t1 cross join t2) as tmp1) as tmp2;
-select * from (select * from t1 cross join t2 for system_time as of timestamp ('0-0-0')) as tmp;
+select * from (select * from t1 cross join t2 for system_time as of timestamp ('1970-01-01 00:00:00')) as tmp;
 
 create or replace table t1(a1 int) with system versioning;
 create or replace table t2(a2 int) with system versioning;
@@ -201,6 +229,21 @@ for system_time all as t;
 create or replace table t1 (x int) with system versioning engine myisam;
 --error ER_VERS_ENGINE_UNSUPPORTED
 select * from t1 for system_time as of transaction 1;
+--echo # MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+create or replace procedure sp()
+select * from t1 for system_time as of transaction 1;
+--error ER_VERS_ENGINE_UNSUPPORTED
+call sp;
+--error ER_VERS_ENGINE_UNSUPPORTED
+call sp;
+create or replace table t1 (a int);
+create or replace procedure sp()
+select * from t1 for system_time all;
+--error ER_VERS_NOT_VERSIONED
+call sp;
+--error ER_VERS_NOT_VERSIONED
+call sp;
+drop procedure sp;
 
 create or replace table t1 (
   x int,
@@ -375,6 +418,56 @@ call p;
 call p;
 drop procedure p;
 drop table t1;
+
+--echo #
+--echo # MDEV-21234 Server crashes in in setup_on_expr upon 3rd execution of SP
+--echo #
+create table t1 (a varchar(8));
+insert into t1 values ('foo'),('bar');
+create table t2 (b date);
+
+create procedure pr() insert into t2 select * from t1;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+prepare stmt from 'insert into t2 select * from t1';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+alter table t1 add system versioning;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+drop prepare stmt;
+
+# cleanup
+drop procedure pr;
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-23799 CREATE .. SELECT wrong result on join versioned table
+--echo #
+create or replace table x (id Int) with system versioning;
+create or replace table x_p (elementId Int, pkey varchar(20), pvalue varchar(20)) with system versioning;
+
+insert into x values (1), (2), (3);
+insert into x_p values (1, 'gender', 'male');
+insert into x_p values (2, 'gender', 'female');
+insert into x_p values (3, 'gender', 'male');
+
+create table tmp1
+select xgender.pvalue as gender, xtitle.pvalue as title
+from x
+    left join x_p as xgender on x.id = xgender.elementId and xgender.pkey = 'gender'
+    left join x_p as xtitle on x.id = xtitle.elementId and xtitle.pkey = 'title';
+
+select * from tmp1;
+
+drop table tmp1;
+drop tables x, x_p;
 
 call verify_trt_dummy(34);
 

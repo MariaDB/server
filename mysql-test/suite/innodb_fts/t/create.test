@@ -90,3 +90,30 @@ ENGINE=InnoDB;
 # The column length should be 84 bytes (84 characters * 1 byte/character).
 SELECT len,COUNT(*) FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS where name='word' GROUP BY len;
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-17923 Assertion memcmp(field, field_ref_zero, 7) failed in
+--echo # trx_undo_page_report_modify upon optimizing table
+--echo # under innodb_optimize_fulltext_only
+--echo #
+
+CREATE TABLE t1 (f1 TEXT, f2 TEXT, FULLTEXT KEY (f2)) ENGINE=InnoDB;
+INSERT INTO t1 (f1) VALUES ('foo'),('bar');
+DELETE FROM t1 LIMIT 1;
+ALTER TABLE t1 ADD FULLTEXT KEY (f1);
+SET @optimize_fulltext.save= @@innodb_optimize_fulltext_only;
+SET GLOBAL innodb_optimize_fulltext_only= 1;
+OPTIMIZE TABLE t1;
+DROP TABLE t1;
+SET GLOBAL innodb_optimize_fulltext_only= @optimize_fulltext.save;
+
+--echo #
+--echo # MDEV-24403 Segfault on CREATE TABLE with explicit FTS_DOC_ID_INDEX by multiple fields
+--echo #
+--error ER_WRONG_NAME_FOR_INDEX
+create table t1 (
+  f1 int, f2 text,
+  FTS_DOC_ID bigint unsigned not null,
+  unique key FTS_DOC_ID_INDEX(FTS_DOC_ID, f1),
+  fulltext (f2))
+engine=innodb;

@@ -1,0 +1,83 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+
+#
+# TRUNCATE PARTITION
+#
+
+
+# Hidden Key table
+--echo #
+--echo # table(hidden key)
+--echo #
+CREATE TABLE t1 (
+    a INT,
+    b INT
+) ENGINE=ROCKSDB
+PARTITION BY RANGE (b) (
+    PARTITION p0 VALUES LESS THAN (3),
+    PARTITION p1 VALUES LESS THAN (6),
+    PARTITION p2 VALUES LESS THAN MAXVALUE
+);
+
+--source truncate_partition.inc
+
+
+--echo #
+--echo # table(secondary key)
+--echo #
+CREATE TABLE t1(
+    a INT,
+    b INT,
+    KEY (b)
+) ENGINE=ROCKSDB
+PARTITION BY HASH(a) PARTITIONS 3;
+
+--source truncate_partition.inc
+
+
+--echo #
+--echo # table(primary key, auto increment)
+--echo #
+CREATE TABLE t1(
+    a INT NOT NULL AUTO_INCREMENT,
+    b INT,
+    PRIMARY KEY(a)
+) ENGINE=ROCKSDB
+PARTITION BY KEY() PARTITIONS 3;
+
+--source truncate_partition.inc
+
+
+--echo #
+--echo # table(cf)
+--echo #
+CREATE TABLE t1 (
+  a INT,
+  b INT,
+  PRIMARY KEY (`a`, `b`) COMMENT 'testcomment'
+) ENGINE=ROCKSDB
+  PARTITION BY LIST(a) (
+  PARTITION p0 VALUES IN (1, 4, 7),
+  PARTITION p1 VALUES IN (2, 5, 8),
+  PARTITION p2 VALUES IN (3, 6, 9)
+);
+
+--source truncate_partition.inc
+
+
+--echo #
+--echo # table(reverse cf)
+--echo #
+CREATE TABLE t1 (
+  a INT,
+  b INT,
+  PRIMARY KEY (`a`, `b`) COMMENT 'p0_cfname=rev:foo;p1_cfname=bar;p2_cfname=baz'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(a) (
+  PARTITION p0 VALUES IN (1, 4, 7),
+  PARTITION p1 VALUES IN (2, 5, 8),
+  PARTITION p2 VALUES IN (3, 6, 9)
+);
+
+--source truncate_partition.inc

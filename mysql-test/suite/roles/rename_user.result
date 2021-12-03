@@ -12,7 +12,7 @@ localhost	root	test_role2	Y
 localhost	test_user	test_role1	N
 rename user 'test_user'@'localhost' to 'test_user_rm'@'newhost';
 select user, host from user where user like 'test%';
-user	host
+User	Host
 test_role1	
 test_role2	
 test_user_rm	newhost

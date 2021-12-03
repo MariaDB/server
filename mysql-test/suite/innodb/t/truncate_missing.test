@@ -15,8 +15,8 @@ let $datadir=`select @@datadir`;
 --remove_file $datadir/test/t.ibd
 --source include/start_mysqld.inc
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_GET_ERRNO
 SELECT * FROM t;
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_GET_ERRNO
 TRUNCATE TABLE t;
 DROP TABLE t;

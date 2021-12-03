@@ -1,0 +1,37 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL debug_dbug = '+d,sync.wsrep_apply_cb';
+connection node_1;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+connection node_2a;
+SET SESSION debug_sync = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+INSERT INTO t1 VALUES (1);;
+connection node_1;
+COMMIT;
+connection node_2a;
+SET GLOBAL debug_dbug = '';
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+connection node_2;
+Got one of the listed errors
+ROLLBACK;
+DROP TABLE t1;
+connection node_2a;
+SET DEBUG_SYNC = "RESET";

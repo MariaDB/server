@@ -17,7 +17,7 @@
 /***********************************************************************/
 #include "my_global.h"
 #include "table.h"       // MySQL table definitions
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -274,7 +274,8 @@ void XCLCOL::ReadColumn(PGLOBAL g)
 		PSZ p;
 
     // Trim left
-    for (p = Cp; *p == ' '; p++) ;
+    for (p = Cp; *p == ' '; p++)
+      ;
 
 		if ((Cp = strchr(Cp, Sep)))
 			// Separator is found

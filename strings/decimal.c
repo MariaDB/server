@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /*
 =======================================================================
@@ -812,6 +812,24 @@ internal_str2dec(const char *from, decimal_t *to, char **end, my_bool fixed)
   while (s < end_of_string && my_isdigit(&my_charset_latin1, *s))
     s++;
   intg= (int) (s-s1);
+  /*
+    If the integer part is long enough and it has multiple leading zeros,
+    let's trim them, so this expression can return 1 without overflowing:
+      CAST(CONCAT(REPEAT('0',90),'1') AS DECIMAL(10))
+  */
+  if (intg > DIG_PER_DEC1 && s1[0] == '0' && s1[1] == '0')
+  {
+    /*
+      Keep at least one digit, to avoid an empty string.
+      So we trim '0000' to '0' rather than to ''.
+      Otherwise the below code (converting digits to to->buf)
+      would fail on a fatal error.
+    */
+    const char *iend= s - 1;
+    for ( ; s1 < iend && *s1 == '0'; s1++)
+    { }
+    intg= (int) (s-s1);
+  }
   if (s < end_of_string && *s=='.')
   {
     endp= s+1;
@@ -903,20 +921,75 @@ internal_str2dec(const char *from, decimal_t *to, char **end, my_bool fixed)
   if (endp+1 < end_of_string && (*endp == 'e' || *endp == 'E'))
   {
     int str_error;
-    longlong exponent= my_strtoll10(endp+1, (char**) &end_of_string,
+    const char *end_of_exponent= end_of_string;
+    longlong exponent= my_strtoll10(endp+1, (char**) &end_of_exponent,
                                     &str_error);
 
-    if (end_of_string != endp +1)               /* If at least one digit */
+    if (end_of_exponent != endp +1)               /* If at least one digit */
     {
-      *end= (char*) end_of_string;
+      *end= (char*) end_of_exponent;
       if (str_error > 0)
       {
+        if (str_error == MY_ERRNO_ERANGE)
+        {
+          /*
+            Exponent is:
+            - a huge positive number that does not fit into ulonglong
+            - a huge negative number that does not fit into longlong
+            Skip all remaining digits.
+          */
+          for ( ; end_of_exponent < end_of_string &&
+                  my_isdigit(&my_charset_latin1, *end_of_exponent)
+                ; end_of_exponent++)
+          { }
+          *end= (char*) end_of_exponent;
+          if (exponent == ~0)
+          {
+            if (!decimal_is_zero(to))
+            {
+              /*
+                Non-zero mantissa and a huge positive exponent that
+                does not fit into ulonglong, e.g.:
+                  1e111111111111111111111
+              */
+              error= E_DEC_OVERFLOW;
+            }
+            else
+            {
+              /*
+                Zero mantissa and a huge positive exponent that
+                does not fit into ulonglong, e.g.:
+                  0e111111111111111111111
+                Return zero without warnings.
+              */
+            }
+          }
+          else
+          {
+            /*
+              Huge negative exponent that does not fit into longlong, e.g.
+                1e-111111111111111111111
+                0e-111111111111111111111
+              Return zero without warnings.
+            */
+          }
+          goto fatal_error;
+        }
+
+        /*
+          Some other error, e.g. MY_ERRNO_EDOM
+        */
         error= E_DEC_BAD_NUM;
         goto fatal_error;
       }
       if (exponent > INT_MAX/2 || (str_error == 0 && exponent < 0))
       {
-        error= E_DEC_OVERFLOW;
+        /*
+          The exponent fits into ulonglong, but it's still huge, e.g.
+            1e1111111111
+        */
+        if (!decimal_is_zero(to))
+          error= E_DEC_OVERFLOW;
         goto fatal_error;
       }
       if (exponent < INT_MIN/2 && error != E_DEC_OVERFLOW)

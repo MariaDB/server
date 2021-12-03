@@ -25,6 +25,7 @@ insert into t1 select pk+10000, 9.0, 9.0, 'extra-data' from t1;
 insert into t1 select pk+100000, 9.0, 9.0, 'extra-data' from t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 # The following can't use index-only:
 explain select * from t1 where col1 between -8 and 8;
@@ -88,6 +89,7 @@ insert into t1 select pk+10000, col1+20000, col2+20000, 'extra-data' from t1;
 insert into t1 select pk+100000, col1+20000, col2+20000, 'extra-data' from t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain
 select col1, col2 from t1 force index(key1) where col1 between -800 and 800;

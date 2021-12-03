@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -688,6 +688,8 @@ my_bool mi_killed_in_mariadb(MI_INFO *info)
 
 static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
 {
+  /* This mutex is needed for parallel repair */
+  mysql_mutex_lock(&info->s->intern_lock);
   TABLE *table= (TABLE*)(info->external_ref);
   table->move_fields(table->field, record, table->field[0]->record_ptr());
   if (keynum == -1) // update all vcols
@@ -695,6 +697,7 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
     int error= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
     if (table->update_virtual_fields(table->file, VCOL_UPDATE_INDEXED))
       error= 1;
+    mysql_mutex_unlock(&info->s->intern_lock);
     return error;
   }
   // update only one key
@@ -703,9 +706,10 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
   for (; kp < end; kp++)
   {
     Field *f= table->field[kp->fieldnr - 1];
-    if (f->vcol_info)
+    if (f->vcol_info && !f->vcol_info->stored_in_db)
       table->update_virtual_field(f);
   }
+  mysql_mutex_unlock(&info->s->intern_lock);
   return 0;
 }
 
@@ -722,13 +726,14 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
                   HA_CAN_INSERT_DELAYED | HA_CAN_BIT_FIELD | HA_CAN_RTREEKEYS |
                   HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT | HA_CAN_REPAIR |
                   HA_CAN_TABLES_WITHOUT_ROLLBACK),
-   can_enable_indexes(1)
+   can_enable_indexes(0)
 {}
 
-handler *ha_myisam::clone(const char *name, MEM_ROOT *mem_root)
+handler *ha_myisam::clone(const char *name __attribute__((unused)),
+                          MEM_ROOT *mem_root)
 {
-  ha_myisam *new_handler= static_cast <ha_myisam *>(handler::clone(name,
-                                                                   mem_root));
+  ha_myisam *new_handler=
+    static_cast <ha_myisam *>(handler::clone(file->filename, mem_root));
   if (new_handler)
     new_handler->file->state= file->state;
   return new_handler;
@@ -769,7 +774,8 @@ ulong ha_myisam::index_flags(uint inx, uint part, bool all_parts) const
   else 
   {
     flags= HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
-          HA_READ_ORDER | HA_KEYREAD_ONLY | HA_DO_INDEX_COND_PUSHDOWN;
+           HA_READ_ORDER | HA_KEYREAD_ONLY | HA_DO_INDEX_COND_PUSHDOWN |
+           HA_DO_RANGE_FILTER_PUSHDOWN;
   }
   return flags;
 }
@@ -792,8 +798,8 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
     growing files. Using an open_flag instead of calling mi_extra(...
     HA_EXTRA_MMAP ...) after mi_open() has the advantage that the
     mapping is not repeated for every open, but just done on the initial
-    open, when the MyISAM share is created. Everytime the server
-    requires to open a new instance of a table it calls this method. We
+    open, when the MyISAM share is created. Every time the server
+    requires opening a new instance of a table it calls this method. We
     will always supply HA_OPEN_MMAP for a permanent table. However, the
     MyISAM storage engine will ignore this flag if this is a secondary
     open of a table that is in use by other threads already (if the
@@ -881,12 +887,13 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
 
   /*
     For static size rows, tell MariaDB that we will access all bytes
-    in the record when writing it.  This signals MariaDB to initalize
+    in the record when writing it.  This signals MariaDB to initialize
     the full row to ensure we don't get any errors from valgrind and
     that all bytes in the row is properly reset.
   */
-  if ((file->s->options & HA_OPTION_PACK_RECORD) &&
-      (file->s->has_varchar_fields | file->s->has_null_fields))
+  if (!(file->s->options &
+        (HA_OPTION_PACK_RECORD | HA_OPTION_COMPRESS_RECORD)) &&
+      (file->s->has_varchar_fields || file->s->has_null_fields))
     int_table_flags|= HA_RECORD_MUST_BE_CLEAN_ON_WRITE;
 
   for (i= 0; i < table->s->keys; i++)
@@ -932,7 +939,7 @@ int ha_myisam::close(void)
   return mi_close(tmp);
 }
 
-int ha_myisam::write_row(uchar *buf)
+int ha_myisam::write_row(const uchar *buf)
 {
   /*
     If we have an auto_increment column and we are writing a changed row
@@ -953,20 +960,26 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
   if (!table->vfield)
     return;
 
-  if  (file->s->base.reclength == file->s->vreclength)
+  if (file->s->base.reclength == file->s->vreclength)
   {
     bool indexed_vcols= false;
     ulong new_vreclength= file->s->vreclength;
     for (Field **vf= table->vfield; *vf; vf++)
     {
-      uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
-      set_if_bigger(new_vreclength, vf_end);
-      indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
+      if (!(*vf)->stored_in_db())
+      {
+        uint vf_end= ((*vf)->offset(table->record[0]) +
+                      (*vf)->pack_length_in_rec());
+        set_if_bigger(new_vreclength, vf_end);
+        indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
+      }
     }
     if (!indexed_vcols)
       return;
     file->s->vreclength= new_vreclength;
   }
+  DBUG_ASSERT(file->s->base.reclength < file->s->vreclength ||
+              !table->s->stored_fields);
   param->fix_record= compute_vcols;
   table->use_all_columns();
 }
@@ -975,7 +988,8 @@ void ha_myisam::restore_vcos_after_repair()
 {
   if (file->s->base.reclength < file->s->vreclength)
   {
-    table->move_fields(table->field, table->record[0], table->field[0]->record_ptr());
+    table->move_fields(table->field, table->record[0],
+                       table->field[0]->record_ptr());
     table->default_column_bitmaps();
   }
 }
@@ -1716,6 +1730,7 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
   THD *thd= table->in_use;
   ulong size= MY_MIN(thd->variables.read_buff_size,
                      (ulong) (table->s->avg_row_length*rows));
+  bool index_disabled= 0;
   DBUG_PRINT("info",("start_bulk_insert: rows %lu size %lu",
                      (ulong) rows, size));
 
@@ -1739,21 +1754,54 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
     if (file->open_flag & HA_OPEN_INTERNAL_TABLE)
     {
       file->update|= HA_STATE_CHANGED;
+      index_disabled= file->s->base.keys > 0;
       mi_clear_all_keys_active(file->s->state.key_map);
     }
     else
     {
       my_bool all_keys= MY_TEST(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
-      mi_disable_indexes_for_rebuild(file, rows, all_keys);
+      MYISAM_SHARE *share=file->s;
+      MI_KEYDEF    *key=share->keyinfo;
+      uint          i;
+     /*
+      Deactivate all indexes that can be recreated fast.
+      These include packed keys on which sorting will use more temporary
+      space than the max allowed file length or for which the unpacked keys
+      will take much more space than packed keys.
+      Note that 'rows' may be zero for the case when we don't know how many
+      rows we will put into the file.
+      Long Unique Index (HA_KEY_ALG_LONG_HASH) will not be disabled because
+      there unique property is enforced at the time of ha_write_row
+      (check_duplicate_long_entries). So we need active index at the time of
+      insert.
+     */
+      DBUG_ASSERT(file->state->records == 0 &&
+                  (!rows || rows >= MI_MIN_ROWS_TO_DISABLE_INDEXES));
+      for (i=0 ; i < share->base.keys ; i++,key++)
+      {
+        if (!(key->flag & (HA_SPATIAL | HA_AUTO_KEY)) &&
+            ! mi_too_big_key_for_sort(key,rows) && file->s->base.auto_key != i+1 &&
+            (all_keys || !(key->flag & HA_NOSAME)) &&
+            table->key_info[i].algorithm != HA_KEY_ALG_LONG_HASH)
+        {
+          mi_clear_key_active(share->state.key_map, i);
+          index_disabled= 1;
+          file->update|= HA_STATE_CHANGED;
+          file->create_unique_index_by_sort= all_keys;
+        }
+      }
     }
   }
   else
+  {
     if (!file->bulk_insert &&
         (!rows || rows >= MI_MIN_ROWS_TO_USE_BULK_INSERT))
     {
       mi_init_bulk_insert(file, (size_t) thd->variables.bulk_insert_buff_size,
                           rows);
     }
+  }
+  can_enable_indexes= index_disabled;
   DBUG_VOID_RETURN;
 }
 
@@ -1805,6 +1853,7 @@ int ha_myisam::end_bulk_insert()
         file->s->state.changed&= ~(STATE_CRASHED|STATE_CRASHED_ON_REPAIR);
       }
     }
+    can_enable_indexes= 0;
   }
   DBUG_PRINT("exit", ("first_error: %d", first_error));
   DBUG_RETURN(first_error);
@@ -1880,6 +1929,9 @@ int ha_myisam::index_init(uint idx, bool sorted)
   active_index=idx;
   if (pushed_idx_cond_keyno == idx)
     mi_set_index_cond_func(file, handler_index_cond_check, this);
+  if (pushed_rowid_filter)
+    mi_set_rowid_filter_func(file, handler_rowid_filter_check,
+                             handler_rowid_filter_is_active, this);
   return 0; 
 }
 
@@ -1891,6 +1943,7 @@ int ha_myisam::index_end()
   //pushed_idx_cond_keyno= MAX_KEY;
   mi_set_index_cond_func(file, NULL, 0);
   in_range_check_pushed_down= FALSE;
+  mi_set_rowid_filter_func(file, NULL, NULL, 0);
   ds_mrr.dsmrr_close();
 #if !defined(DBUG_OFF) && defined(SQL_SELECT_FIXED_FOR_UPDATE)
   file->update&= ~HA_STATE_AKTIV;               // Forget active row
@@ -1926,6 +1979,9 @@ int ha_myisam::index_read_idx_map(uchar *buf, uint index, const uchar *key,
   end_range= NULL;
   if (index == pushed_idx_cond_keyno)
     mi_set_index_cond_func(file, handler_index_cond_check, this);
+  if (pushed_rowid_filter)
+    mi_set_rowid_filter_func(file, handler_rowid_filter_check,
+                             handler_rowid_filter_is_active, this);
   res= mi_rkey(file, buf, index, key, keypart_map, find_flag);
   mi_set_index_cond_func(file, NULL, 0);
   return res;
@@ -2027,6 +2083,7 @@ int ha_myisam::info(uint flag)
     stats.delete_length=     misam_info.delete_length;
     stats.check_time=        (ulong) misam_info.check_time;
     stats.mean_rec_length=   misam_info.mean_reclength;
+    stats.checksum=          file->state->checksum;
   }
   if (flag & HA_STATUS_CONST)
   {
@@ -2331,12 +2388,6 @@ int ha_myisam::ft_read(uchar *buf)
   return error;
 }
 
-uint ha_myisam::checksum() const
-{
-  return (uint)file->state->checksum;
-}
-
-
 enum_alter_inplace_result
 ha_myisam::check_if_supported_inplace_alter(TABLE *new_table,
                                             Alter_inplace_info *alter_info)
@@ -2591,6 +2642,14 @@ Item *ha_myisam::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
   return NULL;
 }
 
+bool ha_myisam::rowid_filter_push(Rowid_filter* rowid_filter)
+{
+  pushed_rowid_filter= rowid_filter;
+  mi_set_rowid_filter_func(file, handler_rowid_filter_check,
+			   handler_rowid_filter_is_active, this);
+  return false;
+}
+
 struct st_mysql_storage_engine myisam_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -2681,7 +2740,7 @@ my_bool ha_myisam::register_query_cache_table(THD *thd, const char *table_name,
 
       If the table size is unknown the SELECT statement can't be cached.
 
-      When concurrent inserts are disabled at table open, mi_open()
+      When concurrent inserts are disabled at table open, mi_ondopen()
       does not assign a get_status() function. In this case the local
       ("current") status is never updated. We would wrongly think that
       we cannot cache the statement.

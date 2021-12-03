@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* This makes a wrapper for mutex handling to make it easier to debug mutex */
 
@@ -237,6 +237,8 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
   int error;
   DBUG_PRINT("mutex", ("%s (0x%lx) locking", mp->name ? mp->name : "Null",
                        (ulong) mp));
+
+  pthread_mutex_lock(&mp->global);
   if (!mp->file)
   {
     fprintf(stderr,
@@ -245,8 +247,6 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
     fflush(stderr);
     abort();
   }
-
-  pthread_mutex_lock(&mp->global);
   if (mp->count > 0)
   {
     /*

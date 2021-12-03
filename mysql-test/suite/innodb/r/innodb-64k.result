@@ -719,6 +719,7 @@ insert into t2 values(
 @a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
 @a,@a,@a,@a,@a,@a,@a);
 update t2 set col190=@b;
+# restart
 set @a = repeat('abcdefghijklmnopqrstuvwxyz', 1650);
 set @b = repeat('zyxwvutsrqponmlkjihgfedcba', 2000);
 update t2 set col189 = @b;
@@ -1079,4 +1080,11 @@ update t2 set col150=@a;
 update t2 set col145=@b;
 COMMIT;
 drop table t2;
+DROP TABLE t1;
+#
+# MDEV-19526 heap number overflow
+#
+CREATE TABLE t1(a SMALLINT NOT NULL UNIQUE AUTO_INCREMENT, KEY(a))
+ENGINE=InnoDB;
+INSERT INTO t1 (a) SELECT seq FROM seq_1_to_8191;
 DROP TABLE t1;

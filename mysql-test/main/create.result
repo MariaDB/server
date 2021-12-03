@@ -1,7 +1,4 @@
 call mtr.add_suppression("table or database name 't-1'");
-drop table if exists t1,t2,t3,t4,t5;
-drop database if exists mysqltest;
-drop view if exists v1;
 create table t1 (b char(0));
 insert into t1 values (""),(null);
 select * from t1;
@@ -404,7 +401,7 @@ create table t3 like mysqltest.t3;
 ERROR 42S01: Table 't3' already exists
 create table non_existing_database.t1 like t1;
 ERROR 42000: Unknown database 'non_existing_database'
-create table t3 like non_existing_table;
+create table t4 like non_existing_table;
 ERROR 42S02: Table 'test.non_existing_table' doesn't exist
 create temporary table t3 like t1;
 ERROR 42S01: Table 't3' already exists
@@ -914,8 +911,12 @@ unlock tables;
 lock table t1 read, t2 read;
 create table t2 select * from t1;
 ERROR HY000: Table 't2' was locked with a READ lock and can't be updated
+create table t3 select * from t1;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
 create table if not exists t2 select * from t1;
 ERROR HY000: Table 't2' was locked with a READ lock and can't be updated
+create table if not exists t3 select * from t1;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
 unlock tables;
 lock table t1 read, t2 write;
 create table t2 select * from t1;
@@ -945,7 +946,7 @@ drop table t1;
 
 Bug #26104 Bug on foreign key class constructor
 
-Check that ref_columns is initalized correctly in the constructor
+Check that ref_columns is initialized correctly in the constructor
 and semantic checks in mysql_prepare_table work.
 
 We do not need a storage engine that supports foreign keys
@@ -1053,95 +1054,6 @@ USE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ERROR 42000: Incorrect database name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 SHOW CREATE DATABASE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
 ERROR 42000: Incorrect database name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-set names utf8;
-create database имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
-use имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
-select database();
-database()
-имя_базы_в_кодировке_утф8_длиной_больше_чем_45
-use test;
-select SCHEMA_NAME from information_schema.schemata
-where schema_name='имя_базы_в_кодировке_утф8_длиной_больше_чем_45';
-SCHEMA_NAME
-имя_базы_в_кодировке_утф8_длиной_больше_чем_45
-drop database имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
-create table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48
-(
-имя_поля_в_кодировке_утф8_длиной_больше_чем_45 int,
-index имя_индекса_в_кодировке_утф8_длиной_больше_чем_48 (имя_поля_в_кодировке_утф8_длиной_больше_чем_45)
-);
-create view имя_вью_кодировке_утф8_длиной_больше_чем_42 as
-select имя_поля_в_кодировке_утф8_длиной_больше_чем_45
-from имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-select * from имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-имя_поля_в_кодировке_утф8_длиной_больше_чем_45
-select TABLE_NAME from information_schema.tables where
-table_schema='test';
-TABLE_NAME
-имя_вью_кодировке_утф8_длиной_больше_чем_42
-имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48
-select COLUMN_NAME from information_schema.columns where
-table_schema='test';
-COLUMN_NAME
-имя_поля_в_кодировке_утф8_длиной_больше_чем_45
-имя_поля_в_кодировке_утф8_длиной_больше_чем_45
-select INDEX_NAME from information_schema.statistics where
-table_schema='test';
-INDEX_NAME
-имя_индекса_в_кодировке_утф8_длиной_больше_чем_48
-select TABLE_NAME from information_schema.views where
-table_schema='test';
-TABLE_NAME
-имя_вью_кодировке_утф8_длиной_больше_чем_42
-show create table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-Table	Create Table
-имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48	CREATE TABLE `имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48` (
-  `имя_поля_в_кодировке_утф8_длиной_больше_чем_45` int(11) DEFAULT NULL,
-  KEY `имя_индекса_в_кодировке_утф8_длиной_больше_чем_48` (`имя_поля_в_кодировке_утф8_длиной_больше_чем_45`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-show create view имя_вью_кодировке_утф8_длиной_больше_чем_42;
-View	Create View	character_set_client	collation_connection
-имя_вью_кодировке_утф8_длиной_больше_чем_42	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `имя_вью_кодировке_утф8_длиной_больше_чем_42` AS select `имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48`.`имя_поля_в_кодировке_утф8_длиной_больше_чем_45` AS `имя_поля_в_кодировке_утф8_длиной_больше_чем_45` from `имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48`	utf8	utf8_general_ci
-create trigger имя_триггера_в_кодировке_утф8_длиной_больше_чем_49
-before insert on имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48 for each row set @a:=1;
-select TRIGGER_NAME from information_schema.triggers where
-trigger_schema='test';
-TRIGGER_NAME
-имя_триггера_в_кодировке_утф8_длиной_больше_чем_49
-drop trigger имя_триггера_в_кодировке_утф8_длиной_больше_чем_49;
-create trigger
-очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66
-before insert on имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48 for each row set @a:=1;
-ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длинна' is too long
-drop trigger очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66;
-ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длинна' is too long
-create procedure имя_процедуры_в_кодировке_утф8_длиной_больше_чем_50()
-begin
-end;
-select ROUTINE_NAME from information_schema.routines where
-routine_schema='test';
-ROUTINE_NAME
-имя_процедуры_в_кодировке_утф8_длиной_больше_чем_50
-drop procedure имя_процедуры_в_кодировке_утф8_длиной_больше_чем_50;
-create procedure очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66()
-begin
-end;
-ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длинна' is too long
-create function имя_функции_в_кодировке_утф8_длиной_больше_чем_49()
-returns int
-return 0;
-select ROUTINE_NAME from information_schema.routines where
-routine_schema='test';
-ROUTINE_NAME
-имя_функции_в_кодировке_утф8_длиной_больше_чем_49
-drop function имя_функции_в_кодировке_утф8_длиной_больше_чем_49;
-create function очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66()
-returns int
-return 0;
-ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длинна' is too long
-drop view имя_вью_кодировке_утф8_длиной_больше_чем_42;
-drop table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-set names default;
 drop table if exists t1,t2,t3;
 drop function if exists f1;
 create function f1() returns int
@@ -1249,7 +1161,7 @@ INSERT INTO t3 VALUES (0);
 SET sql_mode = TRADITIONAL;
 
 ALTER TABLE t3 ADD INDEX(c1);
-ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'c1' at row 1
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t3`.`c1` at row 1
 
 # -- Cleanup.
 SET sql_mode = '';
@@ -1310,7 +1222,7 @@ drop table if exists t1,t2,t3;
 # Fix modified for MariaDB: we support this syntax
 create table t1 (a int) transactional=0;
 Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
+Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=0'
 create table t2 (a int) page_checksum=1;
 create table t3 (a int) row_format=page;
 drop table t1,t2,t3;
@@ -1807,12 +1719,12 @@ NULL	0000-00-00	0000-00-00
 drop table t1;
 set @@session.sql_mode='STRICT_ALL_TABLES';
 create table if not exists t1 (a int, b date, c date) select 1 as b, 2 as c;
-ERROR 22007: Incorrect date value: '1' for column 'b' at row 1
+ERROR 22007: Incorrect date value: '1' for column `test`.`t1`.`b` at row 1
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 create table if not exists t1 (a int, b date, c date) 
 replace select 1 as b, 2 as c;
-ERROR 22007: Incorrect date value: '1' for column 'b' at row 1
+ERROR 22007: Incorrect date value: '1' for column `test`.`t1`.`b` at row 1
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 create table if not exists t1 (a int, b date, c date) 
@@ -2086,10 +1998,54 @@ alter table t1 add
 key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx0064 (f64) comment 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy';
 ERROR HY000: Cannot create table `t1`: index information is too long. Decrease number of indexes or use shorter index names or shorter comments.
 drop table t1;
-End of 5.5 tests
+#
+# End of 5.5 tests
+#
+#
+# MDEV-4880 Attempt to create a table without columns produces ER_ILLEGAL_HA instead of ER_TABLE_MUST_HAVE_COLUMNS
+#
 create table t1;
 ERROR 42000: A table must have at least 1 column
+#
+# MDEV-11231 Server crashes in check_duplicate_key on CREATE TABLE ... SELECT
+#
 create table t1 (i int, j int, key(i), key(i)) as select 1 as i, 2 as j;
 Warnings:
 Note	1831	Duplicate index `i_2`. This is deprecated and will be disallowed in a future release
 drop table t1;
+#
+# End of 10.0 tests
+#
+#
+# MDEV-18428 Memory: If transactional=0 is specified in CREATE TABLE, it is not possible to ALTER TABLE
+#
+create table t1 (c int(10) unsigned) engine=memory transactional=0;
+ERROR HY000: Table storage engine 'MEMORY' does not support the create option 'TRANSACTIONAL=0'
+#
+# End of 10.2 tests
+#
+#
+# MDEV-17544 No warning when trying to name a primary key constraint.
+#
+CREATE TABLE t1 ( id1 INT, id2 INT, CONSTRAINT `foo` PRIMARY KEY (id1), CONSTRAINT `bar` UNIQUE KEY(id2));
+Warnings:
+Warning	1280	Name 'foo' ignored for PRIMARY key.
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#
+#
+# MDEV-21017: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+# is_bulk_op())' failed or late ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+# upon attempt to create existing table
+#
+CREATE TABLE t1 (a INT);
+LOCK TABLE t1 WRITE;
+CREATE TABLE IF NOT EXISTS t1 (s DATE GENERATED ALWAYS AS ('2000-01-01') STORED,
+e DATE, PERIOD FOR app(s,e));
+ERROR HY000: Period field `s` cannot be GENERATED ALWAYS AS
+UNLOCK TABLES;
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

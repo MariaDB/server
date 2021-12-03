@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
 ** example file of UDF (user definable functions) that are dynamicly loaded
@@ -173,6 +173,13 @@ void avgcost_reset( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error
 void avgcost_clear( UDF_INIT* initid, char* is_null, char *error );
 void avgcost_add( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
 double avgcost( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
+my_bool avg2_init( UDF_INIT* initid, UDF_ARGS* args, char* message );
+void avg2_deinit( UDF_INIT* initid );
+void avg2_reset( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
+void avg2_clear( UDF_INIT* initid, char* is_null, char *error );
+void avg2_add( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
+void avg2_remove( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
+double avg2( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
 my_bool is_const_init(UDF_INIT *initid, UDF_ARGS *args, char *message);
 char *is_const(UDF_INIT *initid, UDF_ARGS *args, char *result, unsigned long
                *length, char *is_null, char *error);
@@ -1047,6 +1054,138 @@ avgcost( UDF_INIT* initid, UDF_ARGS* args __attribute__((unused)),
 
   *is_null = 0;
   return data->totalprice/(double)data->totalquantity;
+}
+
+
+/*
+** Average 2 (number, sum)*/
+struct avg2_data
+{
+  ulonglong	count;
+  double	sum;
+};
+
+
+my_bool
+avg2_init( UDF_INIT* initid, UDF_ARGS* args, char* message )
+{
+  struct avg2_data*	data;
+
+  if (args->arg_count != 2)
+  {
+    strcpy(
+	   message,
+	   "wrong number of arguments: AVG2() requires two arguments"
+	   );
+    return 1;
+  }
+
+  if ((args->arg_type[0] != INT_RESULT) || (args->arg_type[1] != REAL_RESULT) )
+  {
+    strcpy(
+	   message,
+	   "wrong argument type: AVG2() requires an INT and a REAL"
+	   );
+    return 1;
+  }
+
+  /*
+  **	force arguments to double.
+  */
+  /*args->arg_type[0]	= REAL_RESULT;
+    args->arg_type[1]	= REAL_RESULT;*/
+
+  initid->maybe_null	= 0;		/* The result may be null */
+  initid->decimals	= 4;		/* We want 4 decimals in the result */
+  initid->max_length	= 20;		/* 6 digits + . + 10 decimals */
+
+  if (!(data = (struct avg2_data*) malloc(sizeof(struct avg2_data))))
+  {
+    strmov(message,"Couldn't allocate memory");
+    return 1;
+  }
+  data->count	= 0;
+  data->sum	= 0.0;
+
+  initid->ptr = (char*)data;
+
+  return 0;
+}
+
+void
+avg2_deinit( UDF_INIT* initid )
+{
+  free(initid->ptr);
+}
+
+
+/* This is only for MySQL 4.0 compability */
+void
+avg2_reset(UDF_INIT* initid, UDF_ARGS* args, char* is_null, char* message)
+{
+  avgcost_clear(initid, is_null, message);
+  avgcost_add(initid, args, is_null, message);
+}
+
+/* This is needed to get things to work in MySQL 4.1.1 and above */
+
+void
+avg2_clear(UDF_INIT* initid, char* is_null __attribute__((unused)),
+              char* message __attribute__((unused)))
+{
+  struct avg2_data* data = (struct avg2_data*)initid->ptr;
+  data->sum=	0.0;
+  data->count=	0;
+}
+
+
+void
+avg2_add(UDF_INIT* initid, UDF_ARGS* args,
+            char* is_null __attribute__((unused)),
+            char* message __attribute__((unused)))
+{
+  if (args->args[0] && args->args[1])
+  {
+    struct avg2_data* data	= (struct avg2_data*)initid->ptr;
+    longlong quantity		= *((longlong*)args->args[0]);
+    double sum	                = *((double*)args->args[1]);
+
+    data->count	+= quantity;
+    data->sum	+= sum;
+  }
+}
+
+
+void
+avg2_remove(UDF_INIT* initid, UDF_ARGS* args,
+               char* is_null __attribute__((unused)),
+               char* message __attribute__((unused)))
+{
+  if (args->args[0] && args->args[1])
+  {
+    struct avg2_data* data	= (struct avg2_data*)initid->ptr;
+    longlong quantity		= *((longlong*)args->args[0]);
+    double sum	                = *((double*)args->args[1]);
+
+    data->count	-= quantity;
+    data->sum	-= sum;
+  }
+}
+
+
+double
+avg2( UDF_INIT* initid, UDF_ARGS* args __attribute__((unused)),
+         char* is_null, char* error __attribute__((unused)))
+{
+  struct avg2_data* data = (struct avg2_data*)initid->ptr;
+  if (!data->count)
+  {
+    *is_null = 1;
+    return 0.0;
+  }
+
+  *is_null = 0;
+  return data->sum/(double)data->count;
 }
 
 my_bool myfunc_argument_name_init(UDF_INIT *initid, UDF_ARGS *args,

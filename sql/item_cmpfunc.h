@@ -1,7 +1,7 @@
 #ifndef ITEM_CMPFUNC_INCLUDED
 #define ITEM_CMPFUNC_INCLUDED
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* compare and test functions */
@@ -68,6 +68,7 @@ class Arg_comparator: public Sql_alloc
     if (val1 == val2) return 0;
     return 1;
   }
+  NativeBuffer<STRING_BUFFER_USUAL_SIZE> m_native1, m_native2;
 public:
   /* Allow owner function to use string buffers. */
   String value1, value2;
@@ -89,6 +90,7 @@ public:
   bool set_cmp_func_string();
   bool set_cmp_func_time();
   bool set_cmp_func_datetime();
+  bool set_cmp_func_native();
   bool set_cmp_func_int();
   bool set_cmp_func_real();
   bool set_cmp_func_decimal();
@@ -121,12 +123,17 @@ public:
   int compare_e_datetime();
   int compare_time();
   int compare_e_time();
+  int compare_native();
+  int compare_e_native();
   int compare_json_str_basic(Item *j, Item *s);
   int compare_json_str();
   int compare_str_json();
   int compare_e_json_str_basic(Item *j, Item *s);
   int compare_e_json_str();
   int compare_e_str_json();
+
+  void min_max_update_field_native(THD *thd, Field *field, Item *item,
+                                   int cmp_sign);
 
   Item** cache_converted_constant(THD *thd, Item **value, Item **cache,
                                   const Type_handler *type);
@@ -173,7 +180,7 @@ protected:
   /*
     Return the full select tree for "field_item" and "value":
     - a single SEL_TREE if the field is not in a multiple equality, or
-    - a conjuction of all SEL_TREEs for all fields from
+    - a conjunction of all SEL_TREEs for all fields from
       the same multiple equality with "field_item".
   */
   SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
@@ -287,6 +294,7 @@ public:
   virtual const char* func_name() const { return "isnottrue"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isnottrue>(thd, this); }
+  bool eval_not_null_tables(void *) { not_null_tables_cache= 0; return false; }
 };
 
 
@@ -318,6 +326,7 @@ public:
   virtual const char* func_name() const { return "isnotfalse"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isnotfalse>(thd, this); }
+  bool eval_not_null_tables(void *) { not_null_tables_cache= 0; return false; }
 };
 
 
@@ -506,6 +515,7 @@ public:
   Item_bool_rowready_func2(THD *thd, Item *a, Item *b):
     Item_bool_func2_with_rev(thd, a, b), cmp(tmp_arg, tmp_arg + 1)
   { }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   void print(String *str, enum_query_type query_type)
   {
     Item_func::print_op(str, query_type);
@@ -593,7 +603,7 @@ public:
   longlong val_int();
   enum Functype functype() const { return NOT_FUNC; }
   const char *func_name() const { return "not"; }
-  enum precedence precedence() const { return BANG_PRECEDENCE; }
+  enum precedence precedence() const { return NEG_PRECEDENCE; }
   Item *neg_transformer(THD *thd);
   bool fix_fields(THD *, Item **);
   virtual void print(String *str, enum_query_type query_type);
@@ -653,7 +663,7 @@ public:
 class Item_func_not_all :public Item_func_not
 {
   /* allow to check presence of values in max/min optimization */
-  Item_sum_hybrid *test_sum_item;
+  Item_sum_min_max *test_sum_item;
   Item_maxmin_subselect *test_sub_item;
 
 public:
@@ -669,7 +679,7 @@ public:
   bool fix_fields(THD *thd, Item **ref)
     {return Item_func::fix_fields(thd, ref);}
   virtual void print(String *str, enum_query_type query_type);
-  void set_sum_test(Item_sum_hybrid *item) { test_sum_item= item; test_sub_item= 0; };
+  void set_sum_test(Item_sum_min_max *item) { test_sum_item= item; test_sub_item= 0; };
   void set_sub_test(Item_maxmin_subselect *item) { test_sub_item= item; test_sum_item= 0;};
   bool empty_underlying_subquery();
   Item *neg_transformer(THD *thd);
@@ -822,11 +832,7 @@ class Item_func_ne :public Item_bool_rowready_func2
 {
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value)
-  {
-    DBUG_ENTER("Item_func_ne::get_func_mm_tree");
-    DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
-  }
+                             Field *field, Item *value);
 public:
   Item_func_ne(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {}
@@ -935,6 +941,7 @@ public:
   longlong val_int_cmp_string();
   longlong val_int_cmp_datetime();
   longlong val_int_cmp_time();
+  longlong val_int_cmp_native();
   longlong val_int_cmp_int();
   longlong val_int_cmp_real();
   longlong val_int_cmp_decimal();
@@ -1013,6 +1020,7 @@ public:
   my_decimal *decimal_op(my_decimal *);
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool time_op(THD *thd, MYSQL_TIME *ltime);
+  bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec()
   {
     if (aggregate_for_result(func_name(), args, arg_count, true))
@@ -1092,6 +1100,7 @@ public:
   my_decimal *decimal_op(my_decimal *);
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool time_op(THD *thd, MYSQL_TIME *ltime);
+  bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec()
   {
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
@@ -1127,7 +1136,7 @@ public:
 
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    Datetime dt(thd, find_item(), fuzzydate);
+    Datetime_truncation_not_needed dt(thd, find_item(), fuzzydate);
     return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
   }
   bool time_op(THD *thd, MYSQL_TIME *ltime)
@@ -1149,6 +1158,11 @@ public:
   String *str_op(String *str)
   {
     return val_str_from_item(find_item(), str);
+  }
+  bool native_op(THD *thd, Native *to)
+  {
+    return val_native_with_conversion_from_item(thd, find_item(), to,
+                                                type_handler());
   }
 };
 
@@ -1249,6 +1263,7 @@ public:
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
+  bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec();
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
   const char *func_name() const { return "nullif"; }
@@ -1409,6 +1424,19 @@ public:
   const Type_handler *type_handler() const { return &type_handler_longlong; }
 
   friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
+};
+
+
+class in_timestamp :public in_vector
+{
+  Timestamp_or_zero_datetime tmp;
+public:
+  in_timestamp(THD *thd, uint elements);
+  void set(uint pos,Item *item);
+  uchar *get_value(Item *item);
+  Item* create_item(THD *thd);
+  void value_to_item(uint pos, Item *item);
+  const Type_handler *type_handler() const { return &type_handler_timestamp2; }
 };
 
 
@@ -1665,6 +1693,20 @@ public:
   int cmp(Item *arg);
   cmp_item *make_same();
 };
+
+
+class cmp_item_timestamp: public cmp_item_scalar
+{
+  Timestamp_or_zero_datetime_native m_native;
+public:
+  cmp_item_timestamp() :cmp_item_scalar() { }
+  void store_value(Item *item);
+  int cmp_not_null(const Value *val);
+  int cmp(Item *arg);
+  int compare(cmp_item *ci);
+  cmp_item *make_same();
+};
+
 
 class cmp_item_real : public cmp_item_scalar
 {
@@ -2118,9 +2160,11 @@ protected:
   bool aggregate_then_and_else_arguments(THD *thd, uint count);
   virtual Item **else_expr_addr() const= 0;
   virtual Item *find_item()= 0;
-  void print_when_then_arguments(String *str, enum_query_type query_type,
-                                 Item **items, uint count);
-  void print_else_argument(String *str, enum_query_type query_type, Item *item);
+  inline void print_when_then_arguments(String *str,
+                                        enum_query_type query_type,
+                                        Item **items, uint count);
+  inline void print_else_argument(String *str, enum_query_type query_type,
+                                  Item *item);
   void reorder_args(uint start);
 public:
   Item_func_case(THD *thd, List<Item> &list)
@@ -2132,10 +2176,10 @@ public:
   my_decimal *decimal_op(my_decimal *);
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool time_op(THD *thd, MYSQL_TIME *ltime);
+  bool native_op(THD *thd, Native *to);
   bool fix_fields(THD *thd, Item **ref);
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
-  enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool need_parentheses_in_default() { return true; }
 };
@@ -2287,7 +2331,7 @@ class Item_func_in :public Item_func_opt_neg,
   {
     for (uint i= 0; i < nitems; i++)
     {
-      if (!items[i]->const_item())
+      if (!items[i]->const_item() || items[i]->is_expensive())
         return false;
     }
     return true;
@@ -2400,7 +2444,7 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return "in"; }
-  enum precedence precedence() const { return CMP_PRECEDENCE; }
+  enum precedence precedence() const { return IN_PRECEDENCE; }
   bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool count_sargable_conds(void *arg);
@@ -2421,6 +2465,7 @@ public:
   bool to_be_transformed_into_in_subq(THD *thd);
   bool create_value_list_for_tvc(THD *thd, List< List<Item> > *values);
   Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg);
+  uint32 max_length_of_left_expr();
 };
 
 class cmp_item_row :public cmp_item
@@ -2620,7 +2665,6 @@ class Item_func_like :public Item_bool_func2
 
   bool escape_used_in_parsing;
   bool use_sampling;
-  bool negated;
 
   DTCollation cmp_collation;
   String cmp_value1, cmp_value2;
@@ -2637,11 +2681,16 @@ protected:
                        Item_func::Functype type, Item *value);
 public:
   int escape;
+  bool negated;
 
   Item_func_like(THD *thd, Item *a, Item *b, Item *escape_arg, bool escape_used):
     Item_bool_func2(thd, a, b), canDoTurboBM(FALSE), pattern(0), pattern_len(0),
     bmGs(0), bmBc(0), escape_item(escape_arg),
     escape_used_in_parsing(escape_used), use_sampling(0), negated(0) {}
+
+  bool get_negated() const { return negated; } // Used by ColumnStore
+
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
   void print(String *str, enum_query_type query_type);
@@ -2719,7 +2768,7 @@ public:
     return this;
   }
   const char *func_name() const { return "like"; }
-  enum precedence precedence() const { return CMP_PRECEDENCE; }
+  enum precedence precedence() const { return IN_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec()
   {
@@ -2732,6 +2781,13 @@ public:
   {
     negated= !negated;
     return this;
+  }
+
+  bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  {
+    return walk_args(processor, walk_subquery, arg)
+      ||   escape_item->walk(processor, walk_subquery, arg)
+      ||  (this->*processor)(arg);
   }
 
   bool find_selective_predicates_list_processor(void *arg);
@@ -2847,7 +2903,7 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
-  enum precedence precedence() const { return CMP_PRECEDENCE; }
+  enum precedence precedence() const { return IN_PRECEDENCE; }
   Item *get_copy(THD *) { return 0; }
   void print(String *str, enum_query_type query_type)
   {
@@ -2966,6 +3022,7 @@ public:
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(void *opt_arg);
   Item *build_clone(THD *thd);
+  bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
 };
 
@@ -3154,9 +3211,15 @@ public:
     return used_tables() & tab_map;
   }
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
-
+  bool excl_dep_on_grouping_fields(st_select_lex *sel);
+  bool create_pushable_equalities(THD *thd, List<Item> *equalities,
+                                  Pushdown_checker checker, uchar *arg,
+                                  bool clone_const);
+  /* Return the number of elements in this multiple equality */
+  uint elements_count() { return equal_items.elements; }
   friend class Item_equal_fields_iterator;
   bool count_sargable_conds(void *arg);
+  Item *multiple_equality_transformer(THD *thd, uchar *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;
   friend class Item_equal_iterator<List_iterator,Item>;
   friend Item *eliminate_item_equal(THD *thd, COND *cond,
@@ -3191,6 +3254,10 @@ public:
       current_level.empty();
     else
       current_level= cond_equal.current_level;
+  }
+  bool is_empty()
+  {
+    return (current_level.elements == 0);
   }
 };
 

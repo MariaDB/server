@@ -30,3 +30,12 @@ let $path = `select CONCAT_WS('/', '..', '$HA_EXAMPLE_SO')`;
 --replace_regex /\.dll/.so/
 --error ER_UDF_NO_PATHS
 eval INSTALL PLUGIN example SONAME '$path';
+
+#
+# Bug#27302459: EMPTY VALUE IN MYSQL.PLUGIN TABLE CAUSES SERVER TO EXIT ON STARTUP
+#
+insert mysql.plugin values ();
+source include/restart_mysqld.inc;
+delete from mysql.plugin where name = '';
+
+--echo # End of 5.5 tests

@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #ifdef SSL_VARS_NOT_STATIC
@@ -30,6 +30,7 @@ SSL_STATIC char *opt_ssl_cipher  = 0;
 SSL_STATIC char *opt_ssl_key     = 0;
 SSL_STATIC char *opt_ssl_crl     = 0;
 SSL_STATIC char *opt_ssl_crlpath = 0;
+SSL_STATIC char *opt_tls_version = 0;
 #ifdef MYSQL_CLIENT
 SSL_STATIC my_bool opt_ssl_verify_server_cert= 0;
 #endif

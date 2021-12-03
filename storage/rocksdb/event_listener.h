@@ -22,7 +22,7 @@ namespace myrocks {
 class Rdb_ddl_manager;
 
 class Rdb_event_listener : public rocksdb::EventListener {
-public:
+ public:
   Rdb_event_listener(const Rdb_event_listener &) = delete;
   Rdb_event_listener &operator=(const Rdb_event_listener &) = delete;
 
@@ -40,10 +40,10 @@ public:
   void OnBackgroundError(rocksdb::BackgroundErrorReason reason,
                          rocksdb::Status *status) override;
 
-private:
+ private:
   Rdb_ddl_manager *m_ddl_manager;
 
   void update_index_stats(const rocksdb::TableProperties &props);
 };
 
-} // namespace myrocks
+}  // namespace myrocks

@@ -310,6 +310,37 @@ SELECT CONVERT_TZ('2001-10-08 00:00:00', MAKE_SET(0,'+01:00'), '+00:00' );
 --echo #
 
 --echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-11895 NO_ZERO_DATE affects timestamp values without any warnings
+--echo #
+
+SET sql_mode = '';
+CREATE TABLE t1 (a TIMESTAMP NULL) ENGINE = MyISAM;
+CREATE TABLE t2 (a TIMESTAMP NULL) ENGINE = MyISAM;
+CREATE TABLE t3 (a TIMESTAMP NULL) ENGINE = MyISAM;
+
+SET @@session.time_zone = 'UTC';
+INSERT INTO t1 VALUES ('2011-10-29 23:00:00');
+INSERT INTO t1 VALUES ('2011-10-29 23:00:01');
+INSERT INTO t1 VALUES ('2011-10-29 23:59:59');
+
+SET @@session.time_zone = 'Europe/Moscow';
+SET sql_mode='NO_ZERO_DATE';
+INSERT INTO t2 SELECT * FROM t1;
+SET sql_mode='';
+INSERT INTO t3 SELECT * FROM t1;
+SELECT UNIX_TIMESTAMP(a), a FROM t2;
+SELECT UNIX_TIMESTAMP(a), a FROM t3;
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
 --echo # Start of 10.4 tests
 --echo #
 
@@ -323,6 +354,246 @@ SELECT CONVERT_TZ(TIME('00:00:00'),'+00:00','+7:5');
 SELECT CONVERT_TZ(TIME('2010-01-01 00:00:00'),'+00:00','+7:5');
 SET old_mode=DEFAULT;
 SET timestamp=DEFAULT;
+
+--echo #
+--echo # MDEV-13995 MAX(timestamp) returns a wrong result near DST change
+--echo #
+
+# MAX()
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526)      /*summer time in Moscow*/);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526+3599) /*winter time in Moscow*/);
+SET time_zone='Europe/Moscow';
+SELECT a, UNIX_TIMESTAMP(a) FROM t1;
+SELECT UNIX_TIMESTAMP(MAX(a)) AS a FROM t1;
+CREATE TABLE t2 (a TIMESTAMP);
+INSERT INTO t2 SELECT MAX(a) AS a FROM t1;
+SELECT a, UNIX_TIMESTAMP(a) FROM t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+# Comparison
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+CREATE TABLE t2 (a TIMESTAMP);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526)      /*summer time in Moscow*/);
+INSERT INTO t2 VALUES (FROM_UNIXTIME(1288477526+3599) /*winter time in Moscow*/);
+SET time_zone='Europe/Moscow';
+SELECT UNIX_TIMESTAMP(t1.a), UNIX_TIMESTAMP(t2.a) FROM t1,t2;
+SELECT * FROM t1,t2 WHERE t1.a < t2.a;
+DROP TABLE t1,t2;
+
+
+# SP variable comparison
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a,b TIMESTAMP;
+  SET time_zone='+00:00';
+  SET a=FROM_UNIXTIME(1288477526);
+  SET b=FROM_UNIXTIME(1288481125);
+  SELECT a < b;
+  SET time_zone='Europe/Moscow';
+  SELECT a < b;
+END;
+$$
+DELIMITER ;$$
+
+
+# SP function comparison
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f1(uts INT) RETURNS TIMESTAMP
+BEGIN
+  DECLARE ts TIMESTAMP;
+  DECLARE tz VARCHAR(64) DEFAULT @@time_zone;
+  SET time_zone='+00:00';
+  SET ts=FROM_UNIXTIME(uts);
+  SET time_zone=tz;
+  RETURN ts;
+END;
+$$
+DELIMITER ;$$
+SET time_zone='+00:00';
+SELECT f1(1288477526) < f1(1288481125);
+SET time_zone='Europe/Moscow';
+SELECT f1(1288477526) < f1(1288481125);
+DROP FUNCTION f1;
+
+
+# LEAST()
+CREATE TABLE t1 (a TIMESTAMP,b TIMESTAMP);
+SET time_zone='+00:00';
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526) /*summer time in Mowcow*/,
+                       FROM_UNIXTIME(1288481125) /*winter time in Moscow*/);
+SELECT *, LEAST(a,b) FROM t1;
+SET time_zone='Europe/Moscow';
+SELECT *, LEAST(a,b) FROM t1;
+SELECT UNIX_TIMESTAMP(a), UNIX_TIMESTAMP(b), UNIX_TIMESTAMP(LEAST(a,b)) FROM t1;
+DROP TABLE t1;
+
+
+# BETWEEN
+CREATE TABLE t1 (a TIMESTAMP,b TIMESTAMP,c TIMESTAMP);
+SET time_zone='+00:00';
+INSERT INTO t1 VALUES (
+  FROM_UNIXTIME(1288477526) /*summer time in Moscow*/,
+  FROM_UNIXTIME(1288481125) /*winter time in Moscow*/,
+  FROM_UNIXTIME(1288481126) /*winter time in Moscow*/);
+SELECT b BETWEEN a AND c FROM t1;
+SET time_zone='Europe/Moscow';
+SELECT b BETWEEN a AND c FROM t1;
+DROP TABLE t1;
+
+
+# ORDER BY
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526) /*summer time in Mowcow*/);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288481125) /*winter time in Moscow*/);
+SELECT a, UNIX_TIMESTAMP(a) FROM t1 ORDER BY a;
+SELECT COALESCE(a) AS a, UNIX_TIMESTAMP(a) FROM t1 ORDER BY a;
+SET time_zone='Europe/Moscow';
+SELECT a, UNIX_TIMESTAMP(a) FROM t1 ORDER BY a;
+SELECT COALESCE(a) AS a, UNIX_TIMESTAMP(a) FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+
+# GROUP BY
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526) /*summer time in Mowcow*/);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288481126) /*winter time in Moscow*/);
+SET time_zone='Europe/Moscow';
+SELECT a, UNIX_TIMESTAMP(a) FROM t1 GROUP BY a;
+DROP TABLE t1;
+
+
+# CASE
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP, b TIMESTAMP);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526),FROM_UNIXTIME(1288481126));
+SELECT UNIX_TIMESTAMP(a),UNIX_TIMESTAMP(b),CASE a WHEN b THEN 'eq' ELSE 'ne' END AS x FROM t1;
+SET time_zone='Europe/Moscow';
+SELECT UNIX_TIMESTAMP(a),UNIX_TIMESTAMP(b),CASE a WHEN b THEN 'eq' ELSE 'ne' END AS x FROM t1;
+DROP TABLE t1;
+
+
+# IN
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP, b TIMESTAMP,c TIMESTAMP);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526),FROM_UNIXTIME(1288481126),FROM_UNIXTIME(1288481127));
+SELECT UNIX_TIMESTAMP(a),UNIX_TIMESTAMP(b),a IN (b,c) AS x FROM t1;
+SET time_zone='Europe/Moscow';
+SELECT UNIX_TIMESTAMP(a),UNIX_TIMESTAMP(b),a IN (b,c) AS x FROM t1;
+DROP TABLE t1;
+
+# Comparison and IN in combination with a subquery (with one row)
+
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP, b TIMESTAMP);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526),FROM_UNIXTIME(1288481126));
+SELECT * FROM t1 WHERE a = (SELECT MAX(b) FROM t1);
+SELECT * FROM t1 WHERE a = (SELECT MIN(b) FROM t1);
+SELECT * FROM t1 WHERE a IN ((SELECT MAX(b) FROM t1), (SELECT MIN(b) FROM t1));
+
+SET time_zone='Europe/Moscow';
+SELECT * FROM t1 WHERE a = (SELECT MAX(b) FROM t1);
+SELECT * FROM t1 WHERE a = (SELECT MIN(b) FROM t1);
+SELECT * FROM t1 WHERE a IN ((SELECT MAX(b) FROM t1), (SELECT MIN(b) FROM t1));
+DROP TABLE t1;
+
+# Comparison and IN in combinarion with a subquery (with multiple rows)
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP, b TIMESTAMP);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1100000000),FROM_UNIXTIME(1200000000));
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1100000001),FROM_UNIXTIME(1200000001));
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526),FROM_UNIXTIME(1288481126));
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1300000000),FROM_UNIXTIME(1400000000));
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1300000001),FROM_UNIXTIME(1400000001));
+SELECT * FROM t1 WHERE a = (SELECT MAX(b) FROM t1);
+SELECT * FROM t1 WHERE a = (SELECT MIN(b) FROM t1);
+SELECT * FROM t1 WHERE a IN ((SELECT MAX(b) FROM t1), (SELECT MIN(b) FROM t1));
+
+SET time_zone='Europe/Moscow';
+SELECT * FROM t1 WHERE a = (SELECT MAX(b) FROM t1);
+SELECT * FROM t1 WHERE a = (SELECT MIN(b) FROM t1);
+SELECT * FROM t1 WHERE a IN ((SELECT MAX(b) FROM t1), (SELECT MIN(b) FROM t1));
+DROP TABLE t1;
+
+# NULLIF
+
+SET time_zone='Europe/Moscow';
+
+CREATE TABLE t1 (a TIMESTAMP);
+CREATE TABLE t2 (a TIMESTAMP);
+SET timestamp=1288479599 /*summer time in Mowcow*/;
+INSERT INTO t1 VALUES (CURRENT_TIMESTAMP);
+SET timestamp=1288479599+3600 /*winter time in Mowcow*/;
+INSERT INTO t2 VALUES (CURRENT_TIMESTAMP);
+SELECT t1.a, UNIX_TIMESTAMP(t1.a), t2.a, UNIX_TIMESTAMP(t2.a) FROM t1, t2;
+SELECT NULLIF(t1.a, t2.a) FROM t1,t2;
+DROP TABLE t1, t2;
+SET time_zone=DEFAULT;
+SET timestamp=DEFAULT;
+
+
+--echo #
+--echo # MDEV-17979 Assertion `0' failed in Item::val_native upon SELECT with timestamp, NULLIF, GROUP BY
+--echo #
+
+SET time_zone='+00:00';
+CREATE TABLE t1 (a INT, ts TIMESTAMP) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, FROM_UNIXTIME(1288481126) /*winter time in Moscow*/);
+SET time_zone='Europe/Moscow';
+CREATE TABLE t2 AS SELECT ts, COALESCE(ts) AS cts FROM t1 GROUP BY cts;
+SELECT ts, cts, UNIX_TIMESTAMP(ts) AS uts, UNIX_TIMESTAMP(cts) AS ucts FROM t2;
+DROP TABLE t1,t2;
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # MDEV-19961 MIN(timestamp_column) returns a wrong result in a GROUP BY query
+--echo #
+
+SET time_zone='Europe/Moscow';
+CREATE OR REPLACE TABLE t1 (i INT, d TIMESTAMP);
+SET timestamp=1288477526  /* this is summer time */ ;
+INSERT INTO t1 VALUES (3,NULL);
+SET timestamp=1288477526+3599 /* this is winter time*/ ;
+INSERT INTO t1 VALUES (3,NULL);
+SELECT i, d, UNIX_TIMESTAMP(d) FROM t1 ORDER BY d;
+SELECT i, MIN(d) FROM t1 GROUP BY i;
+SELECT i, MAX(d) FROM t1 GROUP BY i;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # MDEV-20397 Support TIMESTAMP, DATETIME, TIME in ROUND() and TRUNCATE()
+--echo #
+
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (i INT, d TIMESTAMP(6));
+SET timestamp=1288479599.999999  /* this is the last second in summer time */ ;
+INSERT INTO t1 VALUES (1,NULL);
+SET timestamp=1288479600.000000 /* this is the first second in winter time */ ;
+INSERT INTO t1 VALUES (2,NULL);
+SELECT i, d, UNIX_TIMESTAMP(d) FROM t1 ORDER BY d;
+
+CREATE TABLE t2 (i INT, d TIMESTAMP, expected_unix_timestamp INT UNSIGNED);
+INSERT INTO t2 SELECT i, ROUND(d) AS d, ROUND(UNIX_TIMESTAMP(d)) FROM t1;
+
+--echo # UNIX_TIMESTAMP(d) and expected_unix_timestamp should return the same value.
+--echo # Currently they do not, because ROUND(timestamp) is performed as DATETIME.
+--echo # We should fix this eventually.
+
+SELECT i, d, UNIX_TIMESTAMP(d), expected_unix_timestamp FROM t2 ORDER BY i;
+DROP TABLE t2;
+
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+
 
 --echo #
 --echo # End of 10.4 tests

@@ -218,6 +218,7 @@ t	CREATE TABLE `t` (
  PARTITION `p99991231` VALUES LESS THAN (MAXVALUE) ENGINE = InnoDB)
 analyze table t;
 Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
 test.t	analyze	status	OK
 select count(*) from t where d ='2017-09-15';
 count(*)

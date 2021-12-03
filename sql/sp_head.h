@@ -1,6 +1,7 @@
 /* -*- C++ -*- */
 /*
    Copyright (c) 2002, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef _SP_HEAD_H_
 #define _SP_HEAD_H_
@@ -108,7 +109,7 @@ public:
           bool use_explicit_name)
     : Database_qualified_name(db, name), m_explicit_name(use_explicit_name)
   {
-    if (lower_case_table_names && m_db.str)
+    if (lower_case_table_names && m_db.length)
       m_db.length= my_casedn_str(files_charset_info, (char*) m_db.str);
   }
 
@@ -124,10 +125,11 @@ bool
 check_routine_name(const LEX_CSTRING *ident);
 
 class sp_head :private Query_arena,
-               public Database_qualified_name
+               public Database_qualified_name,
+               public Sql_alloc
 {
-  sp_head(const sp_head &);	/**< Prevent use of these */
-  void operator=(sp_head &);
+  sp_head(const sp_head &)= delete;
+  void operator=(sp_head &)= delete;
 
 protected:
   MEM_ROOT main_mem_root;
@@ -183,6 +185,11 @@ private:
     set_chistics() makes sure this.
   */
   Sp_chistics m_chistics;
+  void set_chistics(const st_sp_chistics &chistics);
+  inline void set_chistics_agg_type(enum enum_sp_aggregate_type type)
+  {
+    m_chistics.agg_type= type;
+  }
 public:
   sql_mode_t m_sql_mode;		///< For SHOW CREATE and execution
   bool       m_explicit_name;                   /**< Prepend the db name? */
@@ -313,13 +320,14 @@ public:
   */
   SQL_I_List<Item_trigger_field> m_trg_table_fields;
 
-  static void *
-  operator new(size_t size) throw ();
-
-  static void
-  operator delete(void *ptr, size_t size) throw ();
-
-  sp_head(sp_package *parent, const Sp_handler *handler);
+protected:
+  sp_head(MEM_ROOT *mem_root, sp_package *parent, const Sp_handler *handler,
+          enum_sp_aggregate_type agg_type);
+  virtual ~sp_head();
+public:
+  static void destroy(sp_head *sp);
+  static sp_head *create(sp_package *parent, const Sp_handler *handler,
+                         enum_sp_aggregate_type agg_type);
 
   /// Initialize after we have reset mem_root
   void
@@ -337,7 +345,6 @@ public:
   void
   set_stmt_end(THD *thd);
 
-  virtual ~sp_head();
 
   bool
   execute_trigger(THD *thd,
@@ -412,6 +419,10 @@ public:
                                             const LEX_CSTRING *field_name,
                                             Item *val, LEX *lex);
   bool check_package_routine_end_name(const LEX_CSTRING &end_name) const;
+  bool check_standalone_routine_end_name(const sp_name *end_name) const;
+  bool check_group_aggregate_instructions_function() const;
+  bool check_group_aggregate_instructions_forbid() const;
+  bool check_group_aggregate_instructions_require() const;
 private:
   /**
     Generate a code to set a single cursor parameter variable.
@@ -729,11 +740,7 @@ public:
                                           const LEX_CSTRING &db,
                                           const LEX_CSTRING &table);
 
-  void set_chistics(const st_sp_chistics &chistics);
-  inline void set_chistics_agg_type(enum enum_sp_aggregate_type type)
-  {
-    m_chistics.agg_type= type;
-  }
+  void set_c_chistics(const st_sp_chistics &chistics);
   void set_info(longlong created, longlong modified,
 		const st_sp_chistics &chistics, sql_mode_t sql_mode);
 
@@ -962,10 +969,16 @@ public:
   bool m_is_instantiated;
   bool m_is_cloning_routine;
 
-  sp_package(LEX *top_level_lex,
+private:
+  sp_package(MEM_ROOT *mem_root,
+             LEX *top_level_lex,
              const sp_name *name,
              const Sp_handler *sph);
   ~sp_package();
+public:
+  static sp_package *create(LEX *top_level_lex, const sp_name *name,
+                            const Sp_handler *sph);
+
   bool add_routine_declaration(LEX *lex)
   {
     return m_routine_declarations.check_dup_qualified(lex->sphead) ||
@@ -2024,6 +2037,7 @@ private:
 
 }; // class sp_instr_set_case_expr : public sp_instr_opt_meta
 
+bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool

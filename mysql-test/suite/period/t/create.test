@@ -1,0 +1,87 @@
+create table t (id int primary key, s date, e date, period for mytime(s,e));
+--echo # CONSTRAINT CHECK (s < e) is added implicitly, and shouldn't be shown
+--echo # this is important for correct command-based replication
+show create table t;
+create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
+                           period for mytime(s,e));
+show create table t;
+
+--echo # SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)a)
+--echo # 2) If a <table period definition> TPD is specified, then:
+--echo # a) <table scope> shall not be specified.
+--error ER_PERIOD_TEMPORARY_NOT_ALLOWED
+create or replace temporary table t (s date, e date, period for mytime(s,e));
+
+--echo # SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)e)iii)
+--echo # The <data type or domain name> contained in CD1 is either DATE or a
+--echo # timestamp type and it is equivalent to the <data type or domain name>
+--echo # contained in CD2.
+--error ER_PERIOD_TYPES_MISMATCH
+create or replace table t (id int primary key, s datetime, e date,
+                           period for mytime(s,e));
+--error ER_PERIOD_TYPES_MISMATCH
+create or replace table t (s timestamp(2), e timestamp(6),
+                           period for mytime(s,e));
+--error ER_WRONG_FIELD_SPEC
+create or replace table t (id int primary key, s int, e date,
+                           period for mytime(s,e));
+--error ER_WRONG_FIELD_SPEC
+create or replace table t (id int primary key, s time, e time,
+                           period for mytime(s,e));
+--error ER_BAD_FIELD_ERROR
+create or replace table t (id int primary key, s date, e date,
+                           period for mytime(s,x));
+
+--echo # MDEV-18842: Unfortunate error message when the same column is used
+--echo # for application period start and end
+--error ER_FIELD_SPECIFIED_TWICE
+create or replace table t (s date, t date, period for apt(s,s));
+
+--error ER_MORE_THAN_ONE_PERIOD
+create or replace table t (id int primary key, s date, e date,
+                           period for mytime(s,e),
+                           period for mytime2(s,e));
+
+--echo # SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)d)
+--echo # No <column name> in any <column definition> shall be equivalent to PN.
+--error ER_DUP_FIELDNAME
+create or replace table t (mytime int, s date, e date,
+    period for mytime(s,e));
+
+--echo # SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)e)v)2)A)
+--echo # Neither CD1 nor CD2 shall contain an <identity column specification>, a
+--echo # <generation clause>, a <system time period start column specification>,
+--echo #  or a <system time period end column specification>.
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+create or replace table t (id int primary key,
+                           s date,
+                           e date generated always as (s+1),
+                           period for mytime(s,e));
+
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+create or replace table t (id int primary key,
+                           s date,
+                           e date as (s+1) VIRTUAL,
+                           period for mytime(s,e));
+
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
+                           st timestamp(6) as row start,
+                           en timestamp(6) as row end,
+                           period for system_time (st, en),
+                           period for mytime(st,e)) with system versioning;
+
+--echo # SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)
+--echo # Let IDCN be an implementation-dependent <constraint name> that is not
+--echo # equivalent to the <constraint name> of any table constraint descriptor
+--echo # included in S.
+create or replace table t (x int, s date, e date,
+                           period for mytime(s, e),
+                           constraint mytime check (x > 1));
+show create table t;
+--error ER_CONSTRAINT_FAILED
+insert t values (2, '2001-01-01', '2001-01-01');
+
+show status like "Feature_application_time_periods";
+
+drop table t;

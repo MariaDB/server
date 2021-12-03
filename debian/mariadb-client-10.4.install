@@ -10,6 +10,17 @@ usr/bin/mysqldumpslow
 usr/bin/mysqlimport
 usr/bin/mysqlshow
 usr/bin/mysqlslap
+usr/share/man/man1/mariadb-access.1
+usr/share/man/man1/mariadb-admin.1
+usr/share/man/man1/mariadb-binlog.1
+usr/share/man/man1/mariadb-dump.1
+usr/share/man/man1/mariadb-dumpslow.1
+usr/share/man/man1/mariadb-find-rows.1
+usr/share/man/man1/mariadb-fix-extensions.1
+usr/share/man/man1/mariadb-import.1
+usr/share/man/man1/mariadb-plugin.1
+usr/share/man/man1/mariadb-slap.1
+usr/share/man/man1/mariadb-waitpid.1
 usr/share/man/man1/mysql_find_rows.1
 usr/share/man/man1/mysql_fix_extensions.1
 usr/share/man/man1/mysql_waitpid.1

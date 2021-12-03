@@ -382,10 +382,10 @@ aus Osnabrück	utf8_general_ci	1.591140
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify t varchar(200) collate latin1_german2_ci not null;
 Warnings:
-Warning	1366	Incorrect string value: '\xD0\xAD\xD1\x82\xD0\xBE...' for column 't' at row 3
-Warning	1366	Incorrect string value: '\xD0\x9E\xD1\x82\xD0\xBB...' for column 't' at row 4
-Warning	1366	Incorrect string value: '\xD0\x9D\xD0\xB5 \xD0...' for column 't' at row 5
-Warning	1366	Incorrect string value: '\xD0\xB8 \xD0\xB1\xD1...' for column 't' at row 6
+Warning	1366	Incorrect string value: '\xD0\xAD\xD1\x82\xD0\xBE...' for column `test`.`t1`.`t` at row 3
+Warning	1366	Incorrect string value: '\xD0\x9E\xD1\x82\xD0\xBB...' for column `test`.`t1`.`t` at row 4
+Warning	1366	Incorrect string value: '\xD0\x9D\xD0\xB5 \xD0...' for column `test`.`t1`.`t` at row 5
+Warning	1366	Incorrect string value: '\xD0\xB8 \xD0\xB1\xD1...' for column `test`.`t1`.`t` at row 6
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrück');
 t	collation(t)
 aus Osnabrück	latin1_german2_ci
@@ -776,3 +776,14 @@ CREATE FULLTEXT INDEX IF NOT EXISTS ft1 ON t1(title);
 Warnings:
 Note	1061	Duplicate key name 'ft1'
 DROP TABLE t1;
+#
+# MDEV-22275 (Memory leak)
+#
+CREATE TEMPORARY TABLE tmp (a TEXT) ENGINE=MyISAM;
+ALTER TABLE tmp ADD FULLTEXT (a);
+INSERT INTO tmp VALUES ('foo');
+DROP TABLE tmp;
+CREATE TEMPORARY TABLE tmp (a TEXT) ENGINE=Aria;
+ALTER TABLE tmp ADD FULLTEXT (a);
+INSERT INTO tmp VALUES ('foo');
+DROP TABLE tmp;

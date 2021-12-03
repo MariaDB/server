@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -37,7 +37,7 @@ Created 5/30/1994 Heikki Tuuri
 /** Dummy variable to catch access to uninitialized fields.  In the
 debug version, dtuple_create() will make all fields of dtuple_t point
 to data_error. */
-byte	data_error;
+ut_d(byte data_error);
 #endif /* UNIV_DEBUG */
 
 /** Trim the tail of an index tuple before insert or update.
@@ -122,8 +122,6 @@ dtuple_set_n_fields(
 	dtuple_t*	tuple,		/*!< in: tuple */
 	ulint		n_fields)	/*!< in: number of fields */
 {
-	ut_ad(tuple);
-
 	tuple->n_fields = n_fields;
 	tuple->n_fields_cmp = n_fields;
 }
@@ -235,41 +233,20 @@ dtuple_validate(
 /*============*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
 {
-	const dfield_t*	field;
-	ulint		n_fields;
-	ulint		len;
-	ulint		i;
-
 	ut_ad(tuple->magic_n == DATA_TUPLE_MAGIC_N);
+#ifdef HAVE_valgrind
+	const ulint n_fields = dtuple_get_n_fields(tuple);
 
-	n_fields = dtuple_get_n_fields(tuple);
-
-	/* We dereference all the data of each field to test
-	for memory traps */
-
-	for (i = 0; i < n_fields; i++) {
-
-		field = dtuple_get_nth_field(tuple, i);
-		len = dfield_get_len(field);
+	for (ulint i = 0; i < n_fields; i++) {
+		const dfield_t*	field = dtuple_get_nth_field(tuple, i);
 
 		if (!dfield_is_null(field)) {
-
-			const byte*	data;
-
-			data = static_cast<const byte*>(dfield_get_data(field));
-#ifndef UNIV_DEBUG_VALGRIND
-			ulint		j;
-
-			for (j = 0; j < len; j++) {
-				data++;
-			}
-#endif /* !UNIV_DEBUG_VALGRIND */
-
-			UNIV_MEM_ASSERT_RW(data, len);
+			MEM_CHECK_DEFINED(dfield_get_data(field),
+					  dfield_get_len(field));
 		}
 	}
-
-	ut_a(dtuple_check_typed(tuple));
+#endif /* HAVE_valgrind */
+	ut_ad(dtuple_check_typed(tuple));
 
 	return(TRUE);
 }
@@ -457,7 +434,7 @@ dfield_print_also_hex(
 			break;
 		}
 
-		data = static_cast<byte*>(dfield_get_data(dfield));
+		data = static_cast<const byte*>(dfield_get_data(dfield));
 		/* fall through */
 
 	case DATA_BINARY:
@@ -603,12 +580,18 @@ dtuple_convert_big_rec(
 	dfield_t*	dfield;
 	ulint		size;
 	ulint		n_fields;
-	ulint		local_len;
 	ulint		local_prefix_len;
 
 	if (!dict_index_is_clust(index)) {
 		return(NULL);
 	}
+
+	if (!index->table->space) {
+		return NULL;
+	}
+
+	ulint local_len = index->table->get_overflow_field_local_len();
+	const auto zip_size = index->table->space->zip_size();
 
 	ut_ad(index->n_uniq > 0);
 
@@ -643,6 +626,7 @@ dtuple_convert_big_rec(
 		longest_i = index->first_user_field();
 		dfield = dtuple_get_nth_field(entry, longest_i);
 		local_len = BTR_EXTERN_FIELD_REF_SIZE;
+		ut_ad(!dfield_is_ext(dfield));
 		goto ext_write;
 	}
 
@@ -657,9 +641,9 @@ dtuple_convert_big_rec(
 
 	while (page_zip_rec_needs_ext(rec_get_converted_size(index, entry,
 							     *n_ext),
-				      dict_table_is_comp(index->table),
+				      index->table->not_redundant(),
 				      dict_index_get_n_fields(index),
-				      dict_table_page_size(index->table))) {
+				      zip_size)) {
 		longest_i = 0;
 		for (ulint i = index->first_user_field(), longest = 0;
 		     i + mblob < entry->n_fields; i++) {
@@ -702,7 +686,7 @@ dtuple_convert_big_rec(
 				goto skip_field;
 			}
 
-			longest_i = i;
+			longest_i = i + mblob;
 			longest = savings;
 
 skip_field:
@@ -741,14 +725,7 @@ ext_write:
 		memcpy(data, dfield_get_data(dfield), local_prefix_len);
 		/* Clear the extern field reference (BLOB pointer). */
 		memset(data + local_prefix_len, 0, BTR_EXTERN_FIELD_REF_SIZE);
-#if 0
-		/* The following would fail the Valgrind checks in
-		page_cur_insert_rec_low() and page_cur_insert_rec_zip().
-		The BLOB pointers in the record will be initialized after
-		the record and the BLOBs have been written. */
-		UNIV_MEM_ALLOC(data + local_prefix_len,
-			       BTR_EXTERN_FIELD_REF_SIZE);
-#endif
+
 		dfield_set_data(dfield, data, local_len);
 		dfield_set_ext(dfield);
 
@@ -790,7 +767,7 @@ void
 dtuple_convert_back_big_rec(
 /*========================*/
 	dict_index_t*	index MY_ATTRIBUTE((unused)),	/*!< in: index */
-	dtuple_t*	entry,	/*!< in: entry whose data was put to vector */
+	dtuple_t*	entry,	/*!< in/out: entry whose data was put to vector */
 	big_rec_t*	vector)	/*!< in, own: big rec vector; it is
 				freed in this function */
 {

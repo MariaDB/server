@@ -13,8 +13,8 @@ connect  tzuser, localhost, mysqltest_1,,;
 connection tzuser;
 show grants for current_user();
 Grants for mysqltest_1@localhost
-GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost'
-GRANT ALL PRIVILEGES ON `test`.* TO 'mysqltest_1'@'localhost'
+GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
+GRANT ALL PRIVILEGES ON `test`.* TO `mysqltest_1`@`localhost`
 set time_zone= '+00:00';
 set time_zone= 'Europe/Moscow';
 select convert_tz('2004-10-21 19:00:00', 'Europe/Moscow', 'UTC');
@@ -39,9 +39,9 @@ connect  tzuser2, localhost, mysqltest_1,,;
 connection tzuser2;
 show grants for current_user();
 Grants for mysqltest_1@localhost
-GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost'
-GRANT ALL PRIVILEGES ON `test`.`t2` TO 'mysqltest_1'@'localhost'
-GRANT ALL PRIVILEGES ON `test`.`t1` TO 'mysqltest_1'@'localhost'
+GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
+GRANT ALL PRIVILEGES ON `test`.`t2` TO `mysqltest_1`@`localhost`
+GRANT ALL PRIVILEGES ON `test`.`t1` TO `mysqltest_1`@`localhost`
 set time_zone= '+00:00';
 set time_zone= 'Europe/Moscow';
 select convert_tz('2004-11-31 12:00:00', 'Europe/Moscow', 'UTC');

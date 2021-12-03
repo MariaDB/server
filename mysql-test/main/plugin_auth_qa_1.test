@@ -13,6 +13,10 @@ SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 # CREATE...WITH/CREATE...BY/GRANT
 CREATE USER plug_user IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
+GRANT PROXY ON `plug%dest` TO plug_user;
+--error 1
+--exec $MYSQL -S $MASTER_MYSOCK -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
+REVOKE PROXY ON `plug%dest` FROM plug_user;
 GRANT PROXY ON plug_dest TO plug_user;
 --replace_result $MASTER_MYSOCK MASTER_MYSOCK
 --exec $MYSQL -S $MASTER_MYSOCK -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
@@ -110,7 +114,7 @@ connection default;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 disconnect plug_user;
-UPDATE mysql.user SET user='plug_user' WHERE user='new_user';
+UPDATE mysql.global_priv SET user='plug_user' WHERE user='new_user';
 FLUSH PRIVILEGES;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
@@ -128,24 +132,24 @@ connection default;
 disconnect plug_user;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-UPDATE mysql.user SET user='new_user' WHERE user='plug_user';
+UPDATE mysql.global_priv SET user='new_user' WHERE user='plug_user';
 FLUSH PRIVILEGES;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-UPDATE mysql.user SET authentication_string='new_dest' WHERE user='new_user';
+UPDATE mysql.global_priv SET priv=JSON_SET(priv, '$.authentication_string', 'new_dest') WHERE user='new_user';
 FLUSH PRIVILEGES;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-UPDATE mysql.user SET plugin='new_plugin_server' WHERE user='new_user';
+UPDATE mysql.global_priv SET priv=JSON_SET(priv, '$.plugin', 'new_plugin_server') WHERE user='new_user';
 FLUSH PRIVILEGES;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 --disable_query_log
---error ER_ACCESS_DENIED_ERROR
+--error ER_PLUGIN_IS_NOT_LOADED
 connect(plug_user,localhost,new_user,new_dest);
 --enable_query_log
-UPDATE mysql.user SET plugin='test_plugin_server' WHERE user='new_user';
-UPDATE mysql.user SET USER='new_dest' WHERE user='plug_dest';
+UPDATE mysql.global_priv SET priv=JSON_SET(priv, '$.plugin', 'test_plugin_server') WHERE user='new_user';
+UPDATE mysql.global_priv SET user='new_dest' WHERE user='plug_dest';
 FLUSH PRIVILEGES;
 GRANT PROXY ON new_dest TO new_user;
 --sorted_result
@@ -154,7 +158,7 @@ connect(plug_user,localhost,new_user,new_dest);
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_user;
-UPDATE mysql.user SET USER='plug_dest' WHERE user='new_dest';
+UPDATE mysql.global_priv SET user='plug_dest' WHERE user='new_dest';
 FLUSH PRIVILEGES;
 CREATE USER new_dest IDENTIFIED BY 'new_dest_passwd';
 --sorted_result

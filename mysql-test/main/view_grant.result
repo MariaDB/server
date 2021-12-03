@@ -4,12 +4,12 @@ create user test@localhost;
 grant create view on test.* to test@localhost;
 show grants for test@localhost;
 Grants for test@localhost
-GRANT USAGE ON *.* TO 'test'@'localhost'
-GRANT CREATE VIEW ON `test`.* TO 'test'@'localhost'
+GRANT USAGE ON *.* TO `test`@`localhost`
+GRANT CREATE VIEW ON `test`.* TO `test`@`localhost`
 revoke create view on test.* from test@localhost;
 show grants for test@localhost;
 Grants for test@localhost
-GRANT USAGE ON *.* TO 'test'@'localhost'
+GRANT USAGE ON *.* TO `test`@`localhost`
 drop user test@localhost;
 connect  root,localhost,root,,test;
 connection root;
@@ -198,12 +198,15 @@ create table mysqltest.t1 (a int, b int, primary key(a));
 insert into mysqltest.t1 values (10,2), (20,3), (30,4), (40,5), (50,10);
 create table mysqltest.t2 (x int);
 insert into mysqltest.t2 values (3), (4), (5), (6);
+create table mysqltest.t3 (x int);
+insert into mysqltest.t3 values (3), (4), (5), (6);
 create view mysqltest.v1 (a,c) as select a, b+1 from mysqltest.t1;
 create view mysqltest.v2 (a,c) as select a, b from mysqltest.t1;
 create view mysqltest.v3 (a,c) as select a, b+1 from mysqltest.t1;
 create user mysqltest_1@localhost;
 grant update (a) on mysqltest.v2 to mysqltest_1@localhost;
 grant update on mysqltest.v1 to mysqltest_1@localhost;
+grant update on mysqltest.t3 to mysqltest_1@localhost;
 grant select on mysqltest.* to mysqltest_1@localhost;
 connection user1;
 use mysqltest;
@@ -239,6 +242,7 @@ a	b
 48	4
 62	5
 71	10
+update t3,v3 set t3.x=t3.x+v3.c where t3.x=v3.c;
 update t2,v2 set v2.c=v2.a+v2.c where t2.x=v2.c;
 ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for column 'c' in table 'v2'
 update v2 set c=a+c;
@@ -562,11 +566,6 @@ use test;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-drop view if exists v1;
-drop table if exists t1;
-create table t1 as select * from mysql.user where user='';
-delete from mysql.user where user='';
-flush privileges;
 create user 'test14256'@'%';
 grant all on test.* to 'test14256'@'%';
 connect  test14256,localhost,test14256,,test;
@@ -592,9 +591,6 @@ test14256@%	test14256@%	1
 connection root;
 disconnect test14256;
 drop user test14256;
-insert into mysql.user select * from t1;
-flush privileges;
-drop table t1;
 connection root;
 create database mysqltest;
 use mysqltest;
@@ -1347,6 +1343,8 @@ disconnect root;
 connection default;
 select * from information_schema.table_privileges;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
+'mariadb.sys'@'localhost'	def	mysql	global_priv	SELECT	NO
+'mariadb.sys'@'localhost'	def	mysql	global_priv	DELETE	NO
 End of 5.0 tests.
 connection default;
 DROP VIEW IF EXISTS v1;

@@ -1,3 +1,4 @@
+# restart
 create table t1 (c1 int, c2 geometry not null, spatial index (c2))engine=innodb;
 create procedure insert_t1(IN total int)
 begin
@@ -17,6 +18,7 @@ end while;
 end|
 CALL insert_t1(367);
 COMMIT;
+# restart
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -27,6 +29,7 @@ CALL update_t1(367);
 SET @poly1 = ST_GeomFromText('POLYGON((10000 10000, 10000 10350, 10350 10350, 10350 10000, 10000 10000))');
 delete from t1 where ST_Contains(@poly1, c2);
 COMMIT;
+# restart
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

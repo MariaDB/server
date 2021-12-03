@@ -3,7 +3,7 @@ show variables like "table_definition_cache";
 show variables like "table_open_cache";
 show variables like "max_connections";
 # open_files_limit depends on OS configuration (ulimit -n)
-#show variables like "open_files_limit";
+show variables like "open_files_limit";
 show variables where
     `Variable_name` != "performance_schema_max_statement_classes" and
     `Variable_name` like "performance_schema%";
@@ -17,7 +17,7 @@ show status like "%performance_schema%";
 # is very dependent on the platform,
 # so it is not printed here to ensure stability of the .results files.
 # To troubleshoot the performance schema memory consumption at different
-# configuration settings, comment the following line.
+# configuration settings, uncomment the following line.
 # Debug only:
 
 # show engine performance_schema status;

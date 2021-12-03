@@ -1,0 +1,39 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+Shutting down server ...
+connection node_1;
+CREATE DATABASE `lost+found`;
+USE `lost+found`;
+CREATE TABLE t1(id INT);
+INSERT INTO t1 VALUES (1), (2);
+SELECT * FROM `lost+found`.t1;
+id
+1
+2
+CREATE DATABASE `#mysql50#not_lost+found`;
+USE `#mysql50#not_lost+found`;
+CREATE TABLE t1(id INT);
+INSERT INTO t1 VALUES (1), (2);
+SELECT * FROM `#mysql50#not_lost+found`.t1;
+id
+1
+2
+Cleaning var directory ...
+connection node_2;
+Starting server ...
+SELECT * FROM `lost+found`.t1;
+id
+1
+2
+SELECT * FROM `#mysql50#not_lost+found`.t1;
+id
+1
+2
+connection node_1;
+DROP DATABASE `lost+found`;
+DROP DATABASE `#mysql50#not_lost+found`;
+disconnect node_2;
+disconnect node_1;

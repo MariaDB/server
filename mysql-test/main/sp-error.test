@@ -2,6 +2,8 @@
 # Stored PROCEDURE error tests
 #
 
+--source include/default_charset.inc
+
 --disable_warnings
 drop table if exists t1, t2;
 --enable_warnings
@@ -613,7 +615,7 @@ call bug2653_1(1, @b)|
 
 drop procedure bug2653_1|
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 create procedure bug2653_2(a int, out b int)
 begin
   if aa < 0 then
@@ -1506,7 +1508,7 @@ DROP PROCEDURE IF EXISTS bug13037_p3;
 
 delimiter |;
 
---error ER_BAD_FIELD_ERROR
+--error ER_SP_UNDECLARED_VAR
 CREATE PROCEDURE bug13037_p1()
 BEGIN
   IF bug13037_foo THEN
@@ -3844,3 +3846,22 @@ SELECT @msg;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP TABLE t1;
+
+--echo #
+--echo # 10.2 Test
+--echo #
+--echo # MDEV-MDEV-22058: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo # is_bulk_op())' failed in Diagnostics_area::set_ok_status
+--echo #
+
+SET @old_optimizer_switch = @@SESSION.OPTIMIZER_SWITCH;
+
+SET @cmd:="SET @@SESSION.SQL_MODE=(SELECT 'a')";
+
+--error ER_ILLEGAL_SUBQUERY_OPTIMIZER_SWITCHES
+SET @@SESSION.OPTIMIZER_SWITCH="in_to_exists=OFF,materialization=OFF";
+PREPARE stmt FROM @cmd;
+
+set @@SESSION.OPTIMIZER_SWITCH=@old_optimizer_switch;
+
+--echo # End of 10.2 Test

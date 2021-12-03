@@ -5,6 +5,7 @@ call mtr.add_suppression('Turning logging off for the whole duration of the MySQ
 call mtr.add_suppression('Could not use .*');
 call mtr.add_suppression('MYSQL_BIN_LOG::purge_logs failed to clean registers before purging logs.');
 flush tables;
+SET @saved_dbug = @@SESSION.debug_dbug;
 RESET MASTER;
 flush logs;
 flush logs;
@@ -145,6 +146,7 @@ master-bin.000009
 master-bin.000010
 master-bin.000011
 
+# restart
 SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data//master-bin.index');
 SELECT @index;
 @index
@@ -171,6 +173,7 @@ master-bin.000010
 master-bin.000011
 master-bin.000012
 
+# restart
 SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data//master-bin.index');
 SELECT @index;
 @index
@@ -183,5 +186,5 @@ master-bin.000011
 master-bin.000012
 master-bin.000013
 
-SET SESSION debug_dbug="";
+SET @@SESSION.debug_dbug = @saved_dbug;
 End of tests

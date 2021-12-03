@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_COMPILER_IS_GNUCXX
   AND CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -43,7 +43,8 @@ MACRO(CHECK_DTRACE)
  IF(DTRACE AND NOT CMAKE_SYSTEM_NAME MATCHES "FreeBSD"
      AND NOT BUGGY_GCC_NO_DTRACE_MODULES
      AND NOT BUGGY_LINUX_DTRACE
-     AND NOT CMAKE_SYSTEM_NAME MATCHES "SunOS")
+     AND NOT CMAKE_SYSTEM_NAME MATCHES "SunOS"
+     AND NOT WIN32)
    SET(ENABLE_DTRACE ON CACHE BOOL "Enable dtrace")
  ENDIF()
  # On GNU/Hurd, dtrace is not supported
@@ -147,11 +148,10 @@ FUNCTION(DTRACE_INSTRUMENT target)
         # Note: DTrace probes in static libraries are  unusable currently 
         # (see explanation for DTRACE_INSTRUMENT_STATIC_LIBS below)
         # but maybe one day this will be fixed.
-        GET_TARGET_PROPERTY(target_location ${target} LOCATION)
         ADD_CUSTOM_COMMAND(
           TARGET ${target} POST_BUILD
-          COMMAND ${CMAKE_AR} r  ${target_location} ${outfile}
-	  COMMAND ${CMAKE_RANLIB} ${target_location}
+          COMMAND ${CMAKE_AR} r  $<TARGET_FILE:${target}> ${outfile}
+          COMMAND ${CMAKE_RANLIB} $<TARGET_FILE:${target}>
           )
         # Used in DTRACE_INSTRUMENT_WITH_STATIC_LIBS
         SET(TARGET_OBJECT_DIRECTORY_${target}  ${objdir} CACHE INTERNAL "")

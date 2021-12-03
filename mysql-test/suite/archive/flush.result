@@ -1,0 +1,18 @@
+CREATE TABLE t1(a INT) ENGINE=archive;
+INSERT INTO t1 VALUES(1);
+connect con1, localhost, root;
+LOCK TABLE t1 READ;
+connection default;
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+# Must return 1 row
+SELECT * FROM t2;
+a
+1
+SELECT * FROM t1;
+a
+1
+connection con1;
+UNLOCK TABLES;
+connection default;
+DROP TABLE t1, t2;

@@ -1,0 +1,26 @@
+#
+# test MDL backoff-and-retry during multi-update
+#
+source include/have_debug_sync.inc;
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+insert t1 values (1,2),(3,4);
+insert t2 values (5,6),(7,8);
+create table t0 (x int);
+insert t0 values (11), (22);
+create trigger tr1 before update on t1 for each row insert t0 values (new.b);
+
+set debug_sync='open_tables_after_open_and_process_table SIGNAL ready WAIT_FOR cont';
+send update t1 join t2 on (a=c+4) set b=d;
+
+connect con1, localhost, root;
+set debug_sync='now WAIT_FOR ready';
+set debug_sync='mdl_acquire_lock_wait SIGNAL cont';
+lock table t1 write, t0 write;
+let $wait_condition= select count(*) from information_schema.processlist where state = 'Waiting for table metadata lock'
+source include/wait_condition.inc;
+disconnect con1;
+connection default;
+reap;
+drop table t1, t2, t0;
+set debug_sync='reset';

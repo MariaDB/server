@@ -607,5 +607,154 @@ ERROR HY000: Unknown system variable 'password'
 SELECT @@GLOBAL.role;
 ERROR HY000: Unknown system variable 'role'
 #
+# MDEV-22822 sql_mode="oracle" cannot declare without variable errors
+#
+# It's OK to have no declarations between DECLARE and BEGIN.
+#
+BEGIN
+DECLARE
+BEGIN
+NULL;
+END;
+EXCEPTION
+WHEN OTHERS THEN
+NULL;
+END;
+//
+DECLARE
+BEGIN
+NULL;
+EXCEPTION
+WHEN OTHERS THEN
+NULL;
+END;
+//
+BEGIN
+<<lab>>
+DECLARE
+BEGIN
+NULL;
+END;
+EXCEPTION
+WHEN OTHERS THEN
+NULL;
+END;
+//
+#
 # End of 10.3 tests
 #
+#
+# MDEV-21998: Server crashes in st_select_lex::add_table_to_list
+# upon mix of KILL and sequences
+#
+KILL ( SELECT 1 ) + LASTVAL(s);
+ERROR 42000: KILL does not support subqueries or stored functions
+KILL LASTVAL(s);
+ERROR 42000: KILL does not support subqueries or stored functions
+#
+# MDEV-23094: Multiple calls to a Stored Procedure from another
+# Stored Procedure crashes server
+#
+create table t1 (id1 int primary key, data1 int);
+create table t2 (id2 int primary key, data2 int);
+create procedure p1(id int,dt int) as
+begin
+if (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt))
+then
+select 1;
+end if;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(id int, dt int) as
+begin
+case (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt))
+when 1 then
+select 1;
+else
+select 0;
+end case;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(id int, dt int) as
+begin
+declare wcont int default 1;
+begin
+while (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt)) and wcont
+loop
+select 1;
+set wcont=0;
+end loop;
+end;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(id int, dt int) as
+begin
+declare count int default 1;
+begin
+repeat
+select 1;
+set count=count+1;
+until (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt)) and
+count < 3
+end repeat;
+end;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(id int, dt int) as
+begin
+for i in 1..(exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt))
+loop
+select 1;
+end loop;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+set sql_mode=ORACLE;
+create or replace procedure p1(id int, dt int) as
+begin
+while (1)
+loop
+exit when (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt));
+end loop;
+end;
+//
+call p1(1,2);
+call p1(1,2);
+drop procedure p1;
+drop table t1,t2;
+# End of 10.4 tests

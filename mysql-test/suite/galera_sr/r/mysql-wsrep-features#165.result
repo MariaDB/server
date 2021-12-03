@@ -1,0 +1,1045 @@
+connection node_2;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x'), (2, 'x'), (4, 'x'), (5, 'x');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 4;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 5;
+connection node_1b;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1;
+INSERT INTO t1 VALUES (3, 'b');
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1c;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (3, 'c');
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	x
+2	x
+4	x
+5	x
+connection node_1a;
+UPDATE t1 SET f2 = 'a' WHERE f1 = 2;
+connection node_1;
+connection node_1b;
+SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR wait';
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL continue';
+connection node_1c;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 3;
+connection node_1a;
+COMMIT;
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	x
+4	a
+5	a
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;

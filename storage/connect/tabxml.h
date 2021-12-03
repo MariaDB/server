@@ -9,6 +9,8 @@ typedef class XMLDEF *PXMLDEF;
 typedef class TDBXML *PTDBXML;
 typedef class XMLCOL *PXMLCOL;
 
+DllExport PQRYRES XMLColumns(PGLOBAL, char *, char *, PTOS, bool);
+
 /* --------------------------- XML classes --------------------------- */
 
 /***********************************************************************/
@@ -50,6 +52,7 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   bool    Usedom;                 /* True: DOM, False: libxml2         */
 	bool    Zipped;                 /* True: Zipped XML file(s)          */
 	bool    Mulentries;             /* True: multiple entries in zip file*/
+	bool    Skip;                   /* Skip null columns                 */
 }; // end of XMLDEF
 
 #if defined(INCLUDE_TDBXML)
@@ -100,8 +103,7 @@ class DllExport TDBXML : public TDBASE {
   virtual int   DeleteDB(PGLOBAL g, int irc);
   virtual void  CloseDB(PGLOBAL g);
   virtual int   CheckWrite(PGLOBAL g) {Checked = true; return 0;}
-  virtual const CHARSET_INFO *data_charset()
-                  {return &my_charset_utf8_general_ci;}
+	virtual const CHARSET_INFO *data_charset();
 
  protected:
   // Members
@@ -155,6 +157,7 @@ class DllExport TDBXML : public TDBASE {
 /*  Class XMLCOL: XDB table access method column descriptor.           */
 /***********************************************************************/
 class XMLCOL : public COLBLK {
+	friend class TDBXML;
  public:
   // Constructors
   XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "XML");

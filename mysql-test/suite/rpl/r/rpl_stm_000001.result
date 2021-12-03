@@ -19,12 +19,12 @@ abandons
 connection slave;
 stop slave;
 connection master;
-create temporary table tmp select * from mysql.user where host="localhost" and user="root";
+create temporary table tmp select * from mysql.global_priv where host="localhost" and user="root";
 set password for root@"localhost" = password('foo');
 connection slave;
 start slave;
 connection master;
-replace into mysql.user select * from tmp;
+replace into mysql.global_priv select * from tmp;
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. REPLACE... SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are replaced. This order cannot be predicted and may differ on master and the slave
 drop temporary table tmp;
@@ -43,7 +43,7 @@ connection master;
 drop table t1,t3;
 connection slave;
 connection master;
-create table t1 (n int) engine=myisam;
+create table t1 (n int);
 connection slave;
 connection master;
 reset master;
@@ -81,31 +81,4 @@ count(*)
 5000
 connection master1;
 drop table t1;
-create table t1 (n int);
-insert into t1 values(3456);
-insert ignore into mysql.user (Host, User, Password)
-VALUES ("10.10.10.%", "blafasel2", password("blafasel2"));
-Warnings:
-Warning	1364	Field 'ssl_cipher' doesn't have a default value
-Warning	1364	Field 'x509_issuer' doesn't have a default value
-Warning	1364	Field 'x509_subject' doesn't have a default value
-Warning	1364	Field 'authentication_string' doesn't have a default value
-select select_priv,user from mysql.user where user = _binary'blafasel2';
-select_priv	user
-N	blafasel2
-update mysql.user set Select_priv = "Y" where User= _binary"blafasel2";
-select select_priv,user from mysql.user where user = _binary'blafasel2';
-select_priv	user
-Y	blafasel2
-connection slave;
-select n from t1;
-n
-3456
-select select_priv,user from mysql.user where user = _binary'blafasel2';
-select_priv	user
-Y	blafasel2
-connection master1;
-drop table t1;
-delete from mysql.user where user="blafasel2";
-connection slave;
 include/rpl_end.inc

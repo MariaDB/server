@@ -1,0 +1,33 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TEMPORARY TABLE tmp_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE2
+SELECT spider_direct_sql('SELECT 22', 'tmp_a', 'srv "s_2_1", database "test"');
+spider_direct_sql('SELECT 22', 'tmp_a', 'srv "s_2_1", database "test"')
+1
+SELECT pkey FROM tmp_a;
+pkey
+22
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

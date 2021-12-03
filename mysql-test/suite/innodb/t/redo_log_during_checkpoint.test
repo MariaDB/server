@@ -12,6 +12,7 @@
 # is independent of the page size.
 --source include/have_innodb_16k.inc
 
+let $restart_noprint=2;
 SET GLOBAL innodb_page_cleaner_disabled_debug = 1;
 SET GLOBAL innodb_dict_stats_disabled_debug = 1;
 SET GLOBAL innodb_master_thread_disabled_debug = 1;
@@ -33,8 +34,8 @@ while ($i)
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
 --exec echo "wait" > $_expect_file_name
 
-set debug_dbug = '+d,increase_mtr_checkpoint_size';
-set debug_dbug = '+d,crash_after_checkpoint';
+SET debug_dbug = '+d,increase_mtr_checkpoint_size';
+SET debug_dbug = '+d,crash_after_checkpoint';
 --error 2013
 set global innodb_log_checkpoint_now = 1;
 
@@ -64,7 +65,7 @@ while ($i)
 --enable_query_log
 
 --exec echo "wait" > $_expect_file_name
-set debug_dbug = '+d,crash_after_checkpoint';
+SET debug_dbug = '+d,crash_after_checkpoint';
 --error 2013
 set global innodb_log_checkpoint_now = 1;
 

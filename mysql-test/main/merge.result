@@ -1,5 +1,6 @@
-set global storage_engine=myisam;
-set session storage_engine=myisam;
+set @save_default_storage_engine=@@global.storage_engine;
+set global default_storage_engine=myisam;
+set session default_storage_engine=myisam;
 drop table if exists t1,t2,t3,t4,t5,t6;
 drop database if exists mysqltest;
 create table t1 (a int not null primary key auto_increment, message char(20));
@@ -38,7 +39,7 @@ insert into t1 select NULL,message from t2;
 create table t3 (a int not null, b char(20), key(a)) engine=MERGE UNION=(test.t1,test.t2);
 explain select * from t3 where a < 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	range	a	a	4	NULL	18	Using where
+1	SIMPLE	t3	range	a	a	4	NULL	17	Using where
 explain select * from t3 where a > 10 and a < 20;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	range	a	a	4	NULL	17	Using where
@@ -669,15 +670,15 @@ KEY files (fileset_id,fileset_root_id)
 EXPLAIN SELECT * FROM t2 IGNORE INDEX (files) WHERE fileset_id = 2
 AND file_code BETWEEN '0000000115' AND '0000000120' LIMIT 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	PRIMARY	PRIMARY	35	NULL	5	Using where
+1	SIMPLE	t2	range	PRIMARY	PRIMARY	35	NULL	6	Using where
 EXPLAIN SELECT * FROM t2 WHERE fileset_id = 2
 AND file_code BETWEEN '0000000115' AND '0000000120' LIMIT 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	PRIMARY,files	PRIMARY	35	NULL	5	Using where
+1	SIMPLE	t2	range	PRIMARY,files	PRIMARY	35	NULL	6	Using where
 EXPLAIN SELECT * FROM t1 WHERE fileset_id = 2
 AND file_code BETWEEN '0000000115' AND '0000000120' LIMIT 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY,files	PRIMARY	35	NULL	5	Using index condition
+1	SIMPLE	t1	range	PRIMARY,files	PRIMARY	35	NULL	6	Using index condition
 EXPLAIN SELECT * FROM t2 WHERE fileset_id = 2
 AND file_code = '0000000115' LIMIT 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -742,7 +743,7 @@ insert into t1 (a,b,c) values (1,1,0),(1,2,0);
 insert into t2 (a,b,c) values (1,1,1),(1,2,1);
 explain select a,b,c from t3 force index (a) where a=1 order by a,b,c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ref	a	a	5	const	2	Using where; Using index
+1	SIMPLE	t3	ref	a	a	5	const	4	Using where; Using index
 select a,b,c from t3 force index (a) where a=1 order by a,b,c;
 a	b	c
 1	1	0
@@ -751,7 +752,7 @@ a	b	c
 1	2	1
 explain select a,b,c from t3 force index (a) where a=1 order by a desc, b desc, c desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ref	a	a	5	const	2	Using where; Using index
+1	SIMPLE	t3	ref	a	a	5	const	4	Using where; Using index
 select a,b,c from t3 force index (a) where a=1 order by a desc, b desc, c desc;
 a	b	c
 1	2	1
@@ -2117,6 +2118,7 @@ CREATE TABLE t1(a INT, KEY(a));
 INSERT INTO t1 VALUES(0),(1),(2),(3),(4);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CREATE TABLE m1(a INT, KEY(a)) ENGINE=MERGE UNION=(t1);
 SELECT CARDINALITY FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA='test' AND TABLE_NAME='m1';
@@ -2582,11 +2584,8 @@ prepare stmt from @a;
 execute stmt;
 prepare stmt from "select * from t_parent";
 execute stmt;
-ERROR HY000: Prepared statement needs to be re-prepared
 execute stmt;
-ERROR HY000: Prepared statement needs to be re-prepared
 execute stmt;
-ERROR HY000: Prepared statement needs to be re-prepared
 deallocate prepare stmt;
 #
 # Create merge parent 
@@ -3818,11 +3817,15 @@ CREATE TABLE tmerge (f1 INT) ENGINE=MERGE UNION=(t1);
 PREPARE stmt FROM "ANALYZE TABLE tmerge, t1";
 EXECUTE stmt;
 Table	Op	Msg_type	Msg_text
+test.tmerge	analyze	status	Engine-independent statistics collected
 test.tmerge	analyze	note	The storage engine for the table doesn't support analyze
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 EXECUTE stmt;
 Table	Op	Msg_type	Msg_text
+test.tmerge	analyze	status	Engine-independent statistics collected
 test.tmerge	analyze	note	The storage engine for the table doesn't support analyze
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, tmerge;

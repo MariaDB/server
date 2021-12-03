@@ -18,6 +18,7 @@ a	b
 9	9
 BEGIN;
 INSERT INTO t (a) VALUES (10);
+# restart
 SELECT * FROM t;
 a	b
 9	9

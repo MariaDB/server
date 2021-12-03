@@ -7,23 +7,26 @@
 --source include/innodb_page_size.inc
 --source include/have_debug.inc
 --source include/not_embedded.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 # Slow shutdown and restart to make sure ibuf merge is finished
 SET GLOBAL innodb_fast_shutdown = 0;
 --disable_query_log
-call mtr.add_suppression("InnoDB: Header page consists of zero bytes");
-call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: .*, Space ID:0, Flags: 0");
 call mtr.add_suppression("InnoDB: Data file .* uses page size .* but the innodb_page_size start-up parameter is");
 call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS");
 call mtr.add_suppression("InnoDB: New log files created");
 call mtr.add_suppression("InnoDB: Cannot create doublewrite buffer: the first file in innodb_data_file_path must be at least (3|6|12)M\\.");
 call mtr.add_suppression("InnoDB: Database creation was aborted");
 call mtr.add_suppression("Plugin 'InnoDB' (init function returned error|registration as a STORAGE ENGINE failed)");
+call mtr.add_suppression("InnoDB: A bad Space ID was found in datafile.*");
+call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: .*");
 --enable_query_log
 --source include/restart_mysqld.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 let MYSQLD_DATADIR=`select @@datadir`;
+let ALGO=`select @@innodb_checksum_algorithm`;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
 show variables like 'innodb_doublewrite';
@@ -73,13 +76,24 @@ set global innodb_buf_flush_list_now = 1;
 
 perl;
 use IO::Handle;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $polynomial = 0x82f63b78; # CRC-32C
+my $algo = $ENV{ALGO};
+die "Unsupported innodb_checksum_algorithm=$algo\n" unless $algo =~ /crc32/;
+
 my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
 my $page_size = $ENV{INNODB_PAGE_SIZE};
 my $page;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
 open(FILE, "+<", $fname) or die;
 sysread(FILE, $page, $page_size)==$page_size||die "Unable to read $name\n";
+my $page1 = $page;
+substr($page1, 34, 4) = pack("N", 0);
+my $polynomial0 = 0x82f63b78; # CRC-32C
+my $ck0 = mycrc32(substr($page1, 0, ($page_size-4)), 0, $polynomial0);
+substr($page1, ($page_size - 4), 4) = pack("N", $ck0);
 sysseek(FILE, 0, 0)||die "Unable to seek $fname\n";
-die unless syswrite(FILE, chr(0) x $page_size, $page_size) == $page_size;
+die unless syswrite(FILE, $page1, $page_size) == $page_size;
 close FILE;
 
 open(FILE, "+<", "$ENV{MYSQLD_DATADIR}ibdata1")||die "cannot open ibdata1\n";
@@ -102,9 +116,21 @@ for (my $d = $d1; $d < $d2 + 64; $d++)
     $badflags |= ($flags & 15 << 6) << 7; # PAGE_SSIZE
 
     substr ($_, 54, 4) = pack("N", $badflags);
-    # Replace the innodb_checksum_algorithm=none checksum
-    substr ($_, 0, 4) = pack("N", 0xdeadbeef);
-    substr ($_, $page_size - 8, 4) = pack("N", 0xdeadbeef);
+    if ($algo =~ /full_crc32/)
+    {
+	my $ck = mycrc32(substr($_, 0, $page_size - 4), 0, $polynomial);
+	substr($_, $page_size - 4, 4) = pack("N", $ck);
+    }
+    else
+    {
+	# Replace the innodb_checksum_algorithm=crc32 checksum
+	my $ck= pack("N",
+		     mycrc32(substr($_, 4, 22), 0, $polynomial) ^
+		     mycrc32(substr($_, 38, $page_size - 38 - 8), 0,
+			     $polynomial));
+	substr ($_, 0, 4) = $ck;
+	substr ($_, $page_size - 8, 4) = $ck;
+    }
     syswrite(FILE, $_, $page_size)==$page_size||die;
     close(FILE);
     exit 0;
@@ -147,10 +173,12 @@ set global innodb_buf_flush_list_now = 1;
 perl;
 use IO::Handle;
 my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
+my $page_size = $ENV{INNODB_PAGE_SIZE};
 open(FILE, "+<", $fname) or die;
-FILE->autoflush(1);
-binmode FILE;
-print FILE chr(0) x ($ENV{'INNODB_PAGE_SIZE'}/2);
+sysread(FILE, $page, $page_size)==$page_size||die "Unable to read $name\n";
+substr($page, 28, 4) = pack("N", 1000);
+sysseek(FILE, 0, 0)||die "Unable to seek $fname\n";
+die unless syswrite(FILE, $page, $page_size) == $page_size;
 close FILE;
 EOF
 
@@ -397,7 +425,7 @@ EOF
 --source include/start_mysqld.inc
 
 check table t1;
---let SEARCH_PATTERN= \[ERROR\] InnoDB: .*test.t1\\.ibd.*
+--let SEARCH_PATTERN= InnoDB: .*test.t1\\.ibd
 --source include/search_pattern_in_file.inc
 
 select f1, f2 from t1;

@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -15,7 +15,7 @@ Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 ***********************************************************************/
 
@@ -37,6 +37,8 @@ Created 12/15/2009	Jimmy Yang
 #endif /* __STDC_LIMIT_MACROS */
 
 #include <stdint.h>
+#include "my_atomic.h"
+#include "my_atomic_wrapper.h"
 
 /** Possible status values for "mon_status" in "struct monitor_value" */
 enum monitor_running_status {
@@ -63,9 +65,9 @@ create the internal counter ID in "monitor_id_t". */
 
 /** Structure containing the actual values of a monitor counter. */
 struct monitor_value_t {
-	ib_time_t	mon_start_time;	/*!< Start time of monitoring  */
-	ib_time_t	mon_stop_time;	/*!< Stop time of monitoring */
-	ib_time_t	mon_reset_time;	/*!< Time counter resetted */
+	time_t	mon_start_time;	/*!< Start time of monitoring  */
+	time_t	mon_stop_time;	/*!< Stop time of monitoring */
+	time_t	mon_reset_time;	/*!< Time of resetting the counter */
 	mon_type_t	mon_value;	/*!< Current counter Value */
 	mon_type_t	mon_max_value;	/*!< Current Max value */
 	mon_type_t	mon_min_value;	/*!< Current Min value */
@@ -496,23 +498,23 @@ enum mon_option_t {
 
 /** This "monitor_set_tbl" is a bitmap records whether a particular monitor
 counter has been turned on or off */
-extern ulint		monitor_set_tbl[(NUM_MONITOR + NUM_BITS_ULINT - 1) /
-					NUM_BITS_ULINT];
+extern Atomic_relaxed<ulint>
+    monitor_set_tbl[(NUM_MONITOR + NUM_BITS_ULINT - 1) / NUM_BITS_ULINT];
 
 /** Macros to turn on/off the control bit in monitor_set_tbl for a monitor
 counter option. */
-#define MONITOR_ON(monitor)					\
-	(monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT] |=	\
-	 (ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT)))
+#define MONITOR_ON(monitor)                                                   \
+  (monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT].fetch_or(              \
+      (ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT))))
 
-#define MONITOR_OFF(monitor)					\
-	(monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT] &=	\
-	 ~(ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT)))
+#define MONITOR_OFF(monitor)                                                  \
+  (monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT].fetch_and(             \
+      ~(ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT))))
 
 /** Check whether the requested monitor is turned on/off */
-#define MONITOR_IS_ON(monitor)					\
-	(monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT] &	\
-	 (ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT)))
+#define MONITOR_IS_ON(monitor)                                                \
+  (monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT] &                      \
+   (ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT)))
 
 /** The actual monitor counter array that records each monintor counter
 value */
@@ -652,14 +654,14 @@ Use MONITOR_DEC if appropriate mutex protection exists.
 		}							\
 	}
 
-#ifdef UNIV_DEBUG_VALGRIND
+#ifdef HAVE_valgrind
 # define MONITOR_CHECK_DEFINED(value) do {	\
-	mon_type_t m = value;			\
-	UNIV_MEM_ASSERT_RW(&m, sizeof m);	\
+    mon_type_t m __attribute__((unused))= value;        \
+	MEM_CHECK_DEFINED(&m, sizeof m);	\
 } while (0)
-#else /* UNIV_DEBUG_VALGRIND */
+#else /* HAVE_valgrind */
 # define MONITOR_CHECK_DEFINED(value) (void) 0
-#endif /* UNIV_DEBUG_VALGRIND */
+#endif /* HAVE_valgrind */
 
 #define	MONITOR_INC_VALUE(monitor, value)				\
 	MONITOR_CHECK_DEFINED(value);					\
@@ -718,8 +720,8 @@ monitor counter
 #define	MONITOR_INC_TIME_IN_MICRO_SECS(monitor, value)			\
 	MONITOR_CHECK_DEFINED(value);					\
 	if (MONITOR_IS_ON(monitor)) {					\
-		uintmax_t	old_time = (value);				\
-		value = ut_time_us(NULL);				\
+		uintmax_t	old_time = value;			\
+		value = microsecond_interval_timer();			\
 		MONITOR_VALUE(monitor) += (mon_type_t) (value - old_time);\
 	}
 

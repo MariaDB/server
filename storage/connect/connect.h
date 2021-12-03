@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**************** Cnt H Declares Source Code File (.H) *****************/
 /*  Name: CONNECT.H    Version 2.4                                     */
@@ -46,6 +46,7 @@ int   CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
                     bool *incl, key_part_map *kmap);
 PGLOBAL CntExit(PGLOBAL g);
 
+#if 0
 /***********************************************************************/
 /*  Definition of classes XKPDEF, DOXDEF, TDBDOX                       */
 /*  These classes purpose is chiefly to access protected items!        */
@@ -76,3 +77,4 @@ class XKPDEF: public KPARTDEF {
  public:
   XKPDEF(const char *name, int n) : KPARTDEF((PSZ)name, n) {}
   }; // end of class XKPDEF
+#endif // 0

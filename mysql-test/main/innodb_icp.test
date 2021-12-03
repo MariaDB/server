@@ -3,9 +3,17 @@
 #
 
 --source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
 
 set @save_storage_engine= @@storage_engine;
 set storage_engine=InnoDB;
+
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
 
 set @innodb_icp_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
@@ -75,4 +83,8 @@ drop table t1, t2;
 
 set optimizer_switch=@innodb_icp_tmp;
 set storage_engine= @save_storage_engine;
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;
 

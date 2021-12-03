@@ -201,7 +201,7 @@ int create(
                 name,
                 NULL,
                 DB_BTREE, DB_CREATE | DB_EXCL,
-                0);
+                S_IWUSR);
     }
     if (error == 0) {
         *status_db_ptr = status_db;
@@ -230,7 +230,7 @@ int open(
                 NULL,
                 DB_BTREE,
                 DB_THREAD,
-                0);
+                S_IWUSR);
     }
     if (error == 0) {
         uint32_t pagesize = 0;

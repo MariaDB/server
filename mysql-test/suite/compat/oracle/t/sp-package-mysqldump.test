@@ -57,7 +57,7 @@ $$
 DELIMITER ;$$
 
 
---exec $MYSQL_DUMP --skip-comments --routines test
+--exec $MYSQL_DUMP --skip-comments --routines --default-character-set=utf8mb4 test
 --exec $MYSQL_DUMP --skip-comments --routines --xml test
 
 let $dump = $MYSQLTEST_VARDIR/tmp/sp-package-mysqldump.sql;

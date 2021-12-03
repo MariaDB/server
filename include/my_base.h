@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 1995, 2018, MariaDB Corporation.
+   Copyright (c) 1995, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 /* This file includes constants used with all databases */
@@ -99,7 +99,8 @@ enum ha_key_alg {
   HA_KEY_ALG_BTREE=	1,		/* B-tree, default one          */
   HA_KEY_ALG_RTREE=	2,		/* R-tree, for spatial searches */
   HA_KEY_ALG_HASH=	3,		/* HASH keys (HEAP tables) */
-  HA_KEY_ALG_FULLTEXT=	4		/* FULLTEXT (MyISAM tables) */
+  HA_KEY_ALG_FULLTEXT=	4,		/* FULLTEXT (MyISAM tables) */
+  HA_KEY_ALG_LONG_HASH= 5		/* long BLOB keys */
 };
 
         /* Storage media types */ 
@@ -212,9 +213,7 @@ enum ha_extra_function {
   /** Start writing rows during ALTER TABLE...ALGORITHM=COPY. */
   HA_EXTRA_BEGIN_ALTER_COPY,
   /** Finish writing rows during ALTER TABLE...ALGORITHM=COPY. */
-  HA_EXTRA_END_ALTER_COPY,
-  /** Fake the start of a statement after wsrep_load_data_splitting hack */
-  HA_EXTRA_FAKE_START_STMT
+  HA_EXTRA_END_ALTER_COPY
 };
 
 /* Compatible option, to be deleted in 6.0 */
@@ -631,7 +630,13 @@ typedef struct st_key_multi_range
   key_range start_key;
   key_range end_key;
   range_id_t ptr;                 /* Free to use by caller (ptr to row etc) */
-  uint  range_flag;           /* key range flags see above */
+  /*
+    A set of range flags that describe both endpoints: UNIQUE_RANGE,
+    NULL_RANGE, EQ_RANGE, GEOM_FLAG.
+    (Flags that describe one endpoint, NO_{MIN|MAX}_RANGE, NEAR_{MIN|MAX} will
+     not be set here)
+  */
+  uint  range_flag;
 } KEY_MULTI_RANGE;
 
 
@@ -646,6 +651,7 @@ typedef ulong		ha_rows;
 
 #define HA_POS_ERROR	(~ (ha_rows) 0)
 #define HA_OFFSET_ERROR	(~ (my_off_t) 0)
+#define HA_ROWS_MAX        HA_POS_ERROR
 
 #if SIZEOF_OFF_T == 4
 #define MAX_FILE_SIZE	INT_MAX32

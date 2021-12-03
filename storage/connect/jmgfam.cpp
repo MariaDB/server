@@ -1,15 +1,15 @@
 /************ JMONGO FAM C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: jmgfam.cpp                                            */
 /* -------------                                                       */
-/*  Version 1.0                                                        */
+/*  Version 1.2                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          20017        */
+/*  (C) Copyright to the author Olivier BERTRAND          20017 - 2021 */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
-/*  This program are the Java MongoDB access method classes.                */
+/*  This program are the Java MongoDB access method classes.           */
 /*                                                                     */
 /***********************************************************************/
 
@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <io.h>
 //#include <fcntl.h>
 //#include <errno.h>
@@ -25,7 +25,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX) || defined(UNIV_LINUX)
 //#include <errno.h>
 #include <unistd.h>
@@ -36,7 +36,7 @@
 //#include <io.h>
 #endif  // !UNIX
 //#include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -49,7 +49,11 @@
 #include "reldef.h"
 #include "filamtxt.h"
 #include "tabdos.h"
+#if defined(BSON_SUPPORT)
+#include "tabbson.h"
+#else
 #include "tabjson.h"
+#endif   // BSON_SUPPORT
 #include "jmgfam.h"
 
 #if defined(UNIX) || defined(UNIV_LINUX)
@@ -92,10 +96,38 @@ JMGFAM::JMGFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
 	Version = tdp->Version;
 	Lrecl = tdp->Lrecl + tdp->Ending;
 	Curpos = 0;
-} // end of JMGFAM standard constructor
+} // end of JMGFAM Json standard constructor
+
+#if defined(BSON_SUPPORT)
+JMGFAM::JMGFAM(PBDEF tdp) : DOSFAM((PDOSDEF)NULL)
+{
+	Jcp = NULL;
+	Ops.Driver = tdp->Schema;
+	Ops.Url = tdp->Uri;
+	Ops.User = NULL;
+	Ops.Pwd = NULL;
+	Ops.Scrollable = false;
+	Ops.Fsize = 0;
+	Ops.Version = tdp->Version;
+	To_Fbt = NULL;
+	Mode = MODE_ANY;
+	Uristr = tdp->Uri;
+	Db_name = tdp->Schema;
+	Coll_name = tdp->Collname;
+	Options = tdp->Options;
+	Filter = tdp->Filter;
+	Wrapname = tdp->Wrapname;
+	Done = false;
+	Pipe = tdp->Pipe;
+	Version = tdp->Version;
+	Lrecl = tdp->Lrecl + tdp->Ending;
+	Curpos = 0;
+} // end of JMGFAM Bson standard constructor
+#endif   // BSON_SUPPORT
 
 JMGFAM::JMGFAM(PJMGFAM tdfp) : DOSFAM(tdfp)
 {
+	Jcp = tdfp->Jcp;
 	//Client = tdfp->Client;
 	//Database = NULL;
 	//Collection = tdfp->Collection;
@@ -114,6 +146,7 @@ JMGFAM::JMGFAM(PJMGFAM tdfp) : DOSFAM(tdfp)
 	Done = tdfp->Done;
 	Pipe = tdfp->Pipe;
 	Version = tdfp->Version;
+	Curpos = tdfp->Curpos;
 } // end of JMGFAM copy constructor
 
 /***********************************************************************/
@@ -208,8 +241,8 @@ bool JMGFAM::OpenTableFile(PGLOBAL g)
 		return true;
 	}	// endif Mode
 
-	if (Mode == MODE_INSERT)
-		Jcp->MakeColumnGroups(g, Tdbp);
+//if (Mode == MODE_INSERT)
+//	Jcp->MakeColumnGroups(g, Tdbp);
 
 	if (Mode != MODE_UPDATE)
 		return Jcp->MakeCursor(g, Tdbp, Options, Filter, Pipe);
@@ -313,14 +346,14 @@ int JMGFAM::ReadBuffer(PGLOBAL g)
 } // end of ReadBuffer
 
 /***********************************************************************/
-/*  WriteBuffer: File write routine for MGO access method.             */
+/*  WriteBuffer: File write routine for JMG access method.             */
 /***********************************************************************/
 int JMGFAM::WriteBuffer(PGLOBAL g)
 {
 	int rc = RC_OK;
 
 	if (Mode == MODE_INSERT) {
-		rc = Jcp->DocWrite(g);
+		rc = Jcp->DocWrite(g, Tdbp->GetLine());
 	} else if (Mode == MODE_DELETE) {
 		rc = Jcp->DocDelete(g, false);
 	} else if (Mode == MODE_UPDATE) {

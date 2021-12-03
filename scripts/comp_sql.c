@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /*
   Originally written by Magnus Svensson
@@ -74,6 +74,8 @@ char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error)
   return line;
 }
 
+#define MAX_COLUMN 16000
+
 static void print_query(FILE *out, const char *query)
 {
   const char *ptr= query;
@@ -82,6 +84,12 @@ static void print_query(FILE *out, const char *query)
   fprintf(out, "\"");
   while (*ptr)
   {
+    if(column >= MAX_COLUMN)
+    {
+      /* Wrap to the next line, tabulated. */
+      fprintf(out, "\"\n  \"");
+      column= 2;
+    }
     switch(*ptr)
     {
     case '\n':
@@ -97,10 +105,11 @@ static void print_query(FILE *out, const char *query)
       break;
     case '\"':
       fprintf(out, "\\\"");
-      column++;
+      column+=2;
       break;
     case '\\':
       fprintf(out, "\\\\");
+      column+=2;
       break;
     default:
       putc(*ptr, out);

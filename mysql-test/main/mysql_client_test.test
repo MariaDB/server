@@ -3,6 +3,15 @@
 # need to have the dynamic loading turned on for the client plugin tests
 --source include/have_plugin_auth.inc
 
+# Run test with default character set
+--source include/default_charset.inc
+SET @save_character_set_client=    @@global.character_set_client;
+SET @save_collation_connection=    @@global.collation_connection;
+SET @@global.character_set_server= @@character_set_server;
+SET @@global.collation_server=     @@collation_server;
+SET @@global.character_set_client= @@character_set_server;
+SET @@global.collation_connection= @@collation_server;
+
 SET @old_general_log= @@global.general_log;
 SET @old_slow_query_log= @@global.slow_query_log;
 
@@ -27,14 +36,26 @@ echo ok;
 --echo # ------------------------------------
 --cat_file $MYSQL_TMP_DIR/test_wl4435.out.log
 --echo # ------------------------------------
+--echo # cat MYSQL_TMP_DIR/test_mdev26145.out.log
+--echo # ------------------------------------
+--cat_file $MYSQL_TMP_DIR/test_mdev26145.out.log
+--echo # ------------------------------------
 --echo
 
 --echo
 --echo # cat MYSQL_TMP_DIR/test_explain_meta.out.log
 --echo # ------------------------------------
+
+# For MAX_INDEXES=128,  max_len for possible_keys column is twice as large vs MAX_INDEXES=64
+--replace_result 24576 12288
+
 --cat_file $MYSQL_TMP_DIR/test_explain_meta.out.log
 --echo # ------------------------------------
 --echo
 
 SET @@global.general_log= @old_general_log;
 SET @@global.slow_query_log= @old_slow_query_log;
+SET @@global.character_set_server= @save_character_set_server;
+SET @@global.collation_server= @save_collation_server;
+SET @@global.character_set_client= @save_character_set_client;
+SET @@global.collation_connection= @save_collation_connection;

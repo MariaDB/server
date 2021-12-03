@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -53,6 +53,25 @@ struct buf_chunk_t{
 		return(mem_pfx.m_size);
 	}
 };
+
+bool buf_pool_t::is_block_field(const void *ptr) const
+{
+  const buf_chunk_t* chunk= chunks;
+  const buf_chunk_t *const echunk= chunk + ut_min(n_chunks,
+                                                  n_chunks_new);
+  /* TODO: protect chunks with a mutex (the older pointer will
+  currently remain during resize()) */
+  while (chunk < echunk)
+  {
+    if (ptr >= reinterpret_cast<const void*>(chunk->blocks) &&
+        ptr < reinterpret_cast<const void*>(
+		chunk->blocks + chunk->size))
+      return true;
+    chunk++;
+  }
+
+  return false;
+}
 
 /*********************************************************************//**
 Gets the current size of buffer buf_pool in bytes.
@@ -113,7 +132,17 @@ ulint
 buf_pool_get_n_pages(void)
 /*======================*/
 {
-	return buf_pool_get_curr_size() >> srv_page_size_shift;
+  if (!buf_pool_ptr)
+    return buf_pool_get_curr_size() >> srv_page_size_shift;
+
+  ulint chunk_size= 0;
+  for (uint i= 0; i < srv_buf_pool_instances; i++)
+  {
+    buf_pool_t* buf_pool = buf_pool_from_array(i);
+    for (uint j= 0; j < buf_pool->n_chunks; j++)
+      chunk_size+= buf_pool->chunks[j].size;
+  }
+  return chunk_size;
 }
 
 /********************************************************************//**
@@ -814,7 +843,7 @@ buf_page_alloc_descriptor(void)
 
 	bpage = (buf_page_t*) ut_zalloc_nokey(sizeof *bpage);
 	ut_ad(bpage);
-	UNIV_MEM_ALLOC(bpage, sizeof *bpage);
+	MEM_UNDEFINED(bpage, sizeof *bpage);
 
 	return(bpage);
 }
@@ -945,28 +974,6 @@ buf_block_get_modify_clock(
 	return(block->modify_clock);
 }
 
-/** Increments the bufferfix count.
-@param[in,out]	bpage	block to bufferfix
-@return the count */
-UNIV_INLINE
-ulint
-buf_block_fix(
-	buf_page_t*	bpage)
-{
-	return uint32(my_atomic_add32((int32*) &bpage->buf_fix_count, 1) + 1);
-}
-
-/** Increments the bufferfix count.
-@param[in,out]	block	block to bufferfix
-@return the count */
-UNIV_INLINE
-ulint
-buf_block_fix(
-	buf_block_t*	block)
-{
-	return(buf_block_fix(&block->page));
-}
-
 /*******************************************************************//**
 Increments the bufferfix count. */
 UNIV_INLINE
@@ -985,37 +992,12 @@ buf_block_buf_fix_inc_func(
 	threaded. */
 	if (!fsp_is_system_temporary(block->page.id.space())) {
 		ibool   ret;
-		ret = rw_lock_s_lock_nowait(&block->debug_latch, file, line);
+		ret = rw_lock_s_lock_nowait(block->debug_latch, file, line);
 		ut_a(ret);
 	}
 #endif /* UNIV_DEBUG */
 
-	buf_block_fix(block);
-}
-
-/** Decrements the bufferfix count.
-@param[in,out]	bpage	block to bufferunfix
-@return	the remaining buffer-fix count */
-UNIV_INLINE
-ulint
-buf_block_unfix(
-	buf_page_t*	bpage)
-{
-	uint32	count = uint32(my_atomic_add32((int32*) &bpage->buf_fix_count,
-					       -1));
-	ut_ad(count != 0);
-	return count - 1;
-}
-
-/** Decrements the bufferfix count.
-@param[in,out]	block	block to bufferunfix
-@return the remaining buffer-fix count */
-UNIV_INLINE
-ulint
-buf_block_unfix(
-	buf_block_t*	block)
-{
-	return(buf_block_unfix(&block->page));
+	block->fix();
 }
 
 /*******************************************************************//**
@@ -1026,16 +1008,16 @@ buf_block_buf_fix_dec(
 /*==================*/
 	buf_block_t*	block)	/*!< in/out: block to bufferunfix */
 {
-	buf_block_unfix(block);
-
 #ifdef UNIV_DEBUG
 	/* No debug latch is acquired if block belongs to system temporary.
 	Debug latch is not of much help if access to block is single
 	threaded. */
 	if (!fsp_is_system_temporary(block->page.id.space())) {
-		rw_lock_s_unlock(&block->debug_latch);
+		rw_lock_s_unlock(block->debug_latch);
 	}
 #endif /* UNIV_DEBUG */
+
+	block->unfix();
 }
 
 /** Returns the buffer pool instance given a page id.
@@ -1276,14 +1258,14 @@ buf_page_release_zip(
 		is single threaded. */
 		buf_block_t*	block = reinterpret_cast<buf_block_t*>(bpage);
 		if (!fsp_is_system_temporary(block->page.id.space())) {
-			rw_lock_s_unlock(&block->debug_latch);
+			rw_lock_s_unlock(block->debug_latch);
 		}
 	}
 #endif /* UNIV_DEBUG */
 		/* Fall through */
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
-		buf_block_unfix(reinterpret_cast<buf_block_t*>(bpage));
+		reinterpret_cast<buf_block_t*>(bpage)->unfix();
 		return;
 
 	case BUF_BLOCK_POOL_WATCH:
@@ -1312,7 +1294,7 @@ buf_page_release_latch(
 	temporary. Debug latch is not of much help if access to block
 	is single threaded. */
 	if (!fsp_is_system_temporary(block->page.id.space())) {
-		rw_lock_s_unlock(&block->debug_latch);
+		rw_lock_s_unlock(block->debug_latch);
 	}
 #endif /* UNIV_DEBUG */
 
@@ -1407,18 +1389,6 @@ buf_page_get_frame(
 	} else {
 		return ((buf_block_t*) bpage)->frame;
 	}
-}
-
-/** Verify the possibility that a stored page is not in buffer pool.
-@param[in]	withdraw_clock	withdraw clock when stored the page
-@retval true	if the page might be relocated */
-UNIV_INLINE
-bool
-buf_pool_is_obsolete(
-	ulint	withdraw_clock)
-{
-	return(UNIV_UNLIKELY(buf_pool_withdrawing
-			     || buf_withdraw_clock != withdraw_clock));
 }
 
 /** Calculate aligned buffer pool size based on srv_buf_pool_chunk_unit,

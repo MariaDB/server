@@ -1,0 +1,31 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+
+--connection node_1
+SET SESSION wsrep_trx_fragment_size = 128;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, 0);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (2, 0);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+
+ALTER TABLE t1 DROP COLUMN f2;
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+--connection node_1a
+--error ER_LOCK_DEADLOCK
+INSERT INTO t1 VALUES (3, 0);
+
+DROP TABLE t1;

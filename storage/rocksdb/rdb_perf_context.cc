@@ -98,17 +98,19 @@ std::string rdb_pc_stat_types[] = {
     "IO_RANGE_SYNC_NANOS",
     "IO_LOGGER_NANOS"};
 
-#define IO_PERF_RECORD(_field_)                                                \
-  do {                                                                         \
-    if (rocksdb::get_perf_context()->_field_ > 0)                              \
-      counters->m_value[idx] += rocksdb::get_perf_context()->_field_;          \
-    idx++;                                                                     \
+#define IO_PERF_RECORD(_field_)                                       \
+  do {                                                                \
+    if (rocksdb::get_perf_context()->_field_ > 0) {                   \
+      counters->m_value[idx] += rocksdb::get_perf_context()->_field_; \
+    }                                                                 \
+    idx++;                                                            \
   } while (0)
-#define IO_STAT_RECORD(_field_)                                                \
-  do {                                                                         \
-    if (rocksdb::get_iostats_context()->_field_ > 0)                           \
-      counters->m_value[idx] += rocksdb::get_iostats_context()->_field_;       \
-    idx++;                                                                     \
+#define IO_STAT_RECORD(_field_)                                          \
+  do {                                                                   \
+    if (rocksdb::get_iostats_context()->_field_ > 0) {                   \
+      counters->m_value[idx] += rocksdb::get_iostats_context()->_field_; \
+    }                                                                    \
+    idx++;                                                               \
   } while (0)
 
 static void harvest_diffs(Rdb_atomic_perf_counters *const counters) {
@@ -280,4 +282,4 @@ void Rdb_io_perf::end_and_record(const uint32_t perf_context_level) {
 #endif
 }
 
-} // namespace myrocks
+}  // namespace myrocks

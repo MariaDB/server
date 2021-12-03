@@ -60,12 +60,12 @@ Warning	1264	Out of range value for column 'c1' at row 6
 Warning	1264	Out of range value for column 'c2' at row 6
 INSERT IGNORE INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
 Warnings:
-Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
-Warning	1366	Incorrect integer value: '' for column 'c2' at row 1
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`c1` at row 1
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`c2` at row 1
 INSERT IGNORE INTO t4 VALUES('abcd','abcd','08-01-10','08/01/11'),(1234,1234,'08-01-12','08/01/13') /* Inserts zero dates for absurd dates */;
 Warnings:
-Warning	1366	Incorrect integer value: 'abcd' for column 'c1' at row 1
-Warning	1366	Incorrect integer value: 'abcd' for column 'c2' at row 1
+Warning	1366	Incorrect integer value: 'abcd' for column `test`.`t4`.`c1` at row 1
+Warning	1366	Incorrect integer value: 'abcd' for column `test`.`t4`.`c2` at row 1
 Warning	1264	Out of range value for column 'c1' at row 2
 Warning	1264	Out of range value for column 'c2' at row 2
 INSERT INTO t2 VALUES('20','30','98-12-16','98.12.16 11:30:45'),('40','20','98-12-15','98.12.15 11:30:45');
@@ -3319,12 +3319,12 @@ Warning	1264	Out of range value for column 'c1' at row 6
 Warning	1264	Out of range value for column 'c2' at row 6
 INSERT IGNORE INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
 Warnings:
-Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
-Warning	1366	Incorrect integer value: '' for column 'c2' at row 1
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`c1` at row 1
+Warning	1366	Incorrect integer value: '' for column `test`.`t1`.`c2` at row 1
 INSERT IGNORE INTO t4 VALUES('abcd','abcd','08-01-10','08/01/11'),(1234,1234,'08-01-12','08/01/13') /* Inserts zero dates for absurd dates */;
 Warnings:
-Warning	1366	Incorrect integer value: 'abcd' for column 'c1' at row 1
-Warning	1366	Incorrect integer value: 'abcd' for column 'c2' at row 1
+Warning	1366	Incorrect integer value: 'abcd' for column `test`.`t4`.`c1` at row 1
+Warning	1366	Incorrect integer value: 'abcd' for column `test`.`t4`.`c2` at row 1
 Warning	1264	Out of range value for column 'c1' at row 2
 Warning	1264	Out of range value for column 'c2' at row 2
 INSERT INTO t2 VALUES('20','30','98-12-16','98.12.16 11:30:45'),('40','20','98-12-15','98.12.15 11:30:45');

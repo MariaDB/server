@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,12 +26,6 @@ Created December 2006 by Marko Makela
 #ifndef buf0buddy_h
 #define buf0buddy_h
 
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE
-#endif
-
-#include "univ.i"
 #include "buf0types.h"
 
 /**********************************************************************//**

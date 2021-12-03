@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -33,18 +33,18 @@ dict_sys_get_new_row_id(void)
 {
 	row_id_t	id;
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
-	id = dict_sys->row_id;
+	id = dict_sys.row_id;
 
 	if (0 == (id % DICT_HDR_ROW_ID_WRITE_MARGIN)) {
 
 		dict_hdr_flush_row_id();
 	}
 
-	dict_sys->row_id++;
+	dict_sys.row_id++;
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	return(id);
 }

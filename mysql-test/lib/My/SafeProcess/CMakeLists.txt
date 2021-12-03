@@ -11,15 +11,23 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 
- IF (WIN32)
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
+
+IF (WIN32)
   ADD_EXECUTABLE(my_safe_process safe_process_win.cc)
   ADD_EXECUTABLE(my_safe_kill safe_kill_win.cc)
-  TARGET_LINK_LIBRARIES(my_safe_kill dbghelp psapi)
+  TARGET_INCLUDE_DIRECTORIES(my_safe_kill PRIVATE ${CMAKE_SOURCE_DIR}/include)
+  TARGET_LINK_LIBRARIES(my_safe_kill mysys psapi)
 ELSE()
   ADD_EXECUTABLE(my_safe_process safe_process.cc)
+ENDIF()
+
+IF(WITH_WSREP)
+  ADD_EXECUTABLE(wsrep_check_version wsrep_check_version.c)
+  TARGET_LINK_LIBRARIES(wsrep_check_version ${CMAKE_DL_LIBS})
 ENDIF()
 
 IF(NOT INSTALL_MYSQLTESTDIR)
@@ -32,6 +40,9 @@ SET(INSTALL_ARGS
 )
 
 INSTALL(TARGETS my_safe_process ${INSTALL_ARGS})
+IF(WITH_WSREP)
+  INSTALL(TARGETS wsrep_check_version ${INSTALL_ARGS})
+ENDIF()
 IF (WIN32)
   INSTALL(TARGETS my_safe_kill ${INSTALL_ARGS})
 ENDIF()

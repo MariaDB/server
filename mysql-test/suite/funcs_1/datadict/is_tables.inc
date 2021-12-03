@@ -20,6 +20,8 @@
 #                   create variants for embedded/non embedded server.
 #
 
+--source include/default_charset.inc
+
 let $engine_type       = MEMORY;
 let $other_engine_type = MyISAM;
 

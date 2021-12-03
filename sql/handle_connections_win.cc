@@ -28,8 +28,13 @@
 /* From mysqld.cc */
 extern HANDLE hEventShutdown;
 extern MYSQL_SOCKET base_ip_sock, extra_ip_sock;
+#ifdef HAVE_POOL_OF_THREADS
 extern PTP_CALLBACK_ENVIRON get_threadpool_win_callback_environ();
 extern void tp_win_callback_prolog();
+#else
+#define get_threadpool_win_callback_environ() 0
+#define tp_win_callback_prolog() do{}while(0)
+#endif
 static SECURITY_ATTRIBUTES pipe_security;
 
 /**
@@ -202,10 +207,11 @@ retry :
       &m_overlapped);
 
     DWORD last_error=  ret? 0: WSAGetLastError();
-    if (last_error == WSAECONNRESET)
+    if (last_error == WSAECONNRESET || last_error == ERROR_NETNAME_DELETED)
     {
       if (m_tp_io)
         CancelThreadpoolIo(m_tp_io);
+      closesocket(m_client_socket);
       goto retry;
     }
 
@@ -304,6 +310,64 @@ retry :
   }
 };
 
+/*
+  Create a security descriptor for pipe.
+  - Use low integrity level, so that it is possible to connect
+  from any process.
+  - Give current user read/write access to pipe.
+  - Give Everyone read/write access to pipe minus FILE_CREATE_PIPE_INSTANCE
+*/
+static void init_pipe_security_descriptor()
+{
+#define SDDL_FMT "S:(ML;; NW;;; LW) D:(A;; 0x%08x;;; WD)(A;; FRFW;;; %s)"
+#define EVERYONE_PIPE_ACCESS_MASK                                             \
+  (FILE_READ_DATA | FILE_READ_EA | FILE_READ_ATTRIBUTES | READ_CONTROL |      \
+   SYNCHRONIZE | FILE_WRITE_DATA | FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES)
+
+#ifndef SECURITY_MAX_SID_STRING_CHARACTERS
+/* Old SDK does not have this constant */
+#define SECURITY_MAX_SID_STRING_CHARACTERS 187
+#endif
+
+  /*
+    Figure out SID of the user that runs the server, then create SDDL string
+    for pipe permissions, and convert it to the security descriptor.
+  */
+  char sddl_string[sizeof(SDDL_FMT) + 8 + SECURITY_MAX_SID_STRING_CHARACTERS];
+  struct
+  {
+    TOKEN_USER token_user;
+    BYTE buffer[SECURITY_MAX_SID_SIZE];
+  } token_buffer;
+  HANDLE token;
+  DWORD tmp;
+
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token))
+    goto fail;
+
+  if (!GetTokenInformation(token, TokenUser, &token_buffer,
+                           (DWORD) sizeof(token_buffer), &tmp))
+    goto fail;
+
+  CloseHandle(token);
+
+  char *current_user_string_sid;
+  if (!ConvertSidToStringSid(token_buffer.token_user.User.Sid,
+                             &current_user_string_sid))
+    goto fail;
+
+  snprintf(sddl_string, sizeof(sddl_string), SDDL_FMT,
+           EVERYONE_PIPE_ACCESS_MASK, current_user_string_sid);
+  LocalFree(current_user_string_sid);
+
+  if (ConvertStringSecurityDescriptorToSecurityDescriptor(sddl_string,
+      SDDL_REVISION_1, &pipe_security.lpSecurityDescriptor, 0))
+    return;
+
+fail:
+  sql_perror("Can't start server : Initialize security descriptor");
+  unireg_abort(1);
+}
 
 /**
   Pipe Listener.
@@ -332,13 +396,7 @@ struct Pipe_Listener : public Listener
     {
       snprintf(pipe_name, sizeof(pipe_name), "\\\\.\\pipe\\%s", mysqld_unix_port);
       open_mode |= FILE_FLAG_FIRST_PIPE_INSTANCE;
-      if (!ConvertStringSecurityDescriptorToSecurityDescriptorA(
-        "S:(ML;; NW;;; LW) D:(A;; FRFW;;; WD)",
-        1, &pipe_security.lpSecurityDescriptor, NULL))
-      {
-        sql_perror("Can't start server : Initialize security descriptor");
-        unireg_abort(1);
-      }
+      init_pipe_security_descriptor();
       pipe_security.nLength= sizeof(SECURITY_ATTRIBUTES);
       pipe_security.bInheritHandle= FALSE;
     }
@@ -353,7 +411,7 @@ struct Pipe_Listener : public Listener
     if (pipe_handle == INVALID_HANDLE_VALUE)
     {
       sql_perror("Create named pipe failed");
-      sql_print_error("Aborting\n");
+      sql_print_error("Aborting");
       exit(1);
     }
     first_instance= false;

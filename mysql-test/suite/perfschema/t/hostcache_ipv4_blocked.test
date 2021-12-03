@@ -11,6 +11,7 @@
 --source include/not_embedded.inc
 --source include/have_debug.inc
 --source include/have_perfschema.inc
+--source include/have_hostname_cache.inc
 
 # Enforce a clean state
 --source ../include/wait_for_pfs_thread_count.inc
@@ -32,6 +33,7 @@ select current_user();
 disconnect con1;
 
 --connection default
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4,native_password_bad_reply";
 
 --disable_query_log
@@ -155,5 +157,5 @@ revoke select on test.* from 'quota'@'santa.claus.ipv4.example.com';
 drop user 'quota'@'santa.claus.ipv4.example.com';
 
 set global max_connect_errors = @saved_max_connect_errors;
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 

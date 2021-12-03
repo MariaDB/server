@@ -10,12 +10,13 @@
 #               include/index_merge*.inc files
 #
 
-let $engine_type= MyISAM;
+SET STORAGE_ENGINE = MyISAM;
 # MyISAM supports Merge tables
 let $merge_table_support= 1;
 
 set @optimizer_switch_save= @@optimizer_switch;
 
+set optimizer_switch='rowid_filter=off';
 set optimizer_switch='index_merge_sort_intersection=off';
 
 --source include/index_merge1.inc
@@ -33,17 +34,17 @@ insert into t1 select
   A.a * B.a*10 + C.a*100,
   A.a, 
   'filler'
-from t0 A, t0 B, t0 C; 
+from t0 A, t0 B, t0 C;
 
 --echo This should use union:
 explain select * from t1 where a=1 or b=1;
 
 --echo This should use ALL:
-set optimizer_switch='default,index_merge=off';
+set optimizer_switch='default,index_merge=off,rowid_filter=off';
 explain select * from t1 where a=1 or b=1;
 
 --echo This should use sort-union:
-set optimizer_switch='default,index_merge_union=off';
+set optimizer_switch='default,index_merge_union=off,rowid_filter=off';
 explain select * from t1 where a=1 or b=1;
 
 --echo This will use sort-union:
@@ -51,16 +52,16 @@ set optimizer_switch=default;
 explain select * from t1 where a<1 or b <1;
 
 --echo This should use ALL:
-set optimizer_switch='default,index_merge_sort_union=off';
+set optimizer_switch='default,index_merge_sort_union=off,rowid_filter=off';
 explain select * from t1 where a<1 or b <1;
 
 
 --echo This should use ALL:
-set optimizer_switch='default,index_merge=off';
+set optimizer_switch='default,index_merge=off,rowid_filter=off';
 explain select * from t1 where a<1 or b <1;
 
 --echo This will use sort-union:
-set optimizer_switch='default,index_merge_union=off';
+set optimizer_switch='default,index_merge_union=off,rowid_filter=off';
 explain select * from t1 where a<1 or b <1;
 
 alter table t1 add d int, add key(d);
@@ -71,7 +72,7 @@ set optimizer_switch=default;
 explain select * from t1 where (a=3 or b in (1,2)) and (c=3 or d=4);
 
 --echo And if we disable sort_union, union:
-set optimizer_switch='default,index_merge_sort_union=off';
+set optimizer_switch='default,index_merge_sort_union=off,rowid_filter=off';
 explain select * from t1 where (a=3 or b in (1,2)) and (c=3 or d=4);
 
 drop table t1;
@@ -92,19 +93,19 @@ set optimizer_switch=default;
 explain select * from t1 where a=10 and b=10;
 
 --echo No intersect when index_merge is disabled:
-set optimizer_switch='default,index_merge=off';
+set optimizer_switch='default,index_merge=off,rowid_filter=off';
 explain select * from t1 where a=10 and b=10;
 
 --echo No intersect if it is disabled:
-set optimizer_switch='default,index_merge_sort_intersection=off,index_merge_intersection=off';
+set optimizer_switch='default,index_merge_sort_intersection=off,index_merge_intersection=off,rowid_filter=off';
 explain select * from t1 where a=10 and b=10;
 
 --echo Do intersect when union was disabled
-set optimizer_switch='default,index_merge_union=off';
+set optimizer_switch='default,index_merge_union=off,rowid_filter=off';
 explain select * from t1 where a=10 and b=10;
 
 --echo Do intersect when sort_union was disabled
-set optimizer_switch='default,index_merge_sort_union=off';
+set optimizer_switch='default,index_merge_sort_union=off,rowid_filter=off';
 explain select * from t1 where a=10 and b=10;
 
 # Now take union-of-intersection and see how we can disable parts of it
@@ -113,12 +114,12 @@ set optimizer_switch=default;
 explain select * from t1 where a=10 and b=10 or c=10;
 
 --echo Should be only union left:
-set optimizer_switch='default,index_merge_intersection=off';
+set optimizer_switch='default,index_merge_intersection=off,rowid_filter=off';
 explain select * from t1 where a=10 and b=10 or c=10;
 
 --echo This will switch to sort-union (intersection will be gone, too,
 --echo   that's a known limitation:
-set optimizer_switch='default,index_merge_union=off';
+set optimizer_switch='default,index_merge_union=off,rowid_filter=off';
 explain select * from t1 where a=10 and b=10 or c=10;
 
 set optimizer_switch=default;
@@ -235,11 +236,62 @@ INSERT INTO t1 VALUES
 
 ALTER TABLE t1 ENABLE KEYS;
 
+# note: (pk is not null and (pk <1 or pk>1)) below is a sargable form of pk!=1
 EXPLAIN
 SELECT  * FROM t1 FORCE KEY (PRIMARY , i , c1 , c2) 
-WHERE pk = 255 OR i = 22 OR (pk  IN (1 , 136) AND c2  IN ('c' , 'w') AND (c1 NOT BETWEEN 'e' AND 'i' OR  c2 > 'g'))  OR pk != 1  ;
+WHERE pk = 255 OR i = 22 OR (pk  IN (1 , 136) AND c2  IN ('c' , 'w') AND (c1
+NOT BETWEEN 'e' AND 'i' OR  c2 > 'g'))  OR (pk is not null and (pk <1 or pk>1))  ;
 
 DROP TABLE t1;
+
+set optimizer_switch= @optimizer_switch_save;
+
+--echo #
+--echo # MDEV-21932: ROR union with index_merge_sort_union=off
+--echo #
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+insert into t0 select a+10 from t0;
+insert into t0 select a+20 from t0;
+insert into t0 select a+40 from t0;
+insert into t0 select a+80 from t0;
+insert into t0 select a+160 from t0;
+delete from t0 where a > 300;
+
+create table t1 (
+  f1 int, f2 int, f3 int, f4 int,
+  primary key (f1),  key (f3),  key(f4)
+) engine=myisam;
+insert into t1 select a+100, a+100, a+100, a+100 from t0;
+insert into t1 VALUES (9,0,2,6), (9930,0,0,NULL);
+analyze table t1;
+
+set optimizer_switch='index_merge_sort_union=off';
+set optimizer_switch='index_merge_union=on';
+
+let $q1=
+select * from t1
+   where (( f3 = 1 or f1 = 7 )  and f1 < 10) or
+              (f3 between 2 and 2 and ( f3 = 1 or f4 < 7 ));
+eval explain $q1;
+eval $q1;
+
+insert into t1 values (52,0,1,0),(53,0,1,0);
+insert into t1 values (50,0,1,0),(51,0,1,0);
+insert into t1 values (48,0,1,0),(49,0,1,0);
+insert into t1 values (46,0,1,0),(47,0,1,0);
+insert into t1 values (44,0,1,0),(45,0,1,0);
+analyze table t1;
+
+let $q2=
+select * from t1
+   where (( f3 = 1 or f1 = 7 )  and f1 < 10) or
+              (f3 between 2 and 2 and ( f3 = 1 or f4 < 7 ));
+eval explain $q2;
+eval $q2;
+
+drop table t0,t1;
 
 set optimizer_switch= @optimizer_switch_save;
 
@@ -253,15 +305,7 @@ create table t0
   INDEX i1(key1)
 );
 
-insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
-let $1=7;
-set @d=8;
-while ($1)
-{
-  eval insert into t0 select key1+ @d from t0;
-  eval set @d=@d*2;
-  dec $1;
-}
+insert into t0 select * from seq_1_to_1024;
 alter table t0 add key2 int not null, add index i2(key2);
 alter table t0 add key3 int not null, add index i3(key3);
 alter table t0 add key8 int not null, add index i8(key8);
@@ -278,3 +322,5 @@ explain select * from (select * from t0 where key1 = 3 or key2 =3) as Z where Z.
 select * from (select * from t0 where key1 = 3 or key2 =3) as Z where Z.key8 > 5;
 set @@optimizer_switch= @optimizer_switch_save;
 drop table t0;
+
+--echo # End of 10.1 tests

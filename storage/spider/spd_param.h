@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software); you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program); if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 my_bool spider_param_support_xa();
 my_bool spider_param_connect_mutex();
@@ -170,6 +171,10 @@ int spider_param_quick_mode(
 longlong spider_param_quick_page_size(
   THD *thd,
   longlong quick_page_size
+);
+longlong spider_param_quick_page_byte(
+  THD *thd,
+  longlong quick_page_byte
 );
 int spider_param_low_mem_read(
   THD *thd,
@@ -397,6 +402,9 @@ int spider_param_bka_table_name_type(
   THD *thd,
   int bka_table_name_type
 );
+int spider_param_use_cond_other_than_pk_for_update(
+  THD *thd
+);
 int spider_param_store_last_sts(
   int store_last_sts
 );
@@ -413,3 +421,13 @@ int spider_param_load_crd_at_startup(
 uint spider_param_table_sts_thread_count();
 uint spider_param_table_crd_thread_count();
 #endif
+int spider_param_slave_trx_isolation();
+int spider_param_remote_wait_timeout(
+  THD *thd
+);
+int spider_param_wait_timeout(
+  THD *thd
+);
+bool spider_param_sync_sql_mode(
+  THD *thd
+);

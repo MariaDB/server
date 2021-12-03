@@ -6,6 +6,7 @@
 --source include/not_embedded.inc
 # cmd.exe doesn't like new lines on the command line
 --source include/not_windows.inc
+--source include/default_charset.inc
 
 create database `mysqltest1
 1tsetlqsym`;
@@ -25,10 +26,10 @@ create procedure sp() select * from `v1
 flush tables;
 use test;
 
-exec $MYSQL_DUMP --compact --comment --routines --add-drop-database --databases 'mysqltest1
+exec $MYSQL_DUMP --compact --comments --routines --add-drop-database --databases 'mysqltest1
 1tsetlqsym';
 
-exec $MYSQL_DUMP --compact --comment --routines --add-drop-database --databases 'mysqltest1
+exec $MYSQL_DUMP --compact --comments --routines --add-drop-database --databases 'mysqltest1
 1tsetlqsym' | $MYSQL;
 
 show tables from `mysqltest1
@@ -44,11 +45,11 @@ create database `test\``
 
 show databases like 'test%';
 
-exec $MYSQL_DUMP --compact --comment --add-drop-database --databases 'test`' 'test\`
+exec $MYSQL_DUMP --compact --comments --add-drop-database --databases 'test`' 'test\`
 \! ls
 #';
 
-exec $MYSQL_DUMP --compact --comment --add-drop-database --databases 'test`' 'test\`
+exec $MYSQL_DUMP --compact --comments --add-drop-database --databases 'test`' 'test\`
 \! ls
 #' | $MYSQL;
 

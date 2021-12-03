@@ -1,0 +1,10 @@
+connection node_2;
+connection node_1;
+connection node_1;
+show status like 'wsrep_cluster_conf_id';
+Variable_name	Value
+wsrep_cluster_conf_id	#
+connection node_2;
+show status like 'wsrep_cluster_conf_id';
+Variable_name	Value
+wsrep_cluster_conf_id	#

@@ -1,0 +1,192 @@
+########################################################################
+# Tests BACKUP STAGE locking
+########################################################################
+
+--source include/have_innodb.inc
+--source include/have_metadata_lock_info.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # Test lock taken
+--echo #
+
+BACKUP LOCK test.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP UNLOCK;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP LOCK t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP UNLOCK;
+BACKUP LOCK non_existing.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP UNLOCK;
+
+--echo #
+--echo # Test that backup lock protects against ddl
+--echo #
+
+connect (con1,localhost,root,,);
+
+connection default;
+create table t1 (a int) engine=innodb;
+insert into t1 values (1);
+backup lock t1;
+select * from t1;
+connection con1;
+--send drop table t1
+connection default;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for table metadata lock";
+--source include/wait_condition.inc
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+--error ER_LOCK_DEADLOCK
+select * from t1;
+backup unlock;
+
+--echo #
+--echo # BACKUP LOCK and BACKUP UNLOCK are not allowed in procedures.
+--echo #
+delimiter |;
+--error ER_SP_BADSTATEMENT
+CREATE PROCEDURE p_BACKUP_LOCK()
+BEGIN
+  BACKUP LOCK;
+END|
+--error ER_SP_BADSTATEMENT
+CREATE PROCEDURE p_BACKUP_UNLOCK()
+BEGIN
+  BACKUP UNLOCK;
+END|
+delimiter ;|
+
+--echo #
+--echo # BACKUP STAGE doesn't work when a BACKUP LOCK is active.
+--echo #
+CREATE TABLE t1 (a INT);
+BACKUP LOCK t1;
+--error ER_CANT_UPDATE_WITH_READLOCK
+BACKUP STAGE START;
+BACKUP UNLOCK;
+DROP TABLE t1;
+
+--echo #
+--echo # FLUSH TABLES WITH READ LOCK is not allowed when BACKUP LOCK is active.
+--echo #
+CREATE TABLE t1 (a INT);
+BACKUP LOCK t1;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+FLUSH TABLES t1 WITH READ LOCK;
+BACKUP UNLOCK;
+
+BACKUP LOCK t1;
+FLUSH TABLES WITH READ LOCK;
+BACKUP UNLOCK;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20945 BACKUP UNLOCK assertion failures.
+--echo #
+
+--echo # Scenario 1.
+CREATE TABLE t1 (a INT);
+BACKUP LOCK t1;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+FLUSH TABLE t1 WITH READ LOCK;
+UNLOCK TABLES;
+BACKUP UNLOCK;   # Shouldn't trigger an assertion.
+DROP TABLE t1;
+
+--echo # Scenario 2.
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+LOCK TABLES t2 AS a2 WRITE;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+BACKUP LOCK t1;
+UNLOCK TABLES;
+INSERT INTO t1 VALUES(0);
+--source include/restart_mysqld.inc
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo # Scenario 3.
+CREATE TEMPORARY TABLE t3 (c INT);
+BACKUP LOCK t1;  # Table `t1` doesn't exist.
+SET @@SESSION.profiling=ON;
+--error ER_CANT_UPDATE_WITH_READLOCK
+CREATE TABLE t1 (c INT);
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+LOCK TABLES t3 AS a1 READ, t1 AS a3 READ, t3 AS a5 READ LOCAL;
+UNLOCK TABLE;
+--source include/restart_mysqld.inc
+
+--echo # Scenario 4.
+CREATE TABLE t (c INT);
+BACKUP LOCK not_existing.t;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+LOCK TABLES t WRITE;
+UNLOCK TABLES;
+--source include/restart_mysqld.inc
+DROP TABLE t;
+
+--echo # Scenario 5.
+BACKUP LOCK t1;
+--error ER_CANT_UPDATE_WITH_READLOCK
+CREATE TABLE t2 (c1 TIME, c2 TIME, c3 DATE, KEY(c1, c2));
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+LOCK TABLE t2 READ;
+--source include/restart_mysqld.inc
+
+--echo # Scenario 6.
+BACKUP LOCK t;
+--error ER_CANT_UPDATE_WITH_READLOCK
+CREATE VIEW v AS SELECT 1;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+LOCK TABLES v READ;
+START TRANSACTION READ ONLY;
+BACKUP LOCK t;
+--source include/restart_mysqld.inc
+
+--echo # Scenario 7.
+SET SQL_MODE='';
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.u;
+--error ER_CANT_UPDATE_WITH_READLOCK
+CREATE TABLE t (a INT) ENGINE=Aria;
+CREATE TEMPORARY TABLE IF NOT EXISTS s (c INT) ENGINE=Aria;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+LOCK TABLES s AS a READ LOCAL,t AS b WRITE;
+--let $q= `SELECT * FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE`
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.u;
+--source include/restart_mysqld.inc
+
+--echo #
+
+connection con1;
+--reap
+connection default;
+disconnect con1;
+show tables;
+
+--echo #
+--echo #  MDEV-22879 SIGSEGV (or hang) in free/my_free from
+--echo # _ma_end_block_record (on optimized builds)
+--echo #
+
+SET STATEMENT max_statement_time=20 FOR BACKUP LOCK test.t1;
+--error ER_CANT_UPDATE_WITH_READLOCK
+CREATE TABLE IF NOT EXISTS t3 (c1 CHAR(1) BINARY,c2 SMALLINT(10),c3 NUMERIC(1,0), PRIMARY KEY(c1(1))) ENGINE=InnoDB;
+BACKUP UNLOCK;
+
+CREATE TABLE IF NOT EXISTS t3 (c1 CHAR(1) BINARY,c2 SMALLINT(10),c3 NUMERIC(1,0), PRIMARY KEY(c1(1))) ENGINE=InnoDB;
+SET STATEMENT max_statement_time=20 FOR BACKUP LOCK test.t1;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+LOCK TABLES t3 AS a2 WRITE, t3 AS a1 READ LOCAL;
+--error ER_CANT_UPDATE_WITH_READLOCK
+DROP TABLE t3;
+BACKUP UNLOCK;
+DROP TABLE t3;
+
+--echo #
+--echo # End of MariaDB 10.4 tests
+--echo #

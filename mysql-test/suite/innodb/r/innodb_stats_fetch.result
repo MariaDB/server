@@ -1,7 +1,13 @@
+set @save_use_stat_tables =  @@use_stat_tables;
+set @@use_stat_tables = COMPLEMENTARY;
 CREATE TABLE test_ps_fetch
 (a INT, b INT, c INT, d INT, PRIMARY KEY (a, b), INDEX idx (c, d))
 ENGINE=INNODB STATS_PERSISTENT=1;
 ANALYZE TABLE test_ps_fetch;
+Table	test.test_ps_fetch
+Op	analyze
+Msg_type	status
+Msg_text	Engine-independent statistics collected
 Table	test.test_ps_fetch
 Op	analyze
 Msg_type	status
@@ -143,3 +149,4 @@ avg_row_length	81
 max_data_length	0
 index_length	16384
 DROP TABLE test_ps_fetch;
+set @@use_stat_tables = @save_use_stat_tables;

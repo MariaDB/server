@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,11 +26,9 @@ Created 04/01/2015 Jan Lindström
 #ifndef fil0crypt_h
 #define fil0crypt_h
 
-#ifndef UNIV_INNOCHECKSUM
 #include "os0event.h"
 #include "my_crypt.h"
 #include "fil0fil.h"
-#endif /*! UNIV_INNOCHECKSUM */
 
 /**
 * Magic pattern in start of crypt data on page 0
@@ -180,6 +178,12 @@ struct fil_space_crypt_t : st_encryption_scheme
 		return (encryption == FIL_ENCRYPTION_OFF);
 	}
 
+	/** Fill crypt data information to the give page.
+	It should be called during ibd file creation.
+	@param[in]	flags	tablespace flags
+	@param[in,out]	page	first page of the tablespace */
+	void fill_page0(ulint flags, byte* page);
+
 	/** Write crypt data to a page (0)
 	@param[in]	space	tablespace
 	@param[in,out]	page0	first page of the tablespace
@@ -275,13 +279,11 @@ fil_space_merge_crypt_data(
 	const fil_space_crypt_t* src);
 
 /** Initialize encryption parameters from a tablespace header page.
-@param[in]	page_size	page size of the tablespace
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	page		first page of the tablespace
 @return crypt data from page 0
 @retval	NULL	if not present or not valid */
-UNIV_INTERN
-fil_space_crypt_t*
-fil_space_read_crypt_data(const page_size_t& page_size, const byte* page)
+fil_space_crypt_t* fil_space_read_crypt_data(ulint zip_size, const byte* page)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /**
@@ -307,14 +309,16 @@ fil_parse_write_crypt_data(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Encrypt a buffer.
-@param[in,out]		crypt_data	Crypt data
-@param[in]		space		space_id
-@param[in]		offset		Page offset
-@param[in]		lsn		Log sequence number
-@param[in]		src_frame	Page to encrypt
-@param[in]		page_size	Page size
-@param[in,out]		dst_frame	Output buffer
+@param[in,out]		crypt_data		Crypt data
+@param[in]		space			space_id
+@param[in]		offset			Page offset
+@param[in]		lsn			Log sequence number
+@param[in]		src_frame		Page to encrypt
+@param[in]		zip_size		ROW_FORMAT=COMPRESSED page size, or 0
+@param[in,out]		dst_frame		Output buffer
+@param[in]		use_full_checksum	full crc32 algo is used
 @return encrypted buffer or NULL */
+UNIV_INTERN
 byte*
 fil_encrypt_buf(
 	fil_space_crypt_t*	crypt_data,
@@ -322,8 +326,9 @@ fil_encrypt_buf(
 	ulint			offset,
 	lsn_t			lsn,
 	const byte*		src_frame,
-	const page_size_t&	page_size,
-	byte*			dst_frame)
+	ulint			zip_size,
+	byte*			dst_frame,
+	bool			use_full_checksum)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /**
@@ -345,29 +350,30 @@ fil_space_encrypt(
 	byte*		dst_frame)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/**
-Decrypt a page.
-@param[in,out]	crypt_data		crypt_data
+
+/** Decrypt a page.
+@param]in]	space_id		space id
+@param[in]	crypt_data		crypt_data
 @param[in]	tmp_frame		Temporary buffer
-@param[in]	page_size		Page size
+@param[in]	physical_size		page size
+@param[in]	fsp_flags		Tablespace flags
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or error
-@return true if page decrypted, false if not.*/
+@return DB_SUCCESS or error */
 UNIV_INTERN
-bool
+dberr_t
 fil_space_decrypt(
+	ulint			space_id,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
-	const page_size_t&	page_size,
-	byte*			src_frame,
-	dberr_t*		err);
+	ulint			physical_size,
+	ulint			fsp_flags,
+	byte*			src_frame);
 
 /******************************************************************
 Decrypt a page
 @param[in]	space			Tablespace
 @param[in]	tmp_frame		Temporary buffer used for decrypting
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	decrypted		true if page was decrypted
 @return decrypted page, or original not encrypted page if decryption is
 not needed.*/
 UNIV_INTERN
@@ -375,21 +381,17 @@ byte*
 fil_space_decrypt(
 	const fil_space_t* space,
 	byte*		tmp_frame,
-	byte*		src_frame,
-	bool*		decrypted)
+	byte*		src_frame)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/******************************************************************
+/**
 Calculate post encryption checksum
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	dst_frame	Block where checksum is calculated
-@return page checksum or BUF_NO_CHECKSUM_MAGIC
+@return page checksum
 not needed. */
-UNIV_INTERN
 uint32_t
-fil_crypt_calculate_checksum(
-	const page_size_t&	page_size,
-	const byte*		dst_frame)
+fil_crypt_calculate_checksum(ulint zip_size, const byte* dst_frame)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************
@@ -487,17 +489,15 @@ calculated checksum as if it does page could be valid unencrypted,
 encrypted, or corrupted.
 
 @param[in,out]	page		page frame (checksum is temporarily modified)
-@param[in]	page_size	page size
-@param[in]	space		tablespace identifier
-@param[in]	offset		page number
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @return true if page is encrypted AND OK, false otherwise */
-UNIV_INTERN
-bool
-fil_space_verify_crypt_checksum(
-	byte* 			page,
-	const page_size_t&	page_size,
-	ulint			space,
-	ulint			offset)
+bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Add the tablespace to the rotation list if
+innodb_encrypt_rotate_key_age is 0 or encryption plugin does
+not do key version rotation
+@return whether the tablespace should be added to rotation list */
+bool fil_crypt_must_default_encrypt();
 
 #endif /* fil0crypt_h */

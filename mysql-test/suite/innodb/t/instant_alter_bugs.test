@@ -1,0 +1,469 @@
+--source include/have_innodb.inc
+
+SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+--echo #
+--echo # MDEV-17821 Assertion `!page_rec_is_supremum(rec)' failed
+--echo # in btr_pcur_store_position
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,2);
+ALTER TABLE t1 ADD COLUMN f VARCHAR(255);
+ALTER TABLE t1 DROP COLUMN f;
+DELETE FROM t1;
+HANDLER t1 OPEN;
+HANDLER t1 READ `PRIMARY` <= (3);
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  pk INT AUTO_INCREMENT,
+  f1 CHAR(32),
+  f2 CHAR(32),
+  f3 CHAR(32),
+  f4 INT,
+  f5 CHAR(32),
+  f6 INT,
+  f7 INT,
+  f8 INT,
+  PRIMARY KEY (pk),
+  UNIQUE (f6)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 (f1,f2,f3,f4,f5,f6,f7,f8) VALUES 
+  ('reality', 'llt', 'within', -1996816384, 'j', 160, 7, -1822687232),
+  ('h', 'j', 'j', 251, 'civilian', NULL, 211, NULL),
+  ('ltq', 'b', 'mud', 111, 'v', 90, 0, NULL),
+  ('toxic', 'breakfast', 'series', 2, 'x', NULL, 118, 2),
+  ('h', 'n', 'vision', 84, 'n', NULL, 197, 103),
+  ('h', 'tq', 'q', 6, 'bet', -1927151616, -446038016, 3),
+  ('pocket', 'qjt', 'jtl', 0, 'blink', NULL, 12, 0),
+  ('k', 'uv', 'exist', 37, 'g', 149, -1610219520, NULL),
+  ('parent', 'motion', 'u', 70, 'promote', NULL, 178, NULL),
+  ('get', 'convict', 'liquid', -780337152, 'd', NULL, 4, NULL),
+  ('vp', 'px', 'xi', -631111680, 'support', NULL, 8, NULL),
+  ('ck', 'z', 'minority', 8, 'k', NULL, 864878592, NULL),
+  ('kxx', 'g', 'container', 1, 'cholesterol', NULL, 4, 1404436480),
+  ('xxv', 'rail', 'j', 219, 'serious', NULL, -816119808, 62),
+  ('x', 'v', 'vr', 146, 'm', 16, 170, -1765867520),
+  ('age', 'm', 'q', -1251278848, 'rte', 6, 224, NULL),
+  ('discrimination', 't', 'q', 31, 'exl', 0, 2, 244),
+  ('water', 'x', 'ldb', 98, 'r', 235, 4, 63),
+  ('d', 'db', 'p', 248, 'so-called', 102, -255524864, 198),
+  ('last', 'bz', 'us', 0, 'experienced', 137, 240, 134),
+  ('q', 'z', 'attract', 67, 'code', 67, 75, 1758920704),
+  ('yellow', 'c', 'u', 6, 'v', 1731985408, 528154624, 2),
+  ('cognitive', 'he', 'protective', 590020608, 'sentence', NULL, 4, 102),
+  ('eih', 'l', 'ih', 1266024448, 'traditionally', NULL, 190, NULL),
+  ('pine', 'i', 'y', 6, 'glimpse', 214, 7, -1486880768),
+  ('jo', 'everyone', 'ol', 0, 'lj', NULL, 1, 0),
+  ('blood', 'f', 'scientist', 54, 'j', 1341128704, 168, NULL),
+  ('z', 'brief', 'ambassador', 115, 'ygp', 82, 129, NULL),
+  ('gp', 'severe', 'consist', 7, 'p', -1829961728, 602669056, 154),
+  ('admit', 'poetry', 'x', 116, 'enemy', 174, -2128543744, -407764992),
+  ('s', 'norm', 'decide', 2055667712, 'rtz', NULL, 99, -1233715200),
+  ('tzg', 'f', 'beg', 2016280576, 'w', NULL, -643825664, 137),
+  ('zgg', 'x', 'f', 148, 'y', -987496448, -708116480, 8),
+  ('attorney', 'perfectly', 's', 49, 'z', -1865285632, 56, -1518534656),
+  ('concentrate', 's', 'k', -1028849664, 'tir', 83, -1592459264, 1820065792),
+  ('t', 'sacrifice', 'ir', -2143879168, 'recipe', 156, 217, NULL),
+  ('wdf', 'd', 'f', 137, 'empty', NULL, 188, NULL),
+  ('o', 'customer', 'qd', -2135293952, 'z', 1527840768, 227, -1174929408),
+  ('d', 'qow', 'o', 1472266240, 'whe', NULL, 7, 197),
+  ('deny', 'reputation', 'dutch', 59, 'v', 124, 2, 191),
+  ('m', 'liver', 'fv', 0, 'policy', 781582336, 198574080, 177),
+  ('vk', 'kx', 'immigrant', -1452736512, 'x', 163, 76, 6) ,
+  ('j', 'ru', 'r', 67, 'joke', NULL, 3, NULL),
+  ('o', 'u', 'a', -569442304, 'uz', NULL, 933298176, NULL),
+  ('g', 'zb', 'c', -1694760960, 'fish', 18, -390463488, 1),
+  ('bb', 'o', 'b', 6, 'z', 9, 12, NULL),
+  ('compelling', 'xe', 'debut', 89, 'e', -734724096, 119, 175),
+  ('md', 'r', 'object', 1046478848, 'frequently', 915537920, 0, 1506410496),
+  ('dwn', 'wnz', 'x', 1767571456, 'nz', 241, -882180096, 9),
+  ('zvf', 'vfo', 'g', -844824576, 'w', NULL, 1, 9),
+  ('w', 'pose', 'r', 1029308416, 'a', -48627712, 1756168192, NULL),
+  ('o', 'jwp', 'patient', 172, 'i', 297140224, 45809664, 3),
+  ('w', 'p', 'american', 450297856, 'z', 20, 4, 186),
+  ('ridiculous', 'helpful', 'vy', -2022899712, 'conspiracy', NULL, 162, -264634368),
+  ('t', 'g', 'spite', 289931264, 'y', 4, 13, NULL),
+  ('performer', 'i', 'tomato', -1519386624, 'mz', 8, 87, 106),
+  ('m', 'z', 'hang', 3, 'crowded', -537919488, 1, 2),
+  ('fu', 'uot', 'j', 1, 'o', 179, 220, -2084569088),
+  ('ts', 'n', 'su', 1, 'o', 198, 9, 68),
+  ('ball', 'halfway', 'uf', 40, 'l', 145948672, 9, 149),
+  ('hunting', 'n', 'teenager', 0, 'neat', 209, 2044461056, 68),
+  ('independent', 'along', 'fpn', 5, 'pn', 3, 1353252864, 217),
+  ('p', 'presumably', 'n', -1977548800, 'balanced', 1909260288, 197, NULL),
+  ('pink', 'h', 'tear', 8, 'n', 254, 8, 1006305280),
+  ('tyy', 'n', 'yyr', 1107820544, 'yr', NULL, 0, 219),
+  ('u', 'retirement', 'thread', -2083192832, 'rx', -678232064, 209, 1048969216),
+  ('xk', 'kb', 'z', 9, 'ba', 218, 7, 8),
+  ('a', 'plenty', 'forget', 36, 'c', 215, 2027094016, NULL),
+  ('i', 'compromise', 'n', -1090256896, 'o', 10, 66, 1872887808),
+  ('x', 'disappointment', 'cognitive', 753860608, 'ua', 77, 123, 10),
+  ('e', 'added', 'aub', 2, 'u', NULL, 9, 92),
+  ('bc', 'h', 'n', 146, 'master', NULL, 1003945984, NULL),
+  ('execution', 'f', 'cgp', 574423040, 'gp', 2, -518782976, -1189085184),
+  ('pv', 'bad', 'v', 132, 'r', 195, 6, 5),
+  ('modify', 'participation', 'vol', 237, 'j', -842924032, 88, -747765760),
+  ('substantially', 'i', 'congressional', 2, 'edit', NULL, 1003159552, NULL),
+  ('tell', 'forty', 'v', -910098432, 'd', 43, 3, NULL),
+  ('crawl', 'ad', 'respect', -1851195392, 'p', 72, -1709047808, 1343225856),
+  ('w', 'reception', 'fiber', 56, 's', NULL, 2, -993787904),
+  ('successful', 'instruct', 'dug', 2, 'u', 7, -411500544, NULL),
+  ('appointment', 'pregnant', 'weird', 2, 'r', NULL, -897384448, 76),
+  ('g', 'j', 'thin', 663617536, 'oan', 1, 7, NULL),
+  ('secretary', 'a', 'o', 103, 'nj', 1977745408, -1291124736, -1314521088),
+  ('g', 'jq', 'q', 1875116032, 'blame', NULL, 1, 4),
+  ('oj', 'j', 'breast', 150, 'c', NULL, 3, NULL),
+  ('rd', 'm', 'comprehensive', 1723334656, 't', NULL, 155, -312344576) ,
+  ('a', 'd', 'criminal', -1155137536, 'airplane', 242, -662896640, 1),
+  ('fast', 'i', 'k', -386662400, 'zxe', NULL, 7, 119),
+  ('xe', 'mouse', 'c', -205717504, 'ew', NULL, -729612288, 86),
+  ('hang', 'j', 'o', 3, 'hungry', NULL, 200, 49),
+  ('expense', 'z', 'sum', 2, 'gob', -472055808, -538181632, NULL),
+  ('nest', 'o', 'k', 116, 'weak', NULL, 223, NULL);
+--error ER_DUP_ENTRY
+INSERT INTO t1 (f1,f2,f3,f4,f5,f6,f7,f8) VALUES ('impact', 'b', 'h', 185, 'fj', 7, 7, 3);
+
+ALTER TABLE t1 ADD COLUMN filler VARCHAR(255) DEFAULT '';
+SELECT * INTO OUTFILE 'load.data' FROM t1;
+UPDATE IGNORE t1 SET pk = 0;
+LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1;
+HANDLER t1 OPEN AS h;
+HANDLER h READ `PRIMARY` PREV WHERE 0;
+
+# Cleanup
+HANDLER h CLOSE;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19630 ALTER TABLE ... ADD COLUMN damages foreign keys
+--echo # which are pointed to the table being altered
+--echo #
+CREATE TABLE t1(f1 int not null, primary key(f1))engine=innodb;
+CREATE TABLE t2(f1 INT AUTO_INCREMENT NOT NULL, f2 INT NOT NULL,
+		status ENUM ('a', 'b', 'c'), INDEX idx1(f2),
+		PRIMARY KEY(f1),
+		FOREIGN KEY (f2) REFERENCES t1(f1))ENGINE=InnoDB;
+
+ALTER TABLE t1 CHANGE f1 f1_id INT NOT NULL, ADD f3 VARCHAR(255) DEFAULT NULL;
+ALTER TABLE t1 CHANGE f1_id f1 INT NOT NULL;
+
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+
+ALTER TABLE t2 CHANGE status status VARCHAR(20) DEFAULT NULL;
+DROP TABLE t2, t1;
+
+--let $datadir= `select @@datadir`
+--remove_file $datadir/test/load.data
+
+--echo #
+--echo # MDEV-20938 Double free of dict_foreign_t during instant ALTER TABLE
+--echo #
+
+CREATE TABLE t1 (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT UNSIGNED PRIMARY KEY, b INT UNSIGNED UNIQUE,
+                 FOREIGN KEY fk1 (b) REFERENCES t1 (id)) ENGINE=InnoDB;
+ALTER TABLE t2
+    DROP FOREIGN KEY fk1,
+    CHANGE b d INT UNSIGNED,
+    ADD c INT;
+DROP TABLE t2, t1;
+
+--echo #
+--echo # MDEV-22446 InnoDB aborts while adding instant column
+--echo # for discarded tablespace
+--echo #
+
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+CREATE TABLE t1(c1 INT NOT NULL, c2 INT NOT NULL DEFAULT 0)ENGINE=InnoDB;
+INSERT INTO t1(c1) VALUES(1);
+
+ALTER TABLE t1 ADD COLUMN c3 INT DEFAULT 10;
+--replace_regex /, .*\).*t1.cfg/, Bad file descriptor) t1.cfg/
+FLUSH TABLES t1 FOR EXPORT;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+UNLOCK TABLES;
+DROP TABLE t1;
+
+# Restore of instant table
+CREATE TABLE t1(c1 INT NOT NULL)Engine=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 ADD COLUMN c2 INT NOT NULL;
+ALTER TABLE t1 ADD COLUMN c3 INT DEFAULT 10;
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+--echo # End of 10.3 tests
+
+
+create table t (
+  a varchar(9),
+  b int,
+  c int,
+  row_start bigint unsigned generated always as row start invisible,
+  row_end bigint unsigned generated always as row end invisible,
+  period for system_time (row_start, row_end)
+) engine=innodb row_format=compressed with system versioning;
+insert into t values (repeat('a', 9), 1, 1);
+set @@system_versioning_alter_history = keep;
+alter table t modify a varchar(10), algorithm=instant;
+alter table t change b bb int, algorithm=instant;
+alter table t modify c int without system versioning, algorithm=instant;
+set @@system_versioning_alter_history = error;
+check table t;
+drop table t;
+
+--echo #
+--echo # MDEV-18219 Assertion `index->n_core_null_bytes <= ...' failed
+--echo # in rec_init_offsets after instant DROP COLUMN
+--echo #
+CREATE TABLE t1 (a INT, b INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(0,9),(2,7),(3,1),(3,4),(8,4),(3,7),(6,1),(3,8),(1,2),(4,1),(0,8),(5,3),
+(1,3),(1,6),(2,1),(8,7),(6,0),(1,9),(9,4),(0,6),(9,3),(0,9),(9,4),(2,4),
+(2,7),(7,8),(8,2),(2,5),(6,1),(4,5),(5,3),(6,8),(4,9),(5,7),(7,5),(5,1),
+(8,8),(5,7),(3,8),(0,1),(8,4),(8,3),(9,7),(4,8),(1,1),(0,4),(2,6),(8,5),
+(8,8),(8,7),(6,7),(1,7),(9,6),(3,6),(1,9),(0,3),(5,3),(2,4),(0,6),(2,0),
+(6,5),(1,6),(2,4),(9,1),(3,0),(6,4),(1,3),(0,8),(3,5),(3,1),(8,9),(9,9),
+(7,9),(4,5),(2,2),(3,8),(0,8),(7,1),(2,0),(1,5),(7,3),(4,4),(3,9),(7,2),
+(6,2),(0,4),(2,0),(1,5),(5,7),(4,5),(3,7),(6,0),(2,1),(5,0),(1,0),(2,0),
+(8,4),(5,7),(3,5),(0,5),(7,6),(5,9),(1,2),(4,2),(8,5),(8,7),(2,8),(1,8),
+(4,3),(1,6),(7,8),(3,7),(4,6),(1,1),(3,0),(1,6),(2,0),(3,4),(4,8),(3,9),
+(8,0),(4,9),(4,0),(3,9),(6,4),(7,4),(5,8),(4,7),(7,3),(5,9),(2,3),(7,3),
+(0,4),(5,9),(9,8),(4,2),(3,6),(2,6),(1,8),(7,0),(0,0),(2,3),(1,2),(3,3),
+(2,7),(6,0),(9,0),(6,9),(4,6),(9,8),(0,7),(9,1),(9,6),(4,3),(7,7),(7,7),
+(4,1),(4,7),(7,3),(2,8),(5,8),(8,9),(3,9),(7,7),(0,8),(4,9),(3,2),(5,0),
+(1,7),(0,3),(2,9),(9,7),(7,5),(6,9),(8,5),(3,6),(1,1),(2,8),(7,9),(4,9),
+(6,6),(5,9),(5,3),(9,8),(3,3),(5,6),(0,9),(3,9),(7,9),(7,3),(5,2),(1,4),
+(4,4),(8,2),(2,2),(8,3),(9,1),(4,9),(9,8),(1,8),(1,8),(9,1),(1,1),(3,0),
+(4,6),(9,3),(3,3),(5,2),(0,1),(3,4),(3,2),(1,3),(4,4),(7,0),(4,6),(7,2),
+(4,5),(8,7),(7,8),(8,1),(3,5),(0,6),(3,5),(2,1),(4,4),(3,4),(2,1),(4,1);
+INSERT INTO t1 SELECT * FROM t1;
+ALTER TABLE t1 DROP a;
+# Exploit MDEV-17468 to force the table definition to be reloaded
+ALTER TABLE t1 ADD vb INT AS (b) VIRTUAL;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19030 Assertion index->n_core_null_bytes <= ... failed
+--echo # in rec_init_offsets after instant DROP COLUMN
+--echo #
+CREATE TABLE t1 (a INT, b INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES (),(),(),();
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+ALTER TABLE t1 FORCE;
+INSERT INTO t1 SELECT * FROM t1;
+ALTER TABLE t1 DROP a, ADD a SMALLINT NOT NULL;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+# Exploit MDEV-17468 to force the table definition to be reloaded
+ALTER TABLE t1 ADD vb INT AS (b) VIRTUAL;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18623 Assertion after DROP FULLTEXT INDEX and removing NOT NULL
+--echo #
+CREATE TABLE t1 (c TEXT NOT NULL, FULLTEXT INDEX ftidx(c)) ENGINE=InnoDB
+ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 DROP INDEX ftidx;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY c TEXT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 MODIFY c TEXT NULL;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20048 dtuple_get_nth_field(): Assertion 'n < tuple->n_fields'
+--echo # failed on ROLLBACK after instant DROP COLUMN
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET @b = REPEAT('b', @@innodb_page_size / 2 + 1);
+INSERT INTO t1 VALUES(2, @b), (3, @b);
+BEGIN;
+DELETE FROM t1 WHERE a=2;
+
+# Stop purge so that it doesn't remove the delete-marked entry.
+connect (purge_control,localhost,root);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
+COMMIT;
+
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+BEGIN;
+INSERT INTO t1 VALUES (2);
+
+connection purge_control;
+SELECT * FROM t1;
+disconnect purge_control;
+connection default;
+ROLLBACK;
+
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-20479: assertion failure in dict_table_get_nth_col() after INSTANT DROP COLUMN
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN (b INT, c INT, d INT, e INT NOT NULL DEFAULT 0);
+ALTER TABLE t1 ADD UNIQUE INDEX(e);
+ALTER TABLE t1 DROP b, DROP c, DROP d, DROP e;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20565 Assertion on CHANGE COLUMN...SYSTEM VERSIONING
+--echo #
+set @@system_versioning_alter_history = keep;
+CREATE TABLE t (a INT WITHOUT SYSTEM VERSIONING, b INT) ENGINE=InnoDB
+WITH SYSTEM VERSIONING;
+ALTER TABLE t CHANGE COLUMN a alpha INT WITH SYSTEM VERSIONING,
+ALGORITHM=INSTANT;
+DROP TABLE t;
+
+CREATE TABLE t (alpha INT, b INT) ENGINE=InnoDB WITH SYSTEM VERSIONING;
+ALTER TABLE t CHANGE COLUMN alpha a INT WITHOUT SYSTEM VERSIONING,
+ALGORITHM=INSTANT;
+DROP TABLE t;
+set @@system_versioning_alter_history = error;
+
+--echo #
+--echo # MDEV-20117 Assertion 0 failed in row_sel_get_clust_rec_for_mysql
+--echo #
+
+# This is not repeating the bug itself, but demonstrating that both
+# parts of the fix are needed.
+# To repeat the original bug, we should be somehow able to empty
+# the table of user records while purgeable undo log records exist.
+CREATE TABLE t (b INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t SET b=1;
+ALTER TABLE t ADD COLUMN a INT FIRST, ALGORITHM=INSTANT;
+DELETE FROM t;
+ALTER TABLE t ADD COLUMN c INT, ALGORITHM=INSTANT;
+# If page_cur_delete_rec() emptied the page (and wrongly reset the
+# page type) during the previous ALTER TABLE, the following would hit
+# an assertion failure because of root page type mismatch.
+ALTER TABLE t DROP COLUMN c, ALGORITHM=INSTANT;
+SELECT * FROM t;
+DROP TABLE t;
+
+# The following is nondeterministically repeating the bug in a
+# different scenario: the table is empty at the time the ALTER TABLE
+# is invoked, apparently because purge already processed the records
+# for the DELETE, but not the record for the UPDATE.
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT, d INT, e INT) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1;
+INSERT INTO t1 SET a=2;
+BEGIN;
+UPDATE t1 SET b=1;
+DELETE FROM t1;
+COMMIT;
+
+ALTER TABLE t1 DROP b, DROP c, DROP d, DROP e;
+--source include/wait_all_purged.inc
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20190 Instant operation fails when add column and collation
+--echo #            change on non-indexed column
+--echo #
+
+CREATE TABLE t1 (a CHAR)ENGINE=INNODB;
+ALTER TABLE t1 DEFAULT COLLATE= latin1_general_cs;
+ALTER TABLE t1 ADD COLUMN b INT NOT NULL, MODIFY a CHAR, ALGORITHM=INSTANT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a CHAR NOT NULL) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 DEFAULT COLLATE = latin1_general_cs;
+ALTER TABLE t1 MODIFY a CHAR, ALGORITHM=INSTANT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a CHAR NOT NULL) CHARSET latin2 COLLATE latin2_bin
+ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 DEFAULT COLLATE = latin2_general_ci;
+ALTER TABLE t1 MODIFY a CHAR, ALGORITHM=INSTANT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-21645 SIGSEGV in innobase_get_computed_value
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, va INTEGER GENERATED ALWAYS AS (a))
+ENGINE=InnoDB;
+INSERT INTO t1 SET a=1, b=NULL;
+ALTER TABLE t1 MODIFY COLUMN b INT FIRST;
+ALTER TABLE t1 ADD UNIQUE INDEX (va);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22651 Assertion dict_col_get_fixed_size...
+--echo # in dict_table_t::init_instant()
+--echo #
+--source include/have_innodb.inc
+CREATE TABLE t (i INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t SET i=1;
+ALTER TABLE t ADD e CHAR(255) CHARACTER SET UTF32 FIRST, ALGORITHM=INSTANT;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-23499 Assertion c.same_type(*o) failed
+--echo #
+CREATE TABLE t (pk SERIAL, b TEXT CHARACTER SET utf8) ENGINE=InnoDB;
+ALTER TABLE t MODIFY b TEXT CHARACTER SET utf8mb4 FIRST;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-23672 Assertion `v.v_indexes.empty()' failed in dict_table_t::instant_column
+--echo #
+create table t1 (
+    col_int integer,
+    col_text text not null,
+    col_int_g integer generated always as (col_int) unique,
+    col_text_g text generated always as (substr(col_text,1,499)) )
+engine innodb row_format = redundant;
+insert into t1 (col_int,col_text) values (0, 'a'), (null, 'b');
+alter table t1 modify column col_text text null, algorithm = instant;
+insert into t1 (col_int,col_text) values (1, null), (null, null);
+update t1 set col_text= 'd';
+select * from t1;
+check table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-24072 Assertion 'ib_table.n_v_cols' failed
+--echo # in instant_alter_column_possible()
+--echo #
+CREATE TABLE t (a BLOB) ENGINE=InnoDB;
+INSERT INTO t VALUES ('a');
+--error ER_TRUNCATED_WRONG_VALUE
+ALTER TABLE t ADD c INT GENERATED ALWAYS AS (a+1) VIRTUAL, ADD KEY(c);
+--enable_info
+ALTER TABLE t ADD d INT;
+--disable_info
+DROP TABLE t;
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

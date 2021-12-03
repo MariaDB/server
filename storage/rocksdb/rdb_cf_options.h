@@ -39,7 +39,7 @@ namespace myrocks {
     families not found in the map.
 */
 class Rdb_cf_options {
-public:
+ public:
   using Name_to_config_t = std::unordered_map<std::string, std::string>;
 
   Rdb_cf_options(const Rdb_cf_options &) = delete;
@@ -61,20 +61,20 @@ public:
     return m_default_cf_opts;
   }
 
-  static const rocksdb::Comparator *
-  get_cf_comparator(const std::string &cf_name);
+  static const rocksdb::Comparator *get_cf_comparator(
+      const std::string &cf_name);
 
-  std::shared_ptr<rocksdb::MergeOperator>
-  get_cf_merge_operator(const std::string &cf_name);
+  std::shared_ptr<rocksdb::MergeOperator> get_cf_merge_operator(
+      const std::string &cf_name);
 
   void get_cf_options(const std::string &cf_name,
                       rocksdb::ColumnFamilyOptions *const opts)
       MY_ATTRIBUTE((__nonnull__));
 
   static bool parse_cf_options(const std::string &cf_options,
-    Name_to_config_t *option_map);
+                               Name_to_config_t *option_map);
 
-private:
+ private:
   bool set_default(const std::string &default_config);
   bool set_override(const std::string &overide_config);
 
@@ -88,7 +88,7 @@ private:
                                    std::string *const cf,
                                    std::string *const opt_str);
 
-private:
+ private:
   static Rdb_pk_comparator s_pk_comparator;
   static Rdb_rev_comparator s_rev_pk_comparator;
 
@@ -101,4 +101,4 @@ private:
   rocksdb::ColumnFamilyOptions m_default_cf_opts;
 };
 
-} // namespace myrocks
+}  // namespace myrocks

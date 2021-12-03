@@ -560,12 +560,15 @@ a	b
 2	2
 3	3
 4	4
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='outer_join_with_cache=off',@@optimizer_use_condition_selectivity=4;
 explain (select * from t1 where a=1 and b=10) union (select straight_join t1.a,t2.a from t1,t2 where t1.a=t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 2	UNION	t1	index	PRIMARY	PRIMARY	4	NULL	4	Using index
-2	UNION	t2	index	PRIMARY	PRIMARY	4	NULL	4	Using where; Using index; Using join buffer (flat, BNL join)
+2	UNION	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using index
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity,@@optimizer_switch=@save_optimizer_switch;
 explain (select * from t1 where a=1) union (select * from t1 where b=1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	
@@ -1368,9 +1371,7 @@ t3	CREATE TABLE `t3` (
   `left(a,100000000)` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop tables t1,t2,t3;
-SELECT @tmp_max:= @@global.max_allowed_packet;
-@tmp_max:= @@global.max_allowed_packet
-16777216
+SET @tmp_max= @@global.max_allowed_packet;
 SET @@global.max_allowed_packet=25000000;
 Warnings:
 Warning	1292	Truncated incorrect max_allowed_packet value: '25000000'
@@ -1611,7 +1612,7 @@ NULL	binary(0)	YES		NULL
 CREATE TABLE t5 SELECT NULL UNION SELECT NULL;
 DESC t5;
 Field	Type	Null	Key	Default	Extra
-NULL	null	YES		NULL	
+NULL	binary(0)	YES		NULL	
 CREATE TABLE t6 
 SELECT * FROM (SELECT * FROM (SELECT NULL)a) b UNION SELECT a FROM t1;
 DESC t6;
@@ -1793,8 +1794,7 @@ union
 select 4
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ;
-foo
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 prepare stmt1 from 'select 1 as foo
 union
 select 2
@@ -1804,12 +1804,7 @@ union
 select 4
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ';
-execute stmt1;
-foo
-1
-execute stmt1;
-foo
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 select 1 as foo
 union
 select 2
@@ -1819,8 +1814,7 @@ union
 (select 4)
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ;
-foo
-1
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 prepare stmt1 from 'select 1 as foo
 union
 select 2
@@ -1830,13 +1824,7 @@ union
 (select 4)
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ';
-execute stmt1;
-foo
-1
-execute stmt1;
-foo
-1
-deallocate prepare stmt1;
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 End of 5.1 tests
 #
 # mdev-5091: Asseirtion failure for UNION with ORDER BY 
@@ -2034,14 +2022,14 @@ SET @@global.slow_query_log= @old_slow_query_log;
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (b int);
 CREATE TABLE t3 (c int);
-SELECT a FROM t1 UNION SELECT b FROM t2 JOIN t3 ON ( t2.b = t3.c );
+SELECT a FROM t1 UNION SELECT b FROM t2 JOIN (t3) ON ( t2.b = t3.c );
 a
 DROP TABLE t1, t2, t3;
 CREATE TABLE t1 (pk int NOT NULL);
 CREATE TABLE t2 (pk int NOT NULL, fk int NOT NULL);
-SELECT t1.pk FROM t1 LEFT JOIN t2 ON (t1.pk = t2.fk)
+SELECT t1.pk FROM t1 LEFT JOIN (t2) ON (t1.pk = t2.fk)
 UNION
-SELECT t1.pk FROM t1 LEFT JOIN t2 ON (t1.pk = t2.fk);
+SELECT t1.pk FROM t1 LEFT JOIN (t2) ON (t1.pk = t2.fk);
 pk
 DROP TABLE t1,t2;
 create table t1 (a int);
@@ -2049,7 +2037,7 @@ insert t1 values (1),(2),(3),(1);
 explain select 1 from dual where exists (select max(a) from t1 group by a union select a+2 from t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	4	
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
 drop table t1;
@@ -2165,6 +2153,44 @@ select @advertAcctId as a from dual union all select 1.0 from dual;
 a
 1000003.0
 1.0
+#
+# MDEV-13784: query causes seg fault
+#
+CREATE TABLE t1 (`bug_id` int NOT NULL PRIMARY KEY, `product_id` int NOT NULL);
+INSERT INTO t1 VALUES (45199,1184);
+CREATE TABLE t2 (`product_id` int NOT NULL,`userid` int NOT NULL, PRIMARY KEY (`product_id`,`userid`));
+INSERT INTO t2 VALUES (1184,103),(1184,624),(1184,1577),(1184,1582);
+CREATE TABLE t3 (`id` int NOT NULL  PRIMARY KEY,`name` varchar(64));
+CREATE TABLE t4 ( `userid` int NOT NULL PRIMARY KEY, `login_name` varchar(255));
+INSERT INTO t4 VALUES (103,'foo'),(624,'foo'),(1577,'foo'),(1582,'foo');
+CREATE TABLE t5 (`id` int NOT NULL PRIMARY KEY, `name` varchar(64));
+explain select
+(
+select login_name from t4 where userId = (
+select userid from t2 where product_id = t1.product_id
+union
+select userid from t2 where product_id = (
+select id from t5 where name = (select name from t3 where id = t1.product_id)) limit 1 )
+) as x  from t1 where (t1.bug_id=45199);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	PRIMARY	NULL	NULL	NULL	1	
+2	SUBQUERY	t4	eq_ref	PRIMARY	PRIMARY	4	func	1	Using where
+3	SUBQUERY	t2	ref	PRIMARY	PRIMARY	4	const	4	Using index
+4	UNION	t2	ref	PRIMARY	PRIMARY	4	func	1	Using where; Using index
+5	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+6	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+select
+(
+select login_name from t4 where userId = (
+select userid from t2 where product_id = t1.product_id
+union
+select userid from t2 where product_id = (
+select id from t5 where name = (select name from t3 where id = t1.product_id)) limit 1 )
+) as x  from t1 where (t1.bug_id=45199);
+x
+foo
+drop table t1, t2, t3, t4, t5;
 End of 5.5 tests
 #
 # WL#1763 Avoid creating temporary table in UNION ALL
@@ -2292,10 +2318,18 @@ GROUP BY i
 HAVING i = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING noticed after reading const tables
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Note	1003	/* select#1 */ select 1 AS `1`,2 AS `2` union all /* select#2 */ select 1 AS `i`,count(0) AS `COUNT(*)` from `test`.`t2` where 1 group by 1 having 0
+Note	1003	/* select#1 */ select 1 AS `1`,2 AS `2` union all /* select#2 */ select 1 AS `i`,count(0) AS `COUNT(*)` from `test`.`t2` where 0 group by 1 having 1
 DROP TABLE t1,t2;
+#
+# MDEV-10120: Wrong result of UNION .. ORDER BY GROUP_CONCAT()
+#
+CREATE TABLE t1 (a INT);
+INSERT t1 VALUES (1),(2),(3);
+(SELECT 1 AS a) UNION (SELECT a FROM t1 GROUP BY a) ORDER BY GROUP_CONCAT(a);
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
+DROP TABLE t1;
 #
 # Start of 10.3 tests
 #
@@ -2544,6 +2578,106 @@ c1
 10
 -10
 drop table t1,t2;
+#
+# MDEV-18700: EXPLAIN EXTENDED for query with UNION ALL
+#             after INTERSECT/EXCEPT operations
+#
+create table t1 (a int);
+insert into t1 values (3), (1), (7), (3), (2), (7), (4);
+create table t2 (a int);
+insert into t2 values (4), (5), (9), (1), (8), (9);
+create table t3 (a int);
+insert into t3 values (8), (1), (8), (2), (3), (7), (2);
+explain extended
+select * from t2 where a < 5
+intersect
+select * from t3 where a < 5
+union all
+select * from t1 where a > 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+2	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+NULL	UNIT RESULT	<unit1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a` from `test`.`t2` where `test`.`t2`.`a` < 5 intersect /* select#2 */ select `test`.`t3`.`a` AS `a` from `test`.`t3` where `test`.`t3`.`a` < 5 union all /* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4
+explain extended
+select * from t2 where a < 5
+except
+select * from t3 where a < 5
+union all
+select * from t1 where a > 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+2	EXCEPT	t3	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+NULL	UNIT RESULT	<unit1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a` from `test`.`t2` where `test`.`t2`.`a` < 5 except /* select#2 */ select `test`.`t3`.`a` AS `a` from `test`.`t3` where `test`.`t3`.`a` < 5 union all /* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4
+drop table t1,t2,t3;
+#
+# MDEV-24387: Wrong number of decimal digits in certain UNION/Subqery
+#             constellation
+#
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT * from (SELECT NULL) t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST(1 AS UNSIGNED)	246	2	1	Y	32896	0	63
+CAST(1 AS UNSIGNED)
+1
+NULL
+SELECT CAST(1 AS SIGNED) UNION ALL SELECT * from (SELECT NULL) t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST(1 AS SIGNED)	3	2	1	Y	32896	0	63
+CAST(1 AS SIGNED)
+1
+NULL
+SELECT CAST(1 AS SIGNED) UNION ALL SELECT * from (SELECT CAST(1 AS UNSIGNED)) t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST(1 AS SIGNED)	246	11	1	N	32897	0	63
+CAST(1 AS SIGNED)
+1
+1
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT NULL;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST(1 AS UNSIGNED)	246	2	1	Y	32896	0	63
+CAST(1 AS UNSIGNED)
+1
+NULL
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT CAST(1 AS SIGNED);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST(1 AS UNSIGNED)	246	2	1	N	32897	0	63
+CAST(1 AS UNSIGNED)
+1
+1
+#
+# MDEV-24511 null field is created with CREATE..SELECT
+#
+set @save_default_storage_engine=@@default_storage_engine;
+SET @@default_storage_engine=MEMORY;
+CREATE TABLE t1 SELECT NULL UNION SELECT NULL;
+ALTER TABLE t1 ADD INDEX (`PRIMARY`);
+ERROR 42000: Key column 'PRIMARY' doesn't exist in table
+CREATE TABLE t2 SELECT NULL;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULL` binary(0) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+CREATE TABLE t3 SELECT NULL UNION SELECT NULL;
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `NULL` binary(0) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+CREATE OR REPLACE TABLE t4 SELECT NULL UNION SELECT NULL;
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `NULL` binary(0) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+ALTER TABLE t4 ADD INDEX (`NULL`);
+DROP TABLE t1, t2, t3, t4;
+set @@default_storage_engine=@save_default_storage_engine;
 #
 # End of 10.3 tests
 #

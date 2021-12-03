@@ -1,41 +1,10 @@
 --source include/have_innodb.inc
 --source include/have_file_key_management_plugin.inc
---source include/not_embedded.inc
-# This is needed for longer testcase timeout at least P7/P8
---source include/big_test.inc
+--source include/count_sessions.inc
 
-#
-# MDEV-8164: Server crashes in pfs_mutex_enter_func after fil_crypt_is_closing or alike
-#
+SET @save_threads = @@GLOBAL.innodb_encryption_threads;
+
 SET default_storage_engine = InnoDB;
-
-CREATE TABLE t1 (pk INT PRIMARY KEY, c VARCHAR(256));
-CREATE TABLE t2 AS SELECT * FROM t1;
-
---disable_abort_on_error
---disable_warnings
---disable_query_log
-
-let $i = 40;
-while ($i)
-{
-SET GLOBAL innodb_encrypt_tables = ON;
-SET GLOBAL innodb_encryption_threads = 1;
-CREATE OR REPLACE TABLE t1 AS SELECT * FROM t2;
-CREATE OR REPLACE TABLE t2 AS SELECT * FROM t1;
-SET GLOBAL innodb_encryption_rotation_iops = 100;
-SET GLOBAL innodb_encrypt_tables = OFF;
-CREATE OR REPLACE TABLE t2 AS SELECT * FROM t1;
-CREATE OR REPLACE TABLE t1 AS SELECT * FROM t2;
-dec $i;
-}
-
---enable_abort_on_error
---enable_warnings
---enable_query_log
-
-drop table t1,t2;
-SET GLOBAL innodb_encryption_threads = 0;
 
 #
 # MDEV-8173: InnoDB; Failing assertion: crypt_data->type == 1
@@ -58,11 +27,9 @@ INSERT IGNORE INTO `table10_int_autoinc` ( `col_int` ) VALUES ( 6 ), ( 2 ), ( 3 
 --connect (con1,localhost,root,,test)
 --connect (con2,localhost,root,,test)
 
---disable_abort_on_error
---disable_warnings
 --disable_query_log
 
-let $i = 500;
+let $i = 100;
 while ($i)
 {
 connection con1;
@@ -101,42 +68,11 @@ dec $i;
 }
 
 --enable_query_log
+disconnect con1;
+disconnect con2;
 connection default;
-drop table if exists create_or_replace_t, table1_int_autoinc, table0_int_autoinc, table10_int_autoinc;
---disconnect con1
---disconnect con2
---enable_abort_on_error
---enable_warnings
+drop table create_or_replace_t, table1_int_autoinc, table0_int_autoinc,
+table10_int_autoinc;
 
-SET GLOBAL innodb_encrypt_tables = OFF;
-SET GLOBAL innodb_encryption_threads = 4;
-
---echo # Wait max 10 min for key encryption threads to decrypt all spaces
-let $cnt=600;
-while ($cnt)
-{
-    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0`;
-    if ($success)
-    {
-        let $cnt=0;
-    }
-    if (!$success)
-    {
-        real_sleep 1;
-        dec $cnt;
-    }
-}
-if (!$success)
-{
-    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
-    SHOW STATUS LIKE 'innodb_encryption%';
-    -- die Timeout waiting for encryption threads
-}
---echo # Success!
-
-SET GLOBAL innodb_encryption_threads = 0;
-SET GLOBAL innodb_encrypt_tables = OFF;
-
-# Make sure that all dirty pages are flushed
-
--- source include/restart_mysqld.inc
+SET GLOBAL innodb_encryption_threads = @save_threads;
+--source include/wait_until_count_sessions.inc

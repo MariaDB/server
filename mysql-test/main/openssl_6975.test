@@ -18,25 +18,25 @@ let $mysql=$MYSQL --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$
 
 disable_abort_on_error;
 echo TLS1.2 ciphers: user is ok with any cipher;
-exec $mysql                  --ssl-cipher=AES128-SHA256;
+exec $mysql --tls-version=TLSv1.2 --ssl-cipher=AES128-SHA256;
 --replace_result DHE-RSA-CHACHA20-POLY1305 DHE-RSA-AES256-GCM-SHA384 ECDHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-GCM-SHA384
-exec $mysql                  --ssl-cipher=TLSv1.2;
+exec $mysql --tls-version=TLSv1.2 --ssl-cipher=TLSv1.2;
 echo TLS1.2 ciphers: user requires SSLv3 cipher AES128-SHA;
-exec $mysql --user ssl_sslv3 --ssl-cipher=AES128-SHA256;
-exec $mysql --user ssl_sslv3 --ssl-cipher=TLSv1.2;
+exec $mysql --user ssl_sslv3 --tls-version=TLSv1.2 --ssl-cipher=AES128-SHA256;
+exec $mysql --user ssl_sslv3 --tls-version=TLSv1.2 --ssl-cipher=TLSv1.2;
 echo TLS1.2 ciphers: user requires TLSv1.2 cipher AES128-SHA256;
-exec $mysql --user ssl_tls12 --ssl-cipher=AES128-SHA256;
-exec $mysql --user ssl_tls12 --ssl-cipher=TLSv1.2;
+exec $mysql --user ssl_tls12 --tls-version=TLSv1.2 --ssl-cipher=AES128-SHA256;
+exec $mysql --user ssl_tls12 --tls-version=TLSv1.2 --ssl-cipher=TLSv1.2;
 
 echo SSLv3 ciphers: user is ok with any cipher;
-exec $mysql                  --ssl-cipher=AES256-SHA;
-exec $mysql                  --ssl-cipher=SSLv3;
+exec $mysql --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=AES256-SHA;
+exec $mysql --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=SSLv3;
 echo SSLv3 ciphers: user requires SSLv3 cipher AES128-SHA;
-exec $mysql --user ssl_sslv3 --ssl-cipher=AES128-SHA;
-exec $mysql --user ssl_sslv3 --ssl-cipher=SSLv3;
+exec $mysql --user ssl_sslv3 --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=AES128-SHA;
+exec $mysql --user ssl_sslv3 --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=SSLv3;
 echo SSLv3 ciphers: user requires TLSv1.2 cipher AES128-SHA256;
-exec $mysql --user ssl_tls12 --ssl-cipher=AES128-SHA;
-exec $mysql --user ssl_tls12 --ssl-cipher=SSLv3;
+exec $mysql --user ssl_tls12 --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=AES128-SHA;
+exec $mysql --user ssl_tls12 --tls-version=TLSv1.0,TLSv1.1,TLSv1.2 --ssl-cipher=SSLv3;
 
 drop user ssl_sslv3@localhost;
 drop user ssl_tls12@localhost;

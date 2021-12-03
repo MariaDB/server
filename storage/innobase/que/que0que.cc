@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -349,7 +349,6 @@ que_fork_start_command(
 
 		case QUE_THR_RUNNING:
 		case QUE_THR_LOCK_WAIT:
-		case QUE_THR_PROCEDURE_WAIT:
 			ut_error;
 		}
 	}
@@ -459,6 +458,8 @@ que_graph_free_recursive(
 
 		que_graph_free_recursive(ins->select);
 		ins->select = NULL;
+
+		ins->~ins_node_t();
 
 		if (ins->entry_sys_heap != NULL) {
 			mem_heap_free(ins->entry_sys_heap);
@@ -683,11 +684,6 @@ que_thr_stop(
 
 		trx->lock.wait_thr = thr;
 		thr->state = QUE_THR_LOCK_WAIT;
-
-	} else if (trx->duplicates && trx->error_state == DB_DUPLICATE_KEY
-		   && thd_rpl_stmt_based(trx->mysql_thd)) {
-
-		return(FALSE);
 
 	} else if (trx->error_state != DB_SUCCESS
 		   && trx->error_state != DB_LOCK_WAIT) {
@@ -1188,9 +1184,9 @@ que_eval_sql(
 /*=========*/
 	pars_info_t*	info,	/*!< in: info struct, or NULL */
 	const char*	sql,	/*!< in: SQL string */
-	ibool		reserve_dict_mutex,
-				/*!< in: if TRUE, acquire/release
-				dict_sys->mutex around call to pars_sql. */
+	bool		reserve_dict_mutex,
+				/*!< in: whether to acquire/release
+				dict_sys.mutex around call to pars_sql. */
 	trx_t*		trx)	/*!< in: trx */
 {
 	que_thr_t*	thr;
@@ -1202,13 +1198,13 @@ que_eval_sql(
 	ut_a(trx->error_state == DB_SUCCESS);
 
 	if (reserve_dict_mutex) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
 	graph = pars_sql(info, sql);
 
 	if (reserve_dict_mutex) {
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 
 	graph->trx = trx;
@@ -1221,16 +1217,14 @@ que_eval_sql(
 	que_run_threads(thr);
 
 	if (reserve_dict_mutex) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
 	que_graph_free(graph);
 
 	if (reserve_dict_mutex) {
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
-
-	ut_a(trx->error_state != 0);
 
 	DBUG_RETURN(trx->error_state);
 }

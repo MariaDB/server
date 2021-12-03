@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2016 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,26 +12,36 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define SPIDER_SYS_XA_TABLE_NAME_STR "spider_xa"
-#define SPIDER_SYS_XA_TABLE_NAME_LEN (sizeof(SPIDER_SYS_XA_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_XA_TABLE_NAME_LEN 9
 #define SPIDER_SYS_XA_MEMBER_TABLE_NAME_STR "spider_xa_member"
-#define SPIDER_SYS_XA_MEMBER_TABLE_NAME_LEN (sizeof(SPIDER_SYS_XA_MEMBER_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_XA_MEMBER_TABLE_NAME_LEN 16
 #define SPIDER_SYS_TABLES_TABLE_NAME_STR "spider_tables"
-#define SPIDER_SYS_TABLES_TABLE_NAME_LEN (sizeof(SPIDER_SYS_TABLES_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_TABLES_TABLE_NAME_LEN 13
 #define SPIDER_SYS_LINK_MON_TABLE_NAME_STR "spider_link_mon_servers"
-#define SPIDER_SYS_LINK_MON_TABLE_NAME_LEN (sizeof(SPIDER_SYS_LINK_MON_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_LINK_MON_TABLE_NAME_LEN 23
 #define SPIDER_SYS_LINK_FAILED_TABLE_NAME_STR "spider_link_failed_log"
-#define SPIDER_SYS_LINK_FAILED_TABLE_NAME_LEN (sizeof(SPIDER_SYS_LINK_FAILED_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_LINK_FAILED_TABLE_NAME_LEN 22
 #define SPIDER_SYS_XA_FAILED_TABLE_NAME_STR "spider_xa_failed_log"
-#define SPIDER_SYS_XA_FAILED_TABLE_NAME_LEN (sizeof(SPIDER_SYS_XA_FAILED_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_XA_FAILED_TABLE_NAME_LEN 20
 #define SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_STR "spider_table_position_for_recovery"
-#define SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_LEN (sizeof(SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_LEN 34
 #define SPIDER_SYS_TABLE_STS_TABLE_NAME_STR "spider_table_sts"
-#define SPIDER_SYS_TABLE_STS_TABLE_NAME_LEN (sizeof(SPIDER_SYS_TABLE_STS_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_TABLE_STS_TABLE_NAME_LEN 16
 #define SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR "spider_table_crd"
-#define SPIDER_SYS_TABLE_CRD_TABLE_NAME_LEN (sizeof(SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_TABLE_CRD_TABLE_NAME_LEN 16
+#define SPIDER_SYS_RW_TBLS_TABLE_NAME_STR "spider_rewrite_tables"
+#define SPIDER_SYS_RW_TBLS_TABLE_NAME_LEN 21
+#define SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR "spider_rewrite_table_tables"
+#define SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_LEN 27
+#define SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR "spider_rewrite_table_partitions"
+#define SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_LEN 31
+#define SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR "spider_rewrite_table_subpartitions"
+#define SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_LEN 34
+#define SPIDER_SYS_RWN_TBLS_TABLE_NAME_STR "spider_rewritten_tables"
+#define SPIDER_SYS_RWN_TBLS_TABLE_NAME_LEN 23
 
 #define SPIDER_SYS_XA_PREPARED_STR "PREPARED"
 #define SPIDER_SYS_XA_NOT_YET_STR "NOT YET"
@@ -47,11 +58,18 @@
 #define SPIDER_SYS_TABLES_IDX1_COL_CNT 1
 #define SPIDER_SYS_TABLES_UIDX1_COL_CNT 3
 #define SPIDER_SYS_LINK_MON_TABLE_COL_CNT 19
+#define SPIDER_SYS_LINK_FAILED_TABLE_COL_CNT 4
+#define SPIDER_SYS_XA_FAILED_TABLE_COL_CNT 21
 #define SPIDER_SYS_POS_FOR_RECOVERY_TABLE_COL_CNT 7
-#define SPIDER_SYS_TABLE_STS_COL_CNT 10
+#define SPIDER_SYS_TABLE_STS_COL_CNT 11
 #define SPIDER_SYS_TABLE_STS_PK_COL_CNT 2
 #define SPIDER_SYS_TABLE_CRD_COL_CNT 4
 #define SPIDER_SYS_TABLE_CRD_PK_COL_CNT 3
+#define SPIDER_SYS_RW_TBLS_COL_CNT 3
+#define SPIDER_SYS_RW_TBL_TBLS_COL_CNT 8
+#define SPIDER_SYS_RW_TBL_PTTS_COL_CNT 7
+#define SPIDER_SYS_RW_TBL_SPTTS_COL_CNT 8
+#define SPIDER_SYS_RWN_TBLS_COL_CNT 4
 
 #define SPIDER_SYS_LINK_MON_TABLE_DB_NAME_SIZE 64
 #define SPIDER_SYS_LINK_MON_TABLE_TABLE_NAME_SIZE 64
@@ -173,6 +191,11 @@ int spider_sys_index_first(
   const int idx
 );
 
+int spider_sys_index_last(
+  TABLE *table,
+  const int idx
+);
+
 int spider_sys_index_next(
   TABLE *table
 );
@@ -284,14 +307,7 @@ void spider_store_binlog_pos_gtid(
 
 void spider_store_table_sts_info(
   TABLE *table,
-  ulonglong *data_file_length,
-  ulonglong *max_data_file_length,
-  ulonglong *index_file_length,
-  ha_rows *records,
-  ulong *mean_rec_length,
-  time_t *check_time,
-  time_t *create_time,
-  time_t *update_time
+  ha_statistics *stat
 );
 
 void spider_store_table_crd_info(
@@ -325,14 +341,7 @@ int spider_insert_or_update_table_sts(
   TABLE *table,
   const char *name,
   uint name_length,
-  ulonglong *data_file_length,
-  ulonglong *max_data_file_length,
-  ulonglong *index_file_length,
-  ha_rows *records,
-  ulong *mean_rec_length,
-  time_t *check_time,
-  time_t *create_time,
-  time_t *update_time
+  ha_statistics *stat
 );
 
 int spider_insert_or_update_table_crd(
@@ -384,6 +393,10 @@ int spider_update_tables_link_status(
   uint name_length,
   int link_idx,
   long link_status
+);
+
+int spider_update_sys_table(
+  TABLE *table
 );
 
 int spider_delete_xa(
@@ -484,14 +497,7 @@ int spider_get_sys_tables_static_link_id(
 
 void spider_get_sys_table_sts_info(
   TABLE *table,
-  ulonglong *data_file_length,
-  ulonglong *max_data_file_length,
-  ulonglong *index_file_length,
-  ha_rows *records,
-  ulong *mean_rec_length,
-  time_t *check_time,
-  time_t *create_time,
-  time_t *update_time
+  ha_statistics *stat
 );
 
 void spider_get_sys_table_crd_info(
@@ -555,14 +561,7 @@ int spider_sys_insert_or_update_table_sts(
   THD *thd,
   const char *name,
   uint name_length,
-  ulonglong *data_file_length,
-  ulonglong *max_data_file_length,
-  ulonglong *index_file_length,
-  ha_rows *records,
-  ulong *mean_rec_length,
-  time_t *check_time,
-  time_t *create_time,
-  time_t *update_time,
+  ha_statistics *stat,
   bool need_lock
 );
 
@@ -593,14 +592,7 @@ int spider_sys_get_table_sts(
   THD *thd,
   const char *name,
   uint name_length,
-  ulonglong *data_file_length,
-  ulonglong *max_data_file_length,
-  ulonglong *index_file_length,
-  ha_rows *records,
-  ulong *mean_rec_length,
-  time_t *check_time,
-  time_t *create_time,
-  time_t *update_time,
+  ha_statistics *stat,
   bool need_lock
 );
 
@@ -618,6 +610,15 @@ int spider_sys_replace(
   bool *modified_non_trans_table
 );
 
+#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
+TABLE *spider_mk_sys_tmp_table(
+  THD *thd,
+  TABLE *table,
+  TMP_TABLE_PARAM *tmp_tbl_prm,
+  const LEX_CSTRING *field_name,
+  CHARSET_INFO *cs
+);
+#else
 TABLE *spider_mk_sys_tmp_table(
   THD *thd,
   TABLE *table,
@@ -625,6 +626,7 @@ TABLE *spider_mk_sys_tmp_table(
   const char *field_name,
   CHARSET_INFO *cs
 );
+#endif
 
 void spider_rm_sys_tmp_table(
   THD *thd,
@@ -632,6 +634,17 @@ void spider_rm_sys_tmp_table(
   TMP_TABLE_PARAM *tmp_tbl_prm
 );
 
+#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
+TABLE *spider_mk_sys_tmp_table_for_result(
+  THD *thd,
+  TABLE *table,
+  TMP_TABLE_PARAM *tmp_tbl_prm,
+  const LEX_CSTRING *field_name1,
+  const LEX_CSTRING *field_name2,
+  const LEX_CSTRING *field_name3,
+  CHARSET_INFO *cs
+);
+#else
 TABLE *spider_mk_sys_tmp_table_for_result(
   THD *thd,
   TABLE *table,
@@ -641,9 +654,15 @@ TABLE *spider_mk_sys_tmp_table_for_result(
   const char *field_name3,
   CHARSET_INFO *cs
 );
+#endif
 
 void spider_rm_sys_tmp_table_for_result(
   THD *thd,
   TABLE *tmp_table,
   TMP_TABLE_PARAM *tmp_tbl_prm
+);
+
+TABLE *spider_find_temporary_table(
+  THD *thd,
+  TABLE_LIST *table_list
 );

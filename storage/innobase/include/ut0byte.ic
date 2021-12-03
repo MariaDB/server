@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -77,7 +77,7 @@ ut_uint64_align_up(
 /*********************************************************//**
 The following function rounds up a pointer to the nearest aligned address.
 @return aligned pointer */
-UNIV_INLINE
+UNIV_INLINE ATTRIBUTE_ACCESS((none,1))
 void*
 ut_align(
 /*=====*/
@@ -97,7 +97,7 @@ ut_align(
 The following function rounds down a pointer to the nearest
 aligned address.
 @return aligned pointer */
-UNIV_INLINE
+UNIV_INLINE ATTRIBUTE_ACCESS((none,1))
 void*
 ut_align_down(
 /*==========*/
@@ -117,7 +117,7 @@ ut_align_down(
 The following function computes the offset of a pointer from the nearest
 aligned address.
 @return distance from aligned pointer */
-UNIV_INLINE
+UNIV_INLINE ATTRIBUTE_ACCESS((none,1))
 ulint
 ut_align_offset(
 /*============*/

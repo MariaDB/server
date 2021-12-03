@@ -13,6 +13,11 @@ not very secret challenge
 select user(), current_user(), database();
 EOF
 
+--write_file $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+9212
+select user(), current_user(), database();
+EOF
+
 --echo #
 --echo # athentication is successful, challenge/pin are ok
 --echo # note that current_user() differs from user()
@@ -25,7 +30,20 @@ EOF
 --error 1
 --exec $MYSQL_TEST -u test_pam --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_bad.txt
 
+--echo #
+--echo # athentication is successful
+--echo #
+--error 0
+--exec $MYSQL_TEST -u test_pam -pgoodpassword --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+
+--echo #
+--echo # athentication is unsuccessful
+--echo #
+--error 1
+--exec $MYSQL_TEST -u test_pam -pbadpassword --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_good.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/pam_good2.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_bad.txt
 drop user test_pam;
 drop user pam_test;

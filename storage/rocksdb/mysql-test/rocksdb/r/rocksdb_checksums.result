@@ -110,7 +110,7 @@ set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
 explain 
 select a from t3 force index(a) where a<4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	index	a	a	5	NULL	#	Using where; Using index
+1	SIMPLE	t3	range	a	a	5	NULL	#	Using where; Using index
 select a from t3 force index(a) where a<4;
 a
 1
@@ -125,4 +125,5 @@ set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
 set @@global.rocksdb_store_row_debug_checksums=@save_rocksdb_store_row_debug_checksums;
 set @@global.rocksdb_verify_row_debug_checksums=@save_rocksdb_verify_row_debug_checksums;
 set @@global.rocksdb_checksums_pct=@save_rocksdb_checksums_pct;
+# restart
 drop table t2,t3,t4;

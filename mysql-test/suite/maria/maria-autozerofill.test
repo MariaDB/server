@@ -39,11 +39,11 @@ flush tables;
 
 # Check that table is not zerofilled, not movable
 let $MYSQLD_DATADIR= `select @@datadir`;
---exec $MARIA_CHK -dv --ignore-control-file $MYSQLD_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv --ignore-control-file $MYSQLD_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt
 perl;
     use strict;
     use warnings;
-    my $fname= "$ENV{'MYSQLTEST_VARDIR'}/tmp/ariachk.txt";
+    my $fname= "$ENV{'MYSQLTEST_VARDIR'}/tmp/autozerofill.txt";
     open(FILE, "<", $fname) or die;
     my @content= <FILE>;
     print grep(/Status:.*(zerofilled|movable)/, @content);
@@ -64,11 +64,11 @@ enable_ps_protocol;
 flush table t1;
 
 # Check that table is auto-zerofilled, movable
---exec $MARIA_CHK -dv --ignore-control-file $MYSQLD_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv --ignore-control-file $MYSQLD_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt
 perl;
     use strict;
     use warnings;
-    my $fname= "$ENV{'MYSQLTEST_VARDIR'}/tmp/ariachk.txt";
+    my $fname= "$ENV{'MYSQLTEST_VARDIR'}/tmp/autozerofill.txt";
     open(FILE, "<", $fname) or die;
     my @content= <FILE>;
     print grep(/Status:.*zerofilled/, @content);
@@ -81,11 +81,11 @@ insert into t1 values(2);
 flush table t1;
 
 # Check that table is not zerofilled, not movable
---exec $MARIA_CHK -dv --ignore-control-file $MYSQLD_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK -dv --ignore-control-file $MYSQLD_DATADIR/mysqltest/t1 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt
 perl;
     use strict;
     use warnings;
-    my $fname= "$ENV{'MYSQLTEST_VARDIR'}/tmp/ariachk.txt";
+    my $fname= "$ENV{'MYSQLTEST_VARDIR'}/tmp/autozerofill.txt";
     open(FILE, "<", $fname) or die;
     my @content= <FILE>;
     print grep(/Status:.*(zerofilled|movable)/, @content);
@@ -115,7 +115,7 @@ check table t5;
 
 # Check that if we zerofill with aria_chk, we should not get any warnings when
 # accessing the table
---exec $MARIA_CHK --zerofill $MYSQLD_DATADIR/mysqltest/t6 >$MYSQLTEST_VARDIR/tmp/ariachk.txt
+--exec $MARIA_CHK --ignore-control-file --zerofill $MYSQLD_DATADIR/mysqltest/t6 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt 2>&1
 select * from t6;
 check table t6;
 

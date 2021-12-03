@@ -889,4 +889,74 @@ DROP TABLE t2;
 DROP TABLE t3;
 DROP TABLE t4;
 
+--echo #
+--echo # InnoDB: Failing assertion: result != FTS_INVALID in
+--echo #        fts_trx_row_get_new_state
+--echo #
+SET FOREIGN_KEY_CHECKS=1;
+CREATE TABLE t1 (pk INT PRIMARY KEY,
+                 f1 VARCHAR(10), f2 VARCHAR(10),
+                 f3 VARCHAR(10), f4 VARCHAR(10),
+                 f5 VARCHAR(10), f6 VARCHAR(10),
+		 f7 VARCHAR(10), f8 VARCHAR(10),
+		 FULLTEXT(f1), FULLTEXT(f2), FULLTEXT(f3), FULLTEXT(f4),
+		 FULLTEXT(f5), FULLTEXT(f6), FULLTEXT(f7), FULLTEXT(f8),
+                 INDEX(f1), INDEX(f2), INDEX(f3), INDEX(f4),
+		 INDEX(f5), INDEX(f6), INDEX(f7), INDEX(f8)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'mariadb', 'mariadb', 'mariadb', 'mariadb',
+                       'mariadb', 'mariadb', 'mariadb', 'mariadb'),
+                      (2, 'mariadb', 'mariadb', 'mariadb', 'mariadb',
+                       'mariadb', 'mariadb', 'mariadb', 'mariadb'),
+		      (3, 'innodb', 'innodb', 'innodb', 'innodb',
+		       'innodb', 'innodb', 'innodb', 'innodb');
+ALTER TABLE t1 ADD FOREIGN KEY (f1) REFERENCES t1 (f2) ON DELETE SET NULL;
+START TRANSACTION;
+DELETE FROM t1 where f1='mariadb';
+SELECT * FROM t1;
+ROLLBACK;
+
+ALTER TABLE t1 ADD FOREIGN KEY (f3) REFERENCES t1 (f4) ON DELETE CASCADE;
+
+START TRANSACTION;
+DELETE FROM t1 where f3='mariadb';
+SELECT * FROM t1;
+ROLLBACK;
+
+ALTER TABLE t1 ADD FOREIGN KEY (f5) REFERENCES t1 (f6) ON UPDATE SET NULL;
+--error ER_ROW_IS_REFERENCED_2
+UPDATE t1 SET f6='update';
+
+ALTER TABLE t1 ADD FOREIGN KEY (f7) REFERENCES t1 (f8) ON UPDATE CASCADE;
+--error ER_ROW_IS_REFERENCED_2
+UPDATE t1 SET f6='cascade';
+DROP TABLE t1;
+
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
+
+--echo #
+--echo # MDEV-25536 sym_node->table != NULL in pars_retrieve_table_def
+--echo #
+CREATE TABLE t1 (f1 TEXT,FULLTEXT (f1)) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SET GLOBAL innodb_ft_aux_table='test/t1';
+SELECT * FROM information_schema.innodb_ft_deleted;
+DROP TABLE t1;
+SET GLOBAL innodb_ft_aux_table=DEFAULT;
+
+--echo #
+--echo # MDEV-19522 InnoDB commit fails when FTS_DOC_ID value
+--echo #                is greater than 4294967295
+--echo #
+CREATE TABLE t1(
+        FTS_DOC_ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        f1 TEXT, f2 TEXT, PRIMARY KEY (FTS_DOC_ID),
+        FULLTEXT KEY (f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'txt','bbb');
+UPDATE t1 SET FTS_DOC_ID = 4294967298;
+SELECT * FROM t1 WHERE match(f1) against("txt");
+SET @@session.insert_id = 100000000000;
+INSERT INTO t1(f1, f2) VALUES ('aaa', 'bbb');
+CREATE FULLTEXT INDEX i ON t1 (f2);
+SELECT * FROM t1 WHERE match(f2) against("bbb");
+# Cleanup
+DROP TABLE t1;

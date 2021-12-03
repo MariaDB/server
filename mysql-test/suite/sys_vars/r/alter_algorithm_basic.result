@@ -1,0 +1,89 @@
+SET @start_global_value = @@global.alter_algorithm;
+SET GLOBAL alter_algorithm=1.1;
+ERROR 42000: Incorrect argument type to variable 'alter_algorithm'
+SET GLOBAL alter_algorithm=-1;
+ERROR 42000: Variable 'alter_algorithm' can't be set to the value of '-1'
+SET GLOBAL alter_algorithm=weird;
+ERROR 42000: Variable 'alter_algorithm' can't be set to the value of 'weird'
+SET GLOBAL alter_algorithm=4;
+SELECT @@global.alter_algorithm;
+@@global.alter_algorithm
+INSTANT
+SET GLOBAL alter_algorithm=3;
+SELECT @@global.alter_algorithm;
+@@global.alter_algorithm
+NOCOPY
+SET GLOBAL alter_algorithm=0;
+SELECT @@global.alter_algorithm;
+@@global.alter_algorithm
+DEFAULT
+SET GLOBAL alter_algorithm=1;
+SELECT @@global.alter_algorithm;
+@@global.alter_algorithm
+COPY
+SET GLOBAL alter_algorithm=2;
+SELECT @@global.alter_algorithm;
+@@global.alter_algorithm
+INPLACE
+SET GLOBAL alter_algorithm=5;
+ERROR 42000: Variable 'alter_algorithm' can't be set to the value of '5'
+SELECT @@global.alter_algorithm;
+@@global.alter_algorithm
+INPLACE
+SET GLOBAL alter_algorithm=NOCOPY;
+SET alter_algorithm=1.1;
+ERROR 42000: Incorrect argument type to variable 'alter_algorithm'
+SET alter_algorithm=-1;
+ERROR 42000: Variable 'alter_algorithm' can't be set to the value of '-1'
+SET alter_algorithm=weird;
+ERROR 42000: Variable 'alter_algorithm' can't be set to the value of 'weird'
+SET alter_algorithm=4;
+SELECT @@alter_algorithm;
+@@alter_algorithm
+INSTANT
+SET alter_algorithm=3;
+SELECT @@alter_algorithm;
+@@alter_algorithm
+NOCOPY
+SET alter_algorithm=0;
+SELECT @@alter_algorithm;
+@@alter_algorithm
+DEFAULT
+SET alter_algorithm=1;
+SELECT @@alter_algorithm;
+@@alter_algorithm
+COPY
+SET alter_algorithm=2;
+SELECT @@alter_algorithm;
+@@alter_algorithm
+INPLACE
+SET alter_algorithm=5;
+ERROR 42000: Variable 'alter_algorithm' can't be set to the value of '5'
+SELECT @@alter_algorithm;
+@@alter_algorithm
+INPLACE
+SET SESSION alter_algorithm=INSTANT;
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+Variable_name	Value
+alter_algorithm	INSTANT
+SET SESSION alter_algorithm=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+Variable_name	Value
+alter_algorithm	NOCOPY
+SET SESSION alter_algorithm='DEFAULT';
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+Variable_name	Value
+alter_algorithm	DEFAULT
+SET SESSION alter_algorithm=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+Variable_name	Value
+alter_algorithm	NOCOPY
+SET GLOBAL alter_algorithm=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+Variable_name	Value
+alter_algorithm	NOCOPY
+SET SESSION alter_algorithm=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'alter_algorithm';
+Variable_name	Value
+alter_algorithm	DEFAULT
+SET GLOBAL alter_algorithm = @start_global_value;

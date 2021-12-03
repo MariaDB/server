@@ -1,3 +1,4 @@
+set @@global.character_set_server=@@session.character_set_server;
 connect  con1root,localhost,root,,;
 connection con1root;
 use test;
@@ -194,14 +195,14 @@ grant insert on t1 to usera@localhost;
 grant execute on procedure sptest.p1 to usera@localhost;
 show grants for usera@localhost;
 Grants for usera@localhost
-GRANT USAGE ON *.* TO 'usera'@'localhost'
-GRANT INSERT ON `test`.`t1` TO 'usera'@'localhost'
-GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO 'usera'@'localhost'
+GRANT USAGE ON *.* TO `usera`@`localhost`
+GRANT INSERT ON `test`.`t1` TO `usera`@`localhost`
+GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO `usera`@`localhost`
 grant execute on procedure sptest.p1 to userc@localhost with grant option;
 show grants for userc@localhost;
 Grants for userc@localhost
-GRANT USAGE ON *.* TO 'userc'@'localhost'
-GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO 'userc'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `userc`@`localhost`
+GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO `userc`@`localhost` WITH GRANT OPTION
 connect  con2usera,localhost,usera,,;
 connect  con3userb,localhost,userb,,;
 connect  con4userc,localhost,userc,,;
@@ -238,18 +239,18 @@ userb@localhost	4
 grant all privileges on procedure sptest.p1 to userc@localhost;
 show grants for userc@localhost;
 Grants for userc@localhost
-GRANT USAGE ON *.* TO 'userc'@'localhost'
-GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `sptest`.`p1` TO 'userc'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `userc`@`localhost`
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `sptest`.`p1` TO `userc`@`localhost` WITH GRANT OPTION
 show grants for userb@localhost;
 Grants for userb@localhost
-GRANT USAGE ON *.* TO 'userb'@'localhost'
-GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO 'userb'@'localhost'
+GRANT USAGE ON *.* TO `userb`@`localhost`
+GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO `userb`@`localhost`
 connection con4userc;
 revoke all privileges on procedure sptest.p1 from userb@localhost;
 connection con1root;
 show grants for userb@localhost;
 Grants for userb@localhost
-GRANT USAGE ON *.* TO 'userb'@'localhost'
+GRANT USAGE ON *.* TO `userb`@`localhost`
 disconnect con4userc;
 disconnect con3userb;
 disconnect con2usera;
@@ -507,7 +508,7 @@ GRANT USAGE ON *.* TO user19857@localhost IDENTIFIED BY 'meow';
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE ROUTINE, ALTER ROUTINE ON test.* TO
 user19857@localhost;
 SELECT Host,User,Plugin,Authentication_string FROM mysql.user WHERE User='user19857';
-Host	User	Plugin	Authentication_string
+Host	User	plugin	authentication_string
 localhost	user19857	mysql_native_password	*82DC221D557298F6CE9961037DB1C90604792F5C
 connect  mysqltest_2_con,localhost,user19857,meow,test;
 connection mysqltest_2_con;
@@ -534,7 +535,7 @@ DROP PROCEDURE IF EXISTS test.sp19857;
 connection con1root;
 disconnect mysqltest_2_con;
 SELECT Host,User,Plugin,Authentication_string FROM mysql.user WHERE User='user19857';
-Host	User	Plugin	Authentication_string
+Host	User	plugin	authentication_string
 localhost	user19857	mysql_native_password	*82DC221D557298F6CE9961037DB1C90604792F5C
 DROP USER user19857@localhost;
 disconnect con1root;
@@ -720,14 +721,14 @@ user()	current_user()
 foo@localhost	foo@local_ost
 show grants;
 Grants for foo@local_ost
-GRANT USAGE ON *.* TO 'foo'@'local_ost'
-GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'local_ost'
+GRANT USAGE ON *.* TO `foo`@`local_ost`
+GRANT CREATE ROUTINE ON `foodb`.* TO `foo`@`local_ost`
 create procedure fooproc() select 'i am fooproc';
 show grants;
 Grants for foo@local_ost
-GRANT USAGE ON *.* TO 'foo'@'local_ost'
-GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'local_ost'
-GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO 'foo'@'local_ost'
+GRANT USAGE ON *.* TO `foo`@`local_ost`
+GRANT CREATE ROUTINE ON `foodb`.* TO `foo`@`local_ost`
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO `foo`@`local_ost`
 disconnect con1;
 connection default;
 drop user foo@local_ost;
@@ -765,21 +766,23 @@ connection default;
 disconnect conn1;
 drop user bug12602983_user@localhost;
 drop database mysqltest_db;
+create user u1@localhost;
+grant all privileges on *.* to u1@localhost with grant option;
+connect u1, localhost, u1;
 set password=password('foobar');
 create procedure sp1() select 1;
 show grants;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY PASSWORD '*9B500343BC52E2911172EB52AE5CF4847604C6E5' WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+Grants for u1@localhost
+GRANT ALL PRIVILEGES ON *.* TO `u1`@`localhost` IDENTIFIED BY PASSWORD '*9B500343BC52E2911172EB52AE5CF4847604C6E5' WITH GRANT OPTION
 grant execute on procedure sp1 to current_user() identified by 'barfoo';
 show grants;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY PASSWORD '*343915A8181B5728EADBDC73E1F7E6B0C3998483' WITH GRANT OPTION
-GRANT EXECUTE ON PROCEDURE `test`.`sp1` TO 'root'@'localhost'
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+Grants for u1@localhost
+GRANT ALL PRIVILEGES ON *.* TO `u1`@`localhost` IDENTIFIED BY PASSWORD '*343915A8181B5728EADBDC73E1F7E6B0C3998483' WITH GRANT OPTION
+GRANT EXECUTE ON PROCEDURE `test`.`sp1` TO `u1`@`localhost`
 drop procedure sp1;
-set password='';
-update mysql.user set plugin='';
+disconnect u1;
+connection default;
+drop user u1@localhost;
 #
 # MDEV-13396 Unexpected "alter routine comand defined" during CREATE OR REPLACE PROCEDURE
 #
@@ -798,3 +801,4 @@ disconnect u1;
 connection default;
 DROP DATABASE u1;
 DROP USER u1@localhost;
+set @@global.character_set_server=@save_character_set_server;

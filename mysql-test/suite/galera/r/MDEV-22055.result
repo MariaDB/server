@@ -1,0 +1,18 @@
+connection node_2;
+connection node_1;
+ROLLBACK AND CHAIN;
+CREATE TABLE t1(a int not null primary key) engine=innodb;
+INSERT INTO t1 values (1);
+BEGIN;
+INSERT INTO t1 values (2);
+ROLLBACK AND CHAIN;
+SELECT * FROM t1;
+a
+1
+connection node_2;
+SET SESSION wsrep_sync_wait=15;
+SELECT * FROM t1;
+a
+1
+connection node_1;
+DROP TABLE t1;

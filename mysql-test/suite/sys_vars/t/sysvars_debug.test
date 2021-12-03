@@ -4,5 +4,4 @@
 --vertical_results
 select * from information_schema.system_variables
   where variable_name like 'debug%'
-     or variable_name = 'in_predicate_conversion_threshold'
   order by variable_name;

@@ -1,0 +1,945 @@
+connect conn1,localhost,root,,test;
+reset master;
+create database test_rotate_db;
+use test_rotate_db;
+#currrent engine=myisam
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+CREATE TABLE t1_myisam (c1 INT) ENGINE=myisam;
+insert into t1_myisam values(0),(1);
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+flush logs;
+flush logs;
+flush logs;
+# left times= 99
+flush logs;
+flush logs;
+flush logs;
+# left times= 98
+flush logs;
+flush logs;
+flush logs;
+# left times= 97
+flush logs;
+flush logs;
+flush logs;
+# left times= 96
+flush logs;
+flush logs;
+flush logs;
+# left times= 95
+flush logs;
+flush logs;
+flush logs;
+# left times= 94
+flush logs;
+flush logs;
+flush logs;
+# left times= 93
+flush logs;
+flush logs;
+flush logs;
+# left times= 92
+flush logs;
+flush logs;
+flush logs;
+# left times= 91
+flush logs;
+flush logs;
+flush logs;
+# left times= 90
+flush logs;
+flush logs;
+flush logs;
+# left times= 89
+flush logs;
+flush logs;
+flush logs;
+# left times= 88
+flush logs;
+flush logs;
+flush logs;
+# left times= 87
+flush logs;
+flush logs;
+flush logs;
+# left times= 86
+flush logs;
+flush logs;
+flush logs;
+# left times= 85
+flush logs;
+flush logs;
+flush logs;
+# left times= 84
+flush logs;
+flush logs;
+flush logs;
+# left times= 83
+flush logs;
+flush logs;
+flush logs;
+# left times= 82
+flush logs;
+flush logs;
+flush logs;
+# left times= 81
+flush logs;
+flush logs;
+flush logs;
+# left times= 80
+flush logs;
+flush logs;
+flush logs;
+# left times= 79
+flush logs;
+flush logs;
+flush logs;
+# left times= 78
+flush logs;
+flush logs;
+flush logs;
+# left times= 77
+flush logs;
+flush logs;
+flush logs;
+# left times= 76
+flush logs;
+flush logs;
+flush logs;
+# left times= 75
+flush logs;
+flush logs;
+flush logs;
+# left times= 74
+flush logs;
+flush logs;
+flush logs;
+# left times= 73
+flush logs;
+flush logs;
+flush logs;
+# left times= 72
+flush logs;
+flush logs;
+flush logs;
+# left times= 71
+flush logs;
+flush logs;
+flush logs;
+# left times= 70
+flush logs;
+flush logs;
+flush logs;
+# left times= 69
+flush logs;
+flush logs;
+flush logs;
+# left times= 68
+flush logs;
+flush logs;
+flush logs;
+# left times= 67
+flush logs;
+flush logs;
+flush logs;
+# left times= 66
+flush logs;
+flush logs;
+flush logs;
+# left times= 65
+flush logs;
+flush logs;
+flush logs;
+# left times= 64
+flush logs;
+flush logs;
+flush logs;
+# left times= 63
+flush logs;
+flush logs;
+flush logs;
+# left times= 62
+flush logs;
+flush logs;
+flush logs;
+# left times= 61
+flush logs;
+flush logs;
+flush logs;
+# left times= 60
+flush logs;
+flush logs;
+flush logs;
+# left times= 59
+flush logs;
+flush logs;
+flush logs;
+# left times= 58
+flush logs;
+flush logs;
+flush logs;
+# left times= 57
+flush logs;
+flush logs;
+flush logs;
+# left times= 56
+flush logs;
+flush logs;
+flush logs;
+# left times= 55
+flush logs;
+flush logs;
+flush logs;
+# left times= 54
+flush logs;
+flush logs;
+flush logs;
+# left times= 53
+flush logs;
+flush logs;
+flush logs;
+# left times= 52
+flush logs;
+flush logs;
+flush logs;
+# left times= 51
+flush logs;
+flush logs;
+flush logs;
+# left times= 50
+flush logs;
+flush logs;
+flush logs;
+# left times= 49
+flush logs;
+flush logs;
+flush logs;
+# left times= 48
+flush logs;
+flush logs;
+flush logs;
+# left times= 47
+flush logs;
+flush logs;
+flush logs;
+# left times= 46
+flush logs;
+flush logs;
+flush logs;
+# left times= 45
+flush logs;
+flush logs;
+flush logs;
+# left times= 44
+flush logs;
+flush logs;
+flush logs;
+# left times= 43
+flush logs;
+flush logs;
+flush logs;
+# left times= 42
+flush logs;
+flush logs;
+flush logs;
+# left times= 41
+flush logs;
+flush logs;
+flush logs;
+# left times= 40
+flush logs;
+flush logs;
+flush logs;
+# left times= 39
+flush logs;
+flush logs;
+flush logs;
+# left times= 38
+flush logs;
+flush logs;
+flush logs;
+# left times= 37
+flush logs;
+flush logs;
+flush logs;
+# left times= 36
+flush logs;
+flush logs;
+flush logs;
+# left times= 35
+flush logs;
+flush logs;
+flush logs;
+# left times= 34
+flush logs;
+flush logs;
+flush logs;
+# left times= 33
+flush logs;
+flush logs;
+flush logs;
+# left times= 32
+flush logs;
+flush logs;
+flush logs;
+# left times= 31
+flush logs;
+flush logs;
+flush logs;
+# left times= 30
+flush logs;
+flush logs;
+flush logs;
+# left times= 29
+flush logs;
+flush logs;
+flush logs;
+# left times= 28
+flush logs;
+flush logs;
+flush logs;
+# left times= 27
+flush logs;
+flush logs;
+flush logs;
+# left times= 26
+flush logs;
+flush logs;
+flush logs;
+# left times= 25
+flush logs;
+flush logs;
+flush logs;
+# left times= 24
+flush logs;
+flush logs;
+flush logs;
+# left times= 23
+flush logs;
+flush logs;
+flush logs;
+# left times= 22
+flush logs;
+flush logs;
+flush logs;
+# left times= 21
+flush logs;
+flush logs;
+flush logs;
+# left times= 20
+flush logs;
+flush logs;
+flush logs;
+# left times= 19
+flush logs;
+flush logs;
+flush logs;
+# left times= 18
+flush logs;
+flush logs;
+flush logs;
+# left times= 17
+flush logs;
+flush logs;
+flush logs;
+# left times= 16
+flush logs;
+flush logs;
+flush logs;
+# left times= 15
+flush logs;
+flush logs;
+flush logs;
+# left times= 14
+flush logs;
+flush logs;
+flush logs;
+# left times= 13
+flush logs;
+flush logs;
+flush logs;
+# left times= 12
+flush logs;
+flush logs;
+flush logs;
+# left times= 11
+flush logs;
+flush logs;
+flush logs;
+# left times= 10
+flush logs;
+flush logs;
+flush logs;
+# left times= 9
+flush logs;
+flush logs;
+flush logs;
+# left times= 8
+flush logs;
+flush logs;
+flush logs;
+# left times= 7
+flush logs;
+flush logs;
+flush logs;
+# left times= 6
+flush logs;
+flush logs;
+flush logs;
+# left times= 5
+flush logs;
+flush logs;
+flush logs;
+# left times= 4
+flush logs;
+flush logs;
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000291	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+master-bin.000005	#
+master-bin.000006	#
+master-bin.000007	#
+master-bin.000008	#
+master-bin.000009	#
+master-bin.000010	#
+master-bin.000011	#
+master-bin.000012	#
+master-bin.000013	#
+master-bin.000014	#
+master-bin.000015	#
+master-bin.000016	#
+master-bin.000017	#
+master-bin.000018	#
+master-bin.000019	#
+master-bin.000020	#
+master-bin.000021	#
+master-bin.000022	#
+master-bin.000023	#
+master-bin.000024	#
+master-bin.000025	#
+master-bin.000026	#
+master-bin.000027	#
+master-bin.000028	#
+master-bin.000029	#
+master-bin.000030	#
+master-bin.000031	#
+master-bin.000032	#
+master-bin.000033	#
+master-bin.000034	#
+master-bin.000035	#
+master-bin.000036	#
+master-bin.000037	#
+master-bin.000038	#
+master-bin.000039	#
+master-bin.000040	#
+master-bin.000041	#
+master-bin.000042	#
+master-bin.000043	#
+master-bin.000044	#
+master-bin.000045	#
+master-bin.000046	#
+master-bin.000047	#
+master-bin.000048	#
+master-bin.000049	#
+master-bin.000050	#
+master-bin.000051	#
+master-bin.000052	#
+master-bin.000053	#
+master-bin.000054	#
+master-bin.000055	#
+master-bin.000056	#
+master-bin.000057	#
+master-bin.000058	#
+master-bin.000059	#
+master-bin.000060	#
+master-bin.000061	#
+master-bin.000062	#
+master-bin.000063	#
+master-bin.000064	#
+master-bin.000065	#
+master-bin.000066	#
+master-bin.000067	#
+master-bin.000068	#
+master-bin.000069	#
+master-bin.000070	#
+master-bin.000071	#
+master-bin.000072	#
+master-bin.000073	#
+master-bin.000074	#
+master-bin.000075	#
+master-bin.000076	#
+master-bin.000077	#
+master-bin.000078	#
+master-bin.000079	#
+master-bin.000080	#
+master-bin.000081	#
+master-bin.000082	#
+master-bin.000083	#
+master-bin.000084	#
+master-bin.000085	#
+master-bin.000086	#
+master-bin.000087	#
+master-bin.000088	#
+master-bin.000089	#
+master-bin.000090	#
+master-bin.000091	#
+master-bin.000092	#
+master-bin.000093	#
+master-bin.000094	#
+master-bin.000095	#
+master-bin.000096	#
+master-bin.000097	#
+master-bin.000098	#
+master-bin.000099	#
+master-bin.000100	#
+master-bin.000101	#
+master-bin.000102	#
+master-bin.000103	#
+master-bin.000104	#
+master-bin.000105	#
+master-bin.000106	#
+master-bin.000107	#
+master-bin.000108	#
+master-bin.000109	#
+master-bin.000110	#
+master-bin.000111	#
+master-bin.000112	#
+master-bin.000113	#
+master-bin.000114	#
+master-bin.000115	#
+master-bin.000116	#
+master-bin.000117	#
+master-bin.000118	#
+master-bin.000119	#
+master-bin.000120	#
+master-bin.000121	#
+master-bin.000122	#
+master-bin.000123	#
+master-bin.000124	#
+master-bin.000125	#
+master-bin.000126	#
+master-bin.000127	#
+master-bin.000128	#
+master-bin.000129	#
+master-bin.000130	#
+master-bin.000131	#
+master-bin.000132	#
+master-bin.000133	#
+master-bin.000134	#
+master-bin.000135	#
+master-bin.000136	#
+master-bin.000137	#
+master-bin.000138	#
+master-bin.000139	#
+master-bin.000140	#
+master-bin.000141	#
+master-bin.000142	#
+master-bin.000143	#
+master-bin.000144	#
+master-bin.000145	#
+master-bin.000146	#
+master-bin.000147	#
+master-bin.000148	#
+master-bin.000149	#
+master-bin.000150	#
+master-bin.000151	#
+master-bin.000152	#
+master-bin.000153	#
+master-bin.000154	#
+master-bin.000155	#
+master-bin.000156	#
+master-bin.000157	#
+master-bin.000158	#
+master-bin.000159	#
+master-bin.000160	#
+master-bin.000161	#
+master-bin.000162	#
+master-bin.000163	#
+master-bin.000164	#
+master-bin.000165	#
+master-bin.000166	#
+master-bin.000167	#
+master-bin.000168	#
+master-bin.000169	#
+master-bin.000170	#
+master-bin.000171	#
+master-bin.000172	#
+master-bin.000173	#
+master-bin.000174	#
+master-bin.000175	#
+master-bin.000176	#
+master-bin.000177	#
+master-bin.000178	#
+master-bin.000179	#
+master-bin.000180	#
+master-bin.000181	#
+master-bin.000182	#
+master-bin.000183	#
+master-bin.000184	#
+master-bin.000185	#
+master-bin.000186	#
+master-bin.000187	#
+master-bin.000188	#
+master-bin.000189	#
+master-bin.000190	#
+master-bin.000191	#
+master-bin.000192	#
+master-bin.000193	#
+master-bin.000194	#
+master-bin.000195	#
+master-bin.000196	#
+master-bin.000197	#
+master-bin.000198	#
+master-bin.000199	#
+master-bin.000200	#
+master-bin.000201	#
+master-bin.000202	#
+master-bin.000203	#
+master-bin.000204	#
+master-bin.000205	#
+master-bin.000206	#
+master-bin.000207	#
+master-bin.000208	#
+master-bin.000209	#
+master-bin.000210	#
+master-bin.000211	#
+master-bin.000212	#
+master-bin.000213	#
+master-bin.000214	#
+master-bin.000215	#
+master-bin.000216	#
+master-bin.000217	#
+master-bin.000218	#
+master-bin.000219	#
+master-bin.000220	#
+master-bin.000221	#
+master-bin.000222	#
+master-bin.000223	#
+master-bin.000224	#
+master-bin.000225	#
+master-bin.000226	#
+master-bin.000227	#
+master-bin.000228	#
+master-bin.000229	#
+master-bin.000230	#
+master-bin.000231	#
+master-bin.000232	#
+master-bin.000233	#
+master-bin.000234	#
+master-bin.000235	#
+master-bin.000236	#
+master-bin.000237	#
+master-bin.000238	#
+master-bin.000239	#
+master-bin.000240	#
+master-bin.000241	#
+master-bin.000242	#
+master-bin.000243	#
+master-bin.000244	#
+master-bin.000245	#
+master-bin.000246	#
+master-bin.000247	#
+master-bin.000248	#
+master-bin.000249	#
+master-bin.000250	#
+master-bin.000251	#
+master-bin.000252	#
+master-bin.000253	#
+master-bin.000254	#
+master-bin.000255	#
+master-bin.000256	#
+master-bin.000257	#
+master-bin.000258	#
+master-bin.000259	#
+master-bin.000260	#
+master-bin.000261	#
+master-bin.000262	#
+master-bin.000263	#
+master-bin.000264	#
+master-bin.000265	#
+master-bin.000266	#
+master-bin.000267	#
+master-bin.000268	#
+master-bin.000269	#
+master-bin.000270	#
+master-bin.000271	#
+master-bin.000272	#
+master-bin.000273	#
+master-bin.000274	#
+master-bin.000275	#
+master-bin.000276	#
+master-bin.000277	#
+master-bin.000278	#
+master-bin.000279	#
+master-bin.000280	#
+master-bin.000281	#
+master-bin.000282	#
+master-bin.000283	#
+master-bin.000284	#
+master-bin.000285	#
+master-bin.000286	#
+master-bin.000287	#
+master-bin.000288	#
+master-bin.000289	#
+master-bin.000290	#
+master-bin.000291	#
+reset master;
+# left times= 3
+flush logs;
+flush logs;
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000003	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+reset master;
+# left times= 2
+flush logs;
+flush logs;
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000003	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+reset master;
+# left times= 1
+flush logs;
+flush logs;
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000003	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+reset master;
+# left times= 0
+# [engine=myisam] after first loop_times=0, show master logs results
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+flush logs;
+flush logs;
+#begin to restart mysqld current loop_times=10
+# restart
+# left restart times= 9
+flush logs;
+flush logs;
+#begin to restart mysqld current loop_times=9
+# restart
+# left restart times= 8
+flush logs;
+flush logs;
+#begin to restart mysqld current loop_times=8
+# restart
+# left restart times= 7
+flush logs;
+flush logs;
+#begin to restart mysqld current loop_times=7
+# restart
+# left restart times= 6
+flush logs;
+flush logs;
+#begin to restart mysqld current loop_times=6
+# restart
+# left restart times= 5
+flush logs;
+flush logs;
+#begin to restart mysqld current loop_times=5
+# restart
+# left restart times= 4
+flush logs;
+flush logs;
+#begin to restart mysqld current loop_times=4
+# restart
+# left restart times= 3
+flush logs;
+flush logs;
+#begin to restart mysqld current loop_times=3
+# restart
+# left restart times= 2
+flush logs;
+flush logs;
+#begin to restart mysqld current loop_times=2
+# restart
+# left restart times= 1
+flush logs;
+flush logs;
+#begin to restart mysqld current loop_times=1
+# restart
+# left restart times= 0
+# [engine=myisam] after second loop_times=0, show master logs results
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+master-bin.000005	#
+master-bin.000006	#
+master-bin.000007	#
+master-bin.000008	#
+master-bin.000009	#
+master-bin.000010	#
+master-bin.000011	#
+master-bin.000012	#
+master-bin.000013	#
+master-bin.000014	#
+master-bin.000015	#
+master-bin.000016	#
+master-bin.000017	#
+master-bin.000018	#
+master-bin.000019	#
+master-bin.000020	#
+master-bin.000021	#
+master-bin.000022	#
+master-bin.000023	#
+master-bin.000024	#
+master-bin.000025	#
+master-bin.000026	#
+master-bin.000027	#
+master-bin.000028	#
+master-bin.000029	#
+master-bin.000030	#
+master-bin.000031	#
+# ======= now try to change the log-bin config for mysqld =======
+#begin to restart mysqld
+# restart: --log-bin=new_log_bin
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+master-bin.000005	#
+master-bin.000006	#
+master-bin.000007	#
+master-bin.000008	#
+master-bin.000009	#
+master-bin.000010	#
+master-bin.000011	#
+master-bin.000012	#
+master-bin.000013	#
+master-bin.000014	#
+master-bin.000015	#
+master-bin.000016	#
+master-bin.000017	#
+master-bin.000018	#
+master-bin.000019	#
+master-bin.000020	#
+master-bin.000021	#
+master-bin.000022	#
+master-bin.000023	#
+master-bin.000024	#
+master-bin.000025	#
+master-bin.000026	#
+master-bin.000027	#
+master-bin.000028	#
+master-bin.000029	#
+master-bin.000030	#
+master-bin.000031	#
+new_log_bin.000001	#
+flush logs;
+flush logs;
+flush logs;
+# left times= 9
+flush logs;
+flush logs;
+flush logs;
+# left times= 8
+flush logs;
+flush logs;
+flush logs;
+# left times= 7
+flush logs;
+flush logs;
+flush logs;
+# left times= 6
+flush logs;
+flush logs;
+flush logs;
+# left times= 5
+flush logs;
+flush logs;
+flush logs;
+# left times= 4
+flush logs;
+flush logs;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+master-bin.000005	#
+master-bin.000006	#
+master-bin.000007	#
+master-bin.000008	#
+master-bin.000009	#
+master-bin.000010	#
+master-bin.000011	#
+master-bin.000012	#
+master-bin.000013	#
+master-bin.000014	#
+master-bin.000015	#
+master-bin.000016	#
+master-bin.000017	#
+master-bin.000018	#
+master-bin.000019	#
+master-bin.000020	#
+master-bin.000021	#
+master-bin.000022	#
+master-bin.000023	#
+master-bin.000024	#
+master-bin.000025	#
+master-bin.000026	#
+master-bin.000027	#
+master-bin.000028	#
+master-bin.000029	#
+master-bin.000030	#
+master-bin.000031	#
+new_log_bin.000001	#
+new_log_bin.000002	#
+new_log_bin.000003	#
+new_log_bin.000004	#
+new_log_bin.000005	#
+new_log_bin.000006	#
+new_log_bin.000007	#
+new_log_bin.000008	#
+new_log_bin.000009	#
+new_log_bin.000010	#
+new_log_bin.000011	#
+new_log_bin.000012	#
+new_log_bin.000013	#
+new_log_bin.000014	#
+new_log_bin.000015	#
+new_log_bin.000016	#
+new_log_bin.000017	#
+new_log_bin.000018	#
+new_log_bin.000019	#
+new_log_bin.000020	#
+new_log_bin.000021	#
+reset master;
+# left times= 3
+flush logs;
+flush logs;
+reset master;
+# left times= 2
+flush logs;
+flush logs;
+reset master;
+# left times= 1
+flush logs;
+flush logs;
+reset master;
+# left times= 0
+# [engine=myisam] after third loop_times=0, show master logs results
+show binary logs;
+Log_name	File_size
+new_log_bin.000001	#
+drop database test_rotate_db;

@@ -374,8 +374,6 @@ drop table t1;
 
 --error 1071
 CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), KEY t1 (a, b, c, d, e));
---error 1071
-CREATE TABLE t1 (a varchar(32000), unique key(a));
 --error 1070
 CREATE TABLE t1 (a varchar(1), b varchar(1), key (a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b));
 CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255));
@@ -701,6 +699,10 @@ show index from t1;
 
 # Set nulls to be equal:
 set aria_stats_method=nulls_equal;
+
+set @save_use_stat_tables= @@use_stat_tables;
+set @@use_stat_tables= COMPLEMENTARY;
+
 show variables like 'aria_stats_method';
 insert into t1 values (11);
 delete from t1 where a=11;
@@ -714,6 +716,7 @@ delete from t1 where a=11;
 check table t1;
 show index from t1;
 
+set @@use_stat_tables= @save_use_stat_tables;
 # Set nulls back to be equal 
 set aria_stats_method=DEFAULT;
 show variables like 'aria_stats_method';
@@ -735,6 +738,9 @@ drop table t1;
 set aria_stats_method=nulls_ignored;
 show variables like 'aria_stats_method';
 
+set @save_use_stat_tables= @@use_stat_tables;
+set @@use_stat_tables= COMPLEMENTARY;
+
 create table t1 (
   a char(3), b char(4), c char(5), d char(6),
   key(a,b,c,d)
@@ -753,6 +759,7 @@ delete from t1;
 analyze table t1;
 show index from t1;
 
+set @@use_stat_tables= @save_use_stat_tables;
 set aria_stats_method=DEFAULT;
 
 drop table t1;
@@ -2092,3 +2099,16 @@ aria_page_checksum=$default_checksum,
 aria_log_file_size=$default_log_file_size;
 --enable_result_log
 --enable_query_log
+
+--echo #
+--echo # MDEV-22284 Aria table key read crash because wrong index used
+--echo #
+create table t1 (
+    a int auto_increment,
+    b int, c int,
+    key(c, a), unique(b)
+) engine aria
+partition by hash (b);
+replace into t1 values (1, 0, 0), (2, 0, 0), (0, 0, 0);
+# cleanup
+drop table t1;

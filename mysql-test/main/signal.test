@@ -2546,7 +2546,7 @@ end $$
 call test_signal $$
 drop procedure test_signal $$
 
--- error ER_BAD_FIELD_ERROR
+-- error ER_SP_UNDECLARED_VAR
 create procedure test_signal()
 begin
   DECLARE foo CONDITION FOR SQLSTATE '12345';
@@ -2554,7 +2554,7 @@ begin
 end $$
 
 
--- error ER_BAD_FIELD_ERROR
+-- error ER_SP_UNDECLARED_VAR
 create procedure test_signal()
 begin
   DECLARE foo CONDITION FOR SQLSTATE '12345';
@@ -2616,7 +2616,7 @@ end $$
 call test_signal $$
 drop procedure test_signal $$
 
--- error ER_BAD_FIELD_ERROR
+-- error ER_SP_UNDECLARED_VAR
 create procedure test_signal()
 begin
   DECLARE foo CONDITION FOR SQLSTATE '12345';

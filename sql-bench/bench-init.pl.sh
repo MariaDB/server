@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # Copyright (c) 2000-2003, 2005-2007 MySQL AB, 2009 Sun Microsystems, Inc.
 # Use is subject to license terms.
 #
@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Library General Public
 # License along with this library; if not, write to the Free
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA
+# MA 02110-1335  USA
 #
 ##########################################################
 # this is the base file every test is using ....
@@ -566,7 +566,7 @@ All benchmarks takes the following options:
   When using --fast the suffix is automaticly set to '_fast'.
 
 --random
-  Inform test suite that we are generate random inital values for sequence of
+  Inform test suite that we are generate random initial values for sequence of
   test executions. It should be used for imitation of real conditions.
 
 --threads=#  **DEPRECATED**

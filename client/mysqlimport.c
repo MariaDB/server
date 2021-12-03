@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -30,6 +30,8 @@
 #define IMPORT_VERSION "3.7"
 
 #include "client_priv.h"
+#include <my_sys.h>
+
 #include "mysql_version.h"
 
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
@@ -48,8 +50,8 @@ static char *add_load_option(char *ptr,const char *object,
 			     const char *statement);
 
 static my_bool	verbose=0,lock_tables=0,ignore_errors=0,opt_delete=0,
-		replace=0,silent=0,ignore=0,opt_compress=0,
-                opt_low_priority= 0, tty_password= 0;
+                replace, silent, ignore, ignore_foreign_keys,
+                opt_compress, opt_low_priority, tty_password;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static uint opt_use_threads=0, opt_local_file=0, my_end_arg= 0;
 static char	*opt_password=0, *current_user=0,
@@ -119,6 +121,10 @@ static struct my_option my_long_options[] =
    &current_host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore", 'i', "If duplicate unique key was found, keep old row.",
    &ignore, &ignore, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"ignore-foreign-keys", 'k',
+    "Disable foreign key checks while importing the data.",
+    &ignore_foreign_keys, &ignore_foreign_keys, 0, GET_BOOL, NO_ARG,
+    0, 0, 0, 0, 0, 0},
   {"ignore-lines", OPT_IGN_LINES, "Ignore first n lines of data infile.",
    &opt_ignore_lines, &opt_ignore_lines, 0, GET_LL,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -181,7 +187,8 @@ static struct my_option my_long_options[] =
 
 
 static const char *load_default_groups[]=
-{ "mysqlimport","client", "client-server", "client-mariadb", 0 };
+{ "mysqlimport", "mariadb-import", "client", "client-server", "client-mariadb",
+  0 };
 
 
 static void print_version(void)
@@ -195,13 +202,14 @@ static void usage(void)
 {
   puts("Copyright 2000-2008 MySQL AB, 2008 Sun Microsystems, Inc.");
   puts("Copyright 2008-2011 Oracle and Monty Program Ab.");
+  puts("Copyright 2012-2019 MariaDB Corporation Ab.");
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   printf("\
 Loads tables from text files in various formats.  The base name of the\n\
 text file must be the name of the table that should be used.\n\
-If one uses sockets to connect to the MySQL server, the server will open and\n\
-read the text file directly. In other cases the client will open the text\n\
+If one uses sockets to connect to the MariaDB server, the server will open\n\
+and read the text file directly. In other cases the client will open the text\n\
 file. The SQL command 'LOAD DATA INFILE' is used to import the rows.\n");
 
   printf("\nUsage: %s [OPTIONS] database textfile...\n",my_progname);
@@ -443,6 +451,7 @@ static MYSQL *db_connect(char *host, char *database,
 		  opt_ssl_capath, opt_ssl_cipher);
     mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
   }
   mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);
@@ -455,8 +464,9 @@ static MYSQL *db_connect(char *host, char *database,
 
   if (opt_default_auth && *opt_default_auth)
     mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
-
-  mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset);
+  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *)my_default_csname();
+  mysql_options(mysql, MYSQL_SET_CHARSET_NAME, my_default_csname());
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlimport");
@@ -476,6 +486,9 @@ static MYSQL *db_connect(char *host, char *database,
     ignore_errors=0;
     db_error(mysql);
   }
+  if (ignore_foreign_keys)
+    mysql_query(mysql, "set foreign_key_checks= 0;");
+
   return mysql;
 }
 
@@ -501,8 +514,8 @@ static void safe_exit(int error, MYSQL *mysql)
   if (mysql)
     mysql_close(mysql);
 
-  free_defaults(argv_to_free);
   mysql_library_end();
+  free_defaults(argv_to_free);
   my_free(opt_password);
   if (error)
     sf_leaking_memory= 1; /* dirty exit, some threads are still running */
@@ -568,7 +581,7 @@ static char *field_escape(char *to,const char *from,uint length)
     else 
     {
       if (*from == '\'' && !end_backslashes)
-	*to++= *from;      /* We want a dublicate of "'" for MySQL */
+	*to++= *from;      /* We want a duplicate of "'" for MySQL */
       end_backslashes=0;
     }
   }

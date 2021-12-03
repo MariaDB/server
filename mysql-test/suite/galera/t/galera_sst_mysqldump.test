@@ -1,6 +1,5 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
-
 --source suite/galera/include/galera_sst_set_mysqldump.inc
 
 --let $node_1=node_1
@@ -14,7 +13,6 @@
 
 --source suite/galera/include/galera_st_shutdown_slave.inc
 --source suite/galera/include/galera_st_clean_slave.inc
-
 --source suite/galera/include/galera_st_kill_slave.inc
 --source suite/galera/include/galera_st_kill_slave_ddl.inc
 

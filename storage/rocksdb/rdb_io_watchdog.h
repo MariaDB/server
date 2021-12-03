@@ -17,12 +17,12 @@
 #pragma once
 
 /* C++ standard header files */
-#include <atomic>
 #include <signal.h>
 #include <stdlib.h>
-#include <string>
 #include <string.h>
 #include <time.h>
+#include <atomic>
+#include <string>
 #include <vector>
 
 /* MySQL header files */
@@ -92,9 +92,11 @@ class Rdb_io_watchdog {
   }
 
  public:
-  explicit Rdb_io_watchdog(const std::vector<std::string> &directories)
-      : m_io_check_timer(nullptr), m_io_check_watchdog_timer(nullptr),
-        m_io_in_progress(false), m_dirs_to_check(std::move(directories)),
+  explicit Rdb_io_watchdog(std::vector<std::string> &&directories)
+      : m_io_check_timer(nullptr),
+        m_io_check_watchdog_timer(nullptr),
+        m_io_in_progress(false),
+        m_dirs_to_check(std::move(directories)),
         m_buf(nullptr) {
     DBUG_ASSERT(m_dirs_to_check.size() > 0);
     mysql_mutex_init(0, &m_reset_mutex, MY_MUTEX_INIT_FAST);
@@ -107,7 +109,7 @@ class Rdb_io_watchdog {
     free(m_buf);
   }
 
-  int reset_timeout(const uint32_t &write_timeout);
+  int reset_timeout(const uint32_t write_timeout);
 
   Rdb_io_watchdog(const Rdb_io_watchdog &) = delete;
   Rdb_io_watchdog &operator=(const Rdb_io_watchdog &) = delete;

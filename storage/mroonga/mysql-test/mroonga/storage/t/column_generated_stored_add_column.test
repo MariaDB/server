@@ -12,15 +12,13 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 --source ../../include/mroonga/have_version_5_7_or_later.inc
 --source ../../include/mroonga/skip_mariadb_10_1_or_earlier.inc
 --source ../../include/mroonga/have_mroonga.inc
 
---disable_warnings
-DROP TABLE IF EXISTS logs;
---enable_warnings
+set names utf8mb4;
 
 CREATE TABLE logs (
   id INT,
@@ -28,6 +26,7 @@ CREATE TABLE logs (
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO logs(id, record) VALUES (1, '{"level": "info", "message": "start"}');
+INSERT INTO logs(id, record) VALUES (1, json_object('message', repeat('☹', 253)));
 
 ALTER TABLE logs ADD COLUMN message VARCHAR(255) GENERATED ALWAYS AS (json_extract(`record`, '$.message')) STORED;
 ALTER TABLE logs ADD FULLTEXT INDEX(message) comment 'tokenizer "TokenBigramSplitSymbolAlphaDigit"';

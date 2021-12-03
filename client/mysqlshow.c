@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /* Show databases, tables or columns */
@@ -56,7 +56,8 @@ static void print_res_top(MYSQL_RES *result);
 static void print_res_row(MYSQL_RES *result,MYSQL_ROW cur);
 
 static const char *load_default_groups[]=
-{ "mysqlshow","client", "client-server", "client-mariadb", 0 };
+{ "mysqlshow", "mariadb-show", "client", "client-server", "client-mariadb",
+  0 };
 static char * opt_mysql_unix_port=0;
 
 int main(int argc, char **argv)
@@ -122,6 +123,7 @@ int main(int argc, char **argv)
 		  opt_ssl_capath, opt_ssl_cipher);
     mysql_options(&mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(&mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(&mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
   }
   mysql_options(&mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);
@@ -129,6 +131,8 @@ int main(int argc, char **argv)
   if (opt_protocol)
     mysql_options(&mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
 
+  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *)my_default_csname();
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
 
   if (opt_plugin_dir && *opt_plugin_dir)
@@ -268,7 +272,7 @@ static void usage(void)
 {
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
-  puts("Shows the structure of a MySQL database (databases, tables, and columns).\n");
+  puts("Shows the structure of a MariaDB database (databases, tables, and columns).\n");
   printf("Usage: %s [OPTIONS] [database [table [column]]]\n",my_progname);
   puts("\n\
 If last argument contains a shell or SQL wildcard (*,?,% or _) then only\n\
@@ -658,7 +662,7 @@ list_table_status(MYSQL *mysql,const char *db,const char *wild)
     fprintf(stderr,"%s: Cannot get status for db: %s, table: %s: %s\n",
 	    my_progname,db,wild ? wild : "",mysql_error(mysql));
     if (mysql_errno(mysql) == ER_PARSE_ERROR)
-      fprintf(stderr,"This error probably means that your MySQL server doesn't support the\n\'show table status' command.\n");
+      fprintf(stderr,"This error probably means that your MariaDB server doesn't support the\n\'show table status' command.\n");
     return 1;
   }
 

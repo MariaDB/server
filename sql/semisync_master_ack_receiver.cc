@@ -185,8 +185,7 @@ static void init_net(NET *net, unsigned char *buff, unsigned int buff_len)
 
 void Ack_receiver::run()
 {
-  // skip LOCK_global_system_variables due to the 3rd arg
-  THD *thd= new THD(next_thread_id(), false, true);
+  THD *thd= new THD(next_thread_id());
   NET net;
   unsigned char net_buff[REPLY_MESSAGE_MAX_LENGTH];
 
@@ -205,7 +204,6 @@ void Ack_receiver::run()
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->security_ctx->skip_grants();
-  thread_safe_increment32(&service_thread_count);
   thd->set_command(COM_DAEMON);
   init_net(&net, net_buff, REPLY_MESSAGE_MAX_LENGTH);
 
@@ -269,6 +267,11 @@ void Ack_receiver::run()
 
         net_clear(&net, 0);
         net.vio= &slave->vio;
+        /*
+          Set compress flag. This is needed to support
+          Slave_compress_protocol flag enabled Slaves
+        */
+        net.compress= slave->thd->net.compress;
 
         len= my_net_read(&net);
         if (likely(len != packet_error))
@@ -284,8 +287,6 @@ end:
   sql_print_information("Stopping ack receiver thread");
   m_status= ST_DOWN;
   delete thd;
-  thread_safe_decrement32(&service_thread_count);
-  signal_thd_deleted();
   mysql_cond_broadcast(&m_cond);
   mysql_mutex_unlock(&m_mutex);
   DBUG_VOID_RETURN;

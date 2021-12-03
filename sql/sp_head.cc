@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2017, MariaDB
+   Copyright (c) 2011, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
@@ -29,6 +29,8 @@
 #include "sql_derived.h"       // mysql_handle_derived
 #include "sql_cte.h"
 #include "sql_select.h"        // Virtual_tmp_table
+#include "opt_trace.h"
+#include "my_json_writer.h"
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation
@@ -44,6 +46,9 @@
 #include "transaction.h"       // trans_commit_stmt
 #include "sql_audit.h"
 #include "debug_sync.h"
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 
 /*
   Sufficient max length of printed destinations and frame offsets (all uints).
@@ -142,7 +147,7 @@ sp_get_flags_for_command(LEX *lex)
 
   switch (lex->sql_command) {
   case SQLCOM_SELECT:
-    if (lex->result)
+    if (lex->result && !lex->analyze_stmt)
     {
       flags= 0;                      /* This is a SELECT with INTO clause */
       break;
@@ -176,6 +181,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_SHOW_EXPLAIN:
   case SQLCOM_SHOW_FIELDS:
   case SQLCOM_SHOW_FUNC_CODE:
+  case SQLCOM_SHOW_GENERIC:
   case SQLCOM_SHOW_GRANTS:
   case SQLCOM_SHOW_ENGINE_STATUS:
   case SQLCOM_SHOW_ENGINE_LOGS:
@@ -445,48 +451,47 @@ check_routine_name(const LEX_CSTRING *ident)
  *  sp_head
  *
  */
-
-void *
-sp_head::operator new(size_t size) throw()
+ 
+sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
+                         enum_sp_aggregate_type agg_type)
 {
-  DBUG_ENTER("sp_head::operator new");
   MEM_ROOT own_root;
+  init_sql_alloc(&own_root, "sp_head", MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC,
+                 MYF(0));
   sp_head *sp;
+  if (!(sp= new (&own_root) sp_head(&own_root, parent, handler, agg_type)))
+    free_root(&own_root, MYF(0));
 
-  init_sql_alloc(&own_root, "sp_head",
-                 MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
-  sp= (sp_head *) alloc_root(&own_root, size);
-  if (sp == NULL)
-    DBUG_RETURN(NULL);
-  sp->main_mem_root= own_root;
-  DBUG_PRINT("info", ("mem_root %p", &sp->mem_root));
-  DBUG_RETURN(sp);
+  return sp;
 }
 
-void
-sp_head::operator delete(void *ptr, size_t size) throw()
+
+void sp_head::destroy(sp_head *sp)
 {
-  DBUG_ENTER("sp_head::operator delete");
-  MEM_ROOT own_root;
+  if (sp)
+  {
+    /* Make a copy of main_mem_root as free_root will free the sp */
+    MEM_ROOT own_root= sp->main_mem_root;
+    DBUG_PRINT("info", ("mem_root %p moved to %p",
+                        &sp->mem_root, &own_root));
+    delete sp;
 
-  if (ptr == NULL)
-    DBUG_VOID_RETURN;
-
-  sp_head *sp= (sp_head *) ptr;
-
-  /* Make a copy of main_mem_root as free_root will free the sp */
-  own_root= sp->main_mem_root;
-  DBUG_PRINT("info", ("mem_root %p moved to %p",
-                      &sp->mem_root, &own_root));
-  free_root(&own_root, MYF(0));
-
-  DBUG_VOID_RETURN;
+ 
+    free_root(&own_root, MYF(0));
+  }
 }
 
+/*
+ *
+ *  sp_head
+ *
+ */
 
-sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
-  :Query_arena(&main_mem_root, STMT_INITIALIZED_FOR_SP),
+sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
+                 const Sp_handler *sph, enum_sp_aggregate_type agg_type)
+  :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
    Database_qualified_name(&null_clex_str, &null_clex_str),
+   main_mem_root(*mem_root_arg),
    m_parent(parent),
    m_handler(sph),
    m_flags(0),
@@ -517,6 +522,9 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
    m_pcont(new (&main_mem_root) sp_pcontext()),
    m_cont_level(0)
 {
+  mem_root= &main_mem_root;
+
+  set_chistics_agg_type(agg_type);
   m_first_instance= this;
   m_first_free_instance= this;
   m_last_cached_sp= this;
@@ -525,6 +533,7 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
 
   DBUG_ENTER("sp_head::sp_head");
 
+  m_security_ctx.init();
   m_backpatch.empty();
   m_backpatch_goto.empty();
   m_cont_backpatch.empty();
@@ -533,15 +542,31 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
   my_hash_init(&m_sptabs, system_charset_info, 0, 0, 0, sp_table_key, 0, 0);
   my_hash_init(&m_sroutines, system_charset_info, 0, 0, 0, sp_sroutine_key,
                0, 0);
+  m_security_ctx.init();
 
   DBUG_VOID_RETURN;
 }
 
 
-sp_package::sp_package(LEX *top_level_lex,
+sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
+                               const Sp_handler *sph)
+{
+  MEM_ROOT own_root;
+  init_sql_alloc(&own_root, "sp_package", MEM_ROOT_BLOCK_SIZE,
+                 MEM_ROOT_PREALLOC, MYF(0));
+  sp_package *sp;
+  if (!(sp= new (&own_root) sp_package(&own_root, top_level_lex, name, sph)))
+    free_root(&own_root, MYF(0));
+
+  return sp;
+}
+
+
+sp_package::sp_package(MEM_ROOT *mem_root_arg,
+                       LEX *top_level_lex,
                        const sp_name *name,
                        const Sp_handler *sph)
- :sp_head(NULL, sph),
+ :sp_head(mem_root_arg, NULL, sph, DEFAULT_AGGREGATE),
   m_current_routine(NULL),
   m_top_level_lex(top_level_lex),
   m_rcontext(NULL),
@@ -559,7 +584,7 @@ sp_package::~sp_package()
   m_routine_declarations.cleanup();
   m_body= null_clex_str;
   if (m_current_routine)
-    delete m_current_routine->sphead;
+    sp_head::destroy(m_current_routine->sphead);
   delete m_rcontext;
 }
 
@@ -816,7 +841,7 @@ sp_head::~sp_head()
   my_hash_free(&m_sptabs);
   my_hash_free(&m_sroutines);
 
-  delete m_next_cached_sp;
+  sp_head::destroy(m_next_cached_sp);
 
   DBUG_VOID_RETURN;
 }
@@ -1127,6 +1152,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
               backup_arena;
   query_id_t old_query_id;
   TABLE *old_derived_tables;
+  TABLE *old_rec_tables;
   LEX *old_lex;
   Item_change_list old_change_list;
   String old_packet;
@@ -1142,6 +1168,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   /* this 7*STACK_MIN_SIZE is a complex matter with a long history (see it!) */
   if (check_stack_overrun(thd, 7 * STACK_MIN_SIZE, (uchar*)&old_packet))
     DBUG_RETURN(TRUE);
+
+  opt_trace_disable_if_no_security_context_access(thd);
 
   /* init per-instruction memroot */
   init_sql_alloc(&execute_mem_root, "per_instruction_memroot",
@@ -1205,6 +1233,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   old_query_id= thd->query_id;
   old_derived_tables= thd->derived_tables;
   thd->derived_tables= 0;
+  old_rec_tables= thd->rec_tables;
+  thd->rec_tables= 0;
   save_sql_mode= thd->variables.sql_mode;
   thd->variables.sql_mode= m_sql_mode;
   save_abort_on_warning= thd->abort_on_warning;
@@ -1324,8 +1354,78 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     sql_digest_state *parent_digest= thd->m_digest;
     thd->m_digest= NULL;
 
+#ifdef WITH_WSREP
+    if (WSREP(thd) && thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+    {
+      thd->set_wsrep_next_trx_id(thd->query_id);
+      WSREP_DEBUG("assigned new next trx ID for SP,  trx id: %" PRIu64, thd->wsrep_next_trx_id());
+    }
+#endif /* WITH_WSREP */
     err_status= i->execute(thd, &ip);
 
+#ifdef WITH_WSREP
+    if (WSREP(thd))
+    {
+      if (((thd->wsrep_trx().state() == wsrep::transaction::s_executing || thd->in_sub_stmt) &&
+           (thd->is_fatal_error || thd->killed)))
+      {
+        WSREP_DEBUG("SP abort err status %d in sub %d trx state %d",
+                    err_status, thd->in_sub_stmt, thd->wsrep_trx().state());
+        err_status= 1;
+        thd->is_fatal_error= 1;
+        /*
+          SP was killed, and it is not due to a wsrep conflict.
+          We skip after_command hook at this point because
+          otherwise it clears the error, and cleans up the
+          whole transaction. For now we just return and finish
+          our handling once we are back to mysql_parse.
+
+          Same applies to a SP execution, which was aborted due
+          to wsrep related conflict, but which is executing as sub statement.
+          SP in sub statement level should not commit not rollback,
+          we have to call for rollback is up-most SP level.
+        */
+        WSREP_DEBUG("Skipping after_command hook for killed SP");
+      }
+      else
+      {
+        const bool must_replay= wsrep_must_replay(thd);
+        if (must_replay)
+        {
+          WSREP_DEBUG("MUST_REPLAY set after SP, err_status %d trx state: %d",
+                      err_status, thd->wsrep_trx().state());
+        }
+        (void) wsrep_after_statement(thd);
+
+        /*
+          Reset the return code to zero if the transaction was
+          replayed succesfully.
+        */
+        if (must_replay && !wsrep_current_error(thd))
+        {
+          err_status= 0;
+          thd->get_stmt_da()->reset_diagnostics_area();
+        }
+        /*
+          Final wsrep error status for statement is known only after
+          wsrep_after_statement() call. If the error is set, override
+          error in thd diagnostics area and reset wsrep client_state error
+          so that the error does not get propagated via client-server protocol.
+        */
+        if (wsrep_current_error(thd))
+        {
+          wsrep_override_error(thd, wsrep_current_error(thd),
+                               wsrep_current_error_status(thd));
+          thd->wsrep_cs().reset_error();
+          /* Reset also thd->killed if it has been set during BF abort. */
+          if (thd->killed == KILL_QUERY)
+            thd->killed= NOT_KILLED;
+          /* if failed transaction was not replayed, must return with error from here */
+          if (!must_replay) err_status = 1;
+        }
+      }
+    }
+#endif /* WITH_WSREP */
     thd->m_digest= parent_digest;
 
     if (i->free_list)
@@ -1393,6 +1493,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   thd->set_query_id(old_query_id);
   DBUG_ASSERT(!thd->derived_tables);
   thd->derived_tables= old_derived_tables;
+  thd->rec_tables= old_rec_tables;
   thd->variables.sql_mode= save_sql_mode;
   thd->abort_on_warning= save_abort_on_warning;
   thd->m_reprepare_observer= save_reprepare_observer;
@@ -1467,7 +1568,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       NULL. In this case, mysql_change_db() would generate an error.
     */
 
-    err_status|= mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
+    err_status|= mysql_change_db(thd, (LEX_CSTRING*)&saved_cur_db_name, TRUE) != 0;
   }
   m_flags&= ~IS_INVOKED;
   if (m_parent)
@@ -1972,6 +2073,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     thd->variables.option_bits&= ~OPTION_BIN_LOG;
   }
 
+  opt_trace_disable_if_no_stored_proc_func_access(thd, this);
   /*
     Switch to call arena/mem_root so objects like sp_cursor or
     Item_cache holders for case expressions can be allocated on it.
@@ -2209,10 +2311,10 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       if (thd->transaction_rollback_request)
       {
         trans_rollback_implicit(thd);
-        thd->mdl_context.release_transactional_locks();
+        thd->release_transactional_locks();
       }
       else if (! thd->in_multi_stmt_transaction_mode())
-        thd->mdl_context.release_transactional_locks();
+        thd->release_transactional_locks();
       else
         thd->mdl_context.release_statement_locks();
     }
@@ -2262,6 +2364,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     err_status= set_routine_security_ctx(thd, this, &save_security_ctx);
 #endif
 
+  opt_trace_disable_if_no_stored_proc_func_access(thd, this);
   if (!err_status)
   {
     err_status= execute(thd, TRUE);
@@ -2543,7 +2646,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       }
       if (bp->instr_type == CPOP)
       {
-        uint n= lab->ctx->diff_cursors(lab_begin_block->ctx, true);
+        uint n= bp->instr->m_ctx->diff_cursors(lab_begin_block->ctx, true);
         if (n == 0)
         {
           // Remove cpop instr
@@ -2560,7 +2663,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       }
       if (bp->instr_type == HPOP)
       {
-        uint n= lab->ctx->diff_handlers(lab_begin_block->ctx, true);
+        uint n= bp->instr->m_ctx->diff_handlers(lab_begin_block->ctx, true);
         if (n == 0)
         {
           // Remove hpop instr
@@ -2663,6 +2766,17 @@ sp_head::set_chistics(const st_sp_chistics &chistics)
                                          m_chistics.comment.str,
                                          m_chistics.comment.length);
 }
+
+
+void
+sp_head::set_c_chistics(const st_sp_chistics &chistics)
+{
+  // Set all chistics but preserve agg_type.
+  enum_sp_aggregate_type save_agg_type= agg_type();
+  set_chistics(chistics);
+  set_chistics_agg_type(save_agg_type);
+}
+
 
 void
 sp_head::set_info(longlong created, longlong modified,
@@ -3054,6 +3168,8 @@ void sp_head::optimize()
   sp_instr *i;
   uint src, dst;
 
+  DBUG_EXECUTE_IF("sp_head_optimize_disable", return; );
+
   opt_mark();
 
   bp.empty();
@@ -3182,7 +3298,7 @@ sp_head::show_routine_code(THD *thd)
       const char *format= "Instruction at position %u has m_ip=%u";
       char tmp[sizeof(format) + 2*SP_INSTR_UINT_MAXLEN + 1];
 
-      sprintf(tmp, format, ip, i->m_ip);
+      my_snprintf(tmp, sizeof(tmp), format, ip, i->m_ip);
       /*
         Since this is for debugging purposes only, we don't bother to
         introduce a special error code for it.
@@ -3241,8 +3357,13 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     It's reset further in the common code part.
     It's merged with the saved parent's value at the exit of this func.
   */
-  bool parent_modified_non_trans_table= thd->transaction.stmt.modified_non_trans_table;
+  bool parent_modified_non_trans_table=
+    thd->transaction.stmt.modified_non_trans_table;
+  unsigned int parent_unsafe_rollback_flags=
+    thd->transaction.stmt.m_unsafe_rollback_flags;
   thd->transaction.stmt.modified_non_trans_table= FALSE;
+  thd->transaction.stmt.m_unsafe_rollback_flags= 0;
+
   DBUG_ASSERT(!thd->derived_tables);
   DBUG_ASSERT(thd->Item_change_list::is_empty());
   /*
@@ -3287,9 +3408,15 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     thd->lex->safe_to_cache_query= 0;
 #endif
 
+  Opt_trace_start ots(thd,  m_lex->query_tables,
+                        SQLCOM_SELECT, &m_lex->var_list,
+                        NULL, 0,
+                        thd->variables.character_set_client);
+
+  Json_writer_object trace_command(thd);
+  Json_writer_array trace_command_steps(thd, "steps");
   if (open_tables)
-    res= check_dependencies_in_with_clauses(m_lex->with_clauses_list) ||
-         instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
+    res= instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
 
   if (likely(!res))
   {
@@ -3319,10 +3446,10 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
       if (thd->transaction_rollback_request)
       {
         trans_rollback_implicit(thd);
-        thd->mdl_context.release_transactional_locks();
+        thd->release_transactional_locks();
       }
       else if (! thd->in_multi_stmt_transaction_mode())
-        thd->mdl_context.release_transactional_locks();
+        thd->release_transactional_locks();
       else
         thd->mdl_context.release_statement_locks();
     }
@@ -3351,11 +3478,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     Update the state of the active arena if no errors on
     open_tables stage.
   */
-  if (likely(!res) || likely(!thd->is_error()) ||
-      (thd->get_stmt_da()->sql_errno() != ER_CANT_REOPEN_TABLE &&
-       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE &&
-       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE &&
-       thd->get_stmt_da()->sql_errno() != ER_UPDATE_TABLE_USED))
+  if (likely(!res) || likely(!thd->is_error()))
     thd->stmt_arena->state= Query_arena::STMT_EXECUTED;
 
   /*
@@ -3363,6 +3486,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     what is needed from the substatement gained
   */
   thd->transaction.stmt.modified_non_trans_table |= parent_modified_non_trans_table;
+  thd->transaction.stmt.m_unsafe_rollback_flags |= parent_unsafe_rollback_flags;
 
   TRANSACT_TRACKER(add_trx_state_from_thd(thd));
 
@@ -4390,7 +4514,7 @@ sp_instr_agg_cfetch::execute(THD *thd, uint *nextp)
   else
   {
     thd->spcont->pause_state= FALSE;
-    if (thd->server_status == SERVER_STATUS_LAST_ROW_SENT)
+    if (thd->server_status & SERVER_STATUS_LAST_ROW_SENT)
     {
       my_message(ER_SP_FETCH_NO_DATA,
                  ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
@@ -4503,8 +4627,8 @@ int
 sp_instr_error::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_error::execute");
-
   my_message(m_errcode, ER_THD(thd, m_errcode), MYF(0));
+  WSREP_DEBUG("sp_instr_error: %s %d", ER_THD(thd, m_errcode), thd->is_error());
   *nextp= m_ip+1;
   DBUG_RETURN(-1);
 }
@@ -4624,6 +4748,7 @@ typedef struct st_sp_table
   uint lock_count;
   uint query_lock_count;
   uint8 trg_event_map;
+  my_bool for_insert_data;
 } SP_TABLE;
 
 
@@ -4719,6 +4844,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
         if (tab->query_lock_count > tab->lock_count)
           tab->lock_count++;
         tab->trg_event_map|= table->trg_event_map;
+        tab->for_insert_data|= table->for_insert_data;
       }
       else
       {
@@ -4742,6 +4868,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
         tab->lock_type= table->lock_type;
         tab->lock_count= tab->query_lock_count= 1;
         tab->trg_event_map= table->trg_event_map;
+        tab->for_insert_data= table->for_insert_data;
         if (my_hash_insert(&m_sptabs, (uchar *)tab))
           return FALSE;
       }
@@ -4825,7 +4952,8 @@ sp_head::add_used_tables_to_table_list(THD *thd,
                                            TABLE_LIST::PRELOCK_ROUTINE,
                                            belong_to_view,
                                            stab->trg_event_map,
-                                           query_tables_last_ptr);
+                                           query_tables_last_ptr,
+                                           stab->for_insert_data);
       tab_buff+= ALIGN_SIZE(sizeof(TABLE_LIST));
       result= TRUE;
     }
@@ -5092,6 +5220,36 @@ bool sp_head::spvar_fill_table_rowtype_reference(THD *thd,
 }
 
 
+bool sp_head::check_group_aggregate_instructions_forbid() const
+{
+  if (unlikely(m_flags & sp_head::HAS_AGGREGATE_INSTR))
+  {
+    my_error(ER_NOT_AGGREGATE_FUNCTION, MYF(0));
+    return true;
+  }
+  return false;
+}
+
+
+bool sp_head::check_group_aggregate_instructions_require() const
+{
+  if (unlikely(!(m_flags & HAS_AGGREGATE_INSTR)))
+  {
+    my_error(ER_INVALID_AGGREGATE_FUNCTION, MYF(0));
+    return true;
+  }
+  return false;
+}
+
+
+bool sp_head::check_group_aggregate_instructions_function() const
+{
+  return agg_type() == GROUP_AGGREGATE ?
+         check_group_aggregate_instructions_require() :
+         check_group_aggregate_instructions_forbid();
+}
+
+
 /*
   In Oracle mode stored routines have an optional name
   at the end of a declaration:
@@ -5123,6 +5281,19 @@ bool sp_head::check_package_routine_end_name(const LEX_CSTRING &end_name) const
 err:
   my_error(ER_END_IDENTIFIER_DOES_NOT_MATCH, MYF(0), end_name.str, errpos);
   return true;
+}
+
+
+bool
+sp_head::check_standalone_routine_end_name(const sp_name *end_name) const
+{
+  if (end_name && !end_name->eq(this))
+  {
+    my_error(ER_END_IDENTIFIER_DOES_NOT_MATCH, MYF(0),
+             ErrConvDQName(end_name).ptr(), ErrConvDQName(this).ptr());
+    return true;
+  }
+  return false;
 }
 
 

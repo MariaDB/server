@@ -1,0 +1,62 @@
+#
+# Test Foreign Key with SR
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE grandparent (
+    id INT NOT NULL PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE parent (
+    id INT NOT NULL PRIMARY KEY,
+    grandparent_id INT,
+    FOREIGN KEY (grandparent_id)
+        REFERENCES grandparent(id)
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE child (
+    id INT NOT NULL PRIMARY KEY, 
+    grandparent_id INT,
+    FOREIGN KEY (grandparent_id)
+        REFERENCES parent(grandparent_id)
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO grandparent VALUES (1),(2),(3),(4);
+INSERT INTO parent VALUES (1,1), (2,2);
+INSERT INTO child VALUES (1,1), (2,2);
+
+# Start and SR transaction
+
+--connection node_1
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+
+UPDATE grandparent SET id = 5 WHERE id = 1;
+
+# No conflicting transactions are allowed to proceed on slave
+
+--connection node_2
+SET SESSION innodb_lock_wait_timeout = 1;
+
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE grandparent SET id = 10 WHERE id = 5;
+
+--error ER_LOCK_WAIT_TIMEOUT
+DELETE FROM child;
+
+# SR transaction succesffull
+
+--connection node_1
+COMMIT;
+
+--let $diff_servers = 1 2
+--source include/diff_servers.inc
+
+DROP TABLE child;
+DROP TABLE parent;
+DROP TABLE grandparent;

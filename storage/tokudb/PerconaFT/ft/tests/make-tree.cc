@@ -88,7 +88,7 @@ append_leaf(FTNODE leafnode, void *key, size_t keylen, void *val, size_t vallen)
     leafnode->max_msn_applied_to_node_on_disk = msn;
 
     // don't forget to dirty the node
-    leafnode->dirty = 1;
+    leafnode->set_dirty();
 }
 
 static void

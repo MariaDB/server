@@ -7,6 +7,8 @@
 # Last modified:  2007-12-03
 #------------------------------------------------------------------------------
 
+--source include/default_charset.inc
+
 ###############################################################################
 # Testcase parameters.1: Verify INFORMATION_SCHEMA.PARAMETERS view has the
 #                    following structure:
@@ -92,7 +94,7 @@ CREATE DATABASE i_s_parameters_test;
 USE i_s_parameters_test;
 
 delimiter //;
-CREATE PROCEDURE testproc (OUT param1 INT)
+CREATE PROCEDURE testproc (IN param1 INT)
   BEGIN
    SELECT 2+2 as param1;
   END;

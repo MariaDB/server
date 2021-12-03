@@ -2252,7 +2252,7 @@ if (isdirectory(pathname))
       size_t fnlength = strlen(pathname) + strlen(nextfile) + 2;
       if (fnlength > 2048)
         {
-        fprintf(stderr, "pcre2grep: recursive filename is too long\n");
+        fprintf(stderr, "pcregrep: recursive filename is too long\n");
         rc = 2;
         break;
         }
@@ -2407,7 +2407,7 @@ handle_option(int letter, int options)
 switch(letter)
   {
   case N_FOFFSETS: file_offsets = TRUE; break;
-  case N_HELP: help(); pcregrep_exit(0);
+  case N_HELP: help(); pcregrep_exit(0); break;
   case N_LBUFFER: line_buffered = TRUE; break;
   case N_LOFFSETS: line_offsets = number = TRUE; break;
   case N_NOJIT: study_options &= ~PCRE_STUDY_JIT_COMPILE; break;
@@ -3034,7 +3034,7 @@ LC_ALL environment variable is set, and if so, use it. */
 if (locale == NULL)
   {
   locale = getenv("LC_ALL");
-  locale_from = "LCC_ALL";
+  locale_from = "LC_ALL";
   }
 
 if (locale == NULL)

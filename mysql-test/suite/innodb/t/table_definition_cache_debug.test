@@ -1,6 +1,8 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 call mtr.add_suppression("InnoDB: innodb_open_files=13 is exceeded");
 

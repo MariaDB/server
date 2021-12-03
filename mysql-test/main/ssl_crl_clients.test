@@ -1,41 +1,44 @@
 # This test should work in embedded server after we fix mysqltest
 -- source include/not_embedded.inc
--- source include/have_openssl.inc
+
+if (`SELECT COUNT(*) = 0 FROM information_schema.GLOBAL_VARIABLES
+    WHERE (VARIABLE_NAME ='version_compile_os' AND VARIABLE_VALUE LIKE 'Win%' OR
+    VARIABLE_NAME='have_openssl' AND VARIABLE_VALUE='YES')`)
+{
+  skip Need openssl or Windows;
+}
 
 --echo # Test clients with and without CRL lists
 
-let $ssl_base = --ssl-ca=$MYSQL_TEST_DIR/std_data/crl-ca-cert.pem --ssl-key=$MYSQL_TEST_DIR/std_data/crl-server-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/crl-server-cert.pem;
-let $ssl_crl = $ssl_base --ssl-crl=$MYSQL_TEST_DIR/std_data/crl-client-revoked.crl;
-let $ssl_crlpath = $ssl_base --ssl-crlpath=$MYSQL_TEST_DIR/std_data/crldir;
+let $ssl_base = --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem --ssl-verify-server-cert;
+let $ssl_crl = $ssl_base --ssl-crl=$MYSQL_TEST_DIR/std_data/server-cert.crl;
+let $ssl_crlpath = $ssl_base --ssl-crlpath=$MYSQL_TMP_DIR;
 
+# See `openssl x509 -in server-cert.pem -noout -issuer_hash`
+copy_file $MYSQL_TEST_DIR/std_data/server-cert.crl $MYSQL_TMP_DIR/ed1f42db.r0;
 
 --echo ############ Test mysql ##############
 
 --echo # Test mysql connecting to a server with a certificate revoked by -crl
---replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+--replace_result "Server certificate validation failed. The certificate is revoked. Error 0x80092010(CRYPT_E_REVOKED)" "certificate revoked"
 --error 1
---exec $MYSQL $ssl_crl test -e "SHOW VARIABLES like '%ssl%';"
+--exec $MYSQL $ssl_crl test -e "SHOW STATUS LIKE 'Ssl_version'" 2>&1
 
 --echo # Test mysql connecting to a server with a certificate revoked by -crlpath
---replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+--replace_result "Server certificate validation failed. The certificate is revoked. Error 0x80092010(CRYPT_E_REVOKED)" "certificate revoked"
 --error 1
---exec $MYSQL $ssl_crlpath test -e "SHOW VARIABLES like '%ssl%';"
+--exec $MYSQL $ssl_crlpath test -e "SHOW STATUS LIKE 'Ssl_version'" 2>&1
 
 
 --echo ############ Test mysqladmin ##############
-let $admin_prefix = --no-defaults;
 let $admin_suffix = --default-character-set=latin1 -S $MASTER_MYSOCK -P $MASTER_MYPORT -u root --password= ping;
 
 --echo # Test mysqladmin connecting to a server with a certificate revoked by -crl
---disable_result_log
---replace_regex /.*mysqladmin.*: connect/mysqladmin: connect/
---error 2
---exec $MYSQLADMIN $admin_prefix $ssl_crl $admin_suffix 2>&1
---enable_result_log
+--replace_regex /.*mysqladmin.*:/mysqladmin:/ /SSL connection error: .*CRYPT_E_REVOKED./SSL connection error: certificate revoked/
+--error 1
+--exec $MYSQLADMIN $ssl_crl $admin_suffix 2>&1
 
---disable_result_log
 --echo # Test mysqladmin connecting to a server with a certificate revoked by -crlpath
---replace_regex /.*mysqladmin.*: connect/mysqladmin: connect/
---error 2
---exec $MYSQLADMIN $admin_prefix $ssl_crlpath $admin_suffix 2>&1
---enable_result_log
+--replace_regex /.*mysqladmin.*:/mysqladmin:/ /SSL connection error: .*CRYPT_E_REVOKED./SSL connection error: certificate revoked/
+--error 1
+--exec $MYSQLADMIN $ssl_crlpath $admin_suffix 2>&1

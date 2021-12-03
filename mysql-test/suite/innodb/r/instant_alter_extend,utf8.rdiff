@@ -1,0 +1,38 @@
+--- instant_alter_convert.result
++++ instant_alter_convert,utf8.result
+@@ -38,7 +38,7 @@
+ best.t	check	status	OK
+ call check_table('t');
+ name	mtype	prtype	len
+-a	2	800FE	200
++a	13	2100FE	600
+ # CHAR enlargement
+ alter table t modify a char(220);
+ affected rows: 2
+@@ -54,7 +54,7 @@
+ best.t	check	status	OK
+ call check_table('t');
+ name	mtype	prtype	len
+-a	2	800FE	220
++a	13	2100FE	660
+ ALTER TABLE t CHANGE COLUMN a a CHAR(230) BINARY;
+ affected rows: 2
+ info: Records: 2  Duplicates: 0  Warnings: 0
+@@ -69,7 +69,7 @@
+ best.t	check	status	OK
+ call check_table('t');
+ name	mtype	prtype	len
+-a	13	2F00FE	230
++a	13	5300FE	690
+ # Convert from VARCHAR to a bigger CHAR
+ alter table t modify a varchar(200);
+ affected rows: 2
+@@ -92,7 +92,7 @@
+ best.t	check	status	OK
+ call check_table('t');
+ name	mtype	prtype	len
+-a	2	800FE	255
++a	13	2100FE	765
+ # BINARY/VARBINARY test
+ create or replace table t (a varbinary(300));
+ insert into t values(NULL);

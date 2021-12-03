@@ -12,11 +12,7 @@ MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
 # is running!
 stop_server() {
   set +e
-  if [ -x /usr/sbin/invoke-rc.d ]; then
-    invoke-rc.d mysql stop
-  else
-    /etc/init.d/mysql stop
-  fi
+  systemctl stop mysql
   errno=$?
   set -e
 

@@ -3,9 +3,9 @@ SET NAMES utf8;
 # Testing expanded values
 #
 CREATE TABLE `bookstore` (
-`category` CHAR(16) NOT NULL FIELD_FORMAT='@',
+`category` CHAR(16) NOT NULL XPATH='@',
 `title` VARCHAR(50) NOT NULL,
-`lang` char(2) NOT NULL FIELD_FORMAT='title/@',
+`lang` char(2) NOT NULL XPATH='title/@',
 `author` VARCHAR(24) NOT NULL,
 `year` INT(4) NOT NULL,
 `price` DOUBLE(8,2) NOT NULL)
@@ -72,6 +72,8 @@ Warnings:
 Warning	1105	Truncated author content
 # increase author size
 ALTER TABLE bookstore MODIFY `author` VARCHAR(128) NOT NULL;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
 SELECT * FROM bookstore;
 category	title	lang	author	year	price
 COOKING	Everyday Italian	en	Giada De Laurentiis	2005	30.00

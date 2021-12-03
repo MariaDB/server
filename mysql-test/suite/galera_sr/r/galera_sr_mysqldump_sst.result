@@ -1,0 +1,60 @@
+connection node_2;
+connection node_1;
+Setting SST method to mysqldump ...
+call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to '127.0.0.1'");
+call mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");
+connection node_1;
+CREATE USER 'sst';
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
+SET GLOBAL wsrep_sst_auth = 'sst:';
+connection node_2;
+SET GLOBAL wsrep_sst_method = 'mysqldump';
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 CHAR(255)) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 1000;
+START TRANSACTION;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 255) FROM ten AS a1, ten AS a2, ten AS a3;
+UPDATE t1 SET f2 = REPEAT('y', 255);
+connection node_2;
+connection node_2;
+Shutting down server ...
+connection node_1;
+connection node_2;
+# restart: with restart_parameters
+connection node_1;
+connection node_2;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) > 0
+1
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+connection node_1;
+UPDATE t1 SET f2 = REPEAT('z', 255);
+COMMIT;
+connection node_2;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SELECT COUNT(*) = 1000 FROM t1;
+COUNT(*) = 1000
+1
+SELECT COUNT(*) = 1000 FROM t1 WHERE f2 = REPEAT('z', 255);
+COUNT(*) = 1000
+1
+DROP TABLE t1;
+DROP TABLE ten;
+connection node_1;
+SET SESSION wsrep_trx_fragment_size=0;
+connection node_1;
+CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+DROP USER sst;
+connection node_2;
+CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+CALL mtr.add_suppression("InnoDB: Error: Table \"mysql\"\\.\"innodb_index_stats\" not found");
+CALL mtr.add_suppression("Can't open and lock time zone table");
+CALL mtr.add_suppression("Can't open and lock privilege tables");
+CALL mtr.add_suppression("Info table is not ready to be used");
+CALL mtr.add_suppression("Native table .* has the wrong structure");
+CALL mtr.add_suppression("Table \'mysql.gtid_slave_pos\' doesn\'t exist");

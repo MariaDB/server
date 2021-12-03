@@ -48,9 +48,12 @@ SET @@session.log_slave_updates= true;
 SET @@global.log_slave_updates= true;
 #
 --echo #
+let $relay_prefix=`select concat(substring_index(@@relay_log,"-",1),"-")`;
+--replace_result $relay_prefix XXX-
 SHOW VARIABLES like 'relay_log';
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.relay_log;
+--replace_result $relay_prefix XXX-
 SELECT @@global.relay_log;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SET @@session.relay_log= 'x';
@@ -58,11 +61,11 @@ SET @@session.relay_log= 'x';
 SET @@global.relay_log= 'x';
 #
 --echo #
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR $relay_prefix XXX-
 SHOW VARIABLES like 'relay_log_basename';
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.relay_log_basename;
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR $relay_prefix XXX-
 SELECT @@global.relay_log_basename;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SET @@session.relay_log_basename= 'x';
@@ -70,9 +73,11 @@ SET @@session.relay_log_basename= 'x';
 SET @@global.relay_log_basename= 'x';
 #
 --echo #
+--replace_result $relay_prefix XXX-
 SHOW VARIABLES like 'log_bin_basename';
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.log_bin_basename;
+--replace_result $relay_prefix XXX-
 SELECT @@global.log_bin_basename;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SET @@session.log_bin_basename= 'x';
@@ -80,11 +85,11 @@ SET @@session.log_bin_basename= 'x';
 SET @@global.log_bin_basename= 'x';
 #
 --echo #
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR $relay_prefix XXX-
 SHOW VARIABLES like 'relay_log_index';
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.relay_log_index;
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR $relay_prefix XXX-
 SELECT @@global.relay_log_index;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SET @@session.relay_log_index= 'x';
@@ -92,9 +97,11 @@ SET @@session.relay_log_index= 'x';
 SET @@global.relay_log_index= 'x';
 #
 --echo #
+--replace_result $relay_prefix XXX-
 SHOW VARIABLES like 'log_bin_index';
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.log_bin_index;
+--replace_result $relay_prefix XXX-
 SELECT @@global.log_bin_index;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SET @@session.log_bin_index= 'x';
@@ -151,6 +158,7 @@ SET @@global.slave_skip_errors= 7;
 
 CREATE TABLE t1 (a MEDIUMTEXT);
 
+set @save_max_allowed_packet=@@global.max_allowed_packet, @save_net_buffer_length=@@net_buffer_length;
 SET GLOBAL max_allowed_packet=2048;
 SET GLOBAL net_buffer_length=4096;
 CONNECT (con1,localhost,root,,test);
@@ -170,8 +178,8 @@ CONNECTION default;
 DISCONNECT con1;
 SELECT LENGTH(a) FROM t1;
 
-SET GLOBAL max_allowed_packet=default;
-SET GLOBAL net_buffer_length=default;
+SET GLOBAL max_allowed_packet=@save_max_allowed_packet;
+SET GLOBAL net_buffer_length=@save_net_buffer_length;
 DROP TABLE t1;
 
 --echo End of 5.1 tests

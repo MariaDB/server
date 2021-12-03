@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 	/* Functions to compressed records */
 
@@ -1157,10 +1158,10 @@ static void decode_bytes(MARIA_COLUMNDEF *rec,MARIA_BIT_BUFF *bit_buff,
 	bit_buff->error=1;
 	return;				/* Can't be right */
       }
-      bit_buff->current_byte= (bit_buff->current_byte << 32) +
-	((((uint) bit_buff->pos[3])) +
-	 (((uint) bit_buff->pos[2]) << 8) +
-	 (((uint) bit_buff->pos[1]) << 16) +
+      bit_buff->current_byte= (bit_buff->current_byte << 32) |
+	((((uint) bit_buff->pos[3])) |
+	 (((uint) bit_buff->pos[2]) << 8) |
+	 (((uint) bit_buff->pos[1]) << 16) |
 	 (((uint) bit_buff->pos[0]) << 24));
       bit_buff->pos+=4;
       bits+=32;
@@ -1251,23 +1252,23 @@ static void decode_bytes(MARIA_COLUMNDEF *rec, MARIA_BIT_BUFF *bit_buff,
 	return;				/* Can't be right */
       }
 #if BITS_SAVED == 32
-      bit_buff->current_byte= (bit_buff->current_byte << 24) +
-	(((uint) ((uchar) bit_buff->pos[2]))) +
-	  (((uint) ((uchar) bit_buff->pos[1])) << 8) +
+      bit_buff->current_byte= (bit_buff->current_byte << 24) |
+	(((uint) ((uchar) bit_buff->pos[2]))) |
+	  (((uint) ((uchar) bit_buff->pos[1])) << 8) |
 	    (((uint) ((uchar) bit_buff->pos[0])) << 16);
       bit_buff->pos+=3;
       bits+=24;
 #else
       if (bits)				/* We must have at leasts 9 bits */
       {
-	bit_buff->current_byte=  (bit_buff->current_byte << 8) +
+	bit_buff->current_byte=  (bit_buff->current_byte << 8) |
 	  (uint) ((uchar) bit_buff->pos[0]);
 	bit_buff->pos++;
 	bits+=8;
       }
       else
       {
-	bit_buff->current_byte= ((uint) ((uchar) bit_buff->pos[0]) << 8) +
+	bit_buff->current_byte= ((uint) ((uchar) bit_buff->pos[0]) << 8) |
 	  ((uint) ((uchar) bit_buff->pos[1]));
 	bit_buff->pos+=2;
 	bits+=16;
@@ -1291,14 +1292,14 @@ static void decode_bytes(MARIA_COLUMNDEF *rec, MARIA_BIT_BUFF *bit_buff,
 	if (bits < 8)
 	{				/* We don't need to check end */
 #if BITS_SAVED == 32
-	  bit_buff->current_byte= (bit_buff->current_byte << 24) +
-	    (((uint) ((uchar) bit_buff->pos[2]))) +
-	      (((uint) ((uchar) bit_buff->pos[1])) << 8) +
+	  bit_buff->current_byte= (bit_buff->current_byte << 24) |
+	    (((uint) ((uchar) bit_buff->pos[2]))) |
+	      (((uint) ((uchar) bit_buff->pos[1])) << 8) |
 		(((uint) ((uchar) bit_buff->pos[0])) << 16);
 	  bit_buff->pos+=3;
 	  bits+=24;
 #else
-	  bit_buff->current_byte=  (bit_buff->current_byte << 8) +
+	  bit_buff->current_byte=  (bit_buff->current_byte << 8) |
 	    (uint) ((uchar) bit_buff->pos[0]);
 	  bit_buff->pos+=1;
 	  bits+=8;
@@ -1412,10 +1413,12 @@ uint _ma_pack_get_block_info(MARIA_HA *maria, MARIA_BIT_BUFF *bit_buff,
 {
   uchar *header= info->header;
   uint head_length,UNINIT_VAR(ref_length);
+  MARIA_SHARE *share= maria->s;
+  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
 
   if (file >= 0)
   {
-    ref_length=maria->s->pack.ref_length;
+    ref_length=share->pack.ref_length;
     /*
       We can't use my_pread() here because _ma_read_rnd_pack_record assumes
       position is ok
@@ -1425,11 +1428,11 @@ uint _ma_pack_get_block_info(MARIA_HA *maria, MARIA_BIT_BUFF *bit_buff,
       return BLOCK_FATAL_ERROR;
     DBUG_DUMP("header", header, ref_length);
   }
-  head_length= read_pack_length((uint) maria->s->pack.version, header,
+  head_length= read_pack_length((uint) share->pack.version, header,
                                 &info->rec_len);
-  if (maria->s->base.blobs)
+  if (share->base.blobs)
   {
-    head_length+= read_pack_length((uint) maria->s->pack.version,
+    head_length+= read_pack_length((uint) share->pack.version,
                                    header + head_length, &info->blob_len);
     /*
       Ensure that the record buffer is big enough for the compressed
@@ -1438,7 +1441,7 @@ uint _ma_pack_get_block_info(MARIA_HA *maria, MARIA_BIT_BUFF *bit_buff,
     */
     if (_ma_alloc_buffer(rec_buff_p, rec_buff_size_p,
                          info->rec_len + info->blob_len +
-                         maria->s->base.extra_rec_buff_size))
+                         share->base.extra_rec_buff_size, flag))
       return BLOCK_FATAL_ERROR;			/* not enough memory */
     bit_buff->blob_pos= *rec_buff_p + info->rec_len;
     bit_buff->blob_end= bit_buff->blob_pos + info->blob_len;
@@ -1488,25 +1491,25 @@ static void fill_buffer(MARIA_BIT_BUFF *bit_buff)
     return;
   }
 #if BITS_SAVED == 64
-  bit_buff->current_byte=  ((((uint) ((uchar) bit_buff->pos[7]))) +
-			     (((uint) ((uchar) bit_buff->pos[6])) << 8) +
-			     (((uint) ((uchar) bit_buff->pos[5])) << 16) +
-			     (((uint) ((uchar) bit_buff->pos[4])) << 24) +
+  bit_buff->current_byte=  ((((uint) ((uchar) bit_buff->pos[7]))) |
+			     (((uint) ((uchar) bit_buff->pos[6])) << 8) |
+			     (((uint) ((uchar) bit_buff->pos[5])) << 16) |
+			     (((uint) ((uchar) bit_buff->pos[4])) << 24) |
 			     ((ulonglong)
-			      ((((uint) ((uchar) bit_buff->pos[3]))) +
-			       (((uint) ((uchar) bit_buff->pos[2])) << 8) +
-			       (((uint) ((uchar) bit_buff->pos[1])) << 16) +
+			      ((((uint) ((uchar) bit_buff->pos[3]))) |
+			       (((uint) ((uchar) bit_buff->pos[2])) << 8) |
+			       (((uint) ((uchar) bit_buff->pos[1])) << 16) |
 			       (((uint) ((uchar) bit_buff->pos[0])) << 24)) << 32));
   bit_buff->pos+=8;
 #else
 #if BITS_SAVED == 32
-  bit_buff->current_byte=  (((uint) ((uchar) bit_buff->pos[3])) +
-			     (((uint) ((uchar) bit_buff->pos[2])) << 8) +
-			     (((uint) ((uchar) bit_buff->pos[1])) << 16) +
+  bit_buff->current_byte=  (((uint) ((uchar) bit_buff->pos[3])) |
+			     (((uint) ((uchar) bit_buff->pos[2])) << 8) |
+			     (((uint) ((uchar) bit_buff->pos[1])) << 16) |
 			     (((uint) ((uchar) bit_buff->pos[0])) << 24));
   bit_buff->pos+=4;
 #else
-  bit_buff->current_byte=  (uint) (((uint) ((uchar) bit_buff->pos[1]))+
+  bit_buff->current_byte=  (uint) (((uint) ((uchar) bit_buff->pos[1])) |
 				    (((uint) ((uchar) bit_buff->pos[0])) << 8));
   bit_buff->pos+=2;
 #endif
@@ -1528,9 +1531,6 @@ static uint max_bit(register uint value)
 /*****************************************************************************
 	Some redefined functions to handle files when we are using memmap
 *****************************************************************************/
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 
 #ifdef HAVE_MMAP
 
@@ -1564,8 +1564,13 @@ my_bool _ma_memmap_file(MARIA_HA *info)
 
 void _ma_unmap_file(MARIA_HA *info)
 {
-  my_munmap((char*) info->s->file_map,
-                 (size_t) info->s->mmaped_length + MEMMAP_EXTRA_MARGIN);
+  MARIA_SHARE *share= info->s;
+  my_munmap((char*) share->file_map,
+            (size_t) share->mmaped_length + MEMMAP_EXTRA_MARGIN);
+  share->file_map= 0;
+  share->file_read= _ma_nommap_pread;
+  share->file_write= _ma_nommap_pwrite;
+  info->opt_flag&= ~MEMMAP_USED;
 }
 
 
@@ -1577,15 +1582,18 @@ _ma_mempack_get_block_info(MARIA_HA *maria,
                            size_t *rec_buff_size_p,
                            uchar *header)
 {
-  header+= read_pack_length((uint) maria->s->pack.version, header,
+  MARIA_SHARE *share= maria->s;
+  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+
+  header+= read_pack_length((uint) share->pack.version, header,
                             &info->rec_len);
-  if (maria->s->base.blobs)
+  if (share->base.blobs)
   {
-    header+= read_pack_length((uint) maria->s->pack.version, header,
+    header+= read_pack_length((uint) share->pack.version, header,
                               &info->blob_len);
     /* _ma_alloc_rec_buff sets my_errno on error */
     if (_ma_alloc_buffer(rec_buff_p, rec_buff_size_p,
-                         info->blob_len + maria->s->base.extra_rec_buff_size))
+                      info->blob_len + share->base.extra_rec_buff_size, flag))
       return 0;				/* not enough memory */
     bit_buff->blob_pos= *rec_buff_p;
     bit_buff->blob_end= *rec_buff_p + info->blob_len;

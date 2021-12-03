@@ -294,81 +294,108 @@ member_id	nickname	voornaam
 drop table t1;
 create table t1 (a int not null, b int, c varchar(10), key (a, b, c));
 insert into t1 values (1, NULL, NULL), (1, NULL, 'b'), (1, 1, NULL), (1, 1, 'b'), (1, 1, 'b'), (2, 1, 'a'), (2, 1, 'b'), (2, 2, 'a'), (2, 2, 'b'), (2, 3, 'c'),(1,3,'b');
+insert into t1 select * from t1;
 explain select * from t1 where (a = 1 and b is null and c = 'b') or (a > 2) order by a desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	22	NULL	2	Using where; Using index
+1	SIMPLE	t1	range	a	a	22	NULL	3	Using where; Using index
 select * from t1 where (a = 1 and b is null and c = 'b') or (a > 2) order by a desc;
 a	b	c
 1	NULL	b
+1	NULL	b
 explain select * from t1 where a >= 1 and a < 3 order by a desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	10	Using where; Using index
+1	SIMPLE	t1	range	a	a	4	NULL	22	Using where; Using index
 select * from t1 where a >= 1 and a < 3 order by a desc;
 a	b	c
 2	3	c
+2	3	c
+2	2	b
 2	2	b
 2	2	a
+2	2	a
+2	1	b
 2	1	b
 2	1	a
+2	1	a
+1	3	b
 1	3	b
 1	1	b
 1	1	b
+1	1	b
+1	1	b
+1	1	NULL
 1	1	NULL
 1	NULL	b
+1	NULL	b
+1	NULL	NULL
 1	NULL	NULL
 explain select * from t1 where a = 1 order by a desc, b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	4	const	5	Using where; Using index
+1	SIMPLE	t1	ref	a	a	4	const	12	Using where; Using index
 select * from t1 where a = 1 order by a desc, b desc;
 a	b	c
 1	3	b
+1	3	b
+1	1	b
+1	1	b
 1	1	b
 1	1	b
 1	1	NULL
+1	1	NULL
 1	NULL	b
+1	NULL	b
+1	NULL	NULL
 1	NULL	NULL
 explain select * from t1 where a = 1 and b is null order by a desc, b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	9	const,const	2	Using where; Using index; Using filesort
+1	SIMPLE	t1	ref	a	a	9	const,const	4	Using where; Using index; Using filesort
 select * from t1 where a = 1 and b is null order by a desc, b desc;
 a	b	c
 1	NULL	NULL
+1	NULL	NULL
+1	NULL	b
 1	NULL	b
 explain select * from t1 where a >= 1 and a < 3 and b >0 order by a desc,b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	8	Using where; Using index
+1	SIMPLE	t1	range	a	a	9	NULL	18	Using where; Using index
 explain select * from t1 where a = 2 and b >0 order by a desc,b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	5	Using where; Using index
+1	SIMPLE	t1	range	a	a	9	NULL	10	Using where; Using index
 explain select * from t1 where a = 2 and b is null order by a desc,b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	a	a	9	const,const	1	Using where; Using index; Using filesort
 explain select * from t1 where a = 2 and (b is null or b > 0) order by a
 desc,b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	6	Using where; Using index
+1	SIMPLE	t1	range	a	a	9	NULL	11	Using where; Using index
 explain select * from t1 where a = 2 and b > 0 order by a desc,b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	5	Using where; Using index
+1	SIMPLE	t1	range	a	a	9	NULL	10	Using where; Using index
 explain select * from t1 where a = 2 and b < 2 order by a desc,b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	2	Using where; Using index
+1	SIMPLE	t1	range	a	a	9	NULL	4	Using where; Using index
 explain select * from t1 where a = 1 order by b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	4	const	5	Using where; Using index
+1	SIMPLE	t1	ref	a	a	4	const	12	Using where; Using index
 explain select * from t1 where a = 2 and b > 0 order by a desc,b desc,b,a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	5	Using where; Using index
+1	SIMPLE	t1	range	a	a	9	NULL	10	Using where; Using index
 explain select * from t1 where a = 2 and b < 2 order by a desc,a,b desc,a,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	2	Using where; Using index
+1	SIMPLE	t1	range	a	a	9	NULL	4	Using where; Using index
 select * from t1 where a = 1 order by b desc;
 a	b	c
 1	3	b
+1	3	b
+1	1	b
+1	1	b
 1	1	b
 1	1	b
 1	1	NULL
+1	1	NULL
 1	NULL	b
+1	NULL	b
+1	NULL	NULL
 1	NULL	NULL
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify b int not null, modify c varchar(10) not null;
@@ -377,91 +404,146 @@ Warning	1265	Data truncated for column 'b' at row 1
 Warning	1265	Data truncated for column 'c' at row 1
 Warning	1265	Data truncated for column 'b' at row 2
 Warning	1265	Data truncated for column 'c' at row 3
+Warning	1265	Data truncated for column 'b' at row 12
+Warning	1265	Data truncated for column 'c' at row 12
+Warning	1265	Data truncated for column 'b' at row 13
+Warning	1265	Data truncated for column 'c' at row 14
 explain select * from t1 order by a, b, c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	20	NULL	11	Using index
+1	SIMPLE	t1	index	NULL	a	20	NULL	22	Using index
 select * from t1 order by a, b, c;
 a	b	c
 1	0	
+1	0	
 1	0	b
+1	0	b
+1	1	
 1	1	
 1	1	b
 1	1	b
+1	1	b
+1	1	b
+1	3	b
 1	3	b
 2	1	a
+2	1	a
+2	1	b
 2	1	b
 2	2	a
+2	2	a
 2	2	b
+2	2	b
+2	3	c
 2	3	c
 explain select * from t1 order by a desc, b desc, c desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	20	NULL	11	Using index
+1	SIMPLE	t1	index	NULL	a	20	NULL	22	Using index
 select * from t1 order by a desc, b desc, c desc;
 a	b	c
 2	3	c
+2	3	c
+2	2	b
 2	2	b
 2	2	a
+2	2	a
+2	1	b
 2	1	b
 2	1	a
+2	1	a
+1	3	b
 1	3	b
 1	1	b
 1	1	b
+1	1	b
+1	1	b
+1	1	
 1	1	
 1	0	b
+1	0	b
+1	0	
 1	0	
 explain select * from t1 where (a = 1 and b = 1 and c = 'b') or (a > 2) order by a desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	20	NULL	3	Using where; Using index
+1	SIMPLE	t1	range	a	a	20	NULL	5	Using where; Using index
 select * from t1 where (a = 1 and b = 1 and c = 'b') or (a > 2) order by a desc;
 a	b	c
 1	1	b
 1	1	b
+1	1	b
+1	1	b
 explain select * from t1 where a < 2 and b <= 1 order by a desc, b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	6	Using where; Using index
+1	SIMPLE	t1	range	a	a	4	NULL	12	Using where; Using index
 select * from t1 where a < 2 and b <= 1 order by a desc, b desc;
 a	b	c
 1	1	b
 1	1	b
+1	1	b
+1	1	b
+1	1	
 1	1	
 1	0	b
+1	0	b
+1	0	
 1	0	
 select count(*) from t1 where a < 5 and b > 0;
 count(*)
-9
+18
 select * from t1 where a < 5 and b > 0 order by a desc,b desc;
 a	b	c
 2	3	c
+2	3	c
+2	2	b
 2	2	b
 2	2	a
+2	2	a
+2	1	b
 2	1	b
 2	1	a
+2	1	a
+1	3	b
 1	3	b
 1	1	b
 1	1	b
+1	1	b
+1	1	b
+1	1	
 1	1	
 explain select * from t1 where a between 1 and 3 and b <= 1 order by a desc, b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	8	NULL	10	Using where; Using index
+1	SIMPLE	t1	range	a	a	8	NULL	22	Using where; Using index
 select * from t1 where a between 1 and 3 and b <= 1 order by a desc, b desc;
 a	b	c
 2	1	b
+2	1	b
+2	1	a
 2	1	a
 1	1	b
 1	1	b
+1	1	b
+1	1	b
+1	1	
 1	1	
 1	0	b
+1	0	b
+1	0	
 1	0	
 explain select * from t1 where a between 0 and 1 order by a desc, b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	5	Using where; Using index
+1	SIMPLE	t1	range	a	a	4	NULL	12	Using where; Using index
 select * from t1 where a between 0 and 1 order by a desc, b desc;
 a	b	c
 1	3	b
+1	3	b
+1	1	b
+1	1	b
 1	1	b
 1	1	b
 1	1	
+1	1	
 1	0	b
+1	0	b
+1	0	
 1	0	
 drop table t1;
 CREATE TABLE t1 (
@@ -621,10 +703,10 @@ DS-MRR: use two IGNORE INDEX queries, otherwise we get cost races, because
 DS-MRR: records_in_range/read_time return the same numbers for all three indexes
 EXPLAIN SELECT * FROM t1 IGNORE INDEX (LongField, StringField) WHERE FieldKey > '2' ORDER BY LongVal;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	FieldKey	FieldKey	38	NULL	4	Using index condition; Using filesort
+1	SIMPLE	t1	range	FieldKey	FieldKey	38	NULL	3	Using index condition; Using filesort
 EXPLAIN SELECT * FROM t1 IGNORE INDEX (FieldKey, LongField) WHERE FieldKey > '2' ORDER BY LongVal;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	StringField	StringField	38	NULL	4	Using where; Using filesort
+1	SIMPLE	t1	range	StringField	StringField	38	NULL	3	Using where; Using filesort
 SELECT * FROM t1 WHERE FieldKey > '2' ORDER BY LongVal;
 FieldKey	LongVal	StringVal
 3	1	2
@@ -632,7 +714,7 @@ FieldKey	LongVal	StringVal
 3	3	3
 EXPLAIN SELECT * FROM t1 WHERE FieldKey > '2' ORDER BY FieldKey, LongVal;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	FieldKey,LongField,StringField	LongField	38	NULL	4	Using where
+1	SIMPLE	t1	range	FieldKey,LongField,StringField	LongField	38	NULL	3	Using where
 SELECT * FROM t1 WHERE FieldKey > '2' ORDER BY FieldKey, LongVal;
 FieldKey	LongVal	StringVal
 3	1	2
@@ -654,7 +736,7 @@ insert into t1 values (2, 1), (1, 1), (4, NULL), (3, NULL), (6, 2), (5, 2);
 insert into t1 values (12, 11), (11, 11), (14, 3), (13, 5), (16, 12), (15, 12);
 explain select * from t1 where b=1 or b is null order by a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref_or_null	b	b	5	const	4	Using index condition; Using where; Using filesort
+1	SIMPLE	t1	ref_or_null	b	b	5	const	4	Using index condition; Using filesort
 select * from t1 where b=1 or b is null order by a;
 a	b
 1	1
@@ -663,7 +745,7 @@ a	b
 4	NULL
 explain select * from t1 where b=2 or b is null order by a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref_or_null	b	b	5	const	3	Using index condition; Using where; Using filesort
+1	SIMPLE	t1	ref_or_null	b	b	5	const	4	Using index condition; Using filesort
 select * from t1 where b=2 or b is null order by a;
 a	b
 3	NULL
@@ -763,18 +845,20 @@ col2	col	col
 2	2	2
 1	3	3
 drop table t1, t2;
-create table t1 (a char(25));
+create table t1 (a char(70));
 insert into t1 set a = repeat('x', 20);
-insert into t1 set a = concat(repeat('x', 19), 'z');
-insert into t1 set a = concat(repeat('x', 19), 'ab');
-insert into t1 set a = concat(repeat('x', 19), 'aa');
+insert into t1 set a = concat(repeat('x', 63), 'z');
+insert into t1 set a = concat(repeat('x', 63), 'ab');
+insert into t1 set a = concat(repeat('x', 63), 'aa');
 set max_sort_length=20;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '20'
 select a from t1 order by a;
 a
-xxxxxxxxxxxxxxxxxxxab
-xxxxxxxxxxxxxxxxxxxaa
 xxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxz
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxab
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxaa
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxz
 drop table t1;
 create table t1 (
 `sid` decimal(8,0) default null,
@@ -784,8 +868,6 @@ key `wnid` (`wnid`)
 ) engine=myisam default charset=latin1;
 insert into t1 (`sid`, `wnid`) values
 ('10100','01019000000'),('37986','01019000000'),('37987','01019010000'),
-('39560','01019090000'),('37989','01019000000'),('37990','01019011000'),
-('37991','01019011000'),('37992','01019019000'),('37993','01019030000'),
 ('37994','01019090000'),('475','02070000000'),('25253','02071100000'),
 ('25255','02071100000'),('25256','02071110000'),('25258','02071130000'),
 ('25259','02071190000'),('25260','02071200000'),('25261','02071210000'),
@@ -800,18 +882,12 @@ insert into t1 (`sid`, `wnid`) values
 ('25295','02071491000'),('25296','02071491000'),('25297','02071499000');
 explain select * from t1 where wnid like '0101%' order by wnid;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	wnid14,wnid	wnid	13	NULL	10	Using where
+1	SIMPLE	t1	range	wnid14,wnid	wnid	13	NULL	4	Using where
 select * from t1 where wnid like '0101%' order by wnid;
 sid	wnid
 10100	01019000000
 37986	01019000000
-37989	01019000000
 37987	01019010000
-37990	01019011000
-37991	01019011000
-37992	01019019000
-37993	01019030000
-39560	01019090000
 37994	01019090000
 drop table t1;
 CREATE TABLE t1 (a int);
@@ -1515,7 +1591,7 @@ WHERE t2.b=14 AND t2.a=t1.a AND 5.1<t2.c AND t1.b='DE'
 ORDER BY t2.c LIMIT 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	range	a,b,c	c	5	NULL	420	Using where
-1	SIMPLE	t1	ref	a	a	39	test.t2.a,const	10	Using where; Using index
+1	SIMPLE	t1	eq_ref	a	a	39	test.t2.a,const	1	Using where; Using index
 SELECT d FROM t3 AS t1, t2 AS t2 
 WHERE t2.b=14 AND t2.a=t1.a AND 5.1<t2.c AND t1.b='DE'
 ORDER BY t2.c LIMIT 1;
@@ -2851,7 +2927,7 @@ explain
 select b, count(*) num_cnt from t1
 where a > 9750 group by b order by num_cnt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1	idx1	5	NULL	502	Using where; Using index; Using temporary; Using filesort
+1	SIMPLE	t1	range	idx1	idx1	5	NULL	503	Using where; Using index; Using temporary; Using filesort
 flush status;
 select b, count(*) num_cnt from t1
 where a > 9750 group by b order by num_cnt;
@@ -2870,7 +2946,7 @@ explain
 select b, count(*) num_cnt from t1 
 where a > 9750 group by b order by num_cnt limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1	idx1	5	NULL	502	Using where; Using index; Using temporary; Using filesort
+1	SIMPLE	t1	range	idx1	idx1	5	NULL	503	Using where; Using index; Using temporary; Using filesort
 flush status;
 select b, count(*) num_cnt from t1 
 where a > 9750 group by b order by num_cnt limit 1;
@@ -3034,15 +3110,17 @@ KEY id_234_date (id2,id3,id4,date)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 # t2 has a "good" index declaration order
 INSERT INTO t1 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2,1),(1,3,1);
+INSERT INTO t1 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2,1),(1,3,1);
+INSERT INTO t2 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2,1),(1,3,1);
 INSERT INTO t2 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2,1),(1,3,1);
 # The following two must both use id_23_date and no "using filesort":
 EXPLAIN SELECT id1 FROM t1 WHERE id2=1 AND id3=1 ORDER BY date DESC LIMIT 0,4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	id_234_date,id_23_date	id_23_date	2	NULL	3	Using where
+1	SIMPLE	t1	range	id_234_date,id_23_date	id_23_date	2	NULL	8	Using where
 # See above query
 EXPLAIN SELECT id1 FROM t2 WHERE id2=1 AND id3=1 ORDER BY date DESC LIMIT 0,4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	id_23_date,id_234_date	id_23_date	2	const,const	3	Using where
+1	SIMPLE	t2	ref	id_23_date,id_234_date	id_23_date	2	const,const	8	Using where
 drop table t1,t2;
 #
 # MDEV-8989: ORDER BY optimizer ignores equality propagation
@@ -3206,6 +3284,176 @@ pk
 3
 DROP TABLE t1;
 #
+# MDEV-21044: Wrong result when using a smaller size for sort buffer
+#
+create table t1(a varchar(765),b int);
+insert into t1 values ("a",1),("b",2),("c",3),("e",4);
+insert into t1 values ("d",5),("f",6),("g",7),("h",8);
+insert into t1 values ("k",11),("l",12),("i",9),("j",10);
+insert into t1 values ("m",13),("n",14),("o",15),("p",16);
+set @save_sort_buffer_size= @@sort_buffer_size;
+set sort_buffer_size=1024;
+select * from t1 order  by b;
+a	b
+a	1
+b	2
+c	3
+e	4
+d	5
+f	6
+g	7
+h	8
+i	9
+j	10
+k	11
+l	12
+m	13
+n	14
+o	15
+p	16
+set @@sort_buffer_size= @save_sort_buffer_size;
+drop table t1;
+#
+# MDEV-22715: SIGSEGV in radixsort_for_str_ptr and in native_compare/my_qsort2 (optimized builds)
+#
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_sort_length= @@max_sort_length;
+SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
+SET sort_buffer_size=1024;
+CREATE TABLE t1(a INT, b DECIMAL(65), c BLOB);
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
+SELECT * FROM t1 ORDER BY a,b;
+a	b	c
+1	1	1
+1	1	1
+2	2	2
+2	2	2
+3	3	3
+3	3	3
+4	4	4
+4	4	4
+5	5	5
+5	5	5
+6	6	6
+6	6	6
+7	7	7
+7	7	7
+8	8	8
+8	8	8
+9	9	9
+9	9	9
+10	10	10
+10	10	10
+11	11	11
+11	11	11
+12	12	12
+12	12	12
+13	13	13
+13	13	13
+14	14	14
+14	14	14
+15	15	15
+15	15	15
+16	16	16
+16	16	16
+17	17	17
+17	17	17
+18	18	18
+18	18	18
+19	19	19
+19	19	19
+20	20	20
+20	20	20
+21	21	21
+21	21	21
+22	22	22
+22	22	22
+23	23	23
+23	23	23
+24	24	24
+24	24	24
+25	25	25
+25	25	25
+SET @@sort_buffer_size= @save_sort_buffer_size;
+SET @@max_sort_length= @save_max_sort_length;
+DROP TABLE t1;
+#
+# MDEV-22390: Assertion `m_next_rec_ptr >= m_rawmem' failed in Filesort_buffer::spaceleft |
+# SIGSEGV in __memmove_avx_unaligned_erms from my_b_write (on optimized)
+#
+SET @save_max_sort_length= @@max_sort_length;
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET @save_max_length_for_sort_data= @@max_length_for_sort_data;
+SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
+SET sort_buffer_size=1024;
+SET max_length_for_sort_data=7000;
+CREATE TABLE t1(a VARCHAR(64), b VARCHAR(2048))DEFAULT CHARSET=utf8;
+INSERT INTO t1 SELECT seq,seq from seq_1_to_100;
+ANALYZE FORMAT=JSON SELECT * FROM t1 ORDER BY a LIMIT 5;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 5,
+      "filesort": {
+        "sort_key": "t1.a",
+        "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
+        "r_limit": 5,
+        "r_used_priority_queue": false,
+        "r_output_rows": 35,
+        "r_sort_passes": 1,
+        "r_buffer_size": "REPLACED",
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 100,
+          "r_rows": 100,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+SELECT * FROM t1 ORDER BY a LIMIT 5;
+a	b
+1	1
+10	10
+100	100
+11	11
+12	12
+SET max_sort_length= @save_max_sort_length;
+SET sort_buffer_size= @save_sort_buffer_size;
+SET max_length_for_sort_data= @save_max_length_for_sort_data;
+DROP TABLE t1;
+#
+# MDEV-23596: Assertion `tab->ref.use_count' failed in join_read_key_unlock_row
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY(b));
+INSERT INTO t1 VALUES (0, 1),(1, 2);
+CREATE TABLE t2 SELECT * FROM t1;
+EXPLAIN SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+2	DEPENDENT SUBQUERY	t1	index	PRIMARY	b	5	NULL	1	Using where
+SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
+c
+1
+NULL
+DROP TABLE t1,t2;
+# end of 10.1 tests
+#
 # MDEV-13994: Bad join results with orderby_uses_equalities=on
 #
 CREATE TABLE books (
@@ -3246,10 +3494,167 @@ WHERE books.library_id = 8663 AND
 books.scheduled_for_removal=0 )
 ORDER BY wings.id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	1	100.00	Using temporary; Using filesort
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 1	PRIMARY	wings	eq_ref	PRIMARY	PRIMARY	4	test.books.wings_id	1	100.00	
-2	MATERIALIZED	books	ref	library_idx	library_idx	4	const	1	100.00	Using where
+2	MATERIALIZED	books	ref	library_idx	library_idx	4	const	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`wings`.`id` AS `wing_id`,`test`.`wings`.`department_id` AS `department_id` from `test`.`wings` semi join (`test`.`books`) where `test`.`books`.`library_id` = 8663 and `test`.`books`.`scheduled_for_removal` = 0 and `test`.`wings`.`id` = `test`.`books`.`wings_id` order by `test`.`wings`.`id`
 set optimizer_switch= @save_optimizer_switch;
 DROP TABLE books, wings;
+#
+# MDEV-17796: query with DISTINCT, GROUP BY and ORDER BY
+#
+CREATE TABLE t1 (id int, gr int, v1 varchar(10));
+INSERT INTO t1 VALUES (1,1,'A'), (2,2,'B'), (3,3,NULL), (4,4,'C');
+SELECT DISTINCT NULLIF(GROUP_CONCAT(v1), null) FROM t1
+WHERE gr in (4,2)
+GROUP BY id
+ORDER BY id+1 DESC;
+NULLIF(GROUP_CONCAT(v1), null)
+C
+B
+DROP TABLE t1;
+#
+# MDEV-24033: SIGSEGV in __memcmp_avx2_movbe from queue_insert | SIGSEGV in __memcmp_avx2_movbe from native_compare
+#
+SET @save_max_length_for_sort_data=@@max_length_for_sort_data;
+SET @save_max_sort_length= @@max_sort_length;
+SET @save_sql_select_limit= @@sql_select_limit;
+CREATE TABLE t1 (a DECIMAL(64,0), b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4);
+SET max_length_for_sort_data= 30;
+SET sql_select_limit = 3;
+SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
+SELECT * FROM t1 ORDER BY a+1;
+a	b
+1	1
+2	2
+3	3
+SET max_length_for_sort_data=@save_max_length_for_sort_data;
+SET max_sort_length= @save_max_sort_length;
+SET sql_select_limit= @save_sql_select_limit;
+DROP TABLE t1;
+#
+# MDEV-25682: EXPLAIN for SELECT with ORDER BY after [ORDER BY] LIMIT
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+explain (select a from t1 limit 2) order by a desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
+(select a from t1 limit 2) order by a desc;
+a
+7
+3
+create table t2 (a int, b int);
+insert into t2 values (3,70), (7,10), (1,40), (4,30);
+explain (select b,a from t2 order by a limit 3) order by b desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	4	Using filesort
+(select b,a from t2 order by a limit 3) order by b desc;
+b	a
+70	3
+40	1
+30	4
+drop table t1,t2;
+# End of 10.2 tests
+#
+# MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2(
+id int primary key,
+key1 int,key2 int,
+col1 int,
+key(key1), key(key2)
+);
+insert into t2
+select
+A.a + B.a*10 + C.a*100,
+A.a + 10*B.a, A.a + 10*B.a,
+123456
+from t1 A, t1 B, t1 C;
+# here type should show ref not index
+explain select
+(SELECT  concat(id, '-', key1, '-', col1)
+FROM t2
+WHERE
+t2.key1 = t1.a and t2.key1 IS NOT NULL
+ORDER BY
+t2.key2 ASC
+LIMIT 1)
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	DEPENDENT SUBQUERY	t2	ref	key1	key1	5	test.t1.a	10	Using index condition; Using where; Using filesort
+select
+(SELECT  concat(id, '-', key1, '-', col1)
+FROM t2
+WHERE
+t2.key1 = t1.a and t2.key1 IS NOT NULL
+ORDER BY
+t2.key2 ASC
+LIMIT 1)
+from t1;
+(SELECT  concat(id, '-', key1, '-', col1)
+FROM t2
+WHERE
+t2.key1 = t1.a and t2.key1 IS NOT NULL
+ORDER BY
+t2.key2 ASC
+LIMIT 1)
+900-0-123456
+901-1-123456
+902-2-123456
+903-3-123456
+904-4-123456
+905-5-123456
+906-6-123456
+907-7-123456
+908-8-123456
+909-9-123456
+drop table t1,t2;
+# End of 10.3 tests
+#
+# MDEV-17761: Odd optimizer choice with ORDER BY LIMIT and condition selectivity
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2(a int);
+insert into t2 select A.a + B.a* 10 + C.a * 100 from t1 A, t1 B, t1 C;
+create table t3(a int);
+insert into t3 select A.a + 1000 *B.a from t2 A, t1 B;
+create table t4 (
+a int,
+b int,
+c int,
+filler1 char(255),
+filler2 char(255),
+key(a)
+);
+insert into t4 select a,a,a, a,a from t3;
+set @tmp_h=@@histogram_size, @tmp_ht=@@histogram_type, @tmp_u=@@use_stat_tables, 
+@tmp_o=@@optimizer_use_condition_selectivity;
+set histogram_size=100, histogram_type='single_prec_hb';
+set use_stat_tables=preferably;
+set optimizer_use_condition_selectivity=4;
+analyze table t4 persistent for columns(b) indexes ();
+Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	Table is already up to date
+# rows must be around 1200, not 600:
+explain extended 
+select * from t4 where b < 5000 order by a limit 600;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	index	NULL	a	5	NULL	1188	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` AS `c`,`test`.`t4`.`filler1` AS `filler1`,`test`.`t4`.`filler2` AS `filler2` from `test`.`t4` where `test`.`t4`.`b` < 5000 order by `test`.`t4`.`a` limit 600
+set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
+optimizer_use_condition_selectivity=@tmp_o;
+drop table t1,t2,t3,t4;
+# End of 10.4 tests

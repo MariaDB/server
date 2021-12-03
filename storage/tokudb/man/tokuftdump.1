@@ -1,0 +1,237 @@
+'\" t
+.\"
+.TH "\FBTOKUFTDUMP\FR" "1" "28 March 2019" "MariaDB 10\&.4" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" tokuftdump
+.\" upgrading MySQL
+.SH "NAME"
+tokuftdump \- look into the fractal tree file
+.SH "SYNOPSIS"
+.HP \w'\fBtokuftdump\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBtokuftdump [\fR\fB\fIoptions\fR\fR\fB]\fR
+.SH "DESCRIPTION"
+.PP
+\fBtokuftdump\fR
+Investigates and diagnoses the fractal tree\&.
+.PP
+\fBtokuftdump\fR 
+supports the following options for processing option files\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: interactive option
+.\" interactive option: tokuftdump
+\fB\-\-interactive\fR
+.sp
+Interactive\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: support option
+.\" support option: tokuftdump
+\fB\-\-support \fI/path/to/fractal-tree/file\fR
+.sp
+An interactive way to see what messages and/or switch between FTs\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: json option
+.\" json option: tokuftdump
+\fB\-\-json \fI/path/to/fractal-tree/file [output_json_file]\fR
+.sp
+If the output json file is left empty, FT\&.json will be created automatically\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: nodata option
+.\" nodata option: tokuftdump
+\fB\-\-nodata\fR
+.sp
+Nodata\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: dumpdata option
+.\" dumpdata option: tokuftdump
+\fB\-\-dumpdata = \fR\fB\fI0|1\fR\fR
+.sp
+Dumpdata\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: header option
+.\" header option: tokuftdump
+\fB\-\-header\fR
+.sp
+Header\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: rootnode option
+.\" rootnode option: tokuftdump
+\fB\-\-rootnode\fR
+.sp
+Rootnode\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: node option
+.\" node option: tokuftdump
+\fB\-\-node \fIN\fR
+.sp
+Node\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: fragmentation option
+.\" fragmentation option: tokuftdump
+\fB\-\-fragmentation\fR
+.sp
+Fragmentation\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: garbage option
+.\" garbage option: tokuftdump
+\fB\-\-garbage\fR
+.sp
+Garbage\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: tsv option
+.\" tsv option: tokuftdump
+\fB\-\-tsv\fR
+.sp
+TSV\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: translation-table option
+.\" translation-table option: tokuftdump
+\fB\-\-translation\-table\fR
+.sp
+Translation table\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" tokuftdump: summary option
+.\" summary option: tokuftdump
+\fB\-\-summary\fR
+.sp
+Provide summary info\&.
+.RE
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2016 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

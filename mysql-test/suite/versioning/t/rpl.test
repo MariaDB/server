@@ -14,24 +14,24 @@ let $slave_com_update_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_updat
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
 insert into t1 values (1);
-SELECT * FROM t1;
+select * from t1 order by x;
 delete from t1;
-select * from t1;
-select * from t1 for system_time all;
+select * from t1 order by x;
+select * from t1 for system_time all order by row_end, x;
 sync_slave_with_master;
-select * from t1;
-select * from t1 for system_time all;
+select * from t1 order by x;
+select * from t1 for system_time all order by row_end, x;
 
 connection master;
 insert into t1 values (2);
 sync_slave_with_master;
-select * from t1;
+select * from t1 order by x;
 
 connection master;
 update t1 set x = 3;
 sync_slave_with_master;
-select * from t1;
-select * from t1 for system_time all;
+select * from t1 order by x;
+select * from t1 for system_time all order by row_end, x;
 
 --echo # check unversioned -> versioned replication
 connection master;
@@ -42,20 +42,20 @@ alter table t1 with system versioning;
 connection master;
 insert into t1 values (1);
 sync_slave_with_master;
-select * from t1;
-select * from t1 for system_time all;
+select * from t1 order by x;
+select * from t1 for system_time all order by row_end, x;
 
 connection master;
 update t1 set x= 2 where x = 1;
 sync_slave_with_master;
-select * from t1;
-select * from t1 for system_time all;
+select * from t1 order by x;
+select * from t1 for system_time all order by row_end, x;
 
 connection master;
 delete from t1;
 sync_slave_with_master;
-select * from t1;
-select * from t1 for system_time all;
+select * from t1 order by x;
+select * from t1 for system_time all order by row_end, x;
 
 --echo # same thing (UPDATE, DELETE), but without PK
 connection master;
@@ -67,14 +67,14 @@ connection master;
 insert into t1 values (1);
 update t1 set x= 2 where x = 1;
 sync_slave_with_master;
-select * from t1;
-select * from t1 for system_time all;
+select * from t1 order by x;
+select * from t1 for system_time all order by row_end, x;
 
 connection master;
 delete from t1;
 sync_slave_with_master;
-select * from t1;
-select * from t1 for system_time all;
+select * from t1 order by x;
+select * from t1 for system_time all order by row_end, x;
 
 --echo # multi-update
 connection master;
@@ -84,10 +84,10 @@ insert into t1 values (1);
 insert into t2 values (2);
 update t1, t2 set t1.x=11, t2.x=22;
 sync_slave_with_master;
-select * from t1;
-select * from t2;
-select * from t1 for system_time all;
-select * from t2 for system_time all;
+select * from t1 order by x;
+select * from t2 order by x;
+select * from t1 for system_time all order by row_end, x;
+select * from t2 for system_time all order by row_end, x;
 
 --echo # MDEV-14767 system_versioning_alter_history breaks ALTER replication
 --echo ## Case 1: KEEP on the master, ALTER will work on the slave
@@ -96,7 +96,7 @@ create or replace table t1 (a int) with system versioning;
 set system_versioning_alter_history= KEEP;
 alter table t1 add column b int;
 sync_slave_with_master;
---replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
 show create table t1;
 
 --echo ## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
@@ -105,7 +105,7 @@ set system_versioning_alter_history= ERROR;
 --error ER_VERS_ALTER_NOT_ALLOWED
 alter table t1 drop column b;
 sync_slave_with_master;
---replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
 show create table t1;
 
 --echo ## Case 3: table is not versioned on the master, ALTER will work on the slave
@@ -116,7 +116,7 @@ create or replace table t1 (a int) with system versioning;
 connection master;
 alter table t1 add column b int;
 sync_slave_with_master;
---replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
 show create table t1;
 
 connection master;

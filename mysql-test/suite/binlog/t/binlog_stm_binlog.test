@@ -3,10 +3,6 @@
 let collation=utf8_unicode_ci;
 --source include/have_collation.inc
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 # REQUIREMENT
 #   replace_regex should replace output of SHOW BINLOG EVENTS
 

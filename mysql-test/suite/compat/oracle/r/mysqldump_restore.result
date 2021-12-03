@@ -1,0 +1,38 @@
+SET sql_mode=ORACLE;
+#
+# Start of 10.3 tests
+#
+#
+#  MDEV-17363 Compressed columns cannot be restored from dump
+#
+CREATE TABLE t1 (a VARCHAR(1000) COMPRESSED CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL);
+INSERT INTO `t1` VALUES (REPEAT('a', 256));
+# Begin testing mysqldump output + restore
+# Create 'original table name - <table>_orig
+SET @orig_table_name = CONCAT('test.t1', '_orig');
+# Rename original table
+ALTER TABLE test.t1 RENAME to test.t1_orig;
+# Recreate table from mysqldump output
+# Compare original and recreated tables
+# Recreated table: test.t1
+# Original table: test.t1_orig
+include/diff_tables.inc [test.t1, test.t1_orig]
+# Cleanup
+DROP TABLE test.t1, test.t1_orig;
+CREATE TABLE t1 (a LONGTEXT COMPRESSED CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL);
+INSERT INTO `t1` VALUES (REPEAT('a', 256));
+# Begin testing mysqldump output + restore
+# Create 'original table name - <table>_orig
+SET @orig_table_name = CONCAT('test.t1', '_orig');
+# Rename original table
+ALTER TABLE test.t1 RENAME to test.t1_orig;
+# Recreate table from mysqldump output
+# Compare original and recreated tables
+# Recreated table: test.t1
+# Original table: test.t1_orig
+include/diff_tables.inc [test.t1, test.t1_orig]
+# Cleanup
+DROP TABLE test.t1, test.t1_orig;
+#
+# End of 10.3 tests
+#

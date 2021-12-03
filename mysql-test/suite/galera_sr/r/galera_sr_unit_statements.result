@@ -1,0 +1,54 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 3;
+SET SESSION wsrep_trx_fragment_unit = 'statements';
+connection node_1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+connection node_1;
+INSERT INTO t1 VALUES (2);
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+1
+connection node_1;
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+5
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+2
+connection node_1;
+COMMIT;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+5
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+5
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+DROP TABLE t1;

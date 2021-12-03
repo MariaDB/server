@@ -56,6 +56,7 @@ mysqltest.t3	optimize	Note	Zerofilling moved table ./mysqltest/t3
 mysqltest.t3	optimize	status	OK
 analyze table t4;
 Table	Op	Msg_type	Msg_text
+mysqltest.t4	analyze	status	Engine-independent statistics collected
 mysqltest.t4	analyze	Note	Zerofilling moved table ./mysqltest/t4
 mysqltest.t4	analyze	status	OK
 repair table t5;

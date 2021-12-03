@@ -65,8 +65,10 @@ GEOMETRY_COLUMNS
 GLOBAL_STATUS
 GLOBAL_VARIABLES
 INDEX_STATISTICS
+KEYWORDS
 KEY_CACHES
 KEY_COLUMN_USAGE
+OPTIMIZER_TRACE
 PARAMETERS
 PARTITIONS
 PLUGINS
@@ -79,6 +81,7 @@ SCHEMA_PRIVILEGES
 SESSION_STATUS
 SESSION_VARIABLES
 SPATIAL_REF_SYS
+SQL_FUNCTIONS
 STATISTICS
 SYSTEM_VARIABLES
 TABLES
@@ -96,6 +99,7 @@ db
 event
 func
 general_log
+global_priv
 gtid_slave_pos
 help_category
 help_keyword
@@ -491,7 +495,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	ALTER ROUTINE	YES
 'mysqltest_1'@'localhost'	def	test	EVENT	YES
 'mysqltest_1'@'localhost'	def	test	TRIGGER	YES
-'mysqltest_1'@'localhost'	def	test	DELETE VERSIONING ROWS	YES
+'mysqltest_1'@'localhost'	def	test	DELETE HISTORY	YES
 select * from information_schema.TABLE_PRIVILEGES where grantee like '%mysqltest_1%';
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	t1	SELECT	NO
@@ -563,6 +567,7 @@ create view v2 (c) as select a from t1 WITH LOCAL CHECK OPTION;
 create view v3 (c) as select a from t1 WITH CASCADED CHECK OPTION;
 select * from information_schema.views;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	mysql	user	select `mysql`.`global_priv`.`Host` AS `Host`,`mysql`.`global_priv`.`User` AS `User`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.plugin') in ('mysql_native_password','mysql_old_password'),ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.authentication_string'),''),'') AS `Password`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1,'Y','N') AS `Select_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2,'Y','N') AS `Insert_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4,'Y','N') AS `Update_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8,'Y','N') AS `Delete_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16,'Y','N') AS `Create_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 32,'Y','N') AS `Drop_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 64,'Y','N') AS `Reload_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 128,'Y','N') AS `Shutdown_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 256,'Y','N') AS `Process_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 512,'Y','N') AS `File_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1024,'Y','N') AS `Grant_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2048,'Y','N') AS `References_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4096,'Y','N') AS `Index_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8192,'Y','N') AS `Alter_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16384,'Y','N') AS `Show_db_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 32768,'Y','N') AS `Super_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 65536,'Y','N') AS `Create_tmp_table_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 131072,'Y','N') AS `Lock_tables_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 262144,'Y','N') AS `Execute_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 524288,'Y','N') AS `Repl_slave_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1048576,'Y','N') AS `Repl_client_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2097152,'Y','N') AS `Create_view_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4194304,'Y','N') AS `Show_view_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8388608,'Y','N') AS `Create_routine_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16777216,'Y','N') AS `Alter_routine_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 33554432,'Y','N') AS `Create_user_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 67108864,'Y','N') AS `Event_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 134217728,'Y','N') AS `Trigger_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 268435456,'Y','N') AS `Create_tablespace_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 536870912,'Y','N') AS `Delete_history_priv`,elt(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.ssl_type'),0) + 1,'','ANY','X509','SPECIFIED') AS `ssl_type`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.ssl_cipher'),'') AS `ssl_cipher`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.x509_issuer'),'') AS `x509_issuer`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.x509_subject'),'') AS `x509_subject`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_questions'),0) as unsigned) AS `max_questions`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_updates'),0) as unsigned) AS `max_updates`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_connections'),0) as unsigned) AS `max_connections`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_user_connections'),0) as signed) AS `max_user_connections`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.plugin'),'') AS `plugin`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.authentication_string'),'') AS `authentication_string`,if(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.password_last_changed'),1) = 0,'Y','N') AS `password_expired`,elt(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.is_role'),0) + 1,'N','Y') AS `is_role`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.default_role'),'') AS `default_role`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_statement_time'),0.0) as decimal(12,6)) AS `max_statement_time` from `mysql`.`global_priv`	NONE	YES	mariadb.sys@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
 def	test	v1	select `test`.`t1`.`a` AS `c` from `test`.`t1`	CASCADED	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
 def	test	v2	select `test`.`t1`.`a` AS `c` from `test`.`t1`	LOCAL	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
 def	test	v3	select `test`.`t1`.`a` AS `c` from `test`.`t1`	CASCADED	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
@@ -572,6 +577,8 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRAN
 'joe'@'localhost'	def	test	t1	a	SELECT	YES
 select * from INFORMATION_SCHEMA.TABLE_PRIVILEGES;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
+'mariadb.sys'@'localhost'	def	mysql	global_priv	SELECT	NO
+'mariadb.sys'@'localhost'	def	mysql	global_priv	DELETE	NO
 drop view v1, v2, v3;
 drop table t1;
 delete from mysql.user where user='joe';
@@ -593,6 +600,7 @@ information_schema.tables;
 s1
 10
 11
+NULL
 drop table t1;
 SHOW CREATE TABLE INFORMATION_SCHEMA.character_sets;
 Table	Create Table
@@ -664,7 +672,7 @@ proc	body	longblob
 proc	definer	char(141)
 proc	created	timestamp
 proc	modified	timestamp
-proc	sql_mode	set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT')
+proc	sql_mode	set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL')
 proc	comment	text
 proc	character_set_client	char(32)
 proc	collation_connection	char(32)
@@ -824,7 +832,7 @@ NULL
 select table_type from information_schema.tables
 where table_schema="mysql" and table_name="user";
 table_type
-BASE TABLE
+VIEW
 show open tables where `table` like "user";
 Database	Table	In_use	Name_locked
 mysql	user	0	0
@@ -857,10 +865,13 @@ where data_type = 'longtext' and table_schema != 'performance_schema'
 order by binary table_name, ordinal_position;
 table_schema	table_name	column_name
 information_schema	ALL_PLUGINS	PLUGIN_DESCRIPTION
+information_schema	CHECK_CONSTRAINTS	CHECK_CLAUSE
 information_schema	COLUMNS	COLUMN_DEFAULT
 information_schema	COLUMNS	COLUMN_TYPE
 information_schema	COLUMNS	GENERATION_EXPRESSION
 information_schema	EVENTS	EVENT_DEFINITION
+information_schema	OPTIMIZER_TRACE	QUERY
+information_schema	OPTIMIZER_TRACE	TRACE
 information_schema	PARAMETERS	DTD_IDENTIFIER
 information_schema	PARTITIONS	PARTITION_EXPRESSION
 information_schema	PARTITIONS	SUBPARTITION_EXPRESSION
@@ -874,6 +885,14 @@ information_schema	SYSTEM_VARIABLES	ENUM_VALUE_LIST
 information_schema	TRIGGERS	ACTION_CONDITION
 information_schema	TRIGGERS	ACTION_STATEMENT
 information_schema	VIEWS	VIEW_DEFINITION
+mysql	global_priv	Priv
+mysql	user	Password
+mysql	user	ssl_cipher
+mysql	user	x509_issuer
+mysql	user	x509_subject
+mysql	user	plugin
+mysql	user	authentication_string
+mysql	user	default_role
 select table_name, column_name, data_type from information_schema.columns
 where data_type = 'datetime' and table_name not like 'innodb_%'
 order by binary table_name, ordinal_position;
@@ -1038,8 +1057,8 @@ GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 'user1'@'localhost'	def	USAGE	NO
 show grants;
 Grants for user1@localhost
-GRANT USAGE ON *.* TO 'user1'@'localhost'
-GRANT SELECT (f1) ON `mysqltest`.`t1` TO 'user1'@'localhost'
+GRANT USAGE ON *.* TO `user1`@`localhost`
+GRANT SELECT (f1) ON `mysqltest`.`t1` TO `user1`@`localhost`
 connection con2;
 select * from information_schema.column_privileges order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
@@ -1053,8 +1072,8 @@ GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 'user2'@'localhost'	def	USAGE	NO
 show grants;
 Grants for user2@localhost
-GRANT USAGE ON *.* TO 'user2'@'localhost'
-GRANT SELECT ON `mysqltest`.`t2` TO 'user2'@'localhost'
+GRANT USAGE ON *.* TO `user2`@`localhost`
+GRANT SELECT ON `mysqltest`.`t2` TO `user2`@`localhost`
 connection con3;
 select * from information_schema.column_privileges order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
@@ -1068,8 +1087,8 @@ GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 'user3'@'localhost'	def	USAGE	NO
 show grants;
 Grants for user3@localhost
-GRANT USAGE ON *.* TO 'user3'@'localhost'
-GRANT SELECT ON `mysqltest`.* TO 'user3'@'localhost'
+GRANT USAGE ON *.* TO `user3`@`localhost`
+GRANT SELECT ON `mysqltest`.* TO `user3`@`localhost`
 connection con4;
 select * from information_schema.column_privileges where grantee like '\'user%'
 order by grantee;
@@ -1092,7 +1111,7 @@ GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 'user4'@'localhost'	def	SELECT	NO
 show grants;
 Grants for user4@localhost
-GRANT SELECT ON *.* TO 'user4'@'localhost'
+GRANT SELECT ON *.* TO `user4`@`localhost`
 connection default;
 disconnect con1;
 disconnect con2;
@@ -1253,7 +1272,7 @@ CREATE VIEW v1 AS SELECT 1 FROM t1
 WHERE f3 = (SELECT func2 ());
 SELECT func1();
 func1()
-1
+2
 DROP TABLE t1;
 DROP VIEW v1;
 DROP FUNCTION func1;
@@ -1404,6 +1423,7 @@ create table t2 (f1 int, f2 int);
 create view v2 as select f1+1 as a, f2 as b from t2;
 select table_name, is_updatable from information_schema.views order by table_name;
 table_name	is_updatable
+user	YES
 v1	NO
 v2	YES
 delete from v1;
@@ -1957,8 +1977,9 @@ lock table t1 read;
 connect con1, localhost, root,,;
 connection con1;
 flush tables;
+flush tables t1;
 connection default;
-select * from information_schema.views;
+select * from information_schema.views where table_schema='test';
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	v1
@@ -2190,3 +2211,161 @@ column_name
 c1
 c2
 DROP TABLE tt1, tt2;
+#
+# MDEV-13242 Wrong results for queries with row constructors and information_schema
+#
+SELECT SCHEMA_NAME from information_schema.schemata where schema_name='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+SCHEMA_NAME
+SELECT SCHEMA_NAME from information_schema.schemata where schema_name=REPEAT('a',193);
+SCHEMA_NAME
+#
+# End of 10.1 tests
+#
+#
+# MDEV-14836: Assertion `m_status == DA_ERROR' failed in
+# Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
+#
+SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
+Warnings:
+Warning	1931	Query execution was interrupted. The query examined at least ### rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
+#
+# MDEV-24179: AAssertion `m_status == DA_ERROR || m_status == DA_OK ||
+# m_status == DA_OK_BULK' failed in Diagnostics_area::message()
+#
+call mtr.add_suppression("Sort aborted.*");
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+CREATE VIEW v AS SELECT table_schema  AS object_schema, table_name  AS object_name, table_type AS object_type FROM information_schema.tables ORDER BY object_schema;
+SELECT * FROM v LIMIT ROWS EXAMINED 9;
+ERROR HY000: Sort aborted: 
+DROP VIEW v;
+#
+# MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+#
+CREATE TABLE t (a INT);
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=CONCAT('t',0x00,'1');
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=CONCAT('test',0x00,'1');
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+DROP TABLE t;
+CREATE TABLE `a/~.b` (a INT);
+SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='a/~.b';
+TABLE_SCHEMA	TABLE_NAME
+test	a/~.b
+DROP TABLE `a/~.b`;
+CREATE DATABASE `a/~.b`;
+CREATE TABLE `a/~.b`.t1 (a INT);
+SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='a/~.b';
+TABLE_SCHEMA	TABLE_NAME
+a/~.b	t1
+DROP DATABASE `a/~.b`;
+#
+# End of 10.2 Test
+#
+#
+# MDEV-21201:No records produced in information_schema query,
+# depending on projection
+#
+create table t (i int, constraint a check (i > 0));
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.TABLE_CONSTRAINTS tc
+join information_schema.CHECK_CONSTRAINTS cc
+using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+mysql	global_priv	Priv	json_valid(`Priv`)
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.CHECK_CONSTRAINTS cc
+join information_schema.TABLE_CONSTRAINTS tc
+using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+mysql	global_priv	Priv	json_valid(`Priv`)
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.TABLE_CONSTRAINTS tc
+NATURAL join information_schema.CHECK_CONSTRAINTS cc
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+mysql	global_priv	Priv	json_valid(`Priv`)
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE
+from information_schema.CHECK_CONSTRAINTS cc
+NATURAL join information_schema.TABLE_CONSTRAINTS tc
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
+mysql	global_priv	Priv	json_valid(`Priv`)
+test	t	a	`i` > 0
+select
+tc.TABLE_SCHEMA,
+tc.TABLE_NAME,
+cc.CONSTRAINT_NAME,
+cc.CHECK_CLAUSE,
+tc.CONSTRAINT_CATALOG,
+tc.CONSTRAINT_SCHEMA
+from information_schema.TABLE_CONSTRAINTS tc
+join information_schema.CHECK_CONSTRAINTS cc
+using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
+;
+TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE	CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA
+mysql	global_priv	Priv	json_valid(`Priv`)	def	mysql
+test	t	a	`i` > 0	def	test
+drop table t;
+#
+# MDEV-24230 subquery on information_schema fails with error message
+#
+create table t1 (n int);
+create table t2 (n int);
+insert into t1 set n = (select table_rows from information_schema.tables where table_name='t2');
+drop table t1, t2;
+#
+# MDEV-24593 Signal 11 when group by primary key of table joined to information_schema.columns
+#
+create table t1 (f varchar(64) primary key);
+select f from information_schema.columns i
+inner join t1 on f=i.column_name
+group by f;
+f
+drop table t1;
+#
+# MDEV-24929 Server crash in thr_multi_unlock or in
+# get_schema_tables_result upon select from I_S with joins
+#
+CREATE TABLE t1 (a TIMESTAMP, KEY (a));
+INSERT INTO t1 VALUES ('2012-12-12'),('2021-11-11');
+SELECT count(*) FROM t1 AS t1a LEFT JOIN (t1 AS t1b JOIN INFORMATION_SCHEMA.ROUTINES) ON (t1b.a IS NULL);
+count(*)
+2
+SELECT count(*) FROM t1 AS t1a LEFT JOIN (t1 AS t1b JOIN INFORMATION_SCHEMA.PROFILING) ON (t1b.a IS NULL);
+count(*)
+2
+DROP TABLE t1;
+#
+# MDEV-24868 Server crashes in optimize_schema_tables_memory_usage after select from information_schema.innodb_sys_columns
+#
+create table t1 ( name varchar(64) character set utf8, len int);
+select * from t1 where (name, len) in (select  name, len from information_schema.innodb_sys_columns having len = 8);
+name	len
+drop table t1;
+#
+# End of 10.3 tests
+#

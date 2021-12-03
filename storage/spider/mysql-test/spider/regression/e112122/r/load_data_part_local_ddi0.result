@@ -1,0 +1,103 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection master_1;
+set @old_spider_direct_dup_insert= @@spider_direct_dup_insert;
+set session spider_direct_dup_insert= 0;
+
+this test is for MDEV-18987
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+
+create table and insert
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection child2_2;
+CHILD2_2_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+val int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+INSERT INTO tbl_a (pkey,val) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+SELECT pkey,val INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/spider_outfile.tsv' FROM tbl_a ORDER BY pkey;
+TRUNCATE tbl_a;
+
+select test 1
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection child2_2;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/spider_outfile.tsv'  INTO TABLE tbl_a;
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%';
+argument
+insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`,`val`)values(1,1)
+insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`,`val`)values(3,3)
+insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`,`val`)values(5,5)
+insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`,`val`)values(7,7)
+insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`,`val`)values(9,9)
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%'
+SELECT pkey, val FROM tbl_a ORDER BY pkey;
+pkey	val
+1	1
+3	3
+5	5
+7	7
+9	9
+connection child2_2;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%';
+argument
+insert high_priority into `auto_test_remote2`.`tbl_a`(`pkey`,`val`)values(0,0)
+insert high_priority into `auto_test_remote2`.`tbl_a`(`pkey`,`val`)values(2,2)
+insert high_priority into `auto_test_remote2`.`tbl_a`(`pkey`,`val`)values(4,4)
+insert high_priority into `auto_test_remote2`.`tbl_a`(`pkey`,`val`)values(6,6)
+insert high_priority into `auto_test_remote2`.`tbl_a`(`pkey`,`val`)values(8,8)
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%'
+SELECT pkey, val FROM tbl_a ORDER BY pkey;
+pkey	val
+0	0
+2	2
+4	4
+6	6
+8	8
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+SET GLOBAL log_output = @old_log_output;
+connection master_1;
+set session spider_direct_dup_insert= @old_spider_direct_dup_insert;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

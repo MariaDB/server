@@ -465,10 +465,10 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
             result = HA_ALTER_INPLACE_EXCLUSIVE_LOCK;
         }
     } else if ((ctx->handler_flags &
-                ALTER_COLUMN_EQUAL_PACK_LENGTH) &&
+                ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) &&
                 only_flags(
                     ctx->handler_flags,
-                    ALTER_COLUMN_EQUAL_PACK_LENGTH |
+                    ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE |
                     ALTER_COLUMN_DEFAULT) &&
                 table->s->fields == altered_table->s->fields &&
                 find_changed_fields(
@@ -1180,6 +1180,18 @@ static bool change_varchar_length_is_supported(Field* old_field,
     return true;
 }
 
+bool ha_tokudb::can_convert_varstring(const Field_varstring* field,
+                                      const Column_definition& new_type) const {
+    if (new_type.length < field->field_length ||
+        new_type.char_length < field->char_length() ||
+        !new_type.compression_method() != !field->compression_method() ||
+        new_type.type_handler() != field->type_handler()) {
+        return false;
+    }
+
+    return true;
+}
+
 // Return true if all changed field lengths can be changed inplace, otherwise
 // return false
 static bool change_length_is_supported(TABLE* table,
@@ -1606,7 +1618,7 @@ int ha_tokudb::new_row_descriptor(TABLE* altered_table,
     } else {
         KEY* prim_key =
             hidden_primary_key ? NULL :
-            &altered_table->s->key_info[primary_key];
+            &altered_table->key_info[primary_key];
         if (idx == primary_key) {
             row_descriptor->size = create_main_key_descriptor(
                 (uchar*)row_descriptor->data,

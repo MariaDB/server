@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_reload.h"
@@ -124,14 +124,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 
   if (options & REFRESH_ERROR_LOG)
     if (unlikely(flush_error_log()))
-    {
-      /*
-        When flush_error_log() failed, my_error() has not been called.
-        So, we have to do it here to keep the protocol.
-      */
-      my_error(ER_UNKNOWN_ERROR, MYF(0));
       result= 1;
-    }
 
   if ((options & REFRESH_SLOW_LOG) && global_system_variables.sql_log_slow)
     logger.flush_slow_log();
@@ -160,6 +153,8 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       if (mysql_bin_log.rotate_and_purge(true, drop_gtid_domain))
         *write_to_binlog= -1;
 
+      /* Note that WSREP(thd) might not be true here e.g. during
+      SST. */
       if (WSREP_ON)
       {
         /* Wait for last binlog checkpoint event to be logged. */
@@ -221,7 +216,10 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
               !thd->mdl_context.has_locks() ||
               thd->handler_tables_hash.records ||
               thd->ull_hash.records ||
-              thd->global_read_lock.is_acquired());
+              thd->global_read_lock.is_acquired() ||
+              thd->mdl_backup_lock ||
+              thd->current_backup_stage != BACKUP_FINISHED
+              );
 
   /*
     Note that if REFRESH_READ_LOCK bit is set then REFRESH_TABLES is set too
@@ -231,6 +229,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
   {
     if ((options & REFRESH_READ_LOCK) && thd)
     {
+      DBUG_ASSERT(!(options & REFRESH_FAST) && !tables);
       /*
         On the first hand we need write lock on the tables to be flushed,
         on the other hand we must not try to aspire a global read lock
@@ -242,6 +241,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
         return 1;
       }
+
       /*
 	Writing to the binlog could cause deadlocks, as we don't log
 	UNLOCK TABLES
@@ -249,9 +249,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       tmp_write_to_binlog= 0;
       if (thd->global_read_lock.lock_global_read_lock(thd))
 	return 1;                               // Killed
-      if (close_cached_tables(thd, tables,
-                              ((options & REFRESH_FAST) ?  FALSE : TRUE),
-                              thd->variables.lock_wait_timeout))
+      if (flush_tables(thd, FLUSH_ALL))
       {
         /*
           NOTE: my_error() has been already called by reopen_tables() within
@@ -274,11 +272,9 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         make_global_read_lock_block_commit(thd) above since they could have
         modified the tables too.
       */
-      if (WSREP(thd) &&
-          close_cached_tables(thd, tables, (options & REFRESH_FAST) ?
-                              FALSE : TRUE, TRUE))
-          result= 1;
-     }
+      if (WSREP(thd) && flush_tables(thd, FLUSH_ALL))
+        result= 1;
+    }
     else
     {
       if (thd && thd->locked_tables_mode)
@@ -311,8 +307,8 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
             with global read lock.
           */
           if (thd->open_tables &&
-              !thd->mdl_context.is_lock_owner(MDL_key::GLOBAL, "", "",
-                                              MDL_INTENTION_EXCLUSIVE))
+              !thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
+                                              MDL_BACKUP_DDL))
           {
             my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0),
                      thd->open_tables->s->table_name.str);
@@ -332,25 +328,21 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       }
 
 #ifdef WITH_WSREP
-      if (thd && thd->wsrep_applier)
+      /* In case of applier thread, do not call flush tables */
+      if (!thd || !thd->wsrep_applier)
+#endif /* WITH_WSREP */
       {
-        /*
-          In case of applier thread, do not wait for table share(s) to be
-          removed from table definition cache.
-        */
-        options|= REFRESH_FAST;
-      }
-#endif
-      if (close_cached_tables(thd, tables,
-                              ((options & REFRESH_FAST) ?  FALSE : TRUE),
-                              (thd ? thd->variables.lock_wait_timeout :
-                               LONG_TIMEOUT)))
-      {
-        /*
-          NOTE: my_error() has been already called by reopen_tables() within
-          close_cached_tables().
-        */
-        result= 1;
+        if (close_cached_tables(thd, tables,
+                                ((options & REFRESH_FAST) ?  FALSE : TRUE),
+                                (thd ? thd->variables.lock_wait_timeout :
+                                 LONG_TIMEOUT)))
+        {
+          /*
+            NOTE: my_error() has been already called by reopen_tables() within
+            close_cached_tables().
+          */
+          result= 1;
+        }
       }
     }
     my_dbopt_cleanup();
@@ -420,6 +412,19 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 #endif
  if (options & REFRESH_USER_RESOURCES)
    reset_mqh((LEX_USER *) NULL, 0);             /* purecov: inspected */
+ if (options & REFRESH_SSL)
+ {
+   if (reinit_ssl())
+     result= 1;
+#ifdef WITH_WSREP
+   if (!result &&
+       WSREP_ON && wsrep_reload_ssl())
+   {
+     my_message(ER_UNKNOWN_ERROR, "Failed to refresh WSREP SSL.", MYF(0));
+     result= 1;
+   }
+#endif
+ }
  if (options & REFRESH_GENERIC)
  {
    List_iterator_fast<LEX_CSTRING> li(thd->lex->view_list);
@@ -526,6 +531,19 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
   */
 
   if (thd->locked_tables_mode)
+  {
+    my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
+    goto error;
+  }
+
+  if (thd->current_backup_stage != BACKUP_FINISHED)
+  {
+    my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
+    goto error;
+  }
+
+  /* Should not flush tables while BACKUP LOCK is active */
+  if (thd->mdl_backup_lock)
   {
     my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
     goto error;

@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -22,11 +22,6 @@ Binary buddy allocator for compressed pages
 
 Created December 2006 by Marko Makela
 *******************************************************/
-
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE
-#endif
 
 #include "buf0buf.h"
 #include "buf0buddy.h"
@@ -132,8 +127,3 @@ buf_buddy_free(
 
 	buf_buddy_free_low(buf_pool, buf, buf_buddy_get_slot(size));
 }
-
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE	UNIV_INLINE_ORIGINAL
-#endif

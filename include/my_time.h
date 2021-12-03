@@ -13,7 +13,7 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   This is a private header of sql-common library, containing
@@ -27,7 +27,7 @@
 
 C_MODE_START
 
-extern ulonglong log_10_int[20];
+extern MYSQL_PLUGIN_IMPORT ulonglong log_10_int[20];
 extern uchar days_in_month[];
 
 #define MY_TIME_T_MAX LONG_MAX
@@ -108,12 +108,14 @@ typedef struct st_mysql_time_status
 {
   int warnings;
   uint precision;
+  uint nanoseconds;
 } MYSQL_TIME_STATUS;
 
 static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 {
   status->warnings= 0;
   status->precision= 0;
+  status->nanoseconds= 0;
 }
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
@@ -231,9 +233,16 @@ static inline long my_time_fraction_remainder(long nr, uint decimals)
   DBUG_ASSERT(decimals <= TIME_SECOND_PART_DIGITS);
   return nr % (long) log_10_int[TIME_SECOND_PART_DIGITS - decimals];
 }
+static inline void my_datetime_trunc(MYSQL_TIME *ltime, uint decimals)
+{
+  ltime->second_part-= my_time_fraction_remainder(ltime->second_part, decimals);
+}
 static inline void my_time_trunc(MYSQL_TIME *ltime, uint decimals)
 {
   ltime->second_part-= my_time_fraction_remainder(ltime->second_part, decimals);
+  if (!ltime->second_part && ltime->neg &&
+      !ltime->hour && !ltime->minute && !ltime->second)
+    ltime->neg= FALSE;
 }
 static inline void my_timeval_trunc(struct timeval *tv, uint decimals)
 {

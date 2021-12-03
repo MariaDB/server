@@ -1381,9 +1381,11 @@ test.t1	optimize	status	Table is already up to date
 prepare stmt from "analyze table t1";
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 prepare stmt from "repair table t1, t2, t3";
 execute stmt;
@@ -1410,13 +1412,19 @@ test.t3	optimize	status	Table is already up to date
 prepare stmt from "analyze table t1, t2, t3";
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 prepare stmt from "repair table t1, t4, t3";
 execute stmt;
@@ -1449,11 +1457,13 @@ execute stmt;
 Table	Op	Msg_type	Msg_text
 test.t4	analyze	Error	Table 'test.t4' doesn't exist
 test.t4	analyze	status	Operation failed
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 execute stmt;
 Table	Op	Msg_type	Msg_text
 test.t4	analyze	Error	Table 'test.t4' doesn't exist
 test.t4	analyze	status	Operation failed
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 deallocate prepare stmt;
 drop table t1, t2, t3;
@@ -1520,6 +1530,7 @@ Field	Type	Null	Key	Default	Extra
 i	int(11)	YES		NULL	
 execute stmt_analyze;
 Table	Op	Msg_type	Msg_text
+mysqltest_long_database_name_to_thrash_heap.t1	analyze	status	Engine-independent statistics collected
 mysqltest_long_database_name_to_thrash_heap.t1	analyze	status	Table is already up to date
 execute stmt_optimize;
 Table	Op	Msg_type	Msg_text
@@ -2136,7 +2147,11 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	global_priv	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2146,7 +2161,11 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	global_priv	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2156,7 +2175,11 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	global_priv	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2166,7 +2189,11 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	global_priv	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 flush tables;
 create function func_1() returns int begin flush tables; return 1; end|
@@ -2181,7 +2208,11 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	global_priv	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 prepare abc from "flush tables";
 execute abc;
@@ -2192,7 +2223,11 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	global_priv	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 execute abc;
 show open tables from mysql;
@@ -2202,7 +2237,11 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	global_priv	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 execute abc;
 show open tables from mysql;
@@ -2212,7 +2251,11 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	global_priv	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 flush tables;
 deallocate prepare abc;
@@ -2692,9 +2735,13 @@ create procedure proc_1() alter event xyz comment 'xyz';
 call proc_1();
 drop event xyz;
 create event xyz on schedule every 5 minute disable do select 123;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 call proc_1();
 drop event xyz;
 create event xyz on schedule every 5 minute disable do select 123;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 call proc_1();
 drop event xyz;
 drop procedure proc_1;
@@ -2709,6 +2756,8 @@ create event xyz on schedule every 5 minute disable do select 123;
 create procedure proc_1() drop event xyz;
 call proc_1();
 create event xyz on schedule every 5 minute disable do select 123;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 call proc_1();
 call proc_1();
 ERROR HY000: Unknown event 'xyz'
@@ -4344,6 +4393,69 @@ LINE1	1
 LINE2	2
 LINE3	3
 drop table t1;
+#
+# MDEV-17042: prepared statement does not return error with
+# SQL_MODE STRICT_TRANS_TABLES. (Part 1)
+#
+set @save_sql_mode=@@sql_mode;
+set sql_mode='STRICT_ALL_TABLES';
+CREATE TABLE t1 (id int, count int);
+insert into t1 values (1,1),(0,2);
+update t1 set count = count + 1 where id = '1bad';
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+execute stmt;
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+deallocate prepare stmt;
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+execute stmt using @a;
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+deallocate prepare stmt;
+drop table t1;
+CREATE TABLE t1 (id decimal(10,5), count int);
+insert into t1 values (1,1),(0,2);
+update t1 set count = count + 1 where id = '1bad';
+ERROR 22007: Truncated incorrect DECIMAL value: '1bad'
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+execute stmt;
+ERROR 22007: Truncated incorrect DECIMAL value: '1bad'
+deallocate prepare stmt;
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+execute stmt using @a;
+ERROR 22007: Truncated incorrect DECIMAL value: '1bad'
+deallocate prepare stmt;
+drop table t1;
+CREATE TABLE t1 (id double, count int);
+insert into t1 values (1,1),(0,2);
+update t1 set count = count + 1 where id = '1bad';
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+execute stmt;
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+deallocate prepare stmt;
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+execute stmt using @a;
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+deallocate prepare stmt;
+drop table t1;
+CREATE TABLE t1 (id date, count int);
+insert into t1 values ("2019-06-11",1),("2019-06-12",2);
+update t1 set count = count + 1 where id = '1bad';
+ERROR 22007: Truncated incorrect datetime value: '1bad'
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+execute stmt;
+ERROR 22007: Truncated incorrect datetime value: '1bad'
+deallocate prepare stmt;
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+execute stmt using @a;
+ERROR 22007: Truncated incorrect datetime value: '1bad'
+deallocate prepare stmt;
+drop table t1;
+set sql_mode=@save_sql_mode;
 # End of 5.5 tests
 #
 # End of 10.0 tests
@@ -4385,6 +4497,23 @@ END;
 1
 1
 #
+# MDEV-14572: Assertion `! is_set()' failed in
+# Diagnostics_area::set_eof_status upon EXPLAIN UPDATE in PS
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+PREPARE stmt FROM 'EXPLAIN UPDATE t1, t2 SET a = 1';
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	0	Const row not found
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	0	Const row not found
+deallocate prepare stmt;
+DROP TABLE t1, t2;
+#
 # End of 10.1 tests
 #
 #
@@ -4418,7 +4547,7 @@ DEALLOCATE PREPARE stmt;
 #
 PREPARE stmt FROM 'SELECT ? FROM DUAL';
 EXECUTE stmt USING (SELECT 1);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)' at line 1
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
 DEALLOCATE PREPARE stmt;
 CREATE FUNCTION f1() RETURNS VARCHAR(10) RETURN 'test';
 PREPARE stmt FROM 'SELECT ? FROM DUAL';
@@ -4617,10 +4746,10 @@ ERROR 21000: Operand should contain 1 column(s)
 # Testing disallowed expressions in USING
 #
 EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING (SELECT 1);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)' at line 1
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
 CREATE FUNCTION f1() RETURNS VARCHAR(10) RETURN 'test';
 EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING f1();
-ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
 DROP FUNCTION f1;
 #
 # DDL
@@ -4803,9 +4932,9 @@ ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2
 PREPARE stmt FROM CONCAT(_latin1'SELECT 1 AS c FROM ', _latin2 'DUAL');
 ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
 EXECUTE IMMEDIATE (SELECT 'SELECT 1');
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 'SELECT 1')' at line 1
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
 PREPARE stmt FROM (SELECT 'SELECT 1');
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 'SELECT 1')' at line 1
+ERROR 42000: PREPARE..FROM does not support subqueries or stored functions
 EXECUTE IMMEDIATE a;
 ERROR 42S22: Unknown column 'a' in 'field list'
 PREPARE stmt FROM a;
@@ -5122,13 +5251,13 @@ DECLARE a DATETIME;
 CALL p1(a);
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 PREPARE stmt FROM 'CALL p1(?)';
@@ -5136,7 +5265,7 @@ EXECUTE stmt  USING a;
 DEALLOCATE PREPARE stmt;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
 DROP PROCEDURE p1;
 #
 # MDEV-14454 Binary protocol returns wrong collation ID for SP OUT parameters
@@ -5221,6 +5350,7 @@ CREATE PROCEDURE p1(tn VARCHAR(32))
 EXECUTE IMMEDIATE CONCAT('ANALYZE TABLE ',tn);
 CALL p1('t1');
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -5342,5 +5472,170 @@ drop procedure p;
 drop view v1;
 drop table t1;
 #
+# MDEV-22591 Debug build crashes on EXECUTE IMMEDIATE '... WHERE ?' USING IGNORE
+#
+CREATE TABLE t1 (a INT);
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE ?' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT * FROM t1 HAVING ?' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE ?' USING 0;
+a
+EXECUTE IMMEDIATE 'SELECT * FROM t1 HAVING ?' USING 0;
+a
+DROP TABLE t1;
+EXECUTE IMMEDIATE 'SHOW DATABASES WHERE ?' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SHOW DATABASES WHERE ?' USING 0;
+Database
+#
+# MDEV-24779: main.subselect fails in buildbot with --ps-protocol
+#
+CREATE TABLE t1(a INT);
+PREPARE stmt FROM "SELECT EXISTS(SELECT 1 FROM t1 GROUP BY a IN (select a from t1))";
+EXECUTE stmt;
+EXISTS(SELECT 1 FROM t1 GROUP BY a IN (select a from t1))
+0
+EXECUTE stmt;
+EXISTS(SELECT 1 FROM t1 GROUP BY a IN (select a from t1))
+0
+DROP TABLE t1;
+#
+# MDEV-25006: Failed assertion on executing EXPLAIN DELETE statement as a prepared statement
+#
+CREATE TABLE t1(c1 CHAR(255) PRIMARY KEY);
+PREPARE stmt FROM 'EXPLAIN DELETE b FROM t1 AS a JOIN t1 AS b';
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	a	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	b	system	NULL	NULL	NULL	NULL	0	Const row not found
+DROP TABLE t1;
+CREATE TABLE t1(a INT);
+PREPARE stmt FROM 'EXPLAIN DELETE FROM t1.* USING t1';
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+#
+# MDEV-25108: Running of the EXPLAIN EXTENDED statement produces extra warning
+#             in case it is executed in PS (prepared statement) mode
+#
+CREATE TABLE t1 (c int);
+CREATE TABLE t2 (d int);
+# EXPLAIN EXTENDED in regular way (not PS mode)
+EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+# Now run the same EXPLAIN EXTENDED in PS mode. Number of warnings
+# and their content must be the same as in case running the statement
+# in regular way
+PREPARE stmt FROM "EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1";
+Warnings:
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+#
+# MDEV-25576: The statement EXPLAIN running as regular statement and
+#             as prepared statement produces different results for
+#             UPDATE with subquery
+#
+CREATE TABLE t1 (c1 INT KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (c2 INT) ENGINE=MyISAM;
+CREATE TABLE t3 (c3 INT) ENGINE=MyISAM;
+EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+PREPARE stmt FROM "EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 )";
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
 # End of 10.2 tests
+#
+#
+# MDEV-26147: The test main.sp-row fails in case it is run in PS mode
+#
+CREATE PROCEDURE p1(a ROW(a INT,b INT))
+BEGIN
+SELECT a.a, a.b;
+END;
+$$
+PREPARE stmt FROM 'CALL p1(ROW(10, 20))';
+EXECUTE stmt;
+a.a	a.b
+10	20
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
+#
+# MDEV-19263: Server crashes in mysql_handle_single_derived
+# upon 2nd execution of PS
+#
+CREATE TABLE t1 (f INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO v1 SELECT * FROM x;
+PREPARE stmt FROM "INSERT INTO v1 VALUES (1)";
+EXECUTE stmt;
+ERROR 42S02: Table 'test.x' doesn't exist
+EXECUTE stmt;
+ERROR 42S02: Table 'test.x' doesn't exist
+DEALLOCATE PREPARE stmt;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-25197: The statement set password=password('') executed in PS mode
+#             fails in case it is run by a user with expired password
+#
+CREATE USER user1@localhost PASSWORD EXPIRE;
+SET @disconnect_on_expired_password_save=@@global.disconnect_on_expired_password;
+SET GLOBAL disconnect_on_expired_password=OFF;
+connect con1,localhost,user1;
+connection con1;
+# Check that no regular statement like SELECT can be prepared
+# by a user with an expired password
+PREPARE stmt FROM "SELECT 1";
+ERROR HY000: You must SET PASSWORD before executing this statement
+# Check that the DEALLOCATE PREPARE statement can be run by a user
+# with an expired password
+PREPARE stmt FROM "SET password=password('')";
+DEALLOCATE PREPARE stmt;
+# Check that the SET PASSWORD statement can be executed in PS mode by
+# a user with an expired password
+PREPARE stmt FROM "SET password=password('')";
+EXECUTE stmt;
+PREPARE stmt FROM "SELECT 1";
+# Check that user's password is not expired anymore
+EXECUTE stmt;
+1
+1
+DEALLOCATE PREPARE stmt;
+# Clean up
+disconnect con1;
+connection default;
+SET GLOBAL disconnect_on_expired_password=@disconnect_on_expired_password_save;
+DROP USER user1@localhost;
+#
+# End of 10.4 tests
 #

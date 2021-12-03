@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 #
 # MDEV-6924 : Server crashed on CREATE TABLE ... SELECT
 #

@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(255)) Engine=InnoDB;
 CREATE PROCEDURE insert_proc ()
@@ -18,18 +20,16 @@ connection node_1a;
 SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
 connection node_1;
 SET SESSION wsrep_sync_wait = 0;
-SET SESSION DEBUG_SYNC = 'wsrep_after_replication SIGNAL wsrep_after_replication_reached WAIT_FOR wsrep_after_replication_continue';
 CALL insert_proc ();;
 connection node_1a;
-SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_after_replication_reached";
+SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL DEBUG_DBUG = "";
-SET DEBUG_SYNC = "now SIGNAL wsrep_after_replication_continue";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 connection node_2;
 connection node_1;
 SELECT @errno = 1213;
 @errno = 1213
-0
+1
 SELECT * FROM t1;
 f1	f2
 1	node 2

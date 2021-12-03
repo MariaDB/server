@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,7 +27,6 @@ Created 12/7/1995 Heikki Tuuri
 #ifndef mtr0log_h
 #define mtr0log_h
 
-#include "univ.i"
 #include "mtr0mtr.h"
 #include "dyn0buf.h"
 
@@ -127,14 +126,6 @@ mlog_catenate_string(
 	mtr_t*		mtr,	/*!< in: mtr */
 	const byte*	str,	/*!< in: string to write */
 	ulint		len);	/*!< in: string length */
-/********************************************************//**
-Catenates a compressed ulint to mlog. */
-UNIV_INLINE
-void
-mlog_catenate_ulint_compressed(
-/*===========================*/
-	mtr_t*		mtr,	/*!< in: mtr */
-	ulint		val);	/*!< in: value to write */
 /********************************************************//**
 Catenates a compressed 64-bit integer to mlog. */
 UNIV_INLINE

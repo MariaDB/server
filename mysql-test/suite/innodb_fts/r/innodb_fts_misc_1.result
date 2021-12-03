@@ -37,9 +37,13 @@ DELETE FROM t1;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a2`) REFERENCES `t1` (`a1`) ON UPDATE CASCADE)
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b1'
 test.t1	analyze	status	OK
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	Warning	Engine-independent statistics are not collected for column 'b2'
 test.t2	analyze	status	OK
 SELECT id1 FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial') ORDER BY id1;
 id1
@@ -915,4 +919,77 @@ DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
 DROP TABLE t4;
+#
+# InnoDB: Failing assertion: result != FTS_INVALID in
+#        fts_trx_row_get_new_state
+#
+SET FOREIGN_KEY_CHECKS=1;
+CREATE TABLE t1 (pk INT PRIMARY KEY,
+f1 VARCHAR(10), f2 VARCHAR(10),
+f3 VARCHAR(10), f4 VARCHAR(10),
+f5 VARCHAR(10), f6 VARCHAR(10),
+f7 VARCHAR(10), f8 VARCHAR(10),
+FULLTEXT(f1), FULLTEXT(f2), FULLTEXT(f3), FULLTEXT(f4),
+FULLTEXT(f5), FULLTEXT(f6), FULLTEXT(f7), FULLTEXT(f8),
+INDEX(f1), INDEX(f2), INDEX(f3), INDEX(f4),
+INDEX(f5), INDEX(f6), INDEX(f7), INDEX(f8)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'mariadb', 'mariadb', 'mariadb', 'mariadb',
+'mariadb', 'mariadb', 'mariadb', 'mariadb'),
+(2, 'mariadb', 'mariadb', 'mariadb', 'mariadb',
+'mariadb', 'mariadb', 'mariadb', 'mariadb'),
+(3, 'innodb', 'innodb', 'innodb', 'innodb',
+'innodb', 'innodb', 'innodb', 'innodb');
+ALTER TABLE t1 ADD FOREIGN KEY (f1) REFERENCES t1 (f2) ON DELETE SET NULL;
+START TRANSACTION;
+DELETE FROM t1 where f1='mariadb';
+SELECT * FROM t1;
+pk	f1	f2	f3	f4	f5	f6	f7	f8
+2	NULL	mariadb	mariadb	mariadb	mariadb	mariadb	mariadb	mariadb
+3	innodb	innodb	innodb	innodb	innodb	innodb	innodb	innodb
+ROLLBACK;
+ALTER TABLE t1 ADD FOREIGN KEY (f3) REFERENCES t1 (f4) ON DELETE CASCADE;
+START TRANSACTION;
+DELETE FROM t1 where f3='mariadb';
+SELECT * FROM t1;
+pk	f1	f2	f3	f4	f5	f6	f7	f8
+3	innodb	innodb	innodb	innodb	innodb	innodb	innodb	innodb
+ROLLBACK;
+ALTER TABLE t1 ADD FOREIGN KEY (f5) REFERENCES t1 (f6) ON UPDATE SET NULL;
+UPDATE t1 SET f6='update';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
+ALTER TABLE t1 ADD FOREIGN KEY (f7) REFERENCES t1 (f8) ON UPDATE CASCADE;
+UPDATE t1 SET f6='cascade';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
+DROP TABLE t1;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
+#
+# MDEV-25536 sym_node->table != NULL in pars_retrieve_table_def
+#
+CREATE TABLE t1 (f1 TEXT,FULLTEXT (f1)) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SET GLOBAL innodb_ft_aux_table='test/t1';
+SELECT * FROM information_schema.innodb_ft_deleted;
+DOC_ID
+DROP TABLE t1;
+SET GLOBAL innodb_ft_aux_table=DEFAULT;
+#
+# MDEV-19522 InnoDB commit fails when FTS_DOC_ID value
+#                is greater than 4294967295
+#
+CREATE TABLE t1(
+FTS_DOC_ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+f1 TEXT, f2 TEXT, PRIMARY KEY (FTS_DOC_ID),
+FULLTEXT KEY (f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'txt','bbb');
+UPDATE t1 SET FTS_DOC_ID = 4294967298;
+SELECT * FROM t1 WHERE match(f1) against("txt");
+FTS_DOC_ID	f1	f2
+4294967298	txt	bbb
+SET @@session.insert_id = 100000000000;
+INSERT INTO t1(f1, f2) VALUES ('aaa', 'bbb');
+CREATE FULLTEXT INDEX i ON t1 (f2);
+SELECT * FROM t1 WHERE match(f2) against("bbb");
+FTS_DOC_ID	f1	f2
+4294967298	txt	bbb
+100000000000	aaa	bbb
+DROP TABLE t1;

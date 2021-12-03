@@ -1,0 +1,19 @@
+#
+# MDEV-23991 dict_table_stats_lock() has unnecessarily long scope
+#
+CREATE TABLE t1(a INT) ENGINE=INNODB STATS_PERSISTENT=1;
+SET DEBUG_SYNC='dict_stats_update_persistent SIGNAL stop WAIT_FOR go';
+ANALYZE TABLE t1;
+connect con1, localhost, root;
+SET DEBUG_SYNC='now WAIT_FOR stop';
+SELECT ENGINE,SUM(DATA_LENGTH+INDEX_LENGTH),COUNT(ENGINE),SUM(DATA_LENGTH),SUM(INDEX_LENGTH) FROM information_schema.TABLES WHERE ENGINE='InnoDB';
+ENGINE	SUM(DATA_LENGTH+INDEX_LENGTH)	COUNT(ENGINE)	SUM(DATA_LENGTH)	SUM(INDEX_LENGTH)
+InnoDB	114688	4	65536	49152
+SET DEBUG_SYNC='now SIGNAL go';
+disconnect con1;
+connection default;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;

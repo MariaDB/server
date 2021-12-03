@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifdef _WIN32_WINNT
 #undef _WIN32_WINNT
@@ -294,6 +294,7 @@ TP_connection_win::~TP_connection_win()
 
   if (timer)
   {
+    SetThreadpoolTimer(timer, 0, 0, 0);
     WaitForThreadpoolTimerCallbacks(timer, TRUE);
     CloseThreadpoolTimer(timer);
   }
@@ -331,7 +332,7 @@ void tp_win_callback_prolog()
     /* Running in new  worker thread*/
     FlsSetValue(fls, (void *)1);
     statistic_increment(thread_created, &LOCK_status);
-    InterlockedIncrement((volatile long *)&tp_stats.num_worker_threads);
+    tp_stats.num_worker_threads++;
     my_thread_init();
   }
 }
@@ -354,7 +355,7 @@ static VOID WINAPI thread_destructor(void *data)
 {
   if(data)
   {
-    InterlockedDecrement((volatile long *)&tp_stats.num_worker_threads);
+    tp_stats.num_worker_threads--;
     my_thread_end();
   }
 }

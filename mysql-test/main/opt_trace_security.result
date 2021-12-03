@@ -1,0 +1,410 @@
+create database db1;
+use db1;
+create table t1(a int);
+insert into t1 values (1),(2),(3);
+create table t2(a int);
+CREATE USER 'foo'@'%';
+CREATE USER 'bar'@'%';
+create definer=foo SQL SECURITY definer view db1.v1 as select * from db1.t1;
+create definer=foo function f1 (a int) returns INT SQL SECURITY DEFINER
+BEGIN
+insert into t2 select * from t1; 
+return a+1;
+END|
+set optimizer_trace="enabled=on";
+select * from db1.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select * from information_schema.OPTIMIZER_TRACE;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+		0	1
+set optimizer_trace="enabled=off";
+grant select(a)  on db1.t1 to 'foo'@'%';
+set optimizer_trace="enabled=on";
+select * from db1.t1;
+a
+1
+2
+3
+# INSUFFICIENT PRIVILEGES should be set to 1 
+# Trace and Query should be empty
+# We need SELECT privilege on the table db1.t1;
+select * from information_schema.OPTIMIZER_TRACE;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+		0	1
+set optimizer_trace="enabled=off";
+select * from information_schema.OPTIMIZER_TRACE;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+grant select  on db1.t1 to 'foo'@'%';
+grant select  on db1.t2 to 'foo'@'%';
+set optimizer_trace="enabled=on";
+#
+# SELECT privilege on the table db1.t1
+# The trace would be present.
+#
+select * from db1.t1;
+a
+1
+2
+3
+select * from information_schema.OPTIMIZER_TRACE;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+select * from db1.t1	{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "select db1.t1.a AS a from t1"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": [
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
+            "rows_estimation": [
+              {
+                "table": "t1",
+                "table_scan": {
+                  "rows": 3,
+                  "cost": 2.0051
+                }
+              }
+            ]
+          },
+          {
+            "considered_execution_plans": [
+              {
+                "plan_prefix": [],
+                "table": "t1",
+                "best_access_path": {
+                  "considered_access_paths": [
+                    {
+                      "access_type": "scan",
+                      "resulting_rows": 3,
+                      "cost": 2.0051,
+                      "chosen": true
+                    }
+                  ],
+                  "chosen_access_method": {
+                    "type": "scan",
+                    "records": 3,
+                    "cost": 2.0051,
+                    "uses_join_buffering": false
+                  }
+                },
+                "rows_for_plan": 3,
+                "cost_for_plan": 2.6051,
+                "estimated_join_cardinality": 3
+              }
+            ]
+          },
+          {
+            "best_join_order": ["t1"]
+          },
+          {
+            "attaching_conditions_to_tables": {
+              "original_condition": null,
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached": null
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": []
+      }
+    }
+  ]
+}	0	0
+set optimizer_trace="enabled=off";
+grant select  on db1.v1 to 'foo'@'%';
+grant show view  on db1.v1 to 'foo'@'%';
+grant select  on db1.v1 to 'bar'@'%';
+grant show view  on db1.v1 to 'bar'@'%';
+select current_user();
+current_user()
+foo@%
+set optimizer_trace="enabled=on";
+select * from db1.v1;
+a
+1
+2
+3
+select * from information_schema.OPTIMIZER_TRACE;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+select * from db1.v1	{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "view": {
+              "table": "v1",
+              "select_id": 2,
+              "algorithm": "merged"
+            }
+          },
+          {
+            "join_preparation": {
+              "select_id": 2,
+              "steps": [
+                {
+                  "expanded_query": "/* select#2 */ select db1.t1.a AS a from t1"
+                }
+              ]
+            }
+          },
+          {
+            "expanded_query": "/* select#1 */ select db1.t1.a AS a from v1"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": [
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
+            "rows_estimation": [
+              {
+                "table": "t1",
+                "table_scan": {
+                  "rows": 3,
+                  "cost": 2.0051
+                }
+              }
+            ]
+          },
+          {
+            "considered_execution_plans": [
+              {
+                "plan_prefix": [],
+                "table": "t1",
+                "best_access_path": {
+                  "considered_access_paths": [
+                    {
+                      "access_type": "scan",
+                      "resulting_rows": 3,
+                      "cost": 2.0051,
+                      "chosen": true
+                    }
+                  ],
+                  "chosen_access_method": {
+                    "type": "scan",
+                    "records": 3,
+                    "cost": 2.0051,
+                    "uses_join_buffering": false
+                  }
+                },
+                "rows_for_plan": 3,
+                "cost_for_plan": 2.6051,
+                "estimated_join_cardinality": 3
+              }
+            ]
+          },
+          {
+            "best_join_order": ["t1"]
+          },
+          {
+            "attaching_conditions_to_tables": {
+              "original_condition": null,
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached": null
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": []
+      }
+    }
+  ]
+}	0	0
+set optimizer_trace="enabled=off";
+select current_user();
+current_user()
+bar@%
+set optimizer_trace="enabled=on";
+select * from db1.v1;
+a
+1
+2
+3
+#
+# INSUFFICIENT PRIVILEGES should be set to 1 
+# Trace and Query should be empty
+# Privileges for the underlying tables of the
+# view should also be present for the current user
+#
+select * from information_schema.OPTIMIZER_TRACE;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+		0	1
+set optimizer_trace="enabled=off";
+grant execute on function db1.f1 to 'foo'@'%';
+grant execute on function db1.f1 to 'bar'@'%';
+grant select  on db1.t1 to 'bar'@'%';
+grant insert  on db1.t2 to 'foo'@'%';
+select current_user();
+current_user()
+foo@%
+set optimizer_trace="enabled=on";
+select db1.f1(a) from db1.t1;
+db1.f1(a)
+2
+3
+4
+select INSUFFICIENT_PRIVILEGES from information_schema.OPTIMIZER_TRACE;
+INSUFFICIENT_PRIVILEGES
+0
+set optimizer_trace="enabled=off";
+select current_user();
+current_user()
+bar@%
+set optimizer_trace="enabled=on";
+#
+# The trace should be empty, because the current user
+# does not have INSERT privilege for table t2 which is
+# used in the function f1
+#
+select db1.f1(a) from db1.t1;
+db1.f1(a)
+2
+3
+4
+select * from information_schema.OPTIMIZER_TRACE;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+		0	1
+set optimizer_trace="enabled=off";
+select current_user();
+current_user()
+root@localhost
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM foo;
+drop user if exists foo;
+drop user if exists bar;
+drop table db1.t1, db1.t2;
+drop database db1;
+# 
+# Privilege checking for optimizer trace across connections
+# 
+connection default;
+create database db1;
+use db1;
+create table t1(a int);
+insert into t1 values (1),(2),(3);
+create table t2(a int);
+CREATE USER 'foo'@'localhost';
+CREATE USER 'bar'@'localhost';
+grant all on *.* to foo@localhost with grant option;
+grant all on *.* to bar@localhost with grant option;
+connect  con_foo,localhost, foo,, db1;
+connection default;
+connect  con_bar,localhost, bar,, db1;
+connection default;
+create definer=foo@localhost SQL SECURITY definer view db1.v1 as select * from db1.t1;
+create function f1 (a int) returns INT SQL SECURITY DEFINER 
+BEGIN
+insert into t2 select * from t1;
+return a+1;
+END|
+grant execute on function f1 to bar@localhost;
+connection con_foo;
+set optimizer_trace='enabled=on';
+select * from db1.t1;
+a
+1
+2
+3
+#
+# Test that security context changes are allowed when, and only
+# when, invoker has all global privileges.
+#
+select query, INSUFFICIENT_PRIVILEGES from information_schema.OPTIMIZER_TRACE;
+query	INSUFFICIENT_PRIVILEGES
+select * from db1.t1	0
+set optimizer_trace='enabled=off';
+connection con_bar;
+set optimizer_trace='enabled=on';
+select f1(a) from db1.t1;
+f1(a)
+2
+3
+4
+select query, INSUFFICIENT_PRIVILEGES from information_schema.OPTIMIZER_TRACE;
+query	INSUFFICIENT_PRIVILEGES
+select f1(a) from db1.t1	0
+set optimizer_trace='enabled=off';
+connection default;
+revoke shutdown on *.* from foo@localhost;
+disconnect con_foo;
+connect  con_foo, localhost, foo,, db1;
+connection con_foo;
+set optimizer_trace='enabled=on';
+select f1(a) from db1.t1;
+f1(a)
+2
+3
+4
+#
+# Test to check if invoker has all global privileges or not, only then
+# the security context changes are allowed. The user has been revoked
+# shutdown privilege so INSUFFICIENT PRIVILEGES should be set to 1.
+#
+select query, INSUFFICIENT_PRIVILEGES from information_schema.OPTIMIZER_TRACE;
+query	INSUFFICIENT_PRIVILEGES
+	1
+set optimizer_trace='enabled=off';
+connection default;
+select current_user();
+current_user()
+root@localhost
+select * from db1.v1;
+a
+1
+2
+3
+drop user foo@localhost, bar@localhost;
+drop view db1.v1;
+drop table db1.t1;
+drop database db1;
+set optimizer_trace="enabled=off";

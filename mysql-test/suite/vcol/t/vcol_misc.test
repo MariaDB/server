@@ -1,4 +1,5 @@
 --source include/have_ucs2.inc
+--source include/have_debug.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -184,19 +185,35 @@ drop table t1,t2;
 # Bug mdev-3938: INSERT DELAYED for a table with virtual columns
 #
 
-CREATE TABLE t1 (
+SET @old_debug= @@global.debug;
+SET @old_debug= @@global.debug;
+SET GLOBAL debug_dbug= "+d,write_delay_wakeup";
+CREATE TABLE t1 (a int,
  ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  tsv TIMESTAMP AS (ADDDATE(ts, INTERVAL 1 DAY)) VIRTUAL
 ) ENGINE=MyISAM;
 
-INSERT INTO t1 (tsv) VALUES (DEFAULT);
-
-INSERT DELAYED INTO t1 (tsv) VALUES (DEFAULT);
-
+--echo # First test FLUSH TABLES
+INSERT INTO t1 (a,tsv) VALUES (1,DEFAULT);
+INSERT DELAYED INTO t1 (a,tsv) VALUES (2,DEFAULT);
 FLUSH TABLES;
+# Count may be 1 or 2, depending on FLUSH happened before or after delayed
+SELECT COUNT(*) > 0 FROM t1;
 
+--echo # Then test FLUSH TABLES t1;
+INSERT INTO t1 (a,tsv) VALUES (3,DEFAULT);
+INSERT DELAYED INTO t1 (a,tsv) VALUES (4,DEFAULT);
+FLUSH TABLES t1;
 SELECT COUNT(*) FROM t1;
 
+--echo # Then test FLUSH TABLES WITH READ LOCK;
+
+INSERT INTO t1 (a,tsv) VALUES (5,DEFAULT);
+INSERT DELAYED INTO t1 (a,tsv) VALUES (6,DEFAULT);
+FLUSH TABLES WITH READ LOCK;
+SELECT COUNT(*) FROM t1;
+set GLOBAL debug_dbug= @old_debug;
+unlock tables;
 DROP TABLE t1;
 
 --echo #
@@ -215,12 +232,12 @@ drop table t1;
 create table t1 (a int, b int);
 insert into t1 values (3, 30), (4, 20), (1, 20);
 create table t2 (c int, d int, v int as (d+1), index idx(c));
-insert into t2(c,d) values 
+insert into t2(c,d) values
   (20, 100), (20, 300), (30, 100), (30, 200), (40, 500),
-  (70, 100), (40, 300), (60, 100), (40, 100), (70, 100);                           
-insert into t2(c,d) values 
+  (70, 100), (40, 300), (60, 100), (40, 100), (70, 100);
+insert into t2(c,d) values
   (120, 100), (150, 300), (130, 100), (130, 200), (140, 500),
-  (170, 100), (180, 300), (160, 100), (40, 100), (170, 100);                           
+  (170, 100), (180, 300), (160, 100), (40, 100), (170, 100);
 
 set join_cache_level=6;
 explain
@@ -368,6 +385,126 @@ SELECT COLUMN_GET(@aaa, 'price' AS DECIMAL) aaa;
 SELECT COLUMN_GET(@aaa, 'price' AS INT) aaa;
 SELECT COLUMN_GET(@aaa, 'price' AS DOUBLE) aaa;
 
+
+--echo #
+--echo # MDEV-22579 No error when inserting DEFAULT(non_virtual_column) into a virtual column
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 (
+ a INT NOT NULL DEFAULT 10,
+ b INT AS (a+1) VIRTUAL
+) ENGINE=MyISAM;
+
+# Testing with a column list
+
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+INSERT INTO t1 (b) VALUES (10);
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+INSERT INTO t1 (b) VALUES (DEFAULT(a));
+INSERT INTO t1 (b) VALUES (DEFAULT);
+
+# Testing without a column list
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+INSERT INTO t1 VALUES (10,10);
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+INSERT INTO t1 VALUES (10,DEFAULT(a));
+INSERT INTO t1 VALUES (10, DEFAULT);
+
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
 --echo #
 --echo # End of 10.1 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-16518 MYSQL57_GENERATED_FIELD: The code in TABLE_SHARE::init_from_binary_frm_image() is not safe
+--echo #
+
+--copy_file std_data/frm/mdev16518.frm $MYSQLD_DATADIR/test/t1.frm
+SHOW TABLES;
+--replace_result $MYSQLD_DATADIR ./
+--error ER_NOT_FORM_FILE
+SHOW CREATE TABLE t1;
+--replace_result $MYSQLD_DATADIR ./
+--error ER_NOT_FORM_FILE
+ALTER TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.frm
+
+--echo #
+--echo # MDEV-19771 REPLACE on table with virtual_field can cause crash in set_ok_status()
+--echo
+
+create or replace table t1 (pk int primary key, col_bit bit(15) default null,
+                            vcol_bit bit(10) GENERATED ALWAYS AS (`col_bit`) VIRTUAL);
+replace INTO `t1` (`pk`,col_bit) VALUES (99,1000);
+select pk, col_bit+0, vcol_bit+0 from t1;
+replace INTO `t1` (`pk`,col_bit) VALUES (99,10000);
+select pk, col_bit+0, vcol_bit+0 from t1;
+--error ER_DATA_TOO_LONG
+REPLACE LOW_PRIORITY INTO `t1` (`pk`) VALUES (99);
+drop table t1;
+
+--echo #
+--echo # MDEV-17837 REPLACE on table with virtual_field can cause crash in set_ok_status()
+--echo #
+
+SET @old_sql_mode=@@sql_mode;
+SET sql_mode= STRICT_ALL_TABLES;
+
+CREATE TABLE t1 (
+  pk INT,
+  i TINYINT,
+  vi TINYINT AS (i+1) PERSISTENT,
+  PRIMARY KEY(pk)
+);
+
+INSERT INTO t1 (pk,i) VALUES (1,1);
+TRUNCATE TABLE t1;
+INSERT IGNORE INTO t1 (pk,i) VALUES (1,127);
+--error ER_WARN_DATA_OUT_OF_RANGE
+REPLACE INTO t1 (pk,i) VALUES (1,2);
+DROP TABLE t1;
+SET @sql_mode=@old_sql_mode;
+
+--echo #
+--echo # MDEV-22579 No error when inserting DEFAULT(non_virtual_column) into a virtual column
+--echo # 10.2+ specific part
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 (
+ a INT NOT NULL DEFAULT 10,
+ b INT AS (a+1) VIRTUAL
+) ENGINE=MyISAM;
+
+# Testing with column list
+
+EXECUTE IMMEDIATE 'INSERT INTO t1 (b) VALUES(?)' USING DEFAULT;
+EXECUTE IMMEDIATE 'INSERT INTO t1 (b) VALUES(?)' USING IGNORE;
+INSERT INTO t1 (b) VALUES (DEFAULT);
+INSERT INTO t1 (b) VALUES (IGNORE);
+SELECT * FROM t1;
+DELETE FROM t1;
+
+# Testing without column list
+
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES(10,?)' USING DEFAULT;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES(11,?)' USING IGNORE;
+INSERT INTO t1 VALUES (12,DEFAULT);
+INSERT INTO t1 VALUES (13,IGNORE);
+SELECT * FROM t1;
+
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.2 tests
 --echo #

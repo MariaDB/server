@@ -1,0 +1,5 @@
+create role r;
+set role r;
+drop role r;
+revoke all on *.* from current_role;
+ERROR OP000: Invalid role specification `r`

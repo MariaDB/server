@@ -11,7 +11,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 INCLUDE(CMakeDependentOption)
 
@@ -47,7 +47,7 @@ SET(ARIA_SOURCES ma_init.c ma_open.c ma_extra.c ma_info.c ma_rkey.c
             ma_checkpoint.c ma_recovery.c ma_commit.c ma_pagecrc.c
             ha_maria.h maria_def.h ma_recovery_util.c ma_servicethread.c
             ma_norec.c
-            ma_crypt.c
+            ma_crypt.c ma_backup.c
 )
 
 IF(APPLE)
@@ -98,7 +98,12 @@ IF(WITH_UNIT_TESTS)
 
   ADD_EXECUTABLE(ma_sp_test ma_sp_test.c)
   TARGET_LINK_LIBRARIES(ma_sp_test aria)
+
+  ADD_EXECUTABLE(test_ma_backup test_ma_backup.c)
+  TARGET_LINK_LIBRARIES(test_ma_backup aria)
+
   ADD_SUBDIRECTORY(unittest)
+
 ENDIF()
   
 IF (MSVC)

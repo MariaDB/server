@@ -23,7 +23,7 @@ Created 2012/04/12 by Sunny Bains
 #include <string.h>
 
 /** CPU cache line size */
-#define CACHE_LINE_SIZE		64
+#define UT_CACHE_LINE_SIZE		64
 
 /** Default number of slots to use in ib_counter_t */
 #define IB_N_SLOTS		64
@@ -43,7 +43,7 @@ struct generic_indexer_t {
 
         /** @return offset within m_counter */
         size_t offset(size_t index) const {
-                return(((index % N) + 1) * (CACHE_LINE_SIZE / sizeof(Type)));
+                return(((index % N) + 1) * (UT_CACHE_LINE_SIZE / sizeof(Type)));
         }
 };
 
@@ -90,7 +90,7 @@ struct single_indexer_t {
         /** @return offset within m_counter */
         size_t offset(size_t index) const {
 		DBUG_ASSERT(N == 1);
-                return((CACHE_LINE_SIZE / sizeof(Type)));
+                return((UT_CACHE_LINE_SIZE / sizeof(Type)));
         }
 
 	/* @return 1 */
@@ -103,7 +103,7 @@ struct single_indexer_t {
 /** Class for using fuzzy counters. The counter is not protected by any
 mutex and the results are not guaranteed to be 100% accurate but close
 enough. Creates an array of counters and separates each element by the
-CACHE_LINE_SIZE bytes */
+UT_CACHE_LINE_SIZE bytes */
 template <
 	typename Type,
 	int N = IB_N_SLOTS,
@@ -119,7 +119,7 @@ public:
 
 	bool validate() {
 #ifdef UNIV_DEBUG
-		size_t	n = (CACHE_LINE_SIZE / sizeof(Type));
+		size_t	n = (UT_CACHE_LINE_SIZE / sizeof(Type));
 
 		/* Check that we aren't writing outside our defined bounds. */
 		for (size_t i = 0; i < UT_ARRAY_SIZE(m_counter); i += n) {
@@ -197,7 +197,7 @@ private:
 	Indexer<Type, N>m_policy;
 
         /** Slot 0 is unused. */
-	Type		m_counter[(N + 1) * (CACHE_LINE_SIZE / sizeof(Type))];
+	Type		m_counter[(N + 1) * (UT_CACHE_LINE_SIZE / sizeof(Type))];
 };
 
 #endif /* UT0COUNTER_H */

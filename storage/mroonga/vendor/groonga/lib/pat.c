@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 #include "grn.h"
 #include <string.h>
@@ -139,20 +139,6 @@ pat_get(grn_ctx *ctx, grn_pat *pat, grn_id id)
   int flags = GRN_TABLE_ADD;
   if (id > GRN_ID_MAX) { return NULL; }
   GRN_IO_ARRAY_AT(pat->io, segment_pat, id, &flags, res);
-  return res;
-}
-
-inline static pat_node *
-pat_node_new(grn_ctx *ctx, grn_pat *pat, grn_id *id)
-{
-  uint32_t n = pat->header->curr_rec + 1;
-  pat_node *res;
-  if (n > GRN_ID_MAX) { return NULL; }
-  if ((res = pat_get(ctx, pat, n))) {
-    pat->header->curr_rec = n;
-    pat->header->n_entries++;
-  }
-  if (id) { *id = n; }
   return res;
 }
 
@@ -913,7 +899,7 @@ chop(grn_ctx *ctx, grn_pat *pat, const char **key, const char *end, uint32_t *lk
   case GRN_OBJ_KEY_FLOAT :\
     if ((size) == sizeof(int64_t)) {\
       int64_t v = *(int64_t *)(key);\
-      v ^= ((v >> 63)|(1LL << 63));\
+      v ^= ((v >> 63)|(1ULL << 63));\
       grn_hton((keybuf), &v, (size));\
     }\
     break;\
@@ -938,7 +924,7 @@ chop(grn_ctx *ctx, grn_pat *pat, const char **key, const char *end, uint32_t *lk
     if ((size) == sizeof(int64_t)) {\
       int64_t v;\
       grn_hton(&v, (key), (size));\
-      *((int64_t *)(keybuf)) = v ^ (((v^(1LL<<63))>> 63)|(1LL<<63));  \
+      *((int64_t *)(keybuf)) = v ^ ((((int64_t)(v^(1ULL<<63)))>> 63)|(1ULL<<63)); \
     }\
     break;\
   }\

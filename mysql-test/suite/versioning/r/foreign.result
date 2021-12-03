@@ -2,7 +2,8 @@
 # Test RESTRICT #
 #################
 create table parent(
-id int unique key
+id int,
+KEY_TYPE (id)
 ) engine innodb;
 create table child(
 parent_id int,
@@ -35,7 +36,8 @@ drop table parent;
 # Test when clustered index is a foreign key #
 ##############################################
 create table parent(
-id int(10) unsigned unique key
+id int(10) unsigned,
+KEY_TYPE (id)
 ) engine innodb;
 create table child(
 parent_id int(10) unsigned primary key,
@@ -54,7 +56,8 @@ drop table parent;
 # Test CASCADE #
 ################
 create table parent(
-id int unique key
+id int,
+KEY_TYPE (id)
 ) engine innodb;
 create table child(
 parent_id int,
@@ -87,7 +90,8 @@ parent_id
 drop table child;
 drop table parent;
 create or replace table parent (
-id int primary key,
+id int,
+KEY_TYPE(id),
 sys_start SYS_DATATYPE as row start invisible,
 sys_end SYS_DATATYPE as row end invisible,
 period for system_time(sys_start, sys_end)
@@ -110,7 +114,8 @@ x	parent_id
 drop table child;
 drop table parent;
 create or replace table parent (
-id int primary key
+id int,
+KEY_TYPE(id)
 )
 engine innodb;
 create or replace table child (
@@ -138,8 +143,9 @@ drop table parent;
 #################
 # Test SET NULL #
 #################
-create or replace table parent(
-id int unique key
+create table parent(
+id int,
+KEY_TYPE (id)
 ) engine innodb;
 create or replace table child(
 parent_id int,
@@ -183,7 +189,8 @@ drop table parent;
 # Parent table is foreign #
 ###########################
 create or replace table parent(
-id int unique key,
+id int,
+KEY_TYPE (id),
 sys_start SYS_DATATYPE as row start invisible,
 sys_end SYS_DATATYPE as row end invisible,
 period for system_time(sys_start, sys_end)
@@ -214,7 +221,8 @@ drop table parent;
 # crash on DELETE #
 ###################
 create or replace table a (
-cola int(10) primary key,
+cola int(10),
+KEY_TYPE (cola),
 v_cola int(10) as (cola mod 10) virtual,
 sys_start SYS_DATATYPE as row start invisible,
 sys_end SYS_DATATYPE as row end invisible,
@@ -292,3 +300,161 @@ select count(*) from subchild;
 count(*)
 0
 drop table subchild, child, parent;
+#
+# MDEV-18057 Assertion `(node->state == 5) || (node->state == 6)' failed in row_upd_sec_step upon DELETE after UPDATE failed due to FK violation
+#
+create or replace table t1 (f1 int, key(f1)) engine=innodb;
+create or replace table t2 (f2 int, foreign key (f2) references t1 (f1)) engine=innodb with system versioning;
+set foreign_key_checks= off;
+insert ignore into t2 values (1);
+set foreign_key_checks= on;
+update t2 set f2= 2;
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+delete from t2;
+drop table t2, t1;
+#
+# MDEV-18879 Corrupted record inserted by FOREIGN KEY operation
+#
+SET timestamp = 1;
+SET time_zone='+02:00';
+SELECT now();
+now()
+1970-01-01 02:00:01
+CREATE TABLE t1 (
+pk INT UNSIGNED PRIMARY KEY,
+f1 varchar(255)  CHARACTER SET ucs2,
+f2 longtext CHARACTER SET ucs2,
+f3 varchar(255),
+f4 char(255),
+f5 longtext CHARACTER SET ucs2,
+f6 INT UNSIGNED,
+f7 INT UNSIGNED,
+f8 INT UNSIGNED,
+f9 INT UNSIGNED,
+f10 INT UNSIGNED,
+f11 INT UNSIGNED,
+f12 varchar(255) CHARACTER SET ucs2,
+f13 char(255)  CHARACTER SET ucs2,
+f14 char(255) CHARACTER SET ucs2,
+f15 varchar(255),
+f16 longtext,
+f17 char(255)
+) ENGINE=InnoDB WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES
+(1, 'a', 'e', 'f', 'a', 'generate', 1, 2, 3, 4, 5, 6, 'main', 'against', 'b', 'u', 'explode', 'tomorrow'),
+(2, REPEAT('a',127), 'f', 'k', 'game', 'g', 2, 3, 4, 5, 6, 7, REPEAT('o',222), 'oven', 'flower', REPEAT('r',120), 'l', 'g'),
+(3, 'weekly', 'x', 'v', 'r', 'c', 3, 4, 5, 6, 7, 8, 'validity', 'y', 'h', 'oxygen', 'venture', 'uncertainty'),
+(4, 'r', 't', REPEAT('b',153), 'modern', 'h', 4, 5, 6, 7, 8, 9, REPEAT('g',128), 'a', 'w', 'f', 'b', 'b'),
+(5, 'h', 'y', REPEAT('v',107), 'knife', 'profession', 5, 6, 7, 8, 9, 0, 'infection', 'u', 'likelihood', REPEAT('n',149), 'folk', 'd'),
+(6, 'g', 'violent', REPEAT('o',28), 'capital', 'p', 6, 7, 8, 9, 0, 1, 'w', 'patron', 'd', 'y', 'originally', 'k'),
+(7, 'k', 'uncomfortable', REPEAT('v',248), 'y', 'link', 7, 8, 9, 0, 1, 2, REPEAT('j',204), 'j', 'statute', 'emphasis', 'u', 'water'),
+(8, 'preparation', 'water', 'suck', 'silver', 'a', 8, 9, 0, 1, 2, 3, 'h', 'q', 'o', 't', 'k', 'y'),
+(9, 'y', 'f', 'e', 'a', 'dawn', 9, 0, 1, 2, 3, 4, 'peak', 'parking', 'b', 't', 'timber', 'c'),
+(10, REPEAT('h',78), 'apologize', 'direct', 'u', 'frankly', 0, 1, 2, 3, 4, 5, 'h', 'exhibit', 'f', 'd', 'effective', 'c'),
+(11, 'i', 'h', 'a', 'y', 'u', 1, 2, 3, 4, 5, 6, 'l', 'b', 'm', 'respond', 'ideological', 'credibility');
+CREATE TABLE t2 (
+pk int primary key,
+f char(255) CHARACTER SET ucs2,
+key(f)
+) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,'against'),(2,'q');
+SET SQL_MODE= '';
+SET timestamp = 2;
+SELECT * INTO OUTFILE 't1.data' FROM t1;
+SET timestamp = 3;
+UPDATE t1 SET f13 = 'q';
+SET timestamp = 4;
+LOAD DATA INFILE 't1.data' REPLACE INTO TABLE t1;
+Warnings:
+Warning	1265	Data truncated for column 'f12' at row 2
+Warning	1265	Data truncated for column 'f12' at row 4
+Warning	1265	Data truncated for column 'f12' at row 7
+SELECT * INTO OUTFILE 't1.data.2' FROM t1;
+SET timestamp = 5;
+LOAD DATA INFILE 't1.data.2' REPLACE INTO TABLE t1;
+Warnings:
+Warning	1265	Data truncated for column 'f1' at row 2
+Warning	1265	Data truncated for column 'f12' at row 2
+Warning	1265	Data truncated for column 'f12' at row 4
+Warning	1265	Data truncated for column 'f12' at row 7
+Warning	1265	Data truncated for column 'f1' at row 10
+SELECT * INTO OUTFILE 't2.data' FROM t2;
+SET timestamp = 6;
+LOAD DATA INFILE 't2.data' REPLACE INTO TABLE t2;
+SET FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 ADD FOREIGN KEY (f13) REFERENCES t2 (f) ON DELETE SET NULL;
+SET timestamp = 7;
+LOAD DATA INFILE 't1.data' REPLACE INTO TABLE t1;
+Warnings:
+Warning	1265	Data truncated for column 'f12' at row 2
+Warning	1265	Data truncated for column 'f12' at row 4
+Warning	1265	Data truncated for column 'f12' at row 7
+SET FOREIGN_KEY_CHECKS = ON;
+SET SESSION SQL_MODE= 'NO_BACKSLASH_ESCAPES';
+SET timestamp = 8;
+LOAD DATA INFILE 't1.data' REPLACE INTO TABLE t1;
+Warnings:
+Warning	1265	Data truncated for column 'f12' at row 2
+Warning	1265	Data truncated for column 'f12' at row 4
+Warning	1265	Data truncated for column 'f12' at row 7
+SET timestamp = 9;
+REPLACE INTO t2 SELECT * FROM t2;
+DROP TABLE t1, t2;
+set timestamp= default;
+set time_zone='+00:00';
+#
+# MDEV-16210 FK constraints on versioned tables use historical rows, which may cause constraint violation
+#
+create or replace table t1 (a int, key(a)) engine innodb with system versioning;
+create or replace table t2 (b int, foreign key (b) references t1(a)) engine innodb;
+insert into t1 values (1),(2);
+insert into t2 values (1);
+# DELETE from referenced table is not allowed
+delete from t1 where a = 1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
+drop tables t2, t1;
+#
+# MDEV-20812 Unexpected ER_ROW_IS_REFERENCED_2 or server crash in row_ins_foreign_report_err upon DELETE from versioned table with FK
+#
+create or replace table t1 (x int primary key) engine innodb;
+create or replace table t2 (x int, foreign key (x) references t1(x)) engine innodb with system versioning;
+set foreign_key_checks= off;
+insert into t2 values (1), (1);
+set foreign_key_checks= on;
+# DELETE from foreign table is allowed
+delete from t2;
+drop tables t2, t1;
+create or replace table t1 (a int, key(a)) engine innodb;
+insert into t1 values (1);
+create or replace table t2 (b int, foreign key (b) references t1(a)) engine innodb with system versioning;
+insert into t2 values (1), (1);
+# DELETE from foreign table is allowed
+delete from t2;
+drop tables t2, t1;
+#
+# MDEV-23644 Assertion on evaluating foreign referential action for self-reference in system versioned table
+#
+create table t1 (pk int primary key, f1 int,f2 int, f3 text,
+key(f1), fulltext(f3), key(f3(10)),
+foreign key (f2) references t1 (f1) on delete set null
+) engine=innodb with system versioning;
+insert into t1 values (1, 8, 8, 'SHORT'), (2, 8, 8, repeat('LONG', 8071));
+delete from t1;
+select pk, f1, f2, left(f3, 4), check_row_ts(row_start, row_end) from t1 for system_time all order by pk;
+pk	f1	f2	left(f3, 4)	check_row_ts(row_start, row_end)
+1	8	8	SHOR	HISTORICAL ROW
+2	8	8	LONG	HISTORICAL ROW
+drop table t1;
+#
+# MDEV-21555 Assertion secondary index is out of sync on delete from versioned table
+#
+create table t1 (a int, b int as (a + 1) virtual, key(a)) engine=innodb with system versioning;
+set foreign_key_checks= off;
+insert into t1 (a) values (1), (2);
+alter table t1 add foreign key (b) references t1 (a), algorithm=copy;
+update t1 set a= null where a = 1;
+delete from t1 where a is null;
+set foreign_key_checks= on;
+delete history from t1;
+delete from t1;
+drop table t1;

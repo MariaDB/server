@@ -455,6 +455,22 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
   for ( ; elem1 && elem2; elem1= elem1->next, elem2= elem2->next)
   {
     int cmp;
+    // remove all constants as we don't need them for comparision
+    while(elem1 && ((*elem1->item)->real_item())->const_item())
+    {
+      elem1= elem1->next;
+      continue;
+    }
+
+    while(elem2 && ((*elem2->item)->real_item())->const_item())
+    {
+      elem2= elem2->next;
+      continue;
+    }
+
+    if (!elem1 || !elem2)
+      break;
+
     if ((cmp= compare_order_elements(elem1, elem2)))
       return cmp;
   }
@@ -576,9 +592,15 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
       Let's use only one of the lists.
     */
     if (!win_spec1->name() && win_spec2->name())
+    {
+      win_spec1->save_partition_list= win_spec1->partition_list;
       win_spec1->partition_list= win_spec2->partition_list;
+    }
     else
+    {
+      win_spec2->save_partition_list= win_spec2->partition_list;
       win_spec2->partition_list= win_spec1->partition_list;
+    }
 
     cmp= compare_order_lists(win_spec1->order_list,
                              win_spec2->order_list);
@@ -591,9 +613,15 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
        Let's use only one of the lists.
     */
     if (!win_spec1->name() && win_spec2->name())
+    {
+      win_spec1->save_order_list= win_spec2->order_list;
       win_spec1->order_list= win_spec2->order_list;
+    }
     else
+    {
+      win_spec1->save_order_list= win_spec2->order_list;
       win_spec2->order_list= win_spec1->order_list;
+    }
 
     cmp= compare_window_frames(win_spec1->window_frame,
                                win_spec2->window_frame);
@@ -882,7 +910,7 @@ public:
   {
     Rowid_seq_cursor::init(info);
     table= info->table;
-    record= info->record;
+    record= info->record();
   }
 
   virtual int fetch()
@@ -1763,11 +1791,7 @@ protected:
     List_iterator_fast<Item_sum> it(sum_functions);
     Item_sum* item;
     while ((item= it++))
-    {
-      Item_sum_window_with_row_count* item_with_row_count =
-        static_cast<Item_sum_window_with_row_count *>(item);
-      item_with_row_count->set_row_count(num_rows_in_partition);
-    }
+      item->set_partition_row_count(num_rows_in_partition);
   }
 };
 
@@ -2694,10 +2718,37 @@ bool save_window_function_values(List<Item_window_func>& window_functions,
                                  TABLE *tbl, uchar *rowid_buf)
 {
   List_iterator_fast<Item_window_func> iter(window_functions);
+  JOIN_TAB *join_tab= tbl->reginfo.join_tab;
   tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
   store_record(tbl, record[1]);
   while (Item_window_func *item_win= iter++)
     item_win->save_in_field(item_win->result_field, true);
+
+  /*
+    In case we have window functions present, an extra step is required
+    to compute all the fields from the temporary table.
+    In case we have a compound expression such as: expr + expr,
+    where one of the terms has a window function inside it, only
+    after computing window function values we actually know the true
+    final result of the compounded expression.
+
+    Go through all the func items and save their values once again in the
+    corresponding temp table fields. Do this for each row in the table.
+
+    This needs to be done earlier because ORDER BY clause can also have
+    a window function, so we need to make sure all the fields of the temp.table
+    are updated before we do the filesort. So is best to update the other fields
+    that contain the window functions along with the computation of window
+    functions.
+  */
+
+  Item **func_ptr= join_tab->tmp_table_param->items_to_copy;
+  Item *func;
+  for (; (func = *func_ptr) ; func_ptr++)
+  {
+    if (func->with_window_func && func->type() != Item::WINDOW_FUNC_ITEM)
+      func->save_in_result_field(true);
+  }
 
   int err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
   if (err && err != HA_ERR_RECORD_IS_THE_SAME)
@@ -3019,7 +3070,8 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
      */
     ORDER *order= (ORDER *)alloc_root(thd->mem_root, sizeof(ORDER));
     memset(order, 0, sizeof(*order));
-    Item *item= new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
+    Item *item= new (thd->mem_root) Item_temptable_field(thd,
+                                                    join_tab->table->field[0]);
     order->item= (Item **)alloc_root(thd->mem_root, 2 * sizeof(Item *));
     order->item[1]= NULL;
     order->item[0]= item;
@@ -3117,6 +3169,14 @@ Window_funcs_computation::save_explain_plan(MEM_ROOT *mem_root,
     xpl->sorts.push_back(eaf, mem_root);
   }
   return xpl;
+}
+
+
+bool st_select_lex::add_window_func(Item_window_func *win_func)
+{
+  if (parsing_place != SELECT_LIST)
+    fields_in_window_functions+= win_func->window_func()->argument_count();
+  return window_funcs.push_back(win_func);
 }
 
 /////////////////////////////////////////////////////////////////////////////

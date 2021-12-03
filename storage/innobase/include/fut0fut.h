@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,14 +28,11 @@ Created 12/13/1995 Heikki Tuuri
 #ifndef fut0fut_h
 #define fut0fut_h
 
-#include "univ.i"
-
-#include "fil0fil.h"
 #include "mtr0mtr.h"
 
 /** Gets a pointer to a file address and latches the page.
 @param[in]	space		space id
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	addr		file address
 @param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_SX_LATCH
 @param[out]	ptr_block	file page
@@ -45,13 +43,32 @@ UNIV_INLINE
 byte*
 fut_get_ptr(
 	ulint			space,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	fil_addr_t		addr,
 	rw_lock_type_t		rw_latch,
 	mtr_t*			mtr,
 	buf_block_t**		ptr_block = NULL)
-	MY_ATTRIBUTE((warn_unused_result));
+{
+	buf_block_t*	block;
+	byte*		ptr = NULL;
 
-#include "fut0fut.ic"
+	ut_ad(addr.boffset < srv_page_size);
+	ut_ad((rw_latch == RW_S_LATCH)
+	      || (rw_latch == RW_X_LATCH)
+	      || (rw_latch == RW_SX_LATCH));
+
+	block = buf_page_get(page_id_t(space, addr.page), zip_size,
+			     rw_latch, mtr);
+
+	ptr = buf_block_get_frame(block) + addr.boffset;
+
+	buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
+
+	if (ptr_block != NULL) {
+		*ptr_block = block;
+	}
+
+	return(ptr);
+}
 
 #endif /* fut0fut_h */

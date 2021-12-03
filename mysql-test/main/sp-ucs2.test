@@ -52,16 +52,16 @@ CREATE FUNCTION f()
 BEGIN
   RETURN '';
 END|
-SHOW CREATE FUNCTION f;
-DROP FUNCTION f;
+SHOW CREATE FUNCTION f|
+DROP FUNCTION f|
 
 CREATE FUNCTION f()
   RETURNS VARCHAR(64) BINARY UNICODE
 BEGIN
   RETURN '';
 END|
-SHOW CREATE FUNCTION f;
-DROP FUNCTION f;
+SHOW CREATE FUNCTION f|
+DROP FUNCTION f|
 
 
 #
@@ -72,16 +72,16 @@ CREATE FUNCTION f()
 BEGIN
   RETURN '';
 END|
-SHOW CREATE FUNCTION f;
-DROP FUNCTION f;
+SHOW CREATE FUNCTION f|
+DROP FUNCTION f|
 
 CREATE FUNCTION f()
   RETURNS VARCHAR(64) BINARY ASCII
 BEGIN
   RETURN '';
 END|
-SHOW CREATE FUNCTION f;
-DROP FUNCTION f;
+SHOW CREATE FUNCTION f|
+DROP FUNCTION f|
 
 #
 # Testing COLLATE in OUT parameter
@@ -114,35 +114,35 @@ DROP FUNCTION f1|
 #
 # COLLATE with no CHARACTER SET in IN param
 #
---error ER_COLLATION_CHARSET_MISMATCH
 CREATE FUNCTION f(f1 VARCHAR(64) COLLATE ucs2_unicode_ci)
   RETURNS VARCHAR(64) CHARACTER SET ucs2
 BEGIN
   RETURN 'str';
 END|
+DROP FUNCTION f|
 
 
 #
 # COLLATE with no CHARACTER SET in RETURNS
 #
---error ER_COLLATION_CHARSET_MISMATCH
 CREATE FUNCTION f(f1 VARCHAR(64) CHARACTER SET ucs2)
   RETURNS VARCHAR(64) COLLATE ucs2_unicode_ci
 BEGIN
   RETURN 'str';
 END|
+DROP FUNCTION f|
 
 
 #
 # COLLATE with no CHARACTER SET in DECLARE
 #
---error ER_COLLATION_CHARSET_MISMATCH
 CREATE FUNCTION f(f1 VARCHAR(64) CHARACTER SET ucs2)
   RETURNS VARCHAR(64) CHARACTER SET ucs2
 BEGIN
   DECLARE f2 VARCHAR(64) COLLATE ucs2_unicode_ci;
   RETURN 'str';
 END|
+DROP FUNCTION f|
 
 
 delimiter ;|
@@ -151,9 +151,6 @@ delimiter ;|
 # Bug#48766 SHOW CREATE FUNCTION returns extra data in return clause
 #
 SET NAMES utf8;
---disable_warnings
-DROP FUNCTION IF EXISTS bug48766;
---enable_warnings
 #
 # Test that Latin letters are not prepended with extra '\0'.
 #
@@ -175,3 +172,13 @@ SELECT DTD_IDENTIFIER FROM INFORMATION_SCHEMA.ROUTINES
 WHERE ROUTINE_NAME='bug48766';
 
 DROP FUNCTION bug48766;
+
+#
+#
+#
+call mtr.add_suppression('invalid value in column mysql.proc.');
+set collation_connection=ucs2_general_ci;
+insert into mysql.proc (db, name, type, specific_name, language, sql_data_access, is_deterministic, security_type, param_list, returns, body, definer, created, modified, sql_mode, comment, character_set_client, collation_connection, db_collation, body_utf8 ) values ( 'a', 'a', 'function', 'bug14233_1', 'sql', 'reads_sql_data', 'no', 'definer', '', 'int(10)', 'select * from mysql.user', 'root@localhost', now(), '0000-00-00 00:00:00', '', '', '', '', '', 'select * from mysql.user' );
+select routine_name from information_schema.routines where routine_name='a';
+set collation_connection=default;
+delete from mysql.proc where name='a';

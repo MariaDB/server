@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 DROP TABLE IF EXISTS variable;
 Warnings:
 Note	1051	Unknown table 'test.variable'

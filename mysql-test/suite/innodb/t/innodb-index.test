@@ -218,7 +218,6 @@ alter table t4 add constraint dc foreign key (a) references t1(a);
 --disable_info
 show create table t4;
 # mysqltest first does replace_regex, then replace_result
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 # Embedded server doesn't chdir to data directory
 --replace_result $MYSQLD_DATADIR ./ master-data/ ''
 # a foreign key 'test/dc' already exists
@@ -416,7 +415,6 @@ SET FOREIGN_KEY_CHECKS=0;
 --enable_info
 
 # mysqltest first does replace_regex, then replace_result
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 # Embedded server doesn't chdir to data directory
 --replace_result $MYSQLD_DATADIR ./ master-data/ ''
 --error ER_CANT_CREATE_TABLE
@@ -426,7 +424,6 @@ ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
  FOREIGN KEY (c3,c2) REFERENCES t1(c1,c1);
 # mysqltest first does replace_regex, then replace_result
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 # Embedded server doesn't chdir to data directory
 --replace_result $MYSQLD_DATADIR ./ master-data/ ''
 --error ER_CANT_CREATE_TABLE
@@ -441,7 +438,6 @@ ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
  FOREIGN KEY (c3,c2) REFERENCES t1(c2,c1), ALGORITHM=INPLACE;
 
 # mysqltest first does replace_regex, then replace_result
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 # Embedded server doesn't chdir to data directory
 --replace_result $MYSQLD_DATADIR ./ master-data/ ''
 --error ER_CANT_CREATE_TABLE
@@ -450,7 +446,6 @@ ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 
 ALTER TABLE t1 MODIFY COLUMN c2 BIGINT(12) NOT NULL;
 # mysqltest first does replace_regex, then replace_result
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 # Embedded server doesn't chdir to data directory
 --replace_result $MYSQLD_DATADIR ./ master-data/ ''
 --error ER_CANT_CREATE_TABLE
@@ -549,6 +544,51 @@ show create table t2c;
 --disable_info
 
 DROP TABLE t1,t2,t2c,t2i;
+
+CREATE TABLE t1 (c VARCHAR(1024),
+c1 CHAR(255) NOT NULL,c2 CHAR(255) NOT NULL,c3 CHAR(255) NOT NULL,
+c4 CHAR(255) NOT NULL,c5 CHAR(255) NOT NULL,c6 CHAR(255) NOT NULL,
+c7 CHAR(255) NOT NULL,c8 CHAR(255) NOT NULL,c9 CHAR(255) NOT NULL,
+ca CHAR(255) NOT NULL,cb CHAR(255) NOT NULL,cc CHAR(255) NOT NULL,
+cd CHAR(255) NOT NULL,ce CHAR(255) NOT NULL,cf CHAR(255) NOT NULL,
+d0 CHAR(255) NOT NULL,d1 CHAR(255) NOT NULL,d2 CHAR(255) NOT NULL,
+d3 CHAR(255) NOT NULL,d4 CHAR(255) NOT NULL,d5 CHAR(255) NOT NULL,
+d6 CHAR(255) NOT NULL,d7 CHAR(255) NOT NULL,d8 CHAR(255) NOT NULL,
+d9 CHAR(255) NOT NULL,da CHAR(255) NOT NULL,db CHAR(255) NOT NULL,
+dc CHAR(255) NOT NULL,dd CHAR(255) NOT NULL,de CHAR(255) NOT NULL,
+UNIQUE KEY(c))
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES
+(repeat('a',999),'','','','','','','','','','','','','','','','','','','','','','','','','','','','','',''),
+(CONCAT(repeat('a',999),'b'),'','','','','','','','','','','','','','','','','','','','','','','','','','','','','','');
+--error ER_INDEX_COLUMN_TOO_LONG
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT, algorithm=inplace;
+--error ER_INDEX_COLUMN_TOO_LONG
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT, algorithm=copy;
+SELECT COUNT(*) FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#19811005 ALTER TABLE ADD INDEX DOES NOT UPDATE INDEX_LENGTH
+--echo # IN I_S TABLES
+--echo #
+let $i_s_query=SELECT cast(DATA_LENGTH/@@innodb_page_size as int) D,
+cast(INDEX_LENGTH/@@innodb_page_size as int) I
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+
+CREATE TABLE t1(a INT, b INT) ENGINE=INNODB, STATS_PERSISTENT=1;
+eval $i_s_query;
+--enable_info
+ALTER TABLE t1 ADD INDEX (a);
+--disable_info
+eval $i_s_query;
+--enable_info
+ALTER TABLE t1 ADD INDEX (b);
+--disable_info
+eval $i_s_query;
+DROP TABLE t1;
+
 --echo #
 --echo # Bug #17657223	EXCESSIVE TEMPORARY FILE USAGE IN ALTER TABLE
 --echo #
@@ -880,8 +920,9 @@ drop table t1;
 create table t1(f1 int not null, f2 int not null,
 		primary key (f1), unique key(f1, f2))engine=innodb;
 insert into t1 values(1,3), (2,2);
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t1 drop primary key, lock=none;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 drop index f1, lock=none;
 drop table t1;
 
 --echo #
@@ -1118,13 +1159,39 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 if ($have_debug) {
 # Initiate shutdown in order to issue a redo log checkpoint and to discard
 # the redo log record that was emitted due to '+d,fil_names_write_bogus'.
+--let $restart_noprint=2
 --source include/restart_mysqld.inc
+--let $restart_noprint=0
 }
 
 SELECT * FROM t1;
 SELECT * FROM t2;
 
 DROP TABLE t1, t2;
+
+--echo #
+--echo #  MDEV-18186 assertion failure on missing InnoDB index
+--echo #
+
+--disable_query_log
+call mtr.add_suppression("Cannot find index i1 in InnoDB index dictionary");
+call mtr.add_suppression("InnoDB indexes are inconsistent with what defined");
+call mtr.add_suppression("Table test/t contains 0 indexes");
+call mtr.add_suppression("InnoDB could not find key no");
+--enable_query_log
+
+# Test an attempt to rename a nonexistent index inside InnoDB
+-- let $MYSQL_DATA_DIR = `SELECT @@datadir`
+CREATE TABLE t (a INT, INDEX i1 (a)) ENGINE=INNODB;
+-- copy_file $MYSQL_DATA_DIR/test/t.frm $MYSQL_DATA_DIR/test/t.fr_
+DROP TABLE t;
+CREATE TABLE t (a INT) ENGINE=INNODB;
+-- remove_file $MYSQL_DATA_DIR/test/t.frm
+-- move_file $MYSQL_DATA_DIR/test/t.fr_ $MYSQL_DATA_DIR/test/t.frm
+--enable_prepare_warnings
+SHOW CREATE TABLE t;
+--disable_prepare_warnings
+DROP TABLE t;
 
 --disable_query_log
 

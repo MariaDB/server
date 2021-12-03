@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -30,12 +30,13 @@ Created 5/24/1996 Heikki Tuuri
 /* Do not include univ.i because univ.i includes this. */
 
 enum dberr_t {
+	DB_SUCCESS,
+
 	DB_SUCCESS_LOCKED_REC = 9,	/*!< like DB_SUCCESS, but a new
 					explicit record lock was created */
-	DB_SUCCESS = 10,
 
 	/* The following are error codes */
-	DB_ERROR,
+	DB_ERROR = 11,
 	DB_INTERRUPTED,
 	DB_OUT_OF_MEMORY,
 	DB_OUT_OF_FILE_SPACE,

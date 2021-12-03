@@ -64,41 +64,11 @@ unsigned long srv_mech;
  */
 static int gssapi_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
 {
-  int use_full_name;
-  const char *user;
-  int user_len;
-
-  /* No user name yet ? Read the client handshake packet with the user name. */
-  if (auth_info->user_name == 0)
-  {
-    unsigned char *pkt;
-    if (vio->read_packet(vio, &pkt) < 0)
-      return CR_ERROR;
-  }
-  
   /* Send first packet with target name and mech name */
   if (vio->write_packet(vio, (unsigned char *)first_packet, first_packet_len))
-  {
     return CR_ERROR;
-  }
 
-  /* Figure out whether to use full name (as given in IDENTIFIED AS clause)
-   * or just short username auth_string
-   */
-  if (auth_info->auth_string_length > 0)
-  {
-    use_full_name= 1;
-    user= auth_info->auth_string;
-    user_len= auth_info->auth_string_length;
-  }
-  else
-  {
-    use_full_name= 0;
-    user= auth_info->user_name;
-    user_len= auth_info->user_name_length;
-  }
-
-  return auth_server(vio, user, user_len, use_full_name);
+  return auth_server(vio, auth_info);
 }
 
 static int initialize_plugin(void *unused)
@@ -169,7 +139,7 @@ static struct st_mysql_sys_var *system_variables[]= {
 static struct st_mysql_auth server_handler= {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   "auth_gssapi_client",
-  gssapi_auth
+  gssapi_auth, NULL, NULL
 };
 
 maria_declare_plugin(gssapi_server)

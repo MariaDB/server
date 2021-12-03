@@ -67,13 +67,13 @@ select _utf8mb4 0xD0B0D0B1D0B2 like concat(_utf8mb4'%',_utf8mb4 0xD0B1,_utf8mb4 
 _utf8mb4 0xD0B0D0B1D0B2 like concat(_utf8mb4'%',_utf8mb4 0xD0B1,_utf8mb4 '%')
 1
 select convert(_latin1'Günter André' using utf8mb4) like CONVERT(_latin1'GÜNTER%' USING utf8mb4);
-convert(_latin1'G?nter Andr?' using utf8mb4) like CONVERT(_latin1'G?NTER%' USING utf8mb4)
+convert(_latin1'G\xFCnter Andr\xE9' using utf8mb4) like CONVERT(_latin1'G\xDCNTER%' USING utf8mb4)
 1
 select CONVERT(_koi8r'×ÁÓÑ' USING utf8mb4) LIKE CONVERT(_koi8r'÷áóñ' USING utf8mb4);
-CONVERT(_koi8r'????' USING utf8mb4) LIKE CONVERT(_koi8r'????' USING utf8mb4)
+CONVERT(_koi8r'\xD7\xC1\xD3\xD1' USING utf8mb4) LIKE CONVERT(_koi8r'\xF7\xE1\xF3\xF1' USING utf8mb4)
 1
 select CONVERT(_koi8r'÷áóñ' USING utf8mb4) LIKE CONVERT(_koi8r'×ÁÓÑ' USING utf8mb4);
-CONVERT(_koi8r'????' USING utf8mb4) LIKE CONVERT(_koi8r'????' USING utf8mb4)
+CONVERT(_koi8r'\xF7\xE1\xF3\xF1' USING utf8mb4) LIKE CONVERT(_koi8r'\xD7\xC1\xD3\xD1' USING utf8mb4)
 1
 SELECT 'a' = 'a ';
 'a' = 'a '
@@ -222,7 +222,7 @@ drop table t1;
 create table t1 (s1 char(10) character set utf8mb4) engine heap;
 insert ignore into t1 values (0x41FF);
 Warnings:
-Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xFF' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 413F
@@ -230,7 +230,7 @@ drop table t1;
 create table t1 (s1 varchar(10) character set utf8mb4) engine heap;
 insert ignore into t1 values (0x41FF);
 Warnings:
-Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xFF' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 413F
@@ -971,6 +971,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf8mb4_general_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 "BEGIN ctype_german.inc"
 drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
@@ -1183,6 +1189,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf8mb4_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 CREATE TABLE t1 (
 user varchar(255) NOT NULL default ''
 ) ENGINE=heap DEFAULT CHARSET=latin1;
@@ -1203,7 +1215,7 @@ concat(concat(_latin1'->',f1),_latin1'<-')
 -><-
 drop table t1;
 select convert(_koi8r'É' using utf8mb4) < convert(_koi8r'Ê' using utf8mb4);
-convert(_koi8r'?' using utf8mb4) < convert(_koi8r'?' using utf8mb4)
+convert(_koi8r'\xC9' using utf8mb4) < convert(_koi8r'\xCA' using utf8mb4)
 1
 set names latin1;
 create table t1 (a varchar(10)) character set utf8mb4 engine heap;
@@ -1670,6 +1682,7 @@ character_set_filesystem	binary
 character_set_results	utf8mb4
 character_set_server	latin1
 character_set_system	utf8
+SET @@character_set_server=@save_character_set_server;
 CREATE DATABASE crashtest DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 USE crashtest;
 CREATE TABLE crashtest (crash char(10)) DEFAULT CHARSET=utf8mb4 ENGINE heap;
@@ -2160,7 +2173,7 @@ insert into t1 values (0xF0908080);
 insert into t1 values (0xF0BFBFBF);
 insert ignore into t1 values (0xF08F8080);
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x8F\x80\x80' for column 'utf8mb4' at row 1
+Warning	1366	Incorrect string value: '\xF0\x8F\x80\x80' for column `test`.`t1`.`utf8mb4` at row 1
 select hex(utf8mb4) from t1;
 hex(utf8mb4)
 3F
@@ -2180,7 +2193,7 @@ insert into t1 values (0xF4808080);
 insert into t1 values (0xF48F8080);
 insert ignore into t1 values (0xF4908080);
 Warnings:
-Warning	1366	Incorrect string value: '\xF4\x90\x80\x80' for column 'utf8mb4' at row 1
+Warning	1366	Incorrect string value: '\xF4\x90\x80\x80' for column `test`.`t1`.`utf8mb4` at row 1
 select hex(utf8mb4) from t1;
 hex(utf8mb4)
 3F
@@ -2190,10 +2203,10 @@ drop table t1;
 #
 # Check strnxfrm() with odd length
 #
-set max_sort_length=5;
+set max_sort_length=65;
 select @@max_sort_length;
 @@max_sort_length
-5
+65
 create table t1 (a varchar(128) character set utf8mb4 collate utf8mb4_general_ci) engine heap;
 insert into t1 values ('a'),('b'),('c');
 select * from t1 order by a;
@@ -2255,7 +2268,7 @@ u_decimal	hex(utf8mb4_encoding)
 917999	F3A087AF
 INSERT IGNORE INTO t1 VALUES (1114111, x'f5808080');
 Warnings:
-Warning	1366	Incorrect string value: '\xF5\x80\x80\x80' for column 'utf8mb4_encoding' at row 1
+Warning	1366	Incorrect string value: '\xF5\x80\x80\x80' for column `test`.`t1`.`utf8mb4_encoding` at row 1
 SELECT character_maximum_length, character_octet_length FROM information_schema.columns WHERE
 table_name= 't1' AND column_name= 'utf8mb4_encoding';
 character_maximum_length	character_octet_length
@@ -2269,14 +2282,14 @@ INSERT INTO t2 VALUES (42856, x'ea9da8');
 INSERT INTO t2 VALUES (65131, x'efb9ab');
 INSERT IGNORE INTO t2 VALUES (1114111, x'f48fbfbf');
 Warnings:
-Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBF' for column 'utf8mb3_encoding' at row 1
+Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBF' for column `test`.`t2`.`utf8mb3_encoding` at row 1
 SELECT character_maximum_length, character_octet_length FROM information_schema.columns WHERE
 table_name= 't2' AND column_name= 'utf8mb3_encoding';
 character_maximum_length	character_octet_length
 10	30
 UPDATE IGNORE t2 SET utf8mb3_encoding= x'f48fbfbd' where u_decimal= 42856;
 Warnings:
-Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBD' for column 'utf8mb3_encoding' at row 1
+Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBD' for column `test`.`t2`.`utf8mb3_encoding` at row 1
 UPDATE t2 SET utf8mb3_encoding= _utf8mb4 x'ea9da8' where u_decimal= 42856;
 SELECT HEX(CONCAT(utf8mb4_encoding, _utf8 x'ea9da8')) FROM t1;
 HEX(CONCAT(utf8mb4_encoding, _utf8 x'ea9da8'))

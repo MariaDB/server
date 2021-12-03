@@ -43,6 +43,7 @@ a
 3
 BEGIN;
 INSERT INTO t2 VALUES (42);
+# restart
 disconnect con1;
 disconnect con2;
 connection default;
@@ -103,6 +104,7 @@ DELETE FROM t1;
 ROLLBACK;
 disconnect con3;
 connection con2;
+# restart
 disconnect con2;
 connection default;
 ERROR HY000: Lost connection to MySQL server during query
@@ -134,6 +136,7 @@ SELECT info FROM information_schema.processlist
 WHERE state = 'debug sync point: after_row_upd_extern';
 info
 UPDATE t3 SET c=REPEAT('j',3000) WHERE a=2
+# restart
 disconnect con2;
 connection default;
 ERROR HY000: Lost connection to MySQL server during query
@@ -153,3 +156,9 @@ a
 SELECT * FROM t2;
 a
 DROP TABLE t1,t2,t3;
+CREATE TABLE t1(f1 INT PRIMARY KEY, f2 TEXT)ENGINE=InnoDB
+ROW_FORMAT=REDUNDANT;
+SET @fill_amount = (@@innodb_page_size / 2 ) + 1 ;
+INSERT INTO t1 VALUES(1, REPEAT(2, @fill_amount));
+UPDATE t1 SET f1 = 2;
+DROP TABLE t1;

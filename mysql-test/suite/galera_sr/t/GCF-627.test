@@ -1,0 +1,31 @@
+--source include/galera_cluster.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER, f2 VARCHAR(10)) ENGINE=InnoDB;
+
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, 'a');
+
+--connection node_2
+DROP TABLE t1;
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--error ER_NO_SUCH_TABLE
+INSERT INTO t1 VALUES (2);
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;

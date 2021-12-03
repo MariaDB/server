@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -28,7 +28,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -42,19 +42,15 @@ Created 10/10/1995 Heikki Tuuri
 #ifndef srv0srv_h
 #define srv0srv_h
 
-#include "univ.i"
-
-#include "mysql/psi/mysql_stage.h"
-#include "mysql/psi/psi.h"
-
 #include "log0log.h"
 #include "os0event.h"
 #include "que0types.h"
 #include "trx0types.h"
 #include "srv0conc.h"
-#include "buf0checksum.h"
-#include "ut0counter.h"
 #include "fil0fil.h"
+
+#include "mysql/psi/mysql_stage.h"
+#include "mysql/psi/psi.h"
 
 /** Global counters used inside InnoDB. */
 struct srv_stats_t
@@ -147,7 +143,8 @@ struct srv_stats_t
 	ulint_ctr_1_t		n_lock_wait_count;
 
 	/** Number of threads currently waiting on database locks */
-	simple_atomic_counter<>	n_lock_wait_current_count;
+	MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<ulint>
+				n_lock_wait_current_count;
 
 	/** Number of rows read. */
 	ulint_ctr_64_t		n_rows_read;
@@ -187,6 +184,12 @@ struct srv_stats_t
 
 	/** Number of spaces in keyrotation list */
 	ulint_ctr_64_t		key_rotation_list_length;
+
+	/** Number of temporary tablespace blocks encrypted */
+	ulint_ctr_64_t		n_temp_blocks_encrypted;
+
+	/** Number of temporary tablespace blocks decrypted */
+	ulint_ctr_64_t		n_temp_blocks_decrypted;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -407,8 +410,6 @@ extern double	srv_defragment_fill_factor;
 extern uint	srv_defragment_frequency;
 extern ulonglong	srv_defragment_interval;
 
-extern ulong	srv_idle_flush_pct;
-
 extern uint	srv_change_buffer_max_size;
 
 /* Number of IO operations per second the server can do */
@@ -451,7 +452,7 @@ extern uint	srv_fast_shutdown;	/*!< If this is 1, do not do a
 
 /** Signal to shut down InnoDB (NULL if shutdown was signaled, or if
 running in innodb_read_only mode, srv_read_only_mode) */
-extern st_my_thread_var *srv_running;
+extern std::atomic<st_my_thread_var *> srv_running;
 
 extern ibool	srv_innodb_status;
 
@@ -475,6 +476,9 @@ extern ulong	srv_max_purge_lag;
 extern ulong	srv_max_purge_lag_delay;
 
 extern ulong	srv_replication_delay;
+
+extern my_bool	innodb_encrypt_temporary_tables;
+
 /*-------------------------------------------*/
 
 /** Modes of operation */
@@ -485,6 +489,8 @@ enum srv_operation_mode {
 	SRV_OPERATION_BACKUP,
 	/** Mariabackup restoring a backup for subsequent --copy-back */
 	SRV_OPERATION_RESTORE,
+	/** Mariabackup restoring a backup with rolling back prepared XA's*/
+	SRV_OPERATION_RESTORE_ROLLBACK_XA,
 	/** Mariabackup restoring the incremental part of a backup */
 	SRV_OPERATION_RESTORE_DELTA,
 	/** Mariabackup restoring a backup for subsequent --export */
@@ -493,6 +499,21 @@ enum srv_operation_mode {
 
 /** Current mode of operation */
 extern enum srv_operation_mode srv_operation;
+
+inline bool is_mariabackup_restore()
+{
+	/* To rollback XA's trx_sys must be initialized, the rest is the same
+	as regular backup restore, that is why we join this two operations in
+	the most cases. */
+	return srv_operation == SRV_OPERATION_RESTORE
+	       || srv_operation == SRV_OPERATION_RESTORE_ROLLBACK_XA;
+}
+
+inline bool is_mariabackup_restore_or_export()
+{
+	return is_mariabackup_restore()
+	       || srv_operation == SRV_OPERATION_RESTORE_EXPORT;
+}
 
 extern my_bool	srv_print_innodb_monitor;
 extern my_bool	srv_print_innodb_lock_monitor;
@@ -527,6 +548,7 @@ extern my_bool	srv_ibuf_disable_background_merge;
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 #ifdef UNIV_DEBUG
+extern my_bool	innodb_evict_tables_on_commit_debug;
 extern my_bool	srv_sync_debug;
 extern my_bool	srv_purge_view_update_only_debug;
 
@@ -538,7 +560,6 @@ extern uint	srv_sys_space_size_debug;
 extern bool	srv_log_files_created;
 #endif /* UNIV_DEBUG */
 
-#define SRV_SEMAPHORE_WAIT_EXTENSION	7200
 extern ulint	srv_dml_needed_delay;
 
 #define SRV_MAX_N_IO_THREADS	130
@@ -571,9 +592,6 @@ extern struct export_var_t export_vars;
 /** Global counters */
 extern srv_stats_t	srv_stats;
 
-/** Simulate compression failures. */
-extern uint srv_simulate_comp_failures;
-
 /** Fatal semaphore wait threshold = maximum number of seconds
 that semaphore times out in InnoDB */
 #define DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT 600
@@ -581,6 +599,8 @@ extern ulong	srv_fatal_semaphore_wait_threshold;
 
 /** Buffer pool dump status frequence in percentages */
 extern ulong srv_buf_dump_status_frequency;
+
+#define srv_max_purge_threads 32
 
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
@@ -623,11 +643,11 @@ do {								\
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Performance schema stage event for monitoring ALTER TABLE progress
-everything after flush log_make_checkpoint_at(). */
+everything after flush log_make_checkpoint(). */
 extern PSI_stage_info	srv_stage_alter_table_end;
 
 /** Performance schema stage event for monitoring ALTER TABLE progress
-log_make_checkpoint_at(). */
+log_make_checkpoint(). */
 extern PSI_stage_info	srv_stage_alter_table_flush;
 
 /** Performance schema stage event for monitoring ALTER TABLE progress
@@ -972,7 +992,7 @@ struct export_var_t{
 	ulint innodb_system_rows_inserted; /*!< srv_n_system_rows_inserted */
 	ulint innodb_system_rows_updated; /*!< srv_n_system_rows_updated */
 	ulint innodb_system_rows_deleted; /*!< srv_n_system_rows_deleted*/
-	ulint innodb_num_open_files;		/*!< fil_n_file_opened */
+	ulint innodb_num_open_files;		/*!< fil_system_t::n_open */
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs
 						*/
@@ -1024,6 +1044,12 @@ struct export_var_t{
 	/*!< Number of row log blocks decrypted */
 	ib_int64_t innodb_n_rowlog_blocks_decrypted;
 
+	/* Number of temporary tablespace pages encrypted */
+	ib_int64_t innodb_n_temp_blocks_encrypted;
+
+	/* Number of temporary tablespace pages decrypted */
+	ib_int64_t innodb_n_temp_blocks_decrypted;
+
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
 	ulint innodb_sec_rec_cluster_reads_avoided;/*!< srv_sec_rec_cluster_reads_avoided */
 
@@ -1053,10 +1079,14 @@ struct srv_slot_t{
 	ibool		suspended;		/*!< TRUE if the thread is
 						waiting for the event of this
 						slot */
-	ib_time_t	suspend_time;		/*!< time when the thread was
-						suspended. Initialized by
-						lock_wait_table_reserve_slot()
-						for lock wait */
+ 	/** time(NULL) when the thread was suspended.
+ 	FIXME: Use my_interval_timer() or similar, to avoid bogus
+ 	timeouts in lock_wait_check_and_cancel() or lock_wait_suspend_thread()
+	when the system time is adjusted to the past!
+
+	FIXME: This is duplicating trx_lock_t::wait_started,
+	which is being used for diagnostic purposes only. */
+	time_t		suspend_time;
 	ulong		wait_timeout;		/*!< wait time that if exceeded
 						the thread will be timed out.
 						Initialized by
@@ -1067,7 +1097,25 @@ struct srv_slot_t{
 						to do */
 	que_thr_t*	thr;			/*!< suspended query thread
 						(only used for user threads) */
+#ifdef UNIV_DEBUG
+	struct debug_sync_t {
+		UT_LIST_NODE_T(debug_sync_t)
+			debug_sync_list;
+		char str[1];
+	};
+	UT_LIST_BASE_NODE_T(debug_sync_t)
+		debug_sync;
+	rw_lock_t debug_sync_lock;
+#endif
 };
+
+#ifdef UNIV_DEBUG
+typedef void srv_slot_callback_t(srv_slot_t*, const void*);
+
+void srv_for_each_thread(srv_thread_type type,
+			 srv_slot_callback_t callback,
+			 const void *arg);
+#endif
 
 #ifdef WITH_WSREP
 UNIV_INTERN

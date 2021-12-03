@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "my_base.h"                            /* ha_rows */
 #include "handler.h"                            /* UNDEF_NODEGROUP */
@@ -98,7 +98,7 @@ enum stat_trx_field
 class partition_element :public Sql_alloc
 {
 public:
-  enum elem_type
+  enum elem_type_enum
   {
     CONVENTIONAL= 0,
     CURRENT,
@@ -125,19 +125,7 @@ public:
   bool max_value;                            // MAXVALUE range
   uint32 id;
   bool empty;
-
-  // TODO: subclass partition_element by partitioning type to avoid such semantic
-  // mixup
-  elem_type type()
-  {
-    return (elem_type)(int(signed_flag) << 1 | int(max_value));
-  }
-
-  void type(elem_type val)
-  {
-    max_value= (bool)(val & 1);
-    signed_flag= (bool)(val & 2);
-  }
+  elem_type_enum type;
 
   partition_element()
   : part_max_rows(0), part_min_rows(0), range_value(0),
@@ -148,13 +136,15 @@ public:
     nodegroup_id(UNDEF_NODEGROUP), has_null_value(FALSE),
     signed_flag(FALSE), max_value(FALSE),
     id(UINT_MAX32),
-    empty(true)
+    empty(true),
+    type(CONVENTIONAL)
   {}
   partition_element(partition_element *part_elem)
   : part_max_rows(part_elem->part_max_rows),
     part_min_rows(part_elem->part_min_rows),
     range_value(0), partition_name(NULL),
     tablespace_name(part_elem->tablespace_name),
+    log_entry(NULL),
     part_comment(part_elem->part_comment),
     data_file_name(part_elem->data_file_name),
     index_file_name(part_elem->index_file_name),
@@ -163,33 +153,20 @@ public:
     part_state(part_elem->part_state),
     nodegroup_id(part_elem->nodegroup_id),
     has_null_value(FALSE),
+    signed_flag(part_elem->signed_flag),
+    max_value(part_elem->max_value),
     id(part_elem->id),
-    empty(part_elem->empty)
+    empty(part_elem->empty),
+    type(CONVENTIONAL)
   {}
   ~partition_element() {}
 
   part_column_list_val& get_col_val(uint idx)
   {
-    DBUG_ASSERT(type() == CONVENTIONAL || list_val_list.elements == 1);
     part_elem_value *ev= list_val_list.head();
     DBUG_ASSERT(ev);
     DBUG_ASSERT(ev->col_val_array);
     return ev->col_val_array[idx];
-  }
-
-  bool find_engine_flag(uint32 flag)
-  {
-    if (ha_check_storage_engine_flag(engine_type, flag))
-      return true;
-
-    List_iterator_fast<partition_element> it(subpartitions);
-    while (partition_element *element= it++)
-    {
-      if (element->find_engine_flag(flag))
-        return true;
-    }
-
-    return false;
   }
 };
 

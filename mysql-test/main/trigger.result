@@ -622,7 +622,7 @@ drop table t1;
 set sql_mode="traditional";
 create table t1 (a date);
 insert into t1 values ('2004-01-00');
-ERROR 22007: Incorrect date value: '2004-01-00' for column 'a' at row 1
+ERROR 22007: Incorrect date value: '2004-01-00' for column `test`.`t1`.`a` at row 1
 set sql_mode="";
 create trigger t1_bi before insert on t1 for each row set new.a = '2004-01-00';
 set sql_mode="traditional";
@@ -1187,7 +1187,7 @@ CREATE TABLE t1(c INT);
 CREATE TABLE t2(c INT);
 CREATE DEFINER=longer_than_80_456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789@localhost
 TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a = 1;
-ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345678' is too long for user name (should be no longer than 80)
+ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345...' is too long for user name (should be no longer than 80)
 CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
 TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW SET @a = 2;
 ERROR HY000: String '1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY' is too long for host name (should be no longer than 60)
@@ -1964,7 +1964,7 @@ ERROR HY000: Can't update table 't2' in stored function/trigger because it is al
 DROP TABLE t1;
 DROP TRIGGER t_insert;
 DROP TABLE t2;
-End of 5.0 tests
+# End of 5.0 tests
 drop table if exists table_25411_a;
 drop table if exists table_25411_b;
 create table table_25411_a(a int);
@@ -2135,7 +2135,7 @@ b
 # Work around Bug#45235
 DROP DATABASE db1;
 USE test;
-End of 5.1 tests.
+# End of 5.1 tests.
 create table t1 (i int);
 create table t2 (i int);
 flush tables;
@@ -2146,7 +2146,7 @@ insert into t2 values (1),(2);
 delete from t1 where i=1;
 show status like 'Opened_tables';
 Variable_name	Value
-Opened_tables	3
+Opened_tables	6
 select * from t1;
 i
 2
@@ -2154,7 +2154,7 @@ select * from t2;
 i
 2
 drop table t1,t2;
-End of 5.2 tests.
+# End of 5.2 tests.
 #
 # Bug#34453 Can't change size of file (Errcode: 1224)
 #
@@ -2257,7 +2257,7 @@ c
 aaa
 DROP TABLE t1;
 
-End of 5.5 tests.
+# End of 5.5 tests.
 #
 # BUG #910083: materialized subquery in a trigger
 #
@@ -2304,7 +2304,7 @@ b
 SET optimizer_switch=@save_optimizer_switch;
 DROP TRIGGER tr;
 DROP TABLE t1, t2;
-End of 5.3 tests.
+# End of 5.3 tests.
 set time_zone="+00:00";
 SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 SET @@session.sql_mode = 'STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
@@ -2411,7 +2411,24 @@ AFTER UPDATE ON t1 FOR EACH ROW SELECT (SELECT b FROM t2) INTO @x;
 # Running 20000 queries
 DROP TABLE t1,t2;
 #
-# Start of 10.3 tests
+# MDEV-19188 Server Crash When Using a Trigger With A Number of Virtual Columns on INSERT/UPDATE
+#
+CREATE TABLE t1 (
+virt1 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt2 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt3 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt4 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt5 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt6 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt7 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt8 INT GENERATED ALWAYS AS (0) VIRTUAL
+);
+INSERT INTO t1 () VALUES ();
+CREATE TRIGGER t1_trigger BEFORE INSERT ON t1 FOR EACH ROW BEGIN END;
+INSERT INTO t1 () VALUES ();
+DROP TABLE t1;
+#
+# End of 10.2 tests
 #
 #
 # MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
@@ -2430,3 +2447,6 @@ SELECT * FROM t1;
 a	b	total
 10	20	30
 DROP TABLE t1;
+#
+# End of 10.3 tests
+#

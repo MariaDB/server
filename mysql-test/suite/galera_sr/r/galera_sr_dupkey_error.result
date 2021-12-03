@@ -1,0 +1,46 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 BLOB) ENGINE=InnoDB;
+CREATE UNIQUE INDEX i1 ON t1 (f1(512));
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1024;
+INSERT INTO t1 VALUES (REPEAT('a', 512));
+INSERT INTO t1 VALUES (REPEAT('b', 512));
+INSERT INTO t1 VALUES (REPEAT('c', 512));
+INSERT INTO t1 VALUES (REPEAT('d', 512));
+INSERT INTO t1 VALUES (REPEAT('e', 512));
+INSERT INTO t1 VALUES (REPEAT('f', 512));
+connection node_2;
+connection node_1;
+INSERT INTO t1 VALUES (REPEAT('g', 1024)),(REPEAT('c', 512));
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_1;
+INSERT INTO t1 VALUES (REPEAT('d', 512));
+INSERT INTO t1 VALUES (REPEAT('e', 512));
+INSERT INTO t1 VALUES (REPEAT('f', 512));
+COMMIT;
+connection node_2;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (REPEAT('a', 512));
+INSERT INTO t1 VALUES (REPEAT('b', 512));
+INSERT INTO t1 VALUES (REPEAT('c', 512));
+COMMIT;
+connection node_1;
+SELECT COUNT(*) = 6 FROM t1;
+COUNT(*) = 6
+1
+connection node_2;
+SELECT COUNT(*) = 6 FROM t1;
+COUNT(*) = 6
+1
+DROP TABLE t1;

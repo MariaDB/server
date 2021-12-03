@@ -65,6 +65,8 @@ SHOW INDEX FROM t1;
 --echo 'Set nulls to be equal'
 #=====================================
 SET myisam_stats_method = nulls_equal;
+set @save_use_stat_tables= @@use_stat_tables;
+set @@use_stat_tables= COMPLEMENTARY;
 
 INSERT INTO t1 VALUES (11);
 DELETE FROM t1 WHERE a = 11;
@@ -74,6 +76,7 @@ INSERT INTO t1 VALUES (11);
 DELETE FROM t1 WHERE a = 11;
 CHECK TABLE t1;
 SHOW INDEX FROM t1;
+
 
 #=====================================
 --echo 'Set nulls to be ignored'
@@ -98,6 +101,7 @@ ANALYZE TABLE t1;
 SHOW INDEX FROM t1;
 
 SET myisam_stats_method = DEFAULT;
+set @@use_stat_tables= @save_use_stat_tables;
 DROP TABLE t1;
 
 SET @@global.myisam_stats_method= @start_value;

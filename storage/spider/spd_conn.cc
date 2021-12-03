@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019, 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -91,6 +92,9 @@ extern PSI_thread_key spd_key_thd_bg_mon;
 /* UTC time zone for timestamp columns */
 extern Time_zone *UTC;
 
+extern sql_mode_t full_sql_mode;
+extern sql_mode_t pushdown_sql_mode;
+
 HASH spider_open_connections;
 uint spider_open_connections_id;
 HASH spider_ipport_conns;
@@ -148,6 +152,8 @@ int spider_reset_conn_setted_parameter(
   DBUG_ENTER("spider_reset_conn_setted_parameter");
   conn->autocommit = spider_param_remote_autocommit();
   conn->sql_log_off = spider_param_remote_sql_log_off();
+  conn->wait_timeout = spider_param_remote_wait_timeout(thd);
+  conn->sql_mode = full_sql_mode + 1;
   if (thd && spider_param_remote_time_zone())
   {
     int tz_length = strlen(spider_param_remote_time_zone());
@@ -1428,6 +1434,32 @@ void spider_conn_queue_sql_log_off(
   DBUG_VOID_RETURN;
 }
 
+void spider_conn_queue_wait_timeout(
+  SPIDER_CONN *conn,
+  int wait_timeout
+) {
+  DBUG_ENTER("spider_conn_queue_wait_timeout");
+  DBUG_PRINT("info", ("spider conn=%p", conn));
+  if (wait_timeout > 0)
+  {
+    conn->queued_wait_timeout = TRUE;
+    conn->queued_wait_timeout_val = wait_timeout;
+  }
+  DBUG_VOID_RETURN;
+}
+
+void spider_conn_queue_sql_mode(
+  SPIDER_CONN *conn,
+  sql_mode_t sql_mode
+) {
+  DBUG_ENTER("spider_conn_queue_sql_mode");
+  DBUG_PRINT("info", ("spider conn=%p", conn));
+  DBUG_ASSERT(!(sql_mode & ~full_sql_mode));
+  conn->queued_sql_mode = TRUE;
+  conn->queued_sql_mode_val = (sql_mode & pushdown_sql_mode);
+  DBUG_VOID_RETURN;
+}
+
 void spider_conn_queue_time_zone(
   SPIDER_CONN *conn,
   Time_zone *time_zone
@@ -1439,9 +1471,10 @@ void spider_conn_queue_time_zone(
   DBUG_VOID_RETURN;
 }
 
-void spider_conn_queue_UTC_time_zone(SPIDER_CONN *conn)
-{
-  DBUG_ENTER("spider_conn_queue_time_zone");
+void spider_conn_queue_UTC_time_zone(
+  SPIDER_CONN *conn
+) {
+  DBUG_ENTER("spider_conn_queue_UTC_time_zone");
   DBUG_PRINT("info", ("spider conn=%p", conn));
   spider_conn_queue_time_zone(conn, UTC);
   DBUG_VOID_RETURN;
@@ -1482,6 +1515,8 @@ void spider_conn_clear_queue(
   conn->queued_semi_trx_isolation = FALSE;
   conn->queued_autocommit = FALSE;
   conn->queued_sql_log_off = FALSE;
+  conn->queued_wait_timeout = FALSE;
+  conn->queued_sql_mode = FALSE;
   conn->queued_time_zone = FALSE;
   conn->queued_trx_start = FALSE;
   conn->queued_xa_start = FALSE;
@@ -2086,6 +2121,7 @@ void spider_bg_all_conn_break(
 #endif
     if (spider->quick_targets[roop_count])
     {
+      spider_db_free_one_quick_result((SPIDER_RESULT *) result_list->current);
       DBUG_ASSERT(spider->quick_targets[roop_count] == conn->quick_target);
       DBUG_PRINT("info", ("spider conn[%p]->quick_target=NULL", conn));
       conn->quick_target = NULL;
@@ -2592,6 +2628,7 @@ void *spider_bg_conn_action(
           sql_type = SPIDER_SQL_TYPE_SELECT_HS;
         }
 #endif
+        pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
         if (dbton_handler->need_lock_before_set_sql_for_exec(sql_type))
         {
           pthread_mutex_lock(&conn->mta_conn_mutex);
@@ -2632,6 +2669,8 @@ void *spider_bg_conn_action(
         if (!result_list->bgs_error)
         {
           conn->need_mon = &spider->need_mons[conn->link_idx];
+          DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = TRUE;
           conn->mta_conn_mutex_unlock_later = TRUE;
 #ifdef HA_CAN_BULK_ACCESS
@@ -2709,6 +2748,8 @@ void *spider_bg_conn_action(
 #ifdef HA_CAN_BULK_ACCESS
           }
 #endif
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -2719,11 +2760,14 @@ void *spider_bg_conn_action(
         }
       } else {
         spider->connection_ids[conn->link_idx] = conn->connection_id;
+        pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+        DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_unlock_later = TRUE;
         result_list->bgs_error =
           spider_db_store_result(spider, conn->link_idx, result_list->table);
         if ((result_list->bgs_error_with_message = thd->is_error()))
           strmov(result_list->bgs_error_msg, spider_stmt_da_message(thd));
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_unlock_later = FALSE;
       }
       conn->bg_search = FALSE;
@@ -2787,12 +2831,26 @@ void *spider_bg_conn_action(
     {
       DBUG_PRINT("info",("spider bg exec sql start"));
       spider = (ha_spider*) conn->bg_target;
+      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+      pthread_mutex_lock(&conn->mta_conn_mutex);
+      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      conn->need_mon = &spider->need_mons[conn->link_idx];
+      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = TRUE;
+      conn->mta_conn_mutex_unlock_later = TRUE;
       *conn->bg_error_num = spider_db_query_with_set_names(
         conn->bg_sql_type,
         spider,
         conn,
         conn->link_idx
       );
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
+      SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      pthread_mutex_unlock(&conn->mta_conn_mutex);
       conn->bg_exec_sql = FALSE;
       continue;
     }
@@ -2800,23 +2858,20 @@ void *spider_bg_conn_action(
     {
       switch (conn->bg_simple_action)
       {
-        case SPIDER_BG_SIMPLE_CONNECT:
+        case SPIDER_SIMPLE_CONNECT:
           conn->db_conn->bg_connect();
           break;
-        case SPIDER_BG_SIMPLE_DISCONNECT:
+        case SPIDER_SIMPLE_DISCONNECT:
           conn->db_conn->bg_disconnect();
           break;
-        case SPIDER_BG_SIMPLE_RECORDS:
-          DBUG_PRINT("info",("spider bg simple records"));
+        default:
           spider = (ha_spider*) conn->bg_target;
           *conn->bg_error_num =
-            spider->dbton_handler[conn->dbton_id]->
-              show_records(conn->link_idx);
-          break;
-        default:
+            spider_db_simple_action(conn->bg_simple_action,
+              spider->dbton_handler[conn->dbton_id], conn->link_idx);
           break;
       }
-      conn->bg_simple_action = SPIDER_BG_SIMPLE_NO_ACTION;
+      conn->bg_simple_action = SPIDER_SIMPLE_NO_ACTION;
       if (conn->bg_caller_wait)
       {
         pthread_mutex_lock(&conn->bg_conn_sync_mutex);
@@ -4532,16 +4587,18 @@ SPIDER_IP_PORT_CONN* spider_create_ipport_conn(SPIDER_CONN *conn)
       goto err_malloc_key;
     }
 
-    ret->key = (char *) my_malloc(ret->key_len, MY_ZEROFILL | MY_WME);
+    ret->key = (char *) my_malloc(ret->key_len + conn->tgt_host_length + 1,
+      MY_ZEROFILL | MY_WME);
     if (!ret->key) {
       pthread_cond_destroy(&ret->cond);
       pthread_mutex_destroy(&ret->mutex);
       goto err_malloc_key;
     }
+    ret->remote_ip_str = ret->key + ret->key_len;
 
     memcpy(ret->key, conn->conn_key, ret->key_len);
 
-    strncpy(ret->remote_ip_str, conn->tgt_host, sizeof(ret->remote_ip_str));
+    memcpy(ret->remote_ip_str, conn->tgt_host, conn->tgt_host_length);
     ret->remote_port = conn->tgt_port;
     ret->conn_id = conn->conn_id;
     ret->ip_port_count = 1; // init

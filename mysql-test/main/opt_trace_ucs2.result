@@ -1,0 +1,54 @@
+create or replace table t1 (col1 char(10) character set ucs2, filler char(100), key(col1)) ;
+insert into t1 values ('a', 'a');
+insert into t1 values ('a', 'a');
+set optimizer_trace=1;
+explain format=json select * from t1 force index(col1) where col1 >='a';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["col1"],
+      "key": "col1",
+      "key_length": "21",
+      "used_key_parts": ["col1"],
+      "rows": 2,
+      "filtered": 100,
+      "index_condition": "t1.col1 >= 'a'"
+    }
+  }
+}
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
+[
+    
+    {
+        "range_scan_alternatives": 
+        [
+            
+            {
+                "index": "col1",
+                "ranges": 
+                [
+                    "(a) <= (col1)"
+                ],
+                "rowid_ordered": false,
+                "using_mrr": false,
+                "index_only": false,
+                "rows": 2,
+                "cost": 3.7609,
+                "chosen": true
+            }
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "cause": "too few roworder scans"
+        },
+        "analyzing_index_merge_union": 
+        [
+        ]
+    }
+]
+drop table t1;

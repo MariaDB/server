@@ -1,0 +1,30 @@
+# See comments in mysql-test/main/mysqldump_restore.test
+--source include/not_embedded.inc
+
+SET sql_mode=ORACLE;
+
+let $mysqldumpfile = $MYSQLTEST_VARDIR/tmp/mysqldumpfile.sql;
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo #  MDEV-17363 Compressed columns cannot be restored from dump
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(1000) COMPRESSED CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL);
+INSERT INTO `t1` VALUES (REPEAT('a', 256));
+--exec $MYSQL_DUMP --skip-extended-insert test --skip-comments t1 > $mysqldumpfile
+let $table_name = test.t1;
+--source include/mysqldump.inc
+
+CREATE TABLE t1 (a LONGTEXT COMPRESSED CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL);
+INSERT INTO `t1` VALUES (REPEAT('a', 256));
+--exec $MYSQL_DUMP --skip-extended-insert test --skip-comments t1 > $mysqldumpfile
+let $table_name = test.t1;
+--source include/mysqldump.inc
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

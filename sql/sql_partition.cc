@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /*
   This file is a container for general functionality related
@@ -146,7 +146,7 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
   item= item->safe_charset_converter(thd, cs);
   context->table_list= NULL;
   thd->where= "convert character set partition constant";
-  if (item->fix_fields_if_needed(thd, (Item**)NULL))
+  if (item && item->fix_fields_if_needed(thd, (Item**)NULL))
     item= NULL;
   thd->where= save_where;
   context->table_list= save_list;
@@ -341,7 +341,15 @@ static bool set_up_field_array(THD *thd, TABLE *table,
   while ((field= *(ptr++))) 
   {
     if (field->flags & GET_FIXED_FIELDS_FLAG)
+    {
+      if (table->versioned(VERS_TRX_ID)
+          && unlikely(field->flags & VERS_SYSTEM_FIELD))
+      {
+        my_error(ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED, MYF(0));
+        DBUG_RETURN(TRUE);
+      }
       num_fields++;
+    }
   }
   if (unlikely(num_fields > MAX_REF_PARTS))
   {
@@ -1497,7 +1505,7 @@ static bool check_list_constants(THD *thd, partition_info *part_info)
       List_iterator<part_elem_value> list_val_it2(part_def->list_val_list);
       while ((list_value= list_val_it2++))
       {
-        calc_value= list_value->value - type_add;
+        calc_value= list_value->value ^ type_add;
         part_info->list_array[list_index].list_value= calc_value;
         part_info->list_array[list_index++].partition_id= i;
       }
@@ -1551,7 +1559,7 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
     return 0;
 
   part_info->range_int_array=
-    (longlong*) thd->alloc(hist_parts * sizeof(longlong));
+    (longlong*) thd->alloc(part_info->num_parts * sizeof(longlong));
 
   MYSQL_TIME ltime;
   List_iterator<partition_element> it(part_info->partitions);
@@ -1570,6 +1578,9 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
     if (vers_info->hist_part->range_value <= thd->query_start())
       vers_info->hist_part= el;
   }
+  DBUG_ASSERT(el == vers_info->now_part);
+  el->max_value= true;
+  part_info->range_int_array[el->id]= el->range_value= LONGLONG_MAX;
   return 0;
 err:
   my_error(ER_DATA_OUT_OF_RANGE, MYF(0), "TIMESTAMP", "INTERVAL");
@@ -1963,7 +1974,6 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
     }
   }
   DBUG_ASSERT(part_info->part_type != NOT_A_PARTITION);
-  DBUG_ASSERT(part_info->part_type != VERSIONING_PARTITION || part_info->column_list);
   /*
     Partition is defined. We need to verify that partitioning
     function is correct.
@@ -1996,15 +2006,15 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
   {
     if (part_info->column_list)
     {
-      if (part_info->part_type == VERSIONING_PARTITION &&
-        part_info->vers_setup_expression(thd))
-        goto end;
       List_iterator<const char> it(part_info->part_field_list);
       if (unlikely(handle_list_of_fields(thd, it, table, part_info, FALSE)))
         goto end;
     }
     else
     {
+      if (part_info->part_type == VERSIONING_PARTITION &&
+        part_info->vers_setup_expression(thd))
+        goto end;
       if (unlikely(fix_fields_part_func(thd, part_info->part_expr,
                                         table, FALSE, is_create_table_ind)))
         goto end;
@@ -2020,7 +2030,8 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
       goto end;
     }
     if (unlikely(!part_info->column_list &&
-                  part_info->part_expr->result_type() != INT_RESULT))
+                  part_info->part_expr->result_type() != INT_RESULT &&
+                  part_info->part_expr->result_type() != DECIMAL_RESULT))
     {
       part_info->report_part_expr_error(FALSE);
       goto end;
@@ -2377,6 +2388,8 @@ static int add_column_list_values(String *str, partition_info *part_info,
         */
         if (create_info)
         {
+          const Column_derived_attributes
+            derived_attr(create_info->default_table_charset);
           Create_field *sql_field;
 
           if (!(sql_field= get_sql_field(field_name,
@@ -2391,7 +2404,7 @@ static int add_column_list_values(String *str, partition_info *part_info,
                                &need_cs_check))
             return 1;
           if (need_cs_check)
-            field_cs= get_sql_field_charset(sql_field, create_info);
+            field_cs= sql_field->explicit_or_derived_charset(&derived_attr);
           else
             field_cs= NULL;
         }
@@ -2529,7 +2542,7 @@ static int add_partition_values(String *str, partition_info *part_info,
   }
   else if (part_info->part_type == VERSIONING_PARTITION)
   {
-    switch (p_elem->type())
+    switch (p_elem->type)
     {
     case partition_element::CURRENT:
       err+= str->append(STRING_WITH_LEN(" CURRENT"));
@@ -2825,14 +2838,34 @@ bool partition_key_modified(TABLE *table, const MY_BITMAP *fields)
 
 static inline int part_val_int(Item *item_expr, longlong *result)
 {
-  *result= item_expr->val_int();
+  switch (item_expr->cmp_type())
+  {
+  case DECIMAL_RESULT:
+  {
+    my_decimal buf;
+    my_decimal *val= item_expr->val_decimal(&buf);
+    if (val && my_decimal2int(E_DEC_FATAL_ERROR, val, item_expr->unsigned_flag,
+                              result, FLOOR) != E_DEC_OK)
+      return true;
+    break;
+  }
+  case INT_RESULT:
+    *result= item_expr->val_int();
+    break;
+  case STRING_RESULT:
+  case REAL_RESULT:
+  case ROW_RESULT:
+  case TIME_RESULT:
+    DBUG_ASSERT(0);
+    break;
+  }
   if (item_expr->null_value)
   {
     if (unlikely(current_thd->is_error()))
-      return TRUE;
+      return true;
     *result= LONGLONG_MIN;
   }
-  return FALSE;
+  return false;
 }
 
 
@@ -3702,6 +3735,17 @@ uint32 get_partition_id_range_for_endpoint(partition_info *part_info,
     if (part_func_value >= part_end_val &&
         (loc_part_id < max_partition || !part_info->defined_max_value))
       loc_part_id++;
+    if (part_info->part_type == VERSIONING_PARTITION &&
+        part_func_value < INT_MAX32 &&
+        loc_part_id > part_info->vers_info->hist_part->id)
+    {
+      /*
+        Historical query with AS OF point after the last history partition must
+        include last history partition because it can be overflown (contain
+        history rows out of right endpoint).
+      */
+      loc_part_id= part_info->vers_info->hist_part->id;
+    }
   }
   else 
   {
@@ -4779,6 +4823,69 @@ bool compare_partition_options(HA_CREATE_INFO *table_create_info,
 }
 
 
+/**
+  Check if the ALTER command tries to change DATA DIRECTORY
+  or INDEX DIRECTORY for its partitions and warn if so.
+  @param thd  THD
+  @param part_elem partition_element to check
+ */
+static void warn_if_datadir_altered(THD *thd,
+    const partition_element *part_elem)
+{
+  DBUG_ASSERT(part_elem);
+
+  if (part_elem->engine_type &&
+      part_elem->engine_type->db_type != DB_TYPE_INNODB)
+    return;
+
+  if (part_elem->data_file_name)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+        WARN_INNODB_PARTITION_OPTION_IGNORED,
+        ER(WARN_INNODB_PARTITION_OPTION_IGNORED),
+        "DATA DIRECTORY");
+  }
+  if (part_elem->index_file_name)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+        WARN_INNODB_PARTITION_OPTION_IGNORED,
+        ER(WARN_INNODB_PARTITION_OPTION_IGNORED),
+        "INDEX DIRECTORY");
+  }
+}
+
+
+/**
+  Currently changing DATA DIRECTORY and INDEX DIRECTORY for InnoDB partitions is
+  not possible. This function checks it and warns on that case.
+  @param thd THD
+  @param tab_part_info old partition info
+  @param alt_part_info new partition info
+ */
+static void check_datadir_altered_for_innodb(THD *thd,
+    partition_info *tab_part_info,
+    partition_info *alt_part_info)
+{
+  if (tab_part_info->default_engine_type->db_type != DB_TYPE_INNODB)
+    return;
+
+  for (List_iterator_fast<partition_element> it(alt_part_info->partitions);
+       partition_element *part_elem= it++;)
+  {
+    if (alt_part_info->is_sub_partitioned())
+    {
+      for (List_iterator_fast<partition_element> it2(part_elem->subpartitions);
+           const partition_element *sub_part_elem= it2++;)
+      {
+        warn_if_datadir_altered(thd, sub_part_elem);
+      }
+    }
+    else
+      warn_if_datadir_altered(thd, part_elem);
+  }
+}
+
+
 /*
   Prepare for ALTER TABLE of partition structure
 
@@ -4939,7 +5046,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         {
           *fast_alter_table= true;
           /* Force table re-open for consistency with the main case. */
-          table->m_needs_reopen= true;
+          table->mark_table_for_reopen();
         }
         else
         {
@@ -4987,7 +5094,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         must be reopened.
       */
       *fast_alter_table= true;
-      table->m_needs_reopen= true;
+      table->mark_table_for_reopen();
     }
     else
     {
@@ -5037,7 +5144,8 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
             my_error(ER_PARTITION_WRONG_VALUES_ERROR, MYF(0),
                      "LIST", "IN");
           }
-          else if (thd->work_part_info->part_type == VERSIONING_PARTITION)
+          else if (thd->work_part_info->part_type == VERSIONING_PARTITION ||
+                   tab_part_info->part_type == VERSIONING_PARTITION)
           {
             my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
           }
@@ -5309,7 +5417,7 @@ that are reorganised.
           partition_element *el;
           while ((el= it++))
           {
-            if (el->type() == partition_element::CURRENT)
+            if (el->type == partition_element::CURRENT)
             {
               it.remove();
               now_part= el;
@@ -5405,7 +5513,7 @@ that are reorganised.
         {
           if (tab_part_info->part_type == VERSIONING_PARTITION)
           {
-            if (part_elem->type() == partition_element::CURRENT)
+            if (part_elem->type == partition_element::CURRENT)
             {
               my_error(ER_VERS_WRONG_PARTS, MYF(0), table->s->table_name.str);
               goto err;
@@ -5614,6 +5722,8 @@ state of p1.
       {
         goto err;
       }
+      check_datadir_altered_for_innodb(thd, tab_part_info, alt_part_info);
+
 /*
 Online handling:
 REORGANIZE PARTITION:
@@ -5885,6 +5995,37 @@ the generated partition syntax in a correct manner.
           *partition_changed= TRUE;
         }
       }
+      /*
+        Prohibit inplace when partitioned by primary key and the primary key is changed.
+      */
+      if (!*partition_changed &&
+          tab_part_info->part_field_array &&
+          !tab_part_info->part_field_list.elements &&
+          table->s->primary_key != MAX_KEY)
+      {
+
+        if (alter_info->flags & (ALTER_DROP_SYSTEM_VERSIONING |
+                                 ALTER_ADD_SYSTEM_VERSIONING))
+        {
+          *partition_changed= true;
+        }
+        else
+        {
+          KEY *primary_key= table->key_info + table->s->primary_key;
+          List_iterator_fast<Alter_drop> drop_it(alter_info->drop_list);
+          const char *primary_name= primary_key->name.str;
+          const Alter_drop *drop;
+          drop_it.rewind();
+          while ((drop= drop_it++))
+          {
+            if (drop->type == Alter_drop::KEY &&
+                0 == my_strcasecmp(system_charset_info, primary_name, drop->name))
+              break;
+          }
+          if (drop)
+            *partition_changed= TRUE;
+        }
+      }
     }
     if (thd->work_part_info)
     {
@@ -5908,7 +6049,7 @@ the generated partition syntax in a correct manner.
         */
         if (alter_info->partition_flags != ALTER_PARTITION_INFO ||
             !table->part_info ||
-            alter_info->requested_algorithm !=
+            alter_info->algorithm(thd) !=
               Alter_info::ALTER_TABLE_ALGORITHM_INPLACE ||
             !table->part_info->has_same_partitioning(part_info))
         {
@@ -5916,6 +6057,7 @@ the generated partition syntax in a correct manner.
           *partition_changed= true;
         }
       }
+
       /*
         Set up partition default_engine_type either from the create_info
         or from the previus table
@@ -6752,9 +6894,9 @@ static void release_log_entries(partition_info *part_info)
     alter_partition_lock_handling()
     lpt                        Struct carrying parameters
   RETURN VALUES
-    NONE
+    true on error
 */
-static void alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
+static bool alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   THD *thd= lpt->thd;
 
@@ -6768,23 +6910,9 @@ static void alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
   lpt->table= 0;
   lpt->table_list->table= 0;
   if (thd->locked_tables_mode)
-  {
-    Diagnostics_area *stmt_da= NULL;
-    Diagnostics_area tmp_stmt_da(true);
+    return thd->locked_tables_list.reopen_tables(thd, false);
 
-    if (unlikely(thd->is_error()))
-    {
-      /* reopen might fail if we have a previous error, use a temporary da. */
-      stmt_da= thd->get_stmt_da();
-      thd->set_stmt_da(&tmp_stmt_da);
-    }
-
-    if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
-      sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
-
-    if (stmt_da)
-      thd->set_stmt_da(stmt_da);
-  }
+  return false;
 }
 
 
@@ -6830,7 +6958,7 @@ void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
   THD *thd= lpt->thd;
   TABLE *table= lpt->table;
   DBUG_ENTER("handle_alter_part_error");
-  DBUG_ASSERT(table->m_needs_reopen);
+  DBUG_ASSERT(table->needs_reopen());
 
   if (close_table)
   {
@@ -6985,6 +7113,8 @@ err_exclusive_lock:
       thd->set_stmt_da(&tmp_stmt_da);
     }
 
+    /* NB: error status is not needed here, the statement fails with
+       the original error. */
     if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
       sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
 
@@ -7049,7 +7179,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   bool frm_install= FALSE;
   MDL_ticket *mdl_ticket= table->mdl_ticket;
   DBUG_ENTER("fast_alter_partition_table");
-  DBUG_ASSERT(table->m_needs_reopen);
+  DBUG_ASSERT(table->needs_reopen());
 
   part_info= table->part_info;
   lpt->thd= thd;
@@ -7208,13 +7338,14 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_ERROR("fail_drop_partition_8") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
         ERROR_INJECT_CRASH("crash_drop_partition_9") ||
-        ERROR_INJECT_ERROR("fail_drop_partition_9") ||
-        (alter_partition_lock_handling(lpt), FALSE)) 
+        ERROR_INJECT_ERROR("fail_drop_partition_9"))
     {
       handle_alter_part_error(lpt, action_completed, TRUE, frm_install,
                               close_table_on_failure);
       goto err;
     }
+    if (alter_partition_lock_handling(lpt))
+      goto err;
   }
   else if ((alter_info->partition_flags & ALTER_PARTITION_ADD) &&
            (part_info->part_type == RANGE_PARTITION ||
@@ -7285,13 +7416,14 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_ERROR("fail_add_partition_9") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
         ERROR_INJECT_CRASH("crash_add_partition_10") ||
-        ERROR_INJECT_ERROR("fail_add_partition_10") ||
-        (alter_partition_lock_handling(lpt), FALSE))
+        ERROR_INJECT_ERROR("fail_add_partition_10"))
     {
       handle_alter_part_error(lpt, action_completed, FALSE, frm_install,
                               close_table_on_failure);
       goto err;
     }
+    if (alter_partition_lock_handling(lpt))
+      goto err;
   }
   else
   {
@@ -7354,11 +7486,11 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         ERROR_INJECT_CRASH("crash_change_partition_2") ||
         ERROR_INJECT_ERROR("fail_change_partition_2") ||
-        (close_table_on_failure= TRUE, FALSE) ||
         write_log_add_change_partition(lpt) ||
         ERROR_INJECT_CRASH("crash_change_partition_3") ||
         ERROR_INJECT_ERROR("fail_change_partition_3") ||
         mysql_change_partitions(lpt) ||
+        (close_table_on_failure= TRUE, FALSE) ||
         ERROR_INJECT_CRASH("crash_change_partition_4") ||
         ERROR_INJECT_ERROR("fail_change_partition_4") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
@@ -7390,13 +7522,14 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_ERROR("fail_change_partition_11") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
         ERROR_INJECT_CRASH("crash_change_partition_12") ||
-        ERROR_INJECT_ERROR("fail_change_partition_12") ||
-        (alter_partition_lock_handling(lpt), FALSE))
+        ERROR_INJECT_ERROR("fail_change_partition_12"))
     {
       handle_alter_part_error(lpt, action_completed, FALSE, frm_install,
                               close_table_on_failure);
       goto err;
     }
+    if (alter_partition_lock_handling(lpt))
+      goto err;
   }
   downgrade_mdl_if_lock_tables_mode(thd, mdl_ticket, MDL_SHARED_NO_READ_WRITE);
   /*
@@ -7659,6 +7792,10 @@ static void set_up_range_analysis_info(partition_info *part_info)
     partitioning
   */
   switch (part_info->part_type) {
+  case VERSIONING_PARTITION:
+    if (!part_info->vers_info->interval.is_set())
+      break;
+    /* Fall through */
   case RANGE_PARTITION:
   case LIST_PARTITION:
     if (!part_info->column_list)
@@ -8095,7 +8232,8 @@ static int get_part_iter_for_interval_via_mapping(partition_info *part_info,
   part_iter->ret_null_part= part_iter->ret_null_part_orig= FALSE;
   part_iter->ret_default_part= part_iter->ret_default_part_orig= FALSE;
 
-  if (part_info->part_type == RANGE_PARTITION)
+  if (part_info->part_type == RANGE_PARTITION ||
+      part_info->part_type == VERSIONING_PARTITION)
   {
     if (part_info->part_charset_field_array)
       get_endpoint=        get_partition_id_range_for_endpoint_charset;
@@ -8217,6 +8355,7 @@ static int get_part_iter_for_interval_via_mapping(partition_info *part_info,
              field->type() == MYSQL_TYPE_DATETIME))
         {
           /* Monotonic, but return NULL for dates with zeros in month/day. */
+          DBUG_ASSERT(field->cmp_type() == TIME_RESULT); // No rounding/truncation
           zero_in_start_date= field->get_date(&start_date, date_mode_t(0));
           DBUG_PRINT("info", ("zero start %u %04d-%02d-%02d",
                               zero_in_start_date, start_date.year,
@@ -8241,6 +8380,7 @@ static int get_part_iter_for_interval_via_mapping(partition_info *part_info,
         !part_info->part_expr->null_value)
     {
       MYSQL_TIME end_date;
+      DBUG_ASSERT(field->cmp_type() == TIME_RESULT); // No rounding/truncation
       bool zero_in_end_date= field->get_date(&end_date, date_mode_t(0));
       /*
         This is an optimization for TO_DAYS()/TO_SECONDS() to avoid scanning

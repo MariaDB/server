@@ -1077,7 +1077,8 @@ static inline int tokudb_generate_row(DB* dest_db,
         }
 
         buff = (uchar *)dest_key->data;
-        assert_always(buff != NULL && max_key_len > 0);
+        assert_always(buff != nullptr);
+        assert_always(max_key_len > 0);
     } else {
         assert_unreachable();
     }
@@ -1332,7 +1333,7 @@ int ha_tokudb::open_main_dictionary(
             NULL,
             DB_BTREE,
             open_flags,
-            0);
+            S_IWUSR);
     if (error) {
         goto exit;
     }
@@ -1395,7 +1396,7 @@ int ha_tokudb::open_secondary_dictionary(
     }
 
 
-    error = (*ptr)->open(*ptr, txn, newname, NULL, DB_BTREE, open_flags, 0);
+    error = (*ptr)->open(*ptr, txn, newname, NULL, DB_BTREE, open_flags, S_IWUSR);
     if (error) {
         my_errno = error;
         goto cleanup;
@@ -2312,7 +2313,7 @@ int ha_tokudb::pack_row_in_buff(
     int r = ENOSYS;
     memset((void *) row, 0, sizeof(*row));
 
-    my_bitmap_map *old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP *old_map = dbug_tmp_use_all_columns(table, &table->write_set);
     
     // Copy null bytes
     memcpy(row_buff, record, table_share->null_bytes);
@@ -2361,7 +2362,7 @@ int ha_tokudb::pack_row_in_buff(
     row->size = (size_t) (var_field_data_ptr - row_buff);
     r = 0;
 
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     return r;
 }
 
@@ -2757,7 +2758,7 @@ DBT* ha_tokudb::create_dbt_key_from_key(
 {
     uint32_t size = 0;
     uchar* tmp_buff = buff;
-    my_bitmap_map *old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP *old_map = dbug_tmp_use_all_columns(table, &table->write_set);
 
     key->data = buff;
 
@@ -2796,7 +2797,7 @@ DBT* ha_tokudb::create_dbt_key_from_key(
 
     key->size = size;
     DBUG_DUMP("key", (uchar *) key->data, key->size);
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     return key;
 }
 
@@ -2889,7 +2890,7 @@ DBT* ha_tokudb::pack_key(
     KEY* key_info = &table->key_info[keynr];
     KEY_PART_INFO* key_part = key_info->key_part;
     KEY_PART_INFO* end = key_part + key_info->user_defined_key_parts;
-    my_bitmap_map* old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP* old_map = dbug_tmp_use_all_columns(table, &table->write_set);
 
     memset((void *) key, 0, sizeof(*key));
     key->data = buff;
@@ -2926,7 +2927,7 @@ DBT* ha_tokudb::pack_key(
 
     key->size = (buff - (uchar *) key->data);
     DBUG_DUMP("key", (uchar *) key->data, key->size);
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     DBUG_RETURN(key);
 }
 
@@ -2954,7 +2955,7 @@ DBT* ha_tokudb::pack_ext_key(
     KEY* key_info = &table->key_info[keynr];
     KEY_PART_INFO* key_part = key_info->key_part;
     KEY_PART_INFO* end = key_part + key_info->user_defined_key_parts;
-    my_bitmap_map* old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP* old_map = dbug_tmp_use_all_columns(table, &table->write_set);
 
     memset((void *) key, 0, sizeof(*key));
     key->data = buff;
@@ -3033,7 +3034,7 @@ DBT* ha_tokudb::pack_ext_key(
 
     key->size = (buff - (uchar *) key->data);
     DBUG_DUMP("key", (uchar *) key->data, key->size);
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     DBUG_RETURN(key);
 }
 #endif  // defined(TOKU_INCLUDE_EXTENDED_KEYS) && TOKU_INCLUDE_EXTENDED_KEYS
@@ -3368,15 +3369,17 @@ void ha_tokudb::start_bulk_insert(ha_rows rows) {
 int ha_tokudb::bulk_insert_poll(void* extra, float progress) {
     LOADER_CONTEXT context = (LOADER_CONTEXT)extra;
     if (thd_killed(context->thd)) {
-        sprintf(context->write_status_msg,
-                "The process has been killed, aborting bulk load.");
+        snprintf(context->write_status_msg,
+                 sizeof(context->write_status_msg),
+                 "The process has been killed, aborting bulk load.");
         return ER_ABORTING_CONNECTION;
     }
     float percentage = progress * 100;
-    sprintf(context->write_status_msg,
-            "Loading of data t %s about %.1f%% done",
-            context->ha->share->full_table_name(),
-            percentage);
+    snprintf(context->write_status_msg,
+             sizeof(context->write_status_msg),
+             "Loading of data t %s about %.1f%% done",
+             context->ha->share->full_table_name(),
+             percentage);
     thd_proc_info(context->thd, context->write_status_msg);
 #ifdef HA_TOKUDB_HAS_THD_PROGRESS
     thd_progress_report(context->thd, (unsigned long long)percentage, 100);
@@ -3712,7 +3715,7 @@ static bool do_unique_checks_fn(THD *thd) {
 
 #endif // defined(TOKU_INCLUDE_RFR) && TOKU_INCLUDE_RFR
 
-int ha_tokudb::do_uniqueness_checks(uchar* record, DB_TXN* txn, THD* thd) {
+int ha_tokudb::do_uniqueness_checks(const uchar* record, DB_TXN* txn, THD* thd) {
     int error = 0;
     //
     // first do uniqueness checks
@@ -3755,7 +3758,7 @@ cleanup:
     return error;
 }
 
-void ha_tokudb::test_row_packing(uchar* record, DBT* pk_key, DBT* pk_val) {
+void ha_tokudb::test_row_packing(const uchar* record, DBT* pk_key, DBT* pk_val) {
     int error;
     DBT row, key;
     //
@@ -3996,7 +3999,7 @@ out:
 //      0 on success
 //      error otherwise
 //
-int ha_tokudb::write_row(uchar * record) {
+int ha_tokudb::write_row(const uchar * record) {
     TOKUDB_HANDLER_DBUG_ENTER("%p", record);
 
     DBT row, prim_key;
@@ -5220,10 +5223,10 @@ static int smart_dbt_bf_callback(
             info->key_to_compare);
 }
 
-enum icp_result ha_tokudb::toku_handler_index_cond_check(
+check_result_t ha_tokudb::toku_handler_index_cond_check(
     Item* pushed_idx_cond) {
 
-    enum icp_result res;
+    check_result_t res;
     if (end_range) {
         int cmp;
 #ifdef MARIADB_BASE_VERSION
@@ -5232,10 +5235,10 @@ enum icp_result ha_tokudb::toku_handler_index_cond_check(
         cmp = compare_key_icp(end_range);
 #endif
         if (cmp > 0) {
-            return ICP_OUT_OF_RANGE;
+            return CHECK_OUT_OF_RANGE;
         }
     }
-    res = pushed_idx_cond->val_int() ? ICP_MATCH : ICP_NO_MATCH;
+    res = pushed_idx_cond->val_int() ? CHECK_POS : CHECK_NEG;
     return res;
 }
 
@@ -5275,19 +5278,19 @@ int ha_tokudb::fill_range_query_buf(
     if (toku_pushed_idx_cond &&
         (tokudb_active_index == toku_pushed_idx_cond_keyno)) {
         unpack_key(buf, key, tokudb_active_index);
-        enum icp_result result =
+        check_result_t result =
             toku_handler_index_cond_check(toku_pushed_idx_cond);
 
         // If we have reason to stop, we set icp_went_out_of_range and get out
         // otherwise, if we simply see that the current key is no match,
         // we tell the cursor to continue and don't store
         // the key locally
-        if (result == ICP_OUT_OF_RANGE || thd_kill_level(thd)) {
+        if (result == CHECK_OUT_OF_RANGE || thd_kill_level(thd)) {
             icp_went_out_of_range = true;
             error = 0;
             DEBUG_SYNC(ha_thd(), "tokudb_icp_asc_scan_out_of_range");
             goto cleanup;
-        } else if (result == ICP_NO_MATCH) {
+        } else if (result == CHECK_NEG) {
             // Optimizer change for MyRocks also benefits us here in TokuDB as
             // opt_range.cc QUICK_SELECT::get_next now sets end_range during
             // descending scan. We should not ever hit this condition, but
@@ -6120,6 +6123,11 @@ void ha_tokudb::position(const uchar * record) {
         //
         memcpy(ref, &key.size, sizeof(uint32_t));
     }
+    /*
+      tokudb doesn't always write the last byte. Don't that cause problems with
+      MariaDB
+    */
+    MEM_MAKE_DEFINED(ref, ref_length);
     TOKUDB_HANDLER_DBUG_VOID_RETURN;
 }
 
@@ -6934,7 +6942,7 @@ void ha_tokudb::trace_create_table_info(TABLE* form) {
                 field->flags);
         }
         for (i = 0; i < form->s->keys; i++) {
-            KEY *key = &form->s->key_info[i];
+            KEY *key = &form->key_info[i];
             TOKUDB_HANDLER_TRACE(
                 "key:%d:%s:%d",
                 i,
@@ -7062,7 +7070,7 @@ int ha_tokudb::create_secondary_dictionary(
     sprintf(dict_name, "key-%s", key_info->name.str);
     make_name(newname, newname_len, name, dict_name);
 
-    prim_key = (hpk) ? NULL : &form->s->key_info[primary_key];
+    prim_key = (hpk) ? NULL : &form->key_info[primary_key];
 
     //
     // setup the row descriptor
@@ -7174,7 +7182,7 @@ int ha_tokudb::create_main_dictionary(
 
     make_name(newname, newname_len, name, "main");
 
-    prim_key = (hpk) ? NULL : &form->s->key_info[primary_key];
+    prim_key = (hpk) ? NULL : &form->key_info[primary_key];
 
     //
     // setup the row descriptor
@@ -7241,6 +7249,16 @@ int ha_tokudb::create(
     tokudb_trx_data *trx = NULL;
     THD* thd = ha_thd();
 
+    String database_name, table_name, dictionary_name;
+    tokudb_split_dname(name, database_name, table_name, dictionary_name);
+    if (database_name.is_empty() || table_name.is_empty()) {
+        push_warning_printf(thd,
+                            Sql_condition::WARN_LEVEL_WARN,
+                            ER_TABLE_NAME,
+                            "TokuDB: Table Name or Database Name is empty");
+        DBUG_RETURN(ER_TABLE_NAME);
+    }
+
     memset(&kc_info, 0, sizeof(kc_info));
 
 #if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100999
@@ -7248,7 +7266,7 @@ int ha_tokudb::create(
     // in the database directory, so automatic filename-based
     // discover_table_names() doesn't work either. So, it must force .frm
     // file to disk.
-    form->s->write_frm_image();
+    error= form->s->write_frm_image();
 #endif
 
 #if defined(TOKU_INCLUDE_OPTION_STRUCTS) && TOKU_INCLUDE_OPTION_STRUCTS
@@ -7280,8 +7298,8 @@ int ha_tokudb::create(
 #endif  // defined(TOKU_INCLUDE_OPTION_STRUCTS) && TOKU_INCLUDE_OPTION_STRUCTS
     const toku_compression_method compression_method =
         row_format_to_toku_compression_method(row_format);
-
     bool create_from_engine = (create_info->table_options & HA_OPTION_CREATE_FROM_ENGINE);
+    if (error) { goto cleanup; }
     if (create_from_engine) {
         // table already exists, nothing to do
         error = 0;
@@ -7429,7 +7447,7 @@ int ha_tokudb::create(
 
             error = write_key_name_to_status(
                 status_block,
-                form->s->key_info[i].name.str,
+                form->key_info[i].name.str,
                 txn);
             if (error) {
                 goto cleanup;
@@ -7775,13 +7793,18 @@ double ha_tokudb::scan_time() {
     DBUG_RETURN(ret_val);
 }
 
+bool ha_tokudb::is_clustering_key(uint index)
+{
+    return index == primary_key || key_is_clustering(&table->key_info[index]);
+}
+
 double ha_tokudb::keyread_time(uint index, uint ranges, ha_rows rows)
 {
     TOKUDB_HANDLER_DBUG_ENTER("%u %u %" PRIu64, index, ranges, (uint64_t) rows);
-    double ret_val;
-    if (index == primary_key || key_is_clustering(&table->key_info[index])) {
-        ret_val = read_time(index, ranges, rows);
-        DBUG_RETURN(ret_val);
+    double cost;
+    if (index == primary_key || is_clustering_key(index)) {
+        cost = read_time(index, ranges, rows);
+        DBUG_RETURN(cost);
     }
     /*
       It is assumed that we will read trough the whole key range and that all
@@ -7791,11 +7814,8 @@ double ha_tokudb::keyread_time(uint index, uint ranges, ha_rows rows)
       blocks read. This model does not take into account clustered indexes -
       engines that support that (e.g. InnoDB) may want to overwrite this method.
     */
-    double keys_per_block= (stats.block_size/2.0/
-                            (table->key_info[index].key_length +
-                             ref_length) + 1);
-    ret_val = (rows + keys_per_block - 1)/ keys_per_block;
-    TOKUDB_HANDLER_DBUG_RETURN_DOUBLE(ret_val);
+    cost= handler::keyread_time(index, ranges, rows);
+    TOKUDB_HANDLER_DBUG_RETURN_DOUBLE(cost);
 }
 
 //
@@ -8157,7 +8177,7 @@ int ha_tokudb::tokudb_add_index(
     for (uint i = 0; i < num_of_keys; i++) {
         for (uint j = 0; j < table_arg->s->keys; j++) {
             if (strcmp(key_info[i].name.str,
-                       table_arg->s->key_info[j].name.str) == 0) {
+                       table_arg->key_info[j].name.str) == 0) {
                 error = HA_ERR_WRONG_COMMAND;
                 goto cleanup;
             }
@@ -8526,15 +8546,17 @@ cleanup:
 int ha_tokudb::tokudb_add_index_poll(void* extra, float progress) {
     LOADER_CONTEXT context = (LOADER_CONTEXT)extra;
     if (thd_killed(context->thd)) {
-        sprintf(context->write_status_msg,
-                "The process has been killed, aborting add index.");
+        snprintf(context->write_status_msg,
+                 sizeof(context->write_status_msg),
+                 "The process has been killed, aborting add index.");
         return ER_ABORTING_CONNECTION;
     }
     float percentage = progress * 100;
-    sprintf(context->write_status_msg,
-            "Adding of indexes to %s about %.1f%% done",
-            context->ha->share->full_table_name(),
-            percentage);
+    snprintf(context->write_status_msg,
+             sizeof(context->write_status_msg),
+             "Adding of indexes to %s about %.1f%% done",
+             context->ha->share->full_table_name(),
+             percentage);
     thd_proc_info(context->thd, context->write_status_msg);
 #ifdef HA_TOKUDB_HAS_THD_PROGRESS
     thd_progress_report(context->thd, (unsigned long long)percentage, 100);

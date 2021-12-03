@@ -1,0 +1,13 @@
+connection node_2;
+connection node_1;
+connection node_1;
+DROP TABLE t1;
+ERROR 42S02: Unknown table 'test.t1'
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+GRA_.log
+GRA_.log
+DROP TABLE t1;
+CALL mtr.add_suppression("Ignoring error 'Unknown table 'test.t1'' on query");
+connection node_2;
+CALL mtr.add_suppression("Error 'Unknown table 'test.t1'' on query");

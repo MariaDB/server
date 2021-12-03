@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 #
 # $Id: mytop,v 1.91 2012/01/18 16:49:12 mgrennan Exp $
 
@@ -437,7 +437,7 @@ while (1)
 
     if ($key eq 'C')
     {
-	if ( $HAS_COLOR ) 
+	if ( $HAS_COLOR )
         {
 	    $HAS_COLOR = 0;
 	}
@@ -817,11 +817,11 @@ sub GetData()
     if ($config{header})
     {
         my @recs = "";
-        if ( $db_release > 4 ) 
+        if ( $db_release > 4 )
 	{
             @recs = Hashes("show global status");
-	} 
-	else 
+	}
+	else
 	{
            @recs = Hashes("show status");
 	}
@@ -978,7 +978,7 @@ sub GetData()
 #          print("q_diff: $STATUS{Questions} - $OLD_STATUS{Questions}  / $t_delta = $q_diff\n");
 
           printf(" Sorts: %5.0f qps now: %4.0f Slow qps: %3.1f  Threads: %4.0f (%4.0f/%4.0f) %02.0f/%02.0f/%02.0f/%02.0f\n",
-		 ( $STATUS{Sort_rows} - $OLD_STATUS{Sort_rows} ) / $t_delta, 
+		 ( $STATUS{Sort_rows} - $OLD_STATUS{Sort_rows} ) / $t_delta,
                  ( $STATUS{Questions} - $OLD_STATUS{Questions} ) / $t_delta,
                  ( # slow now (qps)
                   ($STATUS{Slow_queries} ) ?
@@ -989,7 +989,7 @@ sub GetData()
                  $STATUS{Threads_running},
                  $STATUS{Threads_cached},
 
-                 (100 * ($STATUS{Com_select} - $OLD_STATUS{Com_select} + 
+                 (100 * ($STATUS{Com_select} - $OLD_STATUS{Com_select} +
                          ($STATUS{Qcache_hits}||0) - ($OLD_STATUS{Qcache_hits}||0)
                         ) ) / ($q_diff ),
                  (100 * ($STATUS{Com_insert} - $OLD_STATUS{Com_insert} +
@@ -1075,7 +1075,7 @@ sub GetData()
 		 $t_delta,
 		 ($STATUS{Rows_tmp_read} - $OLD_STATUS{Rows_tmp_read}) /
 		 $t_delta,
-		 ($STATUS{Handler_tmp_write} 
+		 ($STATUS{Handler_tmp_write}
 		  -$OLD_STATUS{Handler_tmp_write})/$t_delta,
 		 ($STATUS{Handler_tmp_update} -
 		  $OLD_STATUS{Handler_tmp_update})/$t_delta);
@@ -1119,6 +1119,7 @@ sub GetData()
 	        }
 	    }
 	    print " Replication ";
+	    print "Master:$data->{Master_Host} ";
 	    print "IO:$data->{Slave_IO_Running} ";
  	    print "SQL:$data->{Slave_SQL_Running} ";
 	    print RESET() if ($HAS_COLOR);
@@ -1225,9 +1226,9 @@ sub GetData()
 	$thread->{State}   ||= "";
 	$thread->{Progress} ||= 0;
 
-	## alter double hyphen comments so they don't break 
+	## alter double hyphen comments so they don't break
 	## the query when newlines are removed - http://freshmeat.net/users/jerjones
-	$thread->{Info} =~ s~\s--(.*)$~ /* $1 */ ~mg; 
+	$thread->{Info} =~ s~\s--(.*)$~ /* $1 */ ~mg;
 
         ## Normalize spaces -- mostly disabled for now.  This can
         ## break EXPLAIN if you try to explain a mangled query.  It

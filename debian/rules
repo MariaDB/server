@@ -86,9 +86,6 @@ endif
 	    -DSYSTEM_TYPE="debian-$(DEB_HOST_GNU_SYSTEM)" \
 	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
-	    -DINSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH) \
-	    -DINSTALL_PLUGINDIR=lib/mysql/plugin \
-	    -DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
 	    -DDEB=$(DEB_VENDOR) ..'
 
@@ -114,19 +111,19 @@ override_dh_auto_install:
 	dh_testdir
 	dh_testroot
 
-	# If libthrift-dev was available (manually installed, as it is
-	# not in Debian) and ha_cassandra.so was thus built, create package,
-	# otherwise skip it.
-	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+20d" debian/control
-
 ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
 	# Copy systemd files to a location available for dh_installinit
 	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.4.mariadb.service
 	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.4.mariadb@.service
 endif
 
-	# make install
-	cd $(BUILDDIR) && $(MAKE) install DESTDIR=$(TMP)
+	# Run 'make install' without output since it is uninteresting and
+	# silencing it helps to make overall build log shorter and more readable
+	@echo "Running $(MAKE) install DESTDIR=$(TMP) ..."
+	cd $(BUILDDIR) && $(MAKE) install DESTDIR=$(TMP) > /dev/null
+
+	# If mariadb-test package is removed, also remove most of it's files
+	grep --quiet "Package: mariadb-test" debian/control || rm -rf $(TMP)/usr/share/mysql/mysql-test
 
 	# Delete runnable files we don't want to have in the test data package.
 	# This avoids triggering multiple Lintian errors.
@@ -151,6 +148,10 @@ endif
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.19
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.20
 
+override_dh_fixperms:
+	dh_fixperms
+	chmod 04755 debian/mariadb-server-10.4/usr/lib/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
+	chmod  0700 debian/mariadb-server-10.4/usr/lib/mysql/plugin/auth_pam_tool_dir
 
 override_dh_installlogrotate-arch:
 	dh_installlogrotate --name mysql-server
@@ -162,14 +163,11 @@ override_dh_systemd_enable:
 # Start mysql at sequence number 19 before 20 where apache, proftpd etc gets
 # started which might depend on a running database server.
 override_dh_installinit-arch:
-	dh_installinit --name=mysql -- defaults 19 21
+	#dh_installinit --name=mysql -- defaults 19 21
 	dh_systemd_start --restart-after-upgrade
 
 override_dh_installcron-arch:
 	dh_installcron --name mysql-server
-
-get-orig-source:
-	uscan --force-download --verbose
 
 # If a file is not supposed to be included anywhere, add it to the not-installed
 # file and document the reason. Note that dh_install supports the above mentioned

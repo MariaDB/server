@@ -1,0 +1,317 @@
+#structure of tests;
+#1 test of table containing single unique blob column;
+#2 test of table containing another unique int/ varchar etc column; 
+#3 test of table containing multiple unique blob column like unique(a),unique(b);
+#4 test of table containing multiple multiple unique blob column like unique(a,b...),unique(c,d....);
+#structure of each test;
+#test if update works;
+#test update for duplicate entry;
+#test update for no change keys;
+#test update for ignore ;
+#test 1
+create table t1 (a blob unique);
+show keys from t1;
+Table	t1
+Non_unique	0
+Key_name	a
+Seq_in_index	1
+Column_name	a
+Collation	A
+Cardinality	NULL
+Sub_part	NULL
+Packed	NULL
+Null	YES
+Index_type	HASH
+Comment	
+Index_comment	
+insert into t1 values(1),(2),(3),(4),(5);
+select * from t1;
+a
+1
+2
+3
+4
+5
+update t1 set a=11 where a=5;
+update t1 set a=a+20 where a=1;
+select * from t1;
+a
+21
+2
+3
+4
+11
+update t1 set a=3 where a=2;
+ERROR 23000: Duplicate entry '3' for key 'a'
+update t1 set a=4 where a=3;
+ERROR 23000: Duplicate entry '4' for key 'a'
+#no change in blob key
+update t1 set a=3 where a=3;
+update t1 set a=2 where a=2;
+select* from t1;
+a
+21
+2
+3
+4
+11
+#IGNORE;
+update ignore t1 set a=3 where a=2;
+update ignore t1 set a=4 where a=3;
+select * from t1;
+a
+21
+2
+3
+4
+11
+drop table t1;
+#test 2;
+create table t1 (a int primary key, b blob unique , c int unique );
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	a	A	0	NULL	NULL		BTREE		
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
+insert into t1 values(1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(7,7,7);
+select * from t1 limit 3;
+a	b	c
+1	1	1
+2	2	2
+3	3	3
+update t1 set b=34 where a=1;
+update t1 set b=a+c+b+34 where b=2;
+update t1 set b=a+10+b where c=3;
+select * from t1;
+a	b	c
+1	34	1
+2	40	2
+3	16	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+truncate table t1;
+insert into t1 values(1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(7,7,7);
+update t1 set b=4 where a=3;
+ERROR 23000: Duplicate entry '4' for key 'b'
+update t1 set b=a+1 where b=3;
+ERROR 23000: Duplicate entry '4' for key 'b'
+update t1 set b=a+1 where c=3;
+ERROR 23000: Duplicate entry '4' for key 'b'
+#no change in blob key
+update t1 set b=3 where a=3;
+update t1 set b=2 where b=2;
+update t1 set b=5 where c=5;
+select* from t1;
+a	b	c
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+#IGNORE;
+update ignore t1 set b=3 where a=2;
+update ignore t1 set b=4 where b=3;
+update ignore t1 set b=5 where c=3;
+select * from t1;
+a	b	c
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+drop table t1;
+#test 3;
+create table t1 (a blob unique, b blob unique , c blob unique);
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH		
+insert into t1 values(1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(7,7,7);
+select * from t1 limit 3;
+a	b	c
+1	1	1
+2	2	2
+3	3	3
+update t1 set b=34 where a=1;
+update t1 set b=a+c+b+34 where b=2;
+update t1 set b=a+10+b where c=3;
+select * from t1;
+a	b	c
+1	34	1
+2	40	2
+3	16	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+truncate table t1;
+insert into t1 values(1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(7,7,7);
+update t1 set b=4 where a=3;
+ERROR 23000: Duplicate entry '4' for key 'b'
+update t1 set b=a+1 where b=3;
+ERROR 23000: Duplicate entry '4' for key 'b'
+update t1 set b=a+1 where c=3;
+ERROR 23000: Duplicate entry '4' for key 'b'
+#no change in blob key
+update t1 set b=3 where a=3;
+update t1 set b=2 where b=2;
+update t1 set b=5 where c=5;
+select* from t1;
+a	b	c
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+#IGNORE;
+update ignore t1 set b=3 where a=2;
+update ignore t1 set b=4 where b=3;
+update ignore t1 set b=5 where c=3;
+update ignore t1 set b=b+3 where a>1 or b>1 or c>1;
+select * from t1;
+a	b	c
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	8	5
+6	9	6
+7	10	7
+update ignore t1 set b=b+5 where a>1 and  b<5 and  c<a+b;
+select * from t1;
+a	b	c
+1	1	1
+2	7	2
+3	3	3
+4	4	4
+5	8	5
+6	9	6
+7	10	7
+drop table t1;
+#test 4 ultimate test;
+create table t1 (a int primary key , b int, c blob , d blob , e  varchar(2000), f int , g text, 
+unique (b,c), unique (b,f),unique(e,g),unique(a,b,c,d,e,f,g));
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	NO	PRI	NULL	
+b	int(11)	YES	MUL	NULL	
+c	blob	YES		NULL	
+d	blob	YES		NULL	
+e	varchar(2000)	YES	MUL	NULL	
+f	int(11)	YES		NULL	
+g	text	YES		NULL	
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` blob DEFAULT NULL,
+  `d` blob DEFAULT NULL,
+  `e` varchar(2000) DEFAULT NULL,
+  `f` int(11) DEFAULT NULL,
+  `g` text DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  UNIQUE KEY `b_2` (`b`,`f`),
+  UNIQUE KEY `b` (`b`,`c`) USING HASH,
+  UNIQUE KEY `e` (`e`,`g`) USING HASH,
+  UNIQUE KEY `a` (`a`,`b`,`c`,`d`,`e`,`f`,`g`) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	a	A	0	NULL	NULL		BTREE		
+t1	0	b_2	1	b	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	b_2	2	f	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
+t1	0	b	2	c	A	NULL	NULL	NULL	YES	HASH		
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
+t1	0	e	2	g	A	NULL	NULL	NULL	YES	HASH		
+t1	0	a	1	a	A	NULL	NULL	NULL		HASH		
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH		
+t1	0	a	4	d	A	NULL	NULL	NULL	YES	HASH		
+t1	0	a	5	e	A	NULL	NULL	NULL	YES	HASH		
+t1	0	a	6	f	A	NULL	NULL	NULL	YES	HASH		
+t1	0	a	7	g	A	NULL	NULL	NULL	YES	HASH		
+insert into t1 values(1,1,1,1,1,1,1),(2,2,2,2,2,2,2),(3,3,3,3,3,3,3),(4,4,4,4,4,4,4),
+(5,5,5,5,5,5,5),(6,6,6,6,6,6,6),(7,7,7,7,7,7,7),(8,8,8,8,8,8,8),(9,9,9,9,9,9,9);
+select * from t1 limit 3;
+a	b	c	d	e	f	g
+1	1	1	1	1	1	1
+2	2	2	2	2	2	2
+3	3	3	3	3	3	3
+#key b_c
+update t1 set b=2 ,c=2 where a=1;
+ERROR 23000: Duplicate entry '2-2' for key 'b'
+update t1 set b=b+34, c=c+34 where e=1 and g=1 ;
+update t1 set b=35, c=35 where e=1 and g=1 ;
+update t1 set b=b+1, c=c+1 where a>0;
+ERROR 23000: Duplicate entry '3-3' for key 'b'
+update ignore t1 set b=b+1, c=c+1 where a>0;
+select * from t1 ;
+a	b	c	d	e	f	g
+1	37	37	1	1	1	1
+2	2	2	2	2	2	2
+3	3	3	3	3	3	3
+4	4	4	4	4	4	4
+5	5	5	5	5	5	5
+6	6	6	6	6	6	6
+7	7	7	7	7	7	7
+8	8	8	8	8	8	8
+9	10	10	9	9	9	9
+truncate table t1;
+insert into t1 values(1,1,1,1,1,1,1),(2,2,2,2,2,2,2),(3,3,3,3,3,3,3),(4,4,4,4,4,4,4),
+(5,5,5,5,5,5,5),(6,6,6,6,6,6,6),(7,7,7,7,7,7,7),(8,8,8,8,8,8,8),(9,9,9,9,9,9,9);
+#key b_f no hash key
+update t1 set b=2 , f=2 where a=1;
+ERROR 23000: Duplicate entry '2-2' for key 'b_2'
+update  t1 set b=b+33, f=f+33 where e=1 and g=1;
+update t1 set b=34, f=34 where e=1 and g=1 ;
+update t1 set b=b+1, f=f+1 where a>0;
+ERROR 23000: Duplicate entry '3-3' for key 'b_2'
+update ignore t1 set b=b+1, f=f+1 where a>0;
+select * from t1 ;
+a	b	c	d	e	f	g
+1	36	1	1	1	36	1
+2	2	2	2	2	2	2
+3	3	3	3	3	3	3
+4	4	4	4	4	4	4
+5	5	5	5	5	5	5
+6	6	6	6	6	6	6
+7	7	7	7	7	7	7
+8	8	8	8	8	8	8
+9	10	9	9	9	10	9
+truncate table t1;
+insert into t1 values(1,1,1,1,1,1,1),(2,2,2,2,2,2,2),(3,3,3,3,3,3,3),(4,4,4,4,4,4,4),
+(5,5,5,5,5,5,5),(6,6,6,6,6,6,6),(7,7,7,7,7,7,7),(8,8,8,8,8,8,8),(9,9,9,9,9,9,9);
+#key e_g
+update t1 set e=2 , g=2 where a=1;
+ERROR 23000: Duplicate entry '2-2' for key 'e'
+update  t1 set e=e+34, g=g+34 where a=1;
+update t1 set e=34, g=34 where e=1 and g=1 ;
+select * from t1 where  a=1;
+a	b	c	d	e	f	g
+1	1	1	1	35	1	35
+update t1 set e=e+1, g=g+1 where a>0;
+ERROR 23000: Duplicate entry '3-3' for key 'e'
+update ignore t1 set e=e+1, g=g+1 where a>0;
+select * from t1 ;
+a	b	c	d	e	f	g
+1	1	1	1	37	1	37
+2	2	2	2	2	2	2
+3	3	3	3	3	3	3
+4	4	4	4	4	4	4
+5	5	5	5	5	5	5
+6	6	6	6	6	6	6
+7	7	7	7	7	7	7
+8	8	8	8	8	8	8
+9	9	9	9	10	9	10
+drop table t1;

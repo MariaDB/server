@@ -1,8 +1,8 @@
 #ifndef STRUCTS_INCLUDED
 #define STRUCTS_INCLUDED
 
-/* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2017, MariaDB Corporation.
+/* Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 
@@ -27,6 +27,7 @@
 #include "thr_lock.h"                  /* thr_lock_type */
 #include "my_base.h"                   /* ha_rows, ha_key_alg */
 #include <mysql_com.h>                  /* USERNAME_LENGTH */
+#include "sql_bitmap.h"
 
 struct TABLE;
 class Type_handler;
@@ -91,7 +92,7 @@ class engine_option_value;
 struct ha_index_option_struct;
 
 typedef struct st_key {
-  uint	key_length;			/* Tot length of key */
+  uint	key_length;			/* total length of user defined key parts  */
   ulong flags;                          /* dupp key and pack flags */
   uint	user_defined_key_parts;	   /* How many key_parts */
   uint	usable_key_parts; /* Should normally be = user_defined_key_parts */
@@ -109,8 +110,15 @@ typedef struct st_key {
       pk2 is explicitly present in idx1, it is not in the extension, so
       ext_key_part_map.is_set(1) == false
   */
-  LEX_CSTRING name;
   key_part_map ext_key_part_map;
+  /*
+    Bitmap of indexes having common parts with this index
+    (only key parts from key definitions are taken into account)
+  */
+  key_map overlapped;
+  /* Set of keys constraint correlated with this key */
+  key_map constraint_correlated;
+  LEX_CSTRING name;
   uint  block_size;
   enum  ha_key_alg algorithm;
   /* 
@@ -148,9 +156,6 @@ typedef struct st_key {
   */
   Index_statistics *collected_stats;
  
-  union {
-    int  bdb_return_if_eq;
-  } handler;
   TABLE *table;
   LEX_CSTRING comment;
   /** reference to the list of options or NULL */
@@ -203,6 +208,17 @@ extern const char *show_comp_option_name[];
 
 typedef int *(*update_var)(THD *, struct st_mysql_show_var *);
 
+struct USER_AUTH : public Sql_alloc
+{
+  LEX_CSTRING plugin, auth_str, pwtext;
+  USER_AUTH *next;
+  USER_AUTH() : next(NULL)
+  {
+    plugin.str= auth_str.str= "";
+    pwtext.str= NULL;
+    plugin.length= auth_str.length= pwtext.length= 0;
+  }
+};
 
 struct AUTHID
 {
@@ -227,12 +243,10 @@ struct AUTHID
 
 struct LEX_USER: public AUTHID
 {
-  LEX_CSTRING plugin, auth, pwtext;
-  void reset_auth()
+  USER_AUTH *auth;
+  bool has_auth()
   {
-    pwtext.length= plugin.length= auth.length= 0;
-    pwtext.str= 0;
-    plugin.str= auth.str= "";
+    return auth && (auth->plugin.length || auth->auth_str.length || auth->pwtext.length);
   }
 };
 
@@ -612,6 +626,10 @@ public:
   {
     set(handler, 0, 0);
   }
+  void set_handler(const Type_handler *handler)
+  {
+    m_handler= handler;
+  }
   const Type_handler *type_handler() const { return m_handler; }
 };
 
@@ -847,17 +865,23 @@ public:
 
 class Timeval: public timeval
 {
+protected:
+  Timeval() { }
 public:
   Timeval(my_time_t sec, ulong usec)
   {
     tv_sec= sec;
-    tv_usec= usec;
+    /*
+      Since tv_usec is not always of type ulong, cast usec parameter
+      explicitly to uint to avoid compiler warnings about losing
+      integer precision.
+    */
+    DBUG_ASSERT(usec < 1000000);
+    tv_usec= (uint)usec;
   }
-  Timeval &trunc(uint dec)
-  {
-    my_timeval_trunc(this, dec);
-    return *this;
-  }
+  explicit Timeval(const timeval &tv)
+   :timeval(tv)
+  { }
 };
 
 

@@ -1,0 +1,51 @@
+#
+# Test the case where SR is rolled back to savepoint that points to the 
+# very beginning of the transaction. This results in regular rollback
+# rather than rollback to savepoint.
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size=1;
+
+#
+# Test 1: regular transaction
+#
+--connection node_1
+START TRANSACTION;
+SAVEPOINT A;
+INSERT INTO t1 VALUES (1);
+ROLLBACK TO SAVEPOINT A;
+COMMIT;
+
+--connection node_1
+SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+#
+# Test 2: AUTOCOMMIT OFF
+#
+--connection node_1
+SET AUTOCOMMIT=OFF;
+SAVEPOINT A;
+INSERT INTO t1 VALUES (2);
+ROLLBACK TO SAVEPOINT A;
+COMMIT;
+
+--connection node_1
+SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+
+DROP TABLE t1;

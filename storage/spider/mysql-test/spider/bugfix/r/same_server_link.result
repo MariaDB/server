@@ -1,0 +1,42 @@
+for master_1
+for child2
+for child3
+connection master_1;
+set @old_global_spider_same_server_link= @@global.spider_same_server_link;
+set @old_session_spider_same_server_link= @@session.spider_same_server_link;
+set global spider_same_server_link= 0;
+set session spider_same_server_link= 0;
+
+this test is for MDEV-6268
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+create table
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+CREATE TABLE tbl_b (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE2 MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+
+select test 1
+connection master_1;
+INSERT INTO tbl_a VALUES(1);
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection master_1;
+set global spider_same_server_link= @old_global_spider_same_server_link;
+set session spider_same_server_link= @old_session_spider_same_server_link;
+for master_1
+for child2
+for child3
+
+end of test

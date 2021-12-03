@@ -18,6 +18,7 @@ connection master;
 # the option is unknown.
 #
 create table t1 (a int not null) ull=12340;
+alter table t1 ull=12350;
 show create table t1;
 
 sync_slave_with_master;

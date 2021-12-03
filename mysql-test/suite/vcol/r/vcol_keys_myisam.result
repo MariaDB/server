@@ -277,6 +277,7 @@ a	b	c	d
 delete from t1 where b=12;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -375,3 +376,45 @@ repair table t1 extended;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	status	OK
 drop table t1;
+create table t1 ( id int primary key,
+hexid  varchar(10) generated always as (hex(id)) stored,
+key (hexid)) engine=myisam;
+insert into t1 (id) select 100;
+select * from t1;
+id	hexid
+100	64
+drop table t1;
+#
+#  MDEV-15881 Assertion `is_valid_value_slow()' failed in Datetime::Datetime or corrupt data after ALTER with indexed persistent column
+#
+CREATE TABLE t1 (i INT, d1 DATE, d2 DATE NOT NULL, t TIMESTAMP, KEY(t)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES  (1,'2023-03-16','2023-03-15','2012-12-12 12:12:12');
+ALTER TABLE t1 MODIFY t FLOAT AS (i) PERSISTENT;
+SELECT i, d1, d2 INTO OUTFILE 'load_t1' FROM t1;
+DELETE FROM t1;
+LOAD DATA INFILE 'load_t1' INTO TABLE t1 (i,d1,d2);
+SELECT * FROM t1 WHERE d2 < d1;
+i	d1	d2	t
+1	2023-03-16	2023-03-15	1
+DROP TABLE t1;
+CREATE TABLE t1 (
+i INT DEFAULT NULL,
+d1 DATE DEFAULT NULL,
+d2 DATE NOT NULL,
+t FLOAT GENERATED ALWAYS AS (i) STORED,
+KEY (t)
+) ENGINE=MyISAM;
+LOAD DATA INFILE 'load_t1' INTO TABLE t1 (i,d1,d2);
+SELECT * FROM t1 WHERE d2 < d1;
+i	d1	d2	t
+1	2023-03-16	2023-03-15	1
+DROP TABLE t1;
+#
+# MDEV-20015 Assertion `!in_use->is_error()' failed in TABLE::update_virtual_field
+#
+create or replace table t1 (a int);
+insert into t1 (a) values (1), (1);
+create or replace table t2 (pk int, b int, c int as (b) virtual, primary key (pk), key(c));
+insert into t2 (pk) select a from t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+drop tables t1, t2;

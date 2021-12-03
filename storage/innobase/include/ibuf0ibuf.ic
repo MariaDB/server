@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -78,11 +78,12 @@ struct ibuf_t{
 	ulint		height;		/*!< tree height */
 	dict_index_t*	index;		/*!< insert buffer index */
 
-	ulint		n_merges;	/*!< number of pages merged */
-	ulint		n_merged_ops[IBUF_OP_COUNT];
+	/** number of pages merged */
+	Atomic_counter<ulint> n_merges;
+	Atomic_counter<ulint> n_merged_ops[IBUF_OP_COUNT];
 					/*!< number of operations of each type
 					merged to index pages */
-	ulint		n_discarded_ops[IBUF_OP_COUNT];
+	Atomic_counter<ulint> n_discarded_ops[IBUF_OP_COUNT];
 					/*!< number of operations of each type
 					discarded without merging due to the
 					tablespace being deleted or the
@@ -149,20 +150,6 @@ ibuf_inside(
 	return(mtr->is_inside_ibuf());
 }
 
-/** Checks if a page address is an ibuf bitmap page (level 3 page) address.
-@param[in]	page_id		page id
-@param[in]	page_size	page size
-@return TRUE if a bitmap page */
-UNIV_INLINE
-ibool
-ibuf_bitmap_page(
-	const page_id_t		page_id,
-	const page_size_t&	page_size)
-{
-	return((page_id.page_no() & (page_size.physical() - 1))
-	       == FSP_IBUF_BITMAP_OFFSET);
-}
-
 /** Translates the free space on a page to a value in the ibuf bitmap.
 @param[in]	page_size	page size in bytes
 @param[in]	max_ins_size	maximum insert size after reorganize for
@@ -191,29 +178,6 @@ ibuf_index_page_calc_free_bits(
 	return(n);
 }
 
-/** Translates the ibuf free bits to the free space on a page in bytes.
-@param[in]	page_size	page_size
-@param[in]	bits		value for ibuf bitmap bits
-@return maximum insert size after reorganize for the page */
-UNIV_INLINE
-ulint
-ibuf_index_page_calc_free_from_bits(
-	const page_size_t&	page_size,
-	ulint			bits)
-{
-	ut_ad(bits < 4);
-	ut_ad(!page_size.is_compressed()
-	      || page_size.physical() > IBUF_PAGE_SIZE_PER_FREE_SPACE);
-
-	if (bits == 3) {
-		return(4 * page_size.physical()
-		       / IBUF_PAGE_SIZE_PER_FREE_SPACE);
-	}
-
-	return(bits * (page_size.physical()
-		       / IBUF_PAGE_SIZE_PER_FREE_SPACE));
-}
-
 /*********************************************************************//**
 Translates the free space on a compressed page to a value in the ibuf bitmap.
 @return value for ibuf bitmap bits */
@@ -227,7 +191,7 @@ ibuf_index_page_calc_free_zip(
 	const page_zip_des_t*	page_zip;
 	lint			zip_max_ins;
 
-	ut_ad(block->page.size.is_compressed());
+	ut_ad(block->page.zip.data);
 
 	/* Consider the maximum insert size on the uncompressed page
 	without reorganizing the page. We must not assume anything
@@ -250,7 +214,7 @@ ibuf_index_page_calc_free_zip(
 		max_ins_size = (ulint) zip_max_ins;
 	}
 
-	return(ibuf_index_page_calc_free_bits(block->page.size.physical(),
+	return(ibuf_index_page_calc_free_bits(block->physical_size(),
 					      max_ins_size));
 }
 
@@ -263,14 +227,14 @@ ibuf_index_page_calc_free(
 /*======================*/
 	const buf_block_t*	block)	/*!< in: buffer block */
 {
-	if (!block->page.size.is_compressed()) {
+	if (!block->page.zip.data) {
 		ulint	max_ins_size;
 
 		max_ins_size = page_get_max_insert_size_after_reorganize(
 			buf_block_get_frame(block), 1);
 
 		return(ibuf_index_page_calc_free_bits(
-				block->page.size.physical(), max_ins_size));
+				block->physical_size(), max_ins_size));
 	} else {
 		return(ibuf_index_page_calc_free_zip(block));
 	}
@@ -311,12 +275,12 @@ ibuf_update_free_bits_if_full(
 	ut_ad(buf_block_get_page_zip(block) == NULL);
 
 	before = ibuf_index_page_calc_free_bits(
-		block->page.size.physical(), max_ins_size);
+		srv_page_size, max_ins_size);
 
 	if (max_ins_size >= increase) {
 		compile_time_assert(ULINT32_UNDEFINED > UNIV_PAGE_SIZE_MAX);
 		after = ibuf_index_page_calc_free_bits(
-			block->page.size.physical(), max_ins_size - increase);
+			srv_page_size, max_ins_size - increase);
 #ifdef UNIV_IBUF_DEBUG
 		ut_a(after <= ibuf_index_page_calc_free(block));
 #endif

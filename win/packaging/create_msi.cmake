@@ -1,3 +1,4 @@
+
 MACRO(MAKE_WIX_IDENTIFIER str varname)
   STRING(REPLACE "/" "." ${varname} "${str}")
   STRING(REGEX REPLACE "[^a-zA-Z_0-9.]" "_" ${varname} "${${varname}}")
@@ -34,10 +35,12 @@ IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
   SET(Win64 " Win64='yes'")
   SET(Platform x64)
   SET(PlatformProgramFilesFolder ProgramFiles64Folder)
+  SET(CA_QUIET_EXEC CAQuietExec64)
 ELSE()
   SET(CANDLE_ARCH -arch x86)
   SET(Platform x86)
   SET(PlatformProgramFilesFolder ProgramFilesFolder)
+  SET(CA_QUIET_EXEC CAQuietExec)
   SET(Win64)
 ENDIF()
 
@@ -367,9 +370,10 @@ IF("$ENV{EXTRA_LIGHT_ARGS}")
 ENDIF()
 
 FILE(REMOVE mysql_server.wixobj extra.wixobj)
+STRING(REPLACE " " ";" EXTRA_WIX_PREPROCESSOR_FLAGS_LIST ${EXTRA_WIX_PREPROCESSOR_FLAGS})
 EXECUTE_PROCESS(
  COMMAND ${CANDLE_EXECUTABLE} 
- ${EXTRA_WIX_PREPROCESSOR_FLAGS} 
+ ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
  ${CANDLE_ARCH} 
  -ext WixUtilExtension 
  -ext WixFirewallExtension   
@@ -379,7 +383,7 @@ EXECUTE_PROCESS(
 
 EXECUTE_PROCESS(
  COMMAND ${CANDLE_EXECUTABLE} ${CANDLE_ARCH}
- ${EXTRA_WIX_PREPROCESSOR_FLAGS} 
+ ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
  -ext WixUtilExtension 
  -ext WixFirewallExtension  
  ${CMAKE_CURRENT_BINARY_DIR}/extra.wxs 

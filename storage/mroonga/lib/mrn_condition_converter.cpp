@@ -14,7 +14,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #include "mrn_condition_converter.hpp"
@@ -258,8 +258,11 @@ namespace mrn {
     Item *real_value_item = value_item->real_item();
     switch (field_item->field->type()) {
     case MYSQL_TYPE_TIME:
-      error = real_value_item->get_time(current_thd, mysql_time);
+    {
+      THD *thd= current_thd;
+      error= real_value_item->get_date(thd, mysql_time, Time::Options(thd));
       break;
+    }
     case MYSQL_TYPE_YEAR:
       mysql_time->year        = static_cast<int>(value_item->val_int());
       mysql_time->month       = 1;
@@ -273,8 +276,12 @@ namespace mrn {
       error = false;
       break;
     default:
-      error = real_value_item->get_date(current_thd, mysql_time, TIME_FUZZY_DATES);
+    {
+      THD *thd= current_thd;
+      Datetime::Options opt(TIME_FUZZY_DATES, thd);
+      error = real_value_item->get_date(thd, mysql_time, opt);
       break;
+    }
     }
 
     DBUG_RETURN(error);

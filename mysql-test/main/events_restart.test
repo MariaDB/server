@@ -3,6 +3,7 @@
 
 call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
 
+let $collation_server=`select @@collation_server`;
 #
 # Test that when the server is restarted, it checks mysql.event table,
 # and disables the scheduler if it's not up to date.
@@ -92,6 +93,7 @@ set global event_scheduler=on;
 select @@global.event_scheduler;
 --sorted_result
 --replace_column 6 # 9 # 10 #
+--replace_result $collation_server latin1_swedish_ci
 show events;
 
 --echo Now let's restart the server again
@@ -139,3 +141,34 @@ SHOW EVENTS;
 DROP EVENT e1;
 
 --echo # end test for bug#11748899
+
+--echo #
+--echo # Test for MDEV-21758 Events switched randomly to SLAVESIDE_DISABLED
+--echo #
+
+create event ev on schedule every 1 minute do set @a= 1;
+select name, originator, status from mysql.event;
+
+--let $server_id= `SELECT @@global.server_id`
+
+--echo #
+--echo # Restarting server with server_id=100
+--echo #
+--let $restart_parameters= --server-id=100
+--source include/restart_mysqld.inc
+
+select @@global.server_id;
+select name, originator, status from mysql.event;
+--eval set global server_id= $server_id
+
+--echo #
+--echo # Restarting server with the original server_id=$server_id
+--echo #
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+select @@global.server_id;
+select name, originator, status from mysql.event;
+
+# Cleanup
+drop event ev;

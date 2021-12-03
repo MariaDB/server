@@ -1,0 +1,10 @@
+#
+# Check SHOW GLOBAL STATUS after dynamic setting WSREP=ON
+#
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+--source include/have_binlog_format_row.inc
+
+SET GLOBAL wsrep_on=ON;
+SHOW GLOBAL STATUS LIKE 'wsrep_cluster_size';
+SET GLOBAL wsrep_on=OFF;

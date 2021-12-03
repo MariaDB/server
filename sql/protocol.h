@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
@@ -22,11 +22,14 @@
 
 #include "sql_error.h"
 #include "my_decimal.h"                         /* my_decimal */
+#include "sql_type.h"
 
 class i_string;
 class Field;
+class Send_field;
 class THD;
 class Item_param;
+struct TABLE_LIST;
 typedef struct st_mysql_field MYSQL_FIELD;
 typedef struct st_mysql_rows MYSQL_ROWS;
 
@@ -38,7 +41,12 @@ protected:
   String *convert;
   uint field_pos;
 #ifndef DBUG_OFF
-  enum enum_field_types *field_types;
+  const Type_handler **field_handlers;
+  bool valid_handler(uint pos, protocol_send_type_t type) const
+  {
+    return field_handlers == 0 ||
+           field_handlers[field_pos]->protocol_send_type() == type;
+  }
 #endif
   uint field_count;
 #ifndef EMBEDDED_LIBRARY
@@ -75,8 +83,9 @@ public:
   virtual ~Protocol() {}
   void init(THD* thd_arg);
 
-  enum { SEND_NUM_ROWS= 1, SEND_DEFAULTS= 2, SEND_EOF= 4 };
+  enum { SEND_NUM_ROWS= 1, SEND_EOF= 2 };
   virtual bool send_result_set_metadata(List<Item> *list, uint flags);
+  bool send_list_fields(List<Field> *list, const TABLE_LIST *table_list);
   bool send_result_set_row(List<Item> *row_items);
 
   bool store(I_List<i_string> *str_list);
@@ -113,6 +122,15 @@ public:
   virtual bool store(const char *from, size_t length, CHARSET_INFO *cs)=0;
   virtual bool store(const char *from, size_t length, 
   		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs)=0;
+  bool store_str(const char *s, CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+  {
+    DBUG_ASSERT(s);
+    return store(s, (uint) strlen(s), fromcs, tocs);
+  }
+  bool store_str(const LEX_CSTRING &s, CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+  {
+    return store(s.str, (uint) s.length, fromcs, tocs);
+  }
   virtual bool store(float from, uint32 decimals, String *buffer)=0;
   virtual bool store(double from, uint32 decimals, String *buffer)=0;
   virtual bool store(MYSQL_TIME *time, int decimals)=0;
@@ -122,7 +140,8 @@ public:
 
   virtual bool send_out_parameters(List<Item_param> *sp_params)=0;
 #ifdef EMBEDDED_LIBRARY
-  int begin_dataset();
+  bool begin_dataset();
+  bool begin_dataset(THD *thd, uint numfields);
   virtual void remove_last_row() {}
 #else
   void remove_last_row() {}
@@ -150,7 +169,12 @@ public:
 class Protocol_text :public Protocol
 {
 public:
-  Protocol_text(THD *thd_arg) :Protocol(thd_arg) {}
+  Protocol_text(THD *thd_arg, ulong prealloc= 0)
+   :Protocol(thd_arg)
+  {
+    if (prealloc)
+      packet->alloc(prealloc);
+  }
   virtual void prepare_for_resend();
   virtual bool store_null();
   virtual bool store_tiny(longlong from);
@@ -172,6 +196,13 @@ public:
 #ifdef EMBEDDED_LIBRARY
   void remove_last_row();
 #endif
+  bool store_field_metadata(const THD *thd, const Send_field &field,
+                            CHARSET_INFO *charset_for_protocol,
+                            uint pos);
+  bool store_field_metadata(THD *thd, Item *item, uint pos);
+  bool store_field_metadata_for_list_fields(const THD *thd, Field *field,
+                                            const TABLE_LIST *table_list,
+                                            uint pos);
   virtual enum enum_protocol_type type() { return PROTOCOL_TEXT; };
 };
 
@@ -230,60 +261,29 @@ class Protocol_discard : public Protocol_text
 {
 public:
   Protocol_discard(THD *thd_arg) : Protocol_text(thd_arg) {}
-  /* The real writing is done only in write() */
-  virtual bool write() { return 0; }
-  virtual bool send_result_set_metadata(List<Item> *list, uint flags)
-  {
-    // Don't pas Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF flags 
-    return Protocol_text::send_result_set_metadata(list, 0);
-  }
-
-  // send_error is intentionally not overloaded.
-  virtual bool send_eof(uint server_status, uint statement_warn_count)
-  {
-    return 0;
-  }
-
-  void prepare_for_resend()
-  {
-#ifndef DBUG_OFF
-    field_pos= 0;
-#endif
-  }
+  bool write() { return 0; }
+  bool send_result_set_metadata(List<Item> *, uint) { return 0; }
+  bool send_eof(uint, uint) { return 0; }
+  void prepare_for_resend() { IF_DBUG(field_pos= 0,); }
   
   /* 
     Provide dummy overrides for any storage methods so that we
     avoid allocating and copying of data
   */
-  virtual bool store_null() 
-  { return false; }
-  virtual bool store_tiny(longlong from)
-  { return false; }
-  virtual bool store_short(longlong from)
-  { return false; }
-  virtual bool store_long(longlong from)
-  { return false; }
-  virtual bool store_longlong(longlong from, bool unsigned_flag)
-  { return false; }
-  virtual bool store_decimal(const my_decimal *)
-  { return false; }
-  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs)
-  { return false; }
-  virtual bool store(const char *from, size_t length,
-  		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
-  { return false; }
-  virtual bool store(MYSQL_TIME *time, int decimals)
-  { return false; }
-  virtual bool store_date(MYSQL_TIME *time)
-  { return false; }
-  virtual bool store_time(MYSQL_TIME *time, int decimals)
-  { return false; }
-  virtual bool store(float nr, uint32 decimals, String *buffer)
-  { return false; }
-  virtual bool store(double from, uint32 decimals, String *buffer)
-  { return false; }
-  virtual bool store(Field *field)
-  { return false; }
+  bool store_null() { return false; }
+  bool store_tiny(longlong) { return false; }
+  bool store_short(longlong) { return false; }
+  bool store_long(longlong) { return false; }
+  bool store_longlong(longlong, bool) { return false; }
+  bool store_decimal(const my_decimal *) { return false; }
+  bool store(const char *, size_t, CHARSET_INFO *) { return false; }
+  bool store(const char *, size_t, CHARSET_INFO *, CHARSET_INFO *) { return false; }
+  bool store(MYSQL_TIME *, int) { return false; }
+  bool store_date(MYSQL_TIME *) { return false; }
+  bool store_time(MYSQL_TIME *, int) { return false; }
+  bool store(float, uint32, String *) { return false; }
+  bool store(double, uint32, String *) { return false; }
+  bool store(Field *) { return false; }
 
 };
 

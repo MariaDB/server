@@ -3570,7 +3570,7 @@ DROP VIEW v1;
 REPLACE OR CREATE VIEW v1 AS SELECT F59, F60
 FROM test.tb2 my_table WITH CASCADED CHECK OPTION;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'OR CREATE VIEW v1 AS SELECT F59, F60
-FROM test.tb2 my_table WITH CASCADED CHECK ' at line 1
+FROM test.tb2 my_table WITH CASCADED CHE...' at line 1
 CREATE OR REPLACE VIEW v1 SELECT AS F59, F60
 FROM test.tb2 my_table WITH CASCADED CHECK OPTION;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT AS F59, F60
@@ -3599,7 +3599,7 @@ FROM test.tb2 my_table WITH CASCADED CHECK OPTION VIEW v1' at line 1
 REPLACE OR CREATE VIEW v1 AS SELECT F59, F60
 FROM test.tb2 my_table WITH LOCAL CHECK OPTION;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'OR CREATE VIEW v1 AS SELECT F59, F60
-FROM test.tb2 my_table WITH LOCAL CHECK OPT' at line 1
+FROM test.tb2 my_table WITH LOCAL CHECK ...' at line 1
 CREATE OR REPLACE VIEW v1 SELECT AS F59, F60
 FROM test.tb2 my_table WITH LOCAL CHECK OPTION;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT AS F59, F60

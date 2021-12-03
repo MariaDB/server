@@ -26,14 +26,20 @@ SET SESSION wsrep_OSU_method = "TOI";
 # Insert values after the ALTER
 INSERT INTO t1 (f1) SELECT 200000 + (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3.f1) + (10 * a4.f1) + a5.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
 
+--let $wait_condition = SELECT COUNT(*) = 300000 FROM t1;
+--source include/wait_condition.inc
 
-SELECT COUNT(*) = 300000 FROM t1;
-SELECT MAX(f1) =  299999 FROM t1;
+SELECT COUNT(*) AS EXPECT_300000 FROM t1;
+SELECT MAX(f1) AS EXPECT_299999 FROM t1;
 
 --connection node_1
 --reap
-SELECT COUNT(*) = 300000 FROM t1;
-SELECT MAX(f1) =  299999 FROM t1;
+
+--let $wait_condition = SELECT COUNT(*) = 300000 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_300000 FROM t1;
+SELECT MAX(f1) AS EXPECT_299999 FROM t1;
 
 SET SESSION wsrep_OSU_method = "RSU";
 ALTER TABLE t1 ADD PRIMARY KEY (f1);

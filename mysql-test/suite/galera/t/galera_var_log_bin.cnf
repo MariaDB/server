@@ -3,3 +3,8 @@
 [mysqld]
 log-bin
 
+[mysqld.1]
+log-slave-updates
+
+[mysqld.2]
+log-slave-updates

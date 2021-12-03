@@ -1,0 +1,22 @@
+#
+# MDEV-23092: SIGABRT in wsrep::server_state::provider when setting
+# invalid wsrep_provider (on optimized builds)
+#
+
+--source include/have_innodb.inc
+--source include/have_wsrep.inc
+--source include/have_binlog_format_row.inc
+
+SET COLLATION_CONNECTION='utf16le_bin';
+--error 1231
+SET GLOBAL wsrep_provider='/invalid/path/libgalera_smm.so';
+SET GLOBAL wsrep_cluster_address='OFF';
+SET GLOBAL wsrep_slave_threads=10;
+SELECT 1;
+
+SET GLOBAL wsrep_cluster_address='gcomm://';
+SET GLOBAL wsrep_slave_threads=DEFAULT;
+
+CALL mtr.add_suppression("wsrep_load()");
+CALL mtr.add_suppression("Failed to create a new provider");
+CALL mtr.add_suppression("Failed to load provider");

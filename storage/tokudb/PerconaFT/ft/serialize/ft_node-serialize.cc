@@ -827,7 +827,7 @@ int toku_serialize_ftnode_to(int fd,
         node, n_uncompressed_bytes, n_to_write, io_time, for_checkpoint);
 
     toku_free(compressed_buf);
-    node->dirty = 0;  // See #1957.   Must set the node to be clean after
+    node->clear_dirty();  // See #1957.   Must set the node to be clean after
                       // serializing it so that it doesn't get written again on
                       // the next checkpoint or eviction.
     if (node->height == 0) {
@@ -1544,7 +1544,7 @@ static FTNODE alloc_ftnode_for_deserialize(uint32_t fullhash, BLOCKNUM blocknum)
     FTNODE XMALLOC(node);
     node->fullhash = fullhash;
     node->blocknum = blocknum;
-    node->dirty = 0;
+    node->clear_dirty();
     node->oldest_referenced_xid_known = TXNID_NONE;
     node->bp = nullptr;
     node->ct_pair = nullptr;
@@ -1951,7 +1951,7 @@ static int deserialize_and_upgrade_internal_node(FTNODE node,
     // Assign the highest msn from our upgrade message buffers
     node->max_msn_applied_to_node_on_disk = highest_msn;
     // Since we assigned MSNs to this node's messages, we need to dirty it.
-    node->dirty = 1;
+    node->set_dirty();
 
     // Must compute the checksum now (rather than at the end, while we
     // still have the pointer to the buffer).
@@ -2908,9 +2908,9 @@ int toku_serialize_rollback_log_to(int fd,
     toku_free(compressed_buf);
     if (!is_serialized) {
         toku_static_serialized_rollback_log_destroy(&serialized_local);
-        log->dirty = 0;  // See #1957.   Must set the node to be clean after
-                         // serializing it so that it doesn't get written again
-                         // on the next checkpoint or eviction.
+        log->dirty = false;  // See #1957.   Must set the node to be clean after
+                             // serializing it so that it doesn't get written again
+                             // on the next checkpoint or eviction.
     }
     return 0;
 }

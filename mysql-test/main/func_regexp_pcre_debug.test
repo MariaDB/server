@@ -1,6 +1,5 @@
 --source include/have_debug.inc
 
-SET debug_dbug='+d,pcre_exec_error_123';
+SET STATEMENT debug_dbug='+d,pcre_exec_error_123' for
 SELECT 'a' RLIKE 'a';
-SET debug_dbug='';
 SELECT 'a' RLIKE 'a';

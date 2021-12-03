@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* Defines to make different thread packages compatible */
 
@@ -189,7 +189,18 @@ extern int my_pthread_create_detached;
 int sigwait(sigset_t *set, int *sig);
 #endif
 
-#define my_sigwait(A,B) sigwait((A),(B))
+static inline int my_sigwait(sigset_t *set, int *sig, int *code)
+{
+#ifdef HAVE_SIGWAITINFO
+  siginfo_t siginfo;
+  *sig= sigwaitinfo(set, &siginfo);
+  *code= siginfo.si_code;
+  return *sig < 0 ?  errno : 0;
+#else
+  *code= 0;
+  return sigwait(set, sig);
+#endif
+}
 
 #if defined(HAVE_SIGTHREADMASK) && !defined(HAVE_PTHREAD_SIGMASK)
 #define pthread_sigmask(A,B,C) sigthreadmask((A),(B),(C))
@@ -287,16 +298,18 @@ void my_pthread_attr_getstacksize(pthread_attr_t *attrib, size_t *size);
 int my_pthread_mutex_trylock(pthread_mutex_t *mutex);
 #endif
 
-#if !defined(HAVE_PTHREAD_YIELD_ZERO_ARG)
-/* no pthread_yield() available */
 #ifdef HAVE_SCHED_YIELD
 #define pthread_yield() sched_yield()
-#elif defined(HAVE_PTHREAD_YIELD_NP) /* can be Mac OS X */
+#else
+#if !defined(HAVE_PTHREAD_YIELD_ZERO_ARG)
+/* no pthread_yield() available */
+#if defined(HAVE_PTHREAD_YIELD_NP) /* can be Mac OS X */
 #define pthread_yield() pthread_yield_np()
 #elif defined(HAVE_THR_YIELD)
 #define pthread_yield() thr_yield()
-#endif
-#endif
+#endif //defined(HAVE_PTHREAD_YIELD_NP)
+#endif //!defined(HAVE_PTHREAD_YIELD_ZERO_ARG)
+#endif //HAVE_SCHED_YIELD
 
 /*
   The defines set_timespec and set_timespec_nsec should be used
@@ -691,7 +704,11 @@ extern void my_mutex_end(void);
   We need to have at least 256K stack to handle calls to myisamchk_init()
   with the current number of keys and key parts.
 */
-#define DEFAULT_THREAD_STACK	(292*1024L)
+#if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
+#define DEFAULT_THREAD_STACK	(383*1024L) /* 392192 */
+#else
+#define DEFAULT_THREAD_STACK	(292*1024L) /* 299008 */
+#endif
 #endif
 
 #define MY_PTHREAD_LOCK_READ 0
@@ -723,13 +740,14 @@ struct st_my_thread_var
 #endif
 };
 
-extern struct st_my_thread_var *_my_thread_var(void) __attribute__ ((const));
+struct st_my_thread_var *_my_thread_var(void);
 extern void **my_thread_var_dbug(void);
 extern safe_mutex_t **my_thread_var_mutex_in_use(void);
 extern uint my_thread_end_wait_time;
 extern my_bool safe_mutex_deadlock_detector;
 #define my_thread_var (_my_thread_var())
 #define my_errno my_thread_var->thr_errno
+int set_mysys_var(struct st_my_thread_var *mysys_var);
 /*
   Keep track of shutdown,signal, and main threads so that my_end() will not
   report errors with them

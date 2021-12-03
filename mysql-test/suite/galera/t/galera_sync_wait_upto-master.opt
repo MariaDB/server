@@ -1,0 +1,1 @@
+--wsrep-sync-wait=0 --wsrep-causal-reads=OFF

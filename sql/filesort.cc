@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /**
@@ -35,11 +35,6 @@
 #include "filesort_utils.h"
 #include "sql_select.h"
 #include "debug_sync.h"
-
-/// How to write record_ref.
-#define WRITE_REF(file,from) \
-if (my_b_write((file),(uchar*) (from),param->ref_length)) \
-  DBUG_RETURN(1);
 
 	/* functions defined in this file */
 
@@ -241,7 +236,8 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     while (memory_available >= min_sort_memory)
     {
       ulonglong keys= memory_available / (param.rec_length + sizeof(char*));
-      param.max_keys_per_buffer= (uint) MY_MIN(num_rows, keys);
+      param.max_keys_per_buffer= (uint) MY_MAX(MERGEBUFF2,
+                                               MY_MIN(num_rows, keys));
       if (sort->alloc_sort_buffer(param.max_keys_per_buffer, param.rec_length))
         break;
       size_t old_memory_available= memory_available;
@@ -314,6 +310,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     param.max_keys_per_buffer=((param.max_keys_per_buffer *
                                 (param.rec_length + sizeof(char*))) /
                                param.rec_length - 1);
+    set_if_bigger(param.max_keys_per_buffer, 1);
     maxbuffer--;				// Offset from 0
     if (merge_many_buff(&param,
                         (uchar*) sort->get_sort_keys(),
@@ -475,7 +472,14 @@ uint Filesort::make_sortorder(THD *thd, JOIN *join, table_map first_table_bit)
     if (item->type() == Item::FIELD_ITEM)
       pos->field= ((Item_field*) item)->field;
     else if (item->type() == Item::SUM_FUNC_ITEM && !item->const_item())
-      pos->field= ((Item_sum*) item)->get_tmp_table_field();
+    {
+      // Aggregate, or Item_aggregate_ref
+      DBUG_ASSERT(first->type() == Item::SUM_FUNC_ITEM ||
+                  (first->type() == Item::REF_ITEM &&
+                   static_cast<Item_ref*>(first)->ref_type() ==
+                   Item_ref::AGGREGATE_REF));
+      pos->field= first->get_tmp_table_field();
+    }
     else if (item->type() == Item::COPY_STR_ITEM)
     {						// Blob patch
       pos->item= ((Item_copy*) item)->get_item();
@@ -590,6 +594,15 @@ const char* dbug_print_table_row(TABLE *table)
   output.append(")");
   
   return output.c_ptr_safe();
+}
+
+
+const char* dbug_print_row(TABLE *table, uchar *rec)
+{
+  table->move_fields(table->field, rec, table->record[0]);
+  const char* ret= dbug_print_table_row(table);
+  table->move_fields(table->field, table->record[0], rec);
+  return ret;
 }
 
 
@@ -846,12 +859,12 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   }
   if (!quick_select)
   {
-    (void) file->extra(HA_EXTRA_NO_CACHE);	/* End cacheing of records */
+    (void) file->extra(HA_EXTRA_NO_CACHE);	/* End caching of records */
     if (!next_pos)
       file->ha_rnd_end();
   }
 
-  /* Signal we should use orignal column read and write maps */
+  /* Signal we should use original column read and write maps */
   sort_form->column_bitmaps_set(save_read_set, save_write_set);
 
   if (unlikely(thd->is_error()))
@@ -1051,7 +1064,10 @@ Type_handler_temporal_result::make_sort_key(uchar *to, Item *item,
                                             Sort_param *param) const
 {
   MYSQL_TIME buf;
-  if (item->get_date_result(current_thd, &buf, TIME_INVALID_DATES))
+  // This is a temporal type. No nanoseconds. Rounding mode is not important.
+  DBUG_ASSERT(item->cmp_type() == TIME_RESULT);
+  static const Temporal::Options opt(TIME_INVALID_DATES, TIME_FRAC_NONE);
+  if (item->get_date_result(current_thd, &buf, opt))
   {
     DBUG_ASSERT(item->maybe_null);
     DBUG_ASSERT(item->null_value);
@@ -1061,6 +1077,39 @@ Type_handler_temporal_result::make_sort_key(uchar *to, Item *item,
   else
     make_sort_key_longlong(to, item->maybe_null, false,
                            item->unsigned_flag, pack_time(&buf));
+}
+
+
+void
+Type_handler_timestamp_common::make_sort_key(uchar *to, Item *item,
+                                             const SORT_FIELD_ATTR *sort_field,
+                                             Sort_param *param) const
+{
+  THD *thd= current_thd;
+  uint binlen= my_timestamp_binary_length(item->decimals);
+  Timestamp_or_zero_datetime_native_null native(thd, item);
+  if (native.is_null() || native.is_zero_datetime())
+  {
+    // NULL or '0000-00-00 00:00:00'
+    bzero(to, item->maybe_null ? binlen + 1 : binlen);
+  }
+  else
+  {
+    if (item->maybe_null)
+      *to++= 1;
+    if (native.length() != binlen)
+    {
+      /*
+        Some items can return native representation with a different
+        number of fractional digits, e.g.: GREATEST(ts_3, ts_4) can
+        return a value with 3 fractional digits, although its fractional
+        precision is 4. Re-pack with a proper precision now.
+      */
+      Timestamp(native).to_native(&native, item->datetime_precision(thd));
+    }
+    DBUG_ASSERT(native.length() == binlen);
+    memcpy((char *) to, native.ptr(), binlen);
+  }
 }
 
 
@@ -1867,6 +1916,15 @@ Type_handler_temporal_result::sortlength(THD *thd,
                                          SORT_FIELD_ATTR *sortorder) const
 {
   sortorder->length= 8; // Sizof intern longlong
+}
+
+
+void
+Type_handler_timestamp_common::sortlength(THD *thd,
+                                          const Type_std_attributes *item,
+                                          SORT_FIELD_ATTR *sortorder) const
+{
+  sortorder->length= my_timestamp_binary_length(item->decimals);
 }
 
 

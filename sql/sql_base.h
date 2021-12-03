@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_BASE_INCLUDED
 #define SQL_BASE_INCLUDED
@@ -55,6 +55,13 @@ enum enum_resolution_type {
   RESOLVED_BEHIND_ALIAS,
   RESOLVED_WITH_NO_ALIAS,
   RESOLVED_AGAINST_ALIAS
+};
+
+/* Argument to flush_tables() of what to flush */
+enum flush_tables_type {
+  FLUSH_ALL,
+  FLUSH_NON_TRANS_TABLES,
+  FLUSH_SYS_TABLES
 };
 
 enum find_item_error_report_type {REPORT_ALL_ERRORS, REPORT_EXCEPT_NOT_FOUND,
@@ -240,8 +247,9 @@ lock_table_names(THD *thd, TABLE_LIST *table_list,
                           table_list_end, lock_wait_timeout, flags);
 }
 bool open_tables(THD *thd, const DDL_options_st &options,
-                 TABLE_LIST **tables, uint *counter, uint flags,
-                 Prelocking_strategy *prelocking_strategy);
+                 TABLE_LIST **tables, uint *counter,
+                 uint flags, Prelocking_strategy *prelocking_strategy);
+
 static inline bool
 open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags,
             Prelocking_strategy *prelocking_strategy)
@@ -288,12 +296,10 @@ TABLE *open_system_table_for_update(THD *thd, TABLE_LIST *one_table);
 TABLE *open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup);
 void close_log_table(THD *thd, Open_tables_backup *backup);
 
-TABLE *open_performance_schema_table(THD *thd, TABLE_LIST *one_table,
-                                     Open_tables_state *backup);
-void close_performance_schema_table(THD *thd, Open_tables_state *backup);
-
 bool close_cached_tables(THD *thd, TABLE_LIST *tables,
                          bool wait_for_refresh, ulong timeout);
+void purge_tables(bool purge_flag);
+bool flush_tables(THD *thd, flush_tables_type flag);
 bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connect_string);
 void close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                                ha_extra_function extra,
@@ -347,13 +353,6 @@ inline void setup_table_map(TABLE *table, TABLE_LIST *table_list, uint tablenr)
   table->force_index= table_list->force_index;
   table->force_index_order= table->force_index_group= 0;
   table->covering_keys= table->s->keys_for_keyread;
-  TABLE_LIST *orig= table_list->select_lex ?
-    table_list->select_lex->master_unit()->derived : 0;
-  if (!orig || !orig->is_merged_derived())
-  {
-    /* Tables merged from derived were set up already.*/
-    table->covering_keys= table->s->keys_for_keyread;
-  }
 }
 
 inline TABLE_LIST *find_table_in_global_list(TABLE_LIST *table,
@@ -391,6 +390,7 @@ class Prelocking_strategy
 public:
   virtual ~Prelocking_strategy() { }
 
+  virtual void reset(THD *thd) { };
   virtual bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
                               Sroutine_hash_entry *rt, sp_head *sp,
                               bool *need_prelocking) = 0;
@@ -398,6 +398,7 @@ public:
                             TABLE_LIST *table_list, bool *need_prelocking) = 0;
   virtual bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
                            TABLE_LIST *table_list, bool *need_prelocking)= 0;
+  virtual bool handle_end(THD *thd) { return 0; };
 };
 
 
@@ -507,6 +508,12 @@ inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
 
 bool restart_trans_for_tables(THD *thd, TABLE_LIST *table);
 
+bool extend_table_list(THD *thd, TABLE_LIST *tables,
+                       Prelocking_strategy *prelocking_strategy,
+                       bool has_prelocking_list);
+
+void promote_select_describe_flag_if_needed(LEX *lex);
+
 /**
   A context of open_tables() function, used to recover
   from a failed open_table() or open_routine() attempt.
@@ -554,14 +561,14 @@ public:
     Set flag indicating that we have already acquired metadata lock
     protecting this statement against GRL while opening tables.
   */
-  void set_has_protection_against_grl()
+  void set_has_protection_against_grl(enum_mdl_type mdl_type)
   {
-    m_has_protection_against_grl= TRUE;
+    m_has_protection_against_grl|= MDL_BIT(mdl_type);
   }
 
-  bool has_protection_against_grl() const
+  bool has_protection_against_grl(enum_mdl_type mdl_type) const
   {
-    return m_has_protection_against_grl;
+    return (bool) (m_has_protection_against_grl & MDL_BIT(mdl_type));
   }
 
 private:
@@ -593,7 +600,7 @@ private:
     Indicates that in the process of opening tables we have acquired
     protection against global read lock.
   */
-  bool m_has_protection_against_grl;
+  mdl_bitmap_t m_has_protection_against_grl;
 };
 
 

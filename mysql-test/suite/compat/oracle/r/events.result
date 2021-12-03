@@ -8,6 +8,8 @@ CREATE TABLE t1 (a TIMESTAMP);
 CREATE EVENT e1
 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 MICROSECOND
 DO INSERT INTO t1 VALUES(NOW());
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SET GLOBAL event_scheduler=on;
 SELECT COUNT(*) FROM t1;
 COUNT(*)

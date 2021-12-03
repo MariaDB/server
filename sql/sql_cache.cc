@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Description of the query cache:
@@ -276,8 +276,8 @@ functions:
        - Called before parsing and used to match a statement with the stored
          queries hash.
          If a match is found the cached result set is sent through repeated
-         calls to net_real_write. (note: calling thread doesn't have a regis-
-         tered result set writer: thd->net.query_cache_query=0)
+         calls to net_real_write. (note: calling thread does not have a
+         registered result set writer: thd->net.query_cache_query=0)
  2. Query_cache::store_query
        - Called just before handle_select() and is used to register a result
          set writer to the statement currently being processed
@@ -329,9 +329,6 @@ TODO list:
 */
 
 #include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
-#if defined(DBUG_OFF) && defined(HAVE_MADVISE)
-#include <sys/mman.h>
-#endif
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include "sql_cache.h"
@@ -1452,7 +1449,7 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     DBUG_PRINT("qcache", ("\
 long %d, 4.1: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
 CS client: %u, CS result: %u, CS conn: %u, limit: %llu, TZ: %p, \
-sql mode: 0x%llx, sort len: %llu, conncat len: %llu, div_precision: %zu, \
+sql mode: 0x%llx, sort len: %llu, concat len: %u, div_precision: %zu, \
 def_week_frmt: %zu, in_trans: %d, autocommit: %d",
                           (int)flags.client_long_flag,
                           (int)flags.client_protocol_41,
@@ -1952,7 +1949,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   DBUG_PRINT("qcache", ("\
 long %d, 4.1: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
 CS client: %u, CS result: %u, CS conn: %u, limit: %llu, TZ: %p, \
-sql mode: 0x%llx, sort len: %llu, conncat len: %llu, div_precision: %zu, \
+sql mode: 0x%llx, sort len: %llu, concat len: %u, div_precision: %zu, \
 def_week_frmt: %zu, in_trans: %d, autocommit: %d",
                           (int)flags.client_long_flag,
                           (int)flags.client_protocol_41,
@@ -2661,7 +2658,7 @@ size_t Query_cache::init_cache()
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DONTDUMP)
   if (madvise(cache, query_cache_size+additional_data_size, MADV_DONTDUMP))
   {
-    DBUG_PRINT("warning", ("coudn't mark query cache memory as MADV_DONTDUMP: %s",
+    DBUG_PRINT("warning", ("coudn't mark query cache memory as " DONTDUMP_STR ": %s",
 			 strerror(errno)));
   }
 #endif
@@ -2830,7 +2827,7 @@ void Query_cache::free_cache()
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
   if (madvise(cache, query_cache_size+additional_data_size, MADV_DODUMP))
   {
-    DBUG_PRINT("warning", ("coudn't mark query cache memory as MADV_DODUMP: %s",
+    DBUG_PRINT("warning", ("coudn't mark query cache memory as " DODUMP_STR ": %s",
 			 strerror(errno)));
   }
 #endif
@@ -3415,7 +3412,7 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
       if (!insert_table(thd, key_length, key, (*block_table),
                         tables_used->view_db.length, 0,
                         HA_CACHE_TBL_NONTRANSACT, 0, 0, TRUE))
-        DBUG_RETURN(0);
+      goto err_cleanup;
       /*
         We do not need to register view tables here because they are already
         present in the global list.
@@ -3439,7 +3436,7 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
                         tables_used->callback_func,
                         tables_used->engine_data,
                         TRUE))
-        DBUG_RETURN(0);
+      goto err_cleanup;
 
       if (tables_used->table->file->
           register_query_cache_dependant_tables(thd, this, block_table, &n))
@@ -3447,6 +3444,11 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
     }
   }
   DBUG_RETURN(n - counter);
+err_cleanup:
+  // Mark failed
+  (*block_table)->next= (*block_table)->prev= NULL;
+  (*block_table)->parent= NULL;
+  DBUG_RETURN(0);
 }
 
 /*
@@ -3480,7 +3482,12 @@ my_bool Query_cache::register_all_tables(THD *thd,
     for (Query_cache_block_table *tmp = block->table(0) ;
 	 tmp != block_table;
 	 tmp++)
-      unlink_table(tmp);
+    {
+      if (tmp->prev) // not marked as failed and unuseable
+        unlink_table(tmp);
+      else
+        break;
+    }
     if (block_table->parent)
       unlink_table(block_table);
   }

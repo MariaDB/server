@@ -1,0 +1,84 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection master_1;
+set @old_spider_direct_dup_insert= @@spider_direct_dup_insert;
+set session spider_direct_dup_insert= 1;
+
+this test is for MDEV-18992
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+create table and insert
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+txt_utf8 char(8) NOT NULL,
+txt_cp932 char(8) NOT NULL COLLATE cp932_japanese_ci,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE DEFAULT CHARACTER SET utf8 MASTER_1_COMMENT_2_1
+INSERT INTO tbl_a (pkey,txt_utf8,txt_cp932) VALUES (0,'',''),(1,'',''),(2,'',''),(3,'',''),(4,'',''),(5,'',''),(6,'',''),(7,'',''),(8,'',''),(9,'','');
+FLUSH TABLES;
+
+test 1
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SET NAMES cp932;
+INSERT INTO tbl_a (pkey,txt_utf8,txt_cp932) VALUES (10,'','íÜçë');
+INSERT INTO tbl_a (pkey,txt_utf8,txt_cp932) VALUES (0,'','') ON DUPLICATE KEY UPDATE txt_cp932 = 'íÜçë';
+UPDATE tbl_a SET txt_cp932 = 'íÜçë' WHERE pkey = 2;
+SET NAMES utf8;
+connection child2_1;
+SET NAMES cp932;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %' OR argument LIKE '%update %';
+argument
+insert into `auto_test_remote`.`tbl_a`(`pkey`,`txt_utf8`,`txt_cp932`)values(10,'',_cp932'\\x92\\x86\\x8D\\x91')
+insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`,`txt_utf8`,`txt_cp932`)values(0,'',_cp932'') on duplicate key update `txt_cp932` = _cp932'\x92\x86\x8D\x91'
+update `auto_test_remote`.`tbl_a` set `txt_cp932` = _cp932'\x92\x86\x8D\x91' where (`pkey` = 2)
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %' OR argument LIKE '%update %'
+SELECT pkey, txt_utf8, txt_cp932 FROM tbl_a ORDER BY pkey;
+pkey	txt_utf8	txt_cp932
+0		íÜçë
+1		
+2		íÜçë
+3		
+4		
+5		
+6		
+7		
+8		
+9		
+10		íÜçë
+SET NAMES utf8;
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+connection master_1;
+set session spider_direct_dup_insert= @old_spider_direct_dup_insert;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

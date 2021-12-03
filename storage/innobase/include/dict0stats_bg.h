@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,8 +26,6 @@ Created Apr 26, 2012 Vasil Dimov
 
 #ifndef dict0stats_bg_h
 #define dict0stats_bg_h
-
-#include "univ.i"
 
 #include "dict0types.h"
 #include "os0event.h"
@@ -74,7 +72,7 @@ dict_stats_stop_bg(
 	dict_table_t*	table)	/*!< in/out: table */
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	if (!(table->stats_bg_flag & BG_STAT_IN_PROGRESS)) {
 		return(true);
@@ -92,7 +90,7 @@ and restore the lock before it exits.
 The background stats thread is guaranteed not to start using the specified
 table after this function returns and before the caller unlocks the data
 dictionary because it sets the BG_STAT_IN_PROGRESS bit in table->stats_bg_flag
-under dict_sys->mutex. */
+under dict_sys.mutex. */
 void
 dict_stats_wait_bg_to_stop_using_table(
 /*===================================*/

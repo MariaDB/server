@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_CONNECT_INCLUDED
 #define SQL_CONNECT_INCLUDED
@@ -42,11 +42,14 @@ public:
   bool thread_count_incremented;
   ulonglong    prior_thr_create_utime;
 
+  static Atomic_counter<uint32_t> count;
+
   CONNECT()
     :vio(0), host(0), scheduler(thread_scheduler), thread_id(0), real_id(0),
     extra_port(0),
     thread_count_incremented(0), prior_thr_create_utime(0)
   {
+    count++;
   };
   ~CONNECT();
   void close_and_delete();

@@ -8,6 +8,8 @@
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
+--source include/default_charset.inc
+
 connect (ssl_con,localhost,root,,,,,SSL);
 
 # Check ssl turned on
@@ -31,11 +33,6 @@ select 'still connected?';
 
 connection default;
 disconnect ssl_con;
-
-create user mysqltest_1@localhost;
-grant usage on mysqltest.* to mysqltest_1@localhost require cipher "AES256-SHA";
---exec $MYSQL -umysqltest_1 --ssl-cipher=AES256-SHA -e "show status like 'ssl_cipher'" 2>&1
-drop user mysqltest_1@localhost;
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc

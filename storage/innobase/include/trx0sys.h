@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,8 +26,6 @@ Created 3/26/1996 Heikki Tuuri
 
 #ifndef trx0sys_h
 #define trx0sys_h
-
-#include "univ.i"
 
 #include "buf0buf.h"
 #include "fil0fil.h"
@@ -70,17 +68,12 @@ trx_sys_rseg_find_free(const buf_block_t* sys_header);
 @param[in]	rw	whether to lock the page for writing
 @return the TRX_SYS page
 @retval	NULL	if the page cannot be read */
-inline
-buf_block_t*
-trx_sysf_get(mtr_t* mtr, bool rw = true)
+inline buf_block_t *trx_sysf_get(mtr_t* mtr, bool rw= true)
 {
-	buf_block_t* block = buf_page_get(
-		page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
-		univ_page_size, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
-	if (block) {
-		buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
-	}
-	return block;
+  buf_block_t* block = buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
+				    0, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
+  ut_d(if (block) buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);)
+  return block;
 }
 
 #ifdef UNIV_DEBUG
@@ -96,7 +89,6 @@ void
 trx_write_trx_id(byte* db_trx_id, trx_id_t id)
 {
 	compile_time_assert(DATA_TRX_ID_LEN == 6);
-	ut_ad(id);
 	mach_write_to_6(db_trx_id, id);
 }
 
@@ -202,14 +194,13 @@ trx_sysf_rseg_get_space(const buf_block_t* sys_header, ulint rseg_id)
 @param[in]	sys_header	TRX_SYS page
 @param[in]	rseg_id		rollback segment identifier
 @return	undo page number */
-inline
-uint32_t
-trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
+inline uint32_t
+trx_sysf_rseg_get_page_no(const buf_block_t *sys_header, ulint rseg_id)
 {
-	ut_ad(rseg_id < TRX_SYS_N_RSEGS);
-	return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO
-				+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
-				+ sys_header->frame);
+  ut_ad(rseg_id < TRX_SYS_N_RSEGS);
+  return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO +
+			  rseg_id * TRX_SYS_RSEG_SLOT_SIZE +
+			  sys_header->frame);
 }
 
 /** Maximum length of MySQL binlog file name, in bytes.
@@ -346,9 +337,9 @@ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID. */
 
 /*-------------------------------------------------------------*/
 /** Contents of TRX_SYS_DOUBLEWRITE_MAGIC */
-#define TRX_SYS_DOUBLEWRITE_MAGIC_N	536853855
+constexpr uint32_t TRX_SYS_DOUBLEWRITE_MAGIC_N= 536853855;
 /** Contents of TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED */
-#define TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N 1783657386
+constexpr uint32_t TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N= 1783657386;
 
 /** Size of the doublewrite block in pages */
 #define TRX_SYS_DOUBLEWRITE_BLOCK_SIZE	FSP_EXTENT_SIZE
@@ -371,7 +362,7 @@ struct rw_trx_hash_element_t
 
 
   trx_id_t id; /* lf_hash_init() relies on this to be first in the struct */
-  trx_id_t no;
+  Atomic_counter<trx_id_t> no;
   trx_t *trx;
   ib_mutex_t mutex;
 };
@@ -433,6 +424,7 @@ class rw_trx_hash_t
     if (trx_t *trx= element->trx)
     {
       ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED) ||
+            trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
             (trx_state_eq(trx, TRX_STATE_ACTIVE) &&
              (!srv_was_started ||
               srv_read_only_mode ||
@@ -514,9 +506,12 @@ class rw_trx_hash_t
   static void validate_element(trx_t *trx)
   {
     ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
-    ut_ad(!trx_is_autocommit_non_locking(trx));
+    ut_ad(!trx->is_autocommit_non_locking());
+    /* trx->state can be anything except TRX_STATE_NOT_STARTED */
     mutex_enter(&trx->mutex);
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
+          trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) ||
+          trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
           trx_state_eq(trx, TRX_STATE_PREPARED));
     mutex_exit(&trx->mutex);
   }
@@ -564,7 +559,7 @@ public:
     Releases LF_HASH pins.
 
     Must be called by thread that owns trx_t object when the latter is being
-    "detached" from thread (e.g. released to the pool by trx_free()). Can be
+    "detached" from thread (e.g. released to the pool by trx_t::free()). Can be
     called earlier if thread is expected not to use rw_trx_hash.
 
     Since pins are not allowed to be transferred to another thread,
@@ -626,12 +621,7 @@ public:
       The caller should already have handled trx_id==0 specially.
     */
     ut_ad(trx_id);
-    if (caller_trx && caller_trx->id == trx_id)
-    {
-      if (do_ref_count)
-        caller_trx->reference();
-      return caller_trx;
-    }
+    ut_ad(!caller_trx || caller_trx->id != trx_id || !do_ref_count);
 
     trx_t *trx= 0;
     LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
@@ -644,14 +634,27 @@ public:
     {
       mutex_enter(&element->mutex);
       lf_hash_search_unpin(pins);
-      trx= element->trx;
-      if (!trx);
-      else if (UNIV_UNLIKELY(trx_id != trx->id))
-        trx= NULL;
-      else {
-        if (do_ref_count)
-          trx->reference();
+      if ((trx= element->trx)) {
+        DBUG_ASSERT(trx_id == trx->id);
         ut_d(validate_element(trx));
+        if (do_ref_count)
+        {
+          /*
+            We have an early state check here to avoid committer
+            starvation in a wait loop for transaction references,
+            when there's a stream of trx_sys.find() calls from other
+            threads. The trx->state may change to COMMITTED after
+            trx->mutex is released, and it will have to be rechecked
+            by the caller after reacquiring the mutex.
+          */
+          trx_mutex_enter(trx);
+          const trx_state_t state= trx->state;
+          trx_mutex_exit(trx);
+          if (state == TRX_STATE_COMMITTED_IN_MEMORY)
+            trx= NULL;
+          else
+            trx->reference();
+        }
       }
       mutex_exit(&element->mutex);
     }
@@ -706,11 +709,7 @@ public:
     because it may change even before this method returns.
   */
 
-  uint32_t size()
-  {
-    return uint32_t(my_atomic_load32_explicit(&hash.count,
-					      MY_MEMORY_ORDER_RELAXED));
-  }
+  uint32_t size() { return uint32_t(lf_hash_size(&hash)); }
 
 
   /**
@@ -792,7 +791,7 @@ class trx_sys_t
     The smallest number not yet assigned as a transaction id or transaction
     number. Accessed and updated with atomic operations.
   */
-  MY_ALIGNED(CACHE_LINE_SIZE) trx_id_t m_max_trx_id;
+  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<trx_id_t> m_max_trx_id;
 
 
   /**
@@ -803,17 +802,17 @@ class trx_sys_t
     @sa assign_new_trx_no()
     @sa snapshot_ids()
   */
-  MY_ALIGNED(CACHE_LINE_SIZE) trx_id_t m_rw_trx_hash_version;
+  MY_ALIGNED(CACHE_LINE_SIZE) std::atomic<trx_id_t> m_rw_trx_hash_version;
 
-
-  /**
-    TRX_RSEG_HISTORY list length (number of committed transactions to purge)
-  */
-  MY_ALIGNED(CACHE_LINE_SIZE) int32 rseg_history_len;
 
   bool m_initialised;
 
 public:
+  /**
+    TRX_RSEG_HISTORY list length (number of committed transactions to purge)
+  */
+  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<uint32_t> rseg_history_len;
+
   /** Mutex protecting trx_list. */
   MY_ALIGNED(CACHE_LINE_SIZE) mutable TrxSysMutex mutex;
 
@@ -847,8 +846,10 @@ public:
 #endif
   /** Latest recovered binlog offset */
   uint64_t recovered_binlog_offset;
-  /** Latest recovred binlog file name */
+  /** Latest recovered binlog file name */
   char recovered_binlog_filename[TRX_SYS_MYSQL_LOG_NAME_LEN];
+  /** FIL_PAGE_LSN of the page with the latest recovered binlog metadata */
+  lsn_t recovered_binlog_lsn;
 
 
   /**
@@ -889,9 +890,7 @@ public:
 
   trx_id_t get_max_trx_id()
   {
-    return static_cast<trx_id_t>
-           (my_atomic_load64_explicit(reinterpret_cast<int64*>(&m_max_trx_id),
-                                      MY_MEMORY_ORDER_RELAXED));
+    return m_max_trx_id;
   }
 
 
@@ -933,9 +932,7 @@ public:
   void assign_new_trx_no(trx_t *trx)
   {
     trx->no= get_new_trx_id_no_refresh();
-    my_atomic_store64_explicit(reinterpret_cast<int64*>
-                               (&trx->rw_trx_hash_element->no),
-                               trx->no, MY_MEMORY_ORDER_RELAXED);
+    trx->rw_trx_hash_element->no= trx->no;
     refresh_rw_trx_hash_version();
   }
 
@@ -943,7 +940,7 @@ public:
   /**
     Takes MVCC snapshot.
 
-    To reduce malloc probablility we reserver rw_trx_hash.size() + 32 elements
+    To reduce malloc probablility we reserve rw_trx_hash.size() + 32 elements
     in ids.
 
     For details about get_rw_trx_hash_version() != get_max_trx_id() spin
@@ -986,7 +983,8 @@ public:
   /** Initialiser for m_max_trx_id and m_rw_trx_hash_version. */
   void init_max_trx_id(trx_id_t value)
   {
-    m_max_trx_id= m_rw_trx_hash_version= value;
+    m_max_trx_id= value;
+    m_rw_trx_hash_version.store(value, std::memory_order_relaxed);
   }
 
 
@@ -1108,22 +1106,6 @@ public:
     return count;
   }
 
-  /** @return number of committed transactions waiting for purge */
-  ulint history_size() const
-  {
-    return uint32(my_atomic_load32(&const_cast<trx_sys_t*>(this)
-                                   ->rseg_history_len));
-  }
-  /** Add to the TRX_RSEG_HISTORY length (on database startup). */
-  void history_add(int32 len)
-  {
-    my_atomic_add32(&rseg_history_len, len);
-  }
-  /** Register a committed transaction. */
-  void history_insert() { history_add(1); }
-  /** Note that a committed transaction was purged. */
-  void history_remove() { history_add(-1); }
-
 private:
   static my_bool get_min_trx_id_callback(rw_trx_hash_element_t *element,
                                          trx_id_t *id)
@@ -1154,8 +1136,7 @@ private:
   {
     if (element->id < arg->m_id)
     {
-      trx_id_t no= static_cast<trx_id_t>(my_atomic_load64_explicit(
-        reinterpret_cast<int64*>(&element->no), MY_MEMORY_ORDER_RELAXED));
+      trx_id_t no= element->no;
       arg->m_ids->push_back(element->id);
       if (no < arg->m_no)
         arg->m_no= no;
@@ -1167,18 +1148,14 @@ private:
   /** Getter for m_rw_trx_hash_version, must issue ACQUIRE memory barrier. */
   trx_id_t get_rw_trx_hash_version()
   {
-    return static_cast<trx_id_t>
-           (my_atomic_load64_explicit(reinterpret_cast<int64*>
-                                      (&m_rw_trx_hash_version),
-                                      MY_MEMORY_ORDER_ACQUIRE));
+    return m_rw_trx_hash_version.load(std::memory_order_acquire);
   }
 
 
   /** Increments m_rw_trx_hash_version, must issue RELEASE memory barrier. */
   void refresh_rw_trx_hash_version()
   {
-    my_atomic_add64_explicit(reinterpret_cast<int64*>(&m_rw_trx_hash_version),
-                             1, MY_MEMORY_ORDER_RELEASE);
+    m_rw_trx_hash_version.fetch_add(1, std::memory_order_release);
   }
 
 
@@ -1197,8 +1174,7 @@ private:
 
   trx_id_t get_new_trx_id_no_refresh()
   {
-    return static_cast<trx_id_t>(my_atomic_add64_explicit(
-      reinterpret_cast<int64*>(&m_max_trx_id), 1, MY_MEMORY_ORDER_RELAXED));
+    return m_max_trx_id++;
   }
 };
 

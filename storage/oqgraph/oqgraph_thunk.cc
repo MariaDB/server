@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
@@ -109,7 +109,7 @@ const std::string& oqgraph3::cursor::record_position() const
     if (_graph->_cursor->_index >= 0)
     {
       key_copy((uchar*) _graph->_cursor->_key.data(), table.record[0],
-          table.s->key_info + _index, table.s->key_info[_index].key_length, true);
+          table.key_info + _index, table.key_info[_index].key_length, true);
     }
 
     _graph->_stale= false;
@@ -184,7 +184,7 @@ int oqgraph3::cursor::restore_position()
     if (int rc= table.file->ha_index_read_map(
                     table.record[0], (const uchar*) _key.data(),
                     (key_part_map)(1 << _parts) - 1,
-                    table.s->key_info[_index].user_defined_key_parts == _parts ?
+                    table.key_info[_index].user_defined_key_parts == _parts ?
                         HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT))
     {
       table.file->ha_index_end();
@@ -368,7 +368,7 @@ int oqgraph3::cursor::seek_to(
     if (!destid)
     {
       int i= 0;
-      for( ::KEY *key_info= table.s->key_info,
+      for( ::KEY *key_info= table.key_info,
                  *key_end= key_info + table.s->keys;
           key_info < key_end; ++key_info, ++i)
       {
@@ -399,7 +399,7 @@ int oqgraph3::cursor::seek_to(
     else if (!origid)
     {
       int i= 0;
-      for( ::KEY *key_info= table.s->key_info,
+      for( ::KEY *key_info= table.key_info,
                  *key_end= key_info + table.s->keys;
           key_info < key_end; ++key_info, ++i)
       {
@@ -430,7 +430,7 @@ int oqgraph3::cursor::seek_to(
     else
     {
       int i= 0;
-      for( ::KEY *key_info= table.s->key_info,
+      for( ::KEY *key_info= table.key_info,
                  *key_end= key_info + table.s->keys;
           key_info < key_end; ++key_info, ++i)
       {
@@ -485,7 +485,7 @@ int oqgraph3::cursor::seek_to(
     if (int rc= table.file->ha_index_read_map(
             table.record[0], (uchar*) _key.data(),
             (key_part_map) ((1U << _parts) - 1),
-            table.s->key_info[_index].user_defined_key_parts == _parts ?
+            table.key_info[_index].user_defined_key_parts == _parts ?
                 HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT))
     {
       table.file->ha_index_end();

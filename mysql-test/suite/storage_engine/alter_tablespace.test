@@ -46,7 +46,7 @@ wait
 EOF
 
   --enable_reconnect
-  --shutdown_server 60
+  --shutdown_server
 
   --source include/wait_until_disconnected.inc
 

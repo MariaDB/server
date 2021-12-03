@@ -591,9 +591,74 @@ INSERT INTO t1 VALUES ('1985-05-13'),('1989-12-24');
 SELECT d, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP HAVING CASE d WHEN '2017-05-25' THEN 0 ELSE 1 END;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-17299 Assertion `maybe_null' failed in make_sortkey
+--echo #
+
+CREATE TABLE t1 (pk int NOT NULL, d1 date, d2 date NOT NULL);
+INSERT INTO t1 values (1,'2018-06-22','2018-06-22'),(2,'2018-07-11','2018-07-11');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT group_concat(d1/(CASE 'b' WHEN 'j' THEN 'c' END))
+  FROM v1 GROUP BY greatest(pk, 0, d2);
+CREATE TABLE t2 AS SELECT greatest(pk, 0, d2) AS c1 FROM t1 LIMIT 0;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-19699 Server crashes in Item_null_result::field_type upon SELECT with ROLLUP on constant table
+--echo #
+
+CREATE TABLE t1 (d DATE) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('1999-11-04');
+SELECT d FROM t1 GROUP BY d WITH ROLLUP HAVING d > '1990-01-01';
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-20431 GREATEST(int_col,date_col) returns wrong results in a view
+--echo #
+
+CREATE TABLE t1 (pk INT NOT NULL, d DATE NOT NULL);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'2018-06-22'),(2,'2018-07-11');
+SELECT GREATEST(pk, d) FROM t1;
+SELECT GREATEST(pk, d) FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-21619 Server crash or assertion failures in my_datetime_to_str
+--echo #
+
+CREATE  TABLE t1 (f DATE, KEY(f));
+INSERT INTO t1 VALUES ('2020-01-01'),('2020-01-02');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '2012-12-12';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-27072 Subquery using the ALL keyword on date columns produces a wrong result
+--echo #
+
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('2021-11-17'), ('2021-10-17'),('2022-11-17'), ('2020-10-17');
+SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
+SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
 --echo #
 
 --echo #
@@ -676,6 +741,44 @@ INSERT INTO t1 SELECT * FROM t2;
 DROP TABLE t1,t2;
 SET sql_mode=DEFAULT;
 
+
+--echo #
+--echo # MDEV-19301 Assertion `!is_valid_datetime() || fraction_remainder(((item->decimals) < (6) ? (item->decimals) : (6))) == 0' failed in Datetime_truncation_not_needed::Datetime_truncation_not_needed
+--echo #
+
+SELECT NULLIF(CAST(1012.5 AS DATE), 1);
+SELECT CAST(1012.5 AS DATE) * 1.0;
+
+--echo #
+--echo # MDEV-23351 Rounding functions return wrong data types for DATE input
+--echo #
+
+CREATE TABLE t1 (a date);
+CREATE TABLE t2 AS SELECT FLOOR(a), CEIL(a),ROUND(a),TRUNCATE(a,0) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2,t1;
+
+--echo #
+--echo # MDEV-23388 Assertion `args[0]->decimals == 0' failed in Item_func_round::fix_arg_int
+--echo #
+
+SELECT ROUND(GREATEST('1', CAST('2020-12-12' AS DATE)));
+
+--disable_ps_protocol
+--enable_metadata
+SELECT GREATEST('1', CAST('2020-12-12' AS DATE));
+--disable_metadata
+--enable_ps_protocol
+
+CREATE TABLE t1 (c_date DATE NOT NULL, c_int INT NOT NULL);
+CREATE TABLE t2 AS SELECT
+  GREATEST(c_date,c_date),
+  GREATEST(c_date,c_int),
+  GREATEST(c_int,c_date)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.4 tests

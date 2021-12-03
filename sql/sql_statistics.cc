@@ -1,4 +1,5 @@
 /* Copyright (C) 2009 MySQL AB
+   Copyright (c) 2019, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file
@@ -29,8 +30,8 @@
 #include "sql_statistics.h"
 #include "opt_range.h"
 #include "uniques.h"
-#include "my_atomic.h"
 #include "sql_show.h"
+#include "sql_partition.h"
 
 /*
   The system variable 'use_stat_tables' can take one of the
@@ -101,29 +102,6 @@ inline void init_table_list_for_stat_tables(TABLE_LIST *tables, bool for_write)
       tables[i].prev_global= &tables[i-1].next_global;
   }
 }
-
-
-/**
-  @details
-  The function builds a TABLE_LIST containing only one element 'tbl' for
-  the statistical table called 'stat_tab_name'. 
-  The lock type of the element is set to TL_READ if for_write = FALSE,
-  otherwise it is set to TL_WRITE.
-*/
-
-static inline
-void init_table_list_for_single_stat_table(TABLE_LIST *tbl,
-                                           const LEX_CSTRING *stat_tab_name,
-                                           bool for_write)
-{
-  memset((char *) tbl, 0, sizeof(TABLE_LIST));
-
-  tbl->db= MYSQL_SCHEMA_NAME;
-  tbl->table_name= *stat_tab_name;
-  tbl->alias=      *stat_tab_name;
-  tbl->lock_type= for_write ? TL_WRITE : TL_READ;
-}
-
 
 static Table_check_intact_log_error stat_table_intact;
 
@@ -252,10 +230,8 @@ index_stat_def= {INDEX_STAT_N_FIELDS, index_stat_fields, 4, index_stat_pk_col};
   Open all statistical tables and lock them
 */
 
-static
-inline int open_stat_tables(THD *thd, TABLE_LIST *tables,
-                            Open_tables_backup *backup,
-                            bool for_write)
+static int open_stat_tables(THD *thd, TABLE_LIST *tables,
+                            Open_tables_backup *backup, bool for_write)
 {
   int rc;
 
@@ -263,12 +239,14 @@ inline int open_stat_tables(THD *thd, TABLE_LIST *tables,
   thd->push_internal_handler(&deh);
   init_table_list_for_stat_tables(tables, for_write);
   init_mdl_requests(tables);
+  thd->in_sub_stmt|= SUB_STMT_STAT_TABLES;
   rc= open_system_tables_for_read(thd, tables, backup);
+  thd->in_sub_stmt&= ~SUB_STMT_STAT_TABLES;
   thd->pop_internal_handler();
 
 
   /* If the number of tables changes, we should revise the check below. */
-  DBUG_ASSERT(STATISTICS_TABLES == 3);
+  compile_time_assert(STATISTICS_TABLES == 3);
 
   if (!rc &&
       (stat_table_intact.check(tables[TABLE_STAT].table, &table_stat_def) ||
@@ -286,16 +264,21 @@ inline int open_stat_tables(THD *thd, TABLE_LIST *tables,
 /**
   @brief
   Open a statistical table and lock it
+
+  @details
+  This is used by DDLs. When a column or index is dropped or renamed,
+  stat tables need to be adjusted accordingly.
 */
-static
-inline int open_single_stat_table(THD *thd, TABLE_LIST *table,
-                                  const LEX_CSTRING *stat_tab_name,
-                                  Open_tables_backup *backup,
-                                  bool for_write)
+static inline int open_stat_table_for_ddl(THD *thd, TABLE_LIST *table,
+                                         const LEX_CSTRING *stat_tab_name,
+                                         Open_tables_backup *backup)
 {
-  init_table_list_for_single_stat_table(table, stat_tab_name, for_write);
-  init_mdl_requests(table);
-  return open_system_tables_for_read(thd, table, backup);
+  table->init_one_table(&MYSQL_SCHEMA_NAME, stat_tab_name, NULL, TL_WRITE);
+  No_such_table_error_handler nst_handler;
+  thd->push_internal_handler(&nst_handler);
+  int res= open_system_tables_for_read(thd, table, backup);
+  thd->pop_internal_handler();
+  return res;
 }
 
 
@@ -324,8 +307,8 @@ private:
 public:
 
   inline void init(THD *thd, Field * table_field);
-  inline bool add(ha_rows rowno);
-  inline void finish(ha_rows rows); 
+  inline bool add();
+  inline void finish(ha_rows rows, double sample_fraction);
   inline void cleanup();
 };
 
@@ -1039,13 +1022,14 @@ public:
 
   void store_stat_fields()
   {
-    char buff[MAX_FIELD_WIDTH];
-    String val(buff, sizeof(buff), &my_charset_bin);
+    StringBuffer<MAX_FIELD_WIDTH> val;
 
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(stat_table, &stat_table->read_set);
     for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HISTOGRAM; i++)
     {  
       Field *stat_field= stat_table->field[i];
-      if (table_field->collected_stats->is_null(i))
+      Column_statistics *stats= table_field->collected_stats;
+      if (stats->is_null(i))
         stat_field->set_null();
       else
       {
@@ -1053,48 +1037,49 @@ public:
         switch (i) {
         case COLUMN_STAT_MIN_VALUE:
           if (table_field->type() == MYSQL_TYPE_BIT)
-            stat_field->store(table_field->collected_stats->min_value->val_int(),true);
+            stat_field->store(stats->min_value->val_int(),true);
           else
           {
-            table_field->collected_stats->min_value->val_str(&val);
-            stat_field->store(val.ptr(), val.length(), &my_charset_bin);
+            stats->min_value->val_str(&val);
+            size_t length= Well_formed_prefix(val.charset(), val.ptr(),
+                           MY_MIN(val.length(), stat_field->field_length)).length();
+            stat_field->store(val.ptr(), length, &my_charset_bin);
           }
           break;
         case COLUMN_STAT_MAX_VALUE:
           if (table_field->type() == MYSQL_TYPE_BIT)
-            stat_field->store(table_field->collected_stats->max_value->val_int(),true);
+            stat_field->store(stats->max_value->val_int(),true);
           else
           {
-            table_field->collected_stats->max_value->val_str(&val);
-            stat_field->store(val.ptr(), val.length(), &my_charset_bin);
+            stats->max_value->val_str(&val);
+            size_t length= Well_formed_prefix(val.charset(), val.ptr(),
+                            MY_MIN(val.length(), stat_field->field_length)).length();
+            stat_field->store(val.ptr(), length, &my_charset_bin);
           }
           break;
         case COLUMN_STAT_NULLS_RATIO:
-          stat_field->store(table_field->collected_stats->get_nulls_ratio());
+          stat_field->store(stats->get_nulls_ratio());
           break;
         case COLUMN_STAT_AVG_LENGTH:
-          stat_field->store(table_field->collected_stats->get_avg_length());
+          stat_field->store(stats->get_avg_length());
           break;
         case COLUMN_STAT_AVG_FREQUENCY:
-          stat_field->store(table_field->collected_stats->get_avg_frequency());
+          stat_field->store(stats->get_avg_frequency());
           break; 
         case COLUMN_STAT_HIST_SIZE:
-          stat_field->store(table_field->collected_stats->histogram.get_size());
+          stat_field->store(stats->histogram.get_size());
           break;
         case COLUMN_STAT_HIST_TYPE:
-          stat_field->store(table_field->collected_stats->histogram.get_type() +
-                            1);
+          stat_field->store(stats->histogram.get_type() + 1);
           break;
         case COLUMN_STAT_HISTOGRAM:
-          const char * col_histogram=
-          (const char *) (table_field->collected_stats->histogram.get_values());
-	  stat_field->store(col_histogram,
-                            table_field->collected_stats->histogram.get_size(),
-                            &my_charset_bin);
+	  stat_field->store((char *)stats->histogram.get_values(),
+                            stats->histogram.get_size(), &my_charset_bin);
           break;           
         }
       }
     }
+    dbug_tmp_restore_column_map(&stat_table->read_set, old_map);
   }
 
 
@@ -1144,16 +1129,30 @@ public:
 
           switch (i) {
           case COLUMN_STAT_MIN_VALUE:
-	    table_field->read_stats->min_value->set_notnull();
-            stat_field->val_str(&val);
-            table_field->read_stats->min_value->store(val.ptr(), val.length(),
-                                                      &my_charset_bin);
+            table_field->read_stats->min_value->set_notnull();
+            if (table_field->type() == MYSQL_TYPE_BIT)
+              table_field->read_stats->min_value->store(stat_field->val_int(),
+                                                        true);
+            else
+            {
+              stat_field->val_str(&val);
+              table_field->read_stats->min_value->store(val.ptr(),
+                                                        val.length(),
+                                                        &my_charset_bin);
+            }
             break;
           case COLUMN_STAT_MAX_VALUE:
-	    table_field->read_stats->max_value->set_notnull();
-            stat_field->val_str(&val);
-            table_field->read_stats->max_value->store(val.ptr(), val.length(),
-                                                      &my_charset_bin);
+            table_field->read_stats->max_value->set_notnull();
+            if (table_field->type() == MYSQL_TYPE_BIT)
+              table_field->read_stats->max_value->store(stat_field->val_int(),
+                                                        true);
+            else
+            {
+              stat_field->val_str(&val);
+              table_field->read_stats->max_value->store(val.ptr(),
+                                                        val.length(),
+                                                        &my_charset_bin);
+            }
             break;
           case COLUMN_STAT_NULLS_RATIO:
             table_field->read_stats->set_nulls_ratio(stat_field->val_real());
@@ -1540,6 +1539,8 @@ class Histogram_builder
   uint curr_bucket;        /* number of the current bucket to be built     */
   ulonglong count;         /* number of values retrieved                   */
   ulonglong count_distinct;    /* number of distinct values retrieved      */
+  /* number of distinct values that occured only once  */
+  ulonglong count_distinct_single_occurence;
 
 public: 
   Histogram_builder(Field *col, uint col_len, ha_rows rows)
@@ -1553,14 +1554,21 @@ public:
     bucket_capacity= (double) records / (hist_width + 1);
     curr_bucket= 0;
     count= 0;
-    count_distinct= 0;    
+    count_distinct= 0;
+    count_distinct_single_occurence= 0;
   }
 
-  ulonglong get_count_distinct() { return count_distinct; }
+  ulonglong get_count_distinct() const { return count_distinct; }
+  ulonglong get_count_single_occurence() const
+  {
+    return count_distinct_single_occurence;
+  }
 
   int next(void *elem, element_count elem_cnt)
   {
     count_distinct++;
+    if (elem_cnt == 1)
+      count_distinct_single_occurence++;
     count+= elem_cnt;
     if (curr_bucket == hist_width)
       return 0;
@@ -1574,7 +1582,7 @@ public:
              count > bucket_capacity * (curr_bucket + 1))
       {
         histogram->set_prev_value(curr_bucket);
-	curr_bucket++;
+        curr_bucket++;
       }
     }
     return 0;
@@ -1590,9 +1598,18 @@ int histogram_build_walk(void *elem, element_count elem_cnt, void *arg)
   return hist_builder->next(elem, elem_cnt);
 }
 
+
+
+static int count_distinct_single_occurence_walk(void *elem,
+                                                element_count count, void *arg)
+{
+  ((ulonglong*)arg)[0]+= 1;
+  if (count == 1)
+    ((ulonglong*)arg)[1]+= 1;
+  return 0;
+}
+
 C_MODE_END
-
-
 /*
   The class Count_distinct_field is a helper class used to calculate
   the number of distinct values for a column. The class employs the
@@ -1610,6 +1627,9 @@ protected:
   Field *table_field;  
   Unique *tree;       /* The helper object to contain distinct values */
   uint tree_key_length; /* The length of the keys for the elements of 'tree */
+
+  ulonglong distincts;
+  ulonglong distincts_single_occurence;
 
 public:
   
@@ -1660,32 +1680,43 @@ public:
   */
   virtual bool add()
   {
+    table_field->mark_unused_memory_as_defined();
     return tree->unique_add(table_field->ptr);
-  }
-  
-  /*
-    @brief
-    Calculate the number of elements accumulated in the container of 'tree'
-  */
-  ulonglong get_value()
-  {
-    ulonglong count;
-    if (tree->elements == 0)
-      return (ulonglong) tree->elements_in_tree();
-    count= 0;  
-    tree->walk(table_field->table, count_distinct_walk, (void*) &count);
-    return count;
   }
 
   /*
     @brief
-    Build the histogram for the elements accumulated in the container of 'tree'
+    Calculate the number of elements accumulated in the container of 'tree'
   */
-  ulonglong get_value_with_histogram(ha_rows rows)
+  void walk_tree()
+  {
+    ulonglong counts[2] = {0, 0};
+    tree->walk(table_field->table,
+               count_distinct_single_occurence_walk, counts);
+    distincts= counts[0];
+    distincts_single_occurence= counts[1];
+  }
+
+  /*
+    @brief
+    Calculate a histogram of the tree
+  */
+   void walk_tree_with_histogram(ha_rows rows)
   {
     Histogram_builder hist_builder(table_field, tree_key_length, rows);
     tree->walk(table_field->table,  histogram_build_walk, (void *) &hist_builder);
-    return hist_builder.get_count_distinct();
+    distincts= hist_builder.get_count_distinct();
+    distincts_single_occurence= hist_builder.get_count_single_occurence();
+  }
+
+  ulonglong get_count_distinct()
+  {
+    return distincts;
+  }
+
+  ulonglong get_count_distinct_single_occurence()
+  {
+    return distincts_single_occurence;
   }
 
   /*
@@ -1803,16 +1834,13 @@ public:
   bool is_partial_fields_present;
 
   Index_prefix_calc(THD *thd, TABLE *table, KEY *key_info)
-    : index_table(table), index_info(key_info)
+    : index_table(table), index_info(key_info), prefixes(0), empty(true),
+    calc_state(NULL), is_single_comp_pk(false), is_partial_fields_present(false)
   {
     uint i;
     Prefix_calc_state *state;
     uint key_parts= table->actual_n_key_parts(key_info);
-    empty= TRUE;
-    prefixes= 0;
-    LINT_INIT_STRUCT(calc_state);
 
-    is_partial_fields_present= is_single_comp_pk= FALSE;
     uint pk= table->s->primary_key;
     if ((uint) (table->key_info - key_info) == pk &&
         table->key_info[pk].user_defined_key_parts == 1)
@@ -1971,7 +1999,7 @@ void create_min_max_statistical_fields_for_table(TABLE *table)
         my_ptrdiff_t diff= record-table->record[0];
         if (!bitmap_is_set(table->read_set, table_field->field_index))
           continue; 
-        if (!(fld= table_field->clone(&table->mem_root, table, diff, TRUE)))
+        if (!(fld= table_field->clone(&table->mem_root, table, diff)))
           continue;
         if (i == 0)
           table_field->collected_stats->min_value= fld;
@@ -2038,7 +2066,7 @@ void create_min_max_statistical_fields_for_table_share(THD *thd,
         Field *fld;
         Field *table_field= *field_ptr;
         my_ptrdiff_t diff= record - table_share->default_values;
-        if (!(fld= table_field->clone(&stats_cb->mem_root, diff)))
+        if (!(fld= table_field->clone(&stats_cb->mem_root, NULL, diff)))
           continue;
         if (i == 0)
           table_field->read_stats->min_value= fld;
@@ -2078,29 +2106,8 @@ void create_min_max_statistical_fields_for_table_share(THD *thd,
 int alloc_statistics_for_table(THD* thd, TABLE *table)
 { 
   Field **field_ptr;
-  uint fields;
 
   DBUG_ENTER("alloc_statistics_for_table");
-
-
-  Table_statistics *table_stats= 
-    (Table_statistics *) alloc_root(&table->mem_root,
-                                    sizeof(Table_statistics));
-
-  fields= table->s->fields ; 
-  Column_statistics_collected *column_stats=
-    (Column_statistics_collected *) alloc_root(&table->mem_root,
-                                    sizeof(Column_statistics_collected) *
-				    (fields+1));
-
-  uint keys= table->s->keys;
-  Index_statistics *index_stats=
-    (Index_statistics *) alloc_root(&table->mem_root,
-                                    sizeof(Index_statistics) * keys);
-
-  uint key_parts= table->s->ext_key_parts;
-  ulong *idx_avg_frequency= (ulong*) alloc_root(&table->mem_root,
-                                                sizeof(ulong) * key_parts);
 
   uint columns= 0;
   for (field_ptr= table->field; *field_ptr; field_ptr++)
@@ -2108,11 +2115,35 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
     if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
       columns++;
   }
+
+  Table_statistics *table_stats= 
+    (Table_statistics *) alloc_root(&table->mem_root,
+                                    sizeof(Table_statistics));
+
+  Column_statistics_collected *column_stats=
+    (Column_statistics_collected *) alloc_root(&table->mem_root,
+                                    sizeof(Column_statistics_collected) *
+				    columns);
+
+  uint keys= table->s->keys;
+  Index_statistics *index_stats=
+    (Index_statistics *) alloc_root(&table->mem_root,
+                                    sizeof(Index_statistics) * keys);
+
+  uint key_parts= table->s->ext_key_parts;
+  ulonglong *idx_avg_frequency= (ulonglong*) alloc_root(&table->mem_root,
+                                               sizeof(ulonglong) * key_parts);
+
   uint hist_size= thd->variables.histogram_size;
   Histogram_type hist_type= (Histogram_type) (thd->variables.histogram_type);
   uchar *histogram= NULL;
   if (hist_size > 0)
-    histogram= (uchar *) alloc_root(&table->mem_root, hist_size * columns);
+  {
+    if ((histogram= (uchar *) alloc_root(&table->mem_root,
+                                         hist_size * columns)))
+      bzero(histogram, hist_size * columns);
+
+  }
 
   if (!table_stats || !column_stats || !index_stats || !idx_avg_frequency ||
       (hist_size && !histogram))
@@ -2124,23 +2155,21 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   table_stats->idx_avg_frequency= idx_avg_frequency;
   table_stats->histograms= histogram;
   
-  memset(column_stats, 0, sizeof(Column_statistics) * (fields+1));
+  memset(column_stats, 0, sizeof(Column_statistics) * columns);
 
-  for (field_ptr= table->field; *field_ptr; field_ptr++, column_stats++)
+  for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    (*field_ptr)->collected_stats= column_stats;
-    (*field_ptr)->collected_stats->max_value= NULL;
-    (*field_ptr)->collected_stats->min_value= NULL;
     if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
     {
       column_stats->histogram.set_size(hist_size);
       column_stats->histogram.set_type(hist_type);
       column_stats->histogram.set_values(histogram);
       histogram+= hist_size;
+      (*field_ptr)->collected_stats= column_stats++;
     }
   }
 
-  memset(idx_avg_frequency, 0, sizeof(ulong) * key_parts);
+  memset(idx_avg_frequency, 0, sizeof(ulonglong) * key_parts);
 
   KEY *key_info, *end;
   for (key_info= table->key_info, end= key_info + table->s->keys;
@@ -2159,48 +2188,6 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
 
 
 /**
-  @brief
-  Check whether any persistent statistics for the processed command is needed
-
-  @param
-  thd         The thread handle
-
-  @details
-  The function checks whether any persitent statistics for the processed
-  command is needed to be read.
-
-  @retval
-  TRUE        statistics is needed to be read 
-  @retval
-  FALSE       Otherwise
-*/
-
-static
-inline bool statistics_for_command_is_needed(THD *thd)
-{
-  if (thd->bootstrap || thd->variables.use_stat_tables == NEVER)
-    return FALSE;
-  
-  switch(thd->lex->sql_command) {
-  case SQLCOM_SELECT:
-  case SQLCOM_INSERT:
-  case SQLCOM_INSERT_SELECT:
-  case SQLCOM_UPDATE:
-  case SQLCOM_UPDATE_MULTI:
-  case SQLCOM_DELETE:
-  case SQLCOM_DELETE_MULTI:
-  case SQLCOM_REPLACE:
-  case SQLCOM_REPLACE_SELECT:
-    break;
-  default: 
-    return FALSE;
-  }
-
-  return TRUE;
-} 
-
-
-/**
   @brief 
   Allocate memory for the statistical data used by a table share
 
@@ -2208,8 +2195,6 @@ inline bool statistics_for_command_is_needed(THD *thd)
   thd         Thread handler
   @param
   table_share Table share for which the memory for statistical data is allocated
-  @param
-  is_safe     TRUE <-> at any time only one thread can perform the function
 
   @note
   The function allocates the memory for the statistical data on a table in the
@@ -2218,8 +2203,6 @@ inline bool statistics_for_command_is_needed(THD *thd)
   mysql.index_stats. The memory is allocated for the statistics on the table,
   on the tables's columns, and on the table's indexes. The memory is allocated
   in the table_share's mem_root.
-  If the parameter is_safe is TRUE then it is guaranteed that at any given time
-  only one thread is executed the code of the function.
 
   @retval
   0     If the memory for all statistical data has been successfully allocated  
@@ -2238,37 +2221,15 @@ inline bool statistics_for_command_is_needed(THD *thd)
   Here the second and the third threads try to allocate the memory for
   statistical data at the same time. The precautions are taken to
   guarantee the correctness of the allocation.
-
-  @note
-  Currently the function always is called with the parameter is_safe set
-  to FALSE. 
 */      
 
-int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share, 
-                                     bool is_safe)
+static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
 {
-  
   Field **field_ptr;
   KEY *key_info, *end;
   TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
 
   DBUG_ENTER("alloc_statistics_for_table_share");
-
-  DEBUG_SYNC(thd, "statistics_mem_alloc_start1");
-  DEBUG_SYNC(thd, "statistics_mem_alloc_start2");
-
-  if (!statistics_for_command_is_needed(thd))
-    DBUG_RETURN(1);
-
-  if (!is_safe)
-    mysql_mutex_lock(&table_share->LOCK_share);
-
-  if (stats_cb->stats_can_be_read)
-  {
-    if (!is_safe)
-      mysql_mutex_unlock(&table_share->LOCK_share);
-    DBUG_RETURN(0);
-  }
 
   Table_statistics *table_stats= stats_cb->table_stats;
   if (!table_stats)
@@ -2276,11 +2237,7 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
     table_stats=  (Table_statistics *) alloc_root(&stats_cb->mem_root,
                                                   sizeof(Table_statistics));
     if (!table_stats)
-    {
-      if (!is_safe)
-        mysql_mutex_unlock(&table_share->LOCK_share);
       DBUG_RETURN(1);
-    }
     memset(table_stats, 0, sizeof(Table_statistics));
     stats_cb->table_stats= table_stats;
   }
@@ -2328,14 +2285,14 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
   }
 
   uint key_parts= table_share->ext_key_parts;
-  ulong *idx_avg_frequency=  table_stats->idx_avg_frequency;
+  ulonglong *idx_avg_frequency=  table_stats->idx_avg_frequency;
   if (!idx_avg_frequency)
   {
-    idx_avg_frequency= (ulong*) alloc_root(&stats_cb->mem_root,
-                                           sizeof(ulong) * key_parts);
+    idx_avg_frequency= (ulonglong*) alloc_root(&stats_cb->mem_root,
+                                               sizeof(ulonglong) * key_parts);
     if (idx_avg_frequency)
     {
-      memset(idx_avg_frequency, 0, sizeof(ulong) * key_parts);
+      memset(idx_avg_frequency, 0, sizeof(ulonglong) * key_parts);
       table_stats->idx_avg_frequency= idx_avg_frequency;
       for (key_info= table_share->key_info, end= key_info + keys;
            key_info < end; 
@@ -2346,88 +2303,9 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
       }
     }   
   }
-
-  if (column_stats && index_stats && idx_avg_frequency)
-    stats_cb->stats_can_be_read= TRUE;
-
-  if (!is_safe)
-    mysql_mutex_unlock(&table_share->LOCK_share);
-
-  DBUG_RETURN(0);
+  DBUG_RETURN(column_stats && index_stats && idx_avg_frequency ? 0 : 1);
 }
 
-
-/**
-  @brief 
-  Allocate memory for the histogram used by a table share
-
-  @param
-  thd         Thread handler
-  @param
-  table_share Table share for which the memory for histogram data is allocated
-  @param
-  is_safe     TRUE <-> at any time only one thread can perform the function
-
-  @note
-  The function allocates the memory for the histogram built for a table in the
-  table's share memory with the intention to read the data there from the
-  system persistent statistical table mysql.column_stats,
-  The memory is allocated in the table_share's mem_root.
-  If the parameter is_safe is TRUE then it is guaranteed that at any given time
-  only one thread is executed the code of the function.
-
-  @retval
-  0     If the memory for all statistical data has been successfully allocated  
-  @retval
-  1     Otherwise
-
-  @note
-  Currently the function always is called with the parameter is_safe set
-  to FALSE. 
-*/      
-
-static
-int alloc_histograms_for_table_share(THD* thd, TABLE_SHARE *table_share, 
-                                     bool is_safe)
-{
-  TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
-
-  DBUG_ENTER("alloc_histograms_for_table_share");
-
-  if (!is_safe)
-    mysql_mutex_lock(&table_share->LOCK_share);
-
-  if (stats_cb->histograms_can_be_read)
-  {
-    if (!is_safe)
-      mysql_mutex_unlock(&table_share->LOCK_share);
-    DBUG_RETURN(0);
-  }
-
-  Table_statistics *table_stats= stats_cb->table_stats;
-  ulong total_hist_size= table_stats->total_hist_size;
-
-  if (total_hist_size && !table_stats->histograms)
-  {
-    uchar *histograms= (uchar *) alloc_root(&stats_cb->mem_root,
-                                            total_hist_size);
-    if (!histograms)
-    {
-      if (!is_safe)
-        mysql_mutex_unlock(&table_share->LOCK_share);
-      DBUG_RETURN(1);
-    }
-    memset(histograms, 0, total_hist_size);
-    table_stats->histograms= histograms;
-    stats_cb->histograms_can_be_read= TRUE;
-  }
-
-  if (!is_safe)
-    mysql_mutex_unlock(&table_share->LOCK_share);
-
-  DBUG_RETURN(0);
-
-}
 
 /**
   @brief
@@ -2483,7 +2361,7 @@ void Column_statistics_collected::init(THD *thd, Field *table_field)
 */
 
 inline
-bool Column_statistics_collected::add(ha_rows rowno)
+bool Column_statistics_collected::add()
 {
 
   bool err= 0;
@@ -2492,9 +2370,11 @@ bool Column_statistics_collected::add(ha_rows rowno)
   else
   {
     column_total_length+= column->value_length();
-    if (min_value && column->update_min(min_value, rowno == nulls))
+    if (min_value && column->update_min(min_value,
+                                        is_null(COLUMN_STAT_MIN_VALUE)))
       set_not_null(COLUMN_STAT_MIN_VALUE);
-    if (max_value && column->update_max(max_value, rowno == nulls))
+    if (max_value && column->update_max(max_value,
+                                        is_null(COLUMN_STAT_MAX_VALUE)))
       set_not_null(COLUMN_STAT_MAX_VALUE);
     if (count_distinct)
       err= count_distinct->add();
@@ -2512,7 +2392,7 @@ bool Column_statistics_collected::add(ha_rows rowno)
 */
 
 inline
-void Column_statistics_collected::finish(ha_rows rows)
+void Column_statistics_collected::finish(ha_rows rows, double sample_fraction)
 {
   double val;
 
@@ -2530,16 +2410,44 @@ void Column_statistics_collected::finish(ha_rows rows)
   }
   if (count_distinct)
   {
-    ulonglong distincts;
     uint hist_size= count_distinct->get_hist_size();
+
+    /* Compute cardinality statistics and optionally histogram. */
     if (hist_size == 0)
-      distincts= count_distinct->get_value();
+      count_distinct->walk_tree();
     else
-      distincts= count_distinct->get_value_with_histogram(rows - nulls);
+      count_distinct->walk_tree_with_histogram(rows - nulls);
+
+    ulonglong distincts= count_distinct->get_count_distinct();
+    ulonglong distincts_single_occurence=
+      count_distinct->get_count_distinct_single_occurence();
+
     if (distincts)
     {
-      val= (double) (rows - nulls) / distincts;
-      set_avg_frequency(val); 
+      /*
+       We use the unsmoothed first-order jackknife estimator" to estimate
+       the number of distinct values.
+       With a sufficient large percentage of rows sampled (80%), we revert back
+       to computing the avg_frequency off of the raw data.
+      */
+      if (sample_fraction > 0.8)
+        val= (double) (rows - nulls) / distincts;
+      else
+      {
+        if (nulls == 1)
+          distincts_single_occurence+= 1;
+        if (nulls)
+          distincts+= 1;
+        double fraction_single_occurence=
+          static_cast<double>(distincts_single_occurence) / rows;
+        double total_number_of_rows= rows / sample_fraction;
+        double estimate_total_distincts= total_number_of_rows /
+                (distincts /
+                 (1.0 - (1.0 - sample_fraction) * fraction_single_occurence));
+        val = std::fmax(estimate_total_distincts * (rows - nulls) / rows, 1.0);
+      }
+
+      set_avg_frequency(val);
       set_not_null(COLUMN_STAT_AVG_FREQUENCY);
     }
     else
@@ -2727,16 +2635,32 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   Field *table_field;
   ha_rows rows= 0;
   handler *file=table->file;
+  double sample_fraction= thd->variables.sample_percentage / 100;
+  const ha_rows MIN_THRESHOLD_FOR_SAMPLING= 50000;
 
   DBUG_ENTER("collect_statistics_for_table");
 
   table->collected_stats->cardinality_is_null= TRUE;
   table->collected_stats->cardinality= 0;
 
+  if (thd->variables.sample_percentage == 0)
+  {
+    if (file->records() < MIN_THRESHOLD_FOR_SAMPLING)
+    {
+      sample_fraction= 1;
+    }
+    else
+    {
+      sample_fraction= std::fmin(
+                  (MIN_THRESHOLD_FOR_SAMPLING + 4096 *
+                   log(200 * file->records())) / file->records(), 1);
+    }
+  }
+
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     table_field= *field_ptr;   
-    if (!bitmap_is_set(table->read_set, table_field->field_index))
+    if (!table_field->collected_stats)
       continue; 
     table_field->collected_stats->init(thd, table_field);
   }
@@ -2745,7 +2669,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
   /* Perform a full table scan to collect statistics on 'table's columns */
   if (!(rc= file->ha_rnd_init(TRUE)))
-  {  
+  {
     DEBUG_SYNC(table->in_use, "statistics_collection_start");
 
     while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
@@ -2756,17 +2680,20 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
       if (rc)
         break;
 
-      for (field_ptr= table->field; *field_ptr; field_ptr++)
+      if (thd_rnd(thd) <= sample_fraction)
       {
-        table_field= *field_ptr;
-        if (!bitmap_is_set(table->read_set, table_field->field_index))
-          continue;  
-        if ((rc= table_field->collected_stats->add(rows)))
+        for (field_ptr= table->field; *field_ptr; field_ptr++)
+        {
+          table_field= *field_ptr;
+          if (!table_field->collected_stats)
+            continue;
+          if ((rc= table_field->collected_stats->add()))
+            break;
+        }
+        if (rc)
           break;
+        rows++;
       }
-      if (rc)
-        break;
-      rows++;
     }
     file->ha_rnd_end();
   }
@@ -2780,18 +2707,19 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   if (!rc)
   {
     table->collected_stats->cardinality_is_null= FALSE;
-    table->collected_stats->cardinality= rows;
+    table->collected_stats->cardinality=
+      static_cast<ha_rows>(rows / sample_fraction);
   }
 
   bitmap_clear_all(table->write_set);
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     table_field= *field_ptr;
-    if (!bitmap_is_set(table->read_set, table_field->field_index))
+    if (!table_field->collected_stats)
       continue;
     bitmap_set_bit(table->write_set, table_field->field_index); 
     if (!rc)
-      table_field->collected_stats->finish(rows);
+      table_field->collected_stats->finish(rows, sample_fraction);
     else
       table_field->collected_stats->cleanup();
   }
@@ -2891,7 +2819,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
   {
     Field *table_field= *field_ptr;
-    if (!bitmap_is_set(table->read_set, table_field->field_index))
+    if (!table_field->collected_stats)
       continue;
     restore_record(stat_table, s->default_values);
     column_stat.set_key_fields(table_field);
@@ -2970,11 +2898,25 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   Field **field_ptr;
   KEY *key_info, *key_info_end;
   TABLE_SHARE *table_share= table->s;
-  Table_statistics *read_stats= table_share->stats_cb.table_stats;
 
   DBUG_ENTER("read_statistics_for_table");
+  DEBUG_SYNC(thd, "statistics_mem_alloc_start1");
+  DEBUG_SYNC(thd, "statistics_mem_alloc_start2");
+
+  if (!table_share->stats_cb.start_stats_load())
+    DBUG_RETURN(table_share->stats_cb.stats_are_ready() ? 0 : 1);
+
+  if (alloc_statistics_for_table_share(thd, table_share))
+  {
+    table_share->stats_cb.abort_stats_load();
+    DBUG_RETURN(1);
+  }
+
+  /* Don't write warnings for internal field conversions */
+  Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
 
   /* Read statistics from the statistical table table_stats */
+  Table_statistics *read_stats= table_share->stats_cb.table_stats;
   stat_table= stat_tables[TABLE_STAT].table;
   Table_stat table_stat(stat_table, table);
   table_stat.set_key_fields();
@@ -2991,7 +2933,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     column_stat.get_stat_values();
     total_hist_size+= table_field->read_stats->histogram.get_size();
   }
-  read_stats->total_hist_size= total_hist_size;
+  table_share->stats_cb.total_hist_size= total_hist_size;
 
   /* Read statistics from the statistical table index_stats */
   stat_table= stat_tables[INDEX_STAT].table;
@@ -3052,9 +2994,8 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
       }
     }
   }
-      
-  table->stats_is_read= TRUE;
 
+  table_share->stats_cb.end_stats_load();
   DBUG_RETURN(0);
 }
 
@@ -3094,74 +3035,6 @@ void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
 
 /**
   @brief
-  Check whether any statistics is to be read for tables from a table list
-
-  @param
-  thd         The thread handle
-  @param
-  tables      The tables list for whose tables the check is to be done
-
-  @details
-  The function checks whether for any of the tables opened and locked for
-  a statement statistics from statistical tables is needed to be read.
-
-  @retval
-  TRUE        statistics for any of the tables is needed to be read 
-  @retval
-  FALSE       Otherwise
-*/
-
-static
-bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
-{
-  if (!tables)
-    return FALSE;
-  
-  if (!statistics_for_command_is_needed(thd))
-    return FALSE;
-
-  /* 
-    Do not read statistics for any query that explicity involves
-    statistical tables, failure to to do so we may end up
-    in a deadlock.
-  */
-
-  for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
-  {
-    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
-    {
-      TABLE_SHARE *table_share= tl->table->s;
-      if (table_share && 
-          table_share->table_category != TABLE_CATEGORY_USER
-          && is_stat_table(&tl->db, &tl->alias))
-        return FALSE;
-    }
-  }
-
-  for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
-  {
-    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
-    {
-      TABLE_SHARE *table_share= tl->table->s;
-      if (table_share && 
-          table_share->stats_cb.stats_can_be_read &&
-          (!table_share->stats_cb.stats_is_read ||
-           (!table_share->stats_cb.histograms_are_read &&
-            thd->variables.optimizer_use_condition_selectivity > 3)))
-        return TRUE;
-      if (table_share->stats_cb.stats_is_read)
-        tl->table->stats_is_read= TRUE;
-      if (table_share->stats_cb.histograms_are_read)
-        tl->table->histograms_are_read= TRUE;
-    } 
-  }
-
-  return FALSE;
-}
-
-
-/**
-  @brief
   Read histogram for a table from the persistent statistical tables
 
   @param
@@ -3195,26 +3068,25 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
 static
 int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 {
-  TABLE_SHARE *table_share= table->s;
-  
+  TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
   DBUG_ENTER("read_histograms_for_table");
 
-  if (!table_share->stats_cb.histograms_can_be_read)
+  if (stats_cb->start_histograms_load())
   {
-    (void) alloc_histograms_for_table_share(thd, table_share, FALSE);
-  }
-  if (table_share->stats_cb.histograms_can_be_read &&
-      !table_share->stats_cb.histograms_are_read)
-  {
-    Field **field_ptr;
-    uchar *histogram= table_share->stats_cb.table_stats->histograms;
-    TABLE *stat_table= stat_tables[COLUMN_STAT].table;
-    Column_stat column_stat(stat_table, table);
-    for (field_ptr= table_share->field; *field_ptr; field_ptr++)
+    uchar *histogram= (uchar *) alloc_root(&stats_cb->mem_root,
+                                           stats_cb->total_hist_size);
+    if (!histogram)
+    {
+      stats_cb->abort_histograms_load();
+      DBUG_RETURN(1);
+    }
+    memset(histogram, 0, stats_cb->total_hist_size);
+
+    Column_stat column_stat(stat_tables[COLUMN_STAT].table, table);
+    for (Field **field_ptr= table->s->field; *field_ptr; field_ptr++)
     {
       Field *table_field= *field_ptr;
-      uint hist_size= table_field->read_stats->histogram.get_size();
-      if (hist_size)
+      if (uint hist_size= table_field->read_stats->histogram.get_size())
       {
         column_stat.set_key_fields(table_field);
         table_field->read_stats->histogram.set_values(histogram);
@@ -3222,8 +3094,9 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
         histogram+= hist_size;
       }
     }
+    stats_cb->end_histograms_load();
   }
- 
+  table->histograms_are_read= true;
   DBUG_RETURN(0);
 }
 
@@ -3251,49 +3124,112 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 
 int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 {
+  switch (thd->lex->sql_command) {
+  case SQLCOM_SELECT:
+  case SQLCOM_INSERT:
+  case SQLCOM_INSERT_SELECT:
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_CREATE_TABLE:
+  case SQLCOM_SET_OPTION:
+  case SQLCOM_DO:
+    return read_statistics_for_tables(thd, tables);
+  default:
+    return 0;
+  }
+}
+
+
+static void dump_stats_from_share_to_table(TABLE *table)
+{
+  TABLE_SHARE *table_share= table->s;
+  KEY *key_info= table_share->key_info;
+  KEY *key_info_end= key_info + table_share->keys;
+  KEY *table_key_info= table->key_info;
+  for ( ; key_info < key_info_end; key_info++, table_key_info++)
+    table_key_info->read_stats= key_info->read_stats;
+
+  Field **field_ptr= table_share->field;
+  Field **table_field_ptr= table->field;
+  for ( ; *field_ptr; field_ptr++, table_field_ptr++)
+    (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
+  table->stats_is_read= true;
+}
+
+
+int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
+{
   TABLE_LIST stat_tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
 
-  DBUG_ENTER("read_statistics_for_tables_if_needed");
+  DBUG_ENTER("read_statistics_for_tables");
 
-  DEBUG_SYNC(thd, "statistics_read_start");
-
-  if (!statistics_for_tables_is_needed(thd, tables))
+  if (thd->bootstrap || thd->variables.use_stat_tables == NEVER)
     DBUG_RETURN(0);
 
-  if (open_stat_tables(thd, stat_tables, &open_tables_backup, FALSE))
-  {
-    thd->clear_error();
-    DBUG_RETURN(1);
-  }
+  bool found_stat_table= false;
+  bool statistics_for_tables_is_needed= false;
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
-    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
-    { 
-      TABLE_SHARE *table_share= tl->table->s;
-      if (table_share && !(table_share->table_category == TABLE_CATEGORY_USER))
-        continue;
-
-      if (table_share && 
-          table_share->stats_cb.stats_can_be_read &&
-	  !table_share->stats_cb.stats_is_read)
+    TABLE_SHARE *table_share;
+    if (!tl->is_view_or_derived() && tl->table && (table_share= tl->table->s) &&
+        table_share->tmp_table == NO_TMP_TABLE)
+    {
+      if (table_share->table_category == TABLE_CATEGORY_USER)
       {
-        (void) read_statistics_for_table(thd, tl->table, stat_tables);
-        table_share->stats_cb.stats_is_read= TRUE;
+        if (table_share->stats_cb.stats_are_ready())
+        {
+          if (!tl->table->stats_is_read)
+            dump_stats_from_share_to_table(tl->table);
+          tl->table->histograms_are_read=
+            table_share->stats_cb.histograms_are_ready();
+          if (table_share->stats_cb.histograms_are_ready() ||
+              thd->variables.optimizer_use_condition_selectivity <= 3)
+            continue;
+        }
+        statistics_for_tables_is_needed= true;
       }
-      if (table_share->stats_cb.stats_is_read)
-        tl->table->stats_is_read= TRUE;
-      if (thd->variables.optimizer_use_condition_selectivity > 3 && 
-          table_share && !table_share->stats_cb.histograms_are_read)
-      {
-        (void) read_histograms_for_table(thd, tl->table, stat_tables);
-        table_share->stats_cb.histograms_are_read= TRUE;
-      }
-      if (table_share->stats_cb.stats_is_read)
-        tl->table->histograms_are_read= TRUE;
+      else if (is_stat_table(&tl->db, &tl->alias))
+        found_stat_table= true;
     }
-  }  
+  }
+
+  DEBUG_SYNC(thd, "statistics_read_start");
+
+  /*
+    Do not read statistics for any query that explicity involves
+    statistical tables, failure to to do so we may end up
+    in a deadlock.
+  */
+  if (found_stat_table || !statistics_for_tables_is_needed)
+    DBUG_RETURN(0);
+
+  if (open_stat_tables(thd, stat_tables, &open_tables_backup, FALSE))
+    DBUG_RETURN(1);
+
+  for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
+  {
+    TABLE_SHARE *table_share;
+    if (!tl->is_view_or_derived() && tl->table && (table_share= tl->table->s) &&
+        table_share->tmp_table == NO_TMP_TABLE &&
+        table_share->table_category == TABLE_CATEGORY_USER)
+    {
+      if (!tl->table->stats_is_read)
+      {
+        if (!read_statistics_for_table(thd, tl->table, stat_tables))
+          dump_stats_from_share_to_table(tl->table);
+        else
+          continue;
+      }
+      if (thd->variables.optimizer_use_condition_selectivity > 3)
+        (void) read_histograms_for_table(thd, tl->table, stat_tables);
+    }
+  }
 
   close_system_tables(thd, &open_tables_backup);
 
@@ -3317,7 +3253,7 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
   'db' from all statistical tables: table_stats, column_stats, index_stats.
 
   @retval
-  0         If all deletions are successful  
+  0         If all deletions are successful or we couldn't open statistics table
   @retval
   1         Otherwise
 
@@ -3325,7 +3261,8 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
   The function is called when executing the statement DROP TABLE 'tab'.
 */
 
-int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab)
+int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *tab)
 {
   int err;
   enum_binlog_format save_binlog_format;
@@ -3333,11 +3270,10 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRI
   TABLE_LIST tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
   DBUG_ENTER("delete_statistics_for_table");
    
   if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
-    DBUG_RETURN(rc);
+    DBUG_RETURN(0);
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3390,21 +3326,16 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRI
   @brief
   Delete statistics on a column of the specified table
 
-  @param
-  thd         The thread handle
-  @param
-  tab         The table the column belongs to
-  @param
-  col         The field of the column whose statistics is to be deleted
+  @param thd         The thread handle
+  @param tab         The table the column belongs to
+  @param col         The field of the column whose statistics is to be deleted
 
   @details
   The function delete statistics on the column 'col' belonging to the table 
   'tab' from the statistical table column_stats. 
 
-  @retval
-  0         If the deletion is successful  
-  @retval
-  1         Otherwise
+  @retval 0  If all deletions are successful or we couldn't open statistics table
+  @retval 1  Otherwise
 
   @note
   The function is called when dropping a table column  or when changing
@@ -3419,15 +3350,11 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
   DBUG_ENTER("delete_statistics_for_column");
    
-  if (open_single_stat_table(thd, &tables, &stat_table_name[1],
-                             &open_tables_backup, TRUE))
-  {
-    thd->clear_error();
-    DBUG_RETURN(rc);
-  }
+  if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[1],
+                             &open_tables_backup))
+    DBUG_RETURN(0);
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3453,24 +3380,18 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
   @brief
   Delete statistics on an index of the specified table
 
-  @param
-  thd         The thread handle
-  @param
-  tab         The table the index belongs to
-  @param
-  key_info    The descriptor of the index whose statistics is to be deleted
-  @param
-  ext_prefixes_only  Delete statistics only on the index prefixes extended by
-                     the components of the primary key 
+  @param thd         The thread handle
+  @param tab         The table the index belongs to
+  @param key_info    The descriptor of the index whose statistics is to be deleted
+  @param ext_prefixes_only  Delete statistics only on the index prefixes
+                     extended by the components of the primary key
 
   @details
   The function delete statistics on the index  specified by 'key_info'
   defined on the table 'tab' from the statistical table index_stats.
 
-  @retval
-  0         If the deletion is successful  
-  @retval
-  1         Otherwise
+  @retval 0  If all deletions are successful or we couldn't open statistics table
+  @retval 1  Otherwise
 
   @note
   The function is called when dropping an index, or dropping/changing the
@@ -3486,15 +3407,11 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
   DBUG_ENTER("delete_statistics_for_index");
    
-  if (open_single_stat_table(thd, &tables, &stat_table_name[2],
-			     &open_tables_backup, TRUE))
-  {
-    thd->clear_error();
-    DBUG_RETURN(rc);
-  }
+  if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[2],
+			     &open_tables_backup))
+    DBUG_RETURN(0);
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3555,7 +3472,7 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   index_stats.
 
   @retval
-  0         If all updates of the table name are successful  
+  0         If all updates of the table name are successful
   @retval
   1         Otherwise
 
@@ -3563,8 +3480,10 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   The function is called when executing any statement that renames a table
 */
 
-int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab,
-                                const LEX_CSTRING *new_db, const LEX_CSTRING *new_tab)
+int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *tab,
+                                const LEX_CSTRING *new_db,
+                                const LEX_CSTRING *new_tab)
 {
   int err;
   enum_binlog_format save_binlog_format;
@@ -3575,7 +3494,9 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db, const LEX_CSTRI
   DBUG_ENTER("rename_table_in_stat_tables");
    
   if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
+  {
     DBUG_RETURN(0); // not an error
+  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3632,26 +3553,19 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db, const LEX_CSTRI
 
 
 /**
-  @brief
   Rename a column in the statistical table column_stats
 
-  @param
-  thd         The thread handle
-  @param
-  tab         The table the column belongs to
-  @param
-  col         The column to be renamed
-  @param
-  new_name    The new column name
+  @param thd         The thread handle
+  @param tab         The table the column belongs to
+  @param col         The column to be renamed
+  @param new_name    The new column name
 
   @details
   The function replaces the name of the column 'col' belonging to the table 
   'tab' for 'new_name' in the statistical table column_stats.
 
-  @retval
-  0         If all updates of the table name are successful  
-  @retval
-  1         Otherwise
+  @retval 0  If all updates of the table name are successful
+  @retval 1  Otherwise
 
   @note
   The function is called when executing any statement that renames a column,
@@ -3667,18 +3581,14 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
   DBUG_ENTER("rename_column_in_stat_tables");
   
   if (tab->s->tmp_table != NO_TMP_TABLE)
     DBUG_RETURN(0);
 
-  if (open_single_stat_table(thd, &tables, &stat_table_name[1],
-                             &open_tables_backup, TRUE))
-  {
-    thd->clear_error();
+  if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[1],
+                             &open_tables_backup))
     DBUG_RETURN(rc);
-  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3720,17 +3630,32 @@ void set_statistics_for_table(THD *thd, TABLE *table)
 {
   TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
   Table_statistics *read_stats= stats_cb->table_stats;
-  Use_stat_tables_mode use_stat_table_mode= get_use_stat_tables_mode(thd);
   table->used_stat_records= 
-    (use_stat_table_mode <= COMPLEMENTARY ||
+    (!check_eits_preferred(thd) ||
      !table->stats_is_read || read_stats->cardinality_is_null) ?
     table->file->stats.records : read_stats->cardinality;
+
+  /*
+    For partitioned table, EITS statistics is based on data from all partitions.
+
+    On the other hand, Partition Pruning figures which partitions will be
+    accessed and then computes the estimate of rows in used_partitions.
+
+    Use the estimate from Partition Pruning as it is typically more precise.
+    Ideally, EITS should provide per-partition statistics but this is not
+    implemented currently.
+  */
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (table->part_info)
+      table->used_stat_records= table->file->stats.records;
+#endif
+
   KEY *key_info, *key_info_end;
   for (key_info= table->key_info, key_info_end= key_info+table->s->keys;
        key_info < key_info_end; key_info++)
   {
     key_info->is_statistics_from_stat_tables=
-      (use_stat_table_mode > COMPLEMENTARY &&
+      (check_eits_preferred(thd) &&
        table->stats_is_read &&
        key_info->read_stats->avg_frequency_is_inited() &&
        key_info->read_stats->get_avg_frequency(0) > 0.5);
@@ -3821,6 +3746,7 @@ double get_column_range_cardinality(Field *field,
   if (!table->stats_is_read)
     return tab_records;
 
+  THD *thd= table->in_use;
   double col_nulls= tab_records * col_stats->get_nulls_ratio();
 
   double col_non_nulls= tab_records - col_nulls;
@@ -3851,7 +3777,7 @@ double get_column_range_cardinality(Field *field,
           col_stats->min_max_values_are_provided())
       {
         Histogram *hist= &col_stats->histogram;
-        if (hist->is_available())
+        if (hist->is_usable(thd))
         {
           store_key_image_to_rec(field, (uchar *) min_endp->key,
                                  field->key_length());
@@ -3895,10 +3821,10 @@ double get_column_range_cardinality(Field *field,
         max_mp_pos= 1.0;
 
       Histogram *hist= &col_stats->histogram;
-      if (!hist->is_available())
-        sel= (max_mp_pos - min_mp_pos);
-      else
+      if (hist->is_usable(thd))
         sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
+      else
+        sel= (max_mp_pos - min_mp_pos);
       res= col_non_nulls * sel;
       set_if_bigger(res, col_stats->get_avg_frequency());
     }
@@ -4042,4 +3968,38 @@ bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table)
     }
   }
   return false;
+}
+
+/*
+  Check wheter we can use EITS statistics for a field or not
+
+  TRUE : Use EITS for the columns
+  FALSE: Otherwise
+*/
+
+bool is_eits_usable(Field *field)
+{
+  Column_statistics* col_stats= field->read_stats;
+  
+  // check if column_statistics was allocated for this field
+  if (!col_stats)
+    return false;
+
+  DBUG_ASSERT(field->table->stats_is_read);
+
+  /*
+    (1): checks if we have EITS statistics for a particular column
+    (2): Don't use EITS for GEOMETRY columns
+    (3): Disabling reading EITS statistics for columns involved in the
+         partition list of a table. We assume the selecticivity for
+         such columns would be handled during partition pruning.
+  */
+
+  return !col_stats->no_stat_values_provided() &&        //(1)
+    field->type() != MYSQL_TYPE_GEOMETRY &&              //(2)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    (!field->table->part_info ||
+     !field->table->part_info->field_in_partition_expr(field)) &&     //(3)
+#endif
+    true;
 }

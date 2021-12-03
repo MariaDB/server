@@ -1,3 +1,7 @@
+set @save_query_cache_type=@@global.query_cache_type;
+set @save_query_cache_size=@@global.query_cache_size;
+set @@global.query_cache_type=1;
+set @@global.query_cache_size=1024*1024;
 create table t1 (pk int primary key, c char(8)) engine=RocksDB;
 insert into t1 values (1,'new'),(2,'new');
 select * from t1;
@@ -37,3 +41,5 @@ show global status like 'Qcache_hits';
 Variable_name	Value
 Qcache_hits	0
 drop table t1;
+set @@global.query_cache_type=@save_query_cache_type;
+set @@global.query_cache_size=@save_query_cache_size;

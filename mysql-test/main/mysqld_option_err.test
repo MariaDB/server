@@ -56,4 +56,6 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 --error 2
 --exec $MYSQLD_BOOTSTRAP_CMD --not-known-option --help --verbose >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
 
+rmdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
+
 --echo Done.

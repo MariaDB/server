@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 #include "grn.h"
 #include <stdio.h>
@@ -2194,23 +2194,6 @@ buffer_close(grn_ctx *ctx, grn_ii *ii, uint32_t pseg)
   return GRN_SUCCESS;
 }
 
-inline static uint32_t
-buffer_open_if_capable(grn_ctx *ctx, grn_ii *ii, int32_t seg, int size, buffer **b)
-{
-  uint32_t pseg, pos = SEG2POS(seg, 0);
-  if ((pseg = buffer_open(ctx, ii, pos, NULL, b)) != GRN_II_PSEG_NOT_ASSIGNED) {
-    uint16_t nterms = (*b)->header.nterms - (*b)->header.nterms_void;
-    if (!((nterms < 4096 ||
-           (ii->header->total_chunk_size >> ((nterms >> 8) - 6))
-           > (*b)->header.chunk_size) &&
-          ((*b)->header.buffer_free >= size + sizeof(buffer_term)))) {
-      buffer_close(ctx, ii, pseg);
-      return GRN_II_PSEG_NOT_ASSIGNED;
-    }
-  }
-  return pseg;
-}
-
 typedef struct {
   uint32_t rid;
   uint32_t sid;
@@ -4332,7 +4315,7 @@ grn_ii_remove(grn_ctx *ctx, const char *path)
   if (!path || strlen(path) > PATH_MAX - 4) { return GRN_INVALID_ARGUMENT; }
   if ((rc = grn_io_remove(ctx, path))) { goto exit; }
   grn_snprintf(buffer, PATH_MAX, PATH_MAX,
-               "%s.c", path);
+               "%-.256s.c", path);
   rc = grn_io_remove(ctx, buffer);
 exit :
   return rc;
@@ -4348,12 +4331,12 @@ grn_ii_truncate(grn_ctx *ctx, grn_ii *ii)
   uint32_t flags;
   if ((io_segpath = grn_io_path(ii->seg)) && *io_segpath != '\0') {
     if (!(segpath = GRN_STRDUP(io_segpath))) {
-      ERR(GRN_NO_MEMORY_AVAILABLE, "cannot duplicate path: <%s>", io_segpath);
+      ERR(GRN_NO_MEMORY_AVAILABLE, "cannot duplicate path: <%-.256s>", io_segpath);
       return GRN_NO_MEMORY_AVAILABLE;
     }
     if ((io_chunkpath = grn_io_path(ii->chunk)) && *io_chunkpath != '\0') {
       if (!(chunkpath = GRN_STRDUP(io_chunkpath))) {
-        ERR(GRN_NO_MEMORY_AVAILABLE, "cannot duplicate path: <%s>", io_chunkpath);
+        ERR(GRN_NO_MEMORY_AVAILABLE, "cannot duplicate path: <%-.256s>", io_chunkpath);
         return GRN_NO_MEMORY_AVAILABLE;
       }
     } else {
@@ -5161,7 +5144,7 @@ grn_ii_cursor_set_min(grn_ctx *ctx, grn_ii_cursor *c, grn_id min)
         c->stat |= CHUNK_USED;
         GRN_LOG(ctx, GRN_LOG_DEBUG,
                 "[ii][cursor][min] skip: %p: min(%u->%u): chunk(%u->%u): "
-                "chunk-used(%s->%s)",
+                "chunk-used(%-.256s->%-.256s)",
                 c,
                 old_min, min,
                 old_chunk, c->curr_chunk,
@@ -5222,7 +5205,7 @@ grn_ii_cursor_next_internal(grn_ctx *ctx, grn_ii_cursor *c,
               }
               GRN_TEXT_PUTC(ctx, &buf, ')');
               GRN_TEXT_PUTC(ctx, &buf, '\0');
-              GRN_LOG(ctx, GRN_LOG_DEBUG, "posting(%d):%s", count, GRN_TEXT_VALUE(&buf));
+              GRN_LOG(ctx, GRN_LOG_DEBUG, "posting(%d):%-.256s", count, GRN_TEXT_VALUE(&buf));
               GRN_OBJ_FIN(ctx, &buf);
             }
             */
@@ -6468,7 +6451,7 @@ grn_ii_column_update(grn_ctx *ctx, grn_ii *ii, grn_id rid, unsigned int section,
         ERR(GRN_INVALID_ARGUMENT,
             "[ii][column][update][new] invalid object: "
             "<%.*s>: "
-            "<%s>(%#x)",
+            "<%-.256s>(%#x)",
             name_size, name,
             grn_obj_type_to_string(type),
             type);
@@ -6581,7 +6564,7 @@ grn_ii_column_update(grn_ctx *ctx, grn_ii *ii, grn_id rid, unsigned int section,
         ERR(GRN_INVALID_ARGUMENT,
             "[ii][column][update][old] invalid object: "
             "<%.*s>: "
-            "<%s>(%#x)",
+            "<%-.256s>(%#x)",
             name_size, name,
             grn_obj_type_to_string(type),
             type);
@@ -7850,7 +7833,7 @@ grn_ii_select_cursor_open(grn_ctx *ctx,
   default :
     ERR(GRN_INVALID_ARGUMENT,
         "[ii][select][cursor][open] "
-        "EXACT, FUZZY, NEAR and NEAR2 are only supported mode: %s",
+        "EXACT, FUZZY, NEAR and NEAR2 are only supported mode: %-.256s",
         grn_operator_to_string(mode));
     break;
   }
@@ -7858,7 +7841,7 @@ grn_ii_select_cursor_open(grn_ctx *ctx,
   cursor = GRN_CALLOC(sizeof(grn_ii_select_cursor));
   if (!cursor) {
     ERR(ctx->rc,
-        "[ii][select][cursor][open] failed to allocate cursor: %s",
+        "[ii][select][cursor][open] failed to allocate cursor: %-.256s",
         ctx->errbuf);
     return NULL;
   }
@@ -7868,7 +7851,7 @@ grn_ii_select_cursor_open(grn_ctx *ctx,
 
   if (!(cursor->tis = GRN_MALLOC(sizeof(token_info *) * string_len * 2))) {
     ERR(ctx->rc,
-        "[ii][select][cursor][open] failed to allocate token info container: %s",
+        "[ii][select][cursor][open] failed to allocate token info container: %-.256s",
         ctx->errbuf);
     GRN_FREE(cursor);
     return NULL;
@@ -7908,7 +7891,7 @@ grn_ii_select_cursor_open(grn_ctx *ctx,
   case GRN_OP_NEAR :
     if (!(cursor->bt = bt_open(ctx, cursor->n_tis))) {
       ERR(ctx->rc,
-          "[ii][select][cursor][open] failed to allocate btree: %s",
+          "[ii][select][cursor][open] failed to allocate btree: %-.256s",
           ctx->errbuf);
       grn_ii_select_cursor_close(ctx, cursor);
       return NULL;
@@ -8131,7 +8114,7 @@ grn_ii_parse_regexp_query(grn_ctx *ctx,
     if (char_len == 0) {
       GRN_OBJ_FIN(ctx, &buffer);
       ERR(GRN_INVALID_ARGUMENT,
-          "%s invalid encoding character: <%.*s|%#x|>",
+          "%-.256s invalid encoding character: <%.*s|%#x|>",
           log_tag,
           (int)(current - string), string,
           *current);
@@ -8532,7 +8515,7 @@ grn_ii_select_sequential_search(grn_ctx *ctx,
         onig_error_code_to_str(message, onig_result, error_info);
         GRN_LOG(ctx, GRN_LOG_WARNING,
                 "[ii][select][sequential] "
-                "failed to create regular expression object: %s",
+                "failed to create regular expression object: %-.256s",
                 message);
         processed = GRN_FALSE;
       }
@@ -10165,7 +10148,7 @@ grn_ii_buffer_open(grn_ctx *ctx, grn_ii *ii,
         ii_buffer->block_buf = GRN_MALLOCN(grn_id, II_BUFFER_BLOCK_SIZE);
         if (ii_buffer->block_buf) {
           grn_snprintf(ii_buffer->tmpfpath, PATH_MAX, PATH_MAX,
-                       "%sXXXXXX", grn_io_path(ii->seg));
+                       "%-.256sXXXXXX", grn_io_path(ii->seg));
           ii_buffer->block_buf_size = II_BUFFER_BLOCK_SIZE;
           ii_buffer->tmpfd = grn_mkstemp(ii_buffer->tmpfpath);
           if (ii_buffer->tmpfd != -1) {
@@ -10178,7 +10161,7 @@ grn_ii_buffer_open(grn_ctx *ctx, grn_ii *ii,
             }
             return ii_buffer;
           } else {
-            SERR("failed grn_mkstemp(%s)",
+            SERR("failed grn_mkstemp(%-.256s)",
                  ii_buffer->tmpfpath);
           }
           GRN_FREE(ii_buffer->block_buf);
@@ -10325,7 +10308,7 @@ grn_ii_buffer_commit(grn_ctx *ctx, grn_ii_buffer *ii_buffer)
            ii_buffer->tmpfpath,
            O_RDONLY | GRN_OPEN_FLAG_BINARY);
   if (ii_buffer->tmpfd == -1) {
-    ERRNO_ERR("failed to open path: <%s>", ii_buffer->tmpfpath);
+    ERRNO_ERR("failed to open path: <%-.256s>", ii_buffer->tmpfpath);
     return ctx->rc;
   }
   {
@@ -10375,10 +10358,10 @@ grn_ii_buffer_commit(grn_ctx *ctx, grn_ii_buffer *ii_buffer)
   grn_close(ii_buffer->tmpfd);
   if (grn_unlink(ii_buffer->tmpfpath) == 0) {
     GRN_LOG(ctx, GRN_LOG_INFO,
-            "[ii][buffer][commit] removed temporary path: <%s>",
+            "[ii][buffer][commit] removed temporary path: <%-.256s>",
             ii_buffer->tmpfpath);
   } else {
-    ERRNO_ERR("[ii][buffer][commit] failed to remove temporary path: <%s>",
+    ERRNO_ERR("[ii][buffer][commit] failed to remove temporary path: <%-.256s>",
               ii_buffer->tmpfpath);
   }
   ii_buffer->tmpfd = -1;
@@ -10402,10 +10385,10 @@ grn_ii_buffer_close(grn_ctx *ctx, grn_ii_buffer *ii_buffer)
     grn_close(ii_buffer->tmpfd);
     if (grn_unlink(ii_buffer->tmpfpath) == 0) {
       GRN_LOG(ctx, GRN_LOG_INFO,
-              "[ii][buffer][close] removed temporary path: <%s>",
+              "[ii][buffer][close] removed temporary path: <%-.256s>",
               ii_buffer->tmpfpath);
     } else {
-      ERRNO_ERR("[ii][buffer][close] failed to remove temporary path: <%s>",
+      ERRNO_ERR("[ii][buffer][close] failed to remove temporary path: <%-.256s>",
                 ii_buffer->tmpfpath);
     }
   }
@@ -11485,10 +11468,10 @@ grn_ii_builder_fin(grn_ctx *ctx, grn_ii_builder *builder)
     grn_close(builder->fd);
     if (grn_unlink(builder->path) == 0) {
       GRN_LOG(ctx, GRN_LOG_INFO,
-              "[ii][builder][fin] removed path: <%s>",
+              "[ii][builder][fin] removed path: <%-.256s>",
               builder->path);
     } else {
-      ERRNO_ERR("[ii][builder][fin] failed to remove path: <%s>",
+      ERRNO_ERR("[ii][builder][fin] failed to remove path: <%-.256s>",
                 builder->path);
     }
   }
@@ -11796,10 +11779,10 @@ static grn_rc
 grn_ii_builder_create_file(grn_ctx *ctx, grn_ii_builder *builder)
 {
   grn_snprintf(builder->path, PATH_MAX, PATH_MAX,
-               "%sXXXXXX", grn_io_path(builder->ii->seg));
+               "%-.256sXXXXXX", grn_io_path(builder->ii->seg));
   builder->fd = grn_mkstemp(builder->path);
   if (builder->fd == -1) {
-    SERR("failed to create a temporary file: path = \"%s\"",
+    SERR("failed to create a temporary file: path = \"%-.256s\"",
          builder->path);
     return ctx->rc;
   }

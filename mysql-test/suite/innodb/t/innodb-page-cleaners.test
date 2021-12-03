@@ -1,4 +1,6 @@
 --source include/have_innodb.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 SET @saved_page_cleaners = @@GLOBAL.innodb_page_cleaners;
 

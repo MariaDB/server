@@ -1,7 +1,7 @@
 #ifndef SET_VAR_INCLUDED
 #define SET_VAR_INCLUDED
 /* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /**
   @file
@@ -112,7 +112,7 @@ public:
   virtual sys_var_pluginvar *cast_pluginvar() { return 0; }
 
   bool check(THD *thd, set_var *var);
-  uchar *value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base);
+  const uchar *value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base) const;
 
   /**
      Update the system variable with the default value from either
@@ -127,9 +127,9 @@ public:
   String *val_str(String *str, THD *thd, enum_var_type type, const LEX_CSTRING *base);
   double val_real(bool *is_null, THD *thd, enum_var_type type, const LEX_CSTRING *base);
 
-  SHOW_TYPE show_type() { return show_val_type; }
+  SHOW_TYPE show_type() const { return show_val_type; }
   int scope() const { return flags & SCOPE_MASK; }
-  CHARSET_INFO *charset(THD *thd);
+  CHARSET_INFO *charset(THD *thd) const;
   bool is_readonly() const { return flags & READONLY; }
   /**
     the following is only true for keycache variables,
@@ -208,7 +208,7 @@ public:
   */
   virtual bool session_is_default(THD *thd) { return false; }
 
-  virtual uchar *default_value_ptr(THD *thd)
+  virtual const uchar *default_value_ptr(THD *thd) const
   { return (uchar*)&option.def_value; }
 
 private:
@@ -230,18 +230,18 @@ protected:
     It must be of show_val_type type (my_bool for SHOW_MY_BOOL,
     int for SHOW_INT, longlong for SHOW_LONGLONG, etc).
   */
-  virtual uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base);
-  virtual uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base);
+  virtual const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  virtual const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
 
   /**
     A pointer to a storage area of the variable, to the raw data.
     Typically it's the same as session_value_ptr(), but it's different,
     for example, for ENUM, that is printed as a string, but stored as a number.
   */
-  uchar *session_var_ptr(THD *thd)
+  uchar *session_var_ptr(THD *thd) const
   { return ((uchar*)&(thd->variables)) + offset; }
 
-  uchar *global_var_ptr()
+  uchar *global_var_ptr() const
   { return ((uchar*)&global_system_variables) + offset; }
 
   void *max_var_ptr()
@@ -275,7 +275,21 @@ public:
   virtual int update(THD *thd)=0;                  /* To set the value */
   virtual int light_check(THD *thd) { return check(thd); }   /* for PS */
   virtual bool is_system() { return FALSE; }
+  /**
+    @returns whether this variable is @@@@optimizer_trace.
+  */
+  virtual bool is_var_optimizer_trace() const { return false; }
 };
+
+
+/**
+  Structure for holding unix timestamp and high precision second part.
+ */
+typedef struct my_time_t_hires
+{
+  my_time_t unix_time;
+  ulong second_part;
+} my_time_t_hires;
 
 
 /**
@@ -296,6 +310,7 @@ public:
     plugin_ref *plugins;                ///< for Sys_var_pluginlist
     Time_zone *time_zone;               ///< for Sys_var_tz
     LEX_STRING string_value;            ///< for Sys_var_charptr and others
+    my_time_t_hires timestamp;          ///< for Sys_var_vers_asof
     const void *ptr;                    ///< for Sys_var_struct
   } save_result;
   LEX_CSTRING base; /**< for structured variables, like keycache_name.variable_name */
@@ -306,6 +321,11 @@ public:
   int check(THD *thd);
   int update(THD *thd);
   int light_check(THD *thd);
+  virtual bool is_var_optimizer_trace() const
+  {
+    extern sys_var *Sys_optimizer_trace_ptr;
+    return var == Sys_optimizer_trace_ptr;
+  }
 };
 
 
@@ -352,6 +372,7 @@ class set_var_default_role: public set_var_base
 {
   LEX_USER *user, *real_user;
   LEX_CSTRING role;
+  const char *real_role;
 public:
   set_var_default_role(LEX_USER *user_arg, LEX_CSTRING role_arg) :
     user(user_arg), role(role_arg) {}
@@ -398,7 +419,8 @@ extern SHOW_COMP_OPTION have_openssl;
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type);
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);
 
-sys_var *find_sys_var(THD *thd, const char *str, size_t length=0);
+sys_var *find_sys_var(THD *thd, const char *str, size_t length= 0,
+                      bool throw_error= false);
 int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free);
 
 #define SYSVAR_AUTOSIZE(VAR,VAL)                        \
@@ -429,6 +451,7 @@ inline bool IS_SYSVAR_AUTOSIZE(void *ptr)
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 
 sql_mode_t expand_sql_mode(sql_mode_t sql_mode);
+const char *sql_mode_string_representation(uint bit_number);
 bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                     LEX_CSTRING *ls);
 int default_regex_flags_pcre(const THD *thd);

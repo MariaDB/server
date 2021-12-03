@@ -32,7 +32,7 @@ CALL p1('SELECT 1');
 1
 1
 'Error1: ' || SQLCODE || ' ' || SQLERRM
-Error1: 0 normal, successful completition
+Error1: 0 normal, successful completion
 CALL p1('xxx');
 'Error2: ' || SQLCODE || ' ' || SQLERRM
 Error2: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
@@ -40,7 +40,7 @@ CALL p1('SELECT 1');
 1
 1
 'Error1: ' || SQLCODE || ' ' || SQLERRM
-Error1: 0 normal, successful completition
+Error1: 0 normal, successful completion
 DROP PROCEDURE p1;
 #
 # SQLCODE and SQLERRM hidden by local variables
@@ -219,7 +219,7 @@ f1()
 Exception|1329 No data - zero rows fetched, selected, or processed
 SELECT f2() FROM DUAL;
 f2()
-Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completition
+Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completion
 DROP TABLE t1;
 DROP FUNCTION f2;
 DROP FUNCTION f1;
@@ -246,7 +246,7 @@ f1()
 Exception|1329 No data - zero rows fetched, selected, or processed
 SELECT f2() FROM DUAL;
 f2()
-Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completition
+Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completion
 DROP TABLE t1;
 DROP FUNCTION f2;
 DROP FUNCTION f1;
@@ -274,7 +274,7 @@ END;
 $$
 SELECT f2() FROM DUAL;
 f2()
-Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completition
+Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completion
 DROP FUNCTION f2;
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -299,7 +299,7 @@ END;
 $$
 SELECT f2() FROM DUAL;
 f2()
-Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completition
+Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completion
 DROP FUNCTION f2;
 DROP PROCEDURE p1;
 DROP TABLE t1;

@@ -27,10 +27,6 @@ SET @saved_log_output = @@log_output;
 SET @saved_general_log = @@GLOBAL.general_log;
 SET @saved_slow_query_log = @@GLOBAL.slow_query_log;
 
-SELECT @saved_long_query_time, @saved_log_output, @saved_general_log, @saved_slow_query_log;
-
-
-
 #
 # Check that log tables work and we can do basic selects. This also
 # tests truncate, which works in a special mode with the log tables
@@ -58,7 +54,7 @@ select * from general_log where argument like '%general_log%';
 
 #
 # Check some basic queries interfering with the log tables.
-# In our test we'll use a tbale with verbose comments to the short
+# In our test we'll use a table with verbose comments to the short
 # command type names, used in the tables
 #
 
@@ -273,6 +269,14 @@ alter table mysql.slow_log engine=memory;
 #alter table mysql.slow_log engine=blackhole;
 set storage_engine= @save_storage_engine;
 
+# Make sure only non-transactional Aria table can be used for logging
+--error ER_UNSUPORTED_LOG_ENGINE
+ALTER TABLE mysql.general_log ENGINE=Aria;
+ALTER TABLE mysql.general_log ENGINE=Aria transactional = 0;
+--error ER_UNSUPORTED_LOG_ENGINE
+ALTER TABLE mysql.slow_log ENGINE=Aria;
+ALTER TABLE mysql.slow_log ENGINE=Aria transactional = 0;
+
 drop table mysql.slow_log;
 drop table mysql.general_log;
 
@@ -471,6 +475,24 @@ drop table slow_log_new, general_log_new;
 use test;
 
 #
+# Bug#69953 / MDEV-4851
+# Log tables should be modifable on LOG_OUTPUT != TABLE
+#
+#
+
+SET GLOBAL LOG_OUTPUT = 'FILE';
+SET GLOBAL slow_query_log = 1;
+SET GLOBAL general_log = 1;
+
+ALTER TABLE mysql.slow_log ADD COLUMN comment_text TEXT NOT NULL;
+ALTER TABLE mysql.general_log ADD COLUMN comment_text TEXT NOT NULL;
+
+SET GLOBAL LOG_OUTPUT = 'NONE';
+ALTER TABLE mysql.slow_log DROP COLUMN comment_text;
+ALTER TABLE mysql.general_log DROP COLUMN comment_text;
+
+
+#
 # Bug#27857 (Log tables supplies the wrong value for generating
 #            AUTO_INCREMENT numbers)
 #
@@ -528,7 +550,7 @@ SELECT "My own slow query", sleep(2);
 SELECT "My own slow query", sleep(2);
 
 ## So we look for seq 2-4
---replace_column 1 START_TIME 2 USER_HOST 3 QUERY_TIME
+--replace_column 1 START_TIME 2 USER_HOST 3 QUERY_TIME 12 THREAD_ID
 SELECT * FROM mysql.slow_log WHERE seq >= 2 LIMIT 3;
 
 SET GLOBAL slow_query_log = 0;
@@ -855,7 +877,9 @@ SET GLOBAL slow_query_log = @old_slow_query_log;
 #
 
 select CONNECTION_ID() into @thread_id;
+--disable_ps_protocol
 truncate table mysql.general_log;
+--enable_ps_protocol
 set global general_log = on;
 --disable_result_log
 set @lparam = "000 001 002 003 004 005 006 007 008 009"

@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* This file should be included when using myisam_funktions */
 
@@ -276,7 +276,7 @@ extern int mi_rsame_with_pos(struct st_myisam_info *file,uchar *record,
 			     int inx, my_off_t pos);
 extern int mi_update(struct st_myisam_info *file,const uchar *old,
 		     const uchar *new_record);
-extern int mi_write(struct st_myisam_info *file,uchar *buff);
+extern int mi_write(struct st_myisam_info *file,const uchar *buff);
 extern my_off_t mi_position(struct st_myisam_info *file);
 extern int mi_status(struct st_myisam_info *info, MI_ISAMINFO *x, uint flag);
 extern int mi_lock_database(struct st_myisam_info *file,int lock_type);
@@ -430,6 +430,7 @@ int sort_ft_buf_flush(MI_SORT_PARAM *sort_param);
 int thr_write_keys(MI_SORT_PARAM *sort_param);
 int sort_write_record(MI_SORT_PARAM *sort_param);
 int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages, ulonglong);
+my_bool mi_too_big_key_for_sort(MI_KEYDEF *key, ha_rows rows);
 
 #ifdef	__cplusplus
 }

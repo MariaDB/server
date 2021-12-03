@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Please read ha_exmple.cc before reading this file.
@@ -146,6 +146,7 @@ public:
             HA_NO_PREFIX_CHAR_KEYS | HA_PRIMARY_KEY_REQUIRED_FOR_DELETE |
             HA_NO_TRANSACTIONS /* until fixed by WL#2952 */ |
             HA_PARTIAL_COLUMN_READ | HA_NULL_IN_KEY |
+            HA_CAN_ONLINE_BACKUPS |
             HA_CAN_REPAIR);
   }
   /*
@@ -208,7 +209,7 @@ public:
 
   void start_bulk_insert(ha_rows rows, uint flags);
   int end_bulk_insert();
-  int write_row(uchar *buf);
+  int write_row(const uchar *buf);
   int update_row(const uchar *old_data, const uchar *new_data);
   int delete_row(const uchar *buf);
   int index_init(uint keynr, bool sorted);

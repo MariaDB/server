@@ -7,7 +7,7 @@ set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 SET optimizer_switch=ifnull(@optimizer_switch_for_subselect_sj_test,'outer_join_with_cache=off');
 SET optimizer_switch=ifnull(@optimizer_switch_for_subselect_sj_test,'semijoin_with_cache=off');
 set join_cache_level=1;
-set @save_optimizer_switch=@@optimizer_switch;
+set @local_optimizer_switch=@@optimizer_switch;
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1(a int, b int);
@@ -94,6 +94,7 @@ id	select_type	tABle	type	possiBle_keys	key	key_len	ref	rows	filtered	ExtrA
 2	MATERIALIZED	t10	index	PRIMARY	PRIMARY	4	NULL	10	100.00	Using index
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`A` AS `A`,`test`.`t1`.`B` AS `B`,`test`.`t2`.`A` AS `A`,`test`.`t2`.`B` AS `B` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`A` = `test`.`t1`.`A` And <in_optimizer>(`test`.`t1`.`A`,`test`.`t1`.`A` in ( <mAteriAlize> (/* select#2 */ select `test`.`t10`.`pk` from `test`.`t10` ), <primAry_index_lookup>(`test`.`t1`.`A` in <temporAry tABle> on distinct_key where `test`.`t1`.`A` = `<suBquery2>`.`pk`)))) where 1
+set @save_join_buffer_size=@@join_buffer_size;
 set join_buffer_size=8*1024;
 we shouldn't flatten if we're going to get a join of > MAX_TABLES.
 explain select * from 
@@ -186,7 +187,7 @@ a	b	a	b
 0	0	0	0
 1	1	1	1
 2	2	2	2
-set join_buffer_size=default;
+set join_buffer_size=@save_join_buffer_size;
 prepare s1 from
 ' select * from
     t1 left join t2 on (t2.a= t1.a and t2.a in (select pk from t10))
@@ -204,7 +205,7 @@ a	b	a	b
 insert into t1 select (A.a + 10 * B.a),1 from t0 A, t0 B;
 explain extended select * from t1 where a in (select pk from t10 where pk<3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t10	range	PRIMARY	PRIMARY	4	NULL	4	100.00	Using where; Using index
+1	PRIMARY	t10	range	PRIMARY	PRIMARY	4	NULL	3	100.00	Using where; Using index
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	103	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t10` join `test`.`t1` where `test`.`t1`.`a` = `test`.`t10`.`pk` and `test`.`t10`.`pk` < 3
@@ -333,7 +334,7 @@ INSERT INTO WORKS VALUES  ('E3','P2',20);
 INSERT INTO WORKS VALUES  ('E4','P2',20);
 INSERT INTO WORKS VALUES  ('E4','P4',40);
 INSERT INTO WORKS VALUES  ('E4','P5',80);
-set optimizer_switch=@save_optimizer_switch;
+set optimizer_switch=@local_optimizer_switch;
 set optimizer_switch='materialization=off';
 explain SELECT EMPNUM, EMPNAME
 FROM STAFF
@@ -356,7 +357,7 @@ E1	Alice
 E2	Betty
 E3	Carmen
 E4	Don
-set optimizer_switch=@save_optimizer_switch;
+set optimizer_switch=@local_optimizer_switch;
 drop table STAFF,WORKS,PROJ;
 # End of bug#45191
 #
@@ -444,7 +445,7 @@ COUNT(*)
 drop table t1, t2;
 drop view v1;
 drop procedure p1;
-set SESSION optimizer_switch=@save_optimizer_switch;
+set SESSION optimizer_switch=@local_optimizer_switch;
 # End of bug#46744
 
 Bug#46797 "Crash in fix_semijoin_strategies_for_picked_join_order 
@@ -595,7 +596,7 @@ v1field
 DROP TABLE t1,t2;
 DROP VIEW v1,v2;
 DROP PROCEDURE p1;
-set SESSION optimizer_switch=@save_optimizer_switch;
+set SESSION optimizer_switch=@local_optimizer_switch;
 # End of BUG#48834
 
 Bug#49097 subquery with view generates wrong result with
@@ -729,8 +730,8 @@ SELECT int_key FROM ot1
 WHERE int_nokey IN (SELECT it2.int_key
 FROM it1 LEFT JOIN it2 ON it2.datetime_key);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	11	
-1	PRIMARY	ot1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	ot1	ALL	NULL	NULL	NULL	NULL	20	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	it1	index	NULL	int_key	4	NULL	2	Using index
 2	MATERIALIZED	it2	ALL	int_key,datetime_key	NULL	NULL	NULL	20	Using where
 DROP TABLE ot1, it1, it2;
@@ -972,11 +973,11 @@ SELECT `varchar_key`  , `varchar_nokey`
 FROM t1  
 WHERE `varchar_nokey`  < 'n' XOR `pk`  )   ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	15	100.00	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	18	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	18	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	100.00	
 2	MATERIALIZED	t1	ALL	varchar_key	NULL	NULL	NULL	15	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t2`.`varchar_nokey` AS `varchar_nokey` from `test`.`t2` semi join (`test`.`t1`) where `test`.`t1`.`varchar_nokey` = `test`.`t1`.`varchar_key` and `test`.`t2`.`varchar_nokey` = `test`.`t1`.`varchar_key` and (`test`.`t1`.`varchar_key` < 'n' xor `test`.`t1`.`pk`)
+Note	1003	select `test`.`t2`.`varchar_nokey` AS `varchar_nokey` from `test`.`t2` semi join (`test`.`t1`) where `test`.`t1`.`varchar_nokey` = `test`.`t1`.`varchar_key` and (`test`.`t1`.`varchar_key` < 'n' xor `test`.`t1`.`pk`)
 SELECT varchar_nokey
 FROM t2  
 WHERE ( `varchar_nokey`  , `varchar_nokey`  )  IN (  
@@ -1076,7 +1077,7 @@ DROP TABLE t3;
 # LPBUG#602574: RQG: sql_select.cc:5385: bool greedy_search(JOIN*, table_map, uint, 
 #               uint): Assertion `join->best_read <
 #
-set @save_optimizer_switch=@@optimizer_switch;
+set @tmp_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='materialization=off';
 CREATE TABLE t1 (
 varchar_key varchar(1) DEFAULT NULL,
@@ -1110,7 +1111,7 @@ FROM t1 RIGHT JOIN t2 ON t1.varchar_key
 )  
 );
 varchar_key
-set optimizer_switch=@save_optimizer_switch;
+set optimizer_switch=@tmp_optimizer_switch;
 DROP TABLE t1, t2, t3;
 #
 # Bug#46692 "Crash occurring on queries with nested FROM subqueries 
@@ -1236,9 +1237,11 @@ DROP TABLE t1, t2, t3;
 # 
 # BUG#53060: LooseScan semijoin strategy does not return all rows
 # 
-set @save_optimizer_switch=@@optimizer_switch;
+set @tmp_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='semijoin=on,materialization=off';
 set optimizer_switch='firstmatch=off,loosescan=on';
+set @tmp_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=4;
 CREATE TABLE t1 (i INTEGER);
 INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
 CREATE TABLE t2 (i INTEGER, j INTEGER, KEY k(i, j));
@@ -1246,14 +1249,15 @@ INSERT INTO t2 VALUES (1, 0), (1, 1), (2, 0), (2, 1);
 EXPLAIN
 SELECT * FROM t1 WHERE (i) IN (SELECT i FROM t2 where j > 0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	index	k	k	10	NULL	4	Using where; Using index; LooseScan
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	index	k	k	10	NULL	4	Using where; Using index; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; End temporary; Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE (i) IN (SELECT i FROM t2 where j > 0);
 i
 1
 2
 DROP TABLE t1, t2;
-set optimizer_switch=@save_optimizer_switch;
+set optimizer_switch=@tmp_optimizer_switch;
+set @@optimizer_use_condition_selectivity=@tmp_optimizer_use_condition_selectivity;
 #
 # BUG#49453: re-execution of prepared statement with view 
 #            and semijoin crashes
@@ -1296,7 +1300,7 @@ create table t3 (a int);
 insert into t1 values(1),(1);
 insert into t2 values(1),(1),(1),(1);
 insert into t3 values(2),(2);
-set @save_optimizer_switch=@@optimizer_switch;
+set @tmp_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='materialization=off';
 set optimizer_switch='semijoin=off';
 explain
@@ -1320,7 +1324,7 @@ select * from t1 where t1.a in (select t2.a from t2 left join t3 on t2.a=t3.a);
 a
 1
 1
-set optimizer_switch=@save_optimizer_switch;
+set optimizer_switch=@tmp_optimizer_switch;
 drop table t1,t2,t3;
 #
 # Bug#55955: crash in MEMORY engine with IN(LEFT JOIN (JOIN))
@@ -1331,7 +1335,7 @@ CREATE TABLE t3 (a INT);
 INSERT INTO t1 VALUES(1),(1);
 INSERT INTO t2 VALUES(1),(1);
 INSERT INTO t3 VALUES(2),(2);
-set @save_optimizer_switch=@@optimizer_switch;
+set @tmp_optimzer_switch=@@optimizer_switch;
 set optimizer_switch='semijoin=off,materialization=off';
 EXPLAIN
 SELECT * FROM t1
@@ -1380,7 +1384,7 @@ FROM t2 LEFT JOIN (t2 AS t2inner, t3) ON t2.a=t3.a);
 a
 1
 1
-set optimizer_switch=@save_optimizer_switch;
+set optimizer_switch=@tmp_optimzer_switch;
 DROP TABLE t1,t2,t3;
 #
 # BUG#52329 - Wrong result: subquery materialization, IN, 
@@ -1398,7 +1402,7 @@ INSERT INTO t2a VALUES ('1 - 11', '2 - 21'),
 ('1 - 13', '2 - 23');
 INSERT INTO t2b SELECT * FROM t2a;
 INSERT INTO t2c SELECT * FROM t2a;
-set @save_optimizer_switch=@@optimizer_switch;
+set @tmp_optimzer_switch=@@optimizer_switch;
 set optimizer_switch='semijoin=off,materialization=on';
 SELECT * FROM t1
 WHERE (a1, a2) IN (
@@ -1420,7 +1424,7 @@ WHERE (a1, a2) IN (
 SELECT b1, b2 FROM t2c WHERE b1 > '0');
 a1	a2
 1 - 12	2 - 22
-set optimizer_switch=@save_optimizer_switch;
+set optimizer_switch=@tmp_optimzer_switch;
 DROP TABLE t1,t2a,t2b,t2c;
 #
 # Bug#57623: subquery within before insert trigger causes crash (sj=on)
@@ -1433,7 +1437,7 @@ INSERT INTO ot1 VALUES(0),(1),(2),(3),(4),(5),(6),(7);
 INSERT INTO ot2 VALUES(0),(2),(4),(6);
 INSERT INTO ot3 VALUES(0),(3),(6);
 INSERT INTO it1 VALUES(0),(1),(2),(3),(4),(5),(6),(7);
-set @save_optimizer_switch=@@optimizer_switch;
+set @tmp_optimzer_switch=@@optimizer_switch;
 set optimizer_switch='semijoin=on';
 set optimizer_switch='materialization=off';
 explain SELECT *
@@ -1537,7 +1541,7 @@ a	a	a
 6	6	6
 7	NULL	NULL
 deallocate prepare s;
-set optimizer_switch=@save_optimizer_switch;
+set optimizer_switch=@tmp_optimzer_switch;
 DROP TABLE ot1, ot2, ot3, it1;
 #
 # Bug#59919/11766739: Crash in tmp_table_param::init() with semijoin=on
@@ -1550,7 +1554,7 @@ INSERT INTO t2 VALUES (1,1), (2,1);
 INSERT INTO t3 VALUES 
 (1,1), (2,1), (5,4), (7,3), (8,2), (8,1), (7,3),
 (9,5), (4,3), (7,2), (7,7), (3,1), (5,8), (9,7);
-set @save_optimizer_switch=@@optimizer_switch;
+set @tmp_optimzer_switch=@@optimizer_switch;
 set optimizer_switch='semijoin=off,materialization=on';
 EXPLAIN
 SELECT * FROM t3
@@ -1588,7 +1592,7 @@ f1	f2
 2	1
 8	1
 3	1
-set optimizer_switch=@save_optimizer_switch;
+set optimizer_switch=@tmp_optimzer_switch;
 DROP TABLE t1, t2, t3 ;
 #
 #
@@ -1675,7 +1679,7 @@ CREATE TABLE t3 ( f11 int) ;
 INSERT IGNORE INTO t3 VALUES (0);
 SELECT alias1.f11 AS field2
 FROM ( t3 AS alias2 JOIN t1 AS alias3 ON alias3.f10 = 1)
-LEFT JOIN t2 AS alias1 ON alias3.f11 = 1
+LEFT JOIN ( t2 AS alias1 ) ON alias3.f11 = 1
 WHERE alias2.f11 IN ( SELECT f11 FROM t2 )
 GROUP BY field2 ;
 field2
@@ -1757,8 +1761,8 @@ insert into t3 values('three'),( 'four');
 insert into t3 values('three'),( 'four');
 explain select * from t3 where t3.b in (select t2.b from t1 left join t2 on t1.a=t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	10	func	1	
 2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 select * from t3 where t3.b in (select t2.b from t1 left join t2 on t1.a=t2.a);
@@ -1991,12 +1995,13 @@ CREATE VIEW v4 AS SELECT DISTINCT f2 FROM t4 ;
 explain extended
 SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	t4	ref	f2	f2	5	test.t2.f3	2	100.00	Using index; FirstMatch(t2)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	t4	index	f2	f2	5	NULL	2	100.00	Using index
 Warnings:
-Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3`,`test`.`t3`.`f3` AS `f3` from `test`.`t1` semi join (`test`.`t4`) join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f2` = `test`.`t2`.`f3` and `test`.`t3`.`f1` = `test`.`t1`.`f1` and `test`.`t1`.`f2` = `test`.`t2`.`f2`
+Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3`,`test`.`t3`.`f3` AS `f3` from `test`.`t1` semi join (`test`.`t4`) join `test`.`t2` join `test`.`t3` where `test`.`t3`.`f1` = `test`.`t1`.`f1` and `test`.`t1`.`f2` = `test`.`t2`.`f2`
 SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4);
 f1	f2	f3	f3
 2	0	0	0
@@ -2495,8 +2500,8 @@ WHERE t1.a = t2.a AND t2.a IN (SELECT b FROM t3 STRAIGHT_JOIN t4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	1	
-1	PRIMARY	t1	ref	a	a	5	const	1	Using index
-1	PRIMARY	t2	ref	a	a	5	func	1	Using index
+1	PRIMARY	t2	ref	a	a	5	const	1	Using index
+1	PRIMARY	t1	ref	a	a	5	func	1	Using index
 2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	0	
 SELECT * FROM t1, t2
 WHERE t1.a = t2.a AND t2.a IN (SELECT b FROM t3 STRAIGHT_JOIN t4);
@@ -2555,33 +2560,94 @@ CREATE TABLE t1 ( a INT PRIMARY KEY, b INT, KEY(b) );
 INSERT INTO t1 VALUES
 (1,2),(2,1),(3,3),(4,2),(5,5),
 (6,3),(7,1),(8,4),(9,3),(10,2);
-CREATE TABLE t2 ( c INT, d INT, UNIQUE KEY(c) );
+CREATE TABLE t2 ( c INT, d INT, KEY(c) );
 INSERT INTO t2 VALUES
 (1,2),(2,1),(3,3),(4,2),(5,5),(6,3),(7,1);
+analyze table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+explain
+SELECT a, b, d FROM t1, t2
+WHERE ( b, d ) IN
+( SELECT b, d FROM t1, t2 WHERE b = c );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	
+1	PRIMARY	t1	index	b	b	5	NULL	10	Using where; Using index; LooseScan
+1	PRIMARY	t2	ref	c	c	5	test.t1.b	1	Using where; FirstMatch(t1)
+1	PRIMARY	t1	ref	b	b	5	test.t1.b	2	
 SELECT a, b, d FROM t1, t2
 WHERE ( b, d ) IN
 ( SELECT b, d FROM t1, t2 WHERE b = c );
 a	b	d
 2	1	2
 7	1	2
+8	4	2
+1	2	1
+4	2	1
+10	2	1
+3	3	3
+6	3	3
+9	3	3
 2	1	2
 7	1	2
-1	2	1
-4	2	1
-10	2	1
-1	2	1
-4	2	1
-10	2	1
-3	3	3
-6	3	3
-9	3	3
-3	3	3
-6	3	3
-9	3	3
-8	4	2
 8	4	2
 5	5	5
+3	3	3
+6	3	3
+9	3	3
+1	2	1
+4	2	1
+10	2	1
 DROP TABLE t1, t2;
+# Another testcase for the above that still uses LooseScan:
+create table t0(a int primary key);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t10(a int primary key);
+insert into t10 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t1 (
+pk int primary key auto_increment,
+kp1 int,
+kp2 int,
+filler char(100),
+key (kp1, kp2)
+);
+insert into t1 (kp1, kp2, filler) 
+select 
+A.a, B.a, 'filler-data'
+from t0 A, t0 B;
+create table t2 (a int, filler char(100), key(a));
+create table t3 (a int);
+insert into t3 values (1),(2);
+insert into t2 
+select (A.a+1000*B.a)/20, 'filler_data' from t10 A, t0 B;
+analyze table t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+delete from t1 where kp2 in (1,3);
+# Ref + LooseScan on t1:
+explain select sum(t2.a)
+from t2,t3
+where (t3.a,t2.a) in (select kp1,kp2 from t1,t0 where t0.a=2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ref	kp1	kp1	5	test.t3.a	10	Using where; Using index; LooseScan
+1	PRIMARY	t2	ref	a	a	5	test.t1.kp2	19	Using index
+select sum(t2.a)
+from t2,t3
+where (t3.a,t2.a) in (select kp1,kp2 from t1,t0 where t0.a=2);
+sum(t2.a)
+1640
+drop table t0,t10;
+drop table t1,t2,t3;
 #
 # BUG#920713: Wrong result (missing rows) with firstmatch+BNL, IN subquery, ...
 #
@@ -2645,8 +2711,8 @@ a
 19
 explain select * from t3 where a in (select kp1 from t1 where kp1<20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	kp1	kp1	5	NULL	48	Using where; Using index; LooseScan
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	PRIMARY	t1	ref	kp1	kp1	5	test.t3.a	1	Using index; FirstMatch(t3)
 drop table t0,t1,t3;
 set optimizer_switch= @tmp_923246;
 #
@@ -2862,8 +2928,8 @@ WHERE alias1.pk = 58 OR alias1.col_varchar_key = 'o'
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	alias1	index_merge	PRIMARY,col_int_key,col_varchar_key	PRIMARY,col_varchar_key	4,4	NULL	2	Using sort_union(PRIMARY,col_varchar_key); Using where
-1	PRIMARY	alias2	ALL	col_int_key	NULL	NULL	NULL	12	Range checked for each record (index map: 0x2); FirstMatch(t2)
+1	PRIMARY	alias1	index_merge	PRIMARY,col_int_key,col_varchar_key	PRIMARY,col_varchar_key	4,4	NULL	2	Using sort_union(PRIMARY,col_varchar_key); Using where; Start temporary
+1	PRIMARY	alias2	ALL	col_int_key	NULL	NULL	NULL	12	Range checked for each record (index map: 0x2); End temporary
 SELECT *
 FROM t2
 WHERE (field1) IN (SELECT alias1.col_varchar_nokey AS field1
@@ -2981,7 +3047,7 @@ DROP TABLE t1,t2,t3;
 SET @tmp_mdev5059=@@join_cache_level;
 SET join_cache_level = 3;
 set @tmp_os_mdev5059= @@optimizer_switch;
-set optimizer_switch=default;
+set optimizer_switch=@local_optimizer_switch;
 CREATE TABLE t1 (pk1 INT PRIMARY KEY, i1 INT) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1,4),(2,5);
 CREATE TABLE t2 (i2 INT, c2 CHAR(1)) ENGINE=MyISAM;
@@ -3079,9 +3145,11 @@ set optimizer_switch= @tmp_mdev6859;
 set @tmp_mdev12675=@@optimizer_switch;
 set optimizer_switch=default;
 create table t1 (a int) engine=myisam;
-insert into t1  values (5),(3),(2),(7),(2),(5),(1);
+insert into t1  values (3),(2),(7),(2),(1);
 create table t2 (b int, index idx(b)) engine=myisam;
-insert into t2 values (2),(3),(2),(1),(3),(4);
+insert into t2 values (2),(3),(2),(1),(3),(4),(1),(2),(1),(2);
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
 insert into t2 select b+10 from t2;
 insert into t2 select b+10 from t2;
 insert into t2 select b+10 from t2;
@@ -3095,20 +3163,22 @@ insert into t2 select b+10 from t2;
 insert into t2 select b+10 from t2;
 analyze table t1,t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain
 select a from t1, t2 where b between 1 and 2 and a in (select b from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	7	Using where
-1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	256	Using index; FirstMatch(t1)
-1	PRIMARY	t2	range	idx	idx	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	1462	Using index; FirstMatch(t1)
+1	PRIMARY	t2	range	idx	idx	5	NULL	5	Using where; Using index; Using join buffer (flat, BNL join)
 explain 
 select a from t1 join t2 on b between 1 and 2 and a in (select b from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	7	Using where
-1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	256	Using index; FirstMatch(t1)
-1	PRIMARY	t2	range	idx	idx	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	1462	Using index; FirstMatch(t1)
+1	PRIMARY	t2	range	idx	idx	5	NULL	5	Using where; Using index; Using join buffer (flat, BNL join)
 drop table t1,t2;
 set optimizer_switch= @tmp_mdev12675;
 #
@@ -3190,5 +3260,62 @@ EXECUTE stmt;
 a
 drop view v3;
 drop table t1,t2,t3;
+#
+# MDEV-18896: IN subquery in WHERE of a table-less query used for INSERT
+#
+set @@optimizer_switch= @subselect_sj_tmp;
+create table t1 (a1 varchar(25));
+create table t2 (a2 varchar(25)) ;
+insert into t1 select 'xxx' from dual where 'xxx' in (select a2 from t2);
+drop table t1,t2;
+#
+# MDEV-13172: Wrong result / SELECT ... WHERE EXISTS ... (with UNIQUE Key)
+#
+CREATE TABLE `t1` (
+`Id` int(11) NOT NULL,
+PRIMARY KEY (`Id`)
+);
+INSERT INTO `t1` (`Id`) VALUES (1);
+CREATE TABLE `t2` (
+`t1_Id` int(11) NOT NULL DEFAULT 0,
+`col1` int(11) DEFAULT NULL,
+UNIQUE KEY `col1` (`col1`)
+);
+INSERT INTO `t2` (`t1_Id`, `col1`) VALUES (1, NULL), (1, NULL);
+SELECT Id FROM t1 WHERE Id in (SELECT t1_Id  FROM t2 WHERE t2.col1 IS NULL);
+Id
+1
+explain extended
+SELECT Id FROM t1 WHERE Id in (SELECT t1_Id  FROM t2 WHERE t2.col1 IS NULL);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	system	PRIMARY	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t2	ref	col1	col1	5	const	2	100.00	Using index condition; Using where
+Warnings:
+Note	1003	select 1 AS `Id` from (`test`.`t2`) where `test`.`t2`.`t1_Id` = 1 and `test`.`t2`.`col1` is null
+DROP TABLE t1, t2;
 # End of 5.5 test
+# 
+# MDEV-20109: Optimizer ignores distinct key created for materialized 
+#             semi-join subquery when searching for best execution plan
+# 
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2(a int);
+insert into t2 select A.a + B.a* 10 + C.a * 100 from t1 A, t1 B, t1 C;
+create table t3 (a int);
+create table t4 (a int);
+insert into t3 select A.a +1000*B.a from t2 A, t1 B;
+insert into t4 select floor(rand()*1000) from t2 limit 500;
+# The following must not use this query plan that does a cross join:
+# |    1 | PRIMARY      | <subquery2> | ALL  | distinct_key  | ... | 500   |                                                 |
+# |    1 | PRIMARY      | t3          | ALL  | NULL          | ... | 10000 | Using where; Using join buffer (flat, BNL join) |
+#
+# Instead, it should use eq_ref on the materialized table.
+explain select * from t3 where a in (select a from t4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10000	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	500	
+drop table t1, t2, t3, t4;
 set optimizer_switch=@subselect_sj_tmp;

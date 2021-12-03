@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
@@ -222,7 +222,8 @@ static struct my_option my_long_options[] =
 };
 
 static const char *load_default_groups[]=
-{ "mysqlcheck", "client", "client-server", "client-mariadb", 0 };
+{ "mysqlcheck", "mariadb-check", "client", "client-server", "client-mariadb",
+  0 };
 
 
 static void print_version(void);
@@ -434,8 +435,10 @@ static int get_options(int *argc, char ***argv)
     else
       default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
   }
-  if (strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME) &&
-      !get_charset_by_csname(default_charset, MY_CS_PRIMARY, MYF(MY_WME)))
+  if (!strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *)my_default_csname();
+
+  if (!get_charset_by_csname(default_charset, MY_CS_PRIMARY, MYF(MY_WME)))
   {
     printf("Unsupported character set: %s\n", default_charset);
     DBUG_RETURN(1);
@@ -962,7 +965,8 @@ static int handle_request_for_tables(char *tables, size_t length,
     puts(query);
   if (mysql_real_query(sock, query, (ulong)query_length))
   {
-    sprintf(message, "when executing '%s%s... %s'", op, tab_view, options);
+    my_snprintf(message, sizeof(message), "when executing '%s%s... %s'",
+                op, tab_view, options);
     DBerror(sock, message);
     my_free(query);
     DBUG_RETURN(1);

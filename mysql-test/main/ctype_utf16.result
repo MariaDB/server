@@ -133,10 +133,10 @@ t1	CREATE TABLE `t1` (
 insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
 explain select * from t1 where a like 'abc%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	43	NULL	1	Using where; Using index
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
 explain select * from t1 where a like concat('abc','%');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	43	NULL	1	Using where; Using index
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
 select * from t1 where a like "abc%";
 a
 abc
@@ -669,6 +669,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf16_general_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 SET NAMES latin1;
 SET collation_connection='utf16_bin';
 create table t1 select repeat('a',4000) a;
@@ -806,6 +812,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf16_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 select hex(substr(_utf16 0x00e400e50068,1));
 hex(substr(_utf16 0x00e400e50068,1))
 00E400E50068
@@ -1015,7 +1027,7 @@ insert into t1 values (0xdf84);
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify column s1 varchar(50) character set utf16;
 Warnings:
-Warning	1366	Incorrect string value: '\xDF\x84' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xDF\x84' for column `test`.`t1`.`s1` at row 1
 select hex(s1) from t1;
 hex(s1)
 003F
@@ -1024,7 +1036,7 @@ create table t1 (s1 varchar(5) character set ucs2, s2 varchar(5) character set u
 insert into t1 (s1) values (0xdf84);
 update ignore t1 set s2 = s1;
 Warnings:
-Warning	1366	Incorrect string value: '\xDF\x84' for column 's2' at row 1
+Warning	1366	Incorrect string value: '\xDF\x84' for column `test`.`t1`.`s2` at row 1
 select hex(s2) from t1;
 hex(s2)
 003F
@@ -1479,7 +1491,9 @@ ab
 ab
 AE
 AE
-SET max_sort_length=4;
+SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
 SELECT * FROM t1 ORDER BY s1;
 s1
 ab
@@ -1555,7 +1569,7 @@ SELECT space(date_add(101, INTERVAL CHAR('1' USING utf16) hour_second));
 space(date_add(101, INTERVAL CHAR('1' USING utf16) hour_second))
 NULL
 Warnings:
-Warning	1301	Result of space() was larger than max_allowed_packet (16777216) - truncated
+Warning	1301	Result of space() was larger than max_allowed_packet (XXX) - truncated
 #
 # Bug#11750518 41090: ORDER BY TRUNCATES GROUP_CONCAT RESULT
 #
@@ -2801,4 +2815,29 @@ DROP TABLE t1;
 SET STORAGE_ENGINE=Default;
 #
 # End of 10.2 tests
+#
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-22391 Assertion `0' failed in Item_type_holder::val_str on utf16 charset table query
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a TEXT CHARACTER SET utf16);
+SELECT * FROM (VALUES (1) UNION SELECT * FROM t1) AS t;
+1
+1
+DROP TABLE t1;
+VALUES (1) UNION SELECT _utf16 0x0020;
+1
+1
+ 
+VALUES ('') UNION SELECT _utf16 0x0020 COLLATE utf16_bin;
+
+
+VALUES ('') UNION VALUES ( _utf16 0x0020 COLLATE utf16_bin);
+
+
+#
+# End of 10.3 tests
 #

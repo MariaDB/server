@@ -32,7 +32,9 @@ delete from t1 where a=3;
 error ER_WRONG_VALUE_FOR_VAR;
 set global innodb_fast_shutdown=0;
 
-let $me=`select connection_id()`;
+# Get id with space prefix to ensure that replace_result doesn't replace
+# the error code
+let $me=`select concat(' ', connection_id())`;
 replace_result $me ID;
 error ER_CONNECTION_KILLED;
 eval kill $me;

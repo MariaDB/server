@@ -2,15 +2,29 @@
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11;
 DROP DATABASE IF EXISTS world;
 --enable_warnings
+--source include/default_optimizer_switch.inc
+--source include/default_charset.inc
 
-set @save_optimizer_switch=@@optimizer_switch;
+set @org_optimizer_switch=@@optimizer_switch;
+set @save_join_cache_level=@@join_cache_level;
+set @save_join_buffer_space_limit=@@join_buffer_space_limit;
+set @save_join_buffer_size=@@join_buffer_size;
+set @save_expensive_subquery_limit=@@expensive_subquery_limit;
+
 set @@optimizer_switch='optimize_join_buffer_size=on';
-set optimizer_switch='semijoin=on,firstmatch=on,loosescan=on';
+set @@optimizer_switch='semijoin=on,firstmatch=on,loosescan=on';
 set @@optimizer_switch='semijoin_with_cache=on';
 set @@optimizer_switch='outer_join_with_cache=on';
-set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+set @@optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+set @local_optimizer_switch=@@optimizer_switch;
 
-set @local_join_cache_test_optimizer_switch_default=@@optimizer_switch;
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+
 set names utf8;
 
 CREATE DATABASE world;
@@ -42,6 +56,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -55,6 +70,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -71,6 +87,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -84,6 +101,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -100,6 +118,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -114,6 +133,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -131,6 +151,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -144,6 +165,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -210,6 +232,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -223,6 +246,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -239,6 +263,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -252,6 +277,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -268,6 +294,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -281,6 +308,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -297,6 +325,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -310,6 +339,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -318,11 +348,8 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
-set join_cache_level=default;
-set join_buffer_size=default;
-
-show variables like 'join_buffer_size';
-show variables like 'join_cache_level';
+set join_cache_level=@save_join_cache_level;
+set join_buffer_size=@save_join_buffer_size;
 
 DROP DATABASE world; 
 
@@ -350,6 +377,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -363,6 +391,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -402,6 +431,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -415,6 +445,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -484,6 +515,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -497,6 +529,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -535,6 +568,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -548,6 +582,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -586,6 +621,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -599,6 +635,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -637,6 +674,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -650,6 +688,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -691,6 +730,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -704,6 +744,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -729,6 +770,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -742,6 +784,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -767,6 +810,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -780,6 +824,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -805,6 +850,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -818,6 +864,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -843,6 +890,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -856,6 +904,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -881,6 +930,7 @@ SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -894,6 +944,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
   WHERE City.Country=Country.Code AND
@@ -911,14 +962,12 @@ SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
-set join_cache_level=default;
-set join_buffer_size=default;
-
-show variables like 'join_buffer_size';
-show variables like 'join_cache_level';
+set join_cache_level=@save_join_cache_level;
+set join_buffer_size=@save_join_buffer_size;
 
 set join_cache_level=1;
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND City.Population > 3000000;
 
@@ -934,18 +983,20 @@ SELECT City.Name, Country.Name FROM City,Country
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND City.Population > 3000000;
 
-set join_buffer_size=default;
+set join_buffer_size=@save_join_buffer_size;
 
 set join_cache_level=6;
 
 ALTER TABLE Country MODIFY Name varchar(52) NOT NULL default '';
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
 ALTER TABLE Country MODIFY Name varchar(300) NOT NULL default '';
 
+--sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -954,18 +1005,54 @@ ALTER TABLE Country ADD COLUMN PopulationBar text;
 UPDATE Country 
   SET PopulationBar=REPEAT('x', CAST(Population/100000 AS unsigned int));
 
+--sorted_result
 SELECT City.Name, Country.Name, Country.PopulationBar FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
 set join_buffer_size=256;
 
+--sorted_result
 SELECT City.Name, Country.Name, Country.PopulationBar FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
-set join_cache_level=default;
-set join_buffer_size=default;
+set join_cache_level=@save_join_cache_level;
+set join_buffer_size=@save_join_buffer_size;
+
+
+--echo #
+--echo # MDEV-17752: Plan changes from hash_index_merge to index_merge with new optimizer defaults
+--echo #
+
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @save_use_stat_tables=@@use_stat_tables;
+set optimizer_use_condition_selectivity=4;
+set use_stat_tables='preferably';
+
+use world;
+set join_cache_level=4;
+CREATE INDEX City_Name ON City(Name);
+
+--disable_result_log
+ANALYZE TABLE City, Country;
+--enable_result_log
+
+EXPLAIN
+SELECT Country.Name, Country.Population, City.Name, City.Population
+  FROM Country LEFT JOIN City
+       ON City.Country=Country.Code AND City.Population > 5000000
+   WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
+
+EXPLAIN
+SELECT Country.Name, Country.Population, City.Name, City.Population
+  FROM Country LEFT JOIN City
+       ON City.Country=Country.Code AND
+          (City.Population > 5000000 OR City.Name LIKE 'Za%')
+  WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set @@use_stat_tables=@save_use_stat_tables;
+set @@join_cache_level=@save_join_cache_level;
 
 DROP DATABASE world;
 
@@ -1030,6 +1117,7 @@ CREATE INDEX t3_quality ON t3(quality);
 INSERT INTO t3 VALUES
   (6, 4, 8, 0, "010101_anastacia_spmidi.mid", "2004-03-16 13:40:00", 1, NULL, NULL, 255),
   (3343, 3, 8, 1, "010102_4VN4bsPwnxRQUJW5Zp1RhG2IL9vvl_8.mid", "2004-03-16 13:40:00", 1, NULL, NULL, 255);
+insert into t3 (mediaid, formatid) values (1000,1),(1001,2),(1002,3),(1003,1),(1004,2),(1005,3);
 
 CREATE TABLE t4(
   formatid int  NOT NULL ,
@@ -1238,8 +1326,8 @@ DROP TABLE t1,t2;
 --echo # Bug #40134: outer join with not exists optimization and join buffer
 --echo #
 
-set join_cache_level=default;
-set join_buffer_size=default;
+set join_cache_level=@save_join_cache_level;
+set join_buffer_size=@save_join_buffer_size;
 
 CREATE TABLE t1 (a int NOT NULL);
 INSERT INTO t1 VALUES (2), (4), (3), (5), (1);
@@ -1258,8 +1346,8 @@ SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a WHERE t2.b IS NULL;
 
 DROP TABLE t1, t2;
 
-set join_cache_level=default;
-set join_buffer_size=default;
+set join_cache_level=@save_join_cache_level;
+set join_buffer_size=@save_join_buffer_size;
 
 --echo #
 --echo # BUG#40136: Group by is ignored when join buffer is used for an outer join
@@ -1301,7 +1389,7 @@ SELECT t2.a,t2.b,t3.a,t3.b,t4.a,t4.b
   FROM t2 LEFT JOIN (t3, t4) ON t2.b=t4.b
      WHERE t3.a+2<t2.a OR t3.c IS NULL;
 
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t2, t3, t4;
 
 --echo #
@@ -1319,7 +1407,7 @@ select * from t1 left join t2 on t1.a=t2.a;
 explain select * from t1 left join t2 on t1.a=t2.a where t2.c=102 or t2.c is null;
 select * from t1 left join t2 on t1.a=t2.a where t2.c=102 or t2.c is null;
 
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 drop table t1, t2;
 
 --echo #
@@ -1340,7 +1428,7 @@ select * from t1 left join t2 on (1=0) where a=40;
 set join_cache_level=0;
 explain select * from t1 left join t2 on (1=0);
 
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 drop table t1, t2;
 
 --echo #
@@ -1384,8 +1472,8 @@ set join_buffer_size=1024;
 EXPLAIN SELECT AVG(c) FROM t1,t2 WHERE t1.a=t2.b;
 SELECT AVG(c) FROM t1,t2 WHERE t1.a=t2.b;
 
-set join_buffer_size=default;
-set join_cache_level=default;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1, t2;
 
@@ -1431,8 +1519,8 @@ SELECT COUNT(*) FROM t1,t2,t3
   WHERE t1.a=t2.a AND t2.a=t3.a AND
         t1.b IS NULL AND t2.b IS NULL AND t3.b IS NULL;
 
-set join_buffer_size=default;
-set join_cache_level=default;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3;
 
@@ -1502,8 +1590,8 @@ SELECT t1.a, t2.a, t3.a, t2.b, t3.b, t3.val
   FROM (t1,t2) LEFT JOIN t3 ON (t1.a=t3.a AND t2.b=t3.b) 
     WHERE t1.a=t2.a; 
 
-set join_buffer_size=default;
-set join_cache_level=default;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3;
 
@@ -1560,7 +1648,7 @@ where t1.f1=t2.f1 and t2.f2 between t1.f1 and t2.f2;
 show status like "Handler_icp%";
 
 drop table t1,t2;
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 
 --echo #
 --echo # Bug #42955: join with GROUP BY/ORDER BY and when BKA is enabled 
@@ -1594,7 +1682,7 @@ select t1.id1  from t1 join t2 on t1.id1=t2.id1
 select t1.id1  from t1 join t2 on t1.id1=t2.id1 
  where t1.d=3 and t2.id2 > 200 order by t1.id1;
 
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 
 drop table t1,t2;
 
@@ -1658,7 +1746,7 @@ select t1.a, t1.b, t1.c, t1.d, t2.e, t3.f, t4.g from t1,t2,t3,t4
 select t1.a, t1.b, t1.c, t1.d, t2.e, t3.f, t4.g from t1,t2,t3,t4
   where t2.b=t1.b and t3.d=t1.d and t4.c=t1.c;
 
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 
 drop table t1,t2,t3,t4;
 
@@ -2047,8 +2135,8 @@ SELECT STRAIGHT_JOIN t1.id1, t1.num3, t3.text1, t3.id4, t2.id3, t4.dummy
     WHERE t1.id1=t5.id1 AND t1.id2=t5.id2 and  t4.id2=t1.id2 AND
           t5.enum2='Active' AND t3.id4=t2.id4 AND t2.id3=t1.id3 AND t3.text1<'D';
 
-set join_buffer_size=default;
-set join_cache_level=default;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3,t4,t5;
 
@@ -2119,7 +2207,7 @@ ORDER BY t1.int_key;
 
 DROP TABLE t1,t2;
 
-SET join_cache_level=default;
+SET join_cache_level=@save_join_cache_level;
 
 --echo #
 --echo # Regression test for
@@ -2182,7 +2270,7 @@ set join_cache_level=6;
 SELECT t1.*, t2.*, LENGTH(t2.c1), LENGTH(t2.c2) FROM t1,t2
   WHERE t1.c2=LENGTH(t2.c2) and t1.c1=LENGTH(t2.c1);
 
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2;
 
@@ -2208,7 +2296,7 @@ set join_cache_level=2;
 explain select t1.* from t1,t2,t3;
 select t1.* from t1,t2,t3; 
 
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 
 drop table t1,t2,t3;
 
@@ -2237,7 +2325,7 @@ SELECT t3.a FROM t1,t2,t3 WHERE t1.a = t3.a AND t1.b = t3.b;
 
 DROP TABLE t1,t2,t3;
 
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 
 --echo #
 --echo # Bug #51084: Batched key access crashes for SELECT with
@@ -2279,7 +2367,7 @@ SELECT COUNT(*)
   FROM (t2 JOIN t1) LEFT JOIN (t3 JOIN t4 ON t3.id = t4.carrier_id)
        ON t3.carrier = t1.carrier;
 
-SET join_cache_level=default;
+SET join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3,t4;
 
@@ -2333,7 +2421,7 @@ explain SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 --sorted_result
 SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 
-set join_cache_level = default;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2;
 
 --echo #
@@ -2361,7 +2449,7 @@ SELECT t.a FROM t1 t, t1 s FORCE INDEX(idx)
 SELECT t.a FROM t1 t, t1 s FORCE INDEX(idx)
   WHERE s.pk AND s.a  >= t.pk AND  s.b  = t.c;
 
-set join_cache_level = default;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1;
 
 --echo #
@@ -2392,7 +2480,7 @@ SELECT t1.a
   FROM t1 LEFT JOIN (t2 LEFT JOIN (t3 LEFT JOIN t4 ON 1) ON t2.a) ON 0
     WHERE t1.a OR t4.a;
 
-set join_cache_level = default;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 
 --echo #
@@ -2450,8 +2538,8 @@ SELECT t1.i, t1.d,  t1.v, t2.i, t2.d, t2.t, t2.v FROM t1,t2,t3
 
 DROP TABLE t1,t2,t3;
 
-SET SESSION join_cache_level=DEFAULT;
-SET SESSION join_buffer_size=DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
+SET SESSION join_buffer_size=@save_join_buffer_size;
 
 
 --echo #
@@ -2559,7 +2647,7 @@ WHERE t2.v <> t3.v AND t3.pk = t2.i AND t1.v = t3.v AND t1.pk*2<100
 
 DROP TABLE t1,t2,t3;
 
-SET SESSION join_cache_level=DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 --echo #
 --echo # Bug #668290: hash join with non-binary collations 
@@ -2600,7 +2688,7 @@ EXPLAIN
 SELECT t2.i FROM t1,t2 WHERE t1.cu = t2.cl ;
 SELECT t2.i FROM t1,t2 WHERE t1.cu = t2.cl ;
 
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2;
 
@@ -2628,8 +2716,8 @@ EXPLAIN
 SELECT t1.a, t2.c FROM t1,t2 WHERE t1.a=t2.a AND t2.b=99; 
 SELECT t1.a, t2.c FROM t1,t2 WHERE t1.a=t2.a AND t2.b=99; 
 
-SET SESSION join_cache_level = DEFAULT;
-SET SESSION join_buffer_size = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
+SET SESSION join_buffer_size=@save_join_buffer_size;
 
 DROP TABLE t1,t2;
 
@@ -2678,7 +2766,7 @@ EXPLAIN
 SELECT t1.v,t2.i FROM t1,t2 WHERE t2.v = concat(t1.v, t1.v);
 SELECT t1.v,t2.i FROM t1,t2 WHERE t2.v = concat(t1.v, t1.v);
 
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2;
 
@@ -2751,8 +2839,8 @@ SELECT t3.i FROM t1,t2,t3
 SELECT t3.i FROM t1,t2,t3
   WHERE t1.v = t2.v AND t3.v = t1.v AND t2.i <> 0;
 
-SET SESSION join_cache_level = DEFAULT;
-SET SESSION join_buffer_size = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
+SET SESSION join_buffer_size=@save_join_buffer_size;
 
 DROP TABLE t1,t2,t3;
 
@@ -2788,7 +2876,7 @@ EXPLAIN
 SELECT * FROM t1,t2 WHERE t2.a=t1.a;
 SELECT * FROM t1,t2 WHERE t2.a=t1.a;
 
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2;
 
@@ -2810,8 +2898,8 @@ SELECT t3.a
        (t2 LEFT OUTER JOIN t3 ON t2.b = t3.b) ON t2.a = t1.b
     WHERE t3.a BETWEEN 3 AND 11 OR t1.a <= t2.c;
 
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3;
 
@@ -2834,8 +2922,8 @@ SELECT *
        FROM t2 LEFT JOIN
            ((t1 JOIN t3 ON t1.a = t3.pk) LEFT JOIN t4 ON 1) ON 1;
 
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3,t4;
 
@@ -2861,8 +2949,8 @@ EXPLAIN
 SELECT * FROM t2 LEFT JOIN t1 ON t2.a <> 0 WHERE t1.a <> 0 OR t2.pk < 9;
 SELECT * FROM t2 LEFT JOIN t1 ON t2.a <> 0 WHERE t1.a <> 0 OR t2.pk < 9;
 
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2;
 
@@ -2921,8 +3009,8 @@ SELECT *
   FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.c2 = t3.a3) ON t1.pk = t2.d2)
         LEFT JOIN t4 ON t1.a1 = t4.a4) LEFT JOIN t5 ON t3.a3 = t5.a5;
 
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3,t4,t5;
 
@@ -2967,8 +3055,8 @@ SELECT * FROM
   ((t2 JOIN t3 ON t2.a2 = t3.b3) JOIN t4 ON t4.b4 <> 0) ON t1.c1 = t3.c3
    WHERE t3.a3 IS NULL;
 
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3,t4;
 
@@ -2997,8 +3085,8 @@ EXPLAIN
 SELECT * FROM t1 LEFT JOIN t2 JOIN t3 ON t3.a3 = t2.a2 ON t3.b3 <> 0;
 SELECT * FROM t1 LEFT JOIN t2 JOIN t3 ON t3.a3 = t2.a2 ON t3.b3 <> 0;
 
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3;
 
@@ -3042,8 +3130,8 @@ SELECT t4.a4, t5.b5
   FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
        LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
 
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3,t4,t5;
 
@@ -3070,7 +3158,7 @@ EXPLAIN
 SELECT * FROM t1,t2 WHERE t1.a=t2.a;
 SELECT * FROM t1,t2 WHERE t1.a=t2.a;
 
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2;
 
@@ -3104,8 +3192,8 @@ SELECT * FROM t1,t2
 SELECT * FROM t1,t2
   WHERE t1.f1 = t2.f4 AND (t1.f3 = 1 AND t2.f3 = 4 OR t1.f3 = 2 AND t2.f3 = 6);
 
-SET SESSION join_cache_level = DEFAULT;
-SET SESSION optimizer_switch = @local_join_cache_test_optimizer_switch_default;
+SET SESSION join_cache_level=@save_join_cache_level;
+SET SESSION optimizer_switch=@local_optimizer_switch;
 
 DROP TABLE t1,t2;
 
@@ -3131,7 +3219,7 @@ EXPLAIN SELECT * FROM t1,t2
   WHERE t2.f3 = t1.f2 AND t1.f1 IN (9, 0, 100) ORDER BY t1.f2 LIMIT 1;
 SELECT * FROM t1,t2 
   WHERE t2.f3 = t1.f2 AND t1.f1 IN (9, 0 ,100) ORDER BY t1.f2 LIMIT 1;
-SET SESSION optimizer_switch = @local_join_cache_test_optimizer_switch_default;
+SET SESSION optimizer_switch=@local_optimizer_switch;
 
 SET SESSION optimizer_switch = 'index_condition_pushdown=on';
 EXPLAIN SELECT * FROM t1,t2 
@@ -3139,7 +3227,7 @@ EXPLAIN SELECT * FROM t1,t2
 SELECT * FROM t1,t2 
   WHERE t2.f3 = t1.f2 AND t1.f1 IN (9, 0 ,100) ORDER BY t1.f2 LIMIT 1;
 
-SET SESSION optimizer_switch = @local_join_cache_test_optimizer_switch_default;
+SET SESSION optimizer_switch=@local_optimizer_switch;
 
 DROP TABLE t1,t2;
 
@@ -3168,8 +3256,7 @@ EXPLAIN
 SELECT * FROM t1,t2 WHERE t1.a < 3 and t2.a IS NULL;
 SELECT * FROM t1,t2 WHERE t1.a < 3 and t2.a IS NULL;
 
-
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2;
   
@@ -3195,7 +3282,7 @@ EXPLAIN
 SELECT * FROM t1,t2 WHERE t2.f1 = t1.f1;
 SELECT * FROM t1,t2 WHERE t2.f1 = t1.f1;
 
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2;
 
@@ -3225,8 +3312,8 @@ EXPLAIN
 SELECT a FROM t1,t2 WHERE t2.v = t1.v ;
 SELECT a FROM t1,t2 WHERE t2.v = t1.v ;
 
-SET SESSION join_cache_level = DEFAULT;
-SET SESSION join_buffer_size = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
+SET SESSION join_buffer_size=@save_join_buffer_size;
 
 DROP TABLE t1,t2;
 
@@ -3259,9 +3346,11 @@ SELECT * FROM (SELECT DISTINCT * FROM t1) t
 SELECT * FROM (SELECT DISTINCT * FROM t1) t
   WHERE t.a  IN (SELECT t2.a FROM t2);
 
-SET SESSION join_cache_level = DEFAULT;
-
 DROP TABLE t1, t2;
+
+SET SESSION join_cache_level=@save_join_cache_level;
+
+# Note that next tests are run with same optimizer_switch as previous one!
 
 --echo #
 --echo # Bug #887479: join_cache_level=3 + semijoin=on 
@@ -3273,7 +3362,7 @@ INSERT INTO t1 VALUES (3914,17), (3710,5), (3888,20);
 CREATE TABLE t2 (c int, KEY (c));
 INSERT INTO t2 VALUES (27), (17), (33), (20), (3), (7), (18), (2);
 
-SET @tmp887479_optimizer_switch=@@optimizer_switch;
+SET @tmp_optimizer_switch=@@optimizer_switch;
 SET SESSION optimizer_switch='semijoin=on';
 SET SESSION optimizer_switch='semijoin_with_cache=on';
 
@@ -3287,8 +3376,8 @@ EXPLAIN
 SELECT * FROM t1 WHERE (t1.b) IN (SELECT c FROM t2);
 SELECT * FROM t1 WHERE (t1.b) IN (SELECT c FROM t2);
 
-SET SESSION join_cache_level = DEFAULT;
-SET optimizer_switch=@tmp887479_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@tmp_optimizer_switch;
 
 DROP TABLE t1,t2;
 
@@ -3327,8 +3416,8 @@ SELECT t1.* FROM t1,t2
   WHERE (t1.b,t2.b) IN (SELECT t3.b,t4.b FROM t3,t4 WHERE t4.c=t3.b)
         AND t1.a = 1;
 
-SET SESSION join_cache_level = DEFAULT;
-SET optimizer_switch=@tmp_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 
 DROP TABLE t1,t2,t3,t4;
 
@@ -3343,11 +3432,9 @@ INSERT INTO t2 VALUES (8), (7);
 CREATE TABLE t3 (a int);
 INSERT INTO t3 VALUES (8), (7);
 
-SET @tmp_optimizer_switch=@@optimizer_switch;
-set optimizer_switch=default;
 set @@optimizer_switch='semijoin_with_cache=off';
 set @@optimizer_switch='outer_join_with_cache=off';
-SET optimizer_switch='derived_merge=off,derived_with_keys=off';
+set @@optimizer_switch='derived_merge=off,derived_with_keys=off';
 SET join_cache_level=0;
 
 EXPLAIN
@@ -3356,8 +3443,8 @@ SELECT * FROM (SELECT t1.* FROM t1, t2) t WHERE t.a IN (SELECT * FROM t3);
 
 SELECT * FROM ( SELECT ta.* FROM t1 AS ta, t1 ) tb WHERE a IN ( SELECT * FROM t1 );
 
-SET SESSION join_cache_level = DEFAULT;
-SET optimizer_switch=@tmp_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 
 DROP TABLE t1,t2,t3;
 
@@ -3376,8 +3463,8 @@ CREATE TABLE t3 (c int, d int);
 INSERT INTO t3 VALUES (8,10);
 INSERT INTO t3 VALUES (9,11);
 
-SET @tmp_optimizer_switch=@@optimizer_switch;
 set @@optimizer_switch='semijoin_with_cache=on';
+set @@optimizer_switch='firstmatch=off';
 
 SET join_cache_level=1;
 EXPLAIN
@@ -3394,8 +3481,8 @@ EXPLAIN
 SELECT * FROM t1,t2 WHERE b IN (SELECT d FROM t3 WHERE c <= t2.c) ORDER BY a,d;
 SELECT * FROM t1,t2 WHERE b IN (SELECT d FROM t3 WHERE c <= t2.c) ORDER BY a,d;
 
-SET SESSION join_cache_level = DEFAULT;
-SET optimizer_switch=@tmp_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 
 DROP TABLE t1,t2,t3;
 
@@ -3417,7 +3504,6 @@ INSERT INTO t4 VALUES
   (19,11,10), (17,12,18), (12,13,15), (14,12,19),
   (18,13,18), (13,14,11), (15,15,14);
 
-SET @tmp_optimizer_switch=@@optimizer_switch;
 SET @@optimizer_switch='semijoin=on';
 SET @@optimizer_switch='firstmatch=off';
 SET @@optimizer_switch='mrr=off';
@@ -3457,8 +3543,8 @@ SELECT * FROM t1,t2
         t2.a BETWEEN 4 and 5
   ORDER BY t2.b;
 
-SET join_cache_level = DEFAULT;
-SET optimizer_switch=@tmp_optimizer_switch;
+set join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 
 DROP TABLE t1,t2,t3,t4;
 
@@ -3483,11 +3569,10 @@ insert into t3 values
   (2,5), (2,6), (2,7), (2,8),
   (3,1), (3,2), (3,9);
 
-set @tmp_optimizer_switch=@@optimizer_switch;
-set  @@optimizer_switch='semijoin=on';
-set optimizer_switch='materialization=off';
-set optimizer_switch='loosescan=off,firstmatch=off';
-set optimizer_switch='mrr_sort_keys=off';
+set @@optimizer_switch='semijoin=on';
+set @@optimizer_switch='materialization=off';
+set @@optimizer_switch='loosescan=off,firstmatch=off';
+set @@optimizer_switch='mrr_sort_keys=off';
 set join_cache_level=7;
 
 create table t4 (uid int primary key, name varchar(128), index(name));
@@ -3504,8 +3589,8 @@ select name from t2, t1
   where t1.uid in (select t4.uid from t4, t3 where t3.uid=1 and t4.uid=t3.fid)
         and t2.uid=t1.fid;
 
-set join_cache_level = default;
-set optimizer_switch=@tmp_optimizer_switch;
+set join_cache_level=@save_join_cache_level; 
+set @@optimizer_switch=@local_optimizer_switch;
 
 drop table t1,t2,t3,t4;
 
@@ -3521,9 +3606,8 @@ INSERT INTO t1 VALUES (1), (2);
 INSERT INTO t2 VALUES (6);
 INSERT INTO t3 VALUES (1), (2);
 
-set @tmp_optimizer_switch=@@optimizer_switch;
-set  @@optimizer_switch='semijoin=on';
-set optimizer_switch='materialization=on';
+set @@optimizer_switch='semijoin=on';
+set @@optimizer_switch='materialization=on';
 
 set join_cache_level=0;
 EXPLAIN
@@ -3539,8 +3623,8 @@ SELECT * FROM t1 WHERE t1.i IN
 SELECT * FROM t1 WHERE t1.i IN 
                        (SELECT t3.i FROM t3 LEFT JOIN t2 ON t2.i=t3.i);
 
-set join_cache_level = default;
-set optimizer_switch=@tmp_optimizer_switch;
+set join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 
 DROP TABLE t1,t2,t3;
 
@@ -3558,9 +3642,8 @@ INSERT INTO t2 VALUES ('we',4,NULL), ('v',1305673728,6);
 CREATE TABLE t3 (b int, c int);
 INSERT INTO t3 VALUES (4,4);
 
-set @tmp_optimizer_switch=@@optimizer_switch;
-set optimizer_switch='semijoin=off';
-set optimizer_switch='materialization=off';
+set @@optimizer_switch='semijoin=off';
+set @@optimizer_switch='materialization=off';
 
 set join_cache_level=0;
 EXPLAIN
@@ -3581,8 +3664,8 @@ SELECT * FROM t1
   WHERE a IN (SELECT t2.a FROM t2 LEFT JOIN t3 ON t2.b = t3.b
                 WHERE t2.c < 10 OR t3.c > 1);
 
-set join_cache_level = default;
-set optimizer_switch=@tmp_optimizer_switch;
+set join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 
 DROP TABLE t1,t2,t3;
 
@@ -3603,21 +3686,20 @@ INSERT INTO t2 VALUES
 CREATE TABLE t3 (b int, c int);
 INSERT INTO t3 VALUES (32, 302), (42,400), (30,300);
 
-set @tmp_optimizer_switch=@@optimizer_switch;
-set optimizer_switch='optimize_join_buffer_size=off';
+set @@optimizer_switch='optimize_join_buffer_size=off';
+set @@optimizer_switch='outer_join_with_cache=on';
 set join_buffer_space_limit=4096;
 set join_buffer_size=4096*2;
 set join_cache_level=2;
-set optimizer_switch='outer_join_with_cache=on';
 
 EXPLAIN
 SELECT * FROM t1, t2 LEFT JOIN t3 ON t2.b=t3.b WHERE t1.a=t2.a;
 SELECT * FROM t1, t2 LEFT JOIN t3 ON t2.b=t3.b WHERE t1.a=t2.a;
   
-set join_buffer_space_limit=default;
-set join_buffer_size=default;
-set join_cache_level=default;
-set optimizer_switch=@tmp_optimizer_switch;
+set join_buffer_space_limit=@save_join_buffer_space_limit;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 
 DROP TABLE t1,t2,t3;
 
@@ -3654,8 +3736,7 @@ INSERT INTO t2 VALUES (NULL);
 CREATE TABLE t3 (c int) ENGINE=Aria;
 INSERT INTO t3 VALUES (NULL);
 
-set @tmp_optimizer_switch=@@optimizer_switch;
-set optimizer_switch = 'outer_join_with_cache=on,join_cache_incremental=on';
+set @@optimizer_switch = 'outer_join_with_cache=on,join_cache_incremental=on';
 set join_buffer_size=128;
 
 EXPLAIN
@@ -3665,12 +3746,14 @@ SELECT 1 AS c FROM t1 NATURAL LEFT JOIN t2 LEFT OUTER JOIN t3 ON 1
 SELECT 1 AS c FROM t1 NATURAL LEFT JOIN t2 LEFT OUTER JOIN t3 ON 1
   GROUP BY elt(t1.col282,1,t1.col280);
 
-set join_buffer_size=default;
-set optimizer_switch=@tmp_optimizer_switch;
-
 DROP table t1,t2,t3;
-set join_buffer_size= default;
-set @@optimizer_switch=@save_optimizer_switch;
+set join_buffer_size=@save_join_buffer_size;
+
+#
+# --echo switch to use orginal test suite optimizer switch
+#
+
+set @@optimizer_switch=@org_optimizer_switch,@local_optimizer_switch= @org_optimizer_switch;
 
 
 --echo #
@@ -3819,8 +3902,8 @@ FROM
 ORDER BY 
   col1;
 
-set join_buffer_size=default;
-set join_cache_level = default;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2;
 
@@ -3843,11 +3926,10 @@ INSERT INTO t2 SELECT * FROM t1;
 INSERT INTO t4 SELECT * FROM t1;
 INSERT INTO t5 SELECT * FROM t1;
 
-set @save_optimizer_switch= @@optimizer_switch;
 SET join_cache_level = 6;
 SET join_buffer_size=4096;
 SET join_buffer_space_limit=4096;
-SET optimizer_switch = 'join_cache_hashed=on,optimize_join_buffer_size=on';
+set @@optimizer_switch = 'join_cache_hashed=on,optimize_join_buffer_size=on';
 
 let $q=
 SELECT * FROM t1
@@ -3862,10 +3944,10 @@ WHERE
 eval EXPLAIN $q;
 eval $q;
 
-SET join_cache_level = default;
-SET join_buffer_size = default;
-SET join_buffer_space_limit= default;
-set optimizer_switch=@save_optimizer_switch;
+set join_cache_level=@save_join_cache_level;
+SET join_buffer_size=@save_join_buffer_size;
+SET join_buffer_space_limit=@save_join_buffer_space_limit;
+set @@optimizer_switch=@local_optimizer_switch;
 
 DROP TABLE t1,t4,t5,t2;
 
@@ -3886,6 +3968,8 @@ INSERT INTO t2 VALUES
  (NULL,'x'),(1,'x'),(3,'x'),(5,'x'),(8,'x'),(48,'x'),
  (228,'x'),(3,'y'),(1,'z'),(9,'z');
 
+ANALYZE TABLE t1,t2;
+
 CREATE TABLE temp
 SELECT t1.i1 AS f1, t1.v1 AS f2 FROM (t2 JOIN t1 ON (t1.v1 = t2.v1));
 
@@ -3898,13 +3982,12 @@ eval EXPLAIN EXTENDED $q;
 
 DROP TABLE t1,t2,temp;
 
-SET join_cache_level = default;
+set join_cache_level=@save_join_cache_level;
 
 --echo #
 --echo # MDEV-5123 Remove duplicated conditions pushed both to join_tab->select_cond and join_tab->cache_select->cond for blocked joins.
 --echo #
 
-set join_cache_level=default;
 set expensive_subquery_limit=0;
 
 create table t1 (c1 int);
@@ -3942,7 +4025,7 @@ where c1 = c2-0 and
 select @counter;
 
 drop table t1,t2,t3;
-set expensive_subquery_limit=default;
+set expensive_subquery_limit=@save_expensive_subquery_limit;
 
 --echo # 
 --echo # MDEV-6071: EXPLAIN chooses to use join buffer while execution turns it down
@@ -3955,12 +4038,10 @@ insert into t1 values
 explain select count(*) from t1, t1 t2 where t1.a=t2.a;
 
 set join_buffer_space_limit=1024*8;
-select @@join_buffer_space_limit;
-select @@join_buffer_size;
 
 explain select count(*) from t1, t1 t2 where t1.a=t2.a;
 
-set join_buffer_space_limit=default;
+set join_buffer_space_limit=@save_join_buffer_space_limit;
 
 drop table t1;
 
@@ -3970,11 +4051,11 @@ drop table t1;
 SET join_cache_level = 3;
 --echo # The following should have 
 --echo #  - table order PROFILING,user,  
---echo #  - table user accessed with hash_ALL:
+--echo #  - table db accessed with hash_ALL:
 explain
-SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user WHERE password_expired = PAGE_FAULTS_MINOR;
+SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.db WHERE Select_priv = PAGE_FAULTS_MINOR;
 
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 
 #
 # MDEV-12580 Wrong query result in join when using an index (Version > "10.2.3")
@@ -3986,7 +4067,112 @@ insert t2 values (4,1,1), (6,1,1);
 set join_buffer_size = 222222208;
 select f2 from t2,t1 where f2 = 0;
 drop table t1, t2;
-set join_buffer_size = default;
+set join_buffer_size=@save_join_buffer_size;
 
-# The following command must be the last one the file 
+
+--echo #
+--echo # MDEV-21104: BNLH used for multi-join query with embedded outer join
+--echo #             and possible 'not exists' optimization
+--echo #
+
+set join_cache_level=4;
+
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b int, c int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES  (1,2),(2,4);
+CREATE TABLE t3 (d int, KEY(d)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1),(2);
+CREATE TABLE t4 (e int primary key) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1),(2);
+ANALYZE TABLE t1,t2,t3,t4;
+
+SELECT * FROM t2 LEFT JOIN t3 ON c = d;
+SELECT * FROM (t2 LEFT JOIN t3 ON c = d ) JOIN t4;
+
+let $q1=
+SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b = e;
+eval EXPLAIN $q1;
+eval $q1;
+
+let $q2=
+SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b = e
+  WHERE e IS NULL;
+eval EXPLAIN $q2;
+eval $q2;
+
+DROP TABLE t1,t2,t3,t4;
+
+set join_cache_level=@save_join_cache_level;
+
+--echo #
+--echo # MDEV-24767: forced BNLH used for equi-join supported by compound index
+--echo #
+
+create table t1 (a int, b int, c int ) engine=myisam ;
+create table t2 (a int, b int, c int, primary key (c,a,b)) engine=myisam ;
+insert into t1 values (3,4,2), (5,6,4);
+insert into t2 values (3,4,2), (5,6,4);
+
+let $q=
+select t1.a, t1.b, t1.c from t1,t2
+  where t2.a = t1.a and t2.b = t1.b and t2.c=t1.c;
+
+eval $q;
+eval explain $q;
+
+set join_cache_level=3;
+eval $q;
+eval explain $q;
+
+drop table t1,t2;
+
+set join_cache_level=@save_join_cache_level;
+
+--echo #
+--echo # MDEV-21243: Join buffer: condition is checked in wrong place for range access
+--echo #
+create table t1(a int primary key);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (a int);
+insert into t2 select A.a + 10*B.a from t1 A, t1 B;
+
+create table t3 (
+  kp1 int,
+  kp2 int,
+  col1 int,
+  col2 int,
+  key (kp1, kp2)
+);
+
+insert into t3
+select
+  A.a,
+  B.a,
+  A.a + 100*B.a,
+  A.a + 100*B.a
+from
+  t2 A, t2 B;
+analyze table t3;
+
+--echo # The following must have "B.col1 + 1 < 33333" attached to table B
+--echo # and not to the block-nl-join node:
+explain format=json
+select *
+from t1 a, t3 b
+where
+  b.kp1=a.a and
+  b.kp1 <= 10 and
+  b.kp2 <= 10 and
+  b.col1 +1 < 33333;
+
+drop table t1,t2,t3;
+
+--echo # End of 10.3 tests
+
+# The following command must be the last one in the file
 set @@optimizer_switch=@save_optimizer_switch;
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;

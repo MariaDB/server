@@ -1,3 +1,5 @@
+--source include/default_optimizer_switch.inc
+
 #
 # MDEV-6065 MySQL Bug#13623473 "MISSING ROWS ON SELECT AND JOIN WITH TIME/DATETIME COMPARE"
 #

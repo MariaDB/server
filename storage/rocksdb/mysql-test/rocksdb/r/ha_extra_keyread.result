@@ -1,0 +1,10 @@
+CREATE TABLE t1 (a INT, b CHAR(8), KEY ab(a, b)) ENGINE=rocksdb DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_bin;
+INSERT INTO t1 (a,b) VALUES (76,'bar');
+INSERT INTO t1 (a,b) VALUES (35,'foo');
+INSERT INTO t1 (a,b) VALUES (77,'baz');
+SET debug_dbug="+d,dbug.rocksdb.HA_EXTRA_KEYREAD";
+SELECT b FROM t1 FORCE INDEX(ab) WHERE a=35;
+b
+foo
+SET debug_dbug="-d,dbug.rocksdb.HA_EXTRA_KEYREAD";
+DROP TABLE t1;

@@ -459,7 +459,7 @@ CALL p1('b1');
 msg
 Fetched a record a=0
 Warnings:
-Warning	1366	Incorrect integer value: 'b1' for column 'p_a' at row 1
+Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 1
 DROP PROCEDURE p1;
 #
 # One parameter in SELECT list + subselect
@@ -776,7 +776,7 @@ FETCH c INTO a, b;
 EXIT WHEN c%NOTFOUND;
 SELECT a, b;
 END LOOP;
-CLOSE ' at line 5
+CLO...' at line 5
 DROP TABLE t1;
 #
 # MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations

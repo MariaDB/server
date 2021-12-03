@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -136,7 +136,7 @@ public:
 
   int open(const char *name, int mode, uint open_options);
   int close(void);
-  int write_row(uchar * buf);
+  int write_row(const uchar * buf);
   int update_row(const uchar * old_data, const uchar * new_data);
   int delete_row(const uchar * buf);
   int rnd_init(bool scan=1);

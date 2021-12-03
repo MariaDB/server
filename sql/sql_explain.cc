@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation				// gcc: Class implementation
@@ -33,6 +33,9 @@ const char *unit_operation_text[4]=
 {
    "UNIT RESULT","UNION RESULT","INTERSECT RESULT","EXCEPT RESULT"
 };
+
+const char *pushed_derived_text= "PUSHED DERIVED";
+const char *pushed_select_text= "PUSHED SELECT";
 
 static void write_item(Json_writer *writer, Item *item);
 static void append_item_to_str(String *out, Item *item);
@@ -233,7 +236,7 @@ void Explain_query::print_explain_json(select_result_sink *output,
 
   CHARSET_INFO *cs= system_charset_info;
   List<Item> item_list;
-  String *buf= &writer.output;
+  const String *buf= writer.output.get_string();
   item_list.push_back(new (thd->mem_root)
                       Item_string(thd, buf->ptr(), buf->length(), cs),
                       thd->mem_root);
@@ -334,6 +337,9 @@ int print_explain_row(select_result_sink *result,
   List<Item> item_list;
   Item *item;
 
+  if (!select_type[0])
+    return 0;
+
   item_list.push_back(new (mem_root) Item_int(thd, (int32) select_number),
                       mem_root);
   item_list.push_back(new (mem_root) Item_string_sys(thd, select_type),
@@ -380,21 +386,31 @@ int print_explain_row(select_result_sink *result,
   item_list.push_back(item, mem_root);
 
   /* 'rows' */
+  StringBuffer<64> rows_str;
   if (rows)
   {
+    rows_str.append_ulonglong((ulonglong)(*rows));
     item_list.push_back(new (mem_root)
-                        Item_int(thd, *rows, MY_INT64_NUM_DECIMAL_DIGITS),
-                        mem_root);
+                        Item_string_sys(thd, rows_str.ptr(),
+                                        rows_str.length()), mem_root);
   }
   else
     item_list.push_back(item_null, mem_root);
   
   /* 'r_rows' */
+  StringBuffer<64> r_rows_str;
   if (is_analyze)
   {
     if (r_rows)
-      item_list.push_back(new (mem_root) Item_float(thd, *r_rows, 2),
-                          mem_root);
+    {
+      Item_float *fl= new (mem_root) Item_float(thd, *r_rows, 2);
+      String tmp;
+      String *res= fl->val_str(&tmp);
+      r_rows_str.append(res->ptr());
+      item_list.push_back(new (mem_root)
+                          Item_string_sys(thd, r_rows_str.ptr(),
+                                          r_rows_str.length()), mem_root);
+    }
     else
       item_list.push_back(item_null, mem_root);
   }
@@ -444,6 +460,8 @@ uint Explain_union::make_union_table_name(char *buf)
       break;
     default:
       DBUG_ASSERT(0);
+      type.str= NULL;
+      type.length= 0;
   }
   memcpy(buf, type.str, (len= (uint)type.length));
 
@@ -527,10 +545,17 @@ int Explain_union::print_explain(Explain_query *query,
   item_list.push_back(item_null, mem_root);
   
   /* `r_rows` */
+  StringBuffer<64> r_rows_str;
   if (is_analyze)
   {
     double avg_rows= fake_select_lex_tracker.get_avg_rows();
-    item_list.push_back(new (mem_root) Item_float(thd, avg_rows, 2), mem_root);
+    Item_float *fl= new (mem_root) Item_float(thd, avg_rows, 2);
+    String tmp;
+    String *res= fl->val_str(&tmp);
+    r_rows_str.append(res->ptr());
+    item_list.push_back(new (mem_root)
+                        Item_string_sys(thd, r_rows_str.ptr(),
+                                        r_rows_str.length()), mem_root);
   }
 
   /* `filtered` */
@@ -746,7 +771,15 @@ int Explain_select::print_explain(Explain_query *query,
   THD *thd= output->thd;
   MEM_ROOT *mem_root= thd->mem_root;
 
-  if (message)
+  if (select_type == pushed_derived_text || select_type == pushed_select_text)
+  {
+     print_explain_message_line(output, explain_flags, is_analyze,
+                                select_id /*select number*/,
+                                select_type,
+                                NULL, /* rows */
+                                NULL);
+  }
+  else if (message)
   {
     List<Item> item_list;
     Item *item_null= new (mem_root) Item_null(thd);
@@ -869,14 +902,20 @@ void Explain_select::print_explain_json(Explain_query *query,
   
   bool started_cache= print_explain_json_cache(writer, is_analyze);
 
-  if (message)
+  if (message ||
+      select_type == pushed_derived_text ||
+      select_type == pushed_select_text)
   {
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
     add_linkage(writer);
 
     writer->add_member("table").start_object();
-    writer->add_member("message").add_str(message);
+    writer->add_member("message").add_str(select_type == pushed_derived_text ?
+                                          "Pushed derived" :
+                                          select_type == pushed_select_text ?
+                                          "Pushed select" :
+                                          message);
     writer->end_object();
 
     print_explain_json_for_children(query, writer, is_analyze);
@@ -903,6 +942,11 @@ void Explain_select::print_explain_json(Explain_query *query,
     {
       writer->add_member("outer_ref_condition");
       write_item(writer, outer_ref_cond);
+    }
+    if (pseudo_bits_cond)
+    {
+      writer->add_member("pseudo_bits_condition");
+      write_item(writer, pseudo_bits_cond);
     }
 
     /* we do not print HAVING which always evaluates to TRUE */
@@ -1113,12 +1157,14 @@ void Explain_table_access::fill_key_str(String *key_str, bool is_json) const
    - this is just used key length for ref/range 
    - for index_merge, it is a comma-separated list of lengths.
    - for hash join, it is key_len:pseudo_key_len
+   - [tabular form only] rowid filter length is added after "|".
 
-  The column looks identical in tabular and json forms. In JSON, we consider
-  the column legacy, it is superceded by used_key_parts.
+  In JSON, we consider this column to be legacy, it is superceded by
+  used_key_parts.
 */
 
-void Explain_table_access::fill_key_len_str(String *key_len_str) const
+void Explain_table_access::fill_key_len_str(String *key_len_str,
+                                            bool is_json) const
 {
   bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT || 
                type == JT_HASH_RANGE || type == JT_HASH_INDEX_MERGE);
@@ -1145,6 +1191,14 @@ void Explain_table_access::fill_key_len_str(String *key_len_str) const
     size_t length;
     length= longlong10_to_str(hash_next_key.get_key_len(), buf, 10) - buf;
     key_len_str->append(buf, length);
+  }
+
+  if (!is_json && rowid_filter)
+  {
+    key_len_str->append('|');
+    StringBuffer<64> filter_key_len;
+    rowid_filter->quick->print_key_len(&filter_key_len);
+    key_len_str->append(filter_key_len);
   }
 }
 
@@ -1231,7 +1285,18 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   }
 
   /* `type` column */
-  push_str(thd, &item_list, join_type_str[type]);
+   StringBuffer<64> join_type_buf;
+  if (rowid_filter == NULL)
+    push_str(thd, &item_list, join_type_str[type]);
+  else
+  {
+    join_type_buf.append(join_type_str[type]);
+    join_type_buf.append("|filter");
+    item_list.push_back(new (mem_root)
+                        Item_string_sys(thd, join_type_buf.ptr(),
+                                             join_type_buf.length()),
+                        mem_root);
+  }
 
   /* `possible_keys` column */
   StringBuffer<64> possible_keys_buf;
@@ -1243,6 +1308,14 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   /* `key` */
   StringBuffer<64> key_str;
   fill_key_str(&key_str, false);
+
+  if (rowid_filter)
+  {
+    key_str.append("|");
+    StringBuffer<64> rowid_key_str;
+    rowid_filter->quick->print_key(&rowid_key_str);
+    key_str.append(rowid_key_str);
+  }
   
   if (key_str.length() > 0)
     push_string(thd, &item_list, &key_str);
@@ -1251,7 +1324,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
 
   /* `key_len` */
   StringBuffer<64> key_len_str;
-  fill_key_len_str(&key_len_str);
+  fill_key_len_str(&key_len_str, false);
 
   if (key_len_str.length() > 0)
     push_string(thd, &item_list, &key_len_str);
@@ -1274,17 +1347,27 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     push_string_list(thd, &item_list, ref_list, &ref_list_buf);
  
   /* `rows` */
+  StringBuffer<64> rows_str;
   if (rows_set)
   {
+    rows_str.append_ulonglong((ulonglong)rows);
+
+    if (rowid_filter)
+    {
+      rows_str.append(" (");
+      rows_str.append_ulonglong((ulonglong) (round(rowid_filter->selectivity *
+						   100.0)));
+      rows_str.append("%)");
+    }
     item_list.push_back(new (mem_root)
-                        Item_int(thd, (longlong) (ulonglong) rows,
-                                 MY_INT64_NUM_DECIMAL_DIGITS),
-                        mem_root);
+                        Item_string_sys(thd, rows_str.ptr(),
+                                        rows_str.length()), mem_root);
   }
   else
     item_list.push_back(item_null, mem_root);
 
   /* `r_rows` */
+  StringBuffer<64> r_rows_str;
   if (is_analyze)
   {
     if (!tracker.has_scans())
@@ -1294,8 +1377,20 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     else
     {
       double avg_rows= tracker.get_avg_rows();
-      item_list.push_back(new (mem_root) Item_float(thd, avg_rows, 2),
-                          mem_root);
+      Item_float *fl= new (mem_root) Item_float(thd, avg_rows, 2);
+      String tmp;
+      String *res= fl->val_str(&tmp);
+      r_rows_str.append(res->ptr());
+      if (rowid_filter)
+      {
+        r_rows_str.append(" (");
+        r_rows_str.append_ulonglong(
+	  (ulonglong) (rowid_filter->tracker->get_r_selectivity_pct() * 100.0));
+        r_rows_str.append("%)");
+      }
+      item_list.push_back(new (mem_root)
+                          Item_string_sys(thd, r_rows_str.ptr(),
+                                          r_rows_str.length()), mem_root);
     }
   }
 
@@ -1357,6 +1452,15 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     else
       extra_buf.append(STRING_WITH_LEN("; "));
     extra_buf.append(STRING_WITH_LEN("Using filesort"));
+  }
+
+  if (rowid_filter)
+  {
+    if (first)
+      first= false;
+    else
+      extra_buf.append(STRING_WITH_LEN("; "));
+    extra_buf.append(STRING_WITH_LEN("Using rowid filter"));
   }
 
   item_list.push_back(new (mem_root)
@@ -1547,6 +1651,29 @@ void add_json_keyset(Json_writer *writer, const char *elem_name,
 }
 
 
+void Explain_rowid_filter::print_explain_json(Explain_query *query,
+                                              Json_writer *writer,
+                                              bool is_analyze)
+{
+  Json_writer_nesting_guard guard(writer);
+  writer->add_member("rowid_filter").start_object();
+  quick->print_json(writer);
+  writer->add_member("rows").add_ll(rows);
+  writer->add_member("selectivity_pct").add_double(selectivity * 100.0);
+  if (is_analyze)
+  {
+    writer->add_member("r_rows").add_double(tracker->get_container_elements());
+    writer->add_member("r_selectivity_pct").
+      add_double(tracker->get_r_selectivity_pct() * 100.0);
+    writer->add_member("r_buffer_size").
+      add_double((double) (tracker->get_container_buff_size()));
+    writer->add_member("r_filling_time_ms").
+      add_double(tracker->get_time_fill_container_ms());
+  }
+  writer->end_object(); // rowid_filter
+}
+
+
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
                                               bool is_analyze)
@@ -1619,7 +1746,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
   /* `key_length` */
   StringBuffer<64> key_len_str;
-  fill_key_len_str(&key_len_str);
+  fill_key_len_str(&key_len_str, true);
   if (key_len_str.length())
     writer->add_member("key_length").add_str(key_len_str);
 
@@ -1644,6 +1771,11 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   if (!ref_list.is_empty())
     print_json_array(writer, "ref", ref_list);
 
+  if (rowid_filter)
+  {
+    rowid_filter->print_explain_json(query, writer, is_analyze);
+  }
+
   /* r_loops (not present in tabular output) */
   if (is_analyze)
   {
@@ -1652,7 +1784,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   
   /* `rows` */
   if (rows_set)
-    writer->add_member("rows").add_ll(rows);
+    writer->add_member("rows").add_ull(rows);
 
   /* `r_rows` */
   if (is_analyze)
@@ -1676,8 +1808,10 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
     if (op_tracker.get_loops())
     {
-      writer->add_member("r_total_time_ms").
-              add_double(op_tracker.get_time_ms());
+      double total_time= op_tracker.get_time_ms();
+      if (rowid_filter)
+        total_time+= rowid_filter->tracker->get_time_fill_container_ms();
+      writer->add_member("r_total_time_ms").add_double(total_time);
     }
   }
   
@@ -1749,6 +1883,11 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     /* This is a derived table. Print its contents here */
     writer->add_member("materialized").start_object();
     Explain_node *node= query->get_node(derived_select_number);
+    if (node->get_type() == Explain_node::EXPLAIN_SELECT &&
+        ((Explain_select*)node)->is_lateral)
+    {
+      writer->add_member("lateral").add_ll(1);
+    }
     node->print_explain_json(query, writer, is_analyze);
     writer->end_object();
   }
@@ -1782,7 +1921,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
 
 /*
-  Elements in this array match members of enum Extra_tag, defined in
+  Elements in this array match members of enum explain_extra_tag, defined in
   sql_explain.h
 */
 
@@ -2290,7 +2429,7 @@ void Explain_update::print_explain_json(Explain_query *query,
   }
   
   /* `rows` */
-  writer->add_member("rows").add_ll(rows);
+  writer->add_member("rows").add_ull(rows);
 
 
   if (mrr_type.length() != 0)
@@ -2319,7 +2458,7 @@ void Explain_update::print_explain_json(Explain_query *query,
           r_rows= 0;
         r_filtered= buf_tracker.get_filtered_after_where() * 100.0;
       }
-      writer->add_member("r_rows").add_ll(r_rows);
+      writer->add_member("r_rows").add_ull(r_rows);
       writer->add_member("r_filtered").add_double(r_filtered);
     }
     else /* Not doing buffering */

@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Structure used to manage Spider parameter string parsing.  Types of
@@ -177,6 +178,95 @@ typedef struct st_spider_param_string_parse
     }
 
     DBUG_RETURN(error_num);
+  }
+
+  inline int get_next_parameter_head(char *st, char **nx)
+  {
+    DBUG_ENTER("get_next_parameter_head");
+    char *sq = strchr(st, '\'');
+    char *dq = strchr(st, '"');
+    if (!sq && !dq)
+    {
+      DBUG_RETURN(print_param_error());
+    }
+
+    if (dq && (!sq || sq > dq))
+    {
+      while (1)
+      {
+        ++dq;
+        if (*dq == '\\')
+        {
+          ++dq;
+        }
+        else if (*dq == '"')
+        {
+          break;
+        }
+        else if (*dq == '\0')
+        {
+          DBUG_RETURN(print_param_error());
+        }
+      }
+      while (1)
+      {
+        ++dq;
+        if (*dq == '\0')
+        {
+          *nx = dq;
+          break;
+        }
+        else if (*dq == ',')
+        {
+          *dq = '\0';
+          *nx = dq + 1;
+          break;
+        }
+        else if (*dq != ' ' && *dq != '\r' && *dq != '\n' && *dq != '\t')
+        {
+          DBUG_RETURN(print_param_error());
+        }
+      }
+    }
+    else /* sq && (!dq || sq <= dq) */
+    {
+      while (1)
+      {
+        ++sq;
+        if (*sq == '\\')
+        {
+          ++sq;
+        }
+        else if (*sq == '\'')
+        {
+          break;
+        }
+        else if (*sq == '\0')
+        {
+          DBUG_RETURN(print_param_error());
+        }
+      }
+      while (1)
+      {
+        ++sq;
+        if (*sq == '\0')
+        {
+          *nx = sq;
+          break;
+        }
+        else if (*sq == ',')
+        {
+          *sq = '\0';
+          *nx = sq + 1;
+          break;
+        }
+        else if (*sq != ' ' && *sq != '\r' && *sq != '\n' && *sq != '\t')
+        {
+          DBUG_RETURN(print_param_error());
+        }
+      }
+    }
+    DBUG_RETURN(0);
   }
 
   /**
@@ -637,6 +727,18 @@ void spider_next_split_read_param(
 bool spider_check_direct_order_limit(
   ha_spider *spider
 );
+
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+bool spider_all_part_in_order(
+  ORDER *order,
+  TABLE *table
+);
+
+Field *spider_field_exchange(
+  handler *handler,
+  Field *field
+);
+#endif
 
 int spider_set_direct_limit_offset(
                                    ha_spider*		spider

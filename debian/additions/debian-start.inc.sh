@@ -60,7 +60,7 @@ function upgrade_system_tables_if_necessary() {
   # errors as the script is designed to be idempotent.
   LC_ALL=C $MYUPGRADE \
     2>&1 \
-    | egrep -v '^(1|@had|ERROR (1054|1060|1061))' \
+    | egrep -v '^(1|@had|ERROR (1051|1054|1060|1061|1146|1347|1348))' \
     | logger -p daemon.warn -i -t$0
 }
 

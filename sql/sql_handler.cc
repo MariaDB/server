@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* HANDLER ... commands - direct access to ISAM */
@@ -417,8 +417,6 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     sql_handler->reset();
   }    
   sql_handler->table= table;
-  memcpy(&sql_handler->mdl_request, &tables->mdl_request,
-         sizeof(tables->mdl_request));
 
   if (!(sql_handler->lock= get_lock_data(thd, &sql_handler->table, 1,
                                          GET_LOCK_STORE_LOCKS)))
@@ -430,6 +428,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   thd->restore_active_arena(&sql_handler->arena, &backup_arena);
   if (unlikely(error))
     goto err;
+
+  sql_handler->mdl_request.move_from(tables->mdl_request);
 
   /* Always read all columns */
   table->read_set= &table->s->all_set;
@@ -467,9 +467,6 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   {
     table_list->table->open_by_handler= 1;
   }
-
-  /* Safety, cleanup the pointer to satisfy MDL assertions. */
-  tables->mdl_request.ticket= NULL;
 
   if (! reopen)
     my_ok(thd);
@@ -668,7 +665,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
             (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
       {
         my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
-                 table->file->index_type(handler->keyno), keyinfo->name);
+                 table->file->index_type(handler->keyno), keyinfo->name.str);
         return 1;
       }
 
@@ -684,13 +681,12 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
                 HA_ONLY_WHOLE_INDEX))
       {
         my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
-                 table->file->index_type(handler->keyno), keyinfo->name);
+                 table->file->index_type(handler->keyno), keyinfo->name.str);
         return 1;
       }
 
       for (keypart_map= key_len=0 ; (item=it_ke++) ; key_part++)
       {
-        my_bitmap_map *old_map;
 	/* note that 'item' can be changed by fix_fields() call */
         if (item->fix_fields_if_needed_for_scalar(thd, it_ke.ref()))
           return 1;
@@ -702,9 +698,9 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
         }
         if (!in_prepare)
         {
-          old_map= dbug_tmp_use_all_columns(table, table->write_set);
+          MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
           (void) item->save_in_field(key_part->field, 1);
-          dbug_tmp_restore_column_map(table->write_set, old_map);
+          dbug_tmp_restore_column_map(&table->write_set, old_map);
         }
         key_len+= key_part->store_length;
         keypart_map= (keypart_map << 1) | 1;
@@ -785,6 +781,9 @@ bool mysql_ha_read(THD *thd, TABLE_LIST *tables,
 
 retry:
   if (!(handler= mysql_ha_find_handler(thd, &tables->alias)))
+    goto err0;
+
+  if (thd->transaction.xid_state.check_has_uncommitted_xa())
     goto err0;
 
   table= handler->table;
@@ -1196,10 +1195,10 @@ void mysql_ha_flush(THD *thd)
   @note Broadcasts refresh if it closed a table with old version.
 */
 
-void mysql_ha_cleanup(THD *thd)
+void mysql_ha_cleanup_no_free(THD *thd)
 {
   SQL_HANDLER *hash_tables;
-  DBUG_ENTER("mysql_ha_cleanup");
+  DBUG_ENTER("mysql_ha_cleanup_no_free");
 
   for (uint i= 0; i < thd->handler_tables_hash.records; i++)
   {
@@ -1207,9 +1206,15 @@ void mysql_ha_cleanup(THD *thd)
     if (hash_tables->table)
       mysql_ha_close_table(hash_tables);
   }
+  DBUG_VOID_RETURN;
+}
 
+
+void mysql_ha_cleanup(THD *thd)
+{
+  DBUG_ENTER("mysql_ha_cleanup");
+  mysql_ha_cleanup_no_free(thd);
   my_hash_free(&thd->handler_tables_hash);
-
   DBUG_VOID_RETURN;
 }
 

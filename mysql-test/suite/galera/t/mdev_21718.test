@@ -1,0 +1,35 @@
+#
+# MDEV-21718 Reproduce a case where BF abort after
+# client session acquires the ownership but before calls
+# before_command() causes an assertion in wsrep-lib.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+--let $galera_connection_name = node_1_ctrl
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+--connection node_1
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+SET DEBUG_SYNC = "wsrep_before_before_command SIGNAL reached WAIT_FOR continue";
+--send COMMIT
+
+--connection node_1_ctrl
+SET DEBUG_SYNC = "now WAIT_FOR reached";
+
+--connection node_2
+INSERT INTO t1 VALUES (1);
+
+# BF abort wakes up node_1 from sync wait.
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+DROP TABLE t1;
+SET DEBUG_SYNC = "RESET";

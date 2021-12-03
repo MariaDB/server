@@ -4,10 +4,9 @@
 
 --source include/big_test.inc
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 
 --connection node_1
-CREATE TABLE ten (f1 INTEGER);
+CREATE TABLE ten (f1 INTEGER) Engine=InnoDB;
 INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
@@ -26,13 +25,18 @@ SET SESSION wsrep_OSU_method = "TOI";
 # Insert even more data after the ALTER has completed
 INSERT INTO t1 (f1) SELECT 200000 + (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3.f1) + (10 * a4.f1) + a5.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
 
-SELECT COUNT(*) = 300000 FROM t1;
-SELECT MAX(f1) =  299999 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 300000 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) as expect_300000 FROM t1;
+SELECT MAX(f1) as expect_299999 FROM t1;
 
 --connection node_1
 --reap
-SELECT COUNT(*) = 300000 FROM t1;
-SELECT MAX(f1) =  299999 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 300000 FROM t1;
+--source include/wait_condition.inc
+SELECT COUNT(*) as expect_300000 FROM t1;
+SELECT MAX(f1) as expect_299999 FROM t1;
 
 SET SESSION wsrep_OSU_method = "RSU";
 ALTER TABLE t1 DROP PRIMARY KEY;
@@ -44,15 +48,19 @@ INSERT INTO t1 (f1) VALUES (1);
 INSERT INTO t1 (f1) VALUES (10);
 
 --connection node_1
-SELECT COUNT(*) = 2 FROM t1 WHERE f1 = 1;
-SELECT COUNT(*) = 2 FROM t1 WHERE f1 = 10;
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t1 where f1 = 10;
+--source include/wait_condition.inc
+SELECT COUNT(*) as expect_2 FROM t1 WHERE f1 = 1;
+SELECT COUNT(*) as expect_2 FROM t1 WHERE f1 = 10;
 
 INSERT INTO t1 (f1) VALUES (100);
 INSERT INTO t1 (f1) VALUES (1000);
 
 --connection node_2
-SELECT COUNT(*) = 2 FROM t1 WHERE f1 = 100;
-SELECT COUNT(*) = 2 FROM t1 WHERE f1 = 1000;
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t1 where f1 = 1000;
+--source include/wait_condition.inc
+SELECT COUNT(*) as expect_2 FROM t1 WHERE f1 = 100;
+SELECT COUNT(*) as expect_2 FROM t1 WHERE f1 = 1000;
 
 DROP TABLE t1;
 DROP TABLE ten;

@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # This is a library file used by the Perl version of mysql-test-run,
 # and is part of the translation of the Bourne shell script with the
@@ -291,6 +291,7 @@ sub combinations_from_file($$)
     @combs = ({ skip => $skip_combinations{$filename} });
   } else {
     return () if @::opt_combinations or not -f $filename;
+    return () if ::using_extern();
     # Read combinations file in my.cnf format
     mtr_verbose("Read combinations file $filename");
     my $config= My::Config->new($filename);
@@ -625,8 +626,10 @@ sub make_combinations($$@)
   {
     # Skip all other combinations if the values they change
     # are already fixed in master_opt or slave_opt
-    if (My::Options::is_set($test->{master_opt}, $comb->{comb_opt}) &&
-        My::Options::is_set($test->{slave_opt}, $comb->{comb_opt}) ){
+    # (empty combinations are not considered a subset of anything)
+    if (@{$comb->{comb_opt}} &&
+        My::Options::is_subset($test->{master_opt}, $comb->{comb_opt}) &&
+        My::Options::is_subset($test->{slave_opt}, $comb->{comb_opt}) ){
 
       $test_combs->{$comb->{name}} = 2;
 

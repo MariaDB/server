@@ -1,0 +1,754 @@
+set @tmp_opt_switch= @@optimizer_switch;
+set optimizer_switch='index_merge_sort_intersection=on';
+set optimizer_trace='enabled=on';
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int, c int, filler char(100),
+key(a), key(b), key(c));
+insert into t1 select
+A.a * B.a*10 + C.a*100,
+A.a * B.a*10 + C.a*100,
+A.a,
+'filler'
+from t0 A, t0 B, t0 C;
+This should use union:
+explain select * from t1 where a=1 or b=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b	a,b	5,5	NULL	2	Using union(a,b); Using where
+select * from information_schema.OPTIMIZER_TRACE;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+explain select * from t1 where a=1 or b=1	{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "select t1.a AS a,t1.b AS b,t1.c AS c,t1.filler AS filler from t1 where t1.a = 1 or t1.b = 1"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": [
+          {
+            "condition_processing": {
+              "condition": "WHERE",
+              "original_condition": "t1.a = 1 or t1.b = 1",
+              "steps": [
+                {
+                  "transformation": "equality_propagation",
+                  "resulting_condition": "multiple equal(1, t1.a) or multiple equal(1, t1.b)"
+                },
+                {
+                  "transformation": "constant_propagation",
+                  "resulting_condition": "multiple equal(1, t1.a) or multiple equal(1, t1.b)"
+                },
+                {
+                  "transformation": "trivial_condition_removal",
+                  "resulting_condition": "multiple equal(1, t1.a) or multiple equal(1, t1.b)"
+                }
+              ]
+            }
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
+            "ref_optimizer_key_uses": []
+          },
+          {
+            "rows_estimation": [
+              {
+                "table": "t1",
+                "range_analysis": {
+                  "table_scan": {
+                    "rows": 1000,
+                    "cost": 231.69
+                  },
+                  "potential_range_indexes": [
+                    {
+                      "index": "a",
+                      "usable": true,
+                      "key_parts": ["a"]
+                    },
+                    {
+                      "index": "b",
+                      "usable": true,
+                      "key_parts": ["b"]
+                    },
+                    {
+                      "index": "c",
+                      "usable": false,
+                      "cause": "not applicable"
+                    }
+                  ],
+                  "setup_range_conditions": [],
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "no group by or distinct"
+                  },
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [],
+                    "analyzing_roworder_intersect": {
+                      "cause": "too few roworder scans"
+                    },
+                    "analyzing_sort_intersect": {},
+                    "analyzing_index_merge_union": [
+                      {
+                        "indexes_to_merge": [
+                          {
+                            "range_scan_alternatives": [
+                              {
+                                "index": "a",
+                                "ranges": ["(1) <= (a) <= (1)"],
+                                "rowid_ordered": true,
+                                "using_mrr": false,
+                                "index_only": true,
+                                "rows": 1,
+                                "cost": 1.1773,
+                                "chosen": true
+                              }
+                            ],
+                            "index_to_merge": "a",
+                            "cumulated_cost": 1.1773
+                          },
+                          {
+                            "range_scan_alternatives": [
+                              {
+                                "index": "b",
+                                "ranges": ["(1) <= (b) <= (1)"],
+                                "rowid_ordered": true,
+                                "using_mrr": false,
+                                "index_only": true,
+                                "rows": 1,
+                                "cost": 1.1773,
+                                "chosen": true
+                              }
+                            ],
+                            "index_to_merge": "b",
+                            "cumulated_cost": 2.3547
+                          }
+                        ],
+                        "cost_of_reading_ranges": 2.3547,
+                        "use_roworder_union": true,
+                        "cause": "always cheaper than non roworder retrieval",
+                        "analyzing_roworder_scans": [
+                          {
+                            "type": "range_scan",
+                            "index": "a",
+                            "rows": 1,
+                            "ranges": ["(1) <= (a) <= (1)"],
+                            "analyzing_roworder_intersect": {
+                              "cause": "too few roworder scans"
+                            }
+                          },
+                          {
+                            "type": "range_scan",
+                            "index": "b",
+                            "rows": 1,
+                            "ranges": ["(1) <= (b) <= (1)"],
+                            "analyzing_roworder_intersect": {
+                              "cause": "too few roworder scans"
+                            }
+                          }
+                        ],
+                        "index_roworder_union_cost": 4.1484,
+                        "members": 2,
+                        "chosen": true
+                      }
+                    ]
+                  },
+                  "chosen_range_access_summary": {
+                    "range_access_plan": {
+                      "type": "index_roworder_union",
+                      "union_of": [
+                        {
+                          "type": "range_scan",
+                          "index": "a",
+                          "rows": 1,
+                          "ranges": ["(1) <= (a) <= (1)"]
+                        },
+                        {
+                          "type": "range_scan",
+                          "index": "b",
+                          "rows": 1,
+                          "ranges": ["(1) <= (b) <= (1)"]
+                        }
+                      ]
+                    },
+                    "rows_for_plan": 2,
+                    "cost_for_plan": 4.1484,
+                    "chosen": true
+                  }
+                }
+              },
+              {
+                "selectivity_for_indexes": [],
+                "selectivity_for_columns": [],
+                "cond_selectivity": 0.002
+              }
+            ]
+          },
+          {
+            "considered_execution_plans": [
+              {
+                "plan_prefix": [],
+                "table": "t1",
+                "best_access_path": {
+                  "considered_access_paths": [
+                    {
+                      "access_type": "index_merge",
+                      "resulting_rows": 2,
+                      "cost": 4.1484,
+                      "chosen": true
+                    }
+                  ],
+                  "chosen_access_method": {
+                    "type": "index_merge",
+                    "records": 2,
+                    "cost": 4.1484,
+                    "uses_join_buffering": false
+                  }
+                },
+                "rows_for_plan": 2,
+                "cost_for_plan": 4.5484,
+                "estimated_join_cardinality": 2
+              }
+            ]
+          },
+          {
+            "best_join_order": ["t1"]
+          },
+          {
+            "attaching_conditions_to_tables": {
+              "original_condition": "t1.a = 1 or t1.b = 1",
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached": "t1.a = 1 or t1.b = 1"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": []
+      }
+    }
+  ]
+}	0	0
+drop table t0,t1;
+set optimizer_trace="enabled=off";
+set @@optimizer_switch= @tmp_opt_switch;
+# More tests added index_merge access
+create table t1
+(
+/* Field names reflect value(rowid) distribution, st=STairs, swt= SaWTooth */
+st_a int not null default 0,
+swt1a int not null default 0,
+swt2a int not null default 0,
+st_b int not null default 0,
+swt1b int not null default 0,
+swt2b int not null default 0,
+/* fields/keys for row retrieval tests */
+key1 int,
+key2 int,
+key3 int,
+key4 int,
+/* make rows much bigger then keys */
+filler1 char (200),
+filler2 char (200),
+filler3 char (200),
+filler4 char (200),
+filler5 char (200),
+filler6 char (200),
+/* order of keys is important */
+key sta_swt12a(st_a,swt1a,swt2a),
+key sta_swt1a(st_a,swt1a),
+key sta_swt2a(st_a,swt2a),
+key sta_swt21a(st_a,swt2a,swt1a),
+key st_a(st_a),
+key stb_swt1a_2b(st_b,swt1b,swt2a),
+key stb_swt1b(st_b,swt1b),
+key st_b(st_b),
+key(key1),
+key(key2),
+key(key3),
+key(key4)
+) ;
+create table t0 as select * from t1;
+# Printing of many insert into t0 values (....) disabled.
+alter table t1 disable keys;
+# Printing of many insert into t1 select .... from t0 disabled.
+# Printing of many insert into t1 (...) values (....) disabled.
+alter table t1 enable keys;
+insert into t1 (key1, key2, key3, key4, filler1) values (100, 100, -1, -1, 'key1-key2');
+insert into t1 (key1, key2, key3, key4, filler1) values (-1, -1, 100, 100, 'key4-key3');
+set optimizer_trace='enabled=on';
+#  3-way ROR-intersection
+explain select key1,key2,key3 from t1 where key1=100 and key2=100 and key3=100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	key1,key2,key3	key1,key2,key3	5,5,5	NULL	2	Using intersect(key1,key2,key3); Using where; Using index
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
+[
+    
+    {
+        "range_scan_alternatives": 
+        [
+            
+            {
+                "index": "key1",
+                "ranges": 
+                [
+                    "(100) <= (key1) <= (100)"
+                ],
+                "rowid_ordered": true,
+                "using_mrr": false,
+                "index_only": false,
+                "rows": 2243,
+                "cost": 2844.1,
+                "chosen": true
+            },
+            
+            {
+                "index": "key2",
+                "ranges": 
+                [
+                    "(100) <= (key2) <= (100)"
+                ],
+                "rowid_ordered": true,
+                "using_mrr": false,
+                "index_only": false,
+                "rows": 2243,
+                "cost": 2844.1,
+                "chosen": false,
+                "cause": "cost"
+            },
+            
+            {
+                "index": "key3",
+                "ranges": 
+                [
+                    "(100) <= (key3) <= (100)"
+                ],
+                "rowid_ordered": true,
+                "using_mrr": false,
+                "index_only": false,
+                "rows": 2243,
+                "cost": 2844.1,
+                "chosen": false,
+                "cause": "cost"
+            }
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "intersecting_indexes": 
+            [
+                
+                {
+                    "index": "key1",
+                    "index_scan_cost": 58.252,
+                    "cumulated_index_scan_cost": 58.252,
+                    "disk_sweep_cost": 1923.1,
+                    "cumulative_total_cost": 1981.4,
+                    "usable": true,
+                    "matching_rows_now": 2243,
+                    "intersect_covering_with_this_index": false,
+                    "chosen": true
+                },
+                
+                {
+                    "index": "key2",
+                    "index_scan_cost": 58.252,
+                    "cumulated_index_scan_cost": 116.5,
+                    "disk_sweep_cost": 84.518,
+                    "cumulative_total_cost": 201.02,
+                    "usable": true,
+                    "matching_rows_now": 77.636,
+                    "intersect_covering_with_this_index": false,
+                    "chosen": true
+                },
+                
+                {
+                    "index": "key3",
+                    "index_scan_cost": 58.252,
+                    "cumulated_index_scan_cost": 174.76,
+                    "disk_sweep_cost": 0,
+                    "cumulative_total_cost": 174.76,
+                    "usable": true,
+                    "matching_rows_now": 2.6872,
+                    "intersect_covering_with_this_index": true,
+                    "chosen": true
+                }
+            ],
+            "clustered_pk": 
+            {
+                "clustered_pk_added_to_intersect": false,
+                "cause": "no clustered pk index"
+            },
+            "rows": 2,
+            "cost": 174.76,
+            "covering": true,
+            "chosen": true
+        },
+        "analyzing_index_merge_union": 
+        [
+        ]
+    }
+]
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary'))
+[
+    
+    {
+        "range_access_plan": 
+        {
+            "type": "index_roworder_intersect",
+            "rows": 2,
+            "cost": 174.76,
+            "covering": true,
+            "clustered_pk_scan": false,
+            "intersect_of": 
+            [
+                
+                {
+                    "type": "range_scan",
+                    "index": "key1",
+                    "rows": 2243,
+                    "ranges": 
+                    [
+                        "(100) <= (key1) <= (100)"
+                    ]
+                },
+                
+                {
+                    "type": "range_scan",
+                    "index": "key2",
+                    "rows": 2243,
+                    "ranges": 
+                    [
+                        "(100) <= (key2) <= (100)"
+                    ]
+                },
+                
+                {
+                    "type": "range_scan",
+                    "index": "key3",
+                    "rows": 2243,
+                    "ranges": 
+                    [
+                        "(100) <= (key3) <= (100)"
+                    ]
+                }
+            ]
+        },
+        "rows_for_plan": 2,
+        "cost_for_plan": 174.76,
+        "chosen": true
+    }
+]
+# ROR-union(ROR-intersection, ROR-range)
+explain select key1,key2,key3,key4 from t1 where key1=100 and key2=100 or key3=100 and key4=100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	key1,key2,key3,key4	key1,key2,key3,key4	5,5,5,5	NULL	154	Using union(intersect(key1,key2),intersect(key3,key4)); Using where
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
+[
+    
+    {
+        "range_scan_alternatives": 
+        [
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "cause": "too few roworder scans"
+        },
+        "analyzing_index_merge_union": 
+        [
+            
+            {
+                "indexes_to_merge": 
+                [
+                    
+                    {
+                        "range_scan_alternatives": 
+                        [
+                            
+                            {
+                                "index": "key1",
+                                "ranges": 
+                                [
+                                    "(100) <= (key1) <= (100)"
+                                ],
+                                "rowid_ordered": true,
+                                "using_mrr": false,
+                                "index_only": true,
+                                "rows": 2243,
+                                "cost": 152.53,
+                                "chosen": true
+                            },
+                            
+                            {
+                                "index": "key2",
+                                "ranges": 
+                                [
+                                    "(100) <= (key2) <= (100)"
+                                ],
+                                "rowid_ordered": true,
+                                "using_mrr": false,
+                                "index_only": true,
+                                "rows": 2243,
+                                "cost": 152.53,
+                                "chosen": false,
+                                "cause": "cost"
+                            }
+                        ],
+                        "index_to_merge": "key1",
+                        "cumulated_cost": 152.53
+                    },
+                    
+                    {
+                        "range_scan_alternatives": 
+                        [
+                            
+                            {
+                                "index": "key3",
+                                "ranges": 
+                                [
+                                    "(100) <= (key3) <= (100)"
+                                ],
+                                "rowid_ordered": true,
+                                "using_mrr": false,
+                                "index_only": true,
+                                "rows": 2243,
+                                "cost": 152.53,
+                                "chosen": true
+                            },
+                            
+                            {
+                                "index": "key4",
+                                "ranges": 
+                                [
+                                    "(100) <= (key4) <= (100)"
+                                ],
+                                "rowid_ordered": true,
+                                "using_mrr": false,
+                                "index_only": true,
+                                "rows": 2243,
+                                "cost": 152.53,
+                                "chosen": false,
+                                "cause": "cost"
+                            }
+                        ],
+                        "index_to_merge": "key3",
+                        "cumulated_cost": 305.05
+                    }
+                ],
+                "cost_of_reading_ranges": 305.05,
+                "use_roworder_union": true,
+                "cause": "always cheaper than non roworder retrieval",
+                "analyzing_roworder_scans": 
+                [
+                    
+                    {
+                        "type": "range_scan",
+                        "index": "key1",
+                        "rows": 2243,
+                        "ranges": 
+                        [
+                            "(100) <= (key1) <= (100)"
+                        ],
+                        "analyzing_roworder_intersect": 
+                        {
+                            "intersecting_indexes": 
+                            [
+                                
+                                {
+                                    "index": "key1",
+                                    "index_scan_cost": 58.252,
+                                    "cumulated_index_scan_cost": 58.252,
+                                    "disk_sweep_cost": 1923.1,
+                                    "cumulative_total_cost": 1981.4,
+                                    "usable": true,
+                                    "matching_rows_now": 2243,
+                                    "intersect_covering_with_this_index": false,
+                                    "chosen": true
+                                },
+                                
+                                {
+                                    "index": "key2",
+                                    "index_scan_cost": 58.252,
+                                    "cumulated_index_scan_cost": 116.5,
+                                    "disk_sweep_cost": 84.518,
+                                    "cumulative_total_cost": 201.02,
+                                    "usable": true,
+                                    "matching_rows_now": 77.636,
+                                    "intersect_covering_with_this_index": false,
+                                    "chosen": true
+                                }
+                            ],
+                            "clustered_pk": 
+                            {
+                                "clustered_pk_added_to_intersect": false,
+                                "cause": "no clustered pk index"
+                            },
+                            "rows": 77,
+                            "cost": 201.02,
+                            "covering": false,
+                            "chosen": true
+                        }
+                    },
+                    
+                    {
+                        "type": "range_scan",
+                        "index": "key3",
+                        "rows": 2243,
+                        "ranges": 
+                        [
+                            "(100) <= (key3) <= (100)"
+                        ],
+                        "analyzing_roworder_intersect": 
+                        {
+                            "intersecting_indexes": 
+                            [
+                                
+                                {
+                                    "index": "key3",
+                                    "index_scan_cost": 58.252,
+                                    "cumulated_index_scan_cost": 58.252,
+                                    "disk_sweep_cost": 1923.1,
+                                    "cumulative_total_cost": 1981.4,
+                                    "usable": true,
+                                    "matching_rows_now": 2243,
+                                    "intersect_covering_with_this_index": false,
+                                    "chosen": true
+                                },
+                                
+                                {
+                                    "index": "key4",
+                                    "index_scan_cost": 58.252,
+                                    "cumulated_index_scan_cost": 116.5,
+                                    "disk_sweep_cost": 84.518,
+                                    "cumulative_total_cost": 201.02,
+                                    "usable": true,
+                                    "matching_rows_now": 77.636,
+                                    "intersect_covering_with_this_index": false,
+                                    "chosen": true
+                                }
+                            ],
+                            "clustered_pk": 
+                            {
+                                "clustered_pk_added_to_intersect": false,
+                                "cause": "no clustered pk index"
+                            },
+                            "rows": 77,
+                            "cost": 201.02,
+                            "covering": false,
+                            "chosen": true
+                        }
+                    }
+                ],
+                "index_roworder_union_cost": 386.73,
+                "members": 2,
+                "chosen": true
+            }
+        ]
+    }
+]
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary'))
+[
+    
+    {
+        "range_access_plan": 
+        {
+            "type": "index_roworder_union",
+            "union_of": 
+            [
+                
+                {
+                    "type": "index_roworder_intersect",
+                    "rows": 77,
+                    "cost": 201.02,
+                    "covering": false,
+                    "clustered_pk_scan": false,
+                    "intersect_of": 
+                    [
+                        
+                        {
+                            "type": "range_scan",
+                            "index": "key1",
+                            "rows": 2243,
+                            "ranges": 
+                            [
+                                "(100) <= (key1) <= (100)"
+                            ]
+                        },
+                        
+                        {
+                            "type": "range_scan",
+                            "index": "key2",
+                            "rows": 2243,
+                            "ranges": 
+                            [
+                                "(100) <= (key2) <= (100)"
+                            ]
+                        }
+                    ]
+                },
+                
+                {
+                    "type": "index_roworder_intersect",
+                    "rows": 77,
+                    "cost": 201.02,
+                    "covering": false,
+                    "clustered_pk_scan": false,
+                    "intersect_of": 
+                    [
+                        
+                        {
+                            "type": "range_scan",
+                            "index": "key3",
+                            "rows": 2243,
+                            "ranges": 
+                            [
+                                "(100) <= (key3) <= (100)"
+                            ]
+                        },
+                        
+                        {
+                            "type": "range_scan",
+                            "index": "key4",
+                            "rows": 2243,
+                            "ranges": 
+                            [
+                                "(100) <= (key4) <= (100)"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "rows_for_plan": 154,
+        "cost_for_plan": 386.73,
+        "chosen": true
+    }
+]
+drop table t0,t1;
+set optimizer_trace="enabled=off";

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 /**
@@ -28,35 +28,50 @@
 
 #define HASH_SIZE (NUM > 1 ? NUM/8 : 20)
 
-#if defined(HAVE_YASSL)
-#include "sha.hpp"
-
-#define xCONTEXT(x)     TaoCrypt::SHA ## x
+#if defined(HAVE_WOLFSSL)
+#define WOLFSSL_SHA512
+#define WOLFSSL_SHA384
+#define WOLFSSL_SHA224
+#include <wolfcrypt/sha.h>
+#include <wolfcrypt/sha256.h>
+#include <wolfcrypt/sha512.h>
+#define xCONTEXT(x)     wc_Sha ## x
 #define yCONTEXT(y)     xCONTEXT(y)
 #define CONTEXT         yCONTEXT(NUM)
-#define SHA1            SHA
+#define wc_InitSha1     wc_InitSha
+#define wc_Sha1Final    wc_ShaFinal
+#define wc_Sha1Update   wc_ShaUpdate
+#define wc_Sha1         wc_Sha
+#define SHA224_CTX      SHA256_CTX
+#define SHA384_CTX      SHA512_CTX
 
+#define xSHA_Init(x)    wc_InitSha ## x
+#define xSHA_Update(x)  wc_Sha ## x ## Update
+#define xSHA_Final(x)   wc_Sha ## x ## Final
+#define ySHA_Init(y)    xSHA_Init(y)
+#define ySHA_Update(y)  xSHA_Update(y)
+#define ySHA_Final(y)   xSHA_Final(y)
+#define SHA_Init        ySHA_Init(NUM)
+#define SHA_Update      ySHA_Update(NUM)
+#define SHA_Final       ySHA_Final(NUM)
 static void sha_init(CONTEXT *context)
 {
-  context->Init();
+  SHA_Init(context);
 }
 
-/*
-  this is a variant of sha_init to be used in this file only.
-  does nothing for yassl, because the context's constructor was called automatically.
-*/
 static void sha_init_fast(CONTEXT *context)
 {
+  sha_init(context);
 }
 
 static void sha_input(CONTEXT *context, const uchar *buf, unsigned len)
 {
-  context->Update((const TaoCrypt::byte *) buf, len);
+  SHA_Update(context, buf, len);
 }
 
 static void sha_result(CONTEXT *context, uchar digest[HASH_SIZE])
 {
-    context->Final((TaoCrypt::byte *) digest);
+  SHA_Final(context, digest);
 }
 
 #elif defined(HAVE_OPENSSL)
@@ -99,7 +114,7 @@ static void sha_result(CONTEXT *context, uchar digest[HASH_SIZE])
   SHA_Final(digest, context);
 }
 
-#endif /* HAVE_YASSL */
+#endif /* HAVE_WOLFSSL */
 
 #define xmy_sha_multi(x)         my_sha ## x ## _multi
 #define xmy_sha_context_size(x)  my_sha ## x ## _context_size

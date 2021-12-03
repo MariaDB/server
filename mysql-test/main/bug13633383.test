@@ -2,6 +2,9 @@
 --echo # Bug#13633383 63183: SMALL SORT_BUFFER_SIZE CRASH IN MERGE_BUFFERS
 --echo #
 
+# Avoid warnings from join_buffer
+--source include/default_optimizer_switch.inc
+
 CREATE TABLE t1 (
   `a` int(11) DEFAULT NULL,
   `col432` bit(8) DEFAULT NULL,

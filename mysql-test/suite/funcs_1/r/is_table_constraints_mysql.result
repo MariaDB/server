@@ -12,6 +12,8 @@ def	mysql	PRIMARY	mysql	column_stats	PRIMARY KEY
 def	mysql	PRIMARY	mysql	db	PRIMARY KEY
 def	mysql	PRIMARY	mysql	event	PRIMARY KEY
 def	mysql	PRIMARY	mysql	func	PRIMARY KEY
+def	mysql	PRIMARY	mysql	global_priv	PRIMARY KEY
+def	mysql	Priv	mysql	global_priv	CHECK
 def	mysql	PRIMARY	mysql	gtid_slave_pos	PRIMARY KEY
 def	mysql	name	mysql	help_category	UNIQUE
 def	mysql	PRIMARY	mysql	help_category	PRIMARY KEY
@@ -38,7 +40,6 @@ def	mysql	PRIMARY	mysql	time_zone_transition	PRIMARY KEY
 def	mysql	PRIMARY	mysql	time_zone_transition_type	PRIMARY KEY
 def	mysql	commit_id	mysql	transaction_registry	UNIQUE
 def	mysql	PRIMARY	mysql	transaction_registry	PRIMARY KEY
-def	mysql	PRIMARY	mysql	user	PRIMARY KEY
 connect  testuser1,localhost,testuser1,,db_datadict;
 SELECT * FROM information_schema.table_constraints
 WHERE table_schema = 'mysql'

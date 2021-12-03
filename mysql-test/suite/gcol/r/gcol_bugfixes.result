@@ -231,6 +231,7 @@ Note	1265	Data truncated for column 'col_time_key' at row 5
 Note	1265	Data truncated for column 'col_time_key' at row 6
 ANALYZE TABLE c;
 Table	Op	Msg_type	Msg_text
+test.c	analyze	status	Engine-independent statistics collected
 test.c	analyze	status	OK
 explain SELECT COUNT(DISTINCT col_varchar_key) AS x
 FROM c
@@ -327,6 +328,7 @@ ALTER TABLE t1 ADD COLUMN c INT GENERATED ALWAYS AS (b + 1) VIRTUAL;
 ALTER TABLE t1 ADD INDEX( c );
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 # Make sure the index is correct. That's kinda important.
 EXPLAIN
@@ -603,3 +605,143 @@ test	gcol_t1	sidea		NEVER	NULL
 test	gcol_t1	sideb		NEVER	NULL
 test	gcol_t1	sidec	VIRTUAL GENERATED	ALWAYS	sqrt(`sidea` * `sidea` + `sideb` * `sideb`)
 DROP TABLE gcol_t1;
+#
+# MDEV-16039 Crash when selecting virtual columns
+# generated using functions with DAYNAME()
+#
+CREATE TABLE t1 (
+suppliersenttoday INT NOT NULL,
+suppliercaptoday CHAR(10) AS (CONCAT('',DAYNAME('2020-02-05')))
+) COLLATE utf8_bin;
+INSERT INTO t1 (suppliersenttoday) VALUES (0);
+INSERT INTO t1 (suppliersenttoday) VALUES (0);
+SELECT * FROM t1;
+suppliersenttoday	suppliercaptoday
+0	Wednesday
+0	Wednesday
+PREPARE STMT FROM 'INSERT INTO t1 (suppliersenttoday) VALUES (1)';
+CREATE OR REPLACE TABLE t1 (
+suppliersenttoday INT NOT NULL,
+suppliercaptoday CHAR(10) AS (CONCAT('',DAYNAME('2020-02-05')))
+) COLLATE utf8_bin;
+EXECUTE STMT;
+EXECUTE STMT;
+SELECT * FROM t1;
+suppliersenttoday	suppliercaptoday
+1	Wednesday
+1	Wednesday
+DROP TABLE t1;
+# (duplicate) MDEV-20380 Server crash during update
+CREATE TABLE gafld (
+nuigafld INTEGER NOT NULL,
+ucrgafld VARCHAR(30) COLLATE UTF8_BIN NOT NULL
+DEFAULT SUBSTRING_INDEX(USER(),'@',1)
+);
+EXPLAIN UPDATE gafld SET nuigafld = 0 WHERE nuigafld = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	gafld	ALL	NULL	NULL	NULL	NULL	1	Using where
+EXPLAIN UPDATE gafld SET nuigafld = 0 WHERE nuigafld = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	gafld	ALL	NULL	NULL	NULL	NULL	1	Using where
+DROP TABLE gafld;
+# (duplicate) MDEV-17653 replace into generated columns is unstable
+# Some columns are snipped from the MDEV test
+CREATE TABLE t (
+c0 TIMESTAMP NOT NULL DEFAULT current_timestamp()
+ON UPDATE current_timestamp(),
+c1 DECIMAL(27,25) GENERATED ALWAYS AS (DAYOFMONTH('2020-02-05')),
+c4 TIME NOT NULL,
+c8 SMALLINT(6) GENERATED ALWAYS AS
+(CONCAT_WS(CONVERT(C1 USING CP932),
+'900') <> (c4 = 1)),
+PRIMARY KEY (c4)
+) DEFAULT CHARSET=latin1;
+REPLACE INTO t SET c0 = '2018-06-03 10:31:43', c4 = '02:58:55';
+REPLACE INTO t SET c0 = '2018-06-03 10:31:44', c4 = '02:58:55';
+REPLACE INTO t SET c0 = '2018-06-03 10:31:45', c4 = '02:58:55';
+DROP TABLE t;
+# (duplicate) MDEV-17986 crash when I insert on a table
+CREATE OR REPLACE TABLE t2 (
+number BIGINT(20) NOT NULL,
+lrn BIGINT(20) NOT NULL DEFAULT 0,
+source VARCHAR(15) NOT NULL
+DEFAULT (REVERSE(SUBSTRING_INDEX(REVERSE(user()), '@', 1))),
+PRIMARY KEY (number)
+);
+REPLACE t2(number) VALUES('1');
+REPLACE t2(number) VALUES('1');
+DROP TABLE t2;
+# MDEV-24583 SELECT aborts after failed REPLACE into table with vcol
+CREATE TABLE t1 (pk INT, a VARCHAR(3), v VARCHAR(3) AS (CONCAT('x-',a)),
+PRIMARY KEY(pk)) ENGINE=MyISAM;
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 (pk, a) VALUES (1,'foo');
+SET sql_mode=CONCAT(@@sql_mode,',STRICT_ALL_TABLES');
+REPLACE INTO t1 (pk,a) VALUES (1,'qux');
+SELECT * FROM v1;
+pk	a	v
+1	foo	x-f
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk INT,
+a VARCHAR(1),
+v VARCHAR(1) AS (CONCAT('virt-',a)) VIRTUAL,
+PRIMARY KEY (pk)
+) ENGINE=InnoDB;
+INSERT INTO t1 (pk,a) VALUES
+(1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(6,'f');
+REPLACE INTO t1 (pk) VALUES (1);
+ERROR 22001: Data too long for column 'v' at row 1
+SELECT * FROM t1 ORDER BY a;
+pk	a	v
+1	a	v
+2	b	v
+3	c	v
+4	d	v
+5	e	v
+6	f	v
+SET SQL_MODE=DEFAULT;
+DROP TABLE t1;
+# (duplicate) MDEV-24656
+# [FATAL] InnoDB: Data field type 0, len 0, ASAN heap-buffer-overflow
+# upon LOAD DATA with virtual columns
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(2333),
+va VARCHAR(171) AS (a)) ENGINE=InnoDB;
+INSERT INTO t1 (id,a) VALUES (1,REPEAT('x',200));
+SELECT id, va INTO OUTFILE 'load_t1' FROM t1;
+LOAD DATA INFILE 'load_t1' REPLACE INTO TABLE t1 (id,va);
+ERROR 22001: Data too long for column 'va' at row 1
+SELECT * FROM t1;
+id	a	va
+1	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+LOAD DATA INFILE 'load_t1' IGNORE INTO TABLE t1 (id,va);
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+DROP TABLE t1;
+CREATE TABLE t1 (id BIGINT PRIMARY KEY, a VARCHAR(2333),
+va VARCHAR(171) AS (a)) ENGINE=InnoDB;
+INSERT INTO t1 (id,a) VALUES (1,REPEAT('x',200));
+SELECT id, va INTO OUTFILE 'load_t1' FROM t1;
+LOAD DATA INFILE 'load_t1' REPLACE INTO TABLE t1 (id,va);
+ERROR 22001: Data too long for column 'va' at row 1
+SELECT * FROM t1;
+id	a	va
+1	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+LOAD DATA INFILE 'load_t1' IGNORE INTO TABLE t1 (id,va);
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+DROP TABLE t1;
+# (duplicate) MDEV-24665
+# ASAN errors, assertion failures, corrupt values after failed
+# LOAD DATA into table with virtual/stored column
+CREATE TABLE t1 (id INT PRIMARY KEY,
+ts TIMESTAMP DEFAULT '1971-01-01 00:00:00',
+c VARBINARY(8) DEFAULT '', vc VARCHAR(3) AS (c) STORED);
+INSERT IGNORE INTO t1 (id,c) VALUES (1,'foobar');
+Warnings:
+Warning	1265	Data truncated for column 'vc' at row 1
+SELECT id, ts, vc INTO OUTFILE 'load_t1' FROM t1;
+LOAD DATA INFILE 'load_t1' REPLACE INTO TABLE t1 (id, ts, vc);
+INSERT IGNORE INTO t1 (id) VALUES (2);
+DROP TABLE t1;

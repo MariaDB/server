@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* This file is included by all internal myisam files */
 
@@ -197,7 +197,7 @@ typedef struct st_mi_isam_share
   ulong last_process;                   /* For table-change-check */
   ulong last_version;                   /* Version on start */
   ulong options;                        /* Options used */
-  ulong min_pack_length;                /* Theese are used by packed data */
+  ulong min_pack_length;                /* These are used by packed data */
   ulong max_pack_length;
   ulong state_diff_length;
   uint	rec_reflength;			/* rec_reflength in use now */
@@ -296,6 +296,7 @@ struct st_myisam_info
   uint preload_buff_size;               /* When preloading indexes */
   myf lock_wait;                        /* is 0 or MY_SHORT_WAIT */
   my_bool was_locked;                   /* Was locked in panic */
+  my_bool intern_lock_locked;           /* locked in mi_extra() */
   my_bool append_insert_at_end;         /* Set if concurrent insert */
   my_bool quick_mode;
   /* If info->buff can't be used for rnext */
@@ -305,6 +306,9 @@ struct st_myisam_info
   my_bool create_unique_index_by_sort;
   index_cond_func_t index_cond_func;   /* Index condition function */
   void *index_cond_func_arg;           /* parameter for the func */
+  rowid_filter_func_t rowid_filter_func;   /* rowid filter check function */
+  rowid_filter_is_active_func_t rowid_filter_is_active_func;  /* is activefunction */
+  void *rowid_filter_func_arg;             /* parameter for the func */
   THR_LOCK_DATA lock;
   uchar *rtree_recursion_state;         /* For RTREE */
   int rtree_recursion_depth;
@@ -711,8 +715,6 @@ void mi_restore_status(void *param);
 void mi_copy_status(void *to, void *from);
 my_bool mi_check_status(void *param);
 void mi_fix_status(MI_INFO *org_table, MI_INFO *new_table);
-void mi_disable_indexes_for_rebuild(MI_INFO *info, ha_rows rows,
-                                    my_bool all_keys);
 extern MI_INFO *test_if_reopen(char *filename);
 my_bool check_table_is_closed(const char *name, const char *where);
 int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share);
@@ -723,15 +725,20 @@ my_bool mi_dynmap_file(MI_INFO *info, my_off_t size);
 int mi_munmap_file(MI_INFO *info);
 void mi_remap_file(MI_INFO *info, my_off_t size);
 
-ICP_RESULT mi_check_index_cond(MI_INFO *info, uint keynr, uchar *record);
+check_result_t mi_check_index_tuple(MI_INFO *info, uint keynr, uchar *record);
+
     /* Functions needed by mi_check */
 int killed_ptr(HA_CHECK *param);
 void mi_check_print_error(HA_CHECK *param, const char *fmt, ...);
 void mi_check_print_warning(HA_CHECK *param, const char *fmt, ...);
 void mi_check_print_info(HA_CHECK *param, const char *fmt, ...);
 pthread_handler_t thr_find_all_keys(void *arg);
-extern void mi_set_index_cond_func(MI_INFO *info, index_cond_func_t func,
+extern void mi_set_index_cond_func(MI_INFO *info, index_cond_func_t check_func,
                                    void *func_arg);
+extern void mi_set_rowid_filter_func(MI_INFO *info,
+                                     rowid_filter_func_t check_func,
+                                     rowid_filter_is_active_func_t is_active_func,
+                                     void *func_arg);
 int flush_blocks(HA_CHECK *param, KEY_CACHE *key_cache, File file,
                  ulonglong *dirty_part_map);
 

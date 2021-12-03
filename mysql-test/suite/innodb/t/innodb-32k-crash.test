@@ -15,6 +15,7 @@ CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
 		va blob, wa blob, xa blob, ya blob, za blob)
 		ENGINE=InnoDB ROW_FORMAT=dynamic;
 
+SET innodb_strict_mode=OFF;
 CREATE TABLE t2(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
                 h blob,i blob,j blob,k blob,l blob,m blob,n blob,
 		o blob,p blob,q blob,r blob,s blob,t blob,u blob,
@@ -24,6 +25,7 @@ CREATE TABLE t2(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
 		oa blob,pa blob,qa blob,ra blob,sa blob,ta blob,ua blob,
 		va blob, wa blob, xa blob, ya blob, za blob)
 		ENGINE=InnoDB ROW_FORMAT=compact;
+SET innodb_strict_mode=ON;
 
 SET @a = repeat('a', 767);
 SET @b = repeat('b', 767);

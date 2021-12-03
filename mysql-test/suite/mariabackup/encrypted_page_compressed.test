@@ -1,0 +1,49 @@
+source include/have_file_key_management.inc;
+call mtr.add_suppression("InnoDB: Table `test`.`t1` has an unreadable root page");
+call mtr.add_suppression("InnoDB: Encrypted page .* in file .*test.t1\\.ibd looks corrupted; key_version=1");
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT, c char(200)) ENGINE=InnoDB page_compressed=yes encrypted=yes;
+insert into t1(b, c) values("mariadb", "mariabackup");
+
+let $MYSQLD_DATADIR=`select @@datadir`;
+let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+
+--source include/shutdown_mysqld.inc
+
+--echo # Corrupt the table
+
+perl;
+use strict;
+use warnings;
+use Fcntl qw(:DEFAULT :seek);
+
+my $ibd_file = $ENV{'t1_IBD'};
+
+my $chunk;
+my $page_size = $ENV{'INNODB_PAGE_SIZE'};
+
+sysopen IBD_FILE, $ibd_file, O_RDWR || die "Unable to open $ibd_file";
+sysseek IBD_FILE,  $page_size * 3 + 75, SEEK_CUR;
+$chunk = '\xAA\xAA\xAA\xAA';
+syswrite IBD_FILE, $chunk, 4;
+
+close IBD_FILE;
+EOF
+
+--source include/start_mysqld.inc
+
+echo # xtrabackup backup;
+--disable_result_log
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+let $backuplog=$MYSQLTEST_VARDIR/tmp/backup.log;
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --core-file > $backuplog;
+--enable_result_log
+
+--let SEARCH_PATTERN=Database page corruption detected.*
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+remove_file $backuplog;
+
+drop table t1;
+rmdir $targetdir;

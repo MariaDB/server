@@ -1,5 +1,5 @@
 /* Copyright (c) 2011, Oracle and/or its affiliates.
-   Copyright (c) Monty Program Ab; 1991-2011
+   Copyright (c) 1991, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef _my_compare_h
 #define _my_compare_h
@@ -95,15 +95,16 @@ static inline uchar get_rec_bits(const uchar *ptr, uchar ofs, uint len)
 {
   uint16 val= ptr[0];
   if (ofs + len > 8)
-    val|= (uint16)(ptr[1]) << 8;
-  return (val >> ofs) & ((1 << len) - 1);
+    val|= (uint16)(((uint) ptr[1]) << 8);
+  return (uchar) ((val >> ofs) & ((1 << len) - 1));
 }
 
 static inline void set_rec_bits(uint16 bits, uchar *ptr, uchar ofs, uint len)
 {
-  ptr[0]= (ptr[0] & ~(((1 << len) - 1) << ofs)) | (bits << ofs);
+  ptr[0]= (uchar) ((ptr[0] & ~(((1 << len) - 1) << ofs)) | (bits << ofs));
   if (ofs + len > 8)
-    ptr[1]= (ptr[1] & ~((1 << (len - 8 + ofs)) - 1)) | (bits >> (8 - ofs));
+    ptr[1]= (uchar) ((ptr[1] & ~((1 << (len - 8 + ofs)) - 1)) |
+                     bits >> (8 - ofs));
 }
 
 #define clr_rec_bits(bit_ptr, bit_ofs, bit_len) \
@@ -127,30 +128,32 @@ extern HA_KEYSEG *ha_find_null(HA_KEYSEG *keyseg, const uchar *a);
 #endif
 
 /**
-  Return values of index_cond_func_xxx functions.
+  Return values for pushed index condition or rowid filter check functions.
 
-  0=ICP_NO_MATCH  - index tuple doesn't satisfy the pushed index condition (the
-                    engine should discard the tuple and go to the next one)
-  1=ICP_MATCH     - index tuple satisfies the pushed index condition (the
-                    engine should fetch and return the record)
-  2=ICP_OUT_OF_RANGE - index tuple is out range that we're scanning, e.g. this
-                      if we're scanning "t.key BETWEEN 10 AND 20" and got a
-                      "t.key=21" tuple (the engine should stop scanning and
-                      return HA_ERR_END_OF_FILE right away).
-  3=ICP_ABORTED_BY_USER - engine must stop scanning and should return 
-                         HA_ERR_ABORTED_BY_USER right away
- -1= ICP_ERROR    - Reserved for internal errors in engines. Should not be
-                    returned by index_cond_func_xxx
+  0=CHECK_NEG  - The filter is not satisfied. The engine should discard this
+                 index tuple and continue the scan.
+  1=CHECK_POS  - The filter is statisfied. Current index tuple should be
+                 returned to the SQL layer.
+  2=CHECK_OUT_OF_RANGE - the index tuple is outside of the range that we're
+                 scanning. (Example: if we're scanning "t.key BETWEEN 10 AND
+                 20" and got a "t.key=21" tuple) Tthe engine should stop
+                 scanning and return HA_ERR_END_OF_FILE right away).
+  3=CHECK_ABORTED_BY_USER - the engine must stop scanning and should return
+                            HA_ERR_ABORTED_BY_USER right away
+ -1=CHECK_ERROR - Reserved for internal errors in engines. Should not be
+                  returned by ICP or rowid filter check functions.
 */
 
-typedef enum icp_result {
-  ICP_ERROR=-1,
-  ICP_NO_MATCH=0,
-  ICP_MATCH=1,
-  ICP_OUT_OF_RANGE=2,
-  ICP_ABORTED_BY_USER=3
-} ICP_RESULT;
+typedef enum check_result {
+  CHECK_ERROR=-1,
+  CHECK_NEG=0,
+  CHECK_POS=1,
+  CHECK_OUT_OF_RANGE=2,
+  CHECK_ABORTED_BY_USER=3
+} check_result_t;
 
-typedef ICP_RESULT (*index_cond_func_t)(void *param);
+typedef check_result_t (*index_cond_func_t)(void *param);
+typedef check_result_t (*rowid_filter_func_t)(void *param);
+typedef int (*rowid_filter_is_active_func_t)(void *param);
 
 #endif /* _my_compare_h */

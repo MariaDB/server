@@ -9,6 +9,7 @@
 --source include/not_embedded.inc
 --source include/have_debug.inc
 --source include/have_perfschema.inc
+--source include/have_hostname_cache.inc
 
 # [Warning] IP address '192.0.2.4' could not be resolved:
 # no reverse address mapping.
@@ -27,6 +28,7 @@ select current_user();
 disconnect con1;
 
 --connection default
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_error_noname";
 
 connect (con2,"127.0.0.1",root,,test,$MASTER_MYPORT,);
@@ -48,5 +50,5 @@ disconnect con3;
 revoke select on test.* from 'root'@'192.0.2.4';
 drop user 'root'@'192.0.2.4';
 
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 

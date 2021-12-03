@@ -3,12 +3,16 @@
 # notifications into a table.
 #
 
---source include/have_innodb.inc
 --source include/galera_cluster.inc
+--source include/force_restart.inc
 
 --connection node_1
-SELECT COUNT(DISTINCT uuid) = 2 FROM mtr_wsrep_notify.membership;
-SELECT MAX(size) = 2 FROM mtr_wsrep_notify.status;
-SELECT COUNT(DISTINCT idx) = 2 FROM mtr_wsrep_notify.status;
+--let $wait_condition = SELECT COUNT(DISTINCT uuid) = 2 FROM mtr_wsrep_notify.membership;
+--source include/wait_condition.inc
 
+SELECT COUNT(DISTINCT uuid) AS EXPECT_2 FROM mtr_wsrep_notify.membership;
+SELECT MAX(size) AS EXPECT_2 FROM mtr_wsrep_notify.status;
+SELECT COUNT(DISTINCT idx) AS EXPECT_2 FROM mtr_wsrep_notify.status;
+
+# CLEANUP
 DROP SCHEMA mtr_wsrep_notify;

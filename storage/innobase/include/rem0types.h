@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,6 +29,9 @@ Created 5/30/1994 Heikki Tuuri
 
 /* We define the physical record simply as an array of bytes */
 typedef byte	rec_t;
+
+/** This type represents a field offset in a rec_t* */
+typedef unsigned short int rec_offs;
 
 /* Maximum values for various fields (for non-blob tuples) */
 #define REC_MAX_N_FIELDS	(1024 - 1)

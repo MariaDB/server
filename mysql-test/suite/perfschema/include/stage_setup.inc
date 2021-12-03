@@ -121,10 +121,12 @@ begin
       where thread_id = my_thread_id
       and nesting_event_id = my_statement_id
       order by event_id asc;
+    # Ignore query cache as it may not be enabled
     select username, event_name, nesting_event_type
       from performance_schema.events_stages_history
       where thread_id = my_thread_id
-      and nesting_event_id = my_statement_id
+      and nesting_event_id = my_statement_id and
+      event_name not like "%query cache%"
       order by event_id asc;
   end;
   else

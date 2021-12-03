@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -76,8 +76,8 @@ keep the global wait array for the sake of diagnostics and also to avoid
 infinite wait The error_monitor thread scans the global wait array to signal
 any waiting threads who have missed the signal. */
 
-typedef SyncArrayMutex::MutexType WaitMutex;
-typedef BlockSyncArrayMutex::MutexType BlockWaitMutex;
+typedef TTASEventMutex<GenericPolicy> WaitMutex;
+typedef TTASEventMutex<BlockMutexPolicy> BlockWaitMutex;
 
 /** The latch types that use the sync array. */
 union sync_object_t {
@@ -119,8 +119,10 @@ struct sync_cell_t {
 					has not been signalled in the
 					period between the reset and
 					wait call. */
-	time_t		reservation_time;/*!< time when the thread reserved
-					the wait cell */
+	/** time(NULL) when the wait cell was reserved.
+	FIXME: sync_array_print_long_waits_low() may display bogus
+	warnings when the system time is adjusted to the past! */
+	time_t		reservation_time;
 };
 
 /* NOTE: It is allowed for a thread to wait for an event allocated for
@@ -375,7 +377,7 @@ sync_array_reserve_cell(
 
 	cell->thread_id = os_thread_get_curr_id();
 
-	cell->reservation_time = ut_time();
+	cell->reservation_time = time(NULL);
 
 	/* Make sure the event is reset and also store the value of
 	signal_count at which the event was reset. */
@@ -499,7 +501,7 @@ sync_array_cell_print(
 		WaitMutex*	mutex = cell->latch.mutex;
 		const WaitMutex::MutexPolicy&	policy = mutex->policy();
 #ifdef UNIV_DEBUG
-		const char*	name = policy.get_enter_filename();
+		const char*	name = policy.context.get_enter_filename();
 		if (name == NULL) {
 			/* The mutex might have been released. */
 			name = "NULL";
@@ -518,7 +520,7 @@ sync_array_cell_print(
 			mutex->state()
 #ifdef UNIV_DEBUG
 			,name,
-			policy.get_enter_line()
+			policy.context.get_enter_line()
 #endif /* UNIV_DEBUG */
 			);
 		}
@@ -528,7 +530,7 @@ sync_array_cell_print(
 		const BlockWaitMutex::MutexPolicy&	policy =
 			mutex->policy();
 #ifdef UNIV_DEBUG
-		const char*	name = policy.get_enter_filename();
+		const char*	name = policy.context.get_enter_filename();
 		if (name == NULL) {
 			/* The mutex might have been released. */
 			name = "NULL";
@@ -546,7 +548,7 @@ sync_array_cell_print(
 			(ulong) mutex->state()
 #ifdef UNIV_DEBUG
 			,name,
-			(ulong) policy.get_enter_line()
+			(ulong) policy.context.get_enter_line()
 #endif /* UNIV_DEBUG */
 		       );
 	} else if (type == RW_LOCK_X
@@ -591,8 +593,8 @@ sync_array_cell_print(
 #endif
 				"\n",
 				rw_lock_get_reader_count(rwlock),
-				my_atomic_load32_explicit(&rwlock->waiters, MY_MEMORY_ORDER_RELAXED),
-				my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED),
+				uint32_t{rwlock->waiters},
+				int32_t{rwlock->lock_word},
 				innobase_basename(rwlock->last_x_file_name),
 				rwlock->last_x_line
 #if 0 /* JAN: TODO: FIX LATER */
@@ -738,7 +740,7 @@ sync_array_detect_deadlock(
 		const WaitMutex::MutexPolicy&	policy = mutex->policy();
 
 		if (mutex->state() != MUTEX_STATE_UNLOCKED) {
-			thread = policy.get_thread_id();
+			thread = policy.context.get_thread_id();
 
 			/* Note that mutex->thread_id above may be
 			also OS_THREAD_ID_UNDEFINED, because the
@@ -753,7 +755,7 @@ sync_array_detect_deadlock(
 			if (ret) {
 				const char*	name;
 
-				name = policy.get_enter_filename();
+				name = policy.context.get_enter_filename();
 
 				if (name == NULL) {
 					/* The mutex might have been
@@ -765,7 +767,7 @@ sync_array_detect_deadlock(
 					<< "Mutex " << mutex << " owned by"
 					" thread " << os_thread_pf(thread)
 					<< " file " << name << " line "
-					<< policy.get_enter_line();
+					<< policy.context.get_enter_line();
 
 				sync_array_cell_print(stderr, cell);
 
@@ -785,7 +787,7 @@ sync_array_detect_deadlock(
 			mutex->policy();
 
 		if (mutex->state() != MUTEX_STATE_UNLOCKED) {
-			thread = policy.get_thread_id();
+			thread = policy.context.get_thread_id();
 
 			/* Note that mutex->thread_id above may be
 			also OS_THREAD_ID_UNDEFINED, because the
@@ -800,7 +802,7 @@ sync_array_detect_deadlock(
 			if (ret) {
 				const char*	name;
 
-				name = policy.get_enter_filename();
+				name = policy.context.get_enter_filename();
 
 				if (name == NULL) {
 					/* The mutex might have been
@@ -812,7 +814,7 @@ sync_array_detect_deadlock(
 					<< "Mutex " << mutex << " owned by"
 					" thread " << os_thread_pf(thread)
 					<< " file " << name << " line "
-					<< policy.get_enter_line();
+					<< policy.context.get_enter_line();
 
 
 				return(true);
@@ -970,13 +972,13 @@ sync_array_print_long_waits_low(
 	ulint		i;
 
 	/* For huge tables, skip the check during CHECK TABLE etc... */
-	if (fatal_timeout > SRV_SEMAPHORE_WAIT_EXTENSION) {
+	if (btr_validate_index_running) {
 		return(false);
 	}
 
-#ifdef UNIV_DEBUG_VALGRIND
+#if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
 	/* Increase the timeouts if running under valgrind because it executes
-	extremely slowly. UNIV_DEBUG_VALGRIND does not necessary mean that
+	extremely slowly. HAVE_valgrind does not necessary mean that
 	we are running under valgrind but we have no better way to tell.
 	See Bug#58432 innodb.innodb_bug56143 fails under valgrind
 	for an example */
@@ -1073,7 +1075,8 @@ sync_array_print_long_waits(
 		sync_array_exit(arr);
 	}
 
-	if (noticed) {
+	if (noticed && srv_monitor_event) {
+
 		fprintf(stderr,
 			"InnoDB: ###### Starts InnoDB Monitor"
 			" for 30 secs to print diagnostic info:\n");
@@ -1379,9 +1382,9 @@ sync_arr_fill_sys_semphore_waits_table(
 						//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_READERS], rw_lock_get_reader_count(rwlock)));
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG],
-						   my_atomic_load32_explicit(&rwlock->waiters, MY_MEMORY_ORDER_RELAXED)));
+						   rwlock->waiters));
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD],
-						   my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED)));
+						   rwlock->lock_word));
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(rwlock->last_x_file_name)));
 						OK(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->store(rwlock->last_x_line, true));
 						fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->set_notnull();

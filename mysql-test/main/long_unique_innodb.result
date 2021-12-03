@@ -1,0 +1,136 @@
+create table t1(a blob unique) engine= InnoDB;
+insert into t1 values('RUC');
+insert into t1 values ('RUC');
+ERROR 23000: Duplicate entry 'RUC' for key 'a'
+drop table t1;
+create table t1 (a blob unique , c int unique) engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  UNIQUE KEY `c` (`c`),
+  UNIQUE KEY `a` (`a`) USING HASH
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop table t1;
+#test for concurrent insert of long unique in innodb
+create table t1(a blob unique) engine= InnoDB;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob DEFAULT NULL,
+  UNIQUE KEY `a` (`a`) USING HASH
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connect  'con1', localhost, root,,;
+connect  'con2', localhost, root,,;
+connection con1;
+set innodb_lock_wait_timeout= 2;
+set  transaction isolation level READ UNCOMMITTED;
+start transaction;
+insert into t1 values('RUC');
+connection con2;
+set innodb_lock_wait_timeout= 2;
+set  transaction isolation level READ UNCOMMITTED;
+start transaction;
+insert into t1 values ('RUC');
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+commit;
+set  transaction isolation level READ COMMITTED;
+start transaction;
+insert into t1 values('RC');
+connection con2;
+commit;
+set  transaction isolation level READ COMMITTED;
+start transaction;
+insert into t1 values ('RC');
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+commit;
+connection con1;
+commit;
+set  transaction isolation level REPEATABLE READ;
+start transaction;
+insert into t1 values('RR');
+connection con2;
+commit;
+set  transaction isolation level REPEATABLE READ;
+start transaction;
+insert into t1 values ('RR');
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+commit;
+set  transaction isolation level SERIALIZABLE;
+start transaction;
+insert into t1 values('S');
+connection con2;
+commit;
+set  transaction isolation level SERIALIZABLE;
+start transaction;
+insert into t1 values ('S');
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+commit;
+connection con1;
+commit;
+select * from t1;
+a
+RUC
+RC
+RR
+S
+drop table t1;
+create table t1(a blob unique) engine=Innodb;
+connection con1;
+set  transaction isolation level READ UNCOMMITTED;
+start transaction;
+insert into t1 values('RUC');
+connection con2;
+set  transaction isolation level READ UNCOMMITTED;
+start transaction;
+insert into t1 values ('RUC');;
+connection con1;
+rollback;
+connection con2;
+commit;
+connection con1;
+set  transaction isolation level READ COMMITTED;
+start transaction;
+insert into t1 values('RC');
+connection con2;
+set  transaction isolation level READ COMMITTED;
+start transaction;
+insert into t1 values ('RC');;
+connection con1;
+rollback;
+connection con2;
+commit;
+connection con1;
+set  transaction isolation level REPEATABLE READ;
+start transaction;
+insert into t1 values('RR');
+connection con2;
+set  transaction isolation level REPEATABLE READ;
+start transaction;
+insert into t1 values ('RR');;
+connection con1;
+rollback;
+connection con2;
+commit;
+connection con1;
+set  transaction isolation level SERIALIZABLE;
+start transaction;
+insert into t1 values('S');
+connection con2;
+set  transaction isolation level SERIALIZABLE;
+start transaction;
+insert into t1 values ('S');;
+connection con1;
+rollback;
+connection con2;
+commit;
+connection default;
+drop table t1;
+disconnect con1;
+disconnect con2;
+# MDEV-20131 Assertion `!pk->has_virtual()' failed
+create table t1 (a text, primary key(a(1871))) engine=innodb;
+ERROR 42000: Specified key was too long; max key length is 1536 bytes

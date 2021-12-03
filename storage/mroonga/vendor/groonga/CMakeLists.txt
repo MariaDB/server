@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 # https://buildbot.askmonty.org/buildbot/builders/work-amd64-valgrind/builds/5263/steps/compile/logs/stdio
 # says CMake 2.6.2... We want to drop old software support...
@@ -77,9 +77,8 @@ if(DEFINED GRN_EMBED)
 else()
   set(GRN_EMBED_DEFAULT OFF)
 endif()
-option(GRN_EMBED
-  "Build as a static library to embed into an application"
-  ${GRN_EMBED_DEFAULT})
+set(GRN_EMBED ${GRN_EMBED_DEFAULT} CACHE BOOL
+  "Build as a static library to embed into an application")
 
 set(BIN_DIR "bin")
 set(SBIN_DIR "sbin")
@@ -241,7 +240,6 @@ include(build/ac_macros/check_functions.m4)
 ac_check_symbols(fpclassify math.h)
 ac_check_lib(m fpclassify)
 
-ac_check_lib(dl dlopen)
 ac_check_lib(execinfo backtrace)
 if(HAVE_LIBEXECINFO)
   set(HAVE_BACKTRACE TRUE)
@@ -590,14 +588,13 @@ else()
   set(GRN_WITH_MESSAGE_PACK FALSE)
 endif()
 
-find_program(RUBY NAMES
-  "ruby2.3" "ruby23"
-  "ruby2.2" "ruby22"
-  "ruby2.1" "ruby21"
-  "ruby")
-
 option(GRN_WITH_MRUBY "use mruby" OFF)
 if(GRN_WITH_MRUBY)
+  find_program(RUBY NAMES
+    "ruby2.3" "ruby23"
+    "ruby2.2" "ruby22"
+    "ruby2.1" "ruby21"
+    "ruby")
   set(MRUBY_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/mruby-source/include")
   set(MRUBY_LIBS mruby)

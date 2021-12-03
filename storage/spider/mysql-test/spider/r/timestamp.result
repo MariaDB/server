@@ -252,11 +252,11 @@ col_a	col_dt	col_ts	unix_timestamp(col_ts)
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2017-12-31 23:00:00')
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` < '2018-10-28 01:30:00')
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ('2018-10-28 01:30:00' > t0.`col_ts`)
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between '2018-10-28 00:30:00'  and  '2018-10-28 01:30:00')
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= '2018-10-28 00:30:00') and (t0.`col_ts` <= '2018-10-28 01:30:00'))
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > _latin1'2017-12-31 23:00:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` < _latin1'2018-10-28 01:30:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (_latin1'2018-10-28 01:30:00' > t0.`col_ts`)
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between _latin1'2018-10-28 00:30:00'  and  _latin1'2018-10-28 01:30:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= _latin1'2018-10-28 00:30:00') and (t0.`col_ts` <= _latin1'2018-10-28 01:30:00'))
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2018-03-25 01:00:00')
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '1970-01-01 00:00:01')
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
@@ -339,11 +339,11 @@ col_a	col_dt	col_ts	unix_timestamp(col_ts)
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2017-12-31 23:00:00')
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` < '2018-10-28 01:30:00')
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ('2018-10-28 01:30:00' > t0.`col_ts`)
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between '2018-10-28 00:30:00'  and  '2018-10-28 01:30:00')
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= '2018-10-28 00:30:00') and (t0.`col_ts` <= '2018-10-28 01:30:00'))
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > _latin1'2017-12-31 23:00:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` < _latin1'2018-10-28 01:30:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (_latin1'2018-10-28 01:30:00' > t0.`col_ts`)
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between _latin1'2018-10-28 00:30:00'  and  _latin1'2018-10-28 01:30:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= _latin1'2018-10-28 00:30:00') and (t0.`col_ts` <= _latin1'2018-10-28 01:30:00'))
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2018-03-25 01:00:00')
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '1970-01-01 00:00:01')
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
@@ -396,7 +396,7 @@ select t0.`col_d` `col_d`,t0.`col_t` `col_t` from `ts_test_remote`.`tbl_f` t0
 select (timestamp(t0.`col_d` , t0.`col_t`)) `TIMESTAMP(col_d, col_t)` from `ts_test_remote`.`tbl_f` t0
 select (timestamp('2018-06-25' , t0.`col_t`)) `TIMESTAMP('2018-06-25', col_t)` from `ts_test_remote`.`tbl_f` t0
 select (timestamp(t0.`col_d` , '10:43:21')) `TIMESTAMP(col_d, '10:43:21')` from `ts_test_remote`.`tbl_f` t0
-select (timestamp('2018-06-25' , '10:43:21')) `TIMESTAMP('2018-06-25', '10:43:21')` from `ts_test_remote`.`tbl_f` t0
+select 1 from `ts_test_remote`.`tbl_f` t0
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT col_d, col_t FROM tbl_f;
 col_d	col_t

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -262,35 +262,31 @@ dtype_get_at_most_n_mbchars(
 	ulint		data_len,	/*!< in: length of str (in bytes) */
 	const char*	str);		/*!< in: the string whose prefix
 					length is being determined */
-/*********************************************************************//**
-Checks if a data main type is a string type. Also a BLOB is considered a
-string type.
-@return TRUE if string type */
-ibool
-dtype_is_string_type(
-/*=================*/
-	ulint	mtype);	/*!< in: InnoDB main data type code: DATA_CHAR, ... */
-/*********************************************************************//**
-Checks if a type is a binary string type. Note that for tables created with
-< 4.0.14, we do not know if a DATA_BLOB column is a BLOB or a TEXT column. For
-those DATA_BLOB columns this function currently returns FALSE.
-@return TRUE if binary string type */
-ibool
-dtype_is_binary_string_type(
-/*========================*/
-	ulint	mtype,	/*!< in: main data type */
-	ulint	prtype);/*!< in: precise type */
-/*********************************************************************//**
-Checks if a type is a non-binary string type. That is, dtype_is_string_type is
-TRUE and dtype_is_binary_string_type is FALSE. Note that for tables created
-with < 4.0.14, we do not know if a DATA_BLOB column is a BLOB or a TEXT column.
-For those DATA_BLOB columns this function currently returns TRUE.
-@return TRUE if non-binary string type */
-ibool
-dtype_is_non_binary_string_type(
-/*============================*/
-	ulint	mtype,	/*!< in: main data type */
-	ulint	prtype);/*!< in: precise type */
+/** @return whether main type is a string type */
+inline bool dtype_is_string_type(ulint mtype)
+{
+	return mtype <= DATA_BLOB
+		|| mtype == DATA_MYSQL || mtype == DATA_VARMYSQL;
+}
+
+/** @return whether a type is a binary string type */
+inline bool dtype_is_binary_string_type(ulint mtype, ulint prtype)
+{
+	/* Note that for tables created before MySQL 4.0.14,
+	we do not know if a DATA_BLOB column is a BLOB or a TEXT column.
+	For those DATA_BLOB columns we return false. */
+
+	return mtype == DATA_FIXBINARY || mtype == DATA_BINARY
+		|| (mtype == DATA_BLOB && (prtype & DATA_BINARY_TYPE));
+}
+
+/** @return whether a type is a non-binary string type */
+inline bool dtype_is_non_binary_string_type(ulint mtype, ulint prtype)
+{
+	return dtype_is_string_type(mtype)
+		&& !dtype_is_binary_string_type(mtype, prtype);
+}
+
 /*********************************************************************//**
 Sets a data type structure. */
 UNIV_INLINE
@@ -338,14 +334,15 @@ dtype_get_mblen(
 				multi-byte character */
 	ulint*	mbmaxlen);	/*!< out: maximum length of a
 				multi-byte character */
-/*********************************************************************//**
-Gets the MySQL charset-collation code for MySQL string types.
-@return MySQL charset-collation code */
-UNIV_INLINE
-ulint
-dtype_get_charset_coll(
-/*===================*/
-	ulint	prtype);/*!< in: precise data type */
+/**
+Get the charset-collation code for string types.
+@param  prtype  InnoDB precise type
+@return charset-collation code */
+inline uint16_t dtype_get_charset_coll(ulint prtype)
+{
+  return static_cast<uint16_t>(prtype >> 16) & CHAR_COLL_MASK;
+}
+
 /** Form a precise type from the < 4.1.2 format precise type plus the
 charset-collation code.
 @param[in]	old_prtype	MySQL type code and the flags

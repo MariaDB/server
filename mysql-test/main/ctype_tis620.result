@@ -3033,6 +3033,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+tis620_thai_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 drop table if exists t1;
 create table t1 select repeat('a',10) as c1;
 delete from t1;
@@ -3331,6 +3337,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+tis620_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 #
 # MDEV-7149 Constant condition propagation erroneously applied for LIKE
 #
@@ -4408,6 +4420,15 @@ DROP TABLE t1;
 # End of ctype_pad.inc
 #
 SET STORAGE_ENGINE=Default;
+#
+# MDEV-24901 SIGSEGV in fts_get_table_name, SIGSEGV in ib_vector_size, SIGSEGV in row_merge_fts_doc_tokenize, stack smashing
+#
+SELECT HEX(WEIGHT_STRING(_tis620 'a\0b'));
+HEX(WEIGHT_STRING(_tis620 'a\0b'))
+610062
+SELECT HEX(WEIGHT_STRING(_tis620 'a\0b' COLLATE tis620_thai_nopad_ci));
+HEX(WEIGHT_STRING(_tis620 'a\0b' COLLATE tis620_thai_nopad_ci))
+610062
 #
 # End of 10.2 tests
 #

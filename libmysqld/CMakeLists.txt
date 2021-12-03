@@ -12,7 +12,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 ADD_DEFINITIONS(-DMYSQL_SERVER -DEMBEDDED_LIBRARY
  ${SSL_DEFINES})
@@ -55,7 +55,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/item_subselect.cc ../sql/item_sum.cc ../sql/item_timefunc.cc 
            ../sql/item_xmlfunc.cc ../sql/item_jsonfunc.cc
            ../sql/key.cc ../sql/lock.cc ../sql/log.cc 
-           ../sql/log_event.cc ../sql/mf_iocache.cc ../sql/my_decimal.cc 
+           ../sql/log_event.cc ../sql/mf_iocache.cc ../sql/my_decimal.cc
            ../sql/net_serv.cc ../sql/opt_range.cc ../sql/opt_sum.cc 
            ../sql/parse_file.cc ../sql/procedure.cc ../sql/protocol.cc 
            ../sql/records.cc ../sql/repl_failsafe.cc ../sql/rpl_filter.cc
@@ -78,7 +78,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/debug_sync.cc ../sql/opt_table_elimination.cc
            ../sql/sql_prepare.cc ../sql/sql_rename.cc ../sql/sql_repl.cc 
            ../sql/sql_select.cc ../sql/sql_servers.cc
-           ../sql/group_by_handler.cc
+           ../sql/group_by_handler.cc ../sql/derived_handler.cc
+           ../sql/select_handler.cc
            ../sql/sql_show.cc ../sql/sql_state.c 
            ../sql/sql_statistics.cc ../sql/sql_string.cc
            ../sql/sql_tablespace.cc ../sql/sql_table.cc ../sql/sql_test.cc
@@ -108,7 +109,10 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_explain.cc ../sql/sql_explain.h
            ../sql/sql_analyze_stmt.cc ../sql/sql_analyze_stmt.h
            ../sql/compat56.cc
+           ../sql/sql_schema.cc
            ../sql/sql_type.cc ../sql/sql_type.h
+           ../sql/sql_mode.cc
+           ../sql/sql_type_json.cc
            ../sql/table_cache.cc ../sql/mf_iocache_encr.cc
            ../sql/item_inetfunc.cc
            ../sql/wsrep_dummy.cc ../sql/encryption.cc
@@ -117,11 +121,13 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_sequence.cc ../sql/sql_sequence.h
            ../sql/ha_sequence.cc ../sql/ha_sequence.h
            ../sql/temporary_tables.cc
-           ../sql/session_tracker.cc
-           ../sql/proxy_protocol.cc
+           ../sql/proxy_protocol.cc ../sql/backup.cc
            ../sql/sql_tvc.cc ../sql/sql_tvc.h
            ../sql/opt_split.cc
+           ../sql/rowid_filter.cc ../sql/rowid_filter.h
            ../sql/item_vers.cc
+           ../sql/opt_trace.cc
+           ../sql/xa.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )
@@ -147,8 +153,8 @@ ENDIF()
 SET(LIBS 
   dbug strings mysys mysys_ssl pcre vio 
   ${ZLIB_LIBRARY} ${SSL_LIBRARIES} 
-  ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
-  ${MYSQLD_STATIC_PLUGIN_LIBS}
+  ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS}
+  ${EMBEDDED_PLUGIN_LIBS}
   sql_embedded
 )
 
@@ -445,9 +451,9 @@ IF(NOT DISABLE_SHARED)
     # Clean direct output flags, as 2 targets have the same base name
     # libmysqld
     SET_TARGET_PROPERTIES(libmysqld PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-    TARGET_LINK_LIBRARIES(libmysqld ${CRC32_LIBRARY})
+    TARGET_LINK_LIBRARIES(libmysqld LINK_PRIVATE ${CRC32_LIBRARY})
     SET_TARGET_PROPERTIES(mysqlserver PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-    TARGET_LINK_LIBRARIES(mysqlserver ${CRC32_LIBRARY})
+    TARGET_LINK_LIBRARIES(mysqlserver LINK_PRIVATE ${CRC32_LIBRARY})
     IF(LIBMYSQLD_SO_EXTRA_LIBS)
        TARGET_LINK_LIBRARIES(libmysqld ${LIBMYSQLD_SO_EXTRA_LIBS})
     ENDIF()

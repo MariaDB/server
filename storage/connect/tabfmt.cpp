@@ -1,11 +1,11 @@
 /************* TabFmt C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFMT                                                */
 /* -------------                                                       */
-/*  Version 3.9.2                                                      */
+/*  Version 3.9.3                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2017  */
+/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2019  */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -20,7 +20,7 @@
 /***********************************************************************/
 #include "my_global.h"
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -67,7 +67,7 @@
 /*  This should be an option.                                          */
 /***********************************************************************/
 #define MAXCOL          200        /* Default max column nb in result  */
-#define TYPE_UNKNOWN     10        /* Must be greater than other types */
+#define TYPE_UNKNOWN     12        /* Must be greater than other types */
 
 /***********************************************************************/
 /*  External function.                                                 */
@@ -156,14 +156,14 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 	p = (char*)GetStringTableOption(g, topt, "Separator", ",");
 	tdp->Sep = (strlen(p) == 2 && p[0] == '\\' && p[1] == 't') ? '\t' : *p;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 	if (tdp->Sep == ',' || strnicmp(setlocale(LC_NUMERIC, NULL), "French", 6))
 		dechar = '.';
 	else
 		dechar = ',';
-#else   // !__WIN__
+#else   // !_WIN32
 	dechar = '.';
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 	sep = tdp->Sep;
 	tdp->Quoted = GetIntegerTableOption(g, topt, "Quoted", -1);
@@ -189,9 +189,11 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 		htrc("File %s Sep=%c Qot=%c Header=%d maxerr=%d\n",
 		SVP(tdp->Fn), tdp->Sep, tdp->Qot, tdp->Header, tdp->Maxerr);
 
+#if defined(ZIP_SUPPORT)
 	if (tdp->Zipped)
 		tcvp = new(g)TDBCSV(tdp, new(g)UNZFAM(tdp));
 	else
+#endif   // ZIP_SUPPORT
 		tcvp = new(g) TDBCSV(tdp, new(g) DOSFAM(tdp));
 
 	tcvp->SetMode(MODE_READ);
@@ -309,12 +311,13 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 
       } else if (*p == q) {
         if (phase == 0) {
-          if (blank)
+          if (blank) {
             if (++nerr > mxr) {
               sprintf(g->Message, MSG(MISPLACED_QUOTE), num_read);
               goto err;
             } else
               goto skip;
+          }
 
           n = 0;
           phase = digit = 1;
@@ -339,12 +342,13 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
           goto skip;
 
       } else {
-        if (phase == 2)
+        if (phase == 2) {
           if (++nerr > mxr) {
             sprintf(g->Message, MSG(MISPLACED_QUOTE), num_read);
             goto err;
           } else
             goto skip;
+        }
 
         // isdigit cannot be used here because of debug assert
         if (!strchr("0123456789", *p)) {
@@ -360,12 +364,13 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
         blank = 1;
       } // endif's *p
 
-    if (phase == 1)
+    if (phase == 1) {
       if (++nerr > mxr) {
         sprintf(g->Message, MSG(UNBALANCE_QUOTE), num_read);
         goto err;
       } else
         goto skip;
+    }
 
     if (n) {
       len[i] = MY_MAX(len[i], n);
@@ -475,6 +480,7 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if (DOSDEF::DefineAM(g, "CSV", poff))
     return true;
 
+	Recfm = RECFM_CSV;
   GetCharCatInfo("Separator", ",", buf, sizeof(buf));
   Sep = (strlen(buf) == 2 && buf[0] == '\\' && buf[1] == 't') ? '\t' : *buf;
   Quoted = GetIntCatInfo("Quoted", -1);
@@ -738,7 +744,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
     int     i, len;
     PCSVCOL colp;
 
-    if (!Fields)              // May have been set in TABFMT::OpenDB
+    if (!Fields) {            // May have been set in TABFMT::OpenDB
       if (Mode != MODE_UPDATE && Mode != MODE_INSERT) {
         for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
           if (!colp->IsSpecial() && !colp->IsVirtual())
@@ -751,6 +757,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
         for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
           if (!cdp->IsSpecial() && !cdp->IsVirtual())
             Fields++;
+    }
 
     Offset = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
     Fldlen = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
@@ -771,7 +778,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
 
       } // endfor i
 
-    if (Field)
+    if (Field) {
       // Prepare writing fields
       if (Mode != MODE_UPDATE) {
         for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
@@ -794,6 +801,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
             Fldlen[i] = len;
             Fldtyp[i] = IsTypeNum(cdp->GetType());
             } // endif cdp
+    }
 
     } // endif Use
 
@@ -1043,7 +1051,7 @@ bool TDBCSV::PrepareWriting(PGLOBAL g)
     if (i)
       strcat(To_Line, sep);
 
-    if (Field[i])
+    if (Field[i]) {
       if (!strlen(Field[i])) {
         // Generally null fields are not quoted
         if (Quoted > 2)
@@ -1051,7 +1059,7 @@ bool TDBCSV::PrepareWriting(PGLOBAL g)
           strcat(strcat(To_Line, qot), qot);
 
       } else if (Qot && (strchr(Field[i], Sep) || *Field[i] == Qot
-              || Quoted > 1 || (Quoted == 1 && !Fldtyp[i])))
+              || Quoted > 1 || (Quoted == 1 && !Fldtyp[i]))) {
         if (strchr(Field[i], Qot)) {
           // Field contains quotes that must be doubled
           int j, k = strlen(To_Line), n = strlen(Field[i]);
@@ -1069,9 +1077,11 @@ bool TDBCSV::PrepareWriting(PGLOBAL g)
           To_Line[k] = '\0';
         } else
           strcat(strcat(strcat(To_Line, qot), Field[i]), qot);
+      }
 
       else
         strcat(To_Line, Field[i]);
+    }
 
     } // endfor i
 
@@ -1132,6 +1142,7 @@ int TDBCSV::CheckWrite(PGLOBAL g)
         n += (Quoted > 2 ? 2 : 0);
       else if (strchr(Field[i], Sep) || (Qot && *Field[i] == Qot)
           || Quoted > 1 || (Quoted == 1 && !Fldtyp[i]))
+      {
         if (!Qot) {
           sprintf(g->Message, MSG(SEP_IN_FIELD), i + 1);
           return -1;
@@ -1144,7 +1155,7 @@ int TDBCSV::CheckWrite(PGLOBAL g)
 
           n += 2;        // Outside quotes
         } // endif
-
+      }
       if ((nlen += n) > maxlen) {
         strcpy(g->Message, MSG(LINE_TOO_LONG));
         return -1;
@@ -1485,8 +1496,8 @@ void CSVCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 void CSVCOL::WriteColumn(PGLOBAL g)
   {
-  char   *p, buf[64];
-  int     flen;
+  char   *p;
+  int     n, flen;
   PTDBCSV tdbp = (PTDBCSV)To_Tdb;
 
   if (trace(2))
@@ -1508,13 +1519,14 @@ void CSVCOL::WriteColumn(PGLOBAL g)
   /*********************************************************************/
   /*  Get the string representation of the column value.               */
   /*********************************************************************/
-  p = Value->ShowValue(buf);
+  p = Value->GetCharString(Buf);
+	n = strlen(p);
 
   if (trace(2))
-    htrc("new length(%p)=%d\n", p, strlen(p));
+    htrc("new length(%p)=%d\n", p, n);
 
-  if ((signed)strlen(p) > flen) {
-    sprintf(g->Message, MSG(BAD_FLD_LENGTH), Name, p, flen,
+  if (n > flen) {
+    sprintf(g->Message, MSG(BAD_FLD_LENGTH), Name, p, n,
                         tdbp->RowNumber(g), tdbp->GetFile(g));
 		throw 34;
 	} else if (Dsp)

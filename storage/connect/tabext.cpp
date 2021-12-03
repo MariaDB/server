@@ -1,7 +1,7 @@
 /************* Tabext C++ Functions Source Code File (.CPP) ************/
-/*  Name: TABEXT.CPP  Version 1.0                                      */
+/*  Name: TABEXT.CPP  Version 1.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2019  */
 /*                                                                     */
 /*  This file contains the TBX, TDB and OPJOIN classes functions.      */
 /***********************************************************************/
@@ -14,7 +14,7 @@
 #include "sql_class.h"
 #include "sql_servers.h"
 #include "sql_string.h"
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #include "osutil.h"
 #endif
 
@@ -342,7 +342,6 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 	char  *catp = NULL, buf[NAM_LEN * 3];
 	int    len;
 	bool   first = true;
-	PTABLE tablep = To_Table;
 	PCOL   colp;
 
 	if (Srcdef)
@@ -446,6 +445,44 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 } // end of MakeSQL
 
 /***********************************************************************/
+/*  Remove the NAME_CONST functions that are added by procedures.      */
+/***********************************************************************/
+void TDBEXT::RemoveConst(PGLOBAL g, char *stmt)
+{
+	char *p, *p2;
+	char  val[1025], nval[1025];
+	int   n, nc;
+
+	while ((p = strstr(stmt, "NAME_CONST")))
+        {
+		if ((n = sscanf(p, "%*[^,],%1024[^)])%n", val, &nc))) {
+			if (trace(33))
+				htrc("p=%s\nn=%d val=%s nc=%d\n", p, n, val, nc);
+
+			*p = 0;
+
+			if ((p2 = strstr(val, "'"))) {
+				if ((n = sscanf(p2, "%*['\\]%1024[^'\\]", nval))) {
+					if (trace(33))
+						htrc("p2=%s\nn=%d nval=%s\n", p2, n, nval);
+
+					strcat(strcat(strcat(strcat(stmt, "'"), nval), "'"), p + nc);
+				} else
+					break;
+
+			} else
+				strcat(strcat(strcat(strcat(stmt, "("), val), ")"), p + nc);
+
+			if (trace(33))
+				htrc("stmt=%s\n", stmt);
+
+		} else
+			break;
+        }
+	return;
+} // end of RemoveConst
+
+/***********************************************************************/
 /*  MakeCommand: make the Update or Delete statement to send to the    */
 /*  MySQL server. Limited to remote values and filtering.              */
 /***********************************************************************/
@@ -523,6 +560,8 @@ bool TDBEXT::MakeCommand(PGLOBAL g)
 		do {
 			stmt[i++] = (Qrystr[k] == '`') ? q : Qrystr[k];
 		} while (Qrystr[k++]);
+
+		RemoveConst(g, stmt);
 
 		if (body)
 			strcat(stmt, body);

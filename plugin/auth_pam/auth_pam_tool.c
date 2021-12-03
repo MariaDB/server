@@ -16,6 +16,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <mysql/plugin_auth_common.h>
 
 struct param {
@@ -26,21 +27,15 @@ struct param {
 #include "auth_pam_tool.h"
 
 
-static int write_packet(struct param *param  __attribute__((unused)),
-                        const unsigned char *buf, int buf_len)
+static int roundtrip(struct param *param, const unsigned char *buf,
+                     int buf_len, unsigned char **pkt)
 {
   unsigned char b=  AP_CONV;
-  return write(1, &b, 1) < 1 ||
-         write_string(1, buf, buf_len);
-}
-
-
-static int read_packet(struct param *param, unsigned char **pkt)
-{
+  if (write(1, &b, 1) < 1 || write_string(1, buf, buf_len))
+    return -1;
   *pkt= (unsigned char *) param->buf;
-  return read_string(0, (char *) param->buf, (int) sizeof(param->buf)) - 1;
+  return read_string(0, (char *) param->buf, (int) sizeof(param->buf));
 }
-
 
 typedef struct st_mysql_server_auth_info
 {
@@ -68,7 +63,7 @@ typedef struct st_mysql_server_auth_info
 #include "auth_pam_base.c"
 
 
-int main(int argc, char **argv)
+int main(int argc __attribute__((unused)), char **argv __attribute__((unused)))
 {
   struct param param;
   MYSQL_SERVER_AUTH_INFO info;
@@ -76,11 +71,15 @@ int main(int argc, char **argv)
   int res;
   char a_buf[MYSQL_USERNAME_LENGTH + 1 + 1024];
 
+  if ((res= setreuid(0, 0)))
+    fprintf(stderr, "Got error %d from setreuid()\n", (int) errno);
+
   if (read(0, &field, 1) < 1)
     return -1;
 #ifndef DBUG_OFF
-  pam_debug= field;
+  pam_debug= field & 1;
 #endif
+  winbind_hack= field & 2;
   
   PAM_DEBUG((stderr, "PAM: sandbox started [%s].\n", argv[0]));
 

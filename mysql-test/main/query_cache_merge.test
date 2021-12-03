@@ -1,5 +1,8 @@
 # Test query cache with many tables
 
+set @save_query_cache_size=@@global.query_cache_size;
+set @save_query_cache_type=@@global.query_cache_type;
+
 SET GLOBAL query_cache_type=ON;
 SET LOCAL query_cache_type=ON;
 
@@ -105,8 +108,7 @@ while ($c)
   dec $c;
 }
 
-SET @@global.query_cache_size = default;
+SET @@global.query_cache_size = @save_query_cache_size;
 SET @@global.table_definition_cache = @save_table_definition_cache;
-
-SET GLOBAL query_cache_type=default;
+SET @@global.query_cache_type = @save_query_cache_type;
 --echo End of 5.1 tests

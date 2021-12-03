@@ -161,7 +161,7 @@ Note	1003	select `test`.`t1`.`key1` AS `key1`,`test`.`t1`.`col1` AS `col1` from 
 # Must show 100%, not 10%
 explain extended select * from t1 where key1=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref	key1	key1	5	const	98	100.00	
+1	SIMPLE	t1	ref	key1	key1	5	const	99	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`key1` AS `key1`,`test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`key1` = 2
 drop table t0, t1;
@@ -231,11 +231,12 @@ f2 varchar(1024),
 KEY (f1,f2(255))
 );
 INSERT INTO t2 VALUES ('foo','baz','qux'),('bar','baz','qux');
+INSERT INTO t2 VALUES ('foo','bazz','qux'),('bar','bazz','qux');
 set optimizer_use_condition_selectivity=2;
 explain
 select * from t1,t2 where t1.id = t2.t1_id and t2.f2='qux' and t2.f1='baz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	f1	f1	325	const,const	1	Using index condition; Using where
+1	SIMPLE	t2	ref	f1	f1	325	const,const	2	Using index condition; Using where
 1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	122	test.t2.t1_id	1	
 select * from t1,t2 where t1.id = t2.t1_id and t2.f2='qux' and t2.f1='baz';
 id	dt	t1_id	f1	f2
@@ -293,6 +294,26 @@ SELECT * FROM t1 WHERE t1.d = 0 AND t1.p = '1' AND t1.i != '-1' AND t1.n = 'some
 i	n	d	p
 set optimizer_use_condition_selectivity= @tmp_mdev8779;
 DROP TABLE t1;
+#
+# MDEV-23937: SIGSEGV in looped best_extension_by_limited_search from greedy_search
+# (Testcase only)
+#
+set
+@tmp_jcl= @@join_cache_level,
+@tmp_ucs= @@optimizer_use_condition_selectivity;
+set
+join_cache_level=3,
+optimizer_use_condition_selectivity=2;
+CREATE TABLE t1 AS SELECT * FROM mysql.user;
+CREATE TABLE t3 (b VARCHAR (1));
+CREATE TABLE t2 (c2 INT);
+INSERT INTO t2 VALUES (1);
+EXPLAIN
+SELECT * FROM t1 AS a NATURAL JOIN t1 AS b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	a	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	SIMPLE	b	hash_ALL	NULL	#hash#$hj	612	test.a.Host,test.a.User,test.a.Password,test.a.Select_priv,test.a.Insert_priv,test.a.Update_priv,test.a.Delete_priv,test.a.Create_priv,test.a.Drop_priv,test.a.Reload_priv,test.a.Shutdown_priv,test.a.Process_priv,test.a.File_priv,test.a.Grant_priv,test.a.References_priv,test.a.Index_priv,test.a.Alter_priv,test.a.Show_db_priv,test.a.Super_priv,test.a.Create_tmp_table_priv,test.a.Lock_tables_priv,test.a.Execute_priv,test.a.Repl_slave_priv,test.a.Repl_client_priv,test.a.Create_view_priv,test.a.Show_view_priv,test.a.Create_routine_priv,test.a.Alter_routine_priv,test.a.Create_user_priv,test.a.Event_priv,test.a.Trigger_priv,test.a.Create_tablespace_priv,test.a.Delete_history_priv,test.a.ssl_type,test.a.ssl_cipher,test.a.x509_issuer,test.a.x509_subject,test.a.max_questions,test.a.max_updates,test.a.max_connections,test.a.max_user_connections,test.a.plugin,test.a.authentication_string,test.a.password_expired,test.a.is_role,test.a.default_role,test.a.max_statement_time	5	Using where; Using join buffer (flat, BNLH join)
+DROP TABLE t1,t2,t3;
 # 
 # End of the test file
 # 

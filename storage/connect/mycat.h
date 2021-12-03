@@ -11,10 +11,10 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**************** MYCAT H Declares Source Code File (.H) ***************/
-/*  Name: MYCAT.H  Version 2.3                                         */
+/*  Name: MYCAT.H  Version 2.4                                         */
 /*  Author: Olivier Bertrand                                           */
 /*  This file contains the CONNECT plugin MYCAT class definitions.     */
 /***********************************************************************/
@@ -50,6 +50,8 @@ struct ha_table_option_struct {
 	const char *filter;
   const char *oplist;
   const char *data_charset;
+  const char *http;
+  const char *uri;
   ulonglong lrecl;
   ulonglong elements;
 //ulonglong estimate;
@@ -76,7 +78,8 @@ struct ha_table_option_struct {
 
 typedef class ha_connect     *PHC;
 
-char *GetPluginDir(void);
+char   *GetPluginDir(void);
+char   *GetMessageDir(void);
 TABTYPE GetTypeID(const char *type);
 bool    IsFileType(TABTYPE type);
 bool    IsExactType(TABTYPE type);
@@ -100,14 +103,14 @@ class MYCAT : public CATALOG {
   // Methods
   void    Reset(void);
   bool    StoreIndex(PGLOBAL, PTABDEF) {return false;}  // Temporary
-	PRELDEF GetTableDesc(PGLOBAL g, PTABLE tablep,
+	PTABDEF GetTableDesc(PGLOBAL g, PTABLE tablep,
 		                   LPCSTR type, PRELDEF *prp = NULL);
   PTDB    GetTable(PGLOBAL g, PTABLE tablep, 
                               MODE mode = MODE_READ, LPCSTR type = NULL);
   void    ClearDB(PGLOBAL g);
 
  protected:
-	PRELDEF MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am);
+	PTABDEF MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am);
 
   // Members
   ha_connect *Hc;                          // The Connect handler

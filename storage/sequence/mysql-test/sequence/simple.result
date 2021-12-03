@@ -124,9 +124,9 @@ Tables_in_test
 explain select * from seq_1_to_15_step_2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	seq_1_to_15_step_2	index	NULL	PRIMARY	8	NULL	8	Using index
-explain select * from seq_1_to_15_step_2 where seq > 4;
+explain select * from seq_1_to_15_step_2 where seq > 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	seq_1_to_15_step_2	range	PRIMARY	PRIMARY	8	NULL	6	Using where; Using index
+1	SIMPLE	seq_1_to_15_step_2	range	PRIMARY	PRIMARY	8	NULL	3	Using where; Using index
 explain select * from seq_1_to_15_step_2 where seq between  4 and  9;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	seq_1_to_15_step_2	range	PRIMARY	PRIMARY	8	NULL	3	Using where; Using index

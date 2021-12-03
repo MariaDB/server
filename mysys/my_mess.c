@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 
@@ -21,6 +21,8 @@ void my_message_stderr(uint error __attribute__((unused)),
   DBUG_ENTER("my_message_stderr");
   DBUG_PRINT("enter",("message: %s",str));
   (void) fflush(stdout);
+  if (MyFlags & (ME_NOTE | ME_ERROR_LOG_ONLY))
+    DBUG_VOID_RETURN;
   if (MyFlags & ME_BELL)
     (void) fputc('\007', stderr);
   if (my_progname)

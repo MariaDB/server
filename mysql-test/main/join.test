@@ -1,5 +1,6 @@
 #
 # Initialization
+--source include/default_optimizer_switch.inc
 --disable_warnings
 drop table if exists t1,t2,t3;
 drop view if exists v1,v2;
@@ -555,7 +556,7 @@ select * from v1a join v1b on t1.b = t2.b;
 select 
  statistics.TABLE_NAME, statistics.COLUMN_NAME, statistics.TABLE_CATALOG, statistics.TABLE_SCHEMA, statistics.NON_UNIQUE, statistics.INDEX_SCHEMA, statistics.INDEX_NAME, statistics.SEQ_IN_INDEX, statistics.COLLATION, statistics.SUB_PART, statistics.PACKED, statistics.NULLABLE, statistics.INDEX_TYPE, statistics.COMMENT, 
  columns.TABLE_CATALOG, columns.TABLE_SCHEMA, columns.COLUMN_DEFAULT, columns.IS_NULLABLE, columns.DATA_TYPE, columns.CHARACTER_MAXIMUM_LENGTH, columns.CHARACTER_OCTET_LENGTH, columns.NUMERIC_PRECISION, columns.NUMERIC_SCALE, columns.CHARACTER_SET_NAME, columns.COLLATION_NAME, columns.COLUMN_TYPE, columns.COLUMN_KEY, columns.EXTRA, columns.COLUMN_COMMENT
- from information_schema.statistics join information_schema.columns using(table_name,column_name) where table_name='user';
+ from information_schema.statistics join information_schema.columns using(table_name,column_name) where table_name='global_priv';
 
 drop table t1;
 drop table t2;
@@ -955,6 +956,7 @@ EXPLAIN SELECT * FROM t1 JOIN t2 ON t1.v = t2.v;
 INSERT INTO t1 VALUES (3,'b'),(4,NULL),(5,'c'),(6,'cc'),(7,'d'),
   (8,'dd'),(9,'e'),(10,'ee');
 INSERT INTO t2 VALUES (2,NULL);
+ANALYZE TABLE t1,t2;
 FLUSH STATUS;
 SELECT * FROM t1 JOIN t2 ON t1.v = t2.v WHERE t2.v IS NULL ORDER BY 1;
 SHOW STATUS LIKE 'Handler_read_%';
@@ -1210,6 +1212,469 @@ DROP PROCEDURE p1;
 DROP TABLE t1,t2,t3,t4,t5;
 
 --echo #
+--echo # MDEV-19421: Embedding inner joins
+--echo #
+
+create table t1 (a int);
+insert into t1 values (7), (5), (3);
+create table s1 (b int);
+insert into s1 values (7), (5), (3);
+create table t2 (a int);
+insert into t2 values (5), (1), (7);
+create table s2 (b int);
+insert into s2 values (5), (1), (7);
+create table t3 (a int);
+insert into t3 values (2), (7), (3);
+create table t4 (a int);
+insert into t4 values (4), (7), (9), (5);
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3 on t2.a=t3.a on t1.a=t2.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 left join t3 on t2.a=t3.a on t1.a=t2.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 right join t3 on t2.a=t3.a on t1.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3 using(a) using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 left join t3 using(a) using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 right join t3 using(a) using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3 on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 left join t3 on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 right join t3 on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3 on t1.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 left join t3 on t1.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 right join t3 on t1.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join (t2 join t3 on t2.a=t3.a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join (t2 left join t3 on t2.a=t3.a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join (t2 right join t3 on t2.a=t3.a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 left join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 right join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b, t2.a as t2_a, t3.a as t3_a
+from s1 join t2 join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b, t2.a as t2_a, t3.a as t3_a
+from s1 join t2 left join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b, t2.a as t2_a, t3.a as t3_a
+from s1 join t2 right join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b, t2.a as t2_a, t3.a as t3_a
+from (s1 join t2) right join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 natural join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 natural left join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 natural right join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3
+where t1.a=t2.a and t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 join t3 join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 left join t3 join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 left join t3 left join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 left join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 right join t3 join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 right join t3 left join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 join t3 join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 join t3 left join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 join t3 right join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
+from s1 join s2 join t3 join t4 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
+from s1 join s2 join t3 left join t4 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
+from s1 join s2 join t3 right join t4 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 join t3 on t2.a=t3.a join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 left join t3 on t2.a=t3.a join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 right join t3 on t2.a=t3.a join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t2 join t3 using(a) join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t2 left join t3 using(a) join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t2 right join t3 using(a) join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 on t1.a=t2.a join t3 join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 on t1.a=t2.a join t3 left join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 left join t2 on t1.a=t2.a join t3 join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 left join t2 on t1.a=t2.a join t3 left join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 left join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 right join t2 on t1.a=t2.a join t3 join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 right join t2 on t1.a=t2.a join t3 left join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 right join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t1 left join t2 on s1.b=t2.a join t3 join t4 on t4.a=s1.b;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t1 left join t2 on s1.b=t2.a join t3 left join t4 on t4.a=s1.b;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t1 left join t2 on s1.b=t2.a join t3 right join t4 on t4.a=s1.b;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from s1 join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from s1 left join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from s1 right join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from (t1 join t2) right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from (t1, t2) right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+drop table t1,t2,t3,t4,s1,s2;
+
+--echo #
+--echo # MDEV-20265: Mix of comma joins with JOIN expressions
+--echo #             (correction of the fix for MDEV-19421)
+--echo # MDEV-20330: duplicate
+--echo #
+
+create table t1 (a int);
+insert into t1 values (7), (5), (3);
+create table t2 (a int);
+insert into t2 values (5), (1), (7);
+create table t3 (a int);
+insert into t3 values (2), (7), (3);
+create table t4 (a int);
+insert into t4 values (4), (7), (9), (5);
+create table t5 (a int);
+insert into t5 values (3), (7), (9), (2);
+
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1, t2 join t3 left join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1, t2 join t3 right join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
+from t1, t2 join t3 join t4 left join t5 on t4.a=t5.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
+from t1, t2 join t3 join t4 right join t5 on t4.a=t5.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
+from t1 left join t2 on t1.a=t2.a, t3 join t4 right join t5 on t4.a=t5.a;
+eval explain extended $q;
+eval $q;
+
+drop table t1,t2,t3,t4,t5;
+
+select a.a
+from (select 1 as a) a,
+     (select 2 as b) b
+     cross join
+     (select 3 as c) c
+     left join
+     (select 4 as d) d
+     on 1;
+
+--echo #
 --echo # End of MariaDB 5.5 tests
 --echo #
 
@@ -1254,3 +1719,104 @@ SELECT STRAIGHT_JOIN * FROM t1, t2 AS t2_1, t2 AS t2_2
   WHERE t2_2.c = t2_1.c AND t2_2.b = t2_1.b AND ( a IS NULL OR t2_1.c = a );                  
 
 DROP TABLE t1,t2;
+
+#
+# MDEV-20330 Combination of "," (comma), cross join and left join fails to parse
+#
+select a.a from (select 1 as a) a, (select 2 as b) b cross join (select 3 as c) c left join (select 4 as d) d on 1;
+
+--echo #
+--echo # MDEV-19600: The optimizer should be able to produce rows=1 estimate for unique index with NULLable columns
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  pk int not null primary key auto_increment,
+  a int,
+  b int,
+  unique key(a)
+);
+
+# 10K of null values
+insert into t1 (a,b) select null, 12345 from t0 A, t0 B, t0 C;
+insert into t1 (a,b) select a,a from t0;
+
+--echo # Simulate InnoDB's persistent statistics (It always uses nulls_equal)
+set @tmp1= @@myisam_stats_method;
+set myisam_stats_method=nulls_equal;
+analyze table t1;
+set myisam_stats_method=@tmp1;
+show keys from t1;
+
+--echo # t1 must use eq_ref(t1.a=t0.a) and rows must be 1 (and not 45):
+explain select * from t0,t1 where t0.a=t1.a;
+
+drop table t0,t1;
+
+--echo # 
+--echo # MDEV-21383: Possible range plan is not used under certain conditions
+--echo # 
+
+--disable_warnings
+drop table if exists t10, t1000, t03;
+--enable_warnings
+
+create table t10(a int);
+insert into t10 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1000(a int);
+insert into t1000 select A.a + B.a* 10 + C.a * 100 from t10 A, t10 B, t10 C;
+
+create table t03(a int);
+insert into t03 values (0),(1),(2);
+
+
+create table t1 (
+  stationid int
+);
+insert into t1 select a from t10;
+
+CREATE TABLE t2 (
+  stationId int,
+  startTime int,
+  filler char(100),
+  key1 int,
+  key2 int,
+  key(key1),
+  key(key2),
+  PRIMARY KEY (`stationId`,`startTime`)
+);
+
+insert into t2 select
+  A.a, 
+  B.a,
+  repeat('filler=data-', 4),
+  B.a,
+  1
+from 
+  t03 A,
+  t1000 B;
+analyze table t2;
+
+create table t3(a int, filler char(100), key(a));
+insert into t3 select A.a+1000*B.a, 'filler-data' from t1000 A, t10 B;
+
+--echo # This should produce a join order of t1,t2,t3
+--echo #  t2 should have type=range, key=PRIMARY key_len=8 (not type=ALL or key_len<8)
+explain
+SELECT *
+FROM
+   t1,t2,t3
+WHERE   
+  t2.startTime <= 100 and
+  t2.stationId = t1.stationId and
+  (t1.stationid = 1 or t1.stationid = 2 or t1.stationid = 3) and
+  key1 >0 and
+  t2.key2=t3.a;
+
+drop table t1,t2,t3;
+drop table t1000,t10,t03;
+
+--echo # End of 10.3 tests

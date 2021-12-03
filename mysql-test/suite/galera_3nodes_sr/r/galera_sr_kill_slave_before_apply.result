@@ -1,0 +1,49 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+connection node_1;
+CREATE TABLE t2 (f1 INTEGER);
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+LOCK TABLE t2 WRITE;
+connection node_1;
+INSERT INTO t2 VALUES (1);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+connection node_2;
+Killing server ...
+# restart
+connection node_1;
+COMMIT;
+count_match
+1
+count_match
+1
+connection node_1;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+connection node_2;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+connection node_1;
+DROP TABLE t1;
+DROP TABLE t2;

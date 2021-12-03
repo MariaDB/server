@@ -1,3 +1,4 @@
+SET innodb_strict_mode=OFF;
 CREATE TABLE test_tab (
 a_str_18 mediumtext,
 b_str_3 varchar(32) DEFAULT NULL,
@@ -123,6 +124,9 @@ KEY b_str_5 (b_str_5),
 KEY b_str_31 (b_str_31),
 KEY a_ref_11 (a_ref_11)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
+Warnings:
+Warning	139	Row size too large (> 8126). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+SET innodb_strict_mode=ON;
 BEGIN;
 INSERT INTO test_tab (b_str_26, a_str_13, a_str_18) VALUES
 ('a', REPEAT('f',4031), REPEAT('g', 4031));

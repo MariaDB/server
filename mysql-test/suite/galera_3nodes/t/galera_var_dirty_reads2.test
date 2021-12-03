@@ -5,10 +5,24 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-CREATE TABLE t1 (f1 INTEGER);
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=INNODB;
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
 SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
 
 --connection node_1
@@ -17,7 +31,6 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
 
 --connection node_2
 SET SESSION wsrep_sync_wait = 0;
-
 --let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc
 
@@ -100,13 +113,18 @@ SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST;
 
 # Restore cluster
 SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+--source include/galera_wait_ready.inc
 
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
 
 --connection node_2
---let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
+--source include/galera_wait_ready.inc
 
 DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

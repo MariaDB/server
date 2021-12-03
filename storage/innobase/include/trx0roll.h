@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,9 +27,7 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0roll_h
 #define trx0roll_h
 
-#include "univ.i"
 #include "trx0trx.h"
-#include "trx0types.h"
 #include "mtr0mtr.h"
 #include "trx0sys.h"
 
@@ -37,31 +35,12 @@ extern bool		trx_rollback_is_active;
 extern const trx_t*	trx_roll_crash_recv_trx;
 
 /*******************************************************************//**
-Determines if this transaction is rolling back an incomplete transaction
-in crash recovery.
-@return TRUE if trx is an incomplete transaction that is being rolled
-back in crash recovery */
-ibool
-trx_is_recv(
-/*========*/
-	const trx_t*	trx);	/*!< in: transaction */
-/*******************************************************************//**
 Returns a transaction savepoint taken at this point in time.
 @return savepoint */
 trx_savept_t
 trx_savept_take(
 /*============*/
 	trx_t*	trx);	/*!< in: transaction */
-
-/** Get the last undo log record of a transaction (for rollback).
-@param[in,out]	trx		transaction
-@param[out]	roll_ptr	DB_ROLL_PTR to the undo record
-@param[in,out]	heap		memory heap for allocation
-@return	undo log record copied to heap
-@retval	NULL if none left or the roll_limit (savepoint) was reached */
-trx_undo_rec_t*
-trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Report progress when rolling back a row of a recovered transaction. */
 void trx_roll_report_progress();
@@ -195,9 +174,7 @@ enum roll_node_state {
 struct roll_node_t{
 	que_common_t		common;	/*!< node type: QUE_NODE_ROLLBACK */
 	enum roll_node_state	state;	/*!< node execution state */
-	bool			partial;/*!< TRUE if we want a partial
-					rollback */
-	trx_savept_t		savept;	/*!< savepoint to which to
+	const trx_savept_t*	savept;	/*!< savepoint to which to
 					roll back, in the case of a
 					partial rollback */
 	que_thr_t*		undo_thr;/*!< undo query graph */

@@ -7,6 +7,7 @@ FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%';
 path
 ./test_jfg2/test.ibd
 DROP DATABASE test_jfg;
+# restart
 DROP DATABASE test_jfg2;
 CREATE DATABASE abc_def;
 CREATE DATABASE abc_def2;
@@ -17,6 +18,7 @@ FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%';
 path
 ./abc_def2/test1.ibd
 DROP DATABASE abc_def;
+# restart
 DROP DATABASE abc_def2;
 call mtr.add_suppression("InnoDB: (Operating system error|The error means|Cannot rename file)");
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;

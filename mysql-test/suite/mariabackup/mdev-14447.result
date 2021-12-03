@@ -7,12 +7,14 @@ COMMIT;
 SELECT count(*) FROM t;
 count(*)
 100000
+FOUND 1 /Checksum mismatch in datafile/ in backup.log
 # Prepare full backup, apply incremental one
 # Restore and check results
 # shutdown server
 # remove datadir
 # xtrabackup move back
 # restart server
+# restart
 SELECT count(*) FROM t;
 count(*)
 100000

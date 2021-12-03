@@ -15,7 +15,7 @@ connection master;
 connection slave;
 # Slave in-sync with master now.
 SELECT user, plugin, authentication_string FROM mysql.user WHERE user LIKE 'plug_user';
-user	plugin	authentication_string
+User	plugin	authentication_string
 plug_user	test_plugin_server	plug_user
 # Cleanup (on slave).
 include/stop_slave.inc

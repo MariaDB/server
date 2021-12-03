@@ -874,6 +874,27 @@ SELECT * FROM t1 PARTITION (p0);
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 SELECT * FROM t1 PARTITION (p0);
 UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18371 Server crashes in ha_innobase::cmp_ref upon UPDATE with PARTITION clause.
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, KEY (a)) ENGINE=InnoDB PARTITION BY KEY(b) PARTITIONS 4;
+INSERT INTO t1 VALUES (3,0),(8,2),(7,8),(3,4),(2,4),(0,7),(4,3),(3,6);
+FLUSH TABLES;
+UPDATE t1 PARTITION (p3,p1) SET a = 2 WHERE a = 3;
+SELECT * FROM t1;
+
 
 # Cleanup
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-18982: INSERT using explicit patition pruning with column list
+--echo #
+
+create table t1 (a int) partition by hash(a);
+insert into t1 partition (p0) (a) values (1);
+select * from t1;
+drop table t1;

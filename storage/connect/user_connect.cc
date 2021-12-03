@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file user_connect.cc
@@ -28,7 +28,7 @@
 */
 
 /****************************************************************************/
-/*  Author: Olivier Bertrand  --  bertrandop@gmail.com  --  2004-2015       */
+/*  Author: Olivier Bertrand  --  bertrandop@gmail.com  --  2004-2020       */
 /****************************************************************************/
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation        // gcc: Class implementation
@@ -58,8 +58,8 @@ PCONNECT user_connect::to_users= NULL;
 /****************************************************************************/
 /*  Get the work_size SESSION variable value .                              */
 /****************************************************************************/
-uint GetWorkSize(void);
-void SetWorkSize(uint);
+size_t GetWorkSize(void);
+void  SetWorkSize(size_t);
 
 /* -------------------------- class user_connect -------------------------- */
 
@@ -97,23 +97,22 @@ user_connect::~user_connect()
 bool user_connect::user_init()
 {
   // Initialize Plug-like environment
-  uint      worksize= GetWorkSize();
+  size_t    worksize= GetWorkSize();
   PACTIVITY ap= NULL;
   PDBUSER   dup= NULL;
 
   // Areasize= 64M because of VEC tables. Should be parameterisable
 //g= PlugInit(NULL, 67108864);
 //g= PlugInit(NULL, 134217728);  // 128M was because of old embedded tests
-  g= PlugInit(NULL, worksize);
+  g= PlugInit(NULL, (size_t)worksize);
 
   // Check whether the initialization is complete
-  if (!g || !g->Sarea || PlugSubSet(g, g->Sarea, g->Sarea_Size)
+  if (!g || !g->Sarea || PlugSubSet(g->Sarea, g->Sarea_Size)
          || !(dup= PlgMakeUser(g))) {
     if (g)
       printf("%s\n", g->Message);
 
-    int rc= PlugExit(g);
-    g= NULL;
+    g= PlugExit(g);
 
 		if (dup)
 	    free(dup);
@@ -157,27 +156,30 @@ void user_connect::SetHandler(ha_connect *hc)
 bool user_connect::CheckCleanup(bool force)
 {
   if (thdp->query_id > last_query_id || force) {
-    uint worksize= GetWorkSize(), size = g->Sarea_Size;
+		size_t worksize = GetWorkSize();
 
     PlugCleanup(g, true);
 
-    if (size != worksize) {
+    if (worksize != g->Sarea_Size) {
 			FreeSarea(g);
+			g->Saved_Size = g->Sarea_Size;
 
       // Check whether the work area could be allocated
       if (AllocSarea(g, worksize)) {
-				AllocSarea(g, size);
+				AllocSarea(g, g->Saved_Size);
         SetWorkSize(g->Sarea_Size);       // Was too big
       } // endif sarea
 
     } // endif worksize
 
-    PlugSubSet(g, g->Sarea, g->Sarea_Size);
+    PlugSubSet(g->Sarea, g->Sarea_Size);
     g->Xchk = NULL;
-    g->Createas = 0;
+    g->Createas = false;
     g->Alchecked = 0;
     g->Mrr = 0;
-    last_query_id= thdp->query_id;
+		g->More = 0;
+		g->Saved_Size = 0;
+		last_query_id= thdp->query_id;
 
     if (trace(65) && !force)
       printf("=====> Begin new query %llu\n", last_query_id);

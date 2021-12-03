@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef _my_getopt_h
 #define _my_getopt_h
@@ -106,6 +106,7 @@ extern char *autoset_my_option;
 extern my_bool my_getopt_print_errors;
 extern my_bool my_getopt_skip_unknown;
 extern my_bool my_getopt_prefix_matching;
+extern my_bool my_handle_options_init_variables;
 extern my_error_reporter my_getopt_error_reporter;
 
 extern int handle_options (int *argc, char ***argv, 

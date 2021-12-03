@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "maria_def.h"
 #include "ma_blockrec.h"
@@ -268,7 +268,7 @@ static my_bool ma_crypt_data_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     return 1;
   }
 
-  if (!share->now_transactional)
+  if (!share->base.born_transactional)
   {
     /* store a random number instead of LSN (for counter block) */
     store_rand_lsn(args->page);
@@ -392,7 +392,7 @@ static my_bool ma_crypt_index_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     return 1;
   }
 
-  if (!share->now_transactional)
+  if (!share->base.born_transactional)
   {
     /* store a random number instead of LSN (for counter block) */
     store_rand_lsn(args->page);

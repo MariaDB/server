@@ -1,0 +1,35 @@
+--source include/master-slave.inc
+
+SET sql_mode=TIME_ROUND_FRACTIONAL;
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2010-12-31 23:59:59.999999');
+
+CREATE TABLE t1 (id SERIAL, a TIMESTAMP(4));
+INSERT INTO t1 (a) VALUES (now(6));
+INSERT INTO t1 (a) VALUES ('2011-01-01 23:59:59.999999');
+
+CREATE TABLE t2 (id SERIAL, a DATETIME(4));
+INSERT INTO t2 (a) VALUES (now(6));
+INSERT INTO t2 (a) VALUES ('2011-01-01 23:59:59.999999');
+
+CREATE TABLE t3 (id SERIAL, a TIME(4));
+INSERT INTO t3 (a) VALUES (now(6));
+INSERT INTO t3 (a) VALUES ('2011-01-01 23:59:59.999999');
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+SELECT * FROM t3;
+
+sync_slave_with_master;
+connection slave;
+SET time_zone='+00:00';
+SELECT * FROM t1;
+SELECT * FROM t2;
+SELECT * FROM t3;
+
+connection master;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+
+--source include/rpl_end.inc

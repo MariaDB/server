@@ -46,6 +46,7 @@ CREATE TABLE t1 (i INT, j INT, k INT, PRIMARY KEY (i)) ENGINE = ROCKSDB PARTITIO
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 Table	Op	Msg_type	Msg_text
 test.t1	repair	status	OK

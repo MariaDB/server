@@ -177,7 +177,7 @@ ERROR 2005 (HY000) at line 1: Unknown MySQL server host 'invalid_hostname' (errn
 The commands reported in the bug report
 ERROR 2005 (HY000) at line 1: Unknown MySQL server host 'cyril has found a bug :)XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' (errno)
 Too long dbname
-ERROR 1102 (42000) at line 1: Incorrect database name 'test_really_long_dbnamexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+ERROR 1102 (42000) at line 1: Incorrect database name 'test_really_long_dbnamexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...'
 Too long hostname
 ERROR 2005 (HY000) at line 1: Unknown MySQL server host 'cyrils_superlonghostnameXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' (errno)
 1
@@ -600,3 +600,33 @@ a
 2
 drop table "a1\""b1";
 set sql_mode=default;
+create table t1 (a text);
+select count(*) from t1;
+count(*)
+41
+truncate table t1;
+select count(*) from t1;
+count(*)
+41
+truncate table t1;
+select count(*) from t1;
+count(*)
+0
+truncate table t1;
+select count(*) from t1;
+count(*)
+0
+truncate table t1;
+select count(*) from t1;
+count(*)
+41
+truncate table t1;
+select count(*) from t1;
+count(*)
+0
+truncate table t1;
+drop table t1;
+#
+# MDEV-15538 '-N' Produce html output wrong
+#
+<TABLE BORDER=1><TR><TD>1</TD></TR></TABLE>

@@ -5,6 +5,7 @@
 # Test Restart & Crash Recovery.
 -- source include/big_test.inc
 -- source include/innodb_page_size_small.inc
+let $restart_noprint=2;
 
 # Test Row Format: REDUNDANT.
 let $row_format = REDUNDANT;

@@ -1,5 +1,7 @@
 drop table if exists t1,t2,v1,v2,v3;
 drop view if exists t1,t2,v1,v2,v3;
+set @save_query_cache_size=@@global.query_cache_size;
+set @save_query_cache_type=@@global.query_cache_type;
 set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;
 set GLOBAL query_cache_size=1355776;
@@ -208,5 +210,5 @@ DROP TABLE t1;
 DROP TABLE t2;
 DROP VIEW t1_view;
 SET AUTOCOMMIT=DEFAULT;
-set GLOBAL query_cache_size=default;
-set GLOBAL query_cache_type=default;
+set GLOBAL query_cache_size=@save_query_cache_size;
+set GLOBAL query_cache_type=@save_query_cache_type;

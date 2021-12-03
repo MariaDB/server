@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #define MYSQL_LEX 1
@@ -34,6 +34,7 @@
 #include "sql_handler.h"                        // mysql_ha_rm_tables
 #include "sp_cache.h"                     // sp_invalidate_cache
 #include <mysys_err.h>
+#include "debug_sync.h"
 
 /*************************************************************************/
 
@@ -328,7 +329,7 @@ public:
 
 Trigger::~Trigger()
 {
-  delete body;
+  sp_head::destroy(body);
 }
 
 
@@ -507,8 +508,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   }
 
 #ifdef WITH_WSREP
-  if (thd->wsrep_exec_mode == LOCAL_STATE)
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, tables);
 #endif
 
   /* We should have only one table in table list. */
@@ -569,6 +569,17 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     if (!(table->triggers= new (&table->mem_root) Table_triggers_list(table)))
       goto end;
   }
+
+#ifdef WITH_WSREP
+  DBUG_EXECUTE_IF("sync.mdev_20225",
+                  {
+                    const char act[]=
+                      "now "
+                      "wait_for signal.mdev_20225_continue";
+                    DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                       STRING_WITH_LEN(act)));
+                  };);
+#endif /* WITH_WSREP */
 
   result= (create ?
            table->triggers->create_trigger(thd, tables, &stmt_query):
@@ -1797,7 +1808,7 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
   bool result= 0;
   DBUG_ENTER("Triggers::drop_all_triggers");
 
-  bzero(&table, sizeof(table));
+  table.reset();
   init_sql_alloc(&table.mem_root, "Triggers::drop_all_triggers", 8192, 0,
                  MYF(0));
 
@@ -2049,7 +2060,7 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
   Trigger *err_trigger;
   DBUG_ENTER("Triggers::change_table_name");
 
-  bzero(&table, sizeof(table));
+  table.reset();
   init_sql_alloc(&table.mem_root, "Triggers::change_table_name", 8192, 0,
                  MYF(0));
 
@@ -2183,8 +2194,7 @@ bool Table_triggers_list::process_triggers(THD *thd,
     This trigger must have been processed by the pre-locking
     algorithm.
   */
-  DBUG_ASSERT(trigger_table->pos_in_table_list->trg_event_map &
-              static_cast<uint>(1 << static_cast<int>(event)));
+  DBUG_ASSERT(trigger_table->pos_in_table_list->trg_event_map & trg2bit(event));
 
   thd->reset_sub_statement_state(&statement_state, SUB_STMT_TRIGGER);
 
@@ -2236,8 +2246,7 @@ add_tables_and_routines_for_triggers(THD *thd,
 
   for (int i= 0; i < (int)TRG_EVENT_MAX; i++)
   {
-    if (table_list->trg_event_map &
-        static_cast<uint8>(1 << static_cast<int>(i)))
+    if (table_list->trg_event_map & trg2bit(static_cast<trg_event_type>(i)))
     {
       for (int j= 0; j < (int)TRG_ACTION_MAX; j++)
       {

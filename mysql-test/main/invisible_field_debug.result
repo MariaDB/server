@@ -331,6 +331,9 @@ insert into t1 values(1,1,1);
 insert into t1 values(2,2,2);
 insert into t1 values(3,3,3);
 insert into t1 values(4,4,4);
+insert into t1 values(5,5,5);
+insert into t1 values(6,6,6);
+insert into t1 values(7,7,7);
 set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
 select invisible, a ,b from t1 order by b;
 invisible	a	b
@@ -338,9 +341,12 @@ invisible	a	b
 9	2	2
 9	3	3
 9	4	4
+9	5	5
+9	6	6
+9	7	7
 explain select * from t1 where invisible =9;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	invisible	invisible	5	const	3	
+1	SIMPLE	t1	ALL	invisible	NULL	NULL	NULL	7	Using where
 alter table t1 add x int default 3;
 select invisible, a ,b from t1;
 invisible	a	b
@@ -348,6 +354,9 @@ invisible	a	b
 9	2	2
 9	3	3
 9	4	4
+9	5	5
+9	6	6
+9	7	7
 set debug_dbug=@old_debug;
 Show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -359,11 +368,11 @@ drop index invisible on t1;
 ERROR 42000: Can't DROP INDEX `invisible`; check that it exists
 explain select * from t1 where invisible =9;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	invisible	invisible	5	const	3	
+1	SIMPLE	t1	ALL	invisible	NULL	NULL	NULL	7	Using where
 create index invisible on t1(c);
 explain select * from t1 where invisible =9;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	invisible_2	invisible_2	5	const	3	
+1	SIMPLE	t1	ALL	invisible_2	NULL	NULL	NULL	7	Using where
 show indexes in t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
@@ -376,3 +385,15 @@ SET debug_dbug="+d,test_completely_invisible,test_invisible_index";
 CREATE TABLE t2 LIKE t1;
 SET debug_dbug= DEFAULT;
 DROP TABLE t1, t2;
+#
+# MDEV-20210
+# If you have an INVISIBLE VIRTUAL column, SHOW CREATE TABLE doesn't list it as INVISIBLE
+#
+CREATE TABLE t1 (i INT, v int GENERATED ALWAYS AS (1) VIRTUAL INVISIBLE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL,
+  `v` int(11) GENERATED ALWAYS AS (1) VIRTUAL INVISIBLE
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;

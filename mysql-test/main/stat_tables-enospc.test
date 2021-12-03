@@ -3,6 +3,7 @@
 #
 # test that ANALYZE TABLE is immediately aborted when going out of disk space
 --source include/have_debug.inc
+
 call mtr.add_suppression("No space left on device");
 create table t1 (a varchar(255), b varchar(255), c varchar(255));
 --disable_query_log
@@ -15,9 +16,10 @@ while ($i) {
 }
 --enable_query_log
 set use_stat_tables=PREFERABLY, optimizer_use_condition_selectivity=3;
-set debug_dbug='+d,simulate_file_write_error';
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='+d,simulate_file_write_error';
+set @@max_heap_table_size=128*1024;
 --replace_regex /'.*'/'tmp-file'/
 analyze table t1;
-set debug_dbug='';
+SET debug_dbug= @saved_dbug;
 drop table t1;
-

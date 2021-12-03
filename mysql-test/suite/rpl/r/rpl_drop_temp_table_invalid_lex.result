@@ -1,0 +1,11 @@
+include/master-slave.inc
+[connection master]
+connect  con1,localhost,root,,;
+CREATE TEMPORARY TABLE tmp (a INT);
+CREATE TABLE non_existing_db.t SELECT 1 AS b;
+disconnect con1;
+connection master;
+connection slave;
+connection slave;
+include/assert.inc ["Slave_open_temp_tables count should be 0"]
+include/rpl_end.inc

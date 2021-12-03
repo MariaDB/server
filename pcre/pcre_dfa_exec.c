@@ -2198,6 +2198,7 @@ for (;;)
         case 0x2029:
 #endif  /* Not EBCDIC */
         if ((md->moptions & PCRE_BSR_ANYCRLF) != 0) break;
+        /* fall through */
 
         case CHAR_LF:
         ADD_NEW(state_offset + 1, 0);

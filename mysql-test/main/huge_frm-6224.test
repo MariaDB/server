@@ -4,17 +4,24 @@
 # verify that huge frms are rejected during creation, not on opening
 #
 --source include/have_partition.inc
+set @save_max_allowed_packet=@@max_allowed_packet;
+set global max_allowed_packet=1024*1024*10;
+connect con1,localhost,root;
 
-let $n=5646;
+let $n=8164;
 let $a=create table t1 (a int) engine=myisam partition by hash(a) partitions $n (;
 dec $n;
 while ($n)
 {
-  let $a=$a partition p01234567890123456789012345678901234567890123456789012345678$n,;
+  let $a=$a partition p01234567890123456789012345678901234567890123456789012345678$n COMMENT 'partition p01234567890123456789012345678901234567890123456789012345678$n',;
   dec $n;
 }
 
 --disable_query_log
 --error ER_TABLE_DEFINITION_TOO_BIG
 eval $a partition foo);
+--enable_query_log
 
+connection default;
+disconnect con1;
+set global max_allowed_packet=@save_max_allowed_packet;

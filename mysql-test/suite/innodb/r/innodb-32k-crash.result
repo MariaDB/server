@@ -7,6 +7,7 @@ ha blob,ia blob,ja blob,ka blob,la blob,ma blob,na blob,
 oa blob,pa blob,qa blob,ra blob,sa blob,ta blob,ua blob,
 va blob, wa blob, xa blob, ya blob, za blob)
 ENGINE=InnoDB ROW_FORMAT=dynamic;
+SET innodb_strict_mode=OFF;
 CREATE TABLE t2(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
 h blob,i blob,j blob,k blob,l blob,m blob,n blob,
 o blob,p blob,q blob,r blob,s blob,t blob,u blob,
@@ -16,6 +17,9 @@ ha blob,ia blob,ja blob,ka blob,la blob,ma blob,na blob,
 oa blob,pa blob,qa blob,ra blob,sa blob,ta blob,ua blob,
 va blob, wa blob, xa blob, ya blob, za blob)
 ENGINE=InnoDB ROW_FORMAT=compact;
+Warnings:
+Warning	139	Row size too large (> 16318). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+SET innodb_strict_mode=ON;
 SET @a = repeat('a', 767);
 SET @b = repeat('b', 767);
 SET @c = repeat('c', 767);
@@ -119,6 +123,7 @@ BEGIN;
 INSERT INTO t1 SELECT * from t2;
 BEGIN;
 UPDATE t1 SET a=@e,b=@e,c=@e,d=@e,e=@e;
+# restart
 UPDATE t1 SET a=@f,b=@f,c=@f,d=@f,e=@f,f=@f,g=@f,h=@f,i=@f,j=@f,
 k=@f,l=@f,m=@f,n=@f,o=@f,p=@f,q=@f,r=@f,s=@f,t=@f,u=@f,
 v=@f,w=@f,x=@b,y=@f,z=@f,

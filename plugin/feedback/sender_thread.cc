@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "feedback.h"
 #include <sql_acl.h>
@@ -47,7 +47,7 @@ static int table_to_string(TABLE *table, String *result)
 
   res= table->file->ha_rnd_init(1);
 
-  dbug_tmp_use_all_columns(table, table->read_set);
+  dbug_tmp_use_all_columns(table, &table->read_set);
 
   while(!res && !table->file->ha_rnd_next(table->record[0]))
   {
@@ -90,9 +90,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
     in SHOW STATUS and we want to avoid skewing the statistics)
   */
   thd->variables.pseudo_thread_id= thd->thread_id;
-  mysql_mutex_lock(&LOCK_thread_count);
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  server_threads.insert(thd);
   thd->thread_stack= (char*) &tables;
   if (thd->store_globals())
     return 1;
@@ -117,6 +115,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
 
   tables->init_one_table(&INFORMATION_SCHEMA_NAME, &tbl_name, 0, TL_READ);
   tables->schema_table= i_s_feedback;
+  tables->schema_table_reformed= 1;
   tables->select_lex= thd->lex->first_select_lex();
   DBUG_ASSERT(tables->select_lex);
   tables->table= create_schema_table(thd, tables);
@@ -139,7 +138,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
 */
 static bool going_down()
 {
-  return shutdown_plugin || shutdown_in_progress || (thd && thd->killed);
+  return shutdown_plugin || abort_loop || (thd && thd->killed);
 }
 
 /**
@@ -258,12 +257,9 @@ ret:
       reset all thread local status variables to minimize
       the effect of the background thread on SHOW STATUS.
     */
-    mysql_mutex_lock(&LOCK_thread_count);
+    server_threads.erase(thd);
     thd->set_status_var_init();
     thd->killed= KILL_CONNECTION;
-    thd->unlink();
-    mysql_cond_broadcast(&COND_thread_count);
-    mysql_mutex_unlock(&LOCK_thread_count);
     delete thd;
     thd= 0;
   }

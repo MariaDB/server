@@ -13,7 +13,9 @@
 #    switches, data distribution, available indexes, and typical queries.
 #
 
-set @subselect_mat_cost=@@optimizer_switch;
+--source include/default_optimizer_switch.inc
+--source include/default_charset.inc
+
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 #
 # Test logging to slow log (there was some errors in the log files about
@@ -205,6 +207,9 @@ WHERE Code NOT IN (SELECT Country FROM CountryLanguage WHERE Language = 'English
 -- echo Countries that speak French OR Spanish, but do not speak English
 -- echo MATERIALIZATION because the outer query filters less rows than Q5-a,
 -- echo so there are more lookups.
+
+
+set statement optimizer_switch='rowid_filter=off' for
 EXPLAIN
 SELECT Country.Name
 FROM Country, CountryLanguage 
@@ -212,6 +217,7 @@ WHERE Code NOT IN (SELECT Country FROM CountryLanguage WHERE Language = 'English
   AND (CountryLanguage.Language = 'French' OR CountryLanguage.Language = 'Spanish')
   AND Code = Country;
 
+set statement optimizer_switch='rowid_filter=off' for
 SELECT Country.Name
 FROM Country, CountryLanguage 
 WHERE Code NOT IN (SELECT Country FROM CountryLanguage WHERE Language = 'English')
@@ -426,4 +432,4 @@ drop database world;
 #   inner subqyery is materialized while the outer subquery  is not (
 #IN_EXIST transformation is applied to it)
 
-set optimizer_switch=@subselect_mat_cost;
+set optimizer_switch=default;

@@ -1,0 +1,80 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) > 0
+1
+connection node_2;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) > 0 FROM t1;
+COUNT(*) > 0
+1
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+connection node_2;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_2;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+connection node_3;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+connection node_1a;
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+connection node_2;
+connection node_3;
+connection node_1a;
+connection node_1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+COMMIT;
+connection node_2;
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_3;
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_1;
+CALL mtr.add_suppression("failed to send SR rollback for");
+DROP TABLE t1;

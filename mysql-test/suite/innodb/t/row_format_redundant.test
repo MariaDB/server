@@ -32,8 +32,7 @@ SET GLOBAL innodb_file_per_table=1;
 
 SET GLOBAL innodb_file_per_table=ON;
 create table t1 (a int not null, d varchar(15) not null, b
-varchar(198) not null, c char(156),
-fulltext ftsic(c)) engine=InnoDB
+varchar(198) not null, c char(156)) engine=InnoDB
 row_format=redundant;
 
 insert into t1 values(123, 'abcdef', 'jghikl', 'mnop');
@@ -92,9 +91,13 @@ TRUNCATE TABLE t3;
 --source include/shutdown_mysqld.inc
 --perl
 use strict;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 my $ps= $ENV{INNODB_PAGE_SIZE};
 my $file= "$ENV{bugdir}/ibdata1";
 open(FILE, "+<", $file) || die "Unable to open $file\n";
+die "Unable to read $file" unless sysread(FILE, $_, $ps) == $ps;
+my $full_crc32 = unpack("N",substr($_,54,4)) & 0x10; # FIL_SPACE_FLAGS;
+sysseek(FILE, 0, 0) || die "Unable to seek $file";
 # Read DICT_HDR_TABLES, the root page number of CLUST_IND (SYS_TABLES.NAME).
 sysseek(FILE, 7*$ps+38+32, 0) || die "Unable to seek $file";
 die "Unable to read $file" unless sysread(FILE, $_, 4) == 4;
@@ -120,8 +123,17 @@ for (my $offset= 0x65; $offset;
 	$start= $end & 0x7f;
     }
 }
-substr($page,0,4)=pack("N",0xdeadbeef);
-substr($page,$ps-8,4)=pack("N",0xdeadbeef);
+my $polynomial = 0x82f63b78; # CRC-32C
+if ($full_crc32) {
+    my $ck = mycrc32(substr($page, 0, $ps-4), 0, $polynomial);
+    substr($page, $ps-4, 4) = pack("N", $ck);
+} else {
+    my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+    substr($page,0,4)=$ck;
+    substr($page,$ps-8,4)=$ck;
+}
+
 sysseek(FILE, $sys_tables_root*$ps, 0) || die "Unable to seek $file";
 syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file\n";

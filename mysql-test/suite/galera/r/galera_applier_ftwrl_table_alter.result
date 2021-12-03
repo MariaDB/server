@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 SET SESSION wsrep_sync_wait = 0;
 SET SESSION lock_wait_timeout = 60;

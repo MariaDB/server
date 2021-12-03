@@ -37,7 +37,7 @@ set x=5;
 fetch group next row;
 return x+1;
 end |
-ERROR HY000: Non-aggregate function contains aggregate specific instructions: (FETCH GROUP NEXT ROW)
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
 create aggregate function f1(x INT) returns INT
 begin
 declare continue handler for not found return x;
@@ -573,7 +573,7 @@ select f3(sal) from t1;
 f3(sal)
 1000
 select f2(val) from t1;
-ERROR 22007: Incorrect integer value: 'ab' for column 'x' at row 1
+ERROR 22007: Incorrect integer value: 'ab' for column ``.``.`x` at row 1
 select val, id, c from (select f1(sal) as c from t2) as t1, t2;
 val	id	c
 10	2	17000
@@ -1153,3 +1153,72 @@ i	sum(i)
 NULL	8
 drop function agg_sum;
 drop table t1;
+#
+# User defined aggregate functions not working correctly when the schema is changed
+#
+CREATE SCHEMA IF NOT EXISTS common_schema;
+CREATE SCHEMA IF NOT EXISTS another_schema;
+DROP FUNCTION IF EXISTS common_schema.add_ints |
+Warnings:
+Note	1305	FUNCTION common_schema.add_ints does not exist
+CREATE FUNCTION common_schema.add_ints(int_1 INT, int_2 INT) RETURNS INT NO SQL
+BEGIN
+RETURN int_1 + int_2;
+END |
+DROP FUNCTION IF EXISTS common_schema.sum_ints |
+Warnings:
+Note	1305	FUNCTION common_schema.sum_ints does not exist
+CREATE AGGREGATE FUNCTION common_schema.sum_ints(int_val INT) RETURNS INT
+BEGIN
+DECLARE result INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN result;
+LOOP FETCH GROUP NEXT ROW;
+SET result = common_schema.add_ints(result, int_val);
+END LOOP;
+END |
+use common_schema;
+SELECT common_schema.sum_ints(seq) FROM (SELECT 1 seq UNION ALL SELECT 2) t;
+common_schema.sum_ints(seq)
+3
+USE another_schema;
+SELECT common_schema.sum_ints(seq) FROM (SELECT 1 seq UNION ALL SELECT 2) t;
+common_schema.sum_ints(seq)
+3
+drop database common_schema;
+drop database another_schema;
+USE test;
+# End of 10.3 tests
+#
+# MDEV-18813 PROCEDURE and anonymous blocks silently ignore FETCH GROUP NEXT ROW
+#
+CREATE PROCEDURE p1()
+BEGIN
+FETCH GROUP NEXT ROW;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+BEGIN NOT ATOMIC
+FETCH GROUP NEXT ROW;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE DEFINER=root@localhost  FUNCTION f1() RETURNS INT
+BEGIN
+FETCH GROUP NEXT ROW;
+RETURN 0;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1
+AFTER INSERT ON t1 FOR EACH ROW 
+FETCH GROUP NEXT ROW;
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+DROP TABLE t1;
+CREATE EVENT ev1
+ON SCHEDULE EVERY 1 HOUR
+STARTS CURRENT_TIMESTAMP + INTERVAL 1 MONTH
+ENDS CURRENT_TIMESTAMP + INTERVAL 1 MONTH + INTERVAL 1 WEEK
+DO FETCH GROUP NEXT ROW;
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+# End of 10.4 tests

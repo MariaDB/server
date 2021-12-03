@@ -24,7 +24,6 @@
 --connection node_1
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
-
 --eval $mw_369_parent_query
 
 #
@@ -51,7 +50,7 @@ SET SESSION wsrep_sync_wait = 0;
 --source include/galera_wait_sync_point.inc
 --source include/galera_clear_sync_point.inc
 
---let $galera_sync_point = local_monitor_enter_sync
+--let $galera_sync_point = local_monitor_master_enter_sync
 --source include/galera_set_sync_point.inc
 
 --connection node_1
@@ -61,7 +60,7 @@ SET SESSION wsrep_sync_wait = 0;
 # Wait until both sync points have been reached
 #
 --connection node_1a
---let $galera_sync_point = apply_monitor_slave_enter_sync local_monitor_enter_sync
+--let $galera_sync_point = apply_monitor_slave_enter_sync local_monitor_master_enter_sync
 --source include/galera_wait_sync_point.inc
 
 #
@@ -70,6 +69,6 @@ SET SESSION wsrep_sync_wait = 0;
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
 
---let $galera_sync_point = local_monitor_enter_sync
+--let $galera_sync_point = local_monitor_master_enter_sync
 --source include/galera_signal_sync_point.inc
 --source include/galera_clear_sync_point.inc

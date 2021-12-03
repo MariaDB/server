@@ -1,0 +1,70 @@
+connection node_2;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+SET SESSION wsrep_trx_fragment_size=1;
+BEGIN;
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (11);
+INSERT INTO t1 VALUES (12);
+connection node_2;
+SET SESSION wsrep_trx_fragment_size=1;
+BEGIN;
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (21);
+INSERT INTO t1 VALUES (22);
+SELECT COUNT(*) `expect 6` FROM mysql.wsrep_streaming_log;
+expect 6
+6
+connection node_2a;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+SET SESSION wsrep_sync_wait = 0;
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	1
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	non-Primary
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	1
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	non-Primary
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_2a;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	2
+connection node_1a;
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	2
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+connection node_2a;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
+INSERT INTO t1 VALUES(10);
+INSERT INTO t1 VALUES(20);
+SELECT * FROM t1;
+f1
+10
+20
+connection node_1;
+INSERT INTO t1 VALUES(13);
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_2;
+INSERT INTO t1 VALUES(23);
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1;

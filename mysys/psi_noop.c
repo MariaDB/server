@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Always provide the noop performance interface, for plugins.
@@ -86,7 +86,7 @@ static void register_socket_noop(const char *category NNN,
 }
 
 static PSI_mutex*
-init_mutex_noop(PSI_mutex_key key NNN, const void *identity NNN)
+init_mutex_noop(PSI_mutex_key key NNN, void *identity NNN)
 {
   return NULL;
 }
@@ -97,7 +97,7 @@ static void destroy_mutex_noop(PSI_mutex* mutex NNN)
 }
 
 static PSI_rwlock*
-init_rwlock_noop(PSI_rwlock_key key NNN, const void *identity NNN)
+init_rwlock_noop(PSI_rwlock_key key NNN, void *identity NNN)
 {
   return NULL;
 }
@@ -108,7 +108,7 @@ static void destroy_rwlock_noop(PSI_rwlock* rwlock NNN)
 }
 
 static PSI_cond*
-init_cond_noop(PSI_cond_key key NNN, const void *identity NNN)
+init_cond_noop(PSI_cond_key key NNN, void *identity NNN)
 {
   return NULL;
 }

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* classes to use when handling where clause */
@@ -458,6 +458,9 @@ public:
     SEL_ARG *key_tree= first();
     uint res= key_tree->store_min(key[key_tree->part].store_length,
                                   range_key, *range_key_flag);
+    // add flags only if a key_part is written to the buffer
+    if (!res)
+      return 0;
     *range_key_flag|= key_tree->min_flag;
     if (key_tree->next_key_part &&
 	key_tree->next_key_part->type == SEL_ARG::KEY_RANGE &&
@@ -480,7 +483,9 @@ public:
     SEL_ARG *key_tree= last();
     uint res=key_tree->store_max(key[key_tree->part].store_length,
                                  range_key, *range_key_flag);
-    (*range_key_flag)|= key_tree->max_flag;
+    if (!res)
+      return 0;
+    *range_key_flag|= key_tree->max_flag;
     if (key_tree->next_key_part &&
 	key_tree->next_key_part->type == SEL_ARG::KEY_RANGE &&
         key_tree->part != last_part &&
@@ -566,7 +571,7 @@ public:
       FALSE  Otherwise
   */
 
-  bool is_singlepoint()
+  bool is_singlepoint() const
   {
     /*
       Check for NEAR_MIN ("strictly less") and NO_MIN_RANGE (-inf < field)
@@ -667,6 +672,7 @@ public:
   bool statement_should_be_aborted() const
   {
     return
+      thd->killed ||
       thd->is_fatal_error ||
       thd->is_error() ||
       alloced_sel_args > SEL_ARG::MAX_SEL_ARGS;
@@ -1645,7 +1651,8 @@ class SQL_SELECT :public Sql_alloc {
   {
     key_map tmp;
     tmp.set_all();
-    return test_quick_select(thd, tmp, 0, limit, force_quick_range, FALSE, FALSE) < 0;
+    return test_quick_select(thd, tmp, 0, limit, force_quick_range,
+                             FALSE, FALSE, FALSE) < 0;
   }
   /* 
     RETURN
@@ -1662,7 +1669,8 @@ class SQL_SELECT :public Sql_alloc {
   }
   int test_quick_select(THD *thd, key_map keys, table_map prev_tables,
 			ha_rows limit, bool force_quick_range, 
-                        bool ordered_output, bool remove_false_parts_of_where);
+                        bool ordered_output, bool remove_false_parts_of_where,
+                        bool only_single_index_range_scan);
 };
 
 

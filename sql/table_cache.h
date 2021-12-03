@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 struct Share_free_tables
@@ -71,7 +71,6 @@ enum enum_tdc_remove_table_type
 extern ulong tdc_size;
 extern ulong tc_size;
 extern uint32 tc_instances;
-extern uint32 tc_active_instances;
 
 extern bool tdc_init(void);
 extern void tdc_start_shutdown(void);
@@ -88,7 +87,6 @@ extern bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
                              const char *db, const char *table_name,
                              bool kill_delayed_threads);
 
-
 extern int tdc_wait_for_old_version(THD *thd, const char *db,
                                     const char *table_name,
                                     ulong wait_timeout, uint deadlock_weight,
@@ -99,9 +97,12 @@ extern int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
                        bool no_dups= false);
 
 extern uint tc_records(void);
+int show_tc_active_instances(THD *thd, SHOW_VAR *var, char *buff,
+                             enum enum_var_type scope);
 extern void tc_purge(bool mark_flushed= false);
 extern void tc_add_table(THD *thd, TABLE *table);
 extern void tc_release_table(TABLE *table);
+extern TABLE *tc_acquire_table(THD *thd, TDC_element *element);
 
 /**
   Create a table cache key for non-temporary table.

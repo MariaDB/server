@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 #
 # MDEV#5552 Deadlock when inserting NULL column value in column with
 # UNIQUE index

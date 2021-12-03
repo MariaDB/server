@@ -1,4 +1,5 @@
 --source include/have_wsrep.inc
+--source include/have_innodb.inc
 
 #
 # MDEV-7604: wsrep plugin lists its status as Unknown

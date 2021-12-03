@@ -1,31 +1,9 @@
-DROP TABLE IF EXISTS t1, t2;
 set @save_tmp_table_size=@@tmp_table_size;
 set @save_max_heap_table_size=@@max_heap_table_size;
-set @save_storage_engine=@@storage_engine;
 set storage_engine=MYISAM;
 CREATE TABLE t1 (id INTEGER);
 CREATE TABLE t2 (id INTEGER);
-INSERT INTO t1 (id) VALUES (1), (1), (1),(1);
-INSERT INTO t1 (id) SELECT id FROM t1;
-/* 8 */
-INSERT INTO t1 (id) SELECT id FROM t1;
-/* 12 */
-INSERT INTO t1 (id) SELECT id FROM t1;
-/* 16 */
-INSERT INTO t1 (id) SELECT id FROM t1;
-/* 20 */
-INSERT INTO t1 (id) SELECT id FROM t1;
-/* 24 */
-INSERT INTO t1 SELECT id+1 FROM t1;
-INSERT INTO t1 SELECT id+2 FROM t1;
-INSERT INTO t1 SELECT id+4 FROM t1;
-INSERT INTO t1 SELECT id+8 FROM t1;
-INSERT INTO t1 SELECT id+16 FROM t1;
-INSERT INTO t1 SELECT id+32 FROM t1;
-INSERT INTO t1 SELECT id+64 FROM t1;
-INSERT INTO t1 SELECT id+128 FROM t1;
-INSERT INTO t1 SELECT id+256 FROM t1;
-INSERT INTO t1 SELECT id+512 FROM t1;
+INSERT INTO t1 SELECT b.seq FROM seq_1_to_128,seq_1_to_1024 b;
 SELECT AVG(DISTINCT id) FROM t1 GROUP BY id % 13;
 AVG(DISTINCT id)
 513.5000
@@ -56,11 +34,9 @@ SUM(DISTINCT id)/COUNT(DISTINCT id)
 517.0000
 511.5000
 512.5000
-INSERT INTO t1 SELECT id+1024 FROM t1;
-INSERT INTO t1 SELECT id+2048 FROM t1;
-INSERT INTO t1 SELECT id+4096 FROM t1;
-INSERT INTO t1 SELECT id+8192 FROM t1;
-INSERT INTO t2 SELECT id FROM t1 ORDER BY id*rand();
+INSERT INTO t1 SELECT b.seq FROM seq_1_to_128,seq_1025_to_16384 b;
+INSERT INTO t2 SELECT b.seq FROM seq_1_to_128 a,seq_1_to_16384 b
+ORDER by (a.seq*0+b.seq)*rand();
 SELECT SUM(DISTINCT id) sm FROM t1;
 sm
 134225920
@@ -112,9 +88,10 @@ sm
 # (bug #56927)
 # 
 SET max_heap_table_size=default;
-INSERT INTO t1 SELECT id+16384 FROM t1;
-DELETE FROM t2;
-INSERT INTO t2 SELECT id FROM t1 ORDER BY id*rand();
+INSERT INTO t1 SELECT b.seq FROM seq_1_to_128,seq_16385_to_32768 b;
+TRUNCATE t2;
+INSERT INTO t2 SELECT b.seq FROM seq_1_to_128 a,seq_1_to_32768 b
+ORDER BY (a.seq*0+b.seq)*rand();
 SELECT SUM(DISTINCT id) sm FROM t2;
 sm
 536887296
@@ -126,35 +103,13 @@ DROP TABLE t1;
 DROP TABLE t2;
 SET @@tmp_table_size=@save_tmp_table_size;
 SET @@max_heap_table_size=@save_max_heap_table_size;
-# 
-# Bug mdev-4311: COUNT(DISTINCT...) requiring a file for Unique 
-# (bug #68749)
-# 
-set @save_storage_engine=@@storage_engine;
-set storage_engine=INNODB;
-CREATE TABLE t1 (id INTEGER) ENGINE=InnoDB;
+#
+# MDEV-4311: COUNT(DISTINCT...) requiring a file for UNIQUE (bug #68749)
+#
 CREATE TABLE t2 (id INTEGER) ENGINE=InnoDB;
-INSERT INTO t1 (id) VALUES (1), (1), (1),(1);
-INSERT INTO t1 (id) SELECT id FROM t1;
-INSERT INTO t1 (id) SELECT id FROM t1;
-INSERT INTO t1 (id) SELECT id FROM t1;
-INSERT INTO t1 (id) SELECT id FROM t1;
-INSERT INTO t1 (id) SELECT id FROM t1;
-INSERT INTO t1 SELECT id+1 FROM t1;
-INSERT INTO t1 SELECT id+2 FROM t1;
-INSERT INTO t1 SELECT id+4 FROM t1;
-INSERT INTO t1 SELECT id+8 FROM t1;
-INSERT INTO t1 SELECT id+16 FROM t1;
-INSERT INTO t1 SELECT id+32 FROM t1;
-INSERT INTO t1 SELECT id+64 FROM t1;
-INSERT INTO t1 SELECT id+128 FROM t1;
-INSERT INTO t1 SELECT id+256 FROM t1;
-INSERT INTO t1 SELECT id+512 FROM t1;
-INSERT INTO t1 SELECT id+1024 FROM t1;
-INSERT INTO t1 SELECT id+2048 FROM t1;
-INSERT INTO t1 SELECT id+4096 FROM t1;
-INSERT INTO t1 SELECT id+8192 FROM t1;
-INSERT INTO t2 SELECT id FROM t1 ORDER BY id*rand();
+BEGIN;
+INSERT INTO t2 SELECT b.seq FROM seq_1_to_128 a, seq_1_to_16384 b
+ORDER BY b.seq*rand();
 INSERT INTO t2 VALUE(NULL);
 # With default tmp_table_size / max_heap_table_size
 SELECT SQL_NO_CACHE count(DISTINCT id) sm FROM t2;
@@ -176,5 +131,5 @@ SET @@max_heap_table_size=@save_max_heap_table_size;
 SELECT SQL_NO_CACHE count(DISTINCT id) sm FROM t2;
 sm
 16384
-DROP TABLE t1,t2;
-set storage_engine=@save_storage_engine;
+COMMIT;
+DROP TABLE t2;

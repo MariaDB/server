@@ -835,6 +835,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -1327,6 +1328,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -1834,6 +1836,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -2335,6 +2338,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -2836,6 +2840,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -3346,6 +3351,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -3858,6 +3864,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -4358,6 +4365,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -4851,6 +4859,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -5343,6 +5352,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -5850,6 +5860,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -6351,6 +6362,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -6852,6 +6864,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -7362,6 +7375,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -7874,6 +7888,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -8374,6 +8389,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -8884,6 +8900,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -9392,6 +9409,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -9915,6 +9933,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -10432,6 +10451,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -10949,6 +10969,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -11475,6 +11496,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -12003,6 +12025,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -12519,6 +12542,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -13028,6 +13052,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -13536,6 +13561,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -14059,6 +14085,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -14576,6 +14603,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -15093,6 +15121,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -15619,6 +15648,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -16147,6 +16177,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -16663,6 +16694,7 @@ AND f_int2 <> CAST(f_char1 AS SIGNED INT)
 AND f_charbig = '####updated per insert trigger####';
 ANALYZE  TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CHECK    TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text

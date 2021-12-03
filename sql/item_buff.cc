@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /**
@@ -47,9 +47,9 @@ Cached_item *new_Cached_item(THD *thd, Item *item, bool pass_through_ref)
   }
   switch (item->result_type()) {
   case STRING_RESULT:
-    return new Cached_item_str(thd, (Item_field *) item);
+    return new Cached_item_str(thd, item);
   case INT_RESULT:
-    return new Cached_item_int((Item_field *) item);
+    return new Cached_item_int(item);
   case REAL_RESULT:
     return new Cached_item_real(item);
   case DECIMAL_RESULT:
@@ -192,7 +192,7 @@ bool Cached_item_field::cmp(void)
 
   /*
     If value is not null and value changed (from null to not null or
-    becasue of value change), then copy the new value to buffer.
+    because of value change), then copy the new value to buffer.
     */
   if (! null_value && (tmp || (tmp= (field->cmp(buff) != 0))))
     field->get_image(buff,length,field->charset());

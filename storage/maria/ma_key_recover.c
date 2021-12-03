@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Redo of index */
 
@@ -777,7 +777,7 @@ uint _ma_apply_redo_index_new_page(MARIA_HA *info, LSN lsn,
     else if (lsn_korr(buff) >= lsn)
     {
       /* Already applied */
-      DBUG_PRINT("info", ("Page is up to date, skipping redo"));
+      check_skipped_lsn(info, lsn_korr(buff), 0, root_page);
       result= 0;
       goto err;
     }
@@ -865,6 +865,7 @@ uint _ma_apply_redo_index_free_page(MARIA_HA *info,
   if (lsn_korr(buff) >= lsn)
   {
     /* Already applied */
+    check_skipped_lsn(info, lsn_korr(buff), 0, page);
     result= 0;
     goto err;
   }
@@ -966,7 +967,7 @@ uint _ma_apply_redo_index(MARIA_HA *info,
   if (lsn_korr(buff) >= lsn)
   {
     /* Already applied */
-    DBUG_PRINT("info", ("Page is up to date, skipping redo"));
+    check_skipped_lsn(info, lsn_korr(buff), 0, page_pos);
     result= 0;
     goto err;
   }

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef _SQL_CACHE_H
 #define _SQL_CACHE_H
@@ -558,11 +558,11 @@ struct Query_cache_query_flags
   uint character_set_client_num;
   uint character_set_results_num;
   uint collation_connection_num;
+  uint group_concat_max_len;
   ha_rows limit;
   Time_zone *time_zone;
   sql_mode_t sql_mode;
   ulonglong max_sort_length;
-  ulonglong group_concat_max_len;
   size_t default_week_format;
   size_t div_precision_increment;
   MY_LOCALE *lc_time_names;

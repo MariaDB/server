@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,7 +27,6 @@ Created 10/10/1995 Heikki Tuuri
 #ifndef srv0start_h
 #define srv0start_h
 
-#include "univ.i"
 #include "log0log.h"
 #include "ut0byte.h"
 
@@ -110,6 +109,8 @@ extern	ibool	srv_start_raw_disk_in_use;
 /** Shutdown state */
 enum srv_shutdown_t {
 	SRV_SHUTDOWN_NONE = 0,	/*!< Database running normally */
+	/** Shutdown initiated in srv_shutdown_bg_undo_sources() */
+	SRV_SHUTDOWN_INITIATED,
 	SRV_SHUTDOWN_CLEANUP,	/*!< Cleaning up in
 				logs_empty_and_mark_files_at_shutdown() */
 	SRV_SHUTDOWN_FLUSH_PHASE,/*!< At this phase the master and the

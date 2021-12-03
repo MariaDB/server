@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 SELECT @@wsrep_provider_options LIKE '%ist.recv_bind = 127.0.0.1%';
 @@wsrep_provider_options LIKE '%ist.recv_bind = 127.0.0.1%'

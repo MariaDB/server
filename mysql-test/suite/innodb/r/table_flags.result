@@ -1,3 +1,4 @@
+# restart: with restart_parameters
 SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE tr(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE tc(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=COMPACT;
@@ -112,6 +113,7 @@ header=0x000050150074 (NAME='test/tz',
  CLUSTER_NAME=NULL(0 bytes),
  SPACE=0x00000004)
 header=0x070008030000 (NAME=0x73757072656d756d00)
+# restart: with restart_parameters
 SHOW CREATE TABLE tr;
 ERROR 42S02: Table 'test.tr' doesn't exist in engine
 SHOW CREATE TABLE tc;
@@ -143,6 +145,7 @@ ERROR 42S02: Table 'test.tp' doesn't exist in engine
 FOUND 5 /InnoDB: Table `test`.`t[cp]` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=(129|289|3873|1232[13]) SYS_TABLES\.N_COLS=2147483649/ in mysqld.1.err
 FOUND 2 /InnoDB: Table `test`\.`tr` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=65 SYS_TABLES\.MIX_LEN=4294967295\b/ in mysqld.1.err
 Restoring SYS_TABLES clustered index root page (8)
+# restart: with restart_parameters
 SHOW CREATE TABLE tr;
 Table	Create Table
 tr	CREATE TABLE `tr` (
@@ -188,7 +191,23 @@ a
 SELECT * FROM tp;
 a
 DROP TABLE tr,tc,td,tz,tp;
+# restart
 ib_logfile0
 ib_logfile1
 ibdata1
 sys_tables.bin
+call mtr.add_suppression("ERROR HY000: Can't create table `test`.`t1`");
+CREATE TABLE t1(f1 INT, f2 VARCHAR(1), KEY k1(f2),
+FULLTEXT KEY(f2),
+FOREIGN KEY (f2) REFERENCES t1(f3))ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+#
+# MDEV-23199 page_compression flag is missing
+#	for full_crc32 tablespace
+#
+CREATE TABLE t1(f1 BIGINT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+ALTER TABLE t1 PAGE_COMPRESSED = 1;
+INSERT INTO t1 VALUES(2);
+# restart
+DROP TABLE t1;

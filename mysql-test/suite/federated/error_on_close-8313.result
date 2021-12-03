@@ -18,6 +18,7 @@ connection='s1';
 select * from t1;
 foo	bar
 connection slave;
+# restart
 connection master;
 drop table t1;
 drop server s1;

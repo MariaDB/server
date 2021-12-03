@@ -160,3 +160,31 @@ SELECT * FROM t1 WHERE LEAST( UTC_TIME(), d );
 d
 2012-12-21
 DROP TABLE t1;
+#
+# MDEV-17969 Assertion `name' failed in THD::push_warning_truncated_value_for_field
+#
+CREATE TABLE t1 (c1 DATE , c2 TIMESTAMP) ENGINE=InnoDB;
+INSERT INTO t1  VALUES ('2006-07-17','0000-00-00 00:00:00');
+CREATE TABLE t2 (pk INT, a1 TIME) Engine=InnoDB;
+INSERT INTO t2 VALUES (6,'00:00:00');
+SET SESSION sql_mode= 'strict_all_tables,no_zero_date';
+CREATE TABLE tbl SELECT * FROM t1 WHERE t1.c1 = (SELECT c2 FROM t2 WHERE pk = 6);
+ERROR 22007: Truncated incorrect datetime value: '0000-00-00 00:00:00'
+DROP TABLE t1,t2;
+SET sql_mode=DEFAULT;
+#
+# End of 10.3 tests
+#
+#
+# MDEV-19166 Assertion `!is_zero_datetime()' failed in Timestamp_or_zero_datetime::tv
+#
+CREATE TABLE t1 (f TIMESTAMP DEFAULT 0) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('2024-02-29');
+SELECT * FROM t1 WHERE SUBSTR(1 FROM BIT_LENGTH(f) FOR DEFAULT(f));
+f
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: ''
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

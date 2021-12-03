@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   These functions handle page caching for Maria tables.
@@ -152,7 +152,7 @@ struct st_pagecache_hash_link
 
 /* simple states of a block */
 #define PCBLOCK_ERROR       1 /* an error occurred when performing disk i/o  */
-#define PCBLOCK_READ        2 /* the is page in the block buffer             */
+#define PCBLOCK_READ        2 /* there is an active page in the block buffer */
 
 /*
   A tread is reading the data to the page.
@@ -3431,6 +3431,7 @@ restart:
       */
       if (reg_request)
         unreg_request(pagecache, block, 1);
+      dec_counter_for_resize_op(pagecache);
       pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
       DBUG_PRINT("info", ("restarting..."));
       goto restart;
@@ -3464,8 +3465,6 @@ restart:
         pagecache_pthread_mutex_lock(&pagecache->cache_lock);
 #endif
       }
-      if (status & PCBLOCK_ERROR)
-        my_errno= block->error;
     }
 
     remove_reader(block);
@@ -3497,6 +3496,7 @@ restart:
 
     if (status & PCBLOCK_ERROR)
     {
+      my_errno= block->error;
       DBUG_ASSERT(my_errno != 0);
       DBUG_PRINT("error", ("Got error %d when doing page read", my_errno));
       DBUG_RETURN((uchar *) 0);
@@ -3708,6 +3708,7 @@ my_bool pagecache_delete_by_link(PAGECACHE *pagecache,
     DBUG_ASSERT((block->status &
                  (PCBLOCK_IN_SWITCH | PCBLOCK_REASSIGNED)) == 0);
 
+    /* This lock is deleted in pagecache_delete_internal() called below */
     inc_counter_for_resize_op(pagecache);
     /*
       make_lock_and_pin() can't fail here, because we are keeping pin on the
@@ -3852,6 +3853,7 @@ restart:
       */
       if (pin == PAGECACHE_PIN)
         unreg_request(pagecache, block, 1);
+      dec_counter_for_resize_op(pagecache);
       pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
       DBUG_PRINT("info", ("restarting..."));
       goto restart;

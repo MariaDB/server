@@ -1,0 +1,40 @@
+#
+# Test privileges for BACKUP STAGES
+#
+set sql_mode="";
+GRANT RELOAD ON *.* TO user1@localhost;
+GRANT CREATE, DROP ON *.* TO user2@localhost;
+connect con1, localhost, user1;
+BACKUP STAGE START;
+BACKUP STAGE END;
+# change_user must release backup lock
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+SELECT lock_mode FROM information_schema.metadata_lock_info WHERE lock_type='Backup lock';
+lock_mode
+MDL_BACKUP_FLUSH
+SELECT lock_mode FROM information_schema.metadata_lock_info WHERE lock_type='Backup lock';
+lock_mode
+disconnect con1;
+connection default;
+# A very low privileged user (-> con4) cannot acquire the backup lock
+connect con1, localhost, user2;
+BACKUP STAGE START;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+BACKUP STAGE FLUSH;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+BACKUP STAGE BLOCK_DDL;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+BACKUP STAGE BLOCK_COMMIT;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+BACKUP STAGE END;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+disconnect con1;
+connection default;
+DROP USER user1@localhost, user2@localhost;
+#
+# Test using BACKUP STAGES in a SP
+#
+create procedure foo42()
+BACKUP STAGE START;
+ERROR 0A000: BACKUP STAGE is not allowed in stored procedures

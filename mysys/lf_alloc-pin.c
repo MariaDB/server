@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   wait-free concurrent allocator based on pinning addresses
@@ -102,6 +102,7 @@
 #include <my_global.h>
 #include <my_sys.h>
 #include <lf.h>
+#include "my_cpu.h"
 
 /*
   when using alloca() leave at least that many bytes of the stack -
@@ -151,7 +152,6 @@ void lf_pinbox_destroy(LF_PINBOX *pinbox)
 */
 LF_PINS *lf_pinbox_get_pins(LF_PINBOX *pinbox)
 {
-  struct st_my_thread_var *var;
   uint32 pins, next, top_ver;
   LF_PINS *el;
   /*
@@ -194,12 +194,7 @@ LF_PINS *lf_pinbox_get_pins(LF_PINBOX *pinbox)
   el->link= pins;
   el->purgatory_count= 0;
   el->pinbox= pinbox;
-  var= my_thread_var;
-  /*
-    Threads that do not call my_thread_init() should still be
-    able to use the LF_HASH.
-  */
-  el->stack_ends_here= (var ? & var->stack_ends_here : NULL);
+
   return el;
 }
 
@@ -335,16 +330,18 @@ static void lf_pinbox_real_free(LF_PINS *pins)
   void *list;
   void **addr= NULL;
   void *first= NULL, *last= NULL;
+  struct st_my_thread_var *var= my_thread_var;
+  void *stack_ends_here= var ? var->stack_ends_here : NULL;
   LF_PINBOX *pinbox= pins->pinbox;
 
   npins= pinbox->pins_in_array+1;
 
 #ifdef HAVE_ALLOCA
-  if (pins->stack_ends_here != NULL)
+  if (stack_ends_here != NULL)
   {
     int alloca_size= sizeof(void *)*LF_PINBOX_PINS*npins;
     /* create a sorted list of pinned addresses, to speed up searches */
-    if (available_stack_size(&pinbox, *pins->stack_ends_here) >
+    if (available_stack_size(&pinbox, stack_ends_here) >
         alloca_size + ALLOCA_SAFETY_MARGIN)
     {
       struct st_harvester hv;

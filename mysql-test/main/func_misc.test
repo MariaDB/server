@@ -2,6 +2,7 @@
 # Testing of misc functions
 #
 
+--source include/default_optimizer_switch.inc
 --disable_warnings
 DROP TABLE IF EXISTS t1, t2;
 --enable_warnings
@@ -1130,6 +1131,29 @@ DELIMITER ;$$
 CALL p1();
 DROP PROCEDURE p1;
 
+--echo #
+--echo # MDEV-18195 ASAN use-after-poison in my_strcasecmp_utf8 / Item::eq upon prepared statement with ORDER BY NAME_CONST
+--echo #
+
+PREPARE stmt FROM "SELECT 'x' ORDER BY NAME_CONST( 'f', 'foo' )";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # MDEV-19680: Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index) ||
+--echo #             (!(ptr >= table->record[0] && ptr < table->record[0] + table->s->reclength)))'
+--echo #             or alike failed upon SELECT with mix of functions from simple view
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SELECT ISNULL( BENCHMARK(1, MIN(a))) FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
 
 --echo #
 --echo # Start of 10.2 tests
@@ -1183,6 +1207,12 @@ SELECT * FROM v1 WHERE numgtfmt =  NAME_CONST('wnumgtfmt',_utf8'QEDITIONS' COLLA
 DROP VIEW v1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-20517 Assertion `!is_expensive()' failed in Item::value_depends_on_sql_mode_const_item
+--echo #
+
+SELECT ( 1 LIKE GET_LOCK( 'foo', 0 ) ) - 2;
+SELECT RELEASE_LOCK('foo');
 
 --echo #
 --echo # End of 10.2 tests

@@ -8,7 +8,7 @@ INSERT INTO t VALUES('foobar2');
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 ib_logfile0
 SELECT * FROM t;
 c

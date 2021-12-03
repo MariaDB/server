@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 #ifndef THREAD_POOL_PRIV_INCLUDED
@@ -61,9 +61,6 @@ void thd_set_mysys_var(THD *thd, st_my_thread_var *mysys_var);
 my_socket thd_get_fd(THD *thd);
 int thd_store_globals(THD* thd);
 
-THD *first_global_thread();
-THD *next_global_thread(THD *thd);
-
 /* Print to the MySQL error log */
 void sql_print_error(const char *format, ...);
 
@@ -97,8 +94,6 @@ void mysql_audit_release(THD *thd);
 bool thd_is_connection_alive(THD *thd);
 /* Close connection with possible error code */
 void close_connection(THD *thd, uint errcode);
-/* End the connection before closing it */
-void end_connection(THD *thd);
 /* Decrement connection counter */
 void dec_connection_count();
 /* Destroy THD object */

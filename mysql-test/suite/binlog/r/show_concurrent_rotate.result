@@ -1,0 +1,17 @@
+connect con1,localhost,root,,;
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+SET DEBUG_SYNC= "at_after_lock_index SIGNAL con1_ready WAIT_FOR con1_go";
+SHOW BINARY LOGS;
+connect con2,localhost,root,,;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+RESET MASTER;
+FLUSH LOGS;
+SET DEBUG_SYNC= "now SIGNAL con1_go";
+connection con1;
+# The correct result must consists of two records
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+SET debug_sync = 'reset';

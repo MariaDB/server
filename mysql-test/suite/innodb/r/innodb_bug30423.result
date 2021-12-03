@@ -19,12 +19,15 @@ select @@innodb_stats_method;
 nulls_equal
 analyze table bug30243_1;
 Table	Op	Msg_type	Msg_text
+test.bug30243_1	analyze	status	Engine-independent statistics collected
 test.bug30243_1	analyze	status	OK
 analyze table bug30243_2;
 Table	Op	Msg_type	Msg_text
+test.bug30243_2	analyze	status	Engine-independent statistics collected
 test.bug30243_2	analyze	status	OK
 analyze table bug30243_3;
 Table	Op	Msg_type	Msg_text
+test.bug30243_3	analyze	status	Engine-independent statistics collected
 test.bug30243_3	analyze	status	OK
 set global innodb_stats_method = "NULL";
 ERROR 42000: Variable 'innodb_stats_method' can't be set to the value of 'NULL'
@@ -34,12 +37,15 @@ select @@innodb_stats_method;
 nulls_ignored
 analyze table bug30243_1;
 Table	Op	Msg_type	Msg_text
+test.bug30243_1	analyze	status	Engine-independent statistics collected
 test.bug30243_1	analyze	status	OK
 analyze table bug30243_2;
 Table	Op	Msg_type	Msg_text
+test.bug30243_2	analyze	status	Engine-independent statistics collected
 test.bug30243_2	analyze	status	OK
 analyze table bug30243_3;
 Table	Op	Msg_type	Msg_text
+test.bug30243_3	analyze	status	Engine-independent statistics collected
 test.bug30243_3	analyze	status	OK
 explain SELECT COUNT(*), 0
 FROM bug30243_1 orgs
@@ -60,12 +66,15 @@ select @@innodb_stats_method;
 nulls_unequal
 analyze table bug30243_1;
 Table	Op	Msg_type	Msg_text
+test.bug30243_1	analyze	status	Engine-independent statistics collected
 test.bug30243_1	analyze	status	OK
 analyze table bug30243_2;
 Table	Op	Msg_type	Msg_text
+test.bug30243_2	analyze	status	Engine-independent statistics collected
 test.bug30243_2	analyze	status	OK
 analyze table bug30243_3;
 Table	Op	Msg_type	Msg_text
+test.bug30243_3	analyze	status	Engine-independent statistics collected
 test.bug30243_3	analyze	status	OK
 explain SELECT COUNT(*), 0
 FROM bug30243_1 orgs
@@ -83,10 +92,12 @@ COUNT(*)
 set global innodb_stats_method = "nulls_unequal";
 analyze table table_bug30423;
 Table	Op	Msg_type	Msg_text
+test.table_bug30423	analyze	status	Engine-independent statistics collected
 test.table_bug30423	analyze	status	OK
 set global innodb_stats_method = "nulls_ignored";
 analyze table table_bug30423;
 Table	Op	Msg_type	Msg_text
+test.table_bug30423	analyze	status	Engine-independent statistics collected
 test.table_bug30423	analyze	status	OK
 set global innodb_stats_method = nulls_equal;
 drop table bug30243_2;

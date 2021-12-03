@@ -1,0 +1,41 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_2;
+START SLAVE;
+connection node_3;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+SELECT LENGTH(@@global.gtid_binlog_state) > 1;
+LENGTH(@@global.gtid_binlog_state) > 1
+1
+connection node_1;
+connection node_2;
+gtid_binlog_state_equal
+1
+connection node_1;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+gtid_binlog_state_equal
+1
+connection node_3;
+DROP TABLE t1;
+connection node_1;
+connection node_2;
+STOP SLAVE;
+RESET SLAVE ALL;
+#cleanup
+connection node_1;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_2;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_3;
+reset master;
+connection node_2;
+DROP TABLE mysql.gtid_slave_pos_InnoDB;
+CALL mtr.add_suppression("The automatically created table");

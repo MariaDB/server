@@ -2,6 +2,8 @@
 # Test bugs in the MyISAM code
 #
 
+--source include/default_optimizer_switch.inc
+
 call mtr.add_suppression("Can't find record in '.*'");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
 
@@ -641,6 +643,9 @@ show index from t1;
 
 # Set nulls to be equal:
 set myisam_stats_method=nulls_equal;
+
+set @save_use_stat_tables =  @@use_stat_tables;
+set @@use_stat_tables = COMPLEMENTARY;
 show variables like 'myisam_stats_method';
 insert into t1 values (11);
 delete from t1 where a=11;
@@ -655,6 +660,7 @@ check table t1;
 show index from t1;
 
 # Set nulls back to be equal 
+set @@use_stat_tables =  @save_use_stat_tables;
 set myisam_stats_method=DEFAULT;
 show variables like 'myisam_stats_method';
 insert into t1 values (11);
@@ -675,6 +681,9 @@ drop table t1;
 set myisam_stats_method=nulls_ignored;
 show variables like 'myisam_stats_method';
 
+set @save_use_stat_tables =  @@use_stat_tables;
+set @@use_stat_tables = COMPLEMENTARY;
+
 create table t1 (
   a char(3), b char(4), c char(5), d char(6),
   key(a,b,c,d)
@@ -691,6 +700,7 @@ show index from t1;
 
 set myisam_stats_method=DEFAULT;
 drop table t1;
+set @@use_stat_tables =  @save_use_stat_tables;
 
 # BUG#13814 - key value packed incorrectly for TINYBLOBs
 
@@ -1547,6 +1557,7 @@ DROP TABLE t1;
 # MariaDB: Note that the table will still have 'TRANSACTIONAL=1' attribute.
 # That's the intended behavior atm.
 #
+set statement sql_mode='' for
 create table t1 (n int not null, c char(1)) transactional=1;
 show create table t1;
 drop table t1;
@@ -1800,3 +1811,22 @@ drop table t1;
 #
 show variables like 'myisam_block_size';
 select @@global.myisam_block_size;
+
+
+--echo #
+--echo # MDEV-20704 An index on a double column erroneously uses prefix compression
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL PRIMARY KEY,
+  d  DOUBLE,
+  KEY (d)
+) ENGINE=MyISAM;
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+--exec $MYISAMCHK -d $MYSQLD_DATADIR/test/t1
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #

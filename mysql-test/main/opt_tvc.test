@@ -2,6 +2,8 @@
 # MDEV-12176 Transform [NOT] IN predicate with long list of values INTO [NOT] IN subquery
 #
 source include/have_debug.inc;
+source include/default_optimizer_switch.inc;
+source include/have_sequence.inc;
 
 create table t1 (a int, b int);
 
@@ -396,3 +398,33 @@ SELECT * FROM t3 WHERE (f1,f2) IN ((2, 2), (1, 2), (3, 5), (1, 1));
 DROP TABLE t1,t2,t3;
 
 SET @@in_predicate_conversion_threshold= default;
+
+--echo #
+--echo # MDEV-20900: IN predicate to IN subquery conversion causes performance regression
+--echo #
+
+create table t1(a int, b int);
+insert into t1 select seq-1, seq-1 from seq_1_to_10;
+
+set in_predicate_conversion_threshold=2;
+
+let $query= select * from t1 where t1.a IN ("1","2","3","4");
+eval explain $query;
+eval $query;
+
+set in_predicate_conversion_threshold=0;
+eval explain $query;
+eval $query;
+
+set in_predicate_conversion_threshold=2;
+let $query= select * from t1 where (t1.a,t1.b) in (("1","1"),(2,2),(3,3),(4,4));
+eval explain $query;
+eval $query;
+
+set in_predicate_conversion_threshold=0;
+eval explain $query;
+eval $query;
+
+drop table t1;
+SET @@in_predicate_conversion_threshold= default;
+

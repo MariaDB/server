@@ -1,4 +1,5 @@
-/* Copyright (C) 2012-2017 Kentoku Shiba
+/* Copyright (C) 2012-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -1126,6 +1127,7 @@ void spider_string::q_append(
 ) {
   DBUG_ENTER("spider_string::q_append");
   DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(str.alloced_length() >= str.length() + data_len);
   str.q_append(data, data_len);
   DBUG_VOID_RETURN;
 }
@@ -1235,6 +1237,21 @@ void spider_string::append_escape_string(
     current_alloc_mem == str.alloced_length());
   str.length(str.length() + escape_string_for_mysql(
     str.charset(), (char *) str.ptr() + str.length(), 0, st, len));
+  DBUG_VOID_RETURN;
+}
+
+void spider_string::append_escape_string(
+  const char *st,
+  uint len,
+  CHARSET_INFO *cs
+) {
+  DBUG_ENTER("spider_string::append_escape_string");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(mem_calc_inited);
+  DBUG_ASSERT((!current_alloc_mem && !str.is_alloced()) ||
+    current_alloc_mem == str.alloced_length());
+  str.length(str.length() + escape_string_for_mysql(
+    cs, (char *) str.ptr() + str.length(), 0, st, len));
   DBUG_VOID_RETURN;
 }
 

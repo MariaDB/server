@@ -1,11 +1,11 @@
 #
-# Test the pc.weight wsrep provider option. We set Node #1 to have a high weight and then 
-# suspend it. This will cause Nodes #2 and #3 to transition to non-primary component.
+# Test the pc.weight wsrep provider option. We set Node #1 to have a high
+# weight and then suspend it. This will cause Nodes #2 and #3 to transition
+# to non-primary component.
 #
 
 --source include/big_test.inc
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 
 --connection node_1
 SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
@@ -55,6 +55,9 @@ SHOW STATUS LIKE 'wsrep_local_state_comment';
 --connection node_1
 
 # For Node #1, we expect a primary component of size 1
+# (NOTE: this is a bit racy as nodes 2 and 3 will try to reconnect ASAP.
+#  to avoid the raice they should be suspended first as well, but that's
+#  not currently possible)
 
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
@@ -84,6 +87,15 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 
 --connection node_1
 --source include/wait_condition.inc
+
+# wait until nodes 2 and 3 have declared ready state (can happen after cluster_size raaise)
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+
+--connection node_3
+--source include/wait_condition.inc
+
 
 # On all nodes, we now expect a Primary component of size 3, weight 3, Synced and ready
 SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';

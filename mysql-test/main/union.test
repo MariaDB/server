@@ -339,7 +339,12 @@ explain extended (select * from t1 where a=1) union (select * from t2 where a=1)
 (select * from t1 where a=5 and a=6) union (select * from t2 where a=1);
 (select t1.a,t1.b from t1,t2 where t1.a=5) union (select * from t2 where a=1);
 (select * from t1 where a=1) union (select t1.a,t2.a from t1,t2 where t1.a=t2.a);
+
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='outer_join_with_cache=off',@@optimizer_use_condition_selectivity=4;
 explain (select * from t1 where a=1 and b=10) union (select straight_join t1.a,t2.a from t1,t2 where t1.a=t2.a);
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity,@@optimizer_switch=@save_optimizer_switch;
+
 explain (select * from t1 where a=1) union (select * from t1 where b=1);
 drop table t1,t2;
 create table t1 (   id int not null auto_increment, primary key (id)   ,user_name text );
@@ -840,7 +845,7 @@ drop tables t1,t2,t3;
 # exceeds mediumtext maximum length
 #
 
-SELECT @tmp_max:= @@global.max_allowed_packet;
+SET @tmp_max= @@global.max_allowed_packet;
 SET @@global.max_allowed_packet=25000000;
 # switching connection to allow the new max_allowed_packet take effect
 --connect (newconn, localhost, root,,)
@@ -1205,11 +1210,11 @@ select 4
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ;
 
+--error ER_AGGREGATE_ORDER_FOR_UNION
 eval $my_stmt;
 
+--error ER_AGGREGATE_ORDER_FOR_UNION
 eval prepare stmt1 from '$my_stmt';
-execute stmt1;
-execute stmt1;
 
 let $my_stmt=
 select 1 as foo
@@ -1222,13 +1227,11 @@ union
 order by max(42) + max(1) + max(1) + max(1) + max(1) + max(1)
 ;
 
+--error ER_AGGREGATE_ORDER_FOR_UNION
 eval $my_stmt;
 
+--error ER_AGGREGATE_ORDER_FOR_UNION
 eval prepare stmt1 from '$my_stmt';
-execute stmt1;
-execute stmt1;
-
-deallocate prepare stmt1;
 
 --echo End of 5.1 tests
 
@@ -1371,15 +1374,15 @@ SET @@global.slow_query_log= @old_slow_query_log;
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (b int);
 CREATE TABLE t3 (c int);
-SELECT a FROM t1 UNION SELECT b FROM t2 JOIN t3 ON ( t2.b = t3.c );
+SELECT a FROM t1 UNION SELECT b FROM t2 JOIN (t3) ON ( t2.b = t3.c );
 
 DROP TABLE t1, t2, t3;
 
 CREATE TABLE t1 (pk int NOT NULL);
 CREATE TABLE t2 (pk int NOT NULL, fk int NOT NULL);
-SELECT t1.pk FROM t1 LEFT JOIN t2 ON (t1.pk = t2.fk)
+SELECT t1.pk FROM t1 LEFT JOIN (t2) ON (t1.pk = t2.fk)
 UNION
-SELECT t1.pk FROM t1 LEFT JOIN t2 ON (t1.pk = t2.fk);
+SELECT t1.pk FROM t1 LEFT JOIN (t2) ON (t1.pk = t2.fk);
 
 DROP TABLE t1,t2;
 
@@ -1494,6 +1497,41 @@ select @advertAcctId as a from dual union all select 1.0 from dual;
 eval SET NAMES $old_charset;
 SET @advertAcctId = 1000003;
 select @advertAcctId as a from dual union all select 1.0 from dual;
+
+--echo #
+--echo # MDEV-13784: query causes seg fault
+--echo #
+
+CREATE TABLE t1 (`bug_id` int NOT NULL PRIMARY KEY, `product_id` int NOT NULL);
+INSERT INTO t1 VALUES (45199,1184);
+
+CREATE TABLE t2 (`product_id` int NOT NULL,`userid` int NOT NULL, PRIMARY KEY (`product_id`,`userid`));
+INSERT INTO t2 VALUES (1184,103),(1184,624),(1184,1577),(1184,1582);
+
+CREATE TABLE t3 (`id` int NOT NULL  PRIMARY KEY,`name` varchar(64));
+
+
+CREATE TABLE t4 ( `userid` int NOT NULL PRIMARY KEY, `login_name` varchar(255));
+INSERT INTO t4 VALUES (103,'foo'),(624,'foo'),(1577,'foo'),(1582,'foo');
+CREATE TABLE t5 (`id` int NOT NULL PRIMARY KEY, `name` varchar(64));
+
+explain select
+(
+  select login_name from t4 where userId = (
+    select userid from t2 where product_id = t1.product_id
+    union
+    select userid from t2 where product_id = (
+      select id from t5 where name = (select name from t3 where id = t1.product_id)) limit 1 )
+) as x  from t1 where (t1.bug_id=45199);
+select
+(
+  select login_name from t4 where userId = (
+    select userid from t2 where product_id = t1.product_id
+    union
+    select userid from t2 where product_id = (
+      select id from t5 where name = (select name from t3 where id = t1.product_id)) limit 1 )
+) as x  from t1 where (t1.bug_id=45199);
+drop table t1, t2, t3, t4, t5;
 
 --echo End of 5.5 tests
 
@@ -1622,6 +1660,17 @@ eval $q;
 eval EXPLAIN EXTENDED $q;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-10120: Wrong result of UNION .. ORDER BY GROUP_CONCAT()
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT t1 VALUES (1),(2),(3);
+
+--error ER_AGGREGATE_ORDER_FOR_UNION
+(SELECT 1 AS a) UNION (SELECT a FROM t1 GROUP BY a) ORDER BY GROUP_CONCAT(a);
+DROP TABLE t1;
 
 
 --echo #
@@ -1785,6 +1834,79 @@ SET @a= CAST('10' AS CHAR);
 SELECT c1 FROM t1 UNION SELECT - @a FROM t2;
 
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-18700: EXPLAIN EXTENDED for query with UNION ALL
+--echo #             after INTERSECT/EXCEPT operations
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (1), (7), (3), (2), (7), (4);
+
+create table t2 (a int);
+insert into t2 values (4), (5), (9), (1), (8), (9);
+
+create table t3 (a int);
+insert into t3 values (8), (1), (8), (2), (3), (7), (2);
+
+explain extended
+select * from t2 where a < 5
+intersect
+select * from t3 where a < 5
+union all
+select * from t1 where a > 4;
+
+explain extended
+select * from t2 where a < 5
+except
+select * from t3 where a < 5
+union all
+select * from t1 where a > 4;
+
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-24387: Wrong number of decimal digits in certain UNION/Subqery
+--echo #             constellation
+--echo #
+
+--disable_ps_protocol
+--enable_metadata
+
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT * from (SELECT NULL) t;
+SELECT CAST(1 AS SIGNED) UNION ALL SELECT * from (SELECT NULL) t;
+SELECT CAST(1 AS SIGNED) UNION ALL SELECT * from (SELECT CAST(1 AS UNSIGNED)) t;
+
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT NULL;
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT CAST(1 AS SIGNED);
+
+--disable_metadata
+--enable_ps_protocol
+
+--echo #
+--echo # MDEV-24511 null field is created with CREATE..SELECT
+--echo #
+
+set @save_default_storage_engine=@@default_storage_engine;
+SET @@default_storage_engine=MEMORY;
+
+CREATE TABLE t1 SELECT NULL UNION SELECT NULL;
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+ALTER TABLE t1 ADD INDEX (`PRIMARY`);
+
+CREATE TABLE t2 SELECT NULL;
+SHOW CREATE TABLE t2;
+
+CREATE TABLE t3 SELECT NULL UNION SELECT NULL;
+SHOW CREATE TABLE t3;
+
+CREATE OR REPLACE TABLE t4 SELECT NULL UNION SELECT NULL;
+SHOW CREATE TABLE t4;
+ALTER TABLE t4 ADD INDEX (`NULL`);
+
+DROP TABLE t1, t2, t3, t4;
+
+set @@default_storage_engine=@save_default_storage_engine;
 
 --echo #
 --echo # End of 10.3 tests

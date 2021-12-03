@@ -1,0 +1,145 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-371 Unique indexes for blobs
+#
+
+create table t1(a blob unique) engine= InnoDB;
+insert into t1 values('RUC');
+--error ER_DUP_ENTRY
+insert into t1 values ('RUC');
+drop table t1;
+
+create table t1 (a blob unique , c int unique) engine=innodb;
+show create table t1;
+drop table t1;
+
+--echo #test for concurrent insert of long unique in innodb
+create table t1(a blob unique) engine= InnoDB;
+show create table t1;
+connect ('con1', localhost, root,,);
+connect ('con2', localhost, root,,);
+
+--connection con1
+set innodb_lock_wait_timeout= 2;
+set  transaction isolation level READ UNCOMMITTED;
+start transaction;
+insert into t1 values('RUC');
+--connection con2
+set innodb_lock_wait_timeout= 2;
+set  transaction isolation level READ UNCOMMITTED;
+start transaction;
+--error ER_LOCK_WAIT_TIMEOUT
+insert into t1 values ('RUC');
+
+--connection con1
+commit;
+set  transaction isolation level READ COMMITTED;
+start transaction;
+insert into t1 values('RC');
+--connection con2
+commit;
+set  transaction isolation level READ COMMITTED;
+start transaction;
+--error ER_LOCK_WAIT_TIMEOUT
+insert into t1 values ('RC');
+commit;
+
+--connection con1
+commit;
+set  transaction isolation level REPEATABLE READ;
+start transaction;
+insert into t1 values('RR');
+--connection con2
+commit;
+set  transaction isolation level REPEATABLE READ;
+start transaction;
+--error ER_LOCK_WAIT_TIMEOUT
+insert into t1 values ('RR');
+
+--connection con1
+commit;
+set  transaction isolation level SERIALIZABLE;
+start transaction;
+insert into t1 values('S');
+--connection con2
+commit;
+set  transaction isolation level SERIALIZABLE;
+start transaction;
+--error ER_LOCK_WAIT_TIMEOUT
+insert into t1 values ('S');
+commit;
+
+--connection con1
+commit;
+
+select * from t1;
+drop table t1;
+
+create table t1(a blob unique) engine=Innodb;
+
+--connection con1
+set  transaction isolation level READ UNCOMMITTED;
+start transaction;
+insert into t1 values('RUC');
+--connection con2
+set  transaction isolation level READ UNCOMMITTED;
+start transaction;
+--send insert into t1 values ('RUC');
+--connection con1
+rollback;
+--connection con2
+--reap
+commit;
+
+--connection con1
+set  transaction isolation level READ COMMITTED;
+start transaction;
+insert into t1 values('RC');
+--connection con2
+set  transaction isolation level READ COMMITTED;
+start transaction;
+--send insert into t1 values ('RC');
+--connection con1
+rollback;
+--connection con2
+--reap
+commit;
+
+--connection con1
+set  transaction isolation level REPEATABLE READ;
+start transaction;
+insert into t1 values('RR');
+--connection con2
+set  transaction isolation level REPEATABLE READ;
+start transaction;
+--send insert into t1 values ('RR');
+--connection con1
+rollback;
+--connection con2
+--reap
+commit;
+
+--connection con1
+set  transaction isolation level SERIALIZABLE;
+start transaction;
+insert into t1 values('S');
+--connection con2
+set  transaction isolation level SERIALIZABLE;
+start transaction;
+--send insert into t1 values ('S');
+--connection con1
+rollback;
+--connection con2
+--reap
+commit;
+
+connection default;
+drop table t1;
+disconnect con1;
+disconnect con2;
+
+--echo # MDEV-20131 Assertion `!pk->has_virtual()' failed
+
+--error ER_TOO_LONG_KEY
+create table t1 (a text, primary key(a(1871))) engine=innodb;

@@ -98,7 +98,7 @@ int toku_ft_recount_rows(FT_HANDLE ft,
     if (rre._cancelled == false) {
         // update ft count
         toku_unsafe_set(&ft->ft->in_memory_logical_rows, rre._keys);
-        ft->ft->h->dirty = 1;
+        ft->ft->h->set_dirty();
         ret = 0;
     }
 

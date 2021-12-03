@@ -6,6 +6,8 @@ wdraw_rsn varchar(4) NOT NULL DEFAULT '',
 admit_term char(4) NOT NULL DEFAULT '',
 CONSTRAINT gso_grad_supr_pky PRIMARY KEY (uw_id, term) 
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+Warnings:
+Warning	1280	Name 'gso_grad_supr_pky' ignored for PRIMARY key.
 INSERT INTO `gso_grad_supr` VALUES ('1031',2,'CSM','','1009');
 INSERT INTO `gso_grad_supr` VALUES ('1035',2,'CSM','ACAD','1009');
 CREATE TABLE IF NOT EXISTS grad_degree (
@@ -23,6 +25,8 @@ deg_start_term char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginn
 deg_as_of_term char(4) NOT NULL COMMENT 'In most cases also end term', 
 CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+Warnings:
+Warning	1280	Name 'grad_degree_stu_plan_admit_pky' ignored for PRIMARY key.
 SHOW CREATE TABLE grad_degree;
 Table	Create Table
 grad_degree	CREATE TABLE `grad_degree` (
@@ -30,7 +34,7 @@ grad_degree	CREATE TABLE `grad_degree` (
   `plan` varchar(10) NOT NULL,
   `admit_term` char(4) NOT NULL,
   `wdraw_rsn` varchar(4) NOT NULL DEFAULT '',
-  `ofis_deg_status` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed' else 'Not Completed' end) VIRTUAL,
+  `ofis_deg_status` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed' else 'Not Completed' end) VIRTUAL,
   `deg_start_term` char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginning of the data',
   `deg_as_of_term` char(4) NOT NULL COMMENT 'In most cases also end term',
   PRIMARY KEY (`student_id`,`plan`,`admit_term`)
@@ -129,6 +133,8 @@ deg_start_term char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginn
 deg_as_of_term char(4) NOT NULL COMMENT 'In most cases also end term', 
 CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+Warnings:
+Warning	1280	Name 'grad_degree_stu_plan_admit_pky' ignored for PRIMARY key.
 SHOW CREATE TABLE grad_degree;
 Table	Create Table
 grad_degree	CREATE TABLE `grad_degree` (
@@ -136,14 +142,14 @@ grad_degree	CREATE TABLE `grad_degree` (
   `plan` varchar(10) NOT NULL,
   `admit_term` char(4) NOT NULL,
   `wdraw_rsn` varchar(4) NOT NULL DEFAULT '',
-  `ofis_deg_status` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed' else 'Not Completed' end) VIRTUAL,
-  `ofis_deg_status2` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress2' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed2' else 'Not Completed2' end) VIRTUAL,
-  `ofis_deg_status3` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress3' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed3' else 'Not Completed3' end) VIRTUAL,
-  `ofis_deg_status4` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress4' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed4' else 'Not Completed4' end) VIRTUAL,
-  `ofis_deg_status5` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress5' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed5' else 'Not Completed5' end) VIRTUAL,
-  `ofis_deg_status6` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress6' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed6' else 'Not Completed6' end) VIRTUAL,
-  `ofis_deg_status7` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress7' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed7' else 'Not Completed7' end) VIRTUAL,
-  `ofis_deg_status8` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress8' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed8' else 'Not Completed8' end) VIRTUAL,
+  `ofis_deg_status` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed' else 'Not Completed' end) VIRTUAL,
+  `ofis_deg_status2` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress2' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed2' else 'Not Completed2' end) VIRTUAL,
+  `ofis_deg_status3` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress3' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed3' else 'Not Completed3' end) VIRTUAL,
+  `ofis_deg_status4` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress4' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed4' else 'Not Completed4' end) VIRTUAL,
+  `ofis_deg_status5` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress5' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed5' else 'Not Completed5' end) VIRTUAL,
+  `ofis_deg_status6` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress6' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed6' else 'Not Completed6' end) VIRTUAL,
+  `ofis_deg_status7` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress7' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed7' else 'Not Completed7' end) VIRTUAL,
+  `ofis_deg_status8` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress8' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed8' else 'Not Completed8' end) VIRTUAL,
   `deg_start_term` char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginning of the data',
   `deg_as_of_term` char(4) NOT NULL COMMENT 'In most cases also end term',
   PRIMARY KEY (`student_id`,`plan`,`admit_term`)
@@ -193,14 +199,14 @@ grad_degree	CREATE TABLE `grad_degree` (
   `plan` varchar(10) NOT NULL,
   `admit_term` char(4) NOT NULL,
   `wdraw_rsn` varchar(4) NOT NULL DEFAULT '',
-  `ofis_deg_status` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed' else 'Not Completed' end) VIRTUAL,
-  `ofis_deg_status2` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress2' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed2' else 'Not Completed2' end) VIRTUAL,
-  `ofis_deg_status3` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress3' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed3' else 'Not Completed3' end) VIRTUAL,
-  `ofis_deg_status4` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress4' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed4' else 'Not Completed4' end) VIRTUAL,
-  `ofis_deg_status5` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress5' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed5' else 'Not Completed5' end) VIRTUAL,
-  `ofis_deg_status6` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress6' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed6' else 'Not Completed6' end) VIRTUAL,
-  `ofis_deg_status7` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress7' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed7' else 'Not Completed7' end) VIRTUAL,
-  `ofis_deg_status8` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress8' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed8' else 'Not Completed8' end) VIRTUAL,
+  `ofis_deg_status` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed' else 'Not Completed' end) VIRTUAL,
+  `ofis_deg_status2` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress2' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed2' else 'Not Completed2' end) VIRTUAL,
+  `ofis_deg_status3` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress3' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed3' else 'Not Completed3' end) VIRTUAL,
+  `ofis_deg_status4` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress4' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed4' else 'Not Completed4' end) VIRTUAL,
+  `ofis_deg_status5` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress5' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed5' else 'Not Completed5' end) VIRTUAL,
+  `ofis_deg_status6` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress6' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed6' else 'Not Completed6' end) VIRTUAL,
+  `ofis_deg_status7` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress7' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed7' else 'Not Completed7' end) VIRTUAL,
+  `ofis_deg_status8` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress8' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed8' else 'Not Completed8' end) VIRTUAL,
   `deg_as_of_term` char(4) NOT NULL COMMENT 'In most cases also end term',
   PRIMARY KEY (`student_id`,`plan`,`admit_term`),
   KEY `grad_degree_as_of_term_ndx` (`deg_as_of_term`)
@@ -263,6 +269,8 @@ deg_start_term char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginn
 deg_as_of_term char(4) NOT NULL COMMENT 'In most cases also end term', 
 CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+Warnings:
+Warning	1280	Name 'grad_degree_stu_plan_admit_pky' ignored for PRIMARY key.
 SHOW CREATE TABLE grad_degree;
 Table	Create Table
 grad_degree	CREATE TABLE `grad_degree` (
@@ -270,14 +278,14 @@ grad_degree	CREATE TABLE `grad_degree` (
   `plan` varchar(10) NOT NULL,
   `admit_term` char(4) NOT NULL,
   `wdraw_rsn` varchar(4) NOT NULL DEFAULT '',
-  `ofis_deg_status` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed' else 'Not Completed' end) VIRTUAL,
-  `ofis_deg_status2` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress2' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed2' else 'Not Completed2' end) VIRTUAL,
-  `ofis_deg_status3` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress3' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed3' else 'Not Completed3' end) VIRTUAL,
-  `ofis_deg_status4` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress4' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed4' else 'Not Completed4' end) VIRTUAL,
-  `ofis_deg_status5` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress5' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed5' else 'Not Completed5' end) VIRTUAL,
-  `ofis_deg_status6` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress6' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed6' else 'Not Completed6' end) VIRTUAL,
-  `ofis_deg_status7` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress7' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed7' else 'Not Completed7' end) VIRTUAL,
-  `ofis_deg_status8` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress8' when (`wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC') then 'Completed8' else 'Not Completed8' end) VIRTUAL,
+  `ofis_deg_status` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed' else 'Not Completed' end) VIRTUAL,
+  `ofis_deg_status2` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress2' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed2' else 'Not Completed2' end) VIRTUAL,
+  `ofis_deg_status3` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress3' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed3' else 'Not Completed3' end) VIRTUAL,
+  `ofis_deg_status4` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress4' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed4' else 'Not Completed4' end) VIRTUAL,
+  `ofis_deg_status5` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress5' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed5' else 'Not Completed5' end) VIRTUAL,
+  `ofis_deg_status6` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress6' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed6' else 'Not Completed6' end) VIRTUAL,
+  `ofis_deg_status7` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress7' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed7' else 'Not Completed7' end) VIRTUAL,
+  `ofis_deg_status8` varchar(15) GENERATED ALWAYS AS (case when `wdraw_rsn` = '' then 'In progress8' when `wdraw_rsn` = 'DCMP' or `wdraw_rsn` = 'TRDC' then 'Completed8' else 'Not Completed8' end) VIRTUAL,
   `deg_start_term` char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginning of the data',
   `deg_as_of_term` char(4) NOT NULL COMMENT 'In most cases also end term',
   PRIMARY KEY (`student_id`,`plan`,`admit_term`)
@@ -330,3 +338,16 @@ term	uw_id	plan	wdraw_rsn	admit_term
 1035	2	CSM	ACAD	1009
 drop table grad_degree;
 drop table gso_grad_supr;
+CREATE TABLE t1 (a INT, b CHAR(12), c INT AS (a) VIRTUAL, FULLTEXT KEY(b)) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo');
+SELECT * FROM t1;
+a	b	c
+1	foo	1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b CHAR(12), c INT AS (a) VIRTUAL) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo');
+ALTER TABLE t1 ADD FULLTEXT KEY(b);
+SELECT * FROM t1;
+a	b	c
+1	foo	1
+DROP TABLE t1;

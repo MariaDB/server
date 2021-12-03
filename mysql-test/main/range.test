@@ -2,6 +2,14 @@
 # Problem with range optimizer
 #
 --source include/have_innodb.inc
+SET optimizer_use_condition_selectivity=4;
+
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
 
 CREATE TABLE t1 (
   event_date date DEFAULT '0000-00-00' NOT NULL,
@@ -188,7 +196,7 @@ explain select * from t1, t1 t2 where t1.y = 2 and t2.x between 0 and t1.y;
 explain select * from t1, t1 t2 where t1.y = 2 and t2.x >= 0 and t2.x <= t1.y;
 # testing IN
 explain select count(*) from t1 where x in (1);
-explain select count(*) from t1 where x in (1,2);
+explain select count(*) from t1 where x in (1,2,3,4);
 drop table t1;
 
 #
@@ -745,6 +753,7 @@ INSERT INTO t1 VALUES
 (43,'A'), (44,'A'), (45,'A'), (46,'A'), (47,'A'), (48,'A'),
 (49,'A'), (50,'A'), (51,'A'), (52,'A'), (53,'C'), (54,'C'),
 (55,'C'), (56,'C'), (57,'C'), (58,'C'), (59,'C'), (60,'C');
+INSERT INTO t1(status) SELECT status FROM t1;
 
 EXPLAIN SELECT * FROM t1 WHERE status <> 'A' AND status <> 'B';
 EXPLAIN SELECT * FROM t1 WHERE status NOT IN ('A','B');
@@ -950,7 +959,8 @@ CREATE TABLE t1 (
 ) DEFAULT CHARSET=latin1 COLLATE=latin1_bin;
 
 INSERT INTO t1 VALUES
-  ('B'), ('A'), ('A'), ('C'), ('B'), ('A'), ('A');
+  ('B'), ('A'), ('A'), ('C'), ('B'), ('A'), ('A'), ('C'), ('A');
+INSERT INTO t1 VALUES ('X'),('Y'),('Z'),('X1'),('Y1'),('Z1'),('X1'),('Y1'),('Z1');
 
 SELECT a FROM t1 WHERE a='b' OR a='B';
 EXPLAIN SELECT a FROM t1 WHERE a='b' OR a='B';
@@ -1040,8 +1050,10 @@ CREATE TABLE t2( a INT, b INT, KEY( a, b ) );
 
 CREATE TABLE t3( a INT, b INT, KEY( a, b ) );
 
-INSERT INTO t1( a, b ) 
-VALUES (0, 1), (1, 2), (1, 4), (2, 3), (5, 0), (9, 7);
+INSERT INTO t1( a, b ) VALUES
+  (0, 1), (1, 2), (1, 4), (2, 3), (5, 0), (9, 7),
+  (10, 11), (11,12), (11, 14), (12, 13), (15, 10), (19, 17),
+  (20, 21), (21,22), (21, 24), (22, 23), (25, 20), (29, 27);
 
 INSERT INTO t2( a, b ) 
 VALUES ( 1, 1), ( 2, 1), ( 3, 1), ( 4, 1), ( 5, 1),
@@ -1057,61 +1069,63 @@ INSERT INTO t2 SELECT -1, -1 FROM t2;
 INSERT INTO t2 SELECT -1, -1 FROM t2;
 INSERT INTO t2 SELECT -1, -1 FROM t2;
 
-INSERT INTO t3
-VALUES (1, 0), (2, 0), (3, 0), (4, 0), (5, 0),
-       (6, 0), (7, 0), (8, 0), (9, 0), (10, 0);
+INSERT INTO t3 VALUES
+  (1, 0), (2, 0), (3, 0), (4, 0), (5, 0),
+  (6, 0), (7, 0), (8, 0), (9, 0), (10, 0),
+  (11, 0), (12, 0), (13, 0), (14, 0), (15, 0),
+  (16, 0), (17, 0), (18, 0), (19, 0), (20, 0);
 
 # To make range scan compelling to the optimizer
 INSERT INTO t3 SELECT * FROM t3 WHERE a = 10;
 INSERT INTO t3 SELECT * FROM t3 WHERE a = 10;
-
+insert into t1 select -a,b from t1;
 
 #
 # Problem#1 Test queries. Will give missing results unless Problem#1 is fixed.
 # With one exception, they are independent of Problem#2.
 #
 SELECT * FROM t1 WHERE
-3 <= a AND a < 5 OR 
-5 < a AND b = 3 OR
-3 <= a;
+23 <= a AND a < 25 OR
+25 < a AND b = 23 OR
+23 <= a;
 
 EXPLAIN
 SELECT * FROM t1 WHERE
-3 <= a AND a < 5 OR 
-5 < a AND b = 3 OR
-3 <= a;
+23 <= a AND a < 25 OR
+25 < a AND b = 23 OR
+23 <= a;
 
 # Query below: Tests both Problem#1 and Problem#2 (EXPLAIN differs as well)
 SELECT * FROM t1 WHERE
-3 <= a AND a < 5 OR 
-5 <= a AND b = 3 OR
-3 <= a;
+23 <= a AND a < 25 OR
+25 <= a AND b = 23 OR
+23 <= a;
 
 EXPLAIN
 SELECT * FROM t1 WHERE
-3 <= a AND a < 5 OR 
-5 <= a AND b = 3 OR
-3 <= a;
+23 <= a AND a < 25 OR
+25 <= a AND b = 23 OR
+23 <= a;
 
 SELECT * FROM t1 WHERE
-3 <= a AND a <= 5 OR 
-5 <= a AND b = 3 OR
-3 <= a;
-
-EXPLAIN
-SELECT * FROM t1 WHERE
-3 <= a AND a <= 5 OR 
-5 <= a AND b = 3 OR
-3 <= a;
-
-SELECT * FROM t1 WHERE
-3 <= a AND a <= 5 OR 
-3 <= a;
+23 <= a AND a <= 25 OR
+25 <= a AND b = 23 OR
+23 <= a;
 
 EXPLAIN
 SELECT * FROM t1 WHERE
-3 <= a AND a <= 5 OR 
-3 <= a;
+23 <= a AND a <= 25 OR
+25 <= a AND b = 23 OR
+23 <= a;
+
+SELECT * FROM t1 WHERE
+23 <= a AND a <= 25 OR
+23 <= a;
+
+EXPLAIN
+SELECT * FROM t1 WHERE
+23 <= a AND a <= 25 OR
+23 <= a;
 
 #
 # Problem#2 Test queries. 
@@ -1175,11 +1189,17 @@ CREATE TABLE t2 ( a DATETIME, KEY ( a ) );
 --echo # Make optimizer choose range scan
 INSERT INTO t1 VALUES ('2009-09-22'), ('2009-09-22'), ('2009-09-22');
 INSERT INTO t1 VALUES ('2009-09-23'), ('2009-09-23'), ('2009-09-23');
+INSERT INTO t1 VALUES ('2009-09-20'), ('2009-09-20'), ('2009-09-20');
+INSERT INTO t1 VALUES ('2009-09-21'), ('2009-09-21'), ('2009-09-21');
 
 INSERT INTO t2 VALUES ('2009-09-22 12:00:00'), ('2009-09-22 12:00:00'),
                       ('2009-09-22 12:00:00');
 INSERT INTO t2 VALUES ('2009-09-23 12:00:00'), ('2009-09-23 12:00:00'),
                       ('2009-09-23 12:00:00');
+INSERT INTO t2 VALUES ('2009-09-20 12:00:00'), ('2009-09-20 12:00:00'),
+                      ('2009-09-20 12:00:00');
+INSERT INTO t2 VALUES ('2009-09-21 12:00:00'), ('2009-09-21 12:00:00'),
+                      ('2009-09-21 12:00:00');
 
 --echo # DATE vs DATE
 --replace_column 1 X 2 X 3 X 7 X 8 X 9 X 10 X
@@ -1320,7 +1340,9 @@ DROP TABLE t1;
 CREATE TABLE t1(pk INT PRIMARY KEY, i4 INT);
 CREATE UNIQUE INDEX i4_uq ON t1(i4);
 
-INSERT INTO t1 VALUES (1,10), (2,20), (3,30);
+INSERT INTO t1 VALUES
+  (1,10), (2,20), (3,30), (4,40), (5,50), (6,60), (7,70), (8,80);
+
 
 EXPLAIN
 SELECT * FROM t1 WHERE i4 BETWEEN 10 AND 10;
@@ -1331,8 +1353,8 @@ SELECT * FROM t1 WHERE 10 BETWEEN i4 AND i4;
 SELECT * FROM t1 WHERE 10 BETWEEN i4 AND i4;
 
 EXPLAIN
-SELECT * FROM t1 WHERE 10 BETWEEN 10 AND i4;
-SELECT * FROM t1 WHERE 10 BETWEEN 10 AND i4;
+SELECT * FROM t1 WHERE 70 BETWEEN 70 AND i4;
+SELECT * FROM t1 WHERE 70 BETWEEN 70 AND i4;
 
 EXPLAIN
 SELECT * FROM t1 WHERE 10 BETWEEN i4 AND 10;
@@ -1355,8 +1377,8 @@ SELECT * FROM t1 WHERE i4 BETWEEN 100 AND 0;
 SELECT * FROM t1 WHERE i4 BETWEEN 100 AND 0;
 
 EXPLAIN
-SELECT * FROM t1 WHERE i4 BETWEEN 10 AND 99999999999999999;
-SELECT * FROM t1 WHERE i4 BETWEEN 10 AND 99999999999999999;
+SELECT * FROM t1 WHERE i4 BETWEEN 70 AND 99999999999999999;
+SELECT * FROM t1 WHERE i4 BETWEEN 70 AND 99999999999999999;
 
 EXPLAIN
 SELECT * FROM t1 WHERE i4 BETWEEN 999999999999999 AND 30;
@@ -1479,11 +1501,15 @@ insert into t2 select a+32 from t2;
 insert into t2 select a+64 from t2;
 
 explain
-select count(*) from t2 left join t1 on (t1.key1 < 3 or t1.key1 > 1020) and t1.key2 < 1000;
-select count(*) from t2 left join t1 on (t1.key1 < 3 or t1.key1 > 1020) and t1.key2 < 1000;
+select count(*) from t2 left join t1
+  on (t1.key1 < 3 or t1.key1 between 920 and 930) and t1.key2 < 1000;
+select count(*) from t2 left join t1
+  on (t1.key1 < 3 or t1.key1 between 920 and 930) and t1.key2 < 1000;
 explain
-select count(*) from t2 left join t1 on (t1.key1 < 3 or t1.key1 > 1020) and t1.key2 < t2.a;
-select count(*) from t2 left join t1 on (t1.key1 < 3 or t1.key1 > 1020) and t1.key2 < t2.a;
+select count(*) from t2 left join t1
+  on (t1.key1 < 3 or t1.key1 between 920 and 930) and t1.key2 < t2.a;
+select count(*) from t2 left join t1
+  on (t1.key1 < 3 or t1.key1 between 920 and 930) and t1.key2 < t2.a;
 
 drop table t1,t2;
 
@@ -1690,6 +1716,22 @@ where (key1varchar='value1' AND (key2int <=1 OR  key2int > 1));
 --echo # The following must show col1=12345 for all rows:
 select * from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-22191: Range access is not picked when index_merge_sort_union is turned off
+--echo #
+
+set @save_optimizer_switch=@@optimizer_switch;
+set @save_optimizer_switch="index_merge_sort_union=OFF";
+CREATE TABLE t1 (a INT, INDEX(a));
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+explain
+SELECT * FROM t1 WHERE a > 5;
+SELECT * FROM t1 WHERE a > 5;
+set @@optimizer_switch=@save_optimizer_switch;
+drop table t1;
+
+--echo # End of 5.5 tests
 
 --echo #
 --echo # BUG#13731380: RANGE OPTIMIZER CALLS RECORDS_IN_RANGE() FOR OPEN RANGE
@@ -2051,5 +2093,181 @@ set eq_range_index_dive_limit=default;
 drop table t1;
 
 --echo #
+--echo # MDEV-24117: Memory management problem in statistics state...
+--echo #  (just the testcase)
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int);
+
+# 4K rows
+insert into t1
+select A.a + B.a* 10 + C.a * 100 + D.a * 1000
+from t0 A, t0 B, t0 C, t0 D
+where D.a<4;
+
+create table t2 (
+  a int,
+  b int,
+  key(a)
+);
+
+insert into t2 values (1,1),(2,2),(3,3);
+
+set @query=(select group_concat(a) from t1);
+
+set @tmp_24117= @@max_session_mem_used;
+
+--echo #
+--echo # On debug build, the usage was
+--echo #  - 2.8M without the bug
+--echo #  - 1G with the bug.
+
+set max_session_mem_used=64*1024*1024;
+
+set @query=concat('explain select * from t2 where a=1 or a in (', @query, ')');
+
+prepare s from @query;
+
+--echo # This should not fail with an error:
+execute s;
+set max_session_mem_used=@tmp_24117;
+
+deallocate prepare s;
+
+drop table t0,t1,t2;
+--echo #
+--echo # MDEV-23811: Both disjunct of WHERE condition contain range conditions
+--echo #             for the same index such that the second range condition
+--echo #             fully covers the first one. Additionally one of the disjuncts
+--echo #             contains a range condition for the other index.
+--echo #
+
+create table t1 (
+  pk int primary key auto_increment, a int, b int,
+  index idx1(a), index idx2(b)
+);
+insert into t1(a,b) values
+  (5,50), (1,10), (3,30), (7,70), (8,80), (4,40), (2,20), (6,60);
+insert into t1(a,b) select a+10, b+100 from t1;
+insert into t1(a,b) select a+20, b+200 from t1;
+insert into t1(a,b) select a+30, b+300 from t1;
+insert into t1(a,b) select a,b from t1;
+
+analyze table t1;
+
+let $q1=
+select * from t1 where ((a between 3 and 4) and b < 100) or (a between 2 and 5);
+eval explain $q1;
+eval $q1;
+
+let $q2=
+select * from t1 where (a between 2 and 5) or ((a between 3 and 4) and b < 100);
+eval explain $q2;
+eval $q2;
+
+let $q3=
+select * from t1 where (a between 3 and 4) or ((a between 2 and 5) and b < 100);
+eval explain $q3;
+eval $q3;
+
+let $q4=
+select * from t1 where ((a between 2 and 5) and b < 100) or (a between 3 and 4);
+eval explain $q4;
+eval $q4;
+
+drop table t1;
+
+#
+# MDEV-21958: Query having many NOT-IN clauses running forever (testcase 2)
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (
+  pk int primary key,
+  key1 int,
+  col1 varchar(255),
+  key (key1, pk)
+);
+
+insert into t2 (pk, key1)
+select A.a+10 *B.a + 100*C.a, A.a+10 *B.a +100*C.a from t1 A, t1 B, t1 C;
+
+--echo # This must use ALL, not range:
+explain select * from t2 force index (primary) where pk not in (1,2,3);
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-24444: ASAN use-after-poison in Item_func_in::get_func_mm_tree with NOT IN
+--echo #
+CREATE TABLE t1 (id INT, a CHAR(3), b INT, PRIMARY KEY(id), KEY(b), KEY(a));
+INSERT INTO t1 VALUES (1,'foo',10),(2,'bar',20);
+
+CREATE TABLE t2 (code CHAR(8), num INT, PRIMARY KEY (code));
+INSERT INTO t2 VALUES ('100',1),('111',2);
+
+SELECT * FROM t1 JOIN t2 ON (t2.code = t1.b) WHERE t1.a NOT IN ('baz', 'qux') OR t2.num != 3;
+
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # MDEV-23634: Select query hanged the server and leads to OOM ...
+--echo # (The fix is to add the same handling for "col!=const" as MDEV-21958 did for NOT IN)
+--echo #
+create table t1 (pk int primary key, a int);
+insert into t1 (pk) values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+--echo # must not use range:
+explain select * from t1 force index (primary) where pk != 1 and pk!=2 ;
+drop table t1;
+
+--echo #
+--echo # MDEV-22251: get_key_scans_params: Conditional jump or move depends on uninitialised value
+--echo #
+
+create table t1 (pk int, i int, v int, primary key (pk), key(v));
+insert into t1 (pk,i,v) values (1,1,2),(2,2,4),(3,3,6),(4,4,8),(5,5,10),(6,6,12),(7,7,14),(8,8,16);
+create table t2 (a int, b int);
+insert into t2 values (1,2),(2,4);
+EXPLAIN
+select * from t1 inner join t2 on ( t2.b = t1.v or t2.a = t1.pk);
+select * from t1 inner join t2 on ( t2.b = t1.v or t2.a = t1.pk);
+drop table t1, t2;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-18551: New defaults for eq_range_index_dive_limit
+--echo #
+
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int, key(a));
+insert into t1 select A.a + B.a*10 + C.a*100 from ten A, ten B,ten C;
+insert into t1 select 1 from ten A, ten B,ten C;
+
+create table t2(a int, key(a));
+insert into t2 select A.a + B.a*10 + C.a*100 from ten A, ten B,ten C where A.a + B.a*10 + C.a*100 < 199;
+
+let $a= `select group_concat(a) from t2`;
+
+--echo # expected type=range, rows=1487 , reason=using index dives
+eval analyze SELECT * FROM t1 where a in ($a);
+insert into t2 values (200),(201);
+let $a= `select group_concat(a) from t2`;
+--echo # expected type=range, rows=201 , reason=using index statistics
+eval analyze SELECT * FROM t1 where a in ($a);
+drop table t1,ten,t2;
+
+--echo # End of 10.4 tests
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;

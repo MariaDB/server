@@ -1,17 +1,24 @@
 /* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file storage/perfschema/table_tiws_by_table.cc
@@ -42,44 +49,44 @@ table_tiws_by_table::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE table_io_waits_summary_by_table("
-                      "OBJECT_TYPE VARCHAR(64),"
-                      "OBJECT_SCHEMA VARCHAR(64),"
-                      "OBJECT_NAME VARCHAR(64),"
-                      "COUNT_STAR BIGINT unsigned not null,"
-                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
-                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
-                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null,"
-                      "COUNT_READ BIGINT unsigned not null,"
-                      "SUM_TIMER_READ BIGINT unsigned not null,"
-                      "MIN_TIMER_READ BIGINT unsigned not null,"
-                      "AVG_TIMER_READ BIGINT unsigned not null,"
-                      "MAX_TIMER_READ BIGINT unsigned not null,"
-                      "COUNT_WRITE BIGINT unsigned not null,"
-                      "SUM_TIMER_WRITE BIGINT unsigned not null,"
-                      "MIN_TIMER_WRITE BIGINT unsigned not null,"
-                      "AVG_TIMER_WRITE BIGINT unsigned not null,"
-                      "MAX_TIMER_WRITE BIGINT unsigned not null,"
-                      "COUNT_FETCH BIGINT unsigned not null,"
-                      "SUM_TIMER_FETCH BIGINT unsigned not null,"
-                      "MIN_TIMER_FETCH BIGINT unsigned not null,"
-                      "AVG_TIMER_FETCH BIGINT unsigned not null,"
-                      "MAX_TIMER_FETCH BIGINT unsigned not null,"
-                      "COUNT_INSERT BIGINT unsigned not null,"
-                      "SUM_TIMER_INSERT BIGINT unsigned not null,"
-                      "MIN_TIMER_INSERT BIGINT unsigned not null,"
-                      "AVG_TIMER_INSERT BIGINT unsigned not null,"
-                      "MAX_TIMER_INSERT BIGINT unsigned not null,"
-                      "COUNT_UPDATE BIGINT unsigned not null,"
-                      "SUM_TIMER_UPDATE BIGINT unsigned not null,"
-                      "MIN_TIMER_UPDATE BIGINT unsigned not null,"
-                      "AVG_TIMER_UPDATE BIGINT unsigned not null,"
-                      "MAX_TIMER_UPDATE BIGINT unsigned not null,"
-                      "COUNT_DELETE BIGINT unsigned not null,"
-                      "SUM_TIMER_DELETE BIGINT unsigned not null,"
-                      "MIN_TIMER_DELETE BIGINT unsigned not null,"
-                      "AVG_TIMER_DELETE BIGINT unsigned not null,"
-                      "MAX_TIMER_DELETE BIGINT unsigned not null)") }
+                      "OBJECT_TYPE VARCHAR(64) comment 'Since this table records waits by table, always set to TABLE.',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'Schema name.',"
+                      "OBJECT_NAME VARCHAR(64) comment 'Table name.',"
+                      "COUNT_STAR BIGINT unsigned not null comment 'Number of summarized events and the sum of the x_READ and x_WRITE columns.',"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the summarized events that are timed.',"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the summarized events that are timed.',"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the summarized events that are timed.',"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the summarized events that are timed.',"
+                      "COUNT_READ BIGINT unsigned not null comment 'Number of all read operations, and the sum of the equivalent x_FETCH columns.',"
+                      "SUM_TIMER_READ BIGINT unsigned not null comment 'Total wait time of all read operations that are timed.',"
+                      "MIN_TIMER_READ BIGINT unsigned not null comment 'Minimum wait time of all read operations that are timed.',"
+                      "AVG_TIMER_READ BIGINT unsigned not null comment 'Average wait time of all read operations that are timed.',"
+                      "MAX_TIMER_READ BIGINT unsigned not null comment 'Maximum wait time of all read operations that are timed.',"
+                      "COUNT_WRITE BIGINT unsigned not null comment 'Number of all write operations, and the sum of the equivalent x_INSERT, x_UPDATE and x_DELETE columns.',"
+                      "SUM_TIMER_WRITE BIGINT unsigned not null comment 'Total wait time of all write operations that are timed.',"
+                      "MIN_TIMER_WRITE BIGINT unsigned not null comment 'Minimum wait time of all write operations that are timed.',"
+                      "AVG_TIMER_WRITE BIGINT unsigned not null comment 'Average wait time of all write operations that are timed.',"
+                      "MAX_TIMER_WRITE BIGINT unsigned not null comment 'Maximum wait time of all write operations that are timed.',"
+                      "COUNT_FETCH BIGINT unsigned not null comment 'Number of all fetch operations.',"
+                      "SUM_TIMER_FETCH BIGINT unsigned not null comment 'Total wait time of all fetch operations that are timed.',"
+                      "MIN_TIMER_FETCH BIGINT unsigned not null comment 'Minimum wait time of all fetch operations that are timed.',"
+                      "AVG_TIMER_FETCH BIGINT unsigned not null comment 'Average wait time of all fetch operations that are timed.',"
+                      "MAX_TIMER_FETCH BIGINT unsigned not null comment 'Maximum wait time of all fetch operations that are timed.',"
+                      "COUNT_INSERT BIGINT unsigned not null comment 'Number of all insert operations.',"
+                      "SUM_TIMER_INSERT BIGINT unsigned not null comment 'Total wait time of all insert operations that are timed.',"
+                      "MIN_TIMER_INSERT BIGINT unsigned not null comment 'Minimum wait time of all insert operations that are timed.',"
+                      "AVG_TIMER_INSERT BIGINT unsigned not null comment 'Average wait time of all insert operations that are timed.',"
+                      "MAX_TIMER_INSERT BIGINT unsigned not null comment 'Maximum wait time of all insert operations that are timed.',"
+                      "COUNT_UPDATE BIGINT unsigned not null comment 'Number of all update operations.',"
+                      "SUM_TIMER_UPDATE BIGINT unsigned not null comment 'Total wait time of all update operations that are timed.',"
+                      "MIN_TIMER_UPDATE BIGINT unsigned not null comment 'Minimum wait time of all update operations that are timed.',"
+                      "AVG_TIMER_UPDATE BIGINT unsigned not null comment 'Average wait time of all update operations that are timed.',"
+                      "MAX_TIMER_UPDATE BIGINT unsigned not null comment 'Maximum wait time of all update operations that are timed.',"
+                      "COUNT_DELETE BIGINT unsigned not null comment 'Number of all delete operations.',"
+                      "SUM_TIMER_DELETE BIGINT unsigned not null comment 'Total wait time of all delete operations that are timed.',"
+                      "MIN_TIMER_DELETE BIGINT unsigned not null comment 'Minimum wait time of all delete operations that are timed.',"
+                      "AVG_TIMER_DELETE BIGINT unsigned not null comment 'Average wait time of all delete operations that are timed.',"
+                      "MAX_TIMER_DELETE BIGINT unsigned not null comment 'Maximum wait time of all delete operations that are timed.')") }
 };
 
 PFS_engine_table*

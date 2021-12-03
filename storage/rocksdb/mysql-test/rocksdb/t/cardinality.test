@@ -2,6 +2,8 @@
 
 --source include/restart_mysqld.inc
 
+set use_stat_tables= 'COMPLEMENTARY';
+
 # Test memtable cardinality statistics
 CREATE TABLE t0 (id int PRIMARY KEY, a int, INDEX ix_a (a))  engine=rocksdb;
 

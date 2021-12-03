@@ -1,25 +1,24 @@
 #
 # The purpose of this test is to preserve the current state of the following:
 # * SHOW VARIABLES LIKE 'wsrep%'
-# * wsrep_provider_options
 # * The names of the Galera status variables
+#
+# Note that wsrep_provider_options contains paths and other non-deterministic parts
 #
 # This way, if there is any change, inadvertent or not, the test will fail and the
 # developer and QA will be alerted.
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/force_restart.inc
 
 # Make sure that the test is operating on the right version of galera library.
---disable_query_log
---let $galera_version=25.3.20
+--let $galera_version=26.4.6
 source ../wsrep/include/check_galera_version.inc;
---enable_query_log
 
 # Global Variables
 
-SELECT COUNT(*) = 43 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep_%';
+SELECT COUNT(*) `expect 49` FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep_%';
 
 SELECT VARIABLE_NAME, VARIABLE_VALUE
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
@@ -36,26 +35,3 @@ AND VARIABLE_NAME NOT IN (
         'WSREP_PATCH_VERSION'
 )
 ORDER BY VARIABLE_NAME;
-
-# wsrep_provider_options
-#
-# We replace the ones that vary from run to run with placeholders
-
---let _WSREP_PROVIDER_OPTIONS = `SELECT @@wsrep_provider_options`
---perl
-	use strict;
-	my $wsrep_provider_options = $ENV{'_WSREP_PROVIDER_OPTIONS'};
-	$wsrep_provider_options =~ s/base_dir = .*?;/<BASE_DIR>;/sgio;
-	$wsrep_provider_options =~ s/base_host = .*?;/<BASE_HOST>;/sgio;
-	$wsrep_provider_options =~ s/base_port = .*?;/<BASE_PORT>;/sgio;
-	$wsrep_provider_options =~ s/gcache\.dir = .*?;/<GCACHE_DIR>;/sgio;
-	$wsrep_provider_options =~ s/gcache\.name = .*?;/<GCACHE_NAME>;/sgio;
-	$wsrep_provider_options =~ s/gmcast\.listen_addr = .*?;/<GMCAST_LISTEN_ADDR>;/sgio;
-	$wsrep_provider_options =~ s/gcs\.recv_q_hard_limit = .*?;/<GCS_RECV_Q_HARD_LIMIT>;/sgio;
-	$wsrep_provider_options =~ s/ist\.recv_addr = .*?;/<IST_RECV_ADDR>;/sgio;
-	$wsrep_provider_options =~ s/evs\.evict = .*?;/<EVS_EVICT>;/sgio;
-	$wsrep_provider_options =~ s/signal = .*?;\s*//sgio;
-	$wsrep_provider_options =~ s/dbug = .*?;\s*//sgio;
-	$wsrep_provider_options =~ s/repl.proto_max = .*?;\s*/<REPL_PROTO_MAX>;/sgio;
-	print $wsrep_provider_options."\n";
-EOF

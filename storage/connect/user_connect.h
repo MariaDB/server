@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /** @file user_connect.h
 
@@ -35,7 +35,7 @@
 //typedef struct _global *PGLOBAL;
 typedef class user_connect *PCONNECT;
 typedef class ha_connect *PHC;
-static int connect_done_func(void *);
+int connect_done_func(void *);
 
 /*****************************************************************************/
 /*  The CONNECT users. There should be one by connected users.               */

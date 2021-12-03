@@ -100,9 +100,10 @@ EOF
 # Make sure a snapshot held by another user doesn't block the bulk load
 connect (other,localhost,root,,);
 set session transaction isolation level repeatable read;
-select * from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
 start transaction with consistent snapshot;
-select * from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
+
+# Assert that there is a pending snapshot
+select VALUE > 0 as 'Has opened snapshots' from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
 
 connection default;
 set rocksdb_bulk_load=1;
@@ -120,12 +121,12 @@ set rocksdb_bulk_load=0;
 --remove_file $file
 
 # Make sure row count index stats are correct
---replace_column 6 # 7 # 8 # 9 #
+--replace_column 6 # 7 # 8 # 9 # 12 # 13 #
 SHOW TABLE STATUS WHERE name LIKE 't%';
 
 ANALYZE TABLE t1, t2, t3;
 
---replace_column 6 # 7 # 8 # 9 #
+--replace_column 6 # 7 # 8 # 9 # 12 # 13 #
 SHOW TABLE STATUS WHERE name LIKE 't%';
 
 # Make sure all the data is there.

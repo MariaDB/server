@@ -19,7 +19,7 @@
 #  option_mysqld_max_prepared_stmt_count                                       #
 #                                                                              #
 ################################################################################
-
+--source include/no_protocol.inc
 
 --echo ** Setup **
 --echo

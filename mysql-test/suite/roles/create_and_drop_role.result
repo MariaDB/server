@@ -7,7 +7,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 create role test_role1;
 create role test_role2, test_role3;
 select user, host, is_role from user where user like 'test%';
-user	host	is_role
+User	Host	is_role
 test_role1		Y
 test_role2		Y
 test_role3		Y
@@ -19,7 +19,7 @@ ERROR HY000: Operation CREATE ROLE failed for 'test_role1'
 create role test_role1, test_role2;
 ERROR HY000: Operation CREATE ROLE failed for 'test_role1'
 select user, host, is_role from user where user like 'test%';
-user	host	is_role
+User	Host	is_role
 test_role1		Y
 test_role2		Y
 drop role test_role1;
@@ -34,7 +34,7 @@ drop role dummy;
 ERROR HY000: Operation DROP ROLE failed for 'dummy'
 drop user dummy@'';
 select user, host, is_role from user where user like 'test%';
-user	host	is_role
+User	Host	is_role
 disconnect mysql;
 connection default;
 create role '';
@@ -66,8 +66,8 @@ localhost	r1	r2	N
 localhost	root	r2	Y
 SHOW GRANTS FOR r1@localhost;
 Grants for r1@localhost
-GRANT r2 TO 'r1'@'localhost'
-GRANT USAGE ON *.* TO 'r1'@'localhost'
+GRANT `r2` TO `r1`@`localhost`
+GRANT USAGE ON *.* TO `r1`@`localhost`
 DROP USER u1;
 DROP ROLE r2;
 DROP USER r1@localhost;
@@ -85,5 +85,5 @@ select * from mysql.roles_mapping;
 Host	User	Role	Admin_option
 show grants;
 Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION

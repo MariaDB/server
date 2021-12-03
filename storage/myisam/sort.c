@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Creates a index for a database by reading keys, sorting them and outputing
@@ -857,7 +857,7 @@ cleanup:
     buffpek		Where to read from
     sort_length		max length to read
   RESULT
-    > 0	Ammount of bytes read
+    > 0	Number of bytes read
     -1	Error
 */
 

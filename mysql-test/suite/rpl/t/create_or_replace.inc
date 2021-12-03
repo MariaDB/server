@@ -205,6 +205,19 @@ set binlog_format="STATEMENT";
 drop temporary table t8;
 set @@binlog_format=@org_binlog_format;
 
+# MDEV-20091:
+# 1. No DROP should be logged for non-existing tmp table, nor
+# 2. at the connection close when its creation has not been logged.
+set @@session.binlog_format=default;
+drop temporary table if exists t9;
+
+--connect(con1,localhost,root,,)
+set session binlog_format=default;
+create temporary table t9 (i int);
+--echo *** Must be no DROP logged for t9 when there was no CREATE, at disconnect too ***
+--disconnect con1
+
+--connection server_1
 --source include/show_binlog_events.inc
 
 # Clean up

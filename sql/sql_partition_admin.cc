@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_parse.h"                      // check_one_table_access
@@ -61,7 +61,7 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
     referenced from this structure will be modified.
     @todo move these into constructor...
   */
-  HA_CREATE_INFO create_info(lex->create_info);
+  IF_DBUG(HA_CREATE_INFO create_info(lex->create_info);,)
   Alter_info alter_info(lex->alter_info, thd->mem_root);
   ulong priv_needed= ALTER_ACL | DROP_ACL | INSERT_ACL | CREATE_ACL;
 
@@ -96,7 +96,6 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
   DBUG_ASSERT(!create_info.data_file_name && !create_info.index_file_name);
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
 
-  thd->prepare_logs_for_admin_command();
   DBUG_RETURN(exchange_partition(thd, first_table, &alter_info));
 #ifdef WITH_WSREP
  wsrep_error_label:
@@ -193,8 +192,8 @@ static bool compare_table_with_partition(THD *thd, TABLE *table,
   DBUG_ENTER("compare_table_with_partition");
 
   bool metadata_equal= false;
-  memset(&part_create_info, 0, sizeof(HA_CREATE_INFO));
-  memset(&table_create_info, 0, sizeof(HA_CREATE_INFO));
+  part_create_info.init();
+  table_create_info.init();
 
   update_create_info_from_table(&table_create_info, table);
   /* get the current auto_increment value */

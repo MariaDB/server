@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -33,14 +33,13 @@ Created 9/20/1997 Heikki Tuuri
 #include "log0log.h"
 #include "mtr0types.h"
 
-#include <list>
-#include <vector>
+#include <deque>
 
 /** Is recv_writer_thread active? */
 extern bool	recv_writer_thread_active;
 
 /** @return whether recovery is currently running. */
-#define recv_recovery_is_on() recv_recovery_on
+#define recv_recovery_is_on() UNIV_UNLIKELY(recv_recovery_on)
 
 /** Find the latest checkpoint in the log header.
 @param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
@@ -49,12 +48,14 @@ dberr_t
 recv_find_max_checkpoint(ulint* max_field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Apply the hashed log records to the page, if the page lsn is less than the
-lsn of a log record.
-@param just_read_in	whether the page recently arrived to the I/O handler
-@param block		the page in the buffer pool */
-void
-recv_recover_page(bool just_read_in, buf_block_t* block);
+/** Reduces recv_sys.n_addrs for the corrupted page.
+This function should called when srv_force_recovery > 0.
+@param[in]	page_id page id of the corrupted page */
+void recv_recover_corrupt_page(page_id_t page_id);
+
+/** Apply any buffered redo log to a page that was just read from a data file.
+@param[in,out]	bpage	buffer pool page */
+ATTRIBUTE_COLD void recv_recover_page(buf_page_t* bpage);
 
 /** Start recovering from a redo log checkpoint.
 @see recv_recovery_from_checkpoint_finish
@@ -72,27 +73,6 @@ Initiates the rollback of active transactions. */
 void
 recv_recovery_rollback_active(void);
 /*===============================*/
-/******************************************************//**
-Resets the logs. The contents of log files will be lost! */
-void
-recv_reset_logs(
-/*============*/
-	lsn_t		lsn);		/*!< in: reset to this lsn
-					rounded up to be divisible by
-					OS_FILE_LOG_BLOCK_SIZE, after
-					which we add
-					LOG_BLOCK_HDR_SIZE */
-/** Clean up after recv_sys_init() */
-void
-recv_sys_close();
-/** Initialize the redo log recovery subsystem. */
-void
-recv_sys_init();
-/********************************************************//**
-Frees the recovery system. */
-void
-recv_sys_debug_free(void);
-/*=====================*/
 
 /********************************************************//**
 Reset the state of the recovery system variables. */
@@ -118,7 +98,7 @@ enum store_t {
 
 
 /** Adds data from a new log block to the parsing buffer of recv_sys if
-recv_sys->parse_start_lsn is non-zero.
+recv_sys.parse_start_lsn is non-zero.
 @param[in]	log_block	log block to add
 @param[in]	scanned_lsn	lsn of how far we were able to find
 				data in this log block
@@ -127,14 +107,19 @@ bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn);
 
 /** Parse log records from a buffer and optionally store them to a
 hash table to wait merging to file pages.
-@param[in]	checkpoint_lsn	the LSN of the latest checkpoint
-@param[in]	store		whether to store page operations
-@param[in]	apply		whether to apply the records
+@param[in]	checkpoint_lsn		the LSN of the latest checkpoint
+@param[in]	store			whether to store page operations
+@param[in]	available_memory	memory to read the redo logs
+@param[in]	apply			whether to apply the records
 @return whether MLOG_CHECKPOINT record was seen the first time,
 or corruption was noticed */
-bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply);
+bool recv_parse_log_recs(
+	lsn_t		checkpoint_lsn,
+	store_t*	store,
+	ulint		available_memory,
+	bool		apply);
 
-/** Moves the parsing buffer data left to the buffer start. */
+/** Moves the parsing buffer data left to the buffer start */
 void recv_sys_justify_left_parsing_buf();
 
 /** Report optimized DDL operation (without redo log),
@@ -180,23 +165,35 @@ struct recv_t{
 			rec_list;/*!< list of log records for this page */
 };
 
-struct recv_dblwr_t {
-	/** Add a page frame to the doublewrite recovery buffer. */
-	void add(byte* page) {
-		pages.push_back(page);
-	}
+struct recv_dblwr_t
+{
+  /** Add a page frame to the doublewrite recovery buffer. */
+  void add(byte *page) { pages.push_front(page); }
 
-	/** Find a doublewrite copy of a page.
-	@param[in]	space_id	tablespace identifier
-	@param[in]	page_no		page number
-	@return	page frame
-	@retval NULL if no page was found */
-	const byte* find_page(ulint space_id, ulint page_no);
+  /** Validate the page.
+  @param page_id  page identifier
+  @param page     page contents
+  @param space    the tablespace of the page (not available for page 0)
+  @param tmp_buf  2*srv_page_size for decrypting and decompressing any
+  page_compressed or encrypted pages
+  @return whether the page is valid */
+  bool validate_page(const page_id_t page_id, const byte *page,
+                     const fil_space_t *space, byte *tmp_buf);
 
-	typedef std::list<byte*, ut_allocator<byte*> >	list;
+  /** Find a doublewrite copy of a page.
+  @param page_id  page identifier
+  @param space    tablespace (not available for page_id.page_no()==0)
+  @param tmp_buf  2*srv_page_size for decrypting and decompressing any
+  page_compressed or encrypted pages
+  @return page frame
+  @retval NULL if no valid page for page_id was found */
+  byte* find_page(const page_id_t page_id, const fil_space_t *space= NULL,
+                  byte *tmp_buf= NULL);
 
-	/** Recovered doublewrite buffer page frames */
-	list	pages;
+  typedef std::deque<byte*, ut_allocator<byte*> > list;
+
+  /** Recovered doublewrite buffer page frames */
+  list pages;
 };
 
 /** Recovery system data structure */
@@ -214,14 +211,11 @@ struct recv_sys_t{
 	buf_flush_t		flush_type;/*!< type of the flush request.
 				BUF_FLUSH_LRU: flush end of LRU, keeping free blocks.
 				BUF_FLUSH_LIST: flush all of blocks. */
-	ibool		apply_log_recs;
-				/*!< this is TRUE when log rec application to
-				pages is allowed; this flag tells the
-				i/o-handler if it should do log record
-				application */
-	ibool		apply_batch_on;
-				/*!< this is TRUE when a log rec application
-				batch is running */
+	/** whether recv_recover_page(), invoked from buf_page_io_complete(),
+	should apply log records*/
+	bool		apply_log_recs;
+	/** whether recv_apply_hashed_log_recs() is running */
+	bool		apply_batch_on;
 	byte*		buf;	/*!< buffer for parsing log records */
 	size_t		buf_size;	/*!< size of buf */
 	ulint		len;	/*!< amount of data in buf */
@@ -254,7 +248,7 @@ struct recv_sys_t{
 				/*!< the LSN of a MLOG_CHECKPOINT
 				record, or 0 if none was parsed */
 	/** the time when progress was last reported */
-	ib_time_t	progress_time;
+	time_t		progress_time;
 	mem_heap_t*	heap;	/*!< memory heap of log records and file
 				addresses*/
 	hash_table_t*	addr_hash;/*!< hash table of file addresses of pages */
@@ -275,11 +269,37 @@ struct recv_sys_t{
 	/** Lastly added LSN to the hash table of log records. */
 	lsn_t		last_stored_lsn;
 
+	/** Initialize the redo log recovery subsystem. */
+	void create();
+
+	/** Free most recovery data structures. */
+	void debug_free();
+
+	/** Clean up after create() */
+	void close();
+
+	bool is_initialised() const { return buf_size != 0; }
+
+	/** Store a redo log record for applying.
+	@param type	record type
+	@param space	tablespace identifier
+	@param page_no	page number
+	@param body	record body
+	@param rec_end	end of record
+	@param lsn	start LSN of the mini-transaction
+	@param end_lsn	end LSN of the mini-transaction */
+	inline void add(mlog_id_t type, ulint space, ulint page_no,
+			byte* body, byte* rec_end, lsn_t lsn,
+			lsn_t end_lsn);
+
+	/** Empty a fully processed set of stored redo log records. */
+	inline void empty();
+
 	/** Determine whether redo log recovery progress should be reported.
 	@param[in]	time	the current time
 	@return	whether progress should be reported
 		(the last report was at least 15 seconds ago) */
-	bool report(ib_time_t time)
+	bool report(time_t time)
 	{
 		if (time - progress_time < 15) {
 			return false;
@@ -291,7 +311,7 @@ struct recv_sys_t{
 };
 
 /** The recovery system */
-extern recv_sys_t*	recv_sys;
+extern recv_sys_t	recv_sys;
 
 /** TRUE when applying redo log records during crash recovery; FALSE
 otherwise.  Note that this is FALSE while a background thread is
@@ -328,10 +348,22 @@ times! */
 roll-forward */
 #define RECV_SCAN_SIZE		(4U << srv_page_size_shift)
 
-/** This many frames must be left free in the buffer pool when we scan
-the log and store the scanned log records in the buffer pool: we will
-use these free frames to read in pages when we start applying the
-log records to the database. */
-extern ulint	recv_n_pool_free_frames;
+/** This is a low level function for the recovery system
+to create a page which has buffered intialized redo log records.
+@param[in]	page_id	page to be created using redo logs
+@return whether the page creation successfully */
+buf_block_t* recv_recovery_create_page_low(const page_id_t page_id);
+
+/** Recovery system creates a page which has buffered intialized
+redo log records.
+@param[in]	page_id	page to be created using redo logs
+@return block which contains page was initialized */
+inline buf_block_t* recv_recovery_create_page(const page_id_t page_id)
+{
+  if (UNIV_LIKELY(!recv_recovery_on))
+    return NULL;
+
+  return recv_recovery_create_page_low(page_id);
+}
 
 #endif

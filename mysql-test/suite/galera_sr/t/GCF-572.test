@@ -1,0 +1,78 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+#
+# Test 1: statement rollback is not safe.
+# Statement has already replicated some fragments
+#
+--connection node_1
+SET SESSION wsrep_trx_fragment_size = 1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY);
+INSERT INTO t2 VALUES (1),(2),(3);
+ALTER TABLE t2 DROP PRIMARY KEY;
+INSERT INTO t2 VALUES (1);
+
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+
+# The following INSERT .. SELECT inserts a duplicate key,
+# ER_LOCK_DEADLOCK is the only possible outcome at this point.
+# Notice that ER_DUP_ENTRY is NOT an option here because we were
+# forced to rollback the whole transaction (not just the statement)
+--error ER_LOCK_DEADLOCK
+INSERT INTO t1 SELECT * FROM t2;
+SELECT * FROM t1;
+
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+DROP TABLE t2;
+
+#
+# Test 2: statement rollback is safe.
+# Fragments were already replicated, not in the same statement
+#
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 CHAR(10)) ENGINE=InnoDB;
+--connection node_1
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, 'node1');
+
+--connection node_1a
+INSERT INTO t1 VALUES (5, 'node2');
+
+--connection node_1
+# Only the statement is rolled back, expect ER_DUP_ENTRY
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (5, 'node1');
+
+SELECT * FROM t1;
+
+#
+# Test 3: statement rollback is safe
+# No fragments have been replicated
+#
+SET SESSION wsrep_trx_fragment_size = 10000;
+
+START TRANSACTION;
+INSERT INTO t1 VALUE (10, 'node1');
+SELECT * FROM mysql.wsrep_streaming_log;
+
+--connection node_1a
+INSERT INTO t1 VALUES(15, 'node2');
+
+--connection node_1
+SELECT * FROM t1;
+# This time, only the statement is rolled back and we expect ER_DUP_ENTRY.
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES(15, 'node1');
+
+COMMIT;
+SELECT * FROM t1;
+
+DROP TABLE t1;

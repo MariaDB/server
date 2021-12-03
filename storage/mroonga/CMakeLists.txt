@@ -15,9 +15,9 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 2.8.12)
 project(mroonga)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -80,7 +80,7 @@ else()
   set(MRN_SOURCE_DIR ${CMAKE_SOURCE_DIR})
 endif()
 
-file(READ ${MRN_SOURCE_DIR}/version        MRN_VERSION)
+file(READ ${MRN_SOURCE_DIR}/version_full   MRN_VERSION)
 file(READ ${MRN_SOURCE_DIR}/version_major  MRN_VERSION_MAJOR)
 file(READ ${MRN_SOURCE_DIR}/version_minor  MRN_VERSION_MINOR)
 file(READ ${MRN_SOURCE_DIR}/version_micro  MRN_VERSION_MICRO)
@@ -219,8 +219,7 @@ set(MYSQL_INCLUDE_DIRS
   "${MYSQL_REGEX_INCLUDE_DIR}"
   "${MYSQL_RAPIDJSON_INCLUDE_DIR}"
   "${MYSQL_LIBBINLOGEVENTS_EXPORT_DIR}"
-  "${MYSQL_LIBBINLOGEVENTS_INCLUDE_DIR}"
-  "${MYSQL_SOURCE_DIR}")
+  "${MYSQL_LIBBINLOGEVENTS_INCLUDE_DIR}")
 
 if(MRN_BUNDLED)
   set(MYSQL_PLUGIN_DIR "${INSTALL_PLUGINDIR}")
@@ -361,12 +360,7 @@ else()
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-parameter")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-strict-aliasing")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-deprecated")
-    if(("${MYSQL_VARIANT}" STREQUAL "MariaDB") OR
-        ("${MYSQL_VARIANT}" STREQUAL "MySQL" AND
-         ${MYSQL_VERSION} VERSION_LESS "5.7.0"))
-      MY_CHECK_AND_SET_COMPILER_FLAG("-fno-exceptions")
-      MY_CHECK_AND_SET_COMPILER_FLAG("-fno-rtti")
-    endif()
+    MY_CHECK_AND_SET_COMPILER_FLAG("-fno-exceptions")
     MY_CHECK_AND_SET_COMPILER_FLAG("-felide-constructors")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
   endif()

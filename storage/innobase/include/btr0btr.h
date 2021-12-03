@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,12 +28,10 @@ Created 6/2/1994 Heikki Tuuri
 #ifndef btr0btr_h
 #define btr0btr_h
 
-#include "univ.i"
-
 #include "dict0dict.h"
 #include "data0data.h"
+#include "rem0types.h"
 #include "page0cur.h"
-#include "mtr0mtr.h"
 #include "btr0types.h"
 #include "gis0type.h"
 
@@ -175,24 +173,19 @@ record is in spatial index */
 				| BTR_LATCH_FOR_DELETE		\
 				| BTR_MODIFY_EXTERNAL)))
 
-/**************************************************************//**
-Report that an index page is corrupted. */
-void
-btr_corruption_report(
-/*==================*/
-	const buf_block_t*	block,	/*!< in: corrupted block */
-	const dict_index_t*	index)	/*!< in: index tree */
-	ATTRIBUTE_COLD __attribute__((nonnull));
+/** Report that an index page is corrupted.
+@param[in]	buffer block
+@param[in]	index tree */
+ATTRIBUTE_COLD ATTRIBUTE_NORETURN __attribute__((nonnull))
+void btr_corruption_report(const buf_block_t* block,const dict_index_t* index);
 
 /** Assert that a B-tree page is not corrupted.
 @param block buffer block containing a B-tree page
 @param index the B-tree index */
-#define btr_assert_not_corrupted(block, index)			\
-	if ((ibool) !!page_is_comp(buf_block_get_frame(block))	\
-	    != dict_table_is_comp((index)->table)) {		\
-		btr_corruption_report(block, index);		\
-		ut_error;					\
-	}
+#define btr_assert_not_corrupted(block, index)		\
+	if (!!page_is_comp(buf_block_get_frame(block))	\
+	    != index->table->not_redundant())		\
+		btr_corruption_report(block, index)
 
 /**************************************************************//**
 Gets the root node of a tree and sx-latches it for segment access.
@@ -221,12 +214,13 @@ the index.
 ulint
 btr_height_get(
 /*===========*/
-	dict_index_t*	index,	/*!< in: index tree */
+	const dict_index_t*	index,	/*!< in: index tree */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Gets a buffer page and declares its latching order level.
 @param[in]	page_id	page id
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	mode	latch mode
 @param[in]	file	file name
 @param[in]	line	line where called
@@ -238,52 +232,23 @@ UNIV_INLINE
 buf_block_t*
 btr_block_get_func(
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint			mode,
 	const char*		file,
 	unsigned		line,
 	dict_index_t*		index,
 	mtr_t*			mtr);
 
-# ifdef UNIV_DEBUG
 /** Gets a buffer page and declares its latching order level.
 @param page_id tablespace/page identifier
-@param page_size page size
+@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
 @param mode latch mode
 @param index index tree, may be NULL if not the insert buffer tree
 @param mtr mini-transaction handle
 @return the block descriptor */
-#  define btr_block_get(page_id, page_size, mode, index, mtr)	\
-	btr_block_get_func(page_id, page_size, mode,		\
+# define btr_block_get(page_id, zip_size, mode, index, mtr)	\
+	btr_block_get_func(page_id, zip_size, mode,		\
 		__FILE__, __LINE__, (dict_index_t*)index, mtr)
-# else /* UNIV_DEBUG */
-/** Gets a buffer page and declares its latching order level.
-@param page_id tablespace/page identifier
-@param page_size page size
-@param mode latch mode
-@param index index tree, may be NULL if not the insert buffer tree
-@param mtr mini-transaction handle
-@return the block descriptor */
-#  define btr_block_get(page_id, page_size, mode, index, mtr)	\
-	btr_block_get_func(page_id, page_size, mode, __FILE__, __LINE__, (dict_index_t*)index, mtr)
-# endif /* UNIV_DEBUG */
-/** Gets a buffer page and declares its latching order level.
-@param page_id tablespace/page identifier
-@param page_size page size
-@param mode latch mode
-@param index index tree, may be NULL if not the insert buffer tree
-@param mtr mini-transaction handle
-@return the uncompressed page frame */
-UNIV_INLINE
-page_t*
-btr_page_get(
-/*=========*/
-	const page_id_t		page_id,
-	const page_size_t&	page_size,
-	ulint			mode,
-	dict_index_t*		index,
-	mtr_t*			mtr)
-	MY_ATTRIBUTE((warn_unused_result));
 /**************************************************************//**
 Gets the index id field of a page.
 @return index id */
@@ -311,26 +276,23 @@ btr_page_get_level(const page_t* page)
 
 	return(level);
 } MY_ATTRIBUTE((warn_unused_result))
-/********************************************************//**
-Gets the next index page number.
-@return next page number */
-UNIV_INLINE
-ulint
-btr_page_get_next(
-/*==============*/
-	const page_t*	page,	/*!< in: index page */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle */
-	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************//**
-Gets the previous index page number.
-@return prev page number */
-UNIV_INLINE
-ulint
-btr_page_get_prev(
-/*==============*/
-	const page_t*	page,	/*!< in: index page */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle */
-	MY_ATTRIBUTE((warn_unused_result));
+
+/** Read FIL_PAGE_NEXT.
+@param page  buffer pool page
+@return previous page number */
+inline uint32_t btr_page_get_next(const page_t* page)
+{
+  return mach_read_from_4(page + FIL_PAGE_NEXT);
+}
+
+/** Read FIL_PAGE_PREV.
+@param page  buffer pool page
+@return previous page number */
+inline uint32_t btr_page_get_prev(const page_t* page)
+{
+  return mach_read_from_4(page + FIL_PAGE_PREV);
+}
+
 /**************************************************************//**
 Releases the latch on a leaf page and bufferunfixes it. */
 UNIV_INLINE
@@ -354,7 +316,7 @@ ulint
 btr_node_ptr_get_child_page_no(
 /*===========================*/
 	const rec_t*	rec,	/*!< in: node pointer record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Create the root node for a new index tree.
@@ -375,23 +337,19 @@ btr_create(
 
 /** Free a persistent index tree if it exists.
 @param[in]	page_id		root page id
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	index_id	PAGE_INDEX_ID contents
 @param[in,out]	mtr		mini-transaction */
 void
 btr_free_if_exists(
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	index_id_t		index_id,
 	mtr_t*			mtr);
 
-/** Free an index tree in a temporary tablespace or during TRUNCATE TABLE.
-@param[in]	page_id		root page id
-@param[in]	page_size	page size */
-void
-btr_free(
-	const page_id_t		page_id,
-	const page_size_t&	page_size);
+/** Free an index tree in a temporary tablespace.
+@param[in]	page_id		root page id */
+void btr_free(const page_id_t page_id);
 
 /** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC.
 @param[in,out]	index	clustered index
@@ -442,7 +400,7 @@ btr_root_raise_and_insert(
 				on the root page; when the function returns,
 				the cursor is positioned on the predecessor
 				of the inserted record */
-	ulint**		offsets,/*!< out: offsets on inserted record */
+	rec_offs**	offsets,/*!< out: offsets on inserted record */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap
 				that can be emptied, or NULL */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
@@ -492,30 +450,22 @@ btr_page_reorganize(
 	dict_index_t*	index,	/*!< in: the index tree of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
-/*************************************************************//**
-Decides if the page should be split at the convergence point of
-inserts converging to left.
-@return TRUE if split recommended */
-ibool
-btr_page_get_split_rec_to_left(
-/*===========================*/
-	btr_cur_t*	cursor,	/*!< in: cursor at which to insert */
-	rec_t**		split_rec)/*!< out: if split recommended,
-				the first record on upper half page,
-				or NULL if tuple should be first */
-	MY_ATTRIBUTE((warn_unused_result));
-/*************************************************************//**
-Decides if the page should be split at the convergence point of
-inserts converging to right.
-@return TRUE if split recommended */
-ibool
-btr_page_get_split_rec_to_right(
-/*============================*/
-	btr_cur_t*	cursor,	/*!< in: cursor at which to insert */
-	rec_t**		split_rec)/*!< out: if split recommended,
-				the first record on upper half page,
-				or NULL if tuple should be first */
-	MY_ATTRIBUTE((warn_unused_result));
+/** Decide if the page should be split at the convergence point of inserts
+converging to the left.
+@param[in]	cursor	insert position
+@return the first record to be moved to the right half page
+@retval	NULL if no split is recommended */
+rec_t* btr_page_get_split_rec_to_left(const btr_cur_t* cursor);
+/** Decide if the page should be split at the convergence point of inserts
+converging to the right.
+@param[in]	cursor		insert position
+@param[out]	split_rec	if split recommended, the first record
+				on the right half page, or
+				NULL if the to-be-inserted record
+				should be first
+@return whether split is recommended */
+bool
+btr_page_get_split_rec_to_right(const btr_cur_t* cursor, rec_t** split_rec);
 
 /*************************************************************//**
 Splits an index page to halves and inserts the tuple. It is assumed
@@ -533,7 +483,7 @@ btr_page_split_and_insert(
 	btr_cur_t*	cursor,	/*!< in: cursor at which to insert; when the
 				function returns, the cursor is positioned
 				on the predecessor of the inserted record */
-	ulint**		offsets,/*!< out: offsets on inserted record */
+	rec_offs**	offsets,/*!< out: offsets on inserted record */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap
 				that can be emptied, or NULL */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
@@ -555,22 +505,17 @@ btr_insert_on_non_leaf_level_func(
 	mtr_t*		mtr);	/*!< in: mtr */
 #define btr_insert_on_non_leaf_level(f,i,l,t,m)			\
 	btr_insert_on_non_leaf_level_func(f,i,l,t,__FILE__,__LINE__,m)
-/****************************************************************//**
-Sets a record as the predefined minimum record. */
-void
-btr_set_min_rec_mark(
-/*=================*/
-	rec_t*	rec,	/*!< in/out: record */
-	mtr_t*	mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
-/*************************************************************//**
-Deletes on the upper level the node pointer to a page. */
-void
-btr_node_ptr_delete(
-/*================*/
-	dict_index_t*	index,	/*!< in: index tree */
-	buf_block_t*	block,	/*!< in: page whose node pointer is deleted */
-	mtr_t*		mtr)	/*!< in: mtr */
+
+/** Sets a record as the predefined minimum record. */
+void btr_set_min_rec_mark(rec_t* rec, mtr_t* mtr) MY_ATTRIBUTE((nonnull));
+
+/** Seek to the parent page of a B-tree page.
+@param[in,out]	index	b-tree
+@param[in]	block	child page
+@param[in,out]	mtr	mini-transaction
+@param[out]	cursor	cursor pointing to the x-latched parent page */
+void btr_page_get_father(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
+			 btr_cur_t* cursor)
 	MY_ATTRIBUTE((nonnull));
 #ifdef UNIV_DEBUG
 /************************************************************//**
@@ -647,7 +592,7 @@ Gets the number of pages in a B-tree.
 ulint
 btr_get_size(
 /*=========*/
-	dict_index_t*	index,	/*!< in: index */
+	const dict_index_t*	index,	/*!< in: index */
 	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
 				is s-latched */
@@ -689,16 +634,6 @@ btr_page_alloc(
 					for x-latching and initializing
 					the page */
 	MY_ATTRIBUTE((warn_unused_result));
-/**************************************************************//**
-Frees a file page used in an index tree. NOTE: cannot free field external
-storage pages because the page must contain info on its level. */
-void
-btr_page_free(
-/*==========*/
-	dict_index_t*	index,	/*!< in: index tree */
-	buf_block_t*	block,	/*!< in: block to be freed, x-latched */
-	mtr_t*		mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
 /** Empty an index page (possibly the root page). @see btr_page_create().
 @param[in,out]	block		page to be emptied
 @param[in,out]	page_zip	compressed page frame, or NULL
@@ -724,18 +659,16 @@ btr_page_create(
 	dict_index_t*	index,	/*!< in: index */
 	ulint		level,	/*!< in: the B-tree level of the page */
 	mtr_t*		mtr);	/*!< in: mtr */
-/**************************************************************//**
-Frees a file page used in an index tree. Can be used also to BLOB
-external storage pages. */
-void
-btr_page_free_low(
-/*==============*/
-	dict_index_t*	index,	/*!< in: index tree */
-	buf_block_t*	block,	/*!< in: block to be freed, x-latched */
-	ulint		level,	/*!< in: page level (ULINT_UNDEFINED=BLOB) */
-	bool		blob,   /*!< in: blob page */
-	mtr_t*		mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull(1,2)));
+
+/** Free an index page.
+@param[in,out]	index	index tree
+@param[in,out]	block	block to be freed
+@param[in,out]	mtr	mini-transaction
+@param[in]	blob	whether this is freeing a BLOB page */
+MY_ATTRIBUTE((nonnull))
+void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
+		   bool blob = false);
+
 /**************************************************************//**
 Gets the root node of a tree and x- or s-latches it.
 @return root page, x- or s-latched */
@@ -812,21 +745,24 @@ dberr_t
 btr_validate_index(
 /*===============*/
 	dict_index_t*	index,	/*!< in: index */
-	const trx_t*	trx,	/*!< in: transaction or 0 */
-	bool		lockout)/*!< in: true if X-latch index is intended */
+	const trx_t*	trx)	/*!< in: transaction or 0 */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/*************************************************************//**
-Removes a page from the level list of pages. */
-UNIV_INTERN
-void
+/** Remove a page from the level list of pages.
+@param[in]	space		space where removed
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in,out]	page		page to remove
+@param[in]	index		index tree
+@param[in,out]	mtr		mini-transaction */
+dberr_t
 btr_level_list_remove_func(
-/*=======================*/
-	ulint			space,	/*!< in: space where removed */
-	const page_size_t&	page_size,/*!< in: page size */
-	page_t*			page,	/*!< in/out: page to remove */
-	dict_index_t*		index,	/*!< in: index tree */
-	mtr_t*			mtr);	/*!< in/out: mini-transaction */
+	ulint			space,
+	ulint			zip_size,
+	page_t*			page,
+	dict_index_t*		index,
+	mtr_t*			mtr)
+	MY_ATTRIBUTE((warn_unused_result));
+
 /*************************************************************//**
 Removes a page from the level list of pages.
 @param space	in: space where removed
@@ -861,5 +797,6 @@ btr_lift_page_up(
 /****************************************************************
 Global variable controlling if scrubbing should be performed */
 extern my_bool srv_immediate_scrub_data_uncompressed;
+extern Atomic_counter<uint32_t> btr_validate_index_running;
 
 #endif

@@ -433,3 +433,81 @@ ntile((select a from t1)) over (partition by b order by pk)
 from t1;
 ERROR 21000: Subquery returns more than 1 row
 drop table t1;
+#
+# MDEV-9911 NTILE must return an error when parameter is not stable
+#
+create table t1 (
+pk int primary key,
+c1 nvarchar(10),
+c2 nvarchar(10),
+c3 int
+);
+insert into t1 values
+(1, 'Mark', 'Male', 5),
+(2, 'John', 'Male', 5),
+(3, 'Pam', 'Female', 6),
+(4, 'Sara', 'Female', 6),
+(5, 'Todd', 'Male', 5),
+(6, 'Mary', 'Female', 6),
+(7, 'Ben', 'Male', 5),
+(8, 'Jodi', 'Female', 6),
+(9, 'Tom', 'Male', 5),
+(10, 'Lucky', 'Male', 5),
+(11, 'Mark', 'Male', 5),
+(12, 'John', 'Male', 5),
+(13, 'Pam', 'Female', 6),
+(14, 'Sara', 'Female', 6),
+(15, 'Todd', 'Male', 5),
+(16, 'Mary', 'Female', 6),
+(17, 'Ben', 'Male', 5),
+(18, 'Jodi', 'Female', 6),
+(19, 'Tom', 'Male', 5),
+(20, 'Lucky', 'Male', 5);
+select c1, c2, c3, ntile(6) over (partition by c2 order by pk) from t1;
+c1	c2	c3	ntile(6) over (partition by c2 order by pk)
+Pam	Female	6	1
+Sara	Female	6	1
+Mary	Female	6	2
+Jodi	Female	6	2
+Pam	Female	6	3
+Sara	Female	6	4
+Mary	Female	6	5
+Jodi	Female	6	6
+Mark	Male	5	1
+John	Male	5	1
+Todd	Male	5	2
+Ben	Male	5	2
+Tom	Male	5	3
+Lucky	Male	5	3
+Mark	Male	5	4
+John	Male	5	4
+Todd	Male	5	5
+Ben	Male	5	5
+Tom	Male	5	6
+Lucky	Male	5	6
+select c1, c2, c3, ntile(c3) over (partition by c2 order by pk) from t1;
+c1	c2	c3	ntile(c3) over (partition by c2 order by pk)
+Pam	Female	6	1
+Sara	Female	6	1
+Mary	Female	6	2
+Jodi	Female	6	2
+Pam	Female	6	3
+Sara	Female	6	4
+Mary	Female	6	5
+Jodi	Female	6	6
+Mark	Male	5	1
+John	Male	5	1
+Todd	Male	5	1
+Ben	Male	5	2
+Tom	Male	5	2
+Lucky	Male	5	2
+Mark	Male	5	3
+John	Male	5	3
+Todd	Male	5	4
+Ben	Male	5	4
+Tom	Male	5	5
+Lucky	Male	5	5
+update t1 set c3= 1 where pk = 1;
+select c1, c2, c3, ntile(c3) over (partition by c2 order by pk) from t1;
+ERROR HY000: Argument of NTILE must be greater than 0
+drop table t1;

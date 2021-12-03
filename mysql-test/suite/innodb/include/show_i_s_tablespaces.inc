@@ -9,12 +9,10 @@ SELECT s.name 'Space_Name',
 	s.space_type 'Space_Type',
 	s.page_size 'Page_Size',
 	s.zip_page_size 'Zip_Size',
-	s.row_format 'Formats_Permitted',
 	d.path 'Path'
 	FROM information_schema.innodb_sys_tablespaces s,
 	     information_schema.innodb_sys_datafiles d
 	WHERE s.space = d.space
 	AND s.name NOT LIKE 'mysql/%'
-	AND s.name NOT LIKE 'sys/%'
 	ORDER BY s.space;
 --enable_query_log

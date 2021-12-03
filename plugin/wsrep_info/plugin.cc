@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifndef MYSQL_SERVER
 #define MYSQL_SERVER
@@ -52,37 +52,9 @@
 #define COLUMN_WSREP_STATUS_CLUSTER_STATE_SEQNO 5
 /* Cluster membership changes */
 #define COLUMN_WSREP_STATUS_CLUSTER_CONF_ID 6
-/* Gap between global and local states ? */
-#define COLUMN_WSREP_STATUS_GAP 7
 /* Application protocol version */
-#define COLUMN_WSREP_STATUS_PROTO_VERSION 8
+#define COLUMN_WSREP_STATUS_PROTO_VERSION 7
 
-static const char* get_member_status(wsrep_member_status_t status)
-{
-  switch (status)
-  {
-    case WSREP_MEMBER_UNDEFINED: return "Undefined";
-    case WSREP_MEMBER_JOINER: return "Joiner";
-    case WSREP_MEMBER_DONOR: return "Donor";
-    case WSREP_MEMBER_JOINED: return "Joined";
-    case WSREP_MEMBER_SYNCED: return "Synced";
-    case WSREP_MEMBER_ERROR: return "Error";
-    default: break;
-  }
-  return "UNKNOWN";
-}
-
-static const char* get_cluster_status(wsrep_view_status_t status)
-{
-  switch (status)
-  {
-    case WSREP_VIEW_PRIMARY: return "Primary";
-    case WSREP_VIEW_NON_PRIMARY: return "Non-primary";
-    case WSREP_VIEW_DISCONNECTED: return "Disconnected";
-    default: break;
-  }
-  return "UNKNOWN";
-}
 
 static ST_FIELD_INFO wsrep_memb_fields[]=
 {
@@ -107,7 +79,6 @@ static ST_FIELD_INFO wsrep_status_fields[]=
     0, 0, 0, 0},
   {"CLUSTER_CONF_ID", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG,
     0, 0, 0, 0},
-  {"GAP", 10, MYSQL_TYPE_STRING, 0, 0, 0, 0},
   {"PROTOCOL_VERSION", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG,
     0, 0, 0, 0},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
@@ -122,25 +93,26 @@ static int wsrep_memb_fill_table(THD *thd, TABLE_LIST *tables, COND *cond)
 
   wsrep_config_state->lock();
 
-  Dynamic_array<wsrep_member_info_t> *memb_arr=
-    wsrep_config_state->get_member_info();
+  const wsrep::view& view(wsrep_config_state->get_view_info());
+  const std::vector<wsrep::view::member>& members(view.members());
+
 
   TABLE *table= tables->table;
 
-  for (unsigned int i= 0; i < memb_arr->elements(); i ++)
+  for (unsigned int i= 0; i < members.size(); i++)
   {
-    wsrep_member_info_t memb= memb_arr->at(i);
-
     table->field[COLUMN_WSREP_MEMB_INDEX]->store(i, 0);
 
-    char uuid[40];
-    wsrep_uuid_print(&memb.id, uuid, sizeof(uuid));
-    table->field[COLUMN_WSREP_MEMB_UUID]->store(uuid, sizeof(uuid),
+    std::ostringstream os;
+    os << members[i].id();
+    table->field[COLUMN_WSREP_MEMB_UUID]->store(os.str().c_str(),
+                                                os.str().length(),
                                                 system_charset_info);
-    table->field[COLUMN_WSREP_MEMB_NAME]->store(memb.name, strlen(memb.name),
+    table->field[COLUMN_WSREP_MEMB_NAME]->store(members[i].name().c_str(),
+                                                members[i].name().length(),
                                                 system_charset_info);
-    table->field[COLUMN_WSREP_MEMB_ADDRESS]->store(memb.incoming,
-                                                   strlen(memb.incoming),
+    table->field[COLUMN_WSREP_MEMB_ADDRESS]->store(members[i].incoming().c_str(),
+                                                   members[i].incoming().length(),
                                                    system_charset_info);
 
     if (schema_table_store_record(thd, table))
@@ -177,35 +149,34 @@ static int wsrep_status_fill_table(THD *thd, TABLE_LIST *tables, COND *cond)
 
   wsrep_config_state->lock();
 
-  wsrep_view_info_t view= wsrep_config_state->get_view_info();
-  wsrep_member_status_t status= wsrep_config_state->get_status();
+  const wsrep::view& view= wsrep_config_state->get_view_info();
+  enum wsrep::server_state::state status= wsrep_config_state->get_status();
 
   TABLE *table= tables->table;
 
   table->field[COLUMN_WSREP_STATUS_NODE_INDEX]
-    ->store(view.my_idx, 0);
+    ->store(view.own_index(), 0);
   table->field[COLUMN_WSREP_STATUS_NODE_STATUS]
-    ->store(get_member_status(status), strlen(get_member_status(status)),
+    ->store(to_c_string(status),
+            strlen(to_c_string(status)),
             system_charset_info);
   table->field[COLUMN_WSREP_STATUS_CLUSTER_STATUS]
-    ->store(get_cluster_status(view.status),
-            strlen(get_cluster_status(view.status)),
+    ->store(to_c_string(view.status()),
+            strlen(to_c_string(view.status())),
             system_charset_info);
-  table->field[COLUMN_WSREP_STATUS_CLUSTER_SIZE]->store(view.memb_num, 0);
+  table->field[COLUMN_WSREP_STATUS_CLUSTER_SIZE]->store(view.members().size(), 0);
 
-  char uuid[40];
-  wsrep_uuid_print(&view.state_id.uuid, uuid, sizeof(uuid));
+  std::ostringstream os;
+  os << view.state_id().id();
   table->field[COLUMN_WSREP_STATUS_CLUSTER_STATE_UUID]
-    ->store(uuid, sizeof(uuid), system_charset_info);
+    ->store(os.str().c_str(), os.str().length(), system_charset_info);
 
   table->field[COLUMN_WSREP_STATUS_CLUSTER_STATE_SEQNO]
-    ->store(view.state_id.seqno, 0);
-  table->field[COLUMN_WSREP_STATUS_CLUSTER_CONF_ID]->store(view.view, 0);
-
-  const char *gap= (view.state_gap == true) ? "YES" : "NO";
-  table->field[COLUMN_WSREP_STATUS_GAP]->store(gap, strlen(gap),
-                                               system_charset_info);
-  table->field[COLUMN_WSREP_STATUS_PROTO_VERSION]->store(view.proto_ver, 0);
+    ->store(view.state_id().seqno().get(), 0);
+  table->field[COLUMN_WSREP_STATUS_CLUSTER_CONF_ID]
+    ->store(view.view_seqno().get(), 0);
+  table->field[COLUMN_WSREP_STATUS_PROTO_VERSION]
+    ->store(view.protocol_version(), 0);
 
   if (schema_table_store_record(thd, table))
     rc= 1;

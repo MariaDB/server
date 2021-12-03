@@ -98,70 +98,70 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
 Warnings:
-Warning	1366	Incorrect string value: '\x80 ' for column 'a' at row 1
-Warning	1366	Incorrect string value: '\x80!' for column 'a' at row 2
-Warning	1366	Incorrect string value: '\x80"' for column 'a' at row 3
-Warning	1366	Incorrect string value: '\x80#' for column 'a' at row 4
-Warning	1366	Incorrect string value: '\x80$' for column 'a' at row 5
-Warning	1366	Incorrect string value: '\x80%' for column 'a' at row 6
-Warning	1366	Incorrect string value: '\x80&' for column 'a' at row 7
-Warning	1366	Incorrect string value: '\x80'' for column 'a' at row 8
-Warning	1366	Incorrect string value: '\x80(' for column 'a' at row 9
-Warning	1366	Incorrect string value: '\x80)' for column 'a' at row 10
-Warning	1366	Incorrect string value: '\x80*' for column 'a' at row 11
-Warning	1366	Incorrect string value: '\x80+' for column 'a' at row 12
-Warning	1366	Incorrect string value: '\x80,' for column 'a' at row 13
-Warning	1366	Incorrect string value: '\x80-' for column 'a' at row 14
-Warning	1366	Incorrect string value: '\x80.' for column 'a' at row 15
-Warning	1366	Incorrect string value: '\x80/' for column 'a' at row 16
-Warning	1366	Incorrect string value: '\x800' for column 'a' at row 17
-Warning	1366	Incorrect string value: '\x801' for column 'a' at row 18
-Warning	1366	Incorrect string value: '\x802' for column 'a' at row 19
-Warning	1366	Incorrect string value: '\x803' for column 'a' at row 20
-Warning	1366	Incorrect string value: '\x804' for column 'a' at row 21
-Warning	1366	Incorrect string value: '\x805' for column 'a' at row 22
-Warning	1366	Incorrect string value: '\x806' for column 'a' at row 23
-Warning	1366	Incorrect string value: '\x807' for column 'a' at row 24
-Warning	1366	Incorrect string value: '\x808' for column 'a' at row 25
-Warning	1366	Incorrect string value: '\x809' for column 'a' at row 26
-Warning	1366	Incorrect string value: '\x80:' for column 'a' at row 27
-Warning	1366	Incorrect string value: '\x80;' for column 'a' at row 28
-Warning	1366	Incorrect string value: '\x80<' for column 'a' at row 29
-Warning	1366	Incorrect string value: '\x80=' for column 'a' at row 30
-Warning	1366	Incorrect string value: '\x80>' for column 'a' at row 31
-Warning	1366	Incorrect string value: '\x80?' for column 'a' at row 32
-Warning	1366	Incorrect string value: '\x80@' for column 'a' at row 33
-Warning	1366	Incorrect string value: '\x80A' for column 'a' at row 34
-Warning	1366	Incorrect string value: '\x80B' for column 'a' at row 35
-Warning	1366	Incorrect string value: '\x80C' for column 'a' at row 36
-Warning	1366	Incorrect string value: '\x80D' for column 'a' at row 37
-Warning	1366	Incorrect string value: '\x80E' for column 'a' at row 38
-Warning	1366	Incorrect string value: '\x80F' for column 'a' at row 39
-Warning	1366	Incorrect string value: '\x80G' for column 'a' at row 40
-Warning	1366	Incorrect string value: '\x80H' for column 'a' at row 41
-Warning	1366	Incorrect string value: '\x80I' for column 'a' at row 42
-Warning	1366	Incorrect string value: '\x80J' for column 'a' at row 43
-Warning	1366	Incorrect string value: '\x80K' for column 'a' at row 44
-Warning	1366	Incorrect string value: '\x80L' for column 'a' at row 45
-Warning	1366	Incorrect string value: '\x80M' for column 'a' at row 46
-Warning	1366	Incorrect string value: '\x80N' for column 'a' at row 47
-Warning	1366	Incorrect string value: '\x80O' for column 'a' at row 48
-Warning	1366	Incorrect string value: '\x80P' for column 'a' at row 49
-Warning	1366	Incorrect string value: '\x80Q' for column 'a' at row 50
-Warning	1366	Incorrect string value: '\x80R' for column 'a' at row 51
-Warning	1366	Incorrect string value: '\x80S' for column 'a' at row 52
-Warning	1366	Incorrect string value: '\x80T' for column 'a' at row 53
-Warning	1366	Incorrect string value: '\x80U' for column 'a' at row 54
-Warning	1366	Incorrect string value: '\x80V' for column 'a' at row 55
-Warning	1366	Incorrect string value: '\x80W' for column 'a' at row 56
-Warning	1366	Incorrect string value: '\x80X' for column 'a' at row 57
-Warning	1366	Incorrect string value: '\x80Y' for column 'a' at row 58
-Warning	1366	Incorrect string value: '\x80Z' for column 'a' at row 59
-Warning	1366	Incorrect string value: '\x80[' for column 'a' at row 60
-Warning	1366	Incorrect string value: '\x80\' for column 'a' at row 61
-Warning	1366	Incorrect string value: '\x80]' for column 'a' at row 62
-Warning	1366	Incorrect string value: '\x80^' for column 'a' at row 63
-Warning	1366	Incorrect string value: '\x80_' for column 'a' at row 64
+Warning	1366	Incorrect string value: '\x80 ' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect string value: '\x80!' for column `test`.`t1`.`a` at row 2
+Warning	1366	Incorrect string value: '\x80"' for column `test`.`t1`.`a` at row 3
+Warning	1366	Incorrect string value: '\x80#' for column `test`.`t1`.`a` at row 4
+Warning	1366	Incorrect string value: '\x80$' for column `test`.`t1`.`a` at row 5
+Warning	1366	Incorrect string value: '\x80%' for column `test`.`t1`.`a` at row 6
+Warning	1366	Incorrect string value: '\x80&' for column `test`.`t1`.`a` at row 7
+Warning	1366	Incorrect string value: '\x80'' for column `test`.`t1`.`a` at row 8
+Warning	1366	Incorrect string value: '\x80(' for column `test`.`t1`.`a` at row 9
+Warning	1366	Incorrect string value: '\x80)' for column `test`.`t1`.`a` at row 10
+Warning	1366	Incorrect string value: '\x80*' for column `test`.`t1`.`a` at row 11
+Warning	1366	Incorrect string value: '\x80+' for column `test`.`t1`.`a` at row 12
+Warning	1366	Incorrect string value: '\x80,' for column `test`.`t1`.`a` at row 13
+Warning	1366	Incorrect string value: '\x80-' for column `test`.`t1`.`a` at row 14
+Warning	1366	Incorrect string value: '\x80.' for column `test`.`t1`.`a` at row 15
+Warning	1366	Incorrect string value: '\x80/' for column `test`.`t1`.`a` at row 16
+Warning	1366	Incorrect string value: '\x800' for column `test`.`t1`.`a` at row 17
+Warning	1366	Incorrect string value: '\x801' for column `test`.`t1`.`a` at row 18
+Warning	1366	Incorrect string value: '\x802' for column `test`.`t1`.`a` at row 19
+Warning	1366	Incorrect string value: '\x803' for column `test`.`t1`.`a` at row 20
+Warning	1366	Incorrect string value: '\x804' for column `test`.`t1`.`a` at row 21
+Warning	1366	Incorrect string value: '\x805' for column `test`.`t1`.`a` at row 22
+Warning	1366	Incorrect string value: '\x806' for column `test`.`t1`.`a` at row 23
+Warning	1366	Incorrect string value: '\x807' for column `test`.`t1`.`a` at row 24
+Warning	1366	Incorrect string value: '\x808' for column `test`.`t1`.`a` at row 25
+Warning	1366	Incorrect string value: '\x809' for column `test`.`t1`.`a` at row 26
+Warning	1366	Incorrect string value: '\x80:' for column `test`.`t1`.`a` at row 27
+Warning	1366	Incorrect string value: '\x80;' for column `test`.`t1`.`a` at row 28
+Warning	1366	Incorrect string value: '\x80<' for column `test`.`t1`.`a` at row 29
+Warning	1366	Incorrect string value: '\x80=' for column `test`.`t1`.`a` at row 30
+Warning	1366	Incorrect string value: '\x80>' for column `test`.`t1`.`a` at row 31
+Warning	1366	Incorrect string value: '\x80?' for column `test`.`t1`.`a` at row 32
+Warning	1366	Incorrect string value: '\x80@' for column `test`.`t1`.`a` at row 33
+Warning	1366	Incorrect string value: '\x80A' for column `test`.`t1`.`a` at row 34
+Warning	1366	Incorrect string value: '\x80B' for column `test`.`t1`.`a` at row 35
+Warning	1366	Incorrect string value: '\x80C' for column `test`.`t1`.`a` at row 36
+Warning	1366	Incorrect string value: '\x80D' for column `test`.`t1`.`a` at row 37
+Warning	1366	Incorrect string value: '\x80E' for column `test`.`t1`.`a` at row 38
+Warning	1366	Incorrect string value: '\x80F' for column `test`.`t1`.`a` at row 39
+Warning	1366	Incorrect string value: '\x80G' for column `test`.`t1`.`a` at row 40
+Warning	1366	Incorrect string value: '\x80H' for column `test`.`t1`.`a` at row 41
+Warning	1366	Incorrect string value: '\x80I' for column `test`.`t1`.`a` at row 42
+Warning	1366	Incorrect string value: '\x80J' for column `test`.`t1`.`a` at row 43
+Warning	1366	Incorrect string value: '\x80K' for column `test`.`t1`.`a` at row 44
+Warning	1366	Incorrect string value: '\x80L' for column `test`.`t1`.`a` at row 45
+Warning	1366	Incorrect string value: '\x80M' for column `test`.`t1`.`a` at row 46
+Warning	1366	Incorrect string value: '\x80N' for column `test`.`t1`.`a` at row 47
+Warning	1366	Incorrect string value: '\x80O' for column `test`.`t1`.`a` at row 48
+Warning	1366	Incorrect string value: '\x80P' for column `test`.`t1`.`a` at row 49
+Warning	1366	Incorrect string value: '\x80Q' for column `test`.`t1`.`a` at row 50
+Warning	1366	Incorrect string value: '\x80R' for column `test`.`t1`.`a` at row 51
+Warning	1366	Incorrect string value: '\x80S' for column `test`.`t1`.`a` at row 52
+Warning	1366	Incorrect string value: '\x80T' for column `test`.`t1`.`a` at row 53
+Warning	1366	Incorrect string value: '\x80U' for column `test`.`t1`.`a` at row 54
+Warning	1366	Incorrect string value: '\x80V' for column `test`.`t1`.`a` at row 55
+Warning	1366	Incorrect string value: '\x80W' for column `test`.`t1`.`a` at row 56
+Warning	1366	Incorrect string value: '\x80X' for column `test`.`t1`.`a` at row 57
+Warning	1366	Incorrect string value: '\x80Y' for column `test`.`t1`.`a` at row 58
+Warning	1366	Incorrect string value: '\x80Z' for column `test`.`t1`.`a` at row 59
+Warning	1366	Incorrect string value: '\x80[' for column `test`.`t1`.`a` at row 60
+Warning	1366	Incorrect string value: '\x80\' for column `test`.`t1`.`a` at row 61
+Warning	1366	Incorrect string value: '\x80]' for column `test`.`t1`.`a` at row 62
+Warning	1366	Incorrect string value: '\x80^' for column `test`.`t1`.`a` at row 63
+Warning	1366	Incorrect string value: '\x80_' for column `test`.`t1`.`a` at row 64
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 14623
@@ -20418,7 +20418,7 @@ SELECT @@character_set_client, @@character_set_connection, @@character_set_resul
 @@character_set_client	@@character_set_connection	@@character_set_results
 binary	cp932	binary
 SELECT HEX('à\['), HEX('\à\[');
-HEX('à\[')	HEX('\à\[')
+HEX('\xE0\[')	HEX('\\xE0\[')
 E05B	E05B
 CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;

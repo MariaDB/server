@@ -449,24 +449,20 @@ connection default;
 --echo # Let flush table sync in.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush"
+  where state = "Waiting for table metadata lock"
   and info = "flush table t1";
 --source include/wait_condition.inc
-send select * from t1;
+select * from t1;
 connection con1;
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush"
-  and info = "select * from t1";
 select * from t1;
 unlock tables;
+connection default;
+select count(*) from information_schema.processlist where state = "Waiting for table metadata lock";
+commit;
 connection con2;
 --echo # Reaping 'flush table t1'...
 reap;
 connection default;
---echo # Reaping 'select * from t1'...
-reap;
-commit;
 
 --echo #
 --echo # Repeat the same test but with FLUSH TABLES
@@ -480,31 +476,16 @@ connection con1;
 --echo #
 lock table t1 read;
 connection con2;
---echo #
---echo # FLUSH TABLES expels the table definition from the cache.
---echo # Sending 'flush tables'...
 send flush tables;
 connection default;
---echo # Let flush table sync in.
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush"
-  and info = "flush tables";
---source include/wait_condition.inc
-send select * from t1;
+select * from t1;
 connection con1;
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush"
-  and info = "select * from t1";
 select * from t1;
 unlock tables;
 connection con2;
 --echo # Reaping 'flush tables'...
 reap;
 connection default;
---echo # Reaping 'select * from t1'...
-reap;
 commit;
 
 --echo # Cleanup
@@ -566,17 +547,7 @@ create table t2 (i int);
 handler t1 open;
 
 connection con1;
---echo # Sending:
---send flush tables with read lock
-
-connection con2;
---echo # Wait until FTWRL starts waiting for 't1' to be closed.
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush"
-  and info = "flush tables with read lock";
---source include/wait_condition.inc
-
+flush tables with read lock;
 connection default;
 --echo # The below statement should not cause deadlock.
 --echo # Sending:
@@ -586,14 +557,11 @@ connection con2;
 --echo # Wait until INSERT starts to wait for FTWRL to go away.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock"
+  where state = "Waiting for backup lock"
   and info = "insert into t2 values (1)";
 --source include/wait_condition.inc
 
 connection con1;
---echo # FTWRL should be able to continue now.
---echo # Reap FTWRL.
---reap
 unlock tables;
 
 connection default;

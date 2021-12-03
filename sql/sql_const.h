@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /**
   @file
@@ -33,7 +33,17 @@
 #define MAX_SYS_VAR_LENGTH 32
 #define MAX_KEY MAX_INDEXES                     /* Max used keys */
 #define MAX_REF_PARTS 32			/* Max parts used as ref */
-#define MAX_KEY_LENGTH 3072			/* max possible key */
+
+/*
+  Maximum length of the data part of an index lookup key.
+
+  The "data part" is defined as the value itself, not including the
+  NULL-indicator bytes or varchar length bytes ("the Extras"). We need this
+  value because there was a bug where length of the Extras were not counted.
+
+  You probably need MAX_KEY_LENGTH, not this constant.
+*/
+#define MAX_DATA_LENGTH_FOR_KEY 3072
 #if SIZEOF_OFF_T > 4
 #define MAX_REFLENGTH 8				/* Max length for record ref */
 #else
@@ -54,7 +64,7 @@
     CREATE TABLE t1 (c VARBINARY(65534));
     CREATE TABLE t1 (c VARBINARY(65535));
   Like VARCHAR(65536), they will be converted to BLOB automatically
-  in non-sctict mode.
+  in non-strict mode.
 */
 #define MAX_FIELD_VARCHARLENGTH	(65535-2-1)
 #define MAX_FIELD_BLOBLENGTH UINT_MAX32         /* cf field_blob::get_length() */
@@ -194,7 +204,11 @@
   instead of reading with keys.  The number says how many evaluation of the
   WHERE clause is comparable to reading one extra row from a table.
 */
-#define TIME_FOR_COMPARE   5	// 5 compares == one read
+#define TIME_FOR_COMPARE         5	//  5 compares == one read
+#define TIME_FOR_COMPARE_IDX    20
+
+#define IDX_BLOCK_COPY_COST  ((double) 1 / TIME_FOR_COMPARE)
+#define IDX_LOOKUP_COST      ((double) 1 / 8)
 
 /**
   Number of comparisons of table rowids equivalent to reading one row from a 
@@ -232,6 +246,14 @@
 #define HEAP_TEMPTABLE_LOOKUP_COST 0.05
 #define DISK_TEMPTABLE_LOOKUP_COST 1.0
 #define SORT_INDEX_CMP_COST 0.02
+
+
+#define COST_MAX (DBL_MAX * (1.0 - DBL_EPSILON))
+
+#define COST_ADD(c,d) (COST_MAX - (d) > (c) ? (c) + (d) : COST_MAX)
+
+#define COST_MULT(c,f) (COST_MAX / (f) > (c) ? (c) * (f) : COST_MAX)
+
 
 #define MY_CHARSET_BIN_MB_MAXLEN 1
 

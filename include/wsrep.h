@@ -11,29 +11,31 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
-
-#include <my_config.h>
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifndef WSREP_INCLUDED
 #define WSREP_INCLUDED
+
+#include <my_config.h>
 
 #ifdef WITH_WSREP
 #define IF_WSREP(A,B) A
 #define DBUG_ASSERT_IF_WSREP(A) DBUG_ASSERT(A)
 
 #define WSREP_MYSQL_DB (char *)"mysql"
-#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
+
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)              \
   if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) \
     goto wsrep_error_label;
 
-#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_) \
-  if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_,    \
-                                             table_list_, alter_info_))       \
-    goto wsrep_error_label;
+#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, fk_tables_) \
+  if (WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
+      wsrep_to_isolation_begin(thd, db_, table_,                        \
+                               table_list_, alter_info_, fk_tables_))
 
-#define WSREP_TO_ISOLATION_END                                              \
-  if (WSREP_ON && (WSREP(thd) || (thd && thd->wsrep_exec_mode==TOTAL_ORDER))) \
+#define WSREP_TO_ISOLATION_END                                          \
+  if ((WSREP(thd) && wsrep_thd_is_local_toi(thd)) ||                    \
+      wsrep_thd_is_in_rsu(thd))                                         \
     wsrep_to_isolation_end(thd);
 
 /*
@@ -54,19 +56,22 @@
     { if (WSREP_CLIENT(thd_) &&                                         \
           wsrep_sync_wait(thd_, before_)) goto wsrep_error_label; }
 
-#else
+#else /* !WITH_WSREP */
+
+/* These macros are needed to compile MariaDB without WSREP support
+ * (e.g. embedded) */
+
 #define IF_WSREP(A,B) B
-#define DBUG_ASSERT_IF_WSREP(A)
+//#define DBUG_ASSERT_IF_WSREP(A)
 #define WSREP_DEBUG(...)
-#define WSREP_INFO(...)
-#define WSREP_WARN(...)
+//#define WSREP_INFO(...)
+//#define WSREP_WARN(...)
 #define WSREP_ERROR(...)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)
 #define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_)
 #define WSREP_TO_ISOLATION_END
 #define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
 #define WSREP_SYNC_WAIT(thd_, before_)
-
 #endif /* WITH_WSREP */
 
 #endif /* WSREP_INCLUDED */

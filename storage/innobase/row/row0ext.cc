@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,14 +30,14 @@ Created September 2006 Marko Makela
 /** Fills the column prefix cache of an externally stored column.
 @param[in,out]	ext		column prefix cache
 @param[in]	i		index of ext->ext[]
-@param[in]	page_size	page size
+@param[in]	space		tablespace
 @param[in]	dfield		data field */
 static
 void
 row_ext_cache_fill(
 	row_ext_t*		ext,
 	ulint			i,
-	const page_size_t&	page_size,
+	fil_space_t*		space,
 	const dfield_t*		dfield)
 {
 	const byte*	field	= static_cast<const byte*>(
@@ -75,7 +76,8 @@ row_ext_cache_fill(
 			crashed during the execution of
 			btr_free_externally_stored_field(). */
 			ext->len[i] = btr_copy_externally_stored_field_prefix(
-				buf, ext->max_len, page_size, field, f_len);
+				buf, ext->max_len, ext->zip_size,
+				field, f_len);
 		}
 	}
 }
@@ -91,7 +93,7 @@ row_ext_create(
 				in the InnoDB table object, as reported by
 				dict_col_get_no(); NOT relative to the records
 				in the clustered index */
-	ulint		flags,	/*!< in: table->flags */
+	const dict_table_t& table,	/*!< in: table */
 	const dtuple_t*	tuple,	/*!< in: data tuple containing the field
 				references of the externally stored
 				columns; must be indexed by col_no;
@@ -100,36 +102,30 @@ row_ext_create(
 				to prevent deletion (rollback or purge). */
 	mem_heap_t*	heap)	/*!< in: heap where created */
 {
-	ulint		i;
-	const page_size_t&	page_size = dict_tf_get_page_size(flags);
-
-	row_ext_t*	ret;
+	if (!table.space) {
+		return NULL;
+	}
 
 	ut_ad(n_ext > 0);
 
-	ret = static_cast<row_ext_t*>(
+	row_ext_t* ret = static_cast<row_ext_t*>(
 		mem_heap_alloc(heap,
 			       (sizeof *ret) + (n_ext - 1) * sizeof ret->len));
 
 	ret->n_ext = n_ext;
 	ret->ext = ext;
-	ret->max_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags);
-	ret->page_size.copy_from(page_size);
+	ret->max_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(table.flags);
+	ret->zip_size = dict_tf_get_zip_size(table.flags);
 
 	ret->buf = static_cast<byte*>(
 		mem_heap_alloc(heap, n_ext * ret->max_len));
 
-#ifdef UNIV_DEBUG
-	memset(ret->buf, 0xaa, n_ext * ret->max_len);
-	UNIV_MEM_ALLOC(ret->buf, n_ext * ret->max_len);
-#endif
-
 	/* Fetch the BLOB prefixes */
-	for (i = 0; i < n_ext; i++) {
+	for (ulint i = 0; i < n_ext; i++) {
 		const dfield_t*	dfield;
 
 		dfield = dtuple_get_nth_field(tuple, ext[i]);
-		row_ext_cache_fill(ret, i, page_size, dfield);
+		row_ext_cache_fill(ret, i, table.space, dfield);
 	}
 
 	return(ret);

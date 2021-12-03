@@ -457,6 +457,7 @@ connection default;
 LOCK TABLE t1 WRITE;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 connection con2;
 LOCK TABLE t2 WRITE;
@@ -499,9 +500,23 @@ connect  con1,localhost,root,,test;
 LOCK TABLE t2 WRITE;
 SET lock_wait_timeout= 1;
 FLUSH TABLES;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+FLUSH TABLES t2;
 UNLOCK TABLES;
 disconnect con1;
 connection default;
 UNLOCK TABLES;
 DROP TABLE t1, t2;
+#
+# MDEV-21398 Deadlock (server hang) or assertion failure in
+# Diagnostics_area::set_error_status upon ALTER under lock
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+LOCK TABLE t1 WRITE, t1 AS t1a READ;
+ALTER TABLE t1 CHANGE COLUMN IF EXISTS x xx INT;
+Warnings:
+Note	1054	Unknown column 'x' in 't1'
+UNLOCK TABLES;
+DROP TABLE t1;
+#
+# End of 10.2 tests
+#

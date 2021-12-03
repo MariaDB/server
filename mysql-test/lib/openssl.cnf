@@ -1,0 +1,12 @@
+# Toplevel section for openssl (including libssl)
+openssl_conf = default_conf_section
+
+[default_conf_section]
+# We only specify configuration for the "ssl module"
+ssl_conf = ssl_section
+
+[ssl_section]
+system_default = system_default_section
+
+[system_default_section]
+CipherString = ALL:@SECLEVEL=1

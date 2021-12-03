@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,13 +24,8 @@ Data dictionary system
 Created 1/8/1996 Heikki Tuuri
 ***********************************************************************/
 
-#include "data0type.h"
-#include "dict0load.h"
-#include "rem0types.h"
-#include "fsp0fsp.h"
-#include "srv0srv.h"
-#include "sync0rw.h"
 #include "fsp0sysspace.h"
+#include "dict0pagecompress.h"
 
 /*********************************************************************//**
 Gets the minimum number of bytes per character.
@@ -84,9 +79,6 @@ dict_col_type_assert_equal(
 	const dict_col_t*	col,	/*!< in: column */
 	const dtype_t*		type)	/*!< in: data type */
 {
-	ut_ad(col);
-	ut_ad(type);
-
 	ut_ad(col->mtype == type->mtype);
 	ut_ad(col->prtype == type->prtype);
 	//ut_ad(col->len == type->len);
@@ -156,8 +148,6 @@ dict_col_get_no(
 /*============*/
 	const dict_col_t*	col)	/*!< in: column */
 {
-	ut_ad(col);
-
 	return(col->ind);
 }
 
@@ -172,8 +162,6 @@ dict_col_get_clust_pos(
 {
 	ulint	i;
 
-	ut_ad(col);
-	ut_ad(clust_index);
 	ut_ad(dict_index_is_clust(clust_index));
 
 	for (i = 0; i < clust_index->n_def; i++) {
@@ -199,8 +187,6 @@ dict_col_get_index_pos(
 {
 	ulint	i;
 
-	ut_ad(col);
-
 	for (i = 0; i < index->n_def; i++) {
 		const dict_field_t*	field = &index->fields[i];
 
@@ -222,7 +208,6 @@ dict_table_get_first_index(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	return(UT_LIST_GET_FIRST(((dict_table_t*) table)->indexes));
@@ -237,9 +222,7 @@ dict_table_get_last_index(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
 	return(UT_LIST_GET_LAST((const_cast<dict_table_t*>(table))
 				->indexes));
 }
@@ -253,9 +236,7 @@ dict_table_get_next_index(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
 	return(UT_LIST_GET_NEXT(indexes, (dict_index_t*) index));
 }
 #endif /* UNIV_DEBUG */
@@ -289,7 +270,6 @@ dict_table_get_n_cols(
 	const dict_table_t*	table)	/*!< in: table */
 {
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
 	return(table->n_cols);
 }
 
@@ -387,7 +367,6 @@ dict_table_get_nth_col(
 	const dict_table_t*	table,	/*!< in: table */
 	ulint			pos)	/*!< in: position of column */
 {
-	ut_ad(table);
 	ut_ad(pos < table->n_def);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
@@ -442,10 +421,8 @@ dict_table_get_sys_col_no(
 	const dict_table_t*	table,	/*!< in: table */
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 {
-	ut_ad(table);
 	ut_ad(sys < DATA_N_SYS_COLS);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
 	return unsigned(table->n_cols) + (sys - DATA_N_SYS_COLS);
 }
 
@@ -458,8 +435,6 @@ dict_table_has_fts_index(
 				/* out: TRUE if table has an FTS index */
 	dict_table_t*   table)  /* in: table */
 {
-	ut_ad(table);
-
 	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS));
 }
 
@@ -596,29 +571,28 @@ dict_tf_set(
 	bool		page_compressed,
 	ulint		page_compression_level)
 {
+	*flags = use_data_dir ? 1 << DICT_TF_POS_DATA_DIR : 0;
+
 	switch (format) {
 	case REC_FORMAT_REDUNDANT:
-		*flags = 0;
 		ut_ad(zip_ssize == 0);
-		break;
+		/* no other options are allowed */
+		ut_ad(!page_compressed);
+		return;
 	case REC_FORMAT_COMPACT:
-		*flags = DICT_TF_COMPACT;
+		*flags |= DICT_TF_COMPACT;
 		ut_ad(zip_ssize == 0);
 		break;
 	case REC_FORMAT_COMPRESSED:
-		*flags = DICT_TF_COMPACT
+		*flags |= DICT_TF_COMPACT
 			| (1 << DICT_TF_POS_ATOMIC_BLOBS)
 			| (zip_ssize << DICT_TF_POS_ZIP_SSIZE);
 		break;
 	case REC_FORMAT_DYNAMIC:
-		*flags = DICT_TF_COMPACT
+		*flags |= DICT_TF_COMPACT
 			| (1 << DICT_TF_POS_ATOMIC_BLOBS);
 		ut_ad(zip_ssize == 0);
 		break;
-	}
-
-	if (use_data_dir) {
-		*flags |= (1 << DICT_TF_POS_DATA_DIR);
 	}
 
 	if (page_compressed) {
@@ -658,20 +632,34 @@ dict_tf_to_fsp_flags(ulint table_flags)
 	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure",
 			return(ULINT_UNDEFINED););
 
-	/* Adjust bit zero. */
-	fsp_flags = DICT_TF_HAS_ATOMIC_BLOBS(table_flags) ? 1 : 0;
+	/* No ROW_FORMAT=COMPRESSED for innodb_checksum_algorithm=full_crc32 */
+	if ((srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32
+	     || srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_FULL_CRC32)
+	    && !(table_flags & DICT_TF_MASK_ZIP_SSIZE)) {
 
-	/* ZIP_SSIZE and ATOMIC_BLOBS are at the same position. */
-	fsp_flags |= table_flags
-		& (DICT_TF_MASK_ZIP_SSIZE | DICT_TF_MASK_ATOMIC_BLOBS);
+		fsp_flags = 1U << FSP_FLAGS_FCRC32_POS_MARKER
+			| FSP_FLAGS_FCRC32_PAGE_SSIZE();
 
-	fsp_flags |= FSP_FLAGS_PAGE_SSIZE();
+		if (page_compression_level) {
+			fsp_flags |= innodb_compression_algorithm
+				<< FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO;
+		}
+	} else {
+		/* Adjust bit zero. */
+		fsp_flags = DICT_TF_HAS_ATOMIC_BLOBS(table_flags) ? 1 : 0;
 
-	if (page_compression_level) {
-		fsp_flags |= FSP_FLAGS_MASK_PAGE_COMPRESSION;
+		/* ZIP_SSIZE and ATOMIC_BLOBS are at the same position. */
+		fsp_flags |= table_flags
+			& (DICT_TF_MASK_ZIP_SSIZE | DICT_TF_MASK_ATOMIC_BLOBS);
+
+		fsp_flags |= FSP_FLAGS_PAGE_SSIZE();
+
+		if (page_compression_level) {
+			fsp_flags |= FSP_FLAGS_MASK_PAGE_COMPRESSION;
+		}
 	}
 
-	ut_a(fsp_flags_is_valid(fsp_flags, false));
+	ut_a(fil_space_t::is_valid_flags(fsp_flags, false));
 
 	if (DICT_TF_HAS_DATA_DIR(table_flags)) {
 		fsp_flags |= 1U << FSP_FLAGS_MEM_DATA_DIR;
@@ -717,51 +705,6 @@ dict_tf_to_sys_tables_type(
 	return(type);
 }
 
-/** Extract the page size info from table flags.
-@param[in]	flags	flags
-@return a structure containing the compressed and uncompressed
-page sizes and a boolean indicating if the page is compressed. */
-UNIV_INLINE
-const page_size_t
-dict_tf_get_page_size(
-	ulint	flags)
-{
-	const ulint	zip_ssize = DICT_TF_GET_ZIP_SSIZE(flags);
-
-	if (zip_ssize == 0) {
-		return(univ_page_size);
-	}
-
-	const ulint	zip_size = (UNIV_ZIP_SIZE_MIN >> 1) << zip_ssize;
-
-	ut_ad(zip_size <= UNIV_ZIP_SIZE_MAX);
-
-	return(page_size_t(zip_size, srv_page_size, true));
-}
-
-/*********************************************************************//**
-Obtain exclusive locks on all index trees of the table. This is to prevent
-accessing index trees while InnoDB is updating internal metadata for
-operations such as truncate tables. */
-UNIV_INLINE
-void
-dict_table_x_lock_indexes(
-/*======================*/
-	dict_table_t*	table)	/*!< in: table */
-{
-	dict_index_t*   index;
-
-	ut_a(table);
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	/* Loop through each index of the table and lock them */
-	for (index = dict_table_get_first_index(table);
-	     index != NULL;
-	     index = dict_table_get_next_index(index)) {
-		rw_lock_x_lock(dict_index_get_lock(index));
-	}
-}
-
 /*********************************************************************//**
 Returns true if the particular FTS index in the table is still syncing
 in the background, false otherwise.
@@ -783,25 +726,6 @@ dict_fts_index_syncing(
 	}
 	return(false);
 }
-/*********************************************************************//**
-Release the exclusive locks on all index tree. */
-UNIV_INLINE
-void
-dict_table_x_unlock_indexes(
-/*========================*/
-	dict_table_t*	table)	/*!< in: table */
-{
-	dict_index_t*   index;
-
-	ut_a(table);
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	for (index = dict_table_get_first_index(table);
-	     index != NULL;
-	     index = dict_table_get_next_index(index)) {
-		rw_lock_x_unlock(dict_index_get_lock(index));
-	}
-}
 
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
@@ -815,9 +739,7 @@ dict_index_get_n_fields(
 					representation of index (in
 					the dictionary cache) */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
 	return(index->n_fields);
 }
 
@@ -834,10 +756,8 @@ dict_index_get_n_unique(
 	const dict_index_t*	index)	/*!< in: an internal representation
 					of index (in the dictionary cache) */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(index->cached);
-
 	return(index->n_uniq);
 }
 
@@ -853,7 +773,6 @@ dict_index_get_n_unique_in_tree(
 	const dict_index_t*	index)	/*!< in: an internal representation
 					of index (in the dictionary cache) */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(index->cached);
 
@@ -917,7 +836,6 @@ dict_index_get_nth_field(
 	const dict_index_t*	index,	/*!< in: index */
 	ulint			pos)	/*!< in: position of field */
 {
-	ut_ad(index);
 	ut_ad(pos < index->n_def);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
@@ -934,8 +852,6 @@ dict_field_get_col(
 /*===============*/
 	const dict_field_t*	field)	/*!< in: index field */
 {
-	ut_ad(field);
-
 	return(field->col);
 }
 
@@ -1010,7 +926,6 @@ dict_index_get_page(
 /*================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(index->page);
@@ -1023,9 +938,8 @@ UNIV_INLINE
 rw_lock_t*
 dict_index_get_lock(
 /*================*/
-	dict_index_t*	index)	/*!< in: index */
+	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(&(index->lock));
@@ -1159,9 +1073,7 @@ dict_table_is_fts_column(
 
 		index = (dict_index_t*) ib_vector_getp(indexes, i);
 
-		if (dict_index_contains_col_or_prefix(
-			index, col_no, is_virtual)) {
-
+		if (index->contains_col_or_prefix(col_no, is_virtual)) {
 			return(i);
 		}
 	}
@@ -1226,21 +1138,6 @@ dict_max_v_field_len_store_undo(
 	return(max_log_len);
 }
 
-/**********************************************************************//**
-Prevent table eviction by moving a table to the non-LRU list from the
-LRU list if it is not already there. */
-UNIV_INLINE
-void
-dict_table_prevent_eviction(
-/*========================*/
-	dict_table_t*	table)	/*!< in: table to prevent eviction */
-{
-	ut_ad(mutex_own(&dict_sys->mutex));
-	if (table->can_be_evicted) {
-		dict_table_move_from_lru_to_non_lru(table);
-	}
-}
-
 /********************************************************************//**
 Check whether the table is corrupted.
 @return nonzero for corrupted table, zero for valid tables */
@@ -1250,9 +1147,7 @@ dict_table_is_corrupted(
 /*====================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
 	return(table->corrupted);
 }
 
@@ -1286,8 +1181,8 @@ inline
 void
 dict_table_t::acquire()
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
-	my_atomic_add32_explicit(&n_ref_count, 1, MY_MEMORY_ORDER_RELAXED);
+	ut_ad(mutex_own(&dict_sys.mutex));
+	n_ref_count++;
 }
 
 /** Release the table handle.
@@ -1296,8 +1191,7 @@ inline
 bool
 dict_table_t::release()
 {
-	int32 n = my_atomic_add32_explicit(
-			&n_ref_count, -1, MY_MEMORY_ORDER_RELAXED);
+	auto n = n_ref_count--;
 	ut_ad(n > 0);
 	return n == 1;
 }
@@ -1340,6 +1234,9 @@ void
 dict_free_vc_templ(
 	dict_vcol_templ_t*	vc_templ)
 {
+	UT_DELETE_ARRAY(vc_templ->default_rec);
+	vc_templ->default_rec = NULL;
+
 	if (vc_templ->vtempl != NULL) {
 		ut_ad(vc_templ->n_v_col > 0);
 		for (ulint i = 0; i < vc_templ->n_col

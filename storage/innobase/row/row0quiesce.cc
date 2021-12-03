@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -141,7 +141,7 @@ row_quiesce_write_indexes(
 		mach_write_to_8(ptr, index->id);
 		ptr += sizeof(index_id_t);
 
-		mach_write_to_4(ptr, table->space->id);
+		mach_write_to_4(ptr, table->space_id);
 		ptr += sizeof(ib_uint32_t);
 
 		mach_write_to_4(ptr, index->page);
@@ -525,7 +525,7 @@ row_quiesce_table_start(
 	}
 
 	for (ulint count = 0;
-	     ibuf_merge_space(table->space->id) != 0
+	     ibuf_merge_space(table->space_id) != 0
 	     && !trx_is_interrupted(trx);
 	     ++count) {
 		if (!(count % 20)) {
@@ -537,7 +537,7 @@ row_quiesce_table_start(
 	if (!trx_is_interrupted(trx)) {
 		{
 			FlushObserver observer(table->space, trx, NULL);
-			buf_LRU_flush_or_remove_pages(table->space->id,
+			buf_LRU_flush_or_remove_pages(table->space_id,
 						      &observer);
 		}
 
@@ -637,7 +637,7 @@ row_quiesce_set_state(
 			    ER_CANNOT_DISCARD_TEMPORARY_TABLE);
 
 		return(DB_UNSUPPORTED);
-	} else if (table->space->id == TRX_SYS_SPACE) {
+	} else if (table->space_id == TRX_SYS_SPACE) {
 
 		char	table_name[MAX_FULL_NAME_LEN + 1];
 
@@ -668,9 +668,17 @@ row_quiesce_set_state(
 			    " FTS auxiliary tables will not be flushed.");
 	}
 
+	dict_index_t* clust_index = dict_table_get_first_index(table);
+
 	row_mysql_lock_data_dictionary(trx);
 
-	dict_table_x_lock_indexes(table);
+	for (dict_index_t* index = dict_table_get_next_index(clust_index);
+	     index != NULL;
+	     index = dict_table_get_next_index(index)) {
+		rw_lock_x_lock(&index->lock);
+	}
+
+	rw_lock_x_lock(&clust_index->lock);
 
 	switch (state) {
 	case QUIESCE_START:
@@ -687,7 +695,11 @@ row_quiesce_set_state(
 
 	table->quiesce = state;
 
-	dict_table_x_unlock_indexes(table);
+	for (dict_index_t* index = dict_table_get_first_index(table);
+	     index != NULL;
+	     index = dict_table_get_next_index(index)) {
+		rw_lock_x_unlock(&index->lock);
+	}
 
 	row_mysql_unlock_data_dictionary(trx);
 

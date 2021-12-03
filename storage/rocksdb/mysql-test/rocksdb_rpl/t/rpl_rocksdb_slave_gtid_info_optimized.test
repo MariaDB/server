@@ -1,0 +1,51 @@
+--source include/have_rocksdb.inc
+--source include/master-slave.inc
+--source include/have_binlog_format_row.inc
+
+if (`select count(*) = 0 from information_schema.global_variables where variable_name = 'slave_gtid_info' and variable_value = 'optimized';`) {
+  --skip Test requires row_write_committed_slave_gtid_optimized policy where slave_gtid_info=optimized
+}
+
+--echo Make changes in master
+create table test1 (a int primary key, b int) engine=rocksdb;
+insert into test1 values (1, 1);
+
+--echo Make sure slave is up-to-date and mysql.slave_gtid_info is good
+sync_slave_with_master slave;
+connection slave;
+select * from test1;
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+select id, database_name, last_gtid from mysql.slave_gtid_info;
+
+--echo Make changes in master
+connection master;
+insert into test1 values (2, 2);
+
+--echo Make sure slave is up-to-date and mysql.slave_gtid_info is good
+sync_slave_with_master slave;
+connection slave;
+select @@slave_gtid_info;
+select * from test1;
+
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+select * from mysql.slave_gtid_info;
+
+--echo Make changes in master
+connection master;
+insert into test1 values (3, 3);
+insert into test1 values (4, 4);
+
+--echo Make sure slave is up-to-date and mysql.slave_gtid_info is good
+sync_slave_with_master slave;
+connection slave;
+select * from test1;
+
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+select id, database_name, last_gtid from mysql.slave_gtid_info;
+
+connection master;
+DROP TABLE IF EXISTS test1;
+
+sync_slave_with_master slave;
+
+--source include/rpl_end.inc

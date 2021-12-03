@@ -20,11 +20,11 @@ END $$
 DELIMITER ;$$
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2;
+CREATE EVENT ev1 ON SCHEDULE EVERY 1 SECOND
+  DO INSERT INTO t1 VALUES(1);
 --enable_warnings
 CREATE TABLE t1 (c1 INT);
 CREATE TABLE t2 (c1 INT);
-CREATE EVENT ev1 ON SCHEDULE EVERY 1 SECOND
-  DO INSERT INTO t1 VALUES(1);
 
 --echo Assert Questions == 7
 SHOW STATUS LIKE 'Questions';
@@ -64,5 +64,14 @@ DROP TRIGGER trigg1;
 DROP FUNCTION testQuestion;
 DROP EVENT ev1;
 DROP TABLE t1,t2;
---echo End of 6.0 tests
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+select variable_value < 1024*1024*1024 from information_schema.global_status where variable_name='memory_used';
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
 

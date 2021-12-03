@@ -1,0 +1,2 @@
+CREATE TABLE `#mysql50#q.q`(f1 INT KEY) ENGINE=TOKUDB;
+ERROR 42000: Incorrect table name '#mysql50#q.q'

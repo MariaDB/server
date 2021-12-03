@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -331,7 +331,7 @@ Datafile::read_first_page(bool read_only_mode)
 			ib::error()
 				<< "Cannot read first page of '"
 				<< m_filepath << "' "
-				<< ut_strerr(err);
+				<< err;
 			break;
 		}
 	}
@@ -343,7 +343,7 @@ Datafile::read_first_page(bool read_only_mode)
 	if (m_order == 0) {
 		m_space_id = fsp_header_get_space_id(m_first_page);
 		m_flags = fsp_header_get_flags(m_first_page);
-		if (!fsp_flags_is_valid(m_flags, m_space_id)) {
+		if (!fil_space_t::is_valid_flags(m_flags, m_space_id)) {
 			ulint cflags = fsp_flags_convert_from_101(m_flags);
 			if (cflags == ULINT_UNDEFINED) {
 				ib::error()
@@ -356,8 +356,9 @@ Datafile::read_first_page(bool read_only_mode)
 		}
 	}
 
-	const page_size_t ps(m_flags);
-	if (ps.physical() > page_size) {
+	const size_t physical_size = fil_space_t::physical_size(m_flags);
+
+	if (physical_size > page_size) {
 		ib::error() << "File " << m_filepath
 			<< " should be longer than "
 			<< page_size << " bytes";
@@ -407,7 +408,9 @@ Datafile::validate_to_dd(ulint space_id, ulint flags)
 	/* Make sure the datafile we found matched the space ID.
 	If the datafile is a file-per-table tablespace then also match
 	the row format and zip page size. */
-	if (m_space_id == space_id && m_flags == flags) {
+	if (m_space_id == space_id
+	    && (fil_space_t::is_flags_equal(flags, m_flags)
+		|| fil_space_t::is_flags_equal(m_flags, flags))) {
 		/* Datafile matches the tablespace expected. */
 		return(DB_SUCCESS);
 	}
@@ -513,9 +516,9 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 
 	if (error_txt != NULL) {
 err_exit:
-		ib::error() << error_txt << " in datafile: " << m_filepath
+		ib::info() << error_txt << " in datafile: " << m_filepath
 			<< ", Space ID:" << m_space_id  << ", Flags: "
-			<< m_flags << ". " << TROUBLESHOOT_DATADICT_MSG;
+			<< m_flags;
 		m_is_valid = false;
 		free_first_page();
 		return(DB_CORRUPTION);
@@ -537,19 +540,19 @@ err_exit:
 		}
 	}
 
-	if (!fsp_flags_is_valid(m_flags, m_space_id)) {
+	if (!fil_space_t::is_valid_flags(m_flags, m_space_id)) {
 		/* Tablespace flags must be valid. */
 		error_txt = "Tablespace flags are invalid";
 		goto err_exit;
 	}
 
-	const page_size_t	page_size(m_flags);
+	ulint logical_size = fil_space_t::logical_size(m_flags);
 
-	if (srv_page_size != page_size.logical()) {
+	if (srv_page_size != logical_size) {
 		/* Logical size must be innodb_page_size. */
 		ib::error()
 			<< "Data file '" << m_filepath << "' uses page size "
-			<< page_size.logical() << ", but the innodb_page_size"
+			<< logical_size << ", but the innodb_page_size"
 			" start-up parameter is "
 			<< srv_page_size;
 		free_first_page();
@@ -562,13 +565,12 @@ err_exit:
 		goto err_exit;
 	}
 
-	if (m_space_id == ULINT_UNDEFINED) {
-		/* The space_id can be most anything, except -1. */
+	if (m_space_id >= SRV_LOG_SPACE_FIRST_ID) {
 		error_txt = "A bad Space ID was found";
 		goto err_exit;
 	}
 
-	if (buf_page_is_corrupted(false, m_first_page, page_size)) {
+	if (buf_page_is_corrupted(false, m_first_page, m_flags)) {
 		/* Look for checksum and other corruptions. */
 		error_txt = "Checksum mismatch";
 		goto err_exit;
@@ -630,7 +632,6 @@ Datafile::find_space_id()
 	for (ulint page_size = UNIV_ZIP_SIZE_MIN;
 	     page_size <= UNIV_PAGE_SIZE_MAX;
 	     page_size <<= 1) {
-
 		/* map[space_id] = count of pages */
 		typedef std::map<
 			ulint,
@@ -658,6 +659,20 @@ Datafile::find_space_id()
 		byte*	page = static_cast<byte*>(
 			ut_align(buf, UNIV_SECTOR_SIZE));
 
+		ulint fsp_flags;
+		/* provide dummy value if the first os_file_read() fails */
+		switch (srv_checksum_algorithm) {
+		case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+		case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+			fsp_flags = 1U << FSP_FLAGS_FCRC32_POS_MARKER
+				| FSP_FLAGS_FCRC32_PAGE_SSIZE()
+				| innodb_compression_algorithm
+				       << FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO;
+			break;
+		default:
+			fsp_flags = 0;
+		}
+
 		for (ulint j = 0; j < page_count; ++j) {
 
 			dberr_t		err;
@@ -675,33 +690,27 @@ Datafile::find_space_id()
 				continue;
 			}
 
+			if (j == 0) {
+				fsp_flags = mach_read_from_4(
+					page + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS);
+			}
+
 			bool	noncompressed_ok = false;
 
 			/* For noncompressed pages, the page size must be
 			equal to srv_page_size. */
-			if (page_size == srv_page_size) {
+			if (page_size == srv_page_size
+			    && !fil_space_t::zip_size(fsp_flags)) {
 				noncompressed_ok = !buf_page_is_corrupted(
-					false, page, univ_page_size, NULL);
+					false, page, fsp_flags);
 			}
 
 			bool	compressed_ok = false;
 
-			/* file-per-table tablespaces can be compressed with
-			the same physical and logical page size.  General
-			tablespaces must have different physical and logical
-			page sizes in order to be compressed. For this check,
-			assume the page is compressed if univ_page_size.
-			logical() is equal to or less than 16k and the
-			page_size we are checking is equal to or less than
-			srv_page_size. */
 			if (srv_page_size <= UNIV_PAGE_SIZE_DEF
-			    && page_size <= srv_page_size) {
-				const page_size_t	compr_page_size(
-					page_size, srv_page_size,
-					true);
-
+			    && page_size == fil_space_t::zip_size(fsp_flags)) {
 				compressed_ok = !buf_page_is_corrupted(
-					false, page, compr_page_size, NULL);
+					false, page, fsp_flags);
 			}
 
 			if (noncompressed_ok || compressed_ok) {
@@ -769,10 +778,10 @@ Datafile::restore_from_doublewrite()
 	}
 
 	/* Find if double write buffer contains page_no of given space id. */
-	const byte*	page = recv_sys->dblwr.find_page(m_space_id, 0);
 	const page_id_t	page_id(m_space_id, 0);
+	const byte*	page = recv_sys.dblwr.find_page(page_id);
 
-	if (page == NULL) {
+	if (!page) {
 		/* If the first page of the given user tablespace is not there
 		in the doublewrite buffer, then the recovery is going to fail
 		now. Hence this is treated as an error. */
@@ -788,34 +797,29 @@ Datafile::restore_from_doublewrite()
 	ulint	flags = mach_read_from_4(
 		FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
-	if (!fsp_flags_is_valid(flags, m_space_id)) {
-		ulint cflags = fsp_flags_convert_from_101(flags);
-		if (cflags == ULINT_UNDEFINED) {
-			ib::warn()
-				<< "Ignoring a doublewrite copy of page "
-				<< page_id
-				<< " due to invalid flags " << ib::hex(flags);
-			return(true);
-		}
-		flags = cflags;
+	if (!fil_space_t::is_valid_flags(flags, m_space_id)) {
+		flags = fsp_flags_convert_from_101(flags);
+		/* recv_dblwr_t::validate_page() inside find_page()
+		checked this already. */
+		ut_ad(flags != ULINT_UNDEFINED);
 		/* The flags on the page should be converted later. */
 	}
 
-	const page_size_t	page_size(flags);
+	ulint physical_size = fil_space_t::physical_size(flags);
 
 	ut_a(page_get_page_no(page) == page_id.page_no());
 
 	ib::info() << "Restoring page " << page_id
 		<< " of datafile '" << m_filepath
 		<< "' from the doublewrite buffer. Writing "
-		<< page_size.physical() << " bytes into file '"
+		<< physical_size << " bytes into file '"
 		<< m_filepath << "'";
 
 	IORequest	request(IORequest::WRITE);
 
 	return(os_file_write(
 			request,
-			m_filepath, m_handle, page, 0, page_size.physical())
+			m_filepath, m_handle, page, 0, physical_size)
 	       != DB_SUCCESS);
 }
 
@@ -922,8 +926,9 @@ RemoteDatafile::create_link_file(
 
 	prev_filepath = read_link_file(link_filepath);
 	if (prev_filepath) {
-		/* Truncate will call this with an existing
-		link file which contains the same filepath. */
+		/* Truncate (starting with MySQL 5.6, probably no
+		longer since MariaDB Server 10.2.19) used to call this
+		with an existing link file which contains the same filepath. */
 		bool same = !strcmp(prev_filepath, filepath);
 		ut_free(prev_filepath);
 		if (same) {

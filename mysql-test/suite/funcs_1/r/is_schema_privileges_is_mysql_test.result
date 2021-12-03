@@ -16,7 +16,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 ''@'%'	def	test	CREATE TEMPORARY TABLES	NO
 ''@'%'	def	test	CREATE VIEW	NO
 ''@'%'	def	test	DELETE	NO
-''@'%'	def	test	DELETE VERSIONING ROWS	NO
+''@'%'	def	test	DELETE HISTORY	NO
 ''@'%'	def	test	DROP	NO
 ''@'%'	def	test	EVENT	NO
 ''@'%'	def	test	INDEX	NO

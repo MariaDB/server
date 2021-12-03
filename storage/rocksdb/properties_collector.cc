@@ -51,12 +51,19 @@ my_bool rocksdb_compaction_sequential_deletes_count_sd = false;
 
 Rdb_tbl_prop_coll::Rdb_tbl_prop_coll(Rdb_ddl_manager *const ddl_manager,
                                      const Rdb_compact_params &params,
-                                     const uint32_t &cf_id,
-                                     const uint8_t &table_stats_sampling_pct)
-    : m_cf_id(cf_id), m_ddl_manager(ddl_manager), m_last_stats(nullptr),
-      m_rows(0l), m_window_pos(0l), m_deleted_rows(0l), m_max_deleted_rows(0l),
-      m_file_size(0), m_params(params),
-      m_cardinality_collector(table_stats_sampling_pct), m_recorded(false) {
+                                     const uint32_t cf_id,
+                                     const uint8_t table_stats_sampling_pct)
+    : m_cf_id(cf_id),
+      m_ddl_manager(ddl_manager),
+      m_last_stats(nullptr),
+      m_rows(0l),
+      m_window_pos(0l),
+      m_deleted_rows(0l),
+      m_max_deleted_rows(0l),
+      m_file_size(0),
+      m_params(params),
+      m_cardinality_collector(table_stats_sampling_pct),
+      m_recorded(false) {
   DBUG_ASSERT(ddl_manager != nullptr);
 
   m_deleted_rows_window.resize(m_params.m_window, false);
@@ -150,35 +157,36 @@ Rdb_index_stats *Rdb_tbl_prop_coll::AccessStats(const rocksdb::Slice &key) {
 void Rdb_tbl_prop_coll::CollectStatsForRow(const rocksdb::Slice &key,
                                            const rocksdb::Slice &value,
                                            const rocksdb::EntryType &type,
-                                           const uint64_t &file_size) {
+                                           const uint64_t file_size) {
   auto stats = AccessStats(key);
 
   stats->m_data_size += key.size() + value.size();
 
   // Incrementing per-index entry-type statistics
   switch (type) {
-  case rocksdb::kEntryPut:
-    stats->m_rows++;
-    break;
-  case rocksdb::kEntryDelete:
-    stats->m_entry_deletes++;
-    break;
-  case rocksdb::kEntrySingleDelete:
-    stats->m_entry_single_deletes++;
-    break;
-  case rocksdb::kEntryMerge:
-    stats->m_entry_merges++;
-    break;
-  case rocksdb::kEntryOther:
-    stats->m_entry_others++;
-    break;
-  default:
-    // NO_LINT_DEBUG
-    sql_print_error("RocksDB: Unexpected entry type found: %u. "
-                    "This should not happen so aborting the system.",
-                    type);
-    abort();
-    break;
+    case rocksdb::kEntryPut:
+      stats->m_rows++;
+      break;
+    case rocksdb::kEntryDelete:
+      stats->m_entry_deletes++;
+      break;
+    case rocksdb::kEntrySingleDelete:
+      stats->m_entry_single_deletes++;
+      break;
+    case rocksdb::kEntryMerge:
+      stats->m_entry_merges++;
+      break;
+    case rocksdb::kEntryOther:
+      stats->m_entry_others++;
+      break;
+    default:
+      // NO_LINT_DEBUG
+      sql_print_error(
+          "RocksDB: Unexpected entry type found: %u. "
+          "This should not happen so aborting the system.",
+          type);
+      abort();
+      break;
   }
 
   stats->m_actual_disk_size += file_size - m_file_size;
@@ -194,8 +202,8 @@ const char *Rdb_tbl_prop_coll::INDEXSTATS_KEY = "__indexstats__";
 /*
   This function is called by RocksDB to compute properties to store in sst file
 */
-rocksdb::Status
-Rdb_tbl_prop_coll::Finish(rocksdb::UserCollectedProperties *const properties) {
+rocksdb::Status Rdb_tbl_prop_coll::Finish(
+    rocksdb::UserCollectedProperties *const properties) {
   uint64_t num_sst_entry_put = 0;
   uint64_t num_sst_entry_delete = 0;
   uint64_t num_sst_entry_singledelete = 0;
@@ -251,8 +259,8 @@ bool Rdb_tbl_prop_coll::NeedCompact() const {
 /*
   Returns the same as above, but in human-readable way for logging
 */
-rocksdb::UserCollectedProperties
-Rdb_tbl_prop_coll::GetReadableProperties() const {
+rocksdb::UserCollectedProperties Rdb_tbl_prop_coll::GetReadableProperties()
+    const {
   std::string s;
 #ifdef DBUG_OFF
   s.append("[...");
@@ -323,8 +331,8 @@ void Rdb_tbl_prop_coll::read_stats_from_tbl_props(
 /*
   Serializes an array of Rdb_index_stats into a network string.
 */
-std::string
-Rdb_index_stats::materialize(const std::vector<Rdb_index_stats> &stats) {
+std::string Rdb_index_stats::materialize(
+    const std::vector<Rdb_index_stats> &stats) {
   String ret;
   rdb_netstr_append_uint16(&ret, INDEX_STATS_VERSION_ENTRY_TYPES);
   for (const auto &i : stats) {
@@ -370,9 +378,10 @@ int Rdb_index_stats::unmaterialize(const std::string &s,
   if (version < INDEX_STATS_VERSION_INITIAL ||
       version > INDEX_STATS_VERSION_ENTRY_TYPES) {
     // NO_LINT_DEBUG
-    sql_print_error("Index stats version %d was outside of supported range. "
-                    "This should not happen so aborting the system.",
-                    version);
+    sql_print_error(
+        "Index stats version %d was outside of supported range. "
+        "This should not happen so aborting the system.",
+        version);
     abort();
   }
 
@@ -401,8 +410,7 @@ int Rdb_index_stats::unmaterialize(const std::string &s,
       stats.m_entry_merges = rdb_netbuf_read_uint64(&p);
       stats.m_entry_others = rdb_netbuf_read_uint64(&p);
     }
-    if (p +
-            stats.m_distinct_keys_per_prefix.size() *
+    if (p + stats.m_distinct_keys_per_prefix.size() *
                 sizeof(stats.m_distinct_keys_per_prefix[0]) >
         p2) {
       return HA_EXIT_FAILURE;
@@ -419,8 +427,8 @@ int Rdb_index_stats::unmaterialize(const std::string &s,
   Merges one Rdb_index_stats into another. Can be used to come up with the stats
   for the index based on stats for each sst
 */
-void Rdb_index_stats::merge(const Rdb_index_stats &s, const bool &increment,
-                            const int64_t &estimated_data_len) {
+void Rdb_index_stats::merge(const Rdb_index_stats &s, const bool increment,
+                            const int64_t estimated_data_len) {
   std::size_t i;
 
   DBUG_ASSERT(estimated_data_len >= 0);
@@ -464,7 +472,7 @@ void Rdb_index_stats::merge(const Rdb_index_stats &s, const bool &increment,
   }
 }
 
-Rdb_tbl_card_coll::Rdb_tbl_card_coll(const uint8_t &table_stats_sampling_pct)
+Rdb_tbl_card_coll::Rdb_tbl_card_coll(const uint8_t table_stats_sampling_pct)
     : m_table_stats_sampling_pct(table_stats_sampling_pct),
       m_seed(time(nullptr)) {}
 
@@ -535,4 +543,4 @@ void Rdb_tbl_card_coll::AdjustStats(Rdb_index_stats *stats) {
   }
 }
 
-} // namespace myrocks
+}  // namespace myrocks

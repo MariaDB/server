@@ -1,3 +1,4 @@
+set @save_expire_logs_days=@@global.expire_logs_days;
 flush logs;
 set global expire_logs_days = 3;
 show variables like 'log_bin%';
@@ -10,9 +11,9 @@ log_bin_index
 log_bin_trust_function_creators	ON
 show variables like 'relay_log%';
 Variable_name	Value
-relay_log	mysqld-relay-bin
-relay_log_basename	MYSQLTEST_VARDIR/mysqld.1/data/mysqld-relay-bin
-relay_log_index	MYSQLTEST_VARDIR/mysqld.1/data/mysqld-relay-bin.index
+relay_log	XXX-relay-bin
+relay_log_basename	MYSQLTEST_VARDIR/mysqld.1/data/XXX-relay-bin
+relay_log_index	MYSQLTEST_VARDIR/mysqld.1/data/XXX-relay-bin.index
 relay_log_info_file	relay-log.info
 relay_log_purge	ON
 relay_log_recovery	OFF
@@ -28,11 +29,11 @@ log_bin_index
 log_bin_trust_function_creators	ON
 show variables like 'relay_log%';
 Variable_name	Value
-relay_log	mysqld-relay-bin
-relay_log_basename	MYSQLTEST_VARDIR/mysqld.1/data/mysqld-relay-bin
-relay_log_index	MYSQLTEST_VARDIR/mysqld.1/data/mysqld-relay-bin.index
+relay_log	XXX-relay-bin
+relay_log_basename	MYSQLTEST_VARDIR/mysqld.1/data/XXX-relay-bin
+relay_log_index	MYSQLTEST_VARDIR/mysqld.1/data/XXX-relay-bin.index
 relay_log_info_file	relay-log.info
 relay_log_purge	ON
 relay_log_recovery	OFF
 relay_log_space_limit	0
-set global expire_logs_days = 0;
+set global expire_logs_days=@save_expire_logs_days;

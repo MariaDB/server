@@ -102,7 +102,7 @@ DROP TABLE t1;
 --echo #
 
 --echo #
---echo # MDEV-6950 Bad results with joins compating DATE and INT/ENUM/VARCHAR columns
+--echo # MDEV-6950 Bad results with joins comparing DATE and INT/ENUM/VARCHAR columns
 --echo #
 
 CREATE TABLE t1 (c1 DATE PRIMARY KEY);
@@ -248,3 +248,16 @@ DROP TABLE t1;
 SET NAMES utf8;
 --error ER_ILLEGAL_VALUE_FOR_TYPE
 CREATE TABLE t1 (a SET('a,bü'));
+
+--echo #
+--echo # MDEV-23323 Rounding functions return a wrong data type for a BIT, ENUM, SET argument
+--echo #
+
+CREATE TABLE t1 (a SET('999999999999999999999999999999999999999999999999999999999999'));
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 AS
+  SELECT a, FLOOR(a), CEILING(a), TRUNCATE(a,0), ROUND(a) FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP TABLE t1;

@@ -2,6 +2,7 @@ SET SQL_MODE="";
 drop database if exists events_test;
 drop database if exists mysqltest_db1;
 drop database if exists mysqltest_db2;
+set collation_server=latin1_swedish_ci;
 create database events_test;
 use events_test;
 set @concurrent_insert= @@global.concurrent_insert;
@@ -11,16 +12,22 @@ VARIABLE_NAME	VARIABLE_VALUE
 EVENT_SCHEDULER	ON
 SET GLOBAL event_scheduler = 'OFF';
 CREATE EVENT lower_case ON SCHEDULE EVERY 1 MINUTE DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE EVENT Lower_case ON SCHEDULE EVERY 2 MINUTE DO SELECT 2;
 ERROR HY000: Event 'Lower_case' already exists
 DROP EVENT Lower_case;
 SET NAMES cp1251;
 CREATE EVENT ‰ÓÎÂÌ_Â„ËÒÚ˙_1251 ON SCHEDULE EVERY 1 YEAR DO SELECT 100;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE EVENT ƒÓÀÂÕ_Â„ËÒÚ˙_1251 ON SCHEDULE EVERY 2 YEAR DO SELECT 200;
 ERROR HY000: Event 'ƒÓÀÂÕ_Â„ËÒÚ˙_1251' already exists
 DROP EVENT ƒÓÀÂÕ_Â„ËÒÚ˙_1251;
 SET NAMES utf8;
 CREATE EVENT –¥–æ–ª–µ–Ω_—Ä–µ–≥–∏—Å—Ç—ä—Ä_—É—Ç—Ñ8 ON SCHEDULE EVERY 3 YEAR DO SELECT 300;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE EVENT –î–û–õ–ï–ù_—Ä–µ–≥–∏—Å—Ç—ä—Ä_—É—Ç—Ñ8 ON SCHEDULE EVERY 4 YEAR DO SELECT 400;
 ERROR HY000: Event '–î–û–õ–ï–ù_—Ä–µ–≥–∏—Å—Ç—ä—Ä_—É—Ç—Ñ8' already exists
 DROP EVENT –î–û–õ–ï–ù_—Ä–µ–≥–∏—Å—Ç—ä—Ä_—É—Ç—Ñ8;
@@ -96,7 +103,7 @@ select release_lock('ee_16407_2');
 insert into events_test.events_smode_test values('ee_16407_2','1980-19-02');
 end|
 insert into events_test.events_smode_test values ('test','1980-19-02')|
-ERROR 22007: Incorrect date value: '1980-19-02' for column 'a' at row 1
+ERROR 22007: Incorrect date value: '1980-19-02' for column `events_test`.`events_smode_test`.`a` at row 1
 "This is ok"
 create event ee_16407_3 on schedule every 60 second do
 begin
@@ -205,6 +212,8 @@ create database mysqltest_db1;
 grant event on events_test.* to mysqltest_user1@localhost;
 connect  conn2,localhost,mysqltest_user1,,events_test;
 create event mysqltest_user1 on schedule every 10 second do select 42;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 alter event mysqltest_user1 rename to mysqltest_db1.mysqltest_user1;
 ERROR 42000: Access denied for user 'mysqltest_user1'@'localhost' to database 'mysqltest_db1'
 "Let's test now rename when there is no select DB"
@@ -234,6 +243,8 @@ ERROR 42000: CREATE/ALTER EVENT does not support subqueries or stored functions
 drop event if exists e_16;
 drop procedure if exists p_16;
 create event e_16 on schedule every 1 second do set @a=5;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 create procedure p_16 () alter event e_16 on schedule every @a second;
 set @a = null;
 call p_16();
@@ -347,11 +358,15 @@ DROP USER mysqltest_u1@localhost;
 CREATE USER mysqltest_u1@localhost;
 GRANT EVENT ON events_test.* TO mysqltest_u1@localhost;
 CREATE EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SELECT event_name, definer FROM INFORMATION_SCHEMA.EVENTS;
 event_name	definer
 e1	root@localhost
 DROP EVENT e1;
 CREATE DEFINER=CURRENT_USER EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SELECT event_name, definer FROM INFORMATION_SCHEMA.EVENTS;
 event_name	definer
 e1	root@localhost
@@ -361,23 +376,31 @@ event_name	definer
 e1	mysqltest_u1@localhost
 DROP EVENT e1;
 CREATE DEFINER=CURRENT_USER() EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SELECT event_name, definer FROM INFORMATION_SCHEMA.EVENTS;
 event_name	definer
 e1	root@localhost
 DROP EVENT e1;
 CREATE DEFINER=mysqltest_u1@localhost EVENT e1 ON SCHEDULE EVERY 1 DAY DO
 SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SELECT event_name, definer FROM INFORMATION_SCHEMA.EVENTS;
 event_name	definer
 e1	mysqltest_u1@localhost
 DROP EVENT e1;
 connect  conn1, localhost, mysqltest_u1, , events_test;
 CREATE EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SELECT event_name, definer FROM INFORMATION_SCHEMA.EVENTS;
 event_name	definer
 e1	mysqltest_u1@localhost
 DROP EVENT e1;
 CREATE DEFINER=CURRENT_USER EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SELECT event_name, definer FROM INFORMATION_SCHEMA.EVENTS;
 event_name	definer
 e1	mysqltest_u1@localhost
@@ -388,6 +411,8 @@ event_name	definer
 e1	mysqltest_u1@localhost
 DROP EVENT e1;
 CREATE DEFINER=CURRENT_USER() EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SELECT event_name, definer FROM INFORMATION_SCHEMA.EVENTS;
 event_name	definer
 e1	mysqltest_u1@localhost
@@ -404,6 +429,8 @@ SET @save_time_zone= @@TIME_ZONE;
 SET TIME_ZONE= '+00:00';
 SET TIMESTAMP= UNIX_TIMESTAMP('2005-12-31 23:58:59');
 CREATE EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 events_test	e1	root@localhost	+00:00	RECURRING	NULL	1	DAY	2005-12-31 23:58:59	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -433,14 +460,20 @@ DROP EVENT e1;
 SET TIME_ZONE='+05:00';
 CREATE EVENT e1 ON SCHEDULE EVERY 1 DAY STARTS '2006-01-01 00:00:00' DO
 SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SET TIMESTAMP= @@TIMESTAMP + 1;
 SET TIME_ZONE='-05:00';
 CREATE EVENT e2 ON SCHEDULE EVERY 1 DAY STARTS '2006-01-01 00:00:00' DO
 SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SET TIMESTAMP= @@TIMESTAMP + 1;
 SET TIME_ZONE='+00:00';
 CREATE EVENT e3 ON SCHEDULE EVERY 1 DAY STARTS '2006-01-01 00:00:00' DO
 SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SELECT * FROM INFORMATION_SCHEMA.EVENTS ORDER BY event_name;
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	TIME_ZONE	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	SQL_MODE	STARTS	ENDS	STATUS	ON_COMPLETION	CREATED	LAST_ALTERED	LAST_EXECUTED	EVENT_COMMENT	ORIGINATOR	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
 def	events_test	e1	root@localhost	+05:00	SQL	SELECT 1	RECURRING	NULL	1	DAY		2006-01-01 00:00:00	NULL	ENABLED	NOT PRESERVE	2005-12-31 23:58:59	2005-12-31 23:58:59	NULL		1	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -505,26 +538,34 @@ DO
 SELECT 1;
 Warnings:
 Note	1544	Event execution time is in the past. Event has been disabled
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE EVENT e5 ON SCHEDULE AT '1999-01-01 00:00:00'
   ON COMPLETION PRESERVE
 DO
 SELECT 1;
 Warnings:
 Note	1544	Event execution time is in the past. Event has been disabled
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 The following should succeed without warnings.
 ALTER EVENT e2 ON SCHEDULE EVERY 1 HOUR STARTS '1999-01-01 00:00:00';
 ALTER EVENT e3 ON SCHEDULE EVERY 1 HOUR STARTS '1999-01-01 00:00:00'
   ENDS '1999-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE;
 CREATE EVENT e6 ON SCHEDULE EVERY 1 HOUR STARTS '1999-01-01 00:00:00' DO
 SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE EVENT e7 ON SCHEDULE EVERY 1 HOUR STARTS '1999-01-01 00:00:00'
   ENDS '1999-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE
 DO
 SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE EVENT e8 ON SCHEDULE AT '1999-01-01 00:00:00'
   ON COMPLETION PRESERVE DISABLE
 DO
 SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 events_test	e1	root@localhost	+00:00	RECURRING	NULL	1	HOUR	1999-01-01 00:00:00	1999-01-02 00:00:00	DISABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -577,7 +618,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 USE test;
 SHOW GRANTS FOR CURRENT_USER;
 Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 SET GLOBAL event_scheduler = ON;
 CREATE TABLE events_test.event_log
@@ -591,9 +632,9 @@ GRANT create, insert, select, event ON events_test.* TO evtest1@localhost;
 GRANT select,insert ON test.* TO evtest1@localhost;
 SHOW GRANTS FOR evtest1@localhost;
 Grants for evtest1@localhost
-GRANT USAGE ON *.* TO 'evtest1'@'localhost' IDENTIFIED BY PASSWORD '*3170F3644E31580C25DE4A08F4C07CC9A2D40C32'
-GRANT SELECT, INSERT ON `test`.* TO 'evtest1'@'localhost'
-GRANT SELECT, INSERT, CREATE, EVENT ON `events_test`.* TO 'evtest1'@'localhost'
+GRANT USAGE ON *.* TO `evtest1`@`localhost` IDENTIFIED BY PASSWORD '*3170F3644E31580C25DE4A08F4C07CC9A2D40C32'
+GRANT SELECT, INSERT ON `test`.* TO `evtest1`@`localhost`
+GRANT SELECT, INSERT, CREATE, EVENT ON `events_test`.* TO `evtest1`@`localhost`
 connect  e1,localhost,evtest1,ev1,events_test,$MASTER_MYPORT,$MASTER_MYSOCK;
 CREATE EVENT ev_sched_1823 ON SCHEDULE EVERY 2 SECOND
 DO BEGIN
@@ -651,7 +692,7 @@ SET GLOBAL READ_ONLY = 1;
 
 connect u1_con,localhost,mysqltest_u1,,events_test;
 
-CREATE EVENT e1 ON SCHEDULE AT '2020-01-01 00:00:00' DO SET @a = 1;
+CREATE EVENT e1 ON SCHEDULE AT '2038-01-01 00:00:00' DO SET @a = 1;
 ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
 
 ALTER EVENT e1 COMMENT 'comment';
@@ -662,7 +703,9 @@ ERROR HY000: The MariaDB server is running with the --read-only option so it can
 
 connect root_con,localhost,root,,events_test;
 
-CREATE EVENT e1 ON SCHEDULE AT '2020-01-01 00:00:00' DO SET @a = 1;
+CREATE EVENT e1 ON SCHEDULE AT '2038-01-01 00:00:00' DO SET @a = 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 
 ALTER EVENT e1 COMMENT 'comment';
 
@@ -673,7 +716,11 @@ SET GLOBAL READ_ONLY = 0;
 connection u1_con;
 
 CREATE EVENT e1 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 SECOND DO SET @a = 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE EVENT e2 ON SCHEDULE EVERY 1 SECOND DO SET @a = 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 
 SELECT
 event_name,
@@ -731,6 +778,8 @@ drop procedure if exists p;
 set @old_mode= @@sql_mode;
 set @@sql_mode= cast(pow(2,32)-1 as unsigned integer);
 create event e1 on schedule every 1 day do select 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 select @@sql_mode into @full_mode;
 set @@sql_mode= @old_mode;
 select replace(@full_mode, 'ALLOW_INVALID_DATES', 'INVALID_DATES') into @full_mode;
@@ -744,6 +793,8 @@ SELECT @@GLOBAL.server_id;
 @@GLOBAL.server_id
 4294967295
 CREATE EVENT ev1 ON SCHEDULE EVERY 1 DAY DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SELECT event_name, originator FROM INFORMATION_SCHEMA.EVENTS;
 event_name	originator
 ev1	4294967295
@@ -752,6 +803,8 @@ SET GLOBAL server_id = @old_server_id;
 CREATE DATABASE event_test12;
 USE event_test12;
 CREATE EVENT ev1 ON SCHEDULE EVERY 1 DAY DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE DATABASE event_test1;
 USE event_test1;
 SHOW EVENTS;
@@ -801,6 +854,8 @@ DROP DATABASE IF EXISTS event_test11764334;
 CREATE DATABASE event_test11764334;
 USE event_test11764334;
 CREATE EVENT ev1 ON SCHEDULE EVERY 3 SECOND DISABLE DO SELECT 1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SHOW EVENTS IN event_test11764334 WHERE NAME='ev1';
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 event_test11764334	ev1	root@localhost	SYSTEM	RECURRING	NULL	3	SECOND	#	#	DISABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci

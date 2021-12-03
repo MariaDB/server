@@ -85,6 +85,8 @@ insert into t1_temp values (1);
 return 0;
 end|
 create event e1 on schedule every 1 minute do begin end;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;
 connect  con3,localhost,root,,;
@@ -159,11 +161,10 @@ Success: FTWRL is blocked when 'alter event e1 comment 'test'' is active in anot
 #
 # 2) ANALYZE TABLE statement is compatible with FTWRL.
 # See Bug#43336 ANALYZE and OPTIMIZE do not honour
-#  --read-only for a discussion why.
+#  --read-only as they update status tables.
 #
-Success: Was able to run 'analyze table t1_base' under FTWRL.
-Success: Was able to run 'analyze table t1_base' with FTWRL active in another connection.
-Success: Was able to run FTWRL while 'analyze table t1_base' was active in another connection.
+Success: Was not able to run 'analyze table t1_base' under FTWRL.
+Success: 'analyze table t1_base' is blocked by FTWRL active in another connection.
 #
 # 3) BEGIN, ROLLBACK and COMMIT statements.
 #    BEGIN and ROLLBACK are compatible with FTWRL.
@@ -652,6 +653,7 @@ connection default;
 # 14.2) FLUSH TABLES <list> WITH READ LOCK is not blocked by
 #       active FTWRL. But since the latter keeps tables open
 #       FTWRL is blocked by FLUSH TABLES <list> WITH READ LOCK.
+#       Fixed by MDEV-5336
 flush tables with read lock;
 # FT <list> WRL is allowed under FTWRL at the moment.
 # It does not make much sense though.
@@ -668,12 +670,9 @@ connection default;
 flush tables t1_base, t2_base with read lock;
 connection con1;
 flush tables with read lock;
-connection con2;
-# Wait until FTWRL is blocked.
 connection default;
 unlock tables;
 connection con1;
-# Reap FTWRL.
 unlock tables;
 connection default;
 #
@@ -1411,10 +1410,8 @@ set autocommit= 1;
 # 39.1.a) ANALYZE TABLE for transactional table is incompatible with
 #         FTWRL.
 flush tables with read lock;
-# Implicit commits are allowed under FTWRL.
 analyze table t3_trans;
-Table	Op	Msg_type	Msg_text
-test.t3_trans	analyze	status	OK
+ERROR HY000: Can't execute the query because you have a conflicting read lock
 unlock tables;
 #
 connection con1;
@@ -1427,6 +1424,7 @@ unlock tables;
 connection default;
 # Reap ANALYZE TABLE
 Table	Op	Msg_type	Msg_text
+test.t3_trans	analyze	status	Engine-independent statistics collected
 test.t3_trans	analyze	status	OK
 #
 # 39.1.b) CHECK TABLE for transactional table is compatible with FTWRL.
@@ -1462,7 +1460,7 @@ Success: Was able to run 'repair table t3_temp_trans' with FTWRL active in anoth
 Success: Was able to run FTWRL while 'repair table t3_temp_trans' was active in another connection.
 #
 # And ANALYZE TABLE:
-Success: Was able to run 'analyze table t3_temp_trans' under FTWRL.
+Error: Wasn't able to run 'analyze table t3_temp_trans' under FTWRL!
 Success: Was able to run 'analyze table t3_temp_trans' with FTWRL active in another connection.
 Success: Was able to run FTWRL while 'analyze table t3_temp_trans' was active in another connection.
 #
@@ -1677,3 +1675,94 @@ disconnect con1;
 disconnect con2;
 disconnect con3;
 set global sql_mode=default;
+#
+# Deadlock between FTWRL under open handler and DDL/LOCK TABLES
+#
+CREATE TABLE t1(a INT);
+#
+connect  con3,localhost,root,,;
+HANDLER t1 OPEN;
+#
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+LOCK TABLE t1 WRITE;
+#
+# we need to do it in a separate connection,
+# because SET DEBUG_SYNC call open_tables()/mysql_ha_flush() :(
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+disconnect con2;
+#
+connection default;
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+#
+connection con3;
+HANDLER t1 CLOSE;
+disconnect con3;
+#
+connection con1;
+UNLOCK TABLES;
+disconnect con1;
+#
+connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+#
+# Make sure pending LOCK TABLES doesn't block FTWRL
+#
+CREATE TABLE t1(a INT);
+LOCK TABLE t1 READ;
+#
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+LOCK TABLE t1 WRITE;
+#
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+disconnect con2;
+#
+connection default;
+UNLOCK TABLES;
+#
+connection con1;
+UNLOCK TABLES;
+disconnect con1;
+#
+connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+#
+# MDEV-19384 Deadlock between FTWRL under open HANDLER, LOCK TABLE
+# and DROP DATABASE
+#
+SET DEBUG_SYNC= 'ftwrl_before_lock SIGNAL ready WAIT_FOR go';
+CREATE DATABASE mysqltest;
+CREATE TABLE mysqltest.t1(a INT);
+HANDLER mysqltest.t1 OPEN as t1;
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready1';
+LOCK TABLE mysqltest.t1 WRITE;
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC= 'now WAIT_FOR ready1';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready2';
+DROP DATABASE mysqltest;
+connect  con3,localhost,root,,;
+SET DEBUG_SYNC= 'now WAIT_FOR ready2';
+connection default;
+FLUSH TABLES WITH READ LOCK;
+connection con3;
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+disconnect con3;
+connection con1;
+SET DEBUG_SYNC= 'now SIGNAL go';
+disconnect con1;
+connection default;
+UNLOCK TABLES;
+HANDLER t1 CLOSE;
+connection con2;
+disconnect con2;
+connection default;
+SET DEBUG_SYNC= 'RESET';

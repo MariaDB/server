@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "sql_plist.h"
 #include <my_sys.h>
@@ -27,6 +27,10 @@ class MDL_context;
 class MDL_lock;
 class MDL_ticket;
 bool  ok_for_lower_case_names(const char *name);
+
+typedef unsigned short mdl_bitmap_t;
+#define MDL_BIT(A) static_cast<mdl_bitmap_t>(1U << A)
+
 
 /**
   @def ENTER_COND(C, M, S, O)
@@ -112,19 +116,27 @@ public:
 
   @sa Comments for MDL_object_lock::can_grant_lock() and
       MDL_scoped_lock::can_grant_lock() for details.
+
+  Scoped locks are database (or schema) locks.
+  The object locks are for tables, triggers etc.
 */
 
 enum enum_mdl_type {
+  /* This means that the MDL_request is not initialized */
+  MDL_NOT_INITIALIZED= -1,
   /*
-    An intention exclusive metadata lock. Used only for scoped locks.
+    An intention exclusive metadata lock (IX). Used only for scoped locks.
     Owner of this type of lock can acquire upgradable exclusive locks on
     individual objects.
     Compatible with other IX locks, but is incompatible with scoped S and
     X locks.
+    IX lock is taken in SCHEMA namespace when we intend to modify
+    object metadata. Object may refer table, stored procedure, trigger,
+    view/etc.
   */
   MDL_INTENTION_EXCLUSIVE= 0,
   /*
-    A shared metadata lock.
+    A shared metadata lock (S).
     To be used in cases when we are interested in object metadata only
     and there is no intention to access object data (e.g. for stored
     routines or during preparing prepared statements).
@@ -144,6 +156,9 @@ enum enum_mdl_type {
     use SNRW locks for them. It also does not arise when S locks are used
     during PREPARE calls as table-level locks are not acquired in this
     case.
+    This lock is taken for global read lock, when caching a stored
+    procedure in memory for the duration of the transaction and for
+    tables used by prepared statements.
   */
   MDL_SHARED,
   /*
@@ -164,8 +179,8 @@ enum enum_mdl_type {
   */
   MDL_SHARED_HIGH_PRIO,
   /*
-    A shared metadata lock for cases when there is an intention to read data
-    from table.
+    A shared metadata lock (SR) for cases when there is an intention to read
+    data from table.
     A connection holding this kind of lock can read table metadata and read
     table data (after acquiring appropriate table and row-level locks).
     This means that one can only acquire TL_READ, TL_READ_NO_INSERT, and
@@ -175,7 +190,7 @@ enum enum_mdl_type {
   */
   MDL_SHARED_READ,
   /*
-    A shared metadata lock for cases when there is an intention to modify
+    A shared metadata lock (SW) for cases when there is an intention to modify
     (and not just read) data in the table.
     A connection holding SW lock can read table metadata and modify or read
     table data (after acquiring appropriate table and row-level locks).
@@ -185,8 +200,8 @@ enum enum_mdl_type {
   */
   MDL_SHARED_WRITE,
   /*
-    An upgradable shared metadata lock for cases when there is an intention
-    to modify (and not just read) data in the table.
+    An upgradable shared metadata lock for cases when there is an
+    intention to modify (and not just read) data in the table.
     Can be upgraded to MDL_SHARED_NO_WRITE and MDL_EXCLUSIVE.
     A connection holding SU lock can read table metadata and modify or read
     table data (after acquiring appropriate table and row-level locks).
@@ -226,7 +241,7 @@ enum enum_mdl_type {
   */
   MDL_SHARED_NO_READ_WRITE,
   /*
-    An exclusive metadata lock.
+    An exclusive metadata lock (X).
     A connection holding this lock can modify both table's metadata and data.
     No other type of metadata lock can be granted while this lock is held.
     To be used for CREATE/DROP/RENAME TABLE statements and for execution of
@@ -234,7 +249,75 @@ enum enum_mdl_type {
   */
   MDL_EXCLUSIVE,
   /* This should be the last !!! */
-  MDL_TYPE_END};
+  MDL_TYPE_END
+};
+
+
+/** Backup locks */
+
+/**
+  Block concurrent backup
+*/
+#define MDL_BACKUP_START enum_mdl_type(0)
+/**
+   Block new write requests to non transactional tables
+*/
+#define MDL_BACKUP_FLUSH enum_mdl_type(1)
+/**
+   In addition to previous locks, blocks running requests to non trans tables
+   Used to wait until all DML usage of on trans tables are finished
+*/
+#define MDL_BACKUP_WAIT_FLUSH enum_mdl_type(2)
+/**
+   In addition to previous locks, blocks new DDL's from starting
+*/
+#define MDL_BACKUP_WAIT_DDL enum_mdl_type(3)
+/**
+   In addition to previous locks, blocks commits
+*/
+#define MDL_BACKUP_WAIT_COMMIT enum_mdl_type(4)
+
+/**
+  Blocks (or is blocked by) statements that intend to modify data. Acquired
+  before commit lock by FLUSH TABLES WITH READ LOCK.
+*/
+#define MDL_BACKUP_FTWRL1 enum_mdl_type(5)
+
+/**
+  Blocks (or is blocked by) commits. Acquired after global read lock by
+  FLUSH TABLES WITH READ LOCK.
+*/
+#define MDL_BACKUP_FTWRL2 enum_mdl_type(6)
+
+#define MDL_BACKUP_DML enum_mdl_type(7)
+#define MDL_BACKUP_TRANS_DML enum_mdl_type(8)
+#define MDL_BACKUP_SYS_DML enum_mdl_type(9)
+
+/**
+  Must be acquired by DDL statements that intend to modify data.
+  Currently it's also used for LOCK TABLES.
+*/
+#define MDL_BACKUP_DDL enum_mdl_type(10)
+
+/**
+   Blocks new DDL's. Used by backup code to enable DDL logging
+*/
+#define MDL_BACKUP_BLOCK_DDL enum_mdl_type(11)
+
+/*
+  Statement is modifying data, but will not block MDL_BACKUP_DDL or earlier
+  BACKUP stages.
+  ALTER TABLE is started with MDL_BACKUP_DDL, but changed to
+  MDL_BACKUP_ALTER_COPY while alter table is copying or modifing data.
+*/
+
+#define MDL_BACKUP_ALTER_COPY enum_mdl_type(12)
+
+/**
+  Must be acquired during commit.
+*/
+#define MDL_BACKUP_COMMIT enum_mdl_type(13)
+#define MDL_BACKUP_END enum_mdl_type(14)
 
 
 /** Duration of metadata lock. */
@@ -282,10 +365,13 @@ public:
   /**
     Object namespaces.
     Sic: when adding a new member to this enum make sure to
-    update m_namespace_to_wait_state_name array in mdl.cc!
+    update m_namespace_to_wait_state_name array in mdl.cc and
+    metadata_lock_info_lock_name in metadata_lock_info.cc!
 
     Different types of objects exist in different namespaces
+     - SCHEMA is for databases (to protect against DROP DATABASE)
      - TABLE is for tables and views.
+     - BACKUP is for locking DML, DDL and COMMIT's during BACKUP STAGES
      - FUNCTION is for stored functions.
      - PROCEDURE is for stored procedures.
      - TRIGGER is for triggers.
@@ -294,7 +380,7 @@ public:
     it's necessary to have a separate namespace for them since
     MDL_key is also used outside of the MDL subsystem.
   */
-  enum enum_mdl_namespace { GLOBAL=0,
+  enum enum_mdl_namespace { BACKUP=0,
                             SCHEMA,
                             TABLE,
                             FUNCTION,
@@ -302,7 +388,6 @@ public:
                             PACKAGE_BODY,
                             TRIGGER,
                             EVENT,
-                            COMMIT,
                             USER_LOCK,           /* user level locks. */
                             /* This should be the last ! */
                             NAMESPACE_END };
@@ -470,6 +555,16 @@ public:
     DBUG_ASSERT(ticket == NULL);
     type= type_arg;
   }
+  void move_from(MDL_request &from)
+  {
+    type= from.type;
+    duration= from.duration;
+    ticket= from.ticket;
+    next_in_list= from.next_in_list;
+    prev_in_list= from.prev_in_list;
+    key.mdl_key_init(&from.key);
+    from.ticket=  NULL; // that's what "move" means
+  }
 
   /**
     Is this a request for a lock which allow data to be updated?
@@ -499,12 +594,13 @@ public:
   */
   MDL_request& operator=(const MDL_request &)
   {
+    type= MDL_NOT_INITIALIZED;
     ticket= NULL;
     /* Do nothing, in particular, don't try to copy the key. */
     return *this;
   }
   /* Another piece of ugliness for TABLE_LIST constructor */
-  MDL_request() {}
+  MDL_request(): type(MDL_NOT_INITIALIZED), ticket(NULL) {}
 
   MDL_request(const MDL_request *rhs)
     :type(rhs->type),
@@ -552,7 +648,8 @@ public:
 
   enum enum_deadlock_weight
   {
-    DEADLOCK_WEIGHT_DML= 0,
+    DEADLOCK_WEIGHT_FTWRL1= 0,
+    DEADLOCK_WEIGHT_DML= 1,
     DEADLOCK_WEIGHT_DDL= 100
   };
   /* A helper used to determine which lock request should be aborted. */
@@ -610,6 +707,8 @@ public:
            m_type == MDL_EXCLUSIVE;
   }
   enum_mdl_type get_type() const { return m_type; }
+  const LEX_STRING *get_type_name() const;
+  const LEX_STRING *get_type_name(enum_mdl_type type) const;
   MDL_lock *get_lock() const { return m_lock; }
   MDL_key *get_key() const;
   void downgrade_lock(enum_mdl_type type);
@@ -802,7 +901,7 @@ public:
   void set_lock_duration(MDL_ticket *mdl_ticket, enum_mdl_duration duration);
 
   void release_statement_locks();
-  void release_transactional_locks();
+  void release_transactional_locks(THD *thd);
   void release_explicit_locks();
   void rollback_to_savepoint(const MDL_savepoint &mdl_savepoint);
 
@@ -810,7 +909,8 @@ public:
 
   /** @pre Only valid if we started waiting for lock. */
   inline uint get_deadlock_weight() const
-  { return m_waiting_for->get_deadlock_weight(); }
+  { return m_waiting_for->get_deadlock_weight() + m_deadlock_overweight; }
+  void inc_deadlock_overweight() { m_deadlock_overweight++; }
   /**
     Post signal to the context (and wake it up if necessary).
 
@@ -928,6 +1028,7 @@ private:
    */
   MDL_wait_for_subgraph *m_waiting_for;
   LF_PINS *m_pins;
+  uint m_deadlock_overweight= 0;
 private:
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
@@ -1001,6 +1102,8 @@ extern "C" int thd_is_connected(MYSQL_THD thd);
 */
 extern "C" ulong max_write_lock_count;
 
+typedef int (*mdl_iterator_callback)(MDL_ticket *ticket, void *arg,
+                                     bool granted);
 extern MYSQL_PLUGIN_IMPORT
-int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg);
-#endif
+int mdl_iterate(mdl_iterator_callback callback, void *arg);
+#endif /* MDL_H */

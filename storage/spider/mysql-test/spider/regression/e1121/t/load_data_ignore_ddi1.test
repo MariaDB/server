@@ -1,0 +1,8 @@
+--source ../include/load_data_ddi1_init.inc
+--let COMMAND_BEFORE_LOAD_DATA= UPDATE tbl_a SET val = val + 1
+--let OPTION_LOCAL=
+--let OPTION_WORD= IGNORE
+--source load_data.inc
+--source ../include/load_data_ddi1_deinit.inc
+--echo
+--echo end of test

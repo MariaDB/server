@@ -1,3 +1,5 @@
+#!/bin/bash
+
 set -e
 
 binlog_line=($(grep -o "Last binlog file position [0-9]*, file name .*\.[0-9]*" ${MYSQLTEST_VARDIR}/log/mysqld.2.err | tail -1))

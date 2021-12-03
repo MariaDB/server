@@ -32,6 +32,7 @@ select sql_big_result t,count(t) from t1 group by t limit 10;
 drop table t1;
 
 reset master;
+set @save_binlog_cache_size=@@global.binlog_cache_size;
 set global binlog_cache_size=8192;
 
 connect con1, localhost, root;
@@ -74,7 +75,7 @@ flush binary logs;
 
 drop table t1, t2;
 
-set global binlog_cache_size=default;
+set @@global.binlog_cache_size=@save_binlog_cache_size;
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 | $MYSQL;

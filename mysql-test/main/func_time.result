@@ -159,7 +159,9 @@ date_format('1999-12-31','%x-%v')	date_format('2000-01-01','%x-%v')
 1999-52	1999-52
 select dayname("1962-03-03"),dayname("1962-03-03")+0;
 dayname("1962-03-03")	dayname("1962-03-03")+0
-Saturday	5
+Saturday	0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'Saturday'
 select monthname("1972-03-04"),monthname("1972-03-04")+0;
 monthname("1972-03-04")	monthname("1972-03-04")+0
 March	0
@@ -2158,7 +2160,7 @@ Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `f2` varchar(26) DEFAULT NULL
+  `f2` varchar(22) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT * FROM t2;
 f2
@@ -2180,13 +2182,13 @@ CREATE TABLE t1 (a TIMESTAMP(3));
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30.999');
 SELECT CAST(COALESCE(a,a) AS SIGNED) AS c1, CAST(COALESCE(a,a) AS DECIMAL(25,3)) AS c2, ROUND(COALESCE(a,a)) AS c2  FROM t1;
 c1	c2	c2
-20010101102030	20010101102030.999	20010101102031
+20010101102030	20010101102030.999	2001-01-01 10:20:31
 DROP TABLE t1;
 CREATE TABLE t1 (a TIME(3));
 INSERT INTO t1 VALUES ('10:20:30.999');
 SELECT CAST(COALESCE(a,a) AS SIGNED) AS c1, CAST(COALESCE(a,a) AS DECIMAL(25,3)) AS c2, ROUND(COALESCE(a,a)) AS c2  FROM t1;
 c1	c2	c2
-102030	102030.999	102031
+102030	102030.999	10:20:31
 DROP TABLE t1;
 SELECT
 CAST(COALESCE(DATE('2001-01-01'),TIMESTAMP('2001-01-02 10:20:30')) AS SIGNED) AS c1,
@@ -3425,6 +3427,36 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1,t2;
 #
+# MDEV-14926 AddressSanitizer: heap-use-after-free in make_date_time on weird combination of functions
+#
+DO INET_ATON( FROM_UNIXTIME( @@timestamp, ( TRIM( UNHEX(HEX('%m.%d.%Y') ) ) ) ) );
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1989-03-10');
+SELECT TIME_FORMAT('23:59:43', BINARY d) AS f FROM t1 GROUP BY 'foo';
+f
+1989-03-10
+DROP TABLE t1;
+CREATE TABLE t1 (d DATE) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('1900-01-01');
+SELECT LENGTH( DATE_FORMAT( d, BINARY DATABASE() ) ) AS f FROM t1 GROUP BY d;
+f
+4
+DROP TABLE t1;
+#
+# MDEV-18667 ASAN heap-use-after-free in make_date_time / Arg_comparator::compare_string / Item_func_nullif::compare
+#
+SELECT NULLIF('foo', FROM_UNIXTIME('2012-12-12 12:12:12', TRIM(0)));
+NULLIF('foo', FROM_UNIXTIME('2012-12-12 12:12:12', TRIM(0)))
+foo
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2012-12-12 12:12:12'
+#
+# MDEV-18626 ASAN stack-buffer-overflow in int10_to_str / make_date_time upon DATE_FORMAT
+#
+SELECT DATE_FORMAT(100000000000, '%j');
+DATE_FORMAT(100000000000, '%j')
+NULL
+#
 # End of 10.1 tests
 #
 #
@@ -3481,6 +3513,19 @@ View	Create View	character_set_client	collation_connection
 v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select default(`t2`.`pk`) AS `default(pk)` from `t2`	latin1	latin1_swedish_ci
 DROP VIEW v1,v2,v3;
 DROP TABLE t1,t2;
+#
+# MDEV-21388 Wrong result of DAYNAME()=xxx in combination with condition_pushdown_for_derived=on
+#
+SELECT DAYNAME('2019-01-05')+0;
+DAYNAME('2019-01-05')+0
+0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'Saturday'
+SELECT CAST(DAYNAME('2019-01-05') AS SIGNED);
+CAST(DAYNAME('2019-01-05') AS SIGNED)
+0
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'Saturday'
 #
 # End of 10.2 tests
 #
@@ -6295,3 +6340,29 @@ Warning	1292	Truncated incorrect time value: '50326 garbage'
 SELECT TIME('- 01:00:00'), TIME('- 1 01:00:00');
 TIME('- 01:00:00')	TIME('- 1 01:00:00')
 -01:00:00	-25:00:00
+#
+# MDEV-17854 Assertion `decimals <= 6' failed in my_time_fraction_remainder on SELECT with NULLIF and FROM_UNIXTIME on incorrect time
+#
+SET time_zone='+00:00';
+SELECT NULLIF(FROM_UNIXTIME('foo'), '2012-12-12 21:10:14');
+NULLIF(FROM_UNIXTIME('foo'), '2012-12-12 21:10:14')
+1970-01-01 00:00:00
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'foo'
+Warning	1292	Truncated incorrect DECIMAL value: 'foo'
+SET time_zone=DEFAULT;
+#
+# MDEV-18402 Assertion `sec.sec() <= 59' failed in Item_func_maketime::get_date
+#
+SELECT MAKETIME('01', '01', LEAST( -100, NULL ));
+MAKETIME('01', '01', LEAST( -100, NULL ))
+NULL
+SELECT CONCAT(MAKETIME('01', '01', LEAST( -100, NULL )));
+CONCAT(MAKETIME('01', '01', LEAST( -100, NULL )))
+NULL
+#
+# MDEV-19774 Assertion `sec.se c() <= 0x7FFFFFFFL' failed in Item_func_from_unixtime::get_date
+#
+SELECT FROM_UNIXTIME(LEAST(3696610869, NULL));
+FROM_UNIXTIME(LEAST(3696610869, NULL))
+NULL

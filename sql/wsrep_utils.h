@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License along
    with this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA. */
 
 #ifndef WSREP_UTILS_H
 #define WSREP_UTILS_H
@@ -21,6 +21,27 @@
 
 unsigned int wsrep_check_ip (const char* const addr, bool *is_ipv6);
 size_t wsrep_guess_ip (char* buf, size_t buf_len);
+namespace wsp {
+class node_status
+{
+public:
+  node_status() : status(wsrep::server_state::s_disconnected) {}
+  void set(enum wsrep::server_state::state new_status,
+           const wsrep::view* view= 0)
+  {
+    if (status != new_status || 0 != view)
+    {
+      wsrep_notify_status(new_status, view);
+      status= new_status;
+    }
+  }
+  enum wsrep::server_state::state get() const { return status; }
+private:
+  enum wsrep::server_state::state status;
+};
+} /* namespace wsp */
+
+extern wsp::node_status local_status;
 
 /* returns the length of the host part of the address string */
 size_t wsrep_host_len(const char* addr, size_t addr_len);
@@ -108,7 +129,8 @@ private:
           /* Hostname with port (host:port) */
           start= addr_in;
           end= colon;
-          parse_port(colon + 1);
+          if (parse_port(colon + 1))
+            return;                             /* Error: invalid port */
           break;
         default:
           /* IPv6 address */
@@ -173,50 +195,35 @@ private:
 class Config_state
 {
 public:
-  Config_state() : view_(), status_(WSREP_MEMBER_UNDEFINED)
+  Config_state() : view_(), status_(wsrep::server_state::s_disconnected)
   {}
 
-  void set(wsrep_member_status_t status, const wsrep_view_info_t* view)
+  void set(const wsrep::view& view)
   {
-    wsrep_notify_status(status, view);
+    wsrep_notify_status(status_, &view);
 
     lock();
-
-    status_= status;
-    view_= *view;
-    member_info_.clear();
-
-    wsrep_member_info_t memb;
-    for(int i= 0; i < view->memb_num; i ++)
-    {
-      memb= view->members[i];
-      member_info_.append_val(memb);
-    }
-
+    view_= view;
     unlock();
   }
 
-  void set(wsrep_member_status_t status)
+  void set(enum wsrep::server_state::state status)
   {
-    wsrep_notify_status(status, 0);
+    wsrep_notify_status(status);
+
     lock();
     status_= status;
     unlock();
   }
 
-  wsrep_view_info_t get_view_info() const
+  const wsrep::view& get_view_info() const
   {
     return view_;
   }
 
-  wsrep_member_status_t get_status() const
+  enum wsrep::server_state::state get_status() const
   {
     return status_;
-  }
-
-  Dynamic_array<wsrep_member_info_t> * get_member_info()
-  {
-    return &member_info_;
   }
 
   int lock()
@@ -230,9 +237,8 @@ public:
   }
 
 private:
-  wsrep_view_info_t                  view_;
-  wsrep_member_status_t              status_;
-  Dynamic_array<wsrep_member_info_t> member_info_;
+  wsrep::view view_;
+  enum wsrep::server_state::state status_;
 };
 
 } /* namespace wsp */
@@ -297,7 +303,7 @@ class thd
 
 public:
 
-  thd(my_bool wsrep_on);
+  thd(my_bool wsrep_on, bool system_thread=false);
   ~thd();
   THD* const ptr;
 };
@@ -308,10 +314,21 @@ public:
     string() : string_(0) {}
     explicit string(size_t s) : string_(static_cast<char*>(malloc(s))) {}
     char* operator()() { return string_; }
-    void set(char* str) { if (string_) free (string_); string_ = str; }
+    void set(char* str) { if (string_) free (string_); string_= str; }
     ~string() { set (0); }
 private:
     char* string_;
+};
+
+/* scope level lock */
+class auto_lock
+{
+public:
+  auto_lock(mysql_mutex_t* m) : m_(m) { mysql_mutex_lock(m_); }
+  ~auto_lock() { mysql_mutex_unlock(m_); }
+private:
+  mysql_mutex_t& operator =(mysql_mutex_t&);
+  mysql_mutex_t* const m_;
 };
 
 #ifdef REMOVED
@@ -323,7 +340,7 @@ public:
 
   lock (pthread_mutex_t* mtx) : mtx_(mtx)
   {
-    int err = pthread_mutex_lock (mtx_);
+    int err= pthread_mutex_lock (mtx_);
 
     if (err)
     {
@@ -334,7 +351,7 @@ public:
 
   virtual ~lock ()
   {
-    int err = pthread_mutex_unlock (mtx_);
+    int err= pthread_mutex_unlock (mtx_);
 
     if (err)
     {

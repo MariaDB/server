@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2017, Aliyun and/or its affiliates.
-   Copyright (c) 2017, MariaDB corporation
+   Copyright (c) 2017, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -108,14 +108,14 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       MY_TEST(flags & HA_OPEN_INTERNAL_TABLE);
     reset_statistics();
 
-    /* Don't try to read the inital row the call is part of create code */
+    /* Don't try to read the initial row the call is part of create code */
     if (!(flags & (HA_OPEN_FOR_CREATE | HA_OPEN_FOR_REPAIR)))
     {
       if (unlikely((error= table->s->sequence->read_initial_values(table))))
         file->ha_close();
     }
-    else
-      table->m_needs_reopen= true;
+    else if (!table->s->tmp_table)
+      table->internal_set_needs_reopen(true);
 
     /*
       The following is needed to fix comparison of rows in
@@ -194,7 +194,7 @@ int ha_sequence::create(const char *name, TABLE *form,
     the sequence with 'buf' as the sequence object is already up to date.
 */
 
-int ha_sequence::write_row(uchar *buf)
+int ha_sequence::write_row(const uchar *buf)
 {
   int error;
   sequence_definition tmp_seq;
@@ -443,6 +443,6 @@ maria_declare_plugin(sql_sequence)
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
   "1.0",                      /* string version                  */
-  MariaDB_PLUGIN_MATURITY_ALPHA /* maturity                     */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity                     */
 }
 maria_declare_plugin_end;

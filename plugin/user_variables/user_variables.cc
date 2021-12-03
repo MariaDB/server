@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1335 USA */
 
 #define MYSQL_SERVER
 #include <my_global.h>
@@ -135,6 +135,6 @@ maria_declare_plugin(user_variables)
   NULL,
   NULL,
   "1.0",
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;

@@ -1,6 +1,7 @@
 # This test can't be run with running server (--extern) as this uses
 # load_file() on a file in the tree.
 #
+--source include/have_innodb.inc
 
 #
 # Basic cleanup
@@ -131,8 +132,6 @@ select c,count(*) from t1 group by c;
 select d,count(*) from t1 group by d;
 drop table t1;
 
--- error 1071
-create table t1 (a text, unique (a(2100))); # should give an error
 create table t1 (a text, key (a(2100)));    # key is auto-truncated
 show create table t1;
 drop table t1;
@@ -360,9 +359,11 @@ select * from t1 where txt >= 'Chevy';
 drop table t1;
 
 create table t1 (id integer primary key auto_increment, txt text, index txt_index (txt (20)));
-insert into t1 (txt) values ('Chevy'), ('Chevy '), (NULL);
+insert into t1 (txt) values
+  ('Chevy'), ('Chevy '), (NULL), ('Honda'), ('Subaru'), ('Honda');
 select * from t1 where txt='Chevy' or txt is NULL;
 explain select * from t1 where txt='Chevy' or txt is NULL;
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL;
 select * from t1 where txt='Chevy ';
 select * from t1 where txt='Chevy ' or txt='Chevy';
 select * from t1 where txt='Chevy' or txt='Chevy ';
@@ -694,7 +695,67 @@ CREATE TABLE t1 (a TEXT(1431655798) CHARACTER SET utf8);
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+# ALTER SET DEFAULT
+create table t1 (a int);
+alter table t1 add column b blob, alter column b set default "foo";
+show create table t1;
+drop table t1;
 
 --echo #
 --echo # End of 10.2 test
+--echo #
+
+
+--echo #
+--echo # Start of 10.4 test
+--echo #
+
+--echo #
+--echo # MDEV-19317 TEXT column accepts too long literals as a default value
+--echo #
+
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT ?)' USING REPEAT('a', 255);
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+DROP TABLE t1;
+
+--error ER_INVALID_DEFAULT
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT ?)' USING REPEAT('a', 256);
+
+--error ER_INVALID_DEFAULT
+CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+
+
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TEXT DEFAULT ?)' USING REPEAT('a', 256);
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a TEXT DEFAULT 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # ASAN heap-use-after-free in my_hash_sort_bin or ER_KEY_NOT_FOUND
+--echo # upon INSERT into table with long unique blob
+--echo #
+
+# Note that this test worked with myisam as it caches blobs differently than
+# InnoDB
+
+SET @save_sql_mode=@@sql_mode;
+SET SQL_MODE='STRICT_ALL_TABLES';
+
+CREATE TABLE t1 (a INT, b BLOB) ENGINE=innodb;
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+CREATE TABLE t2 (c BIT, d BLOB, UNIQUE(d)) ENGINE=innodb;
+--error ER_DATA_TOO_LONG
+INSERT INTO t2 SELECT * FROM t1;
+select * from t2;
+DROP TABLE t1, t2;
+SET @@sql_mode=@save_sql_mode;
+
+--echo #
+--echo # End of 10.4 test
 --echo #

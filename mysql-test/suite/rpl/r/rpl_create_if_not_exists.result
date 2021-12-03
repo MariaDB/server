@@ -25,8 +25,6 @@ connection slave;
 connection slave;
 SHOW TABLES in mysqltest;
 Tables_in_mysqltest
-t
-t1
 SHOW EVENTS in mysqltest;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 mysqltest	e	root@localhost	SYSTEM	ONE TIME	#	NULL	NULL	NULL	NULL	SLAVESIDE_DISABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci

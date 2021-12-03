@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -144,16 +144,6 @@ mem_block_get_start(mem_block_t* block)
 	return(block->start);
 }
 
-/** Checks that an object is a memory heap block
-@param[in]	block	Memory block to check. */
-UNIV_INLINE
-void
-mem_block_validate(
-	const mem_block_t*	block)
-{
-	ut_a(block->magic_n == MEM_BLOCK_MAGIC_N);
-}
-
 /** Allocates and zero-fills n bytes of memory from a memory heap.
 @param[in]	heap	memory heap
 @param[in]	n	number of bytes; if the heap is allowed to grow into
@@ -183,12 +173,12 @@ mem_heap_alloc(
 	ulint		n)
 {
 	mem_block_t*	block;
-	void*		buf;
+	byte*		buf;
 	ulint		free;
 
-	ut_d(mem_block_validate(heap));
-
 	block = UT_LIST_GET_LAST(heap->base);
+
+	n += REDZONE_SIZE;
 
 	ut_ad(!(block->type & MEM_HEAP_BUFFER) || (n <= MEM_MAX_ALLOC_IN_BUF));
 
@@ -212,7 +202,8 @@ mem_heap_alloc(
 
 	mem_block_set_free(block, free + MEM_SPACE_NEEDED(n));
 
-	UNIV_MEM_ALLOC(buf, n);
+	buf = buf + REDZONE_SIZE;
+	MEM_MAKE_ADDRESSABLE(buf, n - REDZONE_SIZE);
 	return(buf);
 }
 
@@ -226,8 +217,6 @@ mem_heap_get_heap_top(
 {
 	mem_block_t*	block;
 	byte*		buf;
-
-	ut_d(mem_block_validate(heap));
 
 	block = UT_LIST_GET_LAST(heap->base);
 
@@ -279,7 +268,7 @@ mem_heap_free_heap_top(
 			   ulint(old_top - reinterpret_cast<byte*>(block)));
 
 	ut_ad(mem_block_get_start(block) <= mem_block_get_free(block));
-	UNIV_MEM_FREE(old_top, (byte*) block + block->len - old_top);
+	MEM_NOACCESS(old_top, (byte*) block + block->len - old_top);
 
 	/* If free == start, we may free the block if it is not the first
 	one */
@@ -319,109 +308,11 @@ mem_heap_get_top(
 	mem_block_t*	block;
 	byte*		buf;
 
-	ut_d(mem_block_validate(heap));
-
 	block = UT_LIST_GET_LAST(heap->base);
 
 	buf = (byte*) block + mem_block_get_free(block) - MEM_SPACE_NEEDED(n);
 
 	return((void*) buf);
-}
-
-/** Checks if a given chunk of memory is the topmost element stored in the
-heap. If this is the case, then calling mem_heap_free_top() would free
-that element from the heap.
-@param[in]	heap	memory heap
-@param[in]	buf	presumed topmost element
-@param[in]	buf_sz	size of buf in bytes
-@return true if topmost */
-UNIV_INLINE
-bool
-mem_heap_is_top(
-	mem_heap_t*	heap,
-	const void*	buf,
-	ulint		buf_sz)
-{
-	const byte*	first_free_byte;
-	const byte*	presumed_start_of_buf;
-
-	ut_d(mem_block_validate(heap));
-
-	first_free_byte = mem_heap_get_heap_top(heap);
-
-	presumed_start_of_buf = first_free_byte - MEM_SPACE_NEEDED(buf_sz);
-
-	return(presumed_start_of_buf == buf);
-}
-
-/*****************************************************************//**
-Allocate a new chunk of memory from a memory heap, possibly discarding
-the topmost element. If the memory chunk specified with (top, top_sz)
-is the topmost element, then it will be discarded, otherwise it will
-be left untouched and this function will be equivallent to
-mem_heap_alloc().
-@return allocated storage, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
-UNIV_INLINE
-void*
-mem_heap_replace(
-/*=============*/
-	mem_heap_t*	heap,	/*!< in/out: memory heap */
-	const void*	top,	/*!< in: chunk to discard if possible */
-	ulint		top_sz,	/*!< in: size of top in bytes */
-	ulint		new_sz)	/*!< in: desired size of the new chunk */
-{
-	if (mem_heap_is_top(heap, top, top_sz)) {
-		mem_heap_free_top(heap, top_sz);
-	}
-
-	return(mem_heap_alloc(heap, new_sz));
-}
-
-/*****************************************************************//**
-Allocate a new chunk of memory from a memory heap, possibly discarding
-the topmost element and then copy the specified data to it. If the memory
-chunk specified with (top, top_sz) is the topmost element, then it will be
-discarded, otherwise it will be left untouched and this function will be
-equivallent to mem_heap_dup().
-@return allocated storage, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
-UNIV_INLINE
-void*
-mem_heap_dup_replace(
-/*=================*/
-	mem_heap_t*	heap,	/*!< in/out: memory heap */
-	const void*	top,	/*!< in: chunk to discard if possible */
-	ulint		top_sz,	/*!< in: size of top in bytes */
-	const void*	data,	/*!< in: new data to duplicate */
-	ulint		data_sz)/*!< in: size of data in bytes */
-{
-	void*	p = mem_heap_replace(heap, top, top_sz, data_sz);
-
-	memcpy(p, data, data_sz);
-
-	return(p);
-}
-
-/*****************************************************************//**
-Allocate a new chunk of memory from a memory heap, possibly discarding
-the topmost element and then copy the specified string to it. If the memory
-chunk specified with (top, top_sz) is the topmost element, then it will be
-discarded, otherwise it will be left untouched and this function will be
-equivallent to mem_heap_strdup().
-@return allocated string, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
-UNIV_INLINE
-char*
-mem_heap_strdup_replace(
-/*====================*/
-	mem_heap_t*	heap,	/*!< in/out: memory heap */
-	const void*	top,	/*!< in: chunk to discard if possible */
-	ulint		top_sz,	/*!< in: size of top in bytes */
-	const char*	str)	/*!< in: new data to duplicate */
-{
-	return(reinterpret_cast<char*>(mem_heap_dup_replace(
-			heap, top, top_sz, str, strlen(str) + 1)));
 }
 
 /*****************************************************************//**
@@ -436,7 +327,7 @@ mem_heap_free_top(
 {
 	mem_block_t*	block;
 
-	ut_d(mem_block_validate(heap));
+	n += REDZONE_SIZE;
 
 	block = UT_LIST_GET_LAST(heap->base);
 
@@ -451,7 +342,7 @@ mem_heap_free_top(
 				== mem_block_get_start(block))) {
 		mem_heap_block_free(heap, block);
 	} else {
-		UNIV_MEM_FREE((byte*) block + mem_block_get_free(block), n);
+		MEM_NOACCESS((byte*) block + mem_block_get_free(block), n);
 	}
 }
 
@@ -511,8 +402,6 @@ mem_heap_free(
 	mem_block_t*	block;
 	mem_block_t*	prev_block;
 
-	ut_d(mem_block_validate(heap));
-
 	block = UT_LIST_GET_LAST(heap->base);
 
 	if (heap->free_block) {
@@ -539,11 +428,7 @@ mem_heap_get_size(
 /*==============*/
 	mem_heap_t*	heap)	/*!< in: heap */
 {
-	ulint		size	= 0;
-
-	ut_d(mem_block_validate(heap));
-
-	size = heap->total_size;
+	ulint size = heap->total_size;
 
 	if (heap->free_block) {
 		size += srv_page_size;

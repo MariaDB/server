@@ -4,7 +4,7 @@ connection master;
 CREATE USER dummy@localhost;
 CREATE USER dummy1@localhost, dummy2@localhost;
 SELECT user, host FROM mysql.user WHERE user like 'dummy%';
-user	host
+User	Host
 dummy	localhost
 dummy1	localhost
 dummy2	localhost
@@ -14,7 +14,7 @@ COUNT(*)
 connection slave;
 **** On Slave ****
 SELECT user,host FROM mysql.user WHERE user like 'dummy%';
-user	host
+User	Host
 dummy	localhost
 dummy1	localhost
 dummy2	localhost
@@ -28,13 +28,13 @@ DROP USER nonexisting@localhost, dummy@localhost;
 ERROR HY000: Operation DROP USER failed for 'nonexisting'@'localhost'
 DROP USER dummy1@localhost, dummy2@localhost;
 SELECT user, host FROM mysql.user WHERE user like 'dummy%';
-user	host
+User	Host
 SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
 COUNT(*)
 0
 connection slave;
 SELECT user,host FROM mysql.user WHERE user like 'dummy%';
-user	host
+User	Host
 SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
 COUNT(*)
 0

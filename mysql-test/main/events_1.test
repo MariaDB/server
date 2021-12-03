@@ -5,6 +5,7 @@
 -- source include/not_embedded.inc
 
 set sql_mode="";
+--source include/default_charset.inc
 
 call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
 
@@ -69,7 +70,7 @@ drop event event2;
 CREATE EVENT event_starts_test ON SCHEDULE EVERY 10 SECOND COMMENT "" DO SELECT 1;
 SELECT interval_field, interval_value, body FROM mysql.event WHERE db='events_test' AND name='event_starts_test';
 SELECT execute_at IS NULL, starts IS NULL, ends IS NULL, comment FROM mysql.event WHERE db='events_test' AND name='event_starts_test';
-ALTER EVENT event_starts_test ON SCHEDULE AT '2020-02-02 20:00:02';
+ALTER EVENT event_starts_test ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE;
 SELECT execute_at IS NULL, starts IS NULL, ends IS NULL, comment FROM mysql.event WHERE db='events_test' AND name='event_starts_test';
 ALTER EVENT event_starts_test COMMENT "non-empty comment";
 SELECT execute_at IS NULL, starts IS NULL, ends IS NULL, comment FROM mysql.event WHERE db='events_test' AND name='event_starts_test';
@@ -77,7 +78,7 @@ ALTER EVENT event_starts_test COMMENT "";
 SELECT execute_at IS NULL, starts IS NULL, ends IS NULL, comment FROM mysql.event WHERE db='events_test' AND name='event_starts_test';
 DROP EVENT event_starts_test;
 
-CREATE EVENT event_starts_test ON SCHEDULE EVERY 20 SECOND STARTS '2020-02-02 20:00:02' ENDS '2022-02-02 20:00:02' DO SELECT 2;
+CREATE EVENT event_starts_test ON SCHEDULE EVERY 20 SECOND STARTS '1970-01-02 00:00:00' ENDS '1970-01-03 00:00:00' ON COMPLETION PRESERVE DISABLE DO SELECT 2;
 SELECT execute_at IS NULL, starts IS NULL, ends IS NULL, comment FROM mysql.event WHERE db='events_test' AND name='event_starts_test';
 ALTER EVENT event_starts_test COMMENT "non-empty comment";
 SELECT execute_at IS NULL, starts IS NULL, ends IS NULL, comment FROM mysql.event WHERE db='events_test' AND name='event_starts_test';

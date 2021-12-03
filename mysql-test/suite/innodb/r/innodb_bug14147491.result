@@ -9,6 +9,7 @@ INSERT INTO t1 (b) VALUES ('corrupt me');
 # Corrupt the table
 Munged a string.
 Munged a string.
+# restart
 # Now t1 is corrupted but we should not crash
 SELECT * FROM t1;
 Got one of the listed errors

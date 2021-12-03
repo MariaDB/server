@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef SQL_REPL_INCLUDED
 #define SQL_REPL_INCLUDED
@@ -20,17 +20,6 @@
 
 #ifdef HAVE_REPLICATION
 #include "slave.h"
-
-typedef struct st_slave_info
-{
-  uint32 server_id;
-  uint32 rpl_recovery_rank, master_id;
-  char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  char user[USERNAME_LENGTH+1];
-  char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  uint16 port;
-  THD* thd;
-} SLAVE_INFO;
 
 struct slave_connection_state;
 
@@ -56,6 +45,7 @@ bool show_binlogs(THD* thd);
 extern int init_master_info(Master_info* mi);
 void kill_zombie_dump_threads(uint32 slave_server_id);
 int check_binlog_magic(IO_CACHE* log, const char** errmsg);
+int compare_log_name(const char *log_1, const char *log_2);
 
 struct LOAD_FILE_IO_CACHE : public IO_CACHE
 {

@@ -31,6 +31,9 @@ insert into t1 select * from t2;
 show engine aria logs;
 Type	Name	Status
 Aria	Size        24576 aria_log.00000001	unknown
+select count(*) from t1;
+count(*)
+65
 connection default;
 connection admin;
 * shut down mysqld, removed logs, restarted it
@@ -40,6 +43,9 @@ insert into t1 select * from t2;
 show engine aria logs;
 Type	Name	Status
 Aria	Size        16384 aria_log.00000001	unknown
+select count(*) from t1;
+count(*)
+64
 drop table t1;
 connection default;
 connection admin;

@@ -10,7 +10,7 @@ DROP TABLE IF EXISTS t1;
 --exec echo "wait" >$_expect_file_name
 
 # restart server with correct parameters
-shutdown_server 10;
+shutdown_server;
 --exec echo "restart:--rocksdb_persistent_cache_path=$_cache_file_name --rocksdb_persistent_cache_size_mb=100" >$_expect_file_name
 --sleep 5
 --enable_reconnect
@@ -28,7 +28,7 @@ select * from t1 where a = 1;
 
 # restart server to re-read cache
 --exec echo "wait" >$_expect_file_name
-shutdown_server 10;
+shutdown_server;
 --exec echo "restart:--rocksdb_persistent_cache_path=$_cache_file_name --rocksdb_persistent_cache_size_mb=100" >$_expect_file_name
 --sleep 5
 --enable_reconnect

@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 connection node_1;
 SET GLOBAL wsrep_replicate_myisam = TRUE;
@@ -51,8 +53,8 @@ COUNT(*) = 0
 1
 DROP TABLE t1;
 connection node_1;
-CREATE TABLE t1 (f1 INTEGER) ENGINE=MyISAM;
-CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES (1);
@@ -98,13 +100,151 @@ DROP TABLE t2;
 # MDEV-11152: wsrep_replicate_myisam: SELECT gets replicated using TO
 #
 connection node_1;
-CREATE TABLE t1 (i INT) ENGINE=INNODB;
+CREATE TABLE t1 (i INT NOT NULL PRIMARY KEY) ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
 SELECT * FROM t1;
 i
 1
 DROP TABLE t1;
 connection node_1;
-SET GLOBAL wsrep_replicate_myisam = 0;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+PREPARE upd from 'update t1 set b = 100 where id = 5';
+PREPARE ins from 'insert into t1 values (11,11)';
+PREPARE del from 'delete from t1 where id = 4';
+PREPARE rep from 'replace into t1 values (12,12),(6,600)';
+EXECUTE upd;
+EXECUTE ins;
+EXECUTE del;
+EXECUTE rep;
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	2
+3	3
+5	100
+6	600
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
 connection node_2;
-SET GLOBAL wsrep_replicate_myisam = 0;
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	2
+3	3
+5	100
+6	600
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+CREATE PROCEDURE proc()
+BEGIN
+UPDATE t1 set b = 100 WHERE id = 5;
+INSERT INTO t1 VALUES (11,11);
+DELETE FROM t1 WHERE id = 4;
+REPLACE INTO t1 VALUES (12,12),(6,600);
+COMMIT;
+END|
+CALL proc();
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	2
+3	3
+5	100
+6	600
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+connection node_2;
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	2
+3	3
+5	100
+6	600
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+DROP PROCEDURE proc;
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, b INT) ENGINE=MyISAM;
+CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b INT) ENGINE=MyISAM;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NULL, NEW.b);
+CREATE TRIGGER tr2 BEFORE UPDATE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NULL, OLD.b),(NULL, NEW.b);
+CREATE TRIGGER tr3 BEFORE DELETE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NULL, OLD.b);
+INSERT INTO t1 VALUES (11,11);
+UPDATE t1 SET b = 200 WHERE id = 2;
+DELETE FROM t1 where id = 5;
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	200
+3	3
+4	4
+6	6
+7	7
+8	8
+9	9
+10	10
+11	11
+SELECT * FROM t2 ORDER BY id;
+id	b
+1	11
+2	2
+3	200
+4	5
+connection node_2;
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	200
+3	3
+4	4
+6	6
+7	7
+8	8
+9	9
+10	10
+11	11
+SELECT * FROM t2 ORDER BY id;
+id	b
+1	11
+2	2
+3	200
+4	5
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TRIGGER tr3;
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a INT, b INT, UNIQUE(a)) ENGINE=MyISAM;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=1;
+SET GLOBAL wsrep_replicate_myisam=ON;
+INSERT INTO t1  (a,b) VALUES (10,20);
+connection node_2;
+SELECT * from t1;
+a	b
+1	20
+connection node_1;
+DROP TABLE t1;
+connection node_2;

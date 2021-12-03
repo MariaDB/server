@@ -1,6 +1,7 @@
 #ifndef INCLUDES_MYSQL_SQL_LIST_H
 #define INCLUDES_MYSQL_SQL_LIST_H
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,13 +14,14 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
 #endif
 
 #include "sql_alloc.h"
+#include <iterator>
 
 /**
   Simple intrusive linked list.
@@ -46,6 +48,14 @@ public:
     elements= tmp.elements;
     first= tmp.first;
     next= elements ? tmp.next : &first;
+  }
+
+  SQL_I_List& operator=(const SQL_I_List &tmp)
+  {
+    elements= tmp.elements;
+    first= tmp.first;
+    next= tmp.next;
+    return *this;
   }
 
   inline void empty()
@@ -488,7 +498,6 @@ template <class T> class List :public base_list
 {
 public:
   inline List() :base_list() {}
-  inline List(const List<T> &tmp) :base_list(tmp) {}
   inline List(const List<T> &tmp, MEM_ROOT *mem_root) :
     base_list(tmp, mem_root) {}
   inline bool push_back(T *a) { return base_list::push_back(a); }
@@ -518,6 +527,63 @@ public:
     empty();
   }
   T *elem(uint n) { return (T*) base_list::elem(n); }
+  // Create a new list with one element
+  static List<T> *make(MEM_ROOT *mem_root, T *first)
+  {
+    List<T> *res= new (mem_root) List<T>;
+    return res == NULL || res->push_back(first, mem_root) ? NULL : res;
+  }
+
+  class Iterator;
+  using value_type= T;
+  using iterator= Iterator;
+  using const_iterator= const Iterator;
+
+  Iterator begin() const { return Iterator(first); }
+  Iterator end() const { return Iterator(); }
+
+  class Iterator
+  {
+  public:
+    using iterator_category= std::forward_iterator_tag;
+    using value_type= T;
+    using difference_type= std::ptrdiff_t;
+    using pointer= T *;
+    using reference= T &;
+
+    Iterator(list_node *p= &end_of_list) : node{p} {}
+
+    Iterator &operator++()
+    {
+      DBUG_ASSERT(node != &end_of_list);
+
+      node= node->next;
+      return *this;
+    }
+
+    T operator++(int)
+    {
+      Iterator tmp(*this);
+      operator++();
+      return tmp;
+    }
+
+    T &operator*() { return *static_cast<T *>(node->info); }
+    T *operator->() { return static_cast<T *>(node->info); }
+
+    bool operator==(const typename List<T>::iterator &rhs)
+    {
+      return node == rhs.node;
+    }
+
+    bool operator!=(const typename List<T>::iterator &rhs)
+    {
+      return node != rhs.node;
+    }
+
+  private:
+    list_node *node{&end_of_list};
+  };
 };
 
 

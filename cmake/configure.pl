@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 # Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
 # 
@@ -13,7 +13,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA
 
 use strict;
 use Cwd 'abs_path';
@@ -93,6 +93,11 @@ foreach my $option (@ARGV)
   {
     $option = substr($option, 2);
   }
+  elsif (substr ($option, 0, 2) eq "-D")
+  {
+    # Must be cmake config option
+    $option = substr($option, 1);
+  }
   else
   {
     # This must be environment variable
@@ -119,6 +124,11 @@ foreach my $option (@ARGV)
     $just_print=1;
     next;
   }
+  if ($option =~ /D.*=/)
+  {
+    $cmakeargs = $cmakeargs." -".$option;
+     next;
+  }
   if($option =~ /with-plugins=/)
   {
     my @plugins= split(/,/, substr($option,13));
@@ -143,6 +153,11 @@ foreach my $option (@ARGV)
   if($option =~ /with-plugin-(.*)=(.*)/)
   {
     $cmakeargs = $cmakeargs." -DPLUGIN_".uc($1)."=".uc($2);
+    next;
+  }
+  if($option =~ /without-wsrep/)
+  {
+    $cmakeargs = $cmakeargs." -DWITH_WSREP=OFF";
     next;
   }
   if($option =~ /with-zlib-dir=bundled/)
@@ -183,6 +198,16 @@ foreach my $option (@ARGV)
   if($option =~ /with-debug/)
   {
     $cmakeargs = $cmakeargs." -DCMAKE_BUILD_TYPE=Debug -DSECURITY_HARDENED=OFF";
+    next;
+  }
+  if($option =~ /with-(.*)=(.*)/)
+  {
+    $cmakeargs = $cmakeargs. " -DWITH_" . uc($1) . "=" . uc($2);
+    next;
+  }
+  if($option =~ /without-(.*)=(.*)/)
+  {
+    $cmakeargs = $cmakeargs. " -DWITHOUT_" . uc($1) . "=" . uc($2);
     next;
   }
   if($option =~ /prefix=/)

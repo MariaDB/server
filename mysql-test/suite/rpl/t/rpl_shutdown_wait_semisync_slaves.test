@@ -1,0 +1,46 @@
+#
+# MDEV-18450 "Slow" shutdown to wait for slaves that are to be fed
+# with everything in the master binlog before shutdown completes.
+#
+# This is a semisync version of basic tests.
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--let $rpl_topology=1->2, 1->3, 1->4
+--source include/rpl_init.inc
+
+--connection server_1
+call mtr.add_suppression("Timeout waiting for reply of binlog");
+--let $sav_enabled_master=`SELECT @@GLOBAL.rpl_semi_sync_master_enabled`
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+
+--let slaves= 3
+--let i= 2
+while (`SELECT $i <= $slaves`)
+{
+  --connection server_$i
+  --let $sav_enabled_slave=`SELECT @@GLOBAL.rpl_semi_sync_slave_enabled`
+  set global rpl_semi_sync_slave_enabled = 1;
+
+  source include/stop_slave.inc;
+  source include/start_slave.inc;
+  set global rpl_semi_sync_slave_enabled = 1;
+
+  --inc $i
+}
+
+--source include/rpl_shutdown_wait_slaves.inc
+--let i= 2
+while (`SELECT $i <= $slaves`)
+{
+  --connection server_$i
+  source include/stop_slave.inc;
+  source include/start_slave.inc;
+  --eval SET @@GLOBAL.rpl_semi_sync_slave_enabled = $sav_enabled_slave;
+
+  --inc $i
+}
+
+--connection server_1
+--eval SET @@GLOBAL.rpl_semi_sync_master_enabled = $sav_enabled_master
+
+--source include/rpl_end.inc

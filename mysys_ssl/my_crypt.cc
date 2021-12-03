@@ -1,6 +1,6 @@
 /*
  Copyright (c) 2014 Google Inc.
- Copyright (c) 2014, 2017 MariaDB Corporation
+ Copyright (c) 2014, 2019, MariaDB Corporation.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -13,32 +13,42 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <my_global.h>
 #include <string.h>
 
-#ifdef HAVE_YASSL
-#include "yassl.cc"
-#else
+#define template _template /* bug in WolfSSL 4.4.0, see also violite.h */
 #include <openssl/evp.h>
+#undef template
 #include <openssl/aes.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
-#endif
 
 #include <my_crypt.h>
 #include <ssl_compat.h>
+#include <cstdint>
+
+#ifdef HAVE_WOLFSSL
+#define CTX_ALIGN 16
+#else
+#define CTX_ALIGN 0
+#endif
 
 class MyCTX
 {
 public:
-  char ctx_buf[EVP_CIPHER_CTX_SIZE];
-  EVP_CIPHER_CTX *ctx;
-
+  char ctx_buf[EVP_CIPHER_CTX_SIZE + CTX_ALIGN];
+  EVP_CIPHER_CTX* ctx;
   MyCTX()
   {
-    ctx= (EVP_CIPHER_CTX *)ctx_buf;
+#if CTX_ALIGN > 0
+    uintptr_t p= ((uintptr_t)ctx_buf + (CTX_ALIGN - 1)) & ~(CTX_ALIGN - 1);
+    ctx = reinterpret_cast<EVP_CIPHER_CTX*>(p);
+#else
+    ctx = (EVP_CIPHER_CTX*)ctx_buf;
+#endif
+
     EVP_CIPHER_CTX_init(ctx);
   }
   virtual ~MyCTX()
@@ -54,7 +64,7 @@ public:
     if (unlikely(!cipher))
       return MY_AES_BAD_KEYSIZE;
 
-    if (!EVP_CipherInit_ex(ctx, cipher, NULL, key, iv, encrypt))
+    if (EVP_CipherInit_ex(ctx, cipher, NULL, key, iv, encrypt) != 1)
       return MY_AES_OPENSSL_ERROR;
 
     DBUG_ASSERT(EVP_CIPHER_CTX_key_length(ctx) == (int)klen);
@@ -64,13 +74,23 @@ public:
   }
   virtual int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
   {
-    if (!EVP_CipherUpdate(ctx, dst, (int*)dlen, src, slen))
+#ifdef HAVE_WOLFSSL
+    // WolfSSL checks parameters and does not like NULL pointers to be passed to function below.
+    if (!src)
+    {
+      static uchar dummy[MY_AES_BLOCK_SIZE];
+      DBUG_ASSERT(!slen);
+      src=dummy;
+    }
+#endif
+
+    if (EVP_CipherUpdate(ctx, dst, (int*)dlen, src, slen) != 1)
       return MY_AES_OPENSSL_ERROR;
     return MY_AES_OK;
   }
   virtual int finish(uchar *dst, uint *dlen)
   {
-    if (!EVP_CipherFinal_ex(ctx, dst, (int*)dlen))
+    if (EVP_CipherFinal_ex(ctx, dst, (int*)dlen) != 1)
       return MY_AES_BAD_DATA;
     return MY_AES_OK;
   }
@@ -93,7 +113,8 @@ public:
     this->key= key;
     this->klen= klen;
     this->buf_len= 0;
-    memcpy(oiv, iv, ivlen);
+    if (ivlen)
+      memcpy(oiv, iv, ivlen);
     DBUG_ASSERT(ivlen == 0 || ivlen == sizeof(oiv));
 
     int res= MyCTX::init(cipher, encrypt, key, klen, iv, ivlen);
@@ -126,8 +147,11 @@ public:
       uchar mask[MY_AES_BLOCK_SIZE];
       uint mlen;
 
-      my_aes_crypt(MY_AES_ECB, ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
+      int rc= my_aes_crypt(MY_AES_ECB, ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
                    oiv, sizeof(mask), mask, &mlen, key, klen, 0, 0);
+      DBUG_ASSERT(rc == MY_AES_OK);
+      if (rc)
+        return rc;
       DBUG_ASSERT(mlen == sizeof(mask));
 
       for (uint i=0; i < buf_len; i++)

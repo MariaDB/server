@@ -18,7 +18,6 @@
 #include <mysql.h>
 #include <xtrabackup.h>
 #include <encryption_plugin.h>
-#include <backup_copy.h>
 #include <sql_plugin.h>
 #include <sstream>
 #include <vector>
@@ -61,8 +60,7 @@ static std::string get_encryption_plugin_from_cnf()
   FILE *f = fopen("backup-my.cnf", "r");
   if (!f)
   {
-    msg("cannot open backup-my.cnf for reading\n");
-    exit(EXIT_FAILURE);
+    die("Can't open backup-my.cnf for reading");
   }
   char line[512];
   std::string plugin_load;
@@ -124,7 +122,8 @@ void encryption_plugin_backup_init(MYSQL *mysql)
 
   /* Required  to load the plugin later.*/
   add_to_plugin_load_list(plugin_load.c_str());
-  strncpy(opt_plugin_dir, dir, FN_REFLEN);
+  strncpy(opt_plugin_dir, dir, FN_REFLEN - 1);
+  opt_plugin_dir[FN_REFLEN - 1] = '\0';
 
   oss << "plugin_dir=" << '"' << dir << '"' << std::endl;
 
@@ -183,7 +182,7 @@ void encryption_plugin_prepare_init(int argc, char **argv)
   std::string plugin_load= get_encryption_plugin_from_cnf();
   if (plugin_load.size())
   {
-    msg("Loading encryption plugin from %s\n", plugin_load.c_str());
+    msg("Loading encryption plugin from %s", plugin_load.c_str());
   }
   else
   {
@@ -194,7 +193,10 @@ void encryption_plugin_prepare_init(int argc, char **argv)
   add_to_plugin_load_list(plugin_load.c_str());
 
   if (xb_plugin_dir)
-    strncpy(opt_plugin_dir, xb_plugin_dir, FN_REFLEN);
+  {
+    strncpy(opt_plugin_dir, xb_plugin_dir, FN_REFLEN - 1);
+    opt_plugin_dir[FN_REFLEN - 1] = '\0';
+  }
 
   char **new_argv = new char *[argc + 1];
   new_argv[0] = XTRABACKUP_EXE;
@@ -210,9 +212,9 @@ static void encryption_plugin_init(int argc, char **argv)
   /* Patch optional and mandatory plugins, we only need to load the one in xb_plugin_load. */
   mysql_optional_plugins[0] = mysql_mandatory_plugins[0] = 0;
   plugin_maturity = MariaDB_PLUGIN_MATURITY_UNKNOWN; /* mariabackup accepts all plugins */
-  msg("Loading encryption plugin\n");
+  msg("Loading encryption plugin");
   for (int i= 1; i < argc; i++)
-    msg("\t Encryption plugin parameter :  '%s'\n", argv[i]);
+    msg("\t Encryption plugin parameter :  '%s'", argv[i]);
   plugin_init(&argc, argv, PLUGIN_INIT_SKIP_PLUGIN_TABLE);
 }
 

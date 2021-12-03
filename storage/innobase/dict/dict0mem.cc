@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,10 +34,10 @@ Created 1/8/1996 Heikki Tuuri
 #include "mach0data.h"
 #include "dict0dict.h"
 #include "fts0priv.h"
-#include "ut0crc32.h"
 #include "lock0lock.h"
 #include "sync0sync.h"
 #include "row0row.h"
+#include "sql_string.h"
 #include <iostream>
 
 #define	DICT_HEAP_SIZE		100	/*!< initial memory heap size when
@@ -82,10 +82,6 @@ const char table_name_t::part_suffix[4]
 = "#P#";
 #endif
 
-/** An interger randomly initialized at startup used to make a temporary
-table name as unuique as possible. */
-static ib_uint32_t	dict_temp_file_num;
-
 /** Display an identifier.
 @param[in,out]	s	output stream
 @param[in]	id_name	SQL identifier (other than table name)
@@ -120,19 +116,30 @@ operator<<(
 	return(s << ut_get_name(NULL, table_name.m_name));
 }
 
-/**********************************************************************//**
-Creates a table memory object.
+bool dict_col_t::same_encoding(uint16_t a, uint16_t b)
+{
+  if (const CHARSET_INFO *acs= get_charset(a, MYF(MY_WME)))
+    if (const CHARSET_INFO *bcs= get_charset(b, MYF(MY_WME)))
+      return Charset(bcs).encoding_allows_reinterpret_as(acs);
+  return false;
+}
+
+/** Create a table memory object.
+@param name     table name
+@param space    tablespace
+@param n_cols   total number of columns (both virtual and non-virtual)
+@param n_v_cols number of virtual columns
+@param flags    table flags
+@param flags2   table flags2
 @return own: table object */
 dict_table_t*
 dict_mem_table_create(
-/*==================*/
-	const char*	name,	/*!< in: table name */
-	fil_space_t*	space,	/*!< in: tablespace */
-	ulint		n_cols,	/*!< in: total number of columns including
-				virtual and non-virtual columns */
-	ulint		n_v_cols,/*!< in: number of virtual columns */
-	ulint		flags,	/*!< in: table flags */
-	ulint		flags2)	/*!< in: table flags2 */
+	const char*	name,
+	fil_space_t*	space,
+	ulint		n_cols,
+	ulint		n_v_cols,
+	ulint		flags,
+	ulint		flags2)
 {
 	dict_table_t*	table;
 	mem_heap_t*	heap;
@@ -153,6 +160,9 @@ dict_mem_table_create(
 	lock_table_lock_list_init(&table->locks);
 
 	UT_LIST_INIT(table->indexes, &dict_index_t::indexes);
+#ifdef BTR_CUR_HASH_ADAPT
+	UT_LIST_INIT(table->freed_indexes, &dict_index_t::indexes);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	table->heap = heap;
 
@@ -172,16 +182,12 @@ dict_mem_table_create(
 		mem_heap_alloc(heap, table->n_cols * sizeof(dict_col_t)));
 	table->v_cols = static_cast<dict_v_col_t*>(
 		mem_heap_alloc(heap, n_v_cols * sizeof(*table->v_cols)));
-
-	/* true means that the stats latch will be enabled -
-	dict_table_stats_lock() will not be noop. */
-	dict_table_stats_latch_create(table, true);
+	for (ulint i = n_v_cols; i--; ) {
+		new (&table->v_cols[i]) dict_v_col_t();
+	}
 
 	table->autoinc_lock = static_cast<ib_lock_t*>(
 		mem_heap_alloc(heap, lock_get_size()));
-
-	/* lazy creation of table autoinc latch */
-	dict_table_autoinc_create_lazy(table);
 
 	/* If the table has an FTS index or we are in the process
 	of building one, create the table->fts */
@@ -207,6 +213,10 @@ dict_mem_table_free(
 {
 	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+	ut_ad(UT_LIST_GET_LEN(table->indexes) == 0);
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(UT_LIST_GET_LEN(table->freed_indexes) == 0);
+#endif /* BTR_CUR_HASH_ADAPT */
 	ut_d(table->cached = FALSE);
 
 	if (dict_table_has_fts_index(table)
@@ -219,9 +229,7 @@ dict_mem_table_free(
 		}
 	}
 
-	dict_table_autoinc_destroy(table);
 	dict_mem_table_free_foreign_vcol_set(table);
-	dict_table_stats_latch_destroy(table);
 
 	table->foreign_set.~dict_foreign_set();
 	table->referenced_set.~dict_foreign_set();
@@ -232,15 +240,10 @@ dict_mem_table_free(
 	/* Clean up virtual index info structures that are registered
 	with virtual columns */
 	for (ulint i = 0; i < table->n_v_def; i++) {
-		dict_v_col_t*	vcol
-			= dict_table_get_nth_v_col(table, i);
-
-		UT_DELETE(vcol->v_indexes);
+		dict_table_get_nth_v_col(table, i)->~dict_v_col_t();
 	}
 
-	if (table->s_cols != NULL) {
-		UT_DELETE(table->s_cols);
-	}
+	UT_DELETE(table->s_cols);
 
 	mem_heap_free(table->heap);
 }
@@ -308,7 +311,6 @@ dict_mem_table_add_col(
 	dict_col_t*	col;
 	ulint		i;
 
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(!heap == !name);
 
@@ -420,7 +422,7 @@ dict_mem_table_add_v_col(
 	v_col->num_base = num_base;
 
 	/* Initialize the index list for virtual columns */
-	v_col->v_indexes = UT_NEW_NOKEY(dict_v_idx_list());
+	ut_ad(v_col->v_indexes.empty());
 
 	return(v_col);
 }
@@ -454,7 +456,7 @@ dict_mem_table_add_s_col(
 	}
 
 	s_col.num_base = num_base;
-	table->s_cols->push_back(s_col);
+	table->s_cols->push_front(s_col);
 }
 
 /**********************************************************************//**
@@ -483,7 +485,8 @@ dict_mem_table_col_rename_low(
 	ut_ad(to_len <= NAME_LEN);
 
 	char from[NAME_LEN + 1];
-	strncpy(from, s, NAME_LEN + 1);
+	strncpy(from, s, sizeof from - 1);
+	from[sizeof from - 1] = '\0';
 
 	if (from_len == to_len) {
 		/* The easy case: simply replace the column name in
@@ -603,15 +606,14 @@ dict_mem_table_col_rename_low(
 				}
 			}
 
-			dict_index_t* new_index = dict_foreign_find_index(
+			/* New index can be null if InnoDB already dropped
+			the foreign index when FOREIGN_KEY_CHECKS is
+			disabled */
+			foreign->foreign_index = dict_foreign_find_index(
 				foreign->foreign_table, NULL,
 				foreign->foreign_col_names,
 				foreign->n_fields, NULL, true, false,
 				NULL, NULL, NULL);
-			/* There must be an equivalent index in this case. */
-			ut_ad(new_index != NULL);
-
-			foreign->foreign_index = new_index;
 
 		} else {
 
@@ -634,7 +636,41 @@ dict_mem_table_col_rename_low(
 
 		foreign = *it;
 
-		ut_ad(foreign->referenced_index != NULL);
+		if (!foreign->referenced_index) {
+			/* Referenced index could have been dropped
+			when foreign_key_checks is disabled. In that case,
+			rename the corresponding referenced_col_names and
+			find the equivalent referenced index also */
+			for (unsigned f = 0; f < foreign->n_fields; f++) {
+
+				const char*& rc =
+					foreign->referenced_col_names[f];
+				if (strcmp(rc, from)) {
+					continue;
+				}
+
+				if (to_len <= strlen(rc)) {
+					memcpy(const_cast<char*>(rc), to,
+					       to_len + 1);
+				} else {
+					rc = static_cast<char*>(
+						mem_heap_dup(
+							foreign->heap,
+							to, to_len + 1));
+				}
+			}
+
+			/* New index can be null if InnoDB already dropped
+			the referenced index when FOREIGN_KEY_CHECKS is
+			disabled */
+			foreign->referenced_index = dict_foreign_find_index(
+				foreign->referenced_table, NULL,
+				foreign->referenced_col_names,
+				foreign->n_fields, NULL, true, false,
+				NULL, NULL, NULL);
+			return;
+		}
+
 
 		for (unsigned f = 0; f < foreign->n_fields; f++) {
 			/* foreign->referenced_col_names[] need to be
@@ -750,17 +786,14 @@ dict_mem_index_create(
 
 	dict_mem_fill_index_struct(index, heap, index_name, type, n_fields);
 
-	dict_index_zip_pad_mutex_create_lazy(index);
+	new (&index->zip_pad.mutex) std::mutex();
 
 	if (type & DICT_SPATIAL) {
-		mutex_create(LATCH_ID_RTR_SSN_MUTEX, &index->rtr_ssn.mutex);
-		index->rtr_track = static_cast<rtr_info_track_t*>(
-					mem_heap_alloc(
-						heap,
-						sizeof(*index->rtr_track)));
+		index->rtr_track = new
+			(mem_heap_alloc(heap, sizeof *index->rtr_track))
+			rtr_info_track_t();
 		mutex_create(LATCH_ID_RTR_ACTIVE_MUTEX,
 			     &index->rtr_track->rtr_active_mutex);
-		index->rtr_track->rtr_active = UT_NEW_NOKEY(rtr_info_active());
 	}
 
 	return(index);
@@ -868,11 +901,7 @@ dict_mem_fill_vcol_has_index(
 			continue;
 		}
 
-		dict_v_idx_list::iterator it;
-		for (it = v_col->v_indexes->begin();
-		     it != v_col->v_indexes->end(); ++it) {
-			dict_v_idx_t	v_idx = *it;
-
+		for (const auto& v_idx : v_col->v_indexes) {
 			if (v_idx.index != index) {
 				continue;
 			}
@@ -910,7 +939,7 @@ dict_mem_fill_vcol_from_v_indexes(
 		Later virtual column set will be
 		refreshed during loading of table. */
 		if (!dict_index_has_virtual(index)
-		    || index->has_new_v_col) {
+		    || index->has_new_v_col()) {
 			continue;
 		}
 
@@ -945,7 +974,7 @@ dict_mem_fill_vcol_set_for_base_col(
 			continue;
 		}
 
-		for (ulint j = 0; j < v_col->num_base; j++) {
+		for (ulint j = 0; j < unsigned{v_col->num_base}; j++) {
 			if (strcmp(col_name, dict_table_get_col_name(
 					table,
 					v_col->base_col[j]->ind)) == 0) {
@@ -1066,36 +1095,22 @@ dict_mem_index_free(
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	dict_index_zip_pad_mutex_destroy(index);
+	index->zip_pad.mutex.~mutex();
 
 	if (dict_index_is_spatial(index)) {
-		rtr_info_active::iterator	it;
-		rtr_info_t*			rtr_info;
-
-		for (it = index->rtr_track->rtr_active->begin();
-		     it != index->rtr_track->rtr_active->end(); ++it) {
-			rtr_info = *it;
-
+		for (auto& rtr_info : index->rtr_track->rtr_active) {
 			rtr_info->index = NULL;
 		}
 
-		mutex_destroy(&index->rtr_ssn.mutex);
 		mutex_destroy(&index->rtr_track->rtr_active_mutex);
-		UT_DELETE(index->rtr_track->rtr_active);
+		index->rtr_track->~rtr_info_track_t();
 	}
 
-	dict_index_remove_from_v_col_list(index);
+	index->detach_columns();
 	mem_heap_free(index->heap);
 }
 
-/** Create a temporary tablename like "#sql-ibtid-inc where
-  tid = the Table ID
-  inc = a randomly initialized number that is incremented for each file
-The table ID is a 64 bit integer, can use up to 20 digits, and is
-initialized at bootstrap. The second number is 32 bits, can use up to 10
-digits, and is initialized at startup to a randomly distributed number.
-It is hoped that the combination of these two numbers will provide a
-reasonably unique temporary file name.
+/** Create a temporary tablename like "#sql-ibNNN".
 @param[in]	heap	A memory heap
 @param[in]	dbtab	Table name in the form database/table name
 @param[in]	id	Table id
@@ -1112,33 +1127,13 @@ dict_mem_create_temporary_tablename(
 	ut_ad(dbend);
 	size_t		dblen   = size_t(dbend - dbtab) + 1;
 
-	/* Increment a randomly initialized  number for each temp file. */
-	my_atomic_add32((int32*) &dict_temp_file_num, 1);
-
-	size = dblen + (sizeof(TEMP_FILE_PREFIX) + 3 + 20 + 1 + 10);
+	size = dblen + (sizeof(TEMP_FILE_PREFIX) + 3 + 20);
 	name = static_cast<char*>(mem_heap_alloc(heap, size));
 	memcpy(name, dbtab, dblen);
 	snprintf(name + dblen, size - dblen,
-		    TEMP_FILE_PREFIX_INNODB UINT64PF "-" UINT32PF,
-		    id, dict_temp_file_num);
+		 TEMP_FILE_PREFIX_INNODB UINT64PF, id);
 
 	return(name);
-}
-
-/** Initialize dict memory variables */
-void
-dict_mem_init(void)
-{
-	/* Initialize a randomly distributed temporary file number */
-	ib_uint32_t	now = static_cast<ib_uint32_t>(ut_time());
-
-	const byte*	buf = reinterpret_cast<const byte*>(&now);
-
-	dict_temp_file_num = ut_crc32(buf, sizeof(now));
-
-	DBUG_PRINT("dict_mem_init",
-		   ("Starting Temporary file number is " UINT32PF,
-		   dict_temp_file_num));
 }
 
 /** Validate the search order in the foreign key set.
@@ -1198,6 +1193,24 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 	return(out);
 }
 
+/** Check whether fulltext index gets affected by foreign
+key constraint. */
+bool dict_foreign_t::affects_fulltext() const
+{
+  if (foreign_table == referenced_table || !foreign_table->fts)
+    return false;
+
+  for (ulint i= 0; i < n_fields; i++)
+  {
+    const dict_col_t *col= dict_index_get_nth_col(foreign_index, i);
+    if (dict_table_is_fts_column(foreign_table->fts->indexes, col->ind,
+                                 col->is_virtual()) != ULINT_UNDEFINED)
+      return true;
+  }
+
+  return false;
+}
+
 /** Reconstruct the clustered index fields. */
 inline void dict_index_t::reconstruct_fields()
 {
@@ -1216,23 +1229,24 @@ inline void dict_index_t::reconstruct_fields()
 	n_nullable = 0;
 	ulint n_core_null = 0;
 	const bool comp = dict_table_is_comp(table);
-	const auto* non_pk_col_map = table->instant->non_pk_col_map;
+	const auto* field_map_it = table->instant->field_map;
 	for (unsigned i = n_first, j = 0; i < n_fields; ) {
 		dict_field_t& f = tfields[i++];
-		auto c = *non_pk_col_map++;
-		if (c & 1U << 15) {
+		auto c = *field_map_it++;
+		if (c.is_dropped()) {
 			f.col = &table->instant->dropped[j++];
 			DBUG_ASSERT(f.col->is_dropped());
 			f.fixed_len = dict_col_get_fixed_size(f.col, comp);
 		} else {
+			DBUG_ASSERT(!c.is_not_null());
 			const auto old = std::find_if(
 				fields + n_first, fields + n_fields,
 				[c](const dict_field_t& o)
-				{ return o.col->ind == c; });
+				{ return o.col->ind == c.ind(); });
 			ut_ad(old >= &fields[n_first]);
 			ut_ad(old < &fields[n_fields]);
 			DBUG_ASSERT(!old->prefix_len);
-			DBUG_ASSERT(old->col == &table->cols[c]);
+			DBUG_ASSERT(old->col == &table->cols[c.ind()]);
 			f = *old;
 		}
 
@@ -1269,23 +1283,22 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 		return true;
 	}
 
-	uint16_t* non_pk_col_map = static_cast<uint16_t*>(
+	field_map_element_t* field_map = static_cast<field_map_element_t*>(
 		mem_heap_alloc(heap,
-			       num_non_pk_fields * sizeof *non_pk_col_map));
+			       num_non_pk_fields * sizeof *field_map));
 
 	unsigned n_dropped_cols = 0;
 
 	for (unsigned i = 0; i < num_non_pk_fields; i++) {
-		non_pk_col_map[i] = mach_read_from_2(metadata);
+		auto c = field_map[i] = mach_read_from_2(metadata);
 		metadata += 2;
 
-		if (non_pk_col_map[i] & 1U << 15) {
-			if ((non_pk_col_map[i] & ~(3U << 14))
-			    > DICT_MAX_FIXED_COL_LEN + 1) {
+		if (field_map[i].is_dropped()) {
+			if (c.ind() > DICT_MAX_FIXED_COL_LEN + 1) {
 				return true;
 			}
 			n_dropped_cols++;
-		} else if (non_pk_col_map[i] >= n_cols) {
+		} else if (c >= n_cols) {
 			return true;
 		}
 	}
@@ -1295,14 +1308,14 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 	instant = new (mem_heap_alloc(heap, sizeof *instant)) dict_instant_t();
 	instant->n_dropped = n_dropped_cols;
 	instant->dropped = dropped_cols;
-	instant->non_pk_col_map = non_pk_col_map;
+	instant->field_map = field_map;
 
 	dict_col_t* col = dropped_cols;
 	for (unsigned i = 0; i < num_non_pk_fields; i++) {
-		if (non_pk_col_map[i] & 1U << 15) {
-			auto fixed_len = non_pk_col_map[i] & ~(3U << 14);
+		if (field_map[i].is_dropped()) {
+			auto fixed_len = field_map[i].ind();
 			DBUG_ASSERT(fixed_len <= DICT_MAX_FIXED_COL_LEN + 1);
-			(col++)->set_dropped(non_pk_col_map[i] & 1U << 14,
+			(col++)->set_dropped(field_map[i].is_not_null(),
 					     fixed_len == 1,
 					     fixed_len > 1 ? fixed_len - 1
 					     : 0);
@@ -1321,7 +1334,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 bool
 dict_index_t::vers_history_row(
 	const rec_t*		rec,
-	const ulint*		offsets)
+	const rec_offs*		offsets)
 {
 	ut_ad(is_primary());
 
@@ -1352,8 +1365,8 @@ dict_index_t::vers_history_row(
 	bool error = false;
 	mem_heap_t* heap = NULL;
 	dict_index_t* clust_index = NULL;
-	ulint offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint* offsets = offsets_;
+	rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs* offsets = offsets_;
 	rec_offs_init(offsets_);
 
 	mtr_t mtr;
@@ -1362,7 +1375,8 @@ dict_index_t::vers_history_row(
 	rec_t* clust_rec =
 	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, this, &clust_index, &mtr);
 	if (clust_rec) {
-		offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
+		offsets = rec_get_offsets(clust_rec, clust_index, offsets,
+					  clust_index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 
 		history_row = clust_index->vers_history_row(clust_rec, offsets);

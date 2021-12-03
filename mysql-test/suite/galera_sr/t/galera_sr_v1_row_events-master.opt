@@ -1,0 +1,1 @@
+--log-bin-use-v1-row-events=1 --wsrep-trx-fragment-size=1

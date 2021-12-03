@@ -1,18 +1,10 @@
-update mysql.user set plugin='unix_socket';
-flush privileges;
-Warnings:
-Warning	1524	Plugin 'unix_socket' is not loaded
-Warning	1524	Plugin 'unix_socket' is not loaded
-Warning	1524	Plugin 'unix_socket' is not loaded
-Warning	1524	Plugin 'unix_socket' is not loaded
-connect(localhost,USER,,test,MASTER_PORT,MASTER_SOCKET);
-ERROR 28000: Access denied for user 'USER'@'localhost' (using password: NO)
-ERROR 28000: Access denied for user 'USER'@'localhost' (using password: NO)
-install plugin unix_socket soname 'auth_socket.so';
+create table global_priv_backup select * from mysql.global_priv;
+update mysql.global_priv set priv=json_insert(priv, '$.plugin', 'unix_socket');
+delete from mysql.global_priv where user != 'root';
 flush privileges;
 connect(localhost,USER,,test,MASTER_PORT,MASTER_SOCKET);
 ERROR 28000: Access denied for user 'USER'@'localhost'
 ERROR 28000: Access denied for user 'USER'@'localhost'
-update mysql.user set plugin='';
+replace mysql.global_priv select * from global_priv_backup;
 flush privileges;
-uninstall plugin unix_socket;
+drop table global_priv_backup;

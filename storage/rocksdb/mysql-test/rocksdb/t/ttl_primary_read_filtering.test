@@ -102,6 +102,8 @@ SELECT * FROM t1;
 select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 
 DROP TABLE t1;
+# Compact away the dropped data
+set global ROCKSDB_COMPACT_CF= 'default';
 
 # Read filtering index scan tests (None of these queries should return any results)
 CREATE TABLE t1 (

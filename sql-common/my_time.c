@@ -13,7 +13,7 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <my_global.h>
 #include <my_time.h>
@@ -59,7 +59,8 @@ uint calc_days_in_year(uint year)
 }
 
 
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
+
 
 static const ulonglong C_KNOWN_FLAGS= C_TIME_NO_ZERO_IN_DATE |
                                       C_TIME_NO_ZERO_DATE    |
@@ -200,7 +201,7 @@ static int get_date_time_separator(uint *number_of_fields,
   do
   {
     s++;
-  } while (my_isspace(&my_charset_latin1, *s));
+  } while (s < end && my_isspace(&my_charset_latin1, *s));
   *str= s;
   return 0;
 }
@@ -256,6 +257,14 @@ static void get_microseconds(ulong *val, MYSQL_TIME_STATUS *status,
     *val= (ulong) (tmp * log_10_int[6 - (*str - start)]);
   else
     *val= tmp;
+  if (str[0] < end && my_isdigit(&my_charset_latin1, str[0][0]))
+  {
+    /*
+      We don't need the exact nanoseconds value.
+      Knowing the first digit is enough for rounding.
+    */
+    status->nanoseconds= 100 * (uint)(str[0][0] - '0');
+  }
   if (skip_digits(str, end))
     status->warnings|= MYSQL_TIME_NOTE_TRUNCATED;
 }
@@ -1719,7 +1728,11 @@ longlong number_to_datetime_or_date(longlong nr, ulong sec_part,
       !check_date(time_res, nr || sec_part, flags, was_cut))
   {
     if (time_res->time_type == MYSQL_TIMESTAMP_DATE && sec_part != 0)
-       *was_cut= MYSQL_TIME_NOTE_TRUNCATED;
+    {
+      /* Date format, but with fractional digits, e.g. 20010203.5 */
+      *was_cut= MYSQL_TIME_NOTE_TRUNCATED;
+      time_res->second_part= 0;
+    }
     return nr;
   }
 

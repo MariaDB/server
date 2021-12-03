@@ -1,3 +1,4 @@
+--source include/default_charset.inc
 
 --echo #
 --echo # Start of 10.3 tests

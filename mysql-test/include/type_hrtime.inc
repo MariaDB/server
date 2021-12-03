@@ -18,7 +18,7 @@ insert t1 values (20101211030405.789e0);
 insert ignore t1 values (99991231235959e1);
 select * from t1;
 --replace_regex /121000/121094/ /457000/457031/ /789000/789062/
-select truncate(a, 6) from t1; # Field::val_real()
+select cast(a AS double(30,6)) from t1; # Field::val_real()
 select a DIV 1 from t1; # Field::val_int()
 select group_concat(distinct a) from t1; # Field::cmp()
 alter table t1 engine=innodb;
@@ -54,6 +54,12 @@ insert ignore t1 select a + interval 2 year from t1;
 select * from t1;
 delete from t1 where a < 20110101;
 select * from t1;
+
+if ($type == time)
+{
+delete from t1 where a is not null;
+select * from t1;
+}
 
 #
 # create ... select

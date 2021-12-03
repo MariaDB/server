@@ -1,4 +1,13 @@
--- source include/have_innodb.inc
+if (!$TEST_VERSIONING_SO)
+{
+  --skip needs test_versioning plugin
+}
+--source include/have_innodb.inc
+--source include/default_charset.inc
+
+--disable_query_log
+--eval install plugin test_versioning soname '$TEST_VERSIONING_SO'
+--enable_query_log
 
 set default_storage_engine= innodb;
 
@@ -9,7 +18,13 @@ create or replace table t1 (
   period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning;
 
+--echo # No history inside the transaction
+start transaction;
 insert into t1 (x) values (1);
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+commit;
+select *, sys_trx_start > 1, sys_trx_end from t1 for system_time all;
 
 --echo # ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
 set @@system_versioning_alter_history=keep;
@@ -168,10 +183,7 @@ commit;
 select row_start from t1 into @trx_id;
 select trt_begin_ts(@trx_id) <= @ts1 as BEGIN_TS_GOOD;
 
-drop database test;
-create database test;
-use test;
-
+drop table t1;
 
 --echo #
 --echo # MDEV-16100 FOR SYSTEM_TIME erroneously resolves string user variables as transaction IDs
@@ -361,18 +373,20 @@ SELECT * FROM t2 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
 --echo # HEX hybrids resolve to TRANSACTION
 --echo #
 
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0x60);
+--error ER_VERS_NO_TRX_ID
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
 --error ER_VERS_ENGINE_UNSUPPORTED
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0x60);
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
 
 
 --echo #
 --echo # BIT literals resolve to TRANSACTION
 --echo #
 
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'1100000');
+--error ER_VERS_NO_TRX_ID
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
 --error ER_VERS_ENGINE_UNSUPPORTED
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'1100000');
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
 
 DROP TABLE t1, t2;
 
@@ -494,3 +508,35 @@ DROP TABLE t;
 SET @@SYSTEM_VERSIONING_ALTER_HISTORY=ERROR;
 
 SELECT count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
+
+--echo # MDEV-18875 Assertion `thd->transaction.stmt.ha_list == __null ||
+--echo # trans == &thd->transaction.stmt' failed or bogus ER_DUP_ENTRY upon
+--echo # ALTER TABLE with versioning
+create or replace table t (x int) engine=innodb;
+set autocommit= 0;
+alter table t
+  algorithm=copy,
+  add column row_start bigint unsigned as row start,
+  add column row_end bigint unsigned as row end,
+  add period for system_time(row_start,row_end),
+  with system versioning;
+set autocommit= 1;
+
+--echo # MDEV-18865 Assertion `t->first->versioned_by_id()'
+--echo # failed in innodb_prepare_commit_versioned
+
+create or replace table t (x int) engine=innodb;
+insert into t values (0);
+alter table t add `row_start` bigint unsigned as row start,
+              add `row_end` bigint unsigned as row end,
+              add period for system_time(`row_start`,`row_end`),
+              modify x int after row_start,
+              with system versioning;
+drop table t;
+
+--echo #
+--echo # MDEV-20842 Crash using versioning plugin functions after plugin was removed from server
+--echo #
+uninstall plugin test_versioning;
+--error ER_SP_DOES_NOT_EXIST
+select trt_begin_ts(0);

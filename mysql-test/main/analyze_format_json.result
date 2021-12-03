@@ -143,7 +143,7 @@ ANALYZE
         "attached_condition": "tbl2.b < 60"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "1Kb",
       "join_type": "BNL",
       "r_filtered": 100
     }
@@ -181,7 +181,7 @@ ANALYZE
         "attached_condition": "tbl2.b < 60"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "1Kb",
       "join_type": "BNL",
       "attached_condition": "tbl1.c > tbl2.c",
       "r_filtered": 15.833
@@ -315,7 +315,7 @@ ANALYZE
       "key_length": "4",
       "used_key_parts": ["pk"],
       "r_loops": 1,
-      "rows": 11,
+      "rows": 10,
       "r_rows": 10,
       "r_total_time_ms": "REPLACED",
       "filtered": 100,
@@ -340,7 +340,7 @@ ANALYZE
       "key": "PRIMARY",
       "key_length": "4",
       "used_key_parts": ["pk"],
-      "rows": 11,
+      "rows": 10,
       "r_rows": 10,
       "r_filtered": 50,
       "r_total_time_ms": "REPLACED",
@@ -625,7 +625,7 @@ ANALYZE
         "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "65",
       "join_type": "BNL",
       "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))",
       "r_filtered": null
@@ -711,7 +711,7 @@ ANALYZE
                 "attached_condition": "t3.f3 in (1,2)"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "1",
               "join_type": "BNL",
               "r_filtered": null
             },
@@ -742,7 +742,7 @@ ANALYZE
                         "r_filtered": null
                       },
                       "buffer_type": "flat",
-                      "buffer_size": "256Kb",
+                      "buffer_size": "65",
                       "join_type": "BNL",
                       "attached_condition": "t2.f2 = t3.f3",
                       "r_filtered": null

@@ -744,6 +744,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 drop table t1;
 CREATE TABLE t1 (
@@ -1576,13 +1577,13 @@ INSERT INTO t1 VALUES(GeomFromText('LINESTRING(2 2, 3 3)'));
 SELECT COUNT(*) FROM t1 IGNORE INDEX(l) WHERE MBRContains(l, GEOMFROMTEXT('POINT(0 0)'));
 COUNT(*)
 1
-SELECT COUNT(*) FROM t1 IGNORE INDEX(l) WHERE MBRWithin(GEOMFROMTEXT('POINT(0 0)'), l);
+SELECT COUNT(*) FROM t1 IGNORE INDEX(l) WHERE MBRWithin(GEOMFROMTEXT('POINT(0.5 0.5)'), l);
 COUNT(*)
 1
 SELECT COUNT(*) FROM t1 FORCE INDEX(l) WHERE MBRContains(l, GEOMFROMTEXT('POINT(0 0)'));
 COUNT(*)
 1
-SELECT COUNT(*) FROM t1 FORCE INDEX(l) WHERE MBRWithin(GEOMFROMTEXT('POINT(0 0)'), l);
+SELECT COUNT(*) FROM t1 FORCE INDEX(l) WHERE MBRWithin(GEOMFROMTEXT('POINT(0.5 0.5)'), l);
 COUNT(*)
 1
 DROP TABLE t1;

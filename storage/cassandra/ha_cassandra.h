@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
 #endif
@@ -239,8 +239,8 @@ public:
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
 
-  int write_row(uchar *buf);
-  int update_row(const uchar *old_data, uchar *new_data);
+  int write_row(const uchar *buf);
+  int update_row(const uchar *old_data, const uchar *new_data);
   int delete_row(const uchar *buf);
 
   /** @brief
@@ -268,7 +268,7 @@ public:
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type);     ///< required
 
-  my_bool register_query_cache_table(THD *thd, char *table_key,
+  my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
                                      qc_engine_callback
                                      *engine_callback,

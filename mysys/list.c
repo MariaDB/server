@@ -11,10 +11,10 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
-  Code for handling dubble-linked lists in C
+  Code for handling doubly linked lists in C
 */
 
 #include "mysys_priv.h"
@@ -22,7 +22,7 @@
 
 
 
-	/* Add a element to start of list */
+	/* Add an element to start of list */
 
 LIST *list_add(LIST *root, LIST *element)
 {

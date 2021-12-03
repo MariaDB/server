@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* This is the include file that should be included 'first' in every C file. */
 
@@ -159,7 +159,7 @@
 #  if defined(__i386__) || defined(__ppc__)
 #    define SIZEOF_CHARP 4
 #    define SIZEOF_LONG 4
-#  elif defined(__x86_64__) || defined(__ppc64__)
+#  elif defined(__x86_64__) || defined(__ppc64__) || defined(__aarch64__)
 #    define SIZEOF_CHARP 8
 #    define SIZEOF_LONG 8
 #  else
@@ -440,6 +440,20 @@ C_MODE_END
 #if HAVE_MADVISE && !HAVE_DECL_MADVISE && defined(__cplusplus)
 extern "C" int madvise(void *addr, size_t len, int behav);
 #endif
+#ifdef HAVE_SYS_MMAN_H
+#include <sys/mman.h>
+#endif
+/** FreeBSD equivalent */
+#if defined(MADV_CORE) && !defined(MADV_DODUMP)
+#define MADV_DODUMP MADV_CORE
+#define MADV_DONTDUMP MADV_NOCORE
+#define DODUMP_STR "MADV_CORE"
+#define DONTDUMP_STR "MADV_NOCORE"
+#else
+#define DODUMP_STR "MADV_DODUMP"
+#define DONTDUMP_STR "MADV_DONTDUMP"
+#endif
+
 
 #define QUOTE_ARG(x)		#x	/* Quote argument (before cpp) */
 #define STRINGIFY_ARG(x) QUOTE_ARG(x)	/* Quote argument, after cpp */
@@ -547,13 +561,6 @@ typedef int	my_socket;	/* File descriptor for sockets */
 #endif
 /* Type for functions that handles signals */
 #define sig_handler RETSIGTYPE
-C_MODE_START
-#ifdef HAVE_SIGHANDLER_T
-#define sig_return sighandler_t
-#else
-typedef void (*sig_return)(void); /* Returns type from signal */
-#endif
-C_MODE_END
 #if defined(__GNUC__) && !defined(_lint)
 typedef char	pchar;		/* Mixed prototypes can take char */
 typedef char	puchar;		/* Mixed prototypes can take char */
@@ -989,7 +996,6 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #if defined(__WIN__)
 #define socket_errno	WSAGetLastError()
 #define SOCKET_EINTR	WSAEINTR
-#define SOCKET_EAGAIN	WSAEINPROGRESS
 #define SOCKET_ETIMEDOUT WSAETIMEDOUT
 #define SOCKET_EWOULDBLOCK WSAEWOULDBLOCK
 #define SOCKET_EADDRINUSE WSAEADDRINUSE
@@ -1038,6 +1044,19 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 #define reg16 register
 #endif
 
+/*
+  MYSQL_PLUGIN_IMPORT macro is used to export mysqld data
+  (i.e variables) for usage in storage engine loadable plugins.
+  Outside of Windows, it is dummy.
+*/
+#ifndef MYSQL_PLUGIN_IMPORT
+#if (defined(_WIN32) && defined(MYSQL_DYNAMIC_PLUGIN))
+#define MYSQL_PLUGIN_IMPORT __declspec(dllimport)
+#else
+#define MYSQL_PLUGIN_IMPORT
+#endif
+#endif
+
 #include <my_dbug.h>
 
 /* Some helper macros */
@@ -1068,7 +1087,7 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 static inline char *dlerror(void)
 {
   static char win_errormsg[2048];
-  FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
+  FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
     0, GetLastError(), 0, win_errormsg, 2048, NULL);
   return win_errormsg;
 }
@@ -1163,19 +1182,6 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 #  define __func__ "<unknown>"
 #endif
 #endif /* !defined(__func__) */
-
-/* 
-  MYSQL_PLUGIN_IMPORT macro is used to export mysqld data
-  (i.e variables) for usage in storage engine loadable plugins.
-  Outside of Windows, it is dummy.
-*/
-#ifndef MYSQL_PLUGIN_IMPORT
-#if (defined(_WIN32) && defined(MYSQL_DYNAMIC_PLUGIN))
-#define MYSQL_PLUGIN_IMPORT __declspec(dllimport)
-#else
-#define MYSQL_PLUGIN_IMPORT
-#endif
-#endif
 
 /* Defines that are unique to the embedded version of MySQL */
 

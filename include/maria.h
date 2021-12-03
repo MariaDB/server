@@ -1,5 +1,5 @@
 /* Copyright (C) 2006-2008 MySQL AB, 2008-2009 Sun Microsystems, Inc.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* This file should be included when using maria functions */
 
@@ -286,7 +286,6 @@ extern int maria_close(MARIA_HA *file);
 extern int maria_delete(MARIA_HA *file, const uchar *buff);
 extern MARIA_HA *maria_open(const char *name, int mode,
 					uint wait_if_locked);
-extern MARIA_HA *maria_clone(struct st_maria_share *share, int mode);
 extern int maria_panic(enum ha_panic_function function);
 extern int maria_rfirst(MARIA_HA *file, uchar *buf, int inx);
 extern int maria_rkey(MARIA_HA *file, uchar *buf, int inx,
@@ -306,7 +305,7 @@ extern int maria_rsame_with_pos(MARIA_HA *file, uchar *record,
 				int inx, MARIA_RECORD_POS pos);
 extern int maria_update(MARIA_HA *file, const uchar *old,
 			const uchar *new_record);
-extern int maria_write(MARIA_HA *file, uchar *buff);
+extern int maria_write(MARIA_HA *file, const uchar *buff);
 extern MARIA_RECORD_POS maria_position(MARIA_HA *file);
 extern int maria_status(MARIA_HA *info, MARIA_INFO *x, uint flag);
 extern int maria_lock_database(MARIA_HA *file, int lock_type);
@@ -397,6 +396,7 @@ int maria_preload(MARIA_HA *info, ulonglong key_map, my_bool ignore_leaves);
 void maria_versioning(MARIA_HA *info, my_bool versioning);
 void maria_ignore_trids(MARIA_HA *info);
 uint maria_max_key_length(void);
+my_bool maria_too_big_key_for_sort(MARIA_KEYDEF *key, ha_rows rows);
 #define maria_max_key_segments() HA_MAX_KEY_SEG
 
 /* fulltext functions */

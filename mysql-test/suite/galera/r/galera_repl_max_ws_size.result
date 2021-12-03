@@ -1,8 +1,10 @@
+connection node_2;
+connection node_1;
 connection node_1;
 CREATE TABLE t1 (f1 VARCHAR(512)) ENGINE=InnoDB;
 SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=512';
 INSERT INTO t1 VALUES (REPEAT('a', 512));
-ERROR HY000: Got error 90 "Message too long" during COMMIT
+ERROR HY000: Got error 5 "Input/output error" during COMMIT
 SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0
 1

@@ -732,6 +732,8 @@ CREATE TABLE t1 (
 b LONGTEXT CHARACTER SET "latin1" COLLATE "latin1_bin",
 PRIMARY KEY b (b(32))
 );
+Warnings:
+Warning	1280	Name 'b' ignored for PRIMARY key.
 INSERT INTO t1 (b) VALUES ('a'), (_binary 0x1), (_binary 0x0), ('');
 explain 
 select hex(b) from t1 force index (PRIMARY) where b<'zzz';

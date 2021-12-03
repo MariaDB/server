@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,7 +27,6 @@ Created 9/20/1997 Heikki Tuuri
 
 #include "univ.i"
 
-#include <vector>
 #include <map>
 #include <string>
 #include <my_service_manager.h>
@@ -57,16 +56,17 @@ Created 9/20/1997 Heikki Tuuri
 #include "srv0start.h"
 #include "trx0roll.h"
 #include "row0merge.h"
+#include "fil0pagecompress.h"
 
 /** Log records are stored in the hash table in chunks at most of this size;
 this must be less than srv_page_size as it is stored in the buffer pool */
-#define RECV_DATA_BLOCK_SIZE	(MEM_MAX_ALLOC_IN_BUF - sizeof(recv_data_t))
+#define RECV_DATA_BLOCK_SIZE	(MEM_MAX_ALLOC_IN_BUF - sizeof(recv_data_t) - REDZONE_SIZE)
 
 /** Read-ahead area in applying log records to file pages */
 #define RECV_READ_AHEAD_AREA	32
 
 /** The recovery system */
-recv_sys_t*	recv_sys;
+recv_sys_t	recv_sys;
 /** TRUE when applying redo log records during crash recovery; FALSE
 otherwise.  Note that this is FALSE while a background thread is
 rolling back incomplete transactions. */
@@ -102,14 +102,6 @@ static mlog_id_t	recv_previous_parsed_rec_type;
 static ulint	recv_previous_parsed_rec_offset;
 /** The 'multi' flag of the previous parsed redo log record */
 static ulint	recv_previous_parsed_rec_is_multi;
-
-/** This many frames must be left free in the buffer pool when we scan
-the log and store the scanned log records in the buffer pool: we will
-use these free frames to read in pages when we start applying the
-log records to the database.
-This is the default value. If the actual size of the buffer pool is
-larger than 10 MB we'll set this value to 512. */
-ulint	recv_n_pool_free_frames;
 
 /** The maximum lsn we see for a page during the recovery process. If this
 is bigger than the lsn we are able to scan up to, that is an indication that
@@ -151,9 +143,30 @@ struct file_name_t {
 	/** Status of the tablespace */
 	fil_status	status;
 
+	/** FSP_SIZE of tablespace */
+	ulint		size = 0;
+
+	/** the log sequence number of the last observed MLOG_INDEX_LOAD
+	record for the tablespace */
+	lsn_t		enable_lsn = 0;
+
+	/** Dummy flags before they have been read from the .ibd file */
+	static constexpr uint32_t initial_flags = FSP_FLAGS_FCRC32_MASK_MARKER;
+	/** FSP_SPACE_FLAGS of tablespace */
+	uint32_t	flags = initial_flags;
+
 	/** Constructor */
-	file_name_t(std::string name_, bool deleted) :
-		name(name_), space(NULL), status(deleted ? DELETED: NORMAL) {}
+	file_name_t(std::string name_, bool deleted)
+		: name(std::move(name_)), space(NULL),
+		status(deleted ? DELETED: NORMAL) {}
+
+	/** Report a MLOG_INDEX_LOAD operation, meaning that
+	mlog_init for any earlier LSN must be skipped.
+	@param lsn	log sequence number of the MLOG_INDEX_LOAD */
+	void mlog_index_load(lsn_t lsn)
+	{
+		if (enable_lsn < lsn) enable_lsn = lsn;
+	}
 };
 
 /** Map of dirty tablespaces during recovery */
@@ -169,6 +182,8 @@ static recv_spaces_t	recv_spaces;
 enum recv_addr_state {
 	/** not yet processed */
 	RECV_NOT_PROCESSED,
+	/** not processed; the page will be reinitialized */
+	RECV_WILL_NOT_READ,
 	/** page is being read */
 	RECV_BEING_READ,
 	/** log records are being applied on the page */
@@ -211,6 +226,116 @@ void (*log_file_op)(ulint space_id, const byte* flags,
 		    const byte* name, ulint len,
 		    const byte* new_name, ulint new_len);
 
+/** Information about initializing page contents during redo log processing */
+class mlog_init_t
+{
+public:
+	/** A page initialization operation that was parsed from
+	the redo log */
+	struct init {
+		/** log sequence number of the page initialization */
+		lsn_t lsn;
+		/** Whether btr_page_create() avoided a read of the page.
+
+		At the end of the last recovery batch, ibuf_merge()
+		will invoke change buffer merge for pages that reside
+		in the buffer pool. (In the last batch, loading pages
+		would trigger change buffer merge.) */
+		bool created;
+	};
+
+private:
+	typedef std::map<const page_id_t, init,
+			 std::less<const page_id_t>,
+			 ut_allocator<std::pair<const page_id_t, init> > >
+		map;
+	/** Map of page initialization operations.
+	FIXME: Merge this to recv_sys.addr_hash! */
+	map inits;
+public:
+	/** Record that a page will be initialized by the redo log.
+	@param[in]	space		tablespace identifier
+	@param[in]	page_no		page number
+	@param[in]	lsn		log sequence number */
+	void add(ulint space, ulint page_no, lsn_t lsn)
+	{
+		ut_ad(mutex_own(&recv_sys.mutex));
+		const init init = { lsn, false };
+		std::pair<map::iterator, bool> p = inits.insert(
+			map::value_type(page_id_t(space, page_no), init));
+		ut_ad(!p.first->second.created);
+		if (!p.second && p.first->second.lsn < init.lsn) {
+			p.first->second = init;
+		}
+	}
+
+	/** Get the last stored lsn of the page id and its respective
+	init/load operation.
+	@param[in]	page_id	page id
+	@param[in,out]	init	initialize log or load log
+	@return the latest page initialization;
+	not valid after releasing recv_sys.mutex. */
+	init& last(page_id_t page_id)
+	{
+		ut_ad(mutex_own(&recv_sys.mutex));
+		return inits.find(page_id)->second;
+	}
+
+	/** At the end of each recovery batch, reset the 'created' flags. */
+	void reset()
+	{
+		ut_ad(mutex_own(&recv_sys.mutex));
+		ut_ad(recv_no_ibuf_operations);
+		for (map::value_type& i : inits) {
+			i.second.created = false;
+		}
+	}
+
+	/** On the last recovery batch, merge buffered changes to those
+	pages that were initialized by buf_page_create() and still reside
+	in the buffer pool. Stale pages are not allowed in the buffer pool.
+
+	Note: When MDEV-14481 implements redo log apply in the
+	background, we will have to ensure that buf_page_get_gen()
+	will not deliver stale pages to users (pages on which the
+	change buffer was not merged yet).  Normally, the change
+	buffer merge is performed on I/O completion. Maybe, add a
+	flag to buf_page_t and perform the change buffer merge on
+	the first actual access?
+	@param[in,out]	mtr	dummy mini-transaction */
+	void ibuf_merge(mtr_t& mtr)
+	{
+		ut_ad(mutex_own(&recv_sys.mutex));
+		ut_ad(!recv_no_ibuf_operations);
+		mtr.start();
+
+		for (const map::value_type& i : inits) {
+			if (!i.second.created) {
+				continue;
+			}
+			if (buf_block_t* block = buf_page_get_low(
+				    i.first, 0, RW_X_LATCH, NULL,
+				    BUF_GET_IF_IN_POOL, __FILE__, __LINE__,
+				    &mtr, NULL)) {
+				mutex_exit(&recv_sys.mutex);
+				ibuf_merge_or_delete_for_page(
+					block, i.first,
+					block->zip_size());
+				mtr.commit();
+				mtr.start();
+				mutex_enter(&recv_sys.mutex);
+			}
+		}
+
+		mtr.commit();
+	}
+
+	/** Clear the data structure */
+	void clear() { inits.clear(); }
+};
+
+static mlog_init_t mlog_init;
+
 /** Process a MLOG_CREATE2 record that indicates that a tablespace
 is being shrunk in size.
 @param[in]	space_id	tablespace identifier
@@ -222,10 +347,10 @@ static void recv_addr_trim(ulint space_id, unsigned pages, lsn_t lsn)
 	DBUG_LOG("ib_log",
 		 "discarding log beyond end of tablespace "
 		 << page_id_t(space_id, pages) << " before LSN " << lsn);
-	ut_ad(mutex_own(&recv_sys->mutex));
-	for (ulint i = recv_sys->addr_hash->n_cells; i--; ) {
+	ut_ad(mutex_own(&recv_sys.mutex));
+	for (ulint i = recv_sys.addr_hash->n_cells; i--; ) {
 		hash_cell_t* const cell = hash_get_nth_cell(
-			recv_sys->addr_hash, i);
+			recv_sys.addr_hash, i);
 		for (recv_addr_t* addr = static_cast<recv_addr_t*>(cell->node),
 			     *next;
 		     addr; addr = next) {
@@ -281,8 +406,7 @@ fil_name_process(
 	}
 
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	      || is_mariabackup_restore_or_export());
 
 	/* We will also insert space=NULL into the map, so that
 	further checks can ensure that a MLOG_FILE_NAME record was
@@ -320,16 +444,25 @@ fil_name_process(
 		case FIL_LOAD_OK:
 			ut_ad(space != NULL);
 
-			if (f.space == NULL || f.space == space) {
-				f.name = fname.name;
+			if (!f.space) {
+				if (f.size
+				    || f.flags != f.initial_flags) {
+					fil_space_set_recv_size_and_flags(
+						space->id, f.size, f.flags);
+				}
+
 				f.space = space;
+				goto same_space;
+			} else if (f.space == space) {
+same_space:
+				f.name = fname.name;
 				f.status = file_name_t::NORMAL;
 			} else {
 				ib::error() << "Tablespace " << space_id
 					<< " has been found in two places: '"
 					<< f.name << "' and '" << name << "'."
 					" You must delete one of them.";
-				recv_sys->found_corrupt_fs = true;
+				recv_sys.found_corrupt_fs = true;
 			}
 			break;
 
@@ -352,7 +485,7 @@ fil_name_process(
 				forcing recovery. */
 
 				ib::info()
-					<< "At LSN: " << recv_sys->recovered_lsn
+					<< "At LSN: " << recv_sys.recovered_lsn
 					<< ": unable to open file " << name
 					<< " for tablespace " << space_id;
 			}
@@ -381,7 +514,7 @@ fil_name_process(
 					" disk is broken, and you cannot"
 					" remove the .ibd file, you can set"
 					" --innodb_force_recovery.";
-				recv_sys->found_corrupt_fs = true;
+				recv_sys.found_corrupt_fs = true;
 				break;
 			}
 
@@ -397,8 +530,7 @@ fil_name_process(
 /** Parse or process a MLOG_FILE_* record.
 @param[in]	ptr		redo log record
 @param[in]	end		end of the redo log buffer
-@param[in]	space_id	the tablespace ID
-@param[in]	first_page_no	first page number in the file
+@param[in]	page_id		first page number in the file
 @param[in]	type		MLOG_FILE_NAME or MLOG_FILE_DELETE
 or MLOG_FILE_CREATE2 or MLOG_FILE_RENAME2
 @param[in]	apply		whether to apply the record
@@ -409,8 +541,7 @@ byte*
 fil_name_parse(
 	byte*		ptr,
 	const byte*	end,
-	ulint		space_id,
-	ulint		first_page_no,
+	const page_id_t	page_id,
 	mlog_id_t	type,
 	bool		apply)
 {
@@ -434,58 +565,74 @@ fil_name_parse(
 	/* MLOG_FILE_* records should only be written for
 	user-created tablespaces. The name must be long enough
 	and end in .ibd. */
-	bool corrupt = is_predefined_tablespace(space_id)
+	bool corrupt = is_predefined_tablespace(page_id.space())
 		|| len < sizeof "/a.ibd\0"
-		|| (!first_page_no != !memcmp(ptr + len - 5, DOT_IBD, 5))
-		|| memchr(ptr, OS_PATH_SEPARATOR, len) == NULL;
+		|| (!page_id.page_no() != !memcmp(ptr + len - 5, DOT_IBD, 5));
+
+	if (!corrupt && !memchr(ptr, OS_PATH_SEPARATOR, len)) {
+		if (byte* c = static_cast<byte*>
+		    (memchr(ptr, OS_PATH_SEPARATOR_ALT, len))) {
+			ut_ad(c >= ptr);
+			ut_ad(c < ptr + len);
+			do {
+				*c = OS_PATH_SEPARATOR;
+			} while ((c = static_cast<byte*>
+				  (memchr(ptr, OS_PATH_SEPARATOR_ALT,
+					  len - ulint(c - ptr)))) != NULL);
+		} else {
+			corrupt = true;
+		}
+	}
 
 	byte*	end_ptr	= ptr + len;
 
 	switch (type) {
 	default:
 		ut_ad(0); // the caller checked this
+		/* fall through */
 	case MLOG_FILE_NAME:
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_NAME incorrect:" << ptr;
-			recv_sys->found_corrupt_log = true;
+			recv_sys.found_corrupt_log = true;
 			break;
 		}
 
 		fil_name_process(
-			reinterpret_cast<char*>(ptr), len, space_id, false);
+			reinterpret_cast<char*>(ptr), len, page_id.space(),
+			false);
 		break;
 	case MLOG_FILE_DELETE:
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_DELETE incorrect:" << ptr;
-			recv_sys->found_corrupt_log = true;
+			recv_sys.found_corrupt_log = true;
 			break;
 		}
 
-		fil_name_process(
-			reinterpret_cast<char*>(ptr), len, space_id, true);
+		fil_name_process(reinterpret_cast<char*>(ptr), len,
+				 page_id.space(), true);
 		/* fall through */
 	case MLOG_FILE_CREATE2:
-		if (first_page_no) {
-			ut_ad(first_page_no
+		if (page_id.page_no()) {
+			ut_ad(page_id.page_no()
 			      == SRV_UNDO_TABLESPACE_SIZE_IN_PAGES);
-			ut_a(srv_is_undo_tablespace(space_id));
+			ut_a(srv_is_undo_tablespace(page_id.space()));
 			compile_time_assert(
-				UT_ARR_SIZE(recv_sys->truncated_undo_spaces)
+				UT_ARR_SIZE(recv_sys.truncated_undo_spaces)
 				== TRX_SYS_MAX_UNDO_SPACES);
-			recv_sys_t::trunc& t = recv_sys->truncated_undo_spaces[
-				space_id - srv_undo_space_id_start];
-			t.lsn = recv_sys->recovered_lsn;
-			t.pages = uint32_t(first_page_no);
+			recv_sys_t::trunc& t = recv_sys.truncated_undo_spaces[
+				page_id.space() - srv_undo_space_id_start];
+			t.lsn = recv_sys.recovered_lsn;
+			t.pages = uint32_t(page_id.page_no());
 		} else if (log_file_op) {
-			log_file_op(space_id,
+			log_file_op(page_id.space(),
 				    type == MLOG_FILE_CREATE2 ? ptr - 4 : NULL,
 				    ptr, len, NULL, 0);
 		}
 		break;
 	case MLOG_FILE_RENAME2:
-		if (corrupt) {
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_RENAME2 incorrect:" << ptr;
-			recv_sys->found_corrupt_log = true;
+			recv_sys.found_corrupt_log = true;
 		}
 
 		/* The new name follows the old name. */
@@ -504,25 +651,42 @@ fil_name_parse(
 
 		corrupt = corrupt
 			|| new_len < sizeof "/a.ibd\0"
-			|| memcmp(new_name + new_len - 5, DOT_IBD, 5) != 0
-			|| !memchr(new_name, OS_PATH_SEPARATOR, new_len);
+			|| memcmp(new_name + new_len - 5, DOT_IBD, 5) != 0;
 
-		if (corrupt) {
+		if (!corrupt && !memchr(new_name, OS_PATH_SEPARATOR, new_len)) {
+			if (byte* c = static_cast<byte*>
+			    (memchr(new_name, OS_PATH_SEPARATOR_ALT,
+				    new_len))) {
+				ut_ad(c >= new_name);
+				ut_ad(c < new_name + new_len);
+				do {
+					*c = OS_PATH_SEPARATOR;
+				} while ((c = static_cast<byte*>
+					  (memchr(ptr, OS_PATH_SEPARATOR_ALT,
+						  new_len
+						  - ulint(c - new_name))))
+					 != NULL);
+			} else {
+				corrupt = true;
+			}
+		}
+
+		if (UNIV_UNLIKELY(corrupt)) {
 			ib::error() << "MLOG_FILE_RENAME2 new_name incorrect:" << ptr
 				    << " new_name: " << new_name;
-			recv_sys->found_corrupt_log = true;
+			recv_sys.found_corrupt_log = true;
 			break;
 		}
 
 		fil_name_process(
 			reinterpret_cast<char*>(ptr), len,
-			space_id, false);
+			page_id.space(), false);
 		fil_name_process(
 			reinterpret_cast<char*>(new_name), new_len,
-			space_id, false);
+			page_id.space(), false);
 
 		if (log_file_op) {
-			log_file_op(space_id, NULL,
+			log_file_op(page_id.space(), NULL,
 				    ptr, len, new_name, new_len);
 		}
 
@@ -530,53 +694,55 @@ fil_name_parse(
 			break;
 		}
 		if (!fil_op_replay_rename(
-			    space_id, first_page_no,
+			    page_id.space(), page_id.page_no(),
 			    reinterpret_cast<const char*>(ptr),
 			    reinterpret_cast<const char*>(new_name))) {
-			recv_sys->found_corrupt_fs = true;
+			recv_sys.found_corrupt_fs = true;
 		}
 	}
 
 	return(end_ptr);
 }
 
-/** Clean up after recv_sys_init() */
-void
-recv_sys_close()
+/** Clean up after recv_sys_t::create() */
+void recv_sys_t::close()
 {
-	if (recv_sys != NULL) {
-		recv_sys->dblwr.pages.clear();
+	ut_ad(this == &recv_sys);
+	ut_ad(!recv_writer_thread_active);
 
-		if (recv_sys->addr_hash != NULL) {
-			hash_table_free(recv_sys->addr_hash);
+	if (is_initialised()) {
+		dblwr.pages.clear();
+
+		if (addr_hash) {
+			hash_table_free(addr_hash);
+			addr_hash = NULL;
 		}
 
-		if (recv_sys->heap != NULL) {
-			mem_heap_free(recv_sys->heap);
+		if (heap) {
+			mem_heap_free(heap);
+			heap = NULL;
 		}
 
-		if (recv_sys->flush_start != NULL) {
-			os_event_destroy(recv_sys->flush_start);
+		if (flush_start) {
+			os_event_destroy(flush_start);
 		}
 
-		if (recv_sys->flush_end != NULL) {
-			os_event_destroy(recv_sys->flush_end);
+		if (flush_end) {
+			os_event_destroy(flush_end);
 		}
 
-		if (recv_sys->buf != NULL) {
-			ut_free_dodump(recv_sys->buf, recv_sys->buf_size);
+		if (buf) {
+			ut_free_dodump(buf, buf_size);
+			buf = NULL;
 		}
 
-		ut_ad(!recv_writer_thread_active);
-		mutex_free(&recv_sys->writer_mutex);
-
-		mutex_free(&recv_sys->mutex);
-
-		ut_free(recv_sys);
-		recv_sys = NULL;
+		buf_size = 0;
+		mutex_free(&writer_mutex);
+		mutex_free(&mutex);
 	}
 
 	recv_spaces.clear();
+	mlog_init.clear();
 }
 
 /************************************************************
@@ -592,7 +758,6 @@ recv_sys_var_init(void)
 	recv_previous_parsed_rec_type = MLOG_SINGLE_REC_FLAG;
 	recv_previous_parsed_rec_offset	= 0;
 	recv_previous_parsed_rec_is_multi = 0;
-	recv_n_pool_free_frames	= 256;
 	recv_max_page_lsn = 0;
 }
 
@@ -627,20 +792,20 @@ DECLARE_THREAD(recv_writer_thread)(
 		int64_t      sig_count = os_event_reset(buf_flush_event);
 		os_event_wait_time_low(buf_flush_event, 100000, sig_count);
 
-		mutex_enter(&recv_sys->writer_mutex);
+		mutex_enter(&recv_sys.writer_mutex);
 
-		if (!recv_recovery_on) {
-			mutex_exit(&recv_sys->writer_mutex);
+		if (!recv_recovery_is_on()) {
+			mutex_exit(&recv_sys.writer_mutex);
 			break;
 		}
 
 		/* Flush pages from end of LRU if required */
-		os_event_reset(recv_sys->flush_end);
-		recv_sys->flush_type = BUF_FLUSH_LRU;
-		os_event_set(recv_sys->flush_start);
-		os_event_wait(recv_sys->flush_end);
+		os_event_reset(recv_sys.flush_end);
+		recv_sys.flush_type = BUF_FLUSH_LRU;
+		os_event_set(recv_sys.flush_start);
+		os_event_wait(recv_sys.flush_end);
 
-		mutex_exit(&recv_sys->writer_mutex);
+		mutex_exit(&recv_sys.writer_mutex);
 	}
 
 	recv_writer_thread_active = false;
@@ -655,82 +820,83 @@ DECLARE_THREAD(recv_writer_thread)(
 }
 
 /** Initialize the redo log recovery subsystem. */
-void
-recv_sys_init()
+void recv_sys_t::create()
 {
-	ut_ad(recv_sys == NULL);
+	ut_ad(this == &recv_sys);
+	ut_ad(!is_initialised());
+	ut_ad(!flush_start);
+	ut_ad(!flush_end);
+	mutex_create(LATCH_ID_RECV_SYS, &mutex);
+	mutex_create(LATCH_ID_RECV_WRITER, &writer_mutex);
 
-	recv_sys = static_cast<recv_sys_t*>(ut_zalloc_nokey(sizeof(*recv_sys)));
-
-	mutex_create(LATCH_ID_RECV_SYS, &recv_sys->mutex);
-	mutex_create(LATCH_ID_RECV_WRITER, &recv_sys->writer_mutex);
-
-	recv_sys->heap = mem_heap_create_typed(256, MEM_HEAP_FOR_RECV_SYS);
+	heap = mem_heap_create_typed(256, MEM_HEAP_FOR_RECV_SYS);
 
 	if (!srv_read_only_mode) {
-		recv_sys->flush_start = os_event_create(0);
-		recv_sys->flush_end = os_event_create(0);
+		flush_start = os_event_create(0);
+		flush_end = os_event_create(0);
 	}
 
-	ulint size = buf_pool_get_curr_size();
-	/* Set appropriate value of recv_n_pool_free_frames. */
-	if (size >= 10 << 20) {
-		/* Buffer pool of size greater than 10 MB. */
-		recv_n_pool_free_frames = 512;
-	}
+	flush_type = BUF_FLUSH_LRU;
+	apply_log_recs = false;
+	apply_batch_on = false;
 
-	recv_sys->buf = static_cast<byte*>(
-		ut_malloc_dontdump(RECV_PARSING_BUF_SIZE));
-	recv_sys->buf_size = RECV_PARSING_BUF_SIZE;
+	buf = static_cast<byte*>(ut_malloc_dontdump(RECV_PARSING_BUF_SIZE));
+	buf_size = RECV_PARSING_BUF_SIZE;
+	len = 0;
+	parse_start_lsn = 0;
+	scanned_lsn = 0;
+	scanned_checkpoint_no = 0;
+	recovered_offset = 0;
+	recovered_lsn = 0;
+	found_corrupt_log = false;
+	found_corrupt_fs = false;
+	mlog_checkpoint_lsn = 0;
 
-	recv_sys->addr_hash = hash_create(size / 512);
-	recv_sys->progress_time = ut_time();
+	addr_hash = hash_create(buf_pool_get_curr_size() / 512);
+	n_addrs = 0;
+	progress_time = time(NULL);
 	recv_max_page_lsn = 0;
 
-	/* Call the constructor for recv_sys_t::dblwr member */
-	new (&recv_sys->dblwr) recv_dblwr_t();
+	memset(truncated_undo_spaces, 0, sizeof truncated_undo_spaces);
+	last_stored_lsn = 0;
 }
 
-/** Empty a fully processed hash table. */
-static
-void
-recv_sys_empty_hash()
+/** Empty a fully processed set of stored redo log records. */
+inline void recv_sys_t::empty()
 {
-	ut_ad(mutex_own(&(recv_sys->mutex)));
-	ut_a(recv_sys->n_addrs == 0);
+	ut_ad(mutex_own(&mutex));
+	ut_a(n_addrs == 0);
 
-	hash_table_free(recv_sys->addr_hash);
-	mem_heap_empty(recv_sys->heap);
+	hash_table_free(addr_hash);
+	mem_heap_empty(heap);
 
-	recv_sys->addr_hash = hash_create(buf_pool_get_curr_size() / 512);
+	addr_hash = hash_create(buf_pool_get_curr_size() / 512);
 }
 
-/********************************************************//**
-Frees the recovery system. */
-void
-recv_sys_debug_free(void)
-/*=====================*/
+/** Free most recovery data structures. */
+void recv_sys_t::debug_free()
 {
-	mutex_enter(&(recv_sys->mutex));
+	ut_ad(this == &recv_sys);
+	ut_ad(is_initialised());
+	mutex_enter(&mutex);
 
-	hash_table_free(recv_sys->addr_hash);
-	mem_heap_free(recv_sys->heap);
-	ut_free_dodump(recv_sys->buf, recv_sys->buf_size);
+	hash_table_free(addr_hash);
+	mem_heap_free(heap);
+	ut_free_dodump(buf, buf_size);
 
-	recv_sys->buf_size = 0;
-	recv_sys->buf = NULL;
-	recv_sys->heap = NULL;
-	recv_sys->addr_hash = NULL;
+	buf = NULL;
+	heap = NULL;
+	addr_hash = NULL;
 
 	/* wake page cleaner up to progress */
 	if (!srv_read_only_mode) {
-		ut_ad(!recv_recovery_on);
+		ut_ad(!recv_recovery_is_on());
 		ut_ad(!recv_writer_thread_active);
 		os_event_reset(buf_flush_event);
-		os_event_set(recv_sys->flush_start);
+		os_event_set(flush_start);
 	}
 
-	mutex_exit(&(recv_sys->mutex));
+	mutex_exit(&mutex);
 }
 
 /** Read a log segment to log_sys.buf.
@@ -771,7 +937,7 @@ loop:
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint(source_offset & (srv_page_size - 1)),
 	       len, buf, NULL);
 
@@ -786,7 +952,9 @@ loop:
 			happen when InnoDB was killed while it was
 			writing redo log. We simply treat this as an
 			abrupt end of the redo log. */
+fail:
 			end_lsn = *start_lsn;
+			success = false;
 			break;
 		}
 
@@ -801,17 +969,17 @@ loop:
 					 }
 			 });
 
+			DBUG_EXECUTE_IF("log_checksum_mismatch", { cksum = crc + 1; });
+
 			if (crc != cksum) {
-				ib::error() << "Invalid log block checksum."
+				ib::error_or_warn(srv_operation != SRV_OPERATION_BACKUP)
+					    << "Invalid log block checksum."
 					    << " block: " << block_number
 					    << " checkpoint no: "
 					    << log_block_get_checkpoint_no(buf)
 					    << " expected: " << crc
 					    << " found: " << cksum;
-fail:
-				end_lsn = *start_lsn;
-				success = false;
-				break;
+				goto fail;
 			}
 
 			if (is_encrypted()
@@ -826,13 +994,12 @@ fail:
 		if (dl < LOG_BLOCK_HDR_SIZE
 		    || (dl != OS_FILE_LOG_BLOCK_SIZE
 			&& dl > log_sys.trailer_offset())) {
-			recv_sys->found_corrupt_log = true;
-			end_lsn = *start_lsn;
-			break;
+			recv_sys.found_corrupt_log = true;
+			goto fail;
 		}
 	}
 
-	if (recv_sys->report(ut_time())) {
+	if (recv_sys.report(time(NULL))) {
 		ib::info() << "Read redo log up to LSN=" << *start_lsn;
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 			"Read redo log up to LSN=" LSN_PF,
@@ -857,7 +1024,7 @@ static
 void
 recv_synchronize_groups()
 {
-	const lsn_t recovered_lsn = recv_sys->recovered_lsn;
+	const lsn_t recovered_lsn = recv_sys.recovered_lsn;
 
 	/* Read the last recovered log block to the recovery system buffer:
 	the block is always incomplete */
@@ -948,11 +1115,12 @@ recv_find_max_checkpoint_0(ulint* max_field)
 			*max_field = field;
 			max_no = checkpoint_no;
 
-			log_sys.log.lsn = mach_read_from_8(
-				buf + LOG_CHECKPOINT_LSN);
-			log_sys.log.lsn_offset = static_cast<ib_uint64_t>(
-				mach_read_from_4(buf + OFFSET_HIGH32)) << 32
-				| mach_read_from_4(buf + OFFSET_LOW32);
+			log_sys.log.set_lsn(mach_read_from_8(
+				buf + LOG_CHECKPOINT_LSN));
+			log_sys.log.set_lsn_offset(
+				lsn_t(mach_read_from_4(buf + OFFSET_HIGH32))
+				<< 32
+				| mach_read_from_4(buf + OFFSET_LOW32));
 		}
 	}
 
@@ -988,7 +1156,7 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
 		     & (srv_page_size - 1)),
 	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
@@ -1015,9 +1183,9 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 
 	/* Mark the redo log for upgrading. */
 	srv_log_file_size = 0;
-	recv_sys->parse_start_lsn = recv_sys->recovered_lsn
-		= recv_sys->scanned_lsn
-		= recv_sys->mlog_checkpoint_lsn = lsn;
+	recv_sys.parse_start_lsn = recv_sys.recovered_lsn
+		= recv_sys.scanned_lsn
+		= recv_sys.mlog_checkpoint_lsn = lsn;
 	log_sys.last_checkpoint_lsn = log_sys.next_checkpoint_lsn
 		= log_sys.lsn = log_sys.write_lsn
 		= log_sys.current_flush_lsn = log_sys.flushed_to_disk_lsn
@@ -1046,10 +1214,10 @@ recv_find_max_checkpoint(ulint* max_field)
 	/* Check the header page checksum. There was no
 	checksum in the first redo log format (version 0). */
 	log_sys.log.format = mach_read_from_4(buf + LOG_HEADER_FORMAT);
-	log_sys.log.subformat = log_sys.log.format != LOG_HEADER_FORMAT_3_23
+	log_sys.log.subformat = log_sys.log.format != log_t::FORMAT_3_23
 		? mach_read_from_4(buf + LOG_HEADER_SUBFORMAT)
 		: 0;
-	if (log_sys.log.format != LOG_HEADER_FORMAT_3_23
+	if (log_sys.log.format != log_t::FORMAT_3_23
 	    && !recv_check_log_header_checksum(buf)) {
 		ib::error() << "Invalid redo log header checksum.";
 		return(DB_CORRUPTION);
@@ -1062,14 +1230,14 @@ recv_find_max_checkpoint(ulint* max_field)
 	creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR] = 0;
 
 	switch (log_sys.log.format) {
-	case LOG_HEADER_FORMAT_3_23:
+	case log_t::FORMAT_3_23:
 		return(recv_find_max_checkpoint_0(max_field));
-	case LOG_HEADER_FORMAT_10_2:
-	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
-	case LOG_HEADER_FORMAT_10_3:
-	case LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED:
-	case LOG_HEADER_FORMAT_10_4:
-	case LOG_HEADER_FORMAT_10_4 | LOG_HEADER_FORMAT_ENCRYPTED:
+	case log_t::FORMAT_10_2:
+	case log_t::FORMAT_10_2 | log_t::FORMAT_ENCRYPTED:
+	case log_t::FORMAT_10_3:
+	case log_t::FORMAT_10_3 | log_t::FORMAT_ENCRYPTED:
+	case log_t::FORMAT_10_4:
+	case log_t::FORMAT_10_4 | log_t::FORMAT_ENCRYPTED:
 		break;
 	default:
 		ib::error() << "Unsupported redo log format."
@@ -1113,10 +1281,10 @@ recv_find_max_checkpoint(ulint* max_field)
 		if (checkpoint_no >= max_no) {
 			*max_field = field;
 			max_no = checkpoint_no;
-			log_sys.log.lsn = mach_read_from_8(
-				buf + LOG_CHECKPOINT_LSN);
-			log_sys.log.lsn_offset = mach_read_from_8(
-				buf + LOG_CHECKPOINT_OFFSET);
+			log_sys.log.set_lsn(mach_read_from_8(
+				buf + LOG_CHECKPOINT_LSN));
+			log_sys.log.set_lsn_offset(mach_read_from_8(
+				buf + LOG_CHECKPOINT_OFFSET));
 			log_sys.next_checkpoint_no = checkpoint_no;
 		}
 	}
@@ -1142,8 +1310,7 @@ specified.
 @param[in]	type		redo log entry type
 @param[in]	ptr		redo log record body
 @param[in]	end_ptr		end of buffer
-@param[in]	space_id	tablespace identifier
-@param[in]	page_no		page number
+@param[in]	page_id		page identifier
 @param[in]	apply		whether to apply the record
 @param[in,out]	block		buffer block, or NULL if
 a page log record should not be applied
@@ -1157,14 +1324,13 @@ recv_parse_or_apply_log_rec_body(
 	mlog_id_t	type,
 	byte*		ptr,
 	byte*		end_ptr,
-	ulint		space_id,
-	ulint		page_no,
+	const page_id_t	page_id,
 	bool		apply,
 	buf_block_t*	block,
 	mtr_t*		mtr)
 {
 	ut_ad(!block == !mtr);
-	ut_ad(!apply || recv_sys->mlog_checkpoint_lsn != 0);
+	ut_ad(!apply || recv_sys.mlog_checkpoint_lsn);
 
 	switch (type) {
 	case MLOG_FILE_NAME:
@@ -1174,8 +1340,7 @@ recv_parse_or_apply_log_rec_body(
 		ut_ad(block == NULL);
 		/* Collect the file names when parsing the log,
 		before applying any log records. */
-		return(fil_name_parse(ptr, end_ptr, space_id, page_no, type,
-				      apply));
+		return fil_name_parse(ptr, end_ptr, page_id, type, apply);
 	case MLOG_INDEX_LOAD:
 		if (end_ptr < ptr + 8) {
 			return(NULL);
@@ -1184,7 +1349,7 @@ recv_parse_or_apply_log_rec_body(
 	case MLOG_TRUNCATE:
 		ib::error() << "Cannot crash-upgrade from "
 			"old-style TRUNCATE TABLE";
-		recv_sys->found_corrupt_log = true;
+		recv_sys.found_corrupt_log = true;
 		return NULL;
 	default:
 		break;
@@ -1204,23 +1369,22 @@ recv_parse_or_apply_log_rec_body(
 		page_zip = buf_block_get_page_zip(block);
 		ut_d(page_type = fil_page_get_type(page));
 	} else if (apply
-		   && !is_predefined_tablespace(space_id)
-		   && recv_spaces.find(space_id) == recv_spaces.end()) {
-		if (recv_sys->recovered_lsn < recv_sys->mlog_checkpoint_lsn) {
+		   && !is_predefined_tablespace(page_id.space())
+		   && recv_spaces.find(page_id.space()) == recv_spaces.end()) {
+		if (recv_sys.recovered_lsn < recv_sys.mlog_checkpoint_lsn) {
 			/* We have not seen all records between the
 			checkpoint and MLOG_CHECKPOINT. There should be
 			a MLOG_FILE_DELETE for this tablespace later. */
 			recv_spaces.insert(
-				std::make_pair(space_id,
+				std::make_pair(page_id.space(),
 					       file_name_t("", false)));
 			goto parse_log;
 		}
 
 		ib::error() << "Missing MLOG_FILE_NAME or MLOG_FILE_DELETE"
-			" for redo log record " << type << " (page "
-			    << space_id << ":" << page_no << ") at "
-			    << recv_sys->recovered_lsn << ".";
-		recv_sys->found_corrupt_log = true;
+			" for redo log record " << type << page_id << " at "
+			    << recv_sys.recovered_lsn << ".";
+		recv_sys.found_corrupt_log = true;
 		return(NULL);
 	} else {
 parse_log:
@@ -1262,7 +1426,8 @@ parse_log:
 				redo log been written with something
 				older than InnoDB Plugin 1.0.4. */
 				ut_ad(offs == FIL_PAGE_TYPE
-				      || srv_is_undo_tablespace(space_id)
+				      || srv_is_undo_tablespace(
+					      page_id.space())
 				      || offs == IBUF_TREE_SEG_HEADER
 				      + IBUF_HEADER + FSEG_HDR_OFFSET
 				      || offs == PAGE_BTR_IBUF_FREE_LIST
@@ -1288,7 +1453,8 @@ parse_log:
 				ut_ad(0
 				      /* fil_crypt_rotate_page() writes this */
 				      || offs == FIL_PAGE_SPACE_ID
-				      || srv_is_undo_tablespace(space_id)
+				      || srv_is_undo_tablespace(
+					      page_id.space())
 				      || offs == IBUF_TREE_SEG_HEADER
 				      + IBUF_HEADER + FSEG_HDR_SPACE
 				      || offs == IBUF_TREE_SEG_HEADER
@@ -1320,7 +1486,7 @@ parse_log:
 #endif /* UNIV_DEBUG */
 		ptr = mlog_parse_nbytes(type, ptr, end_ptr, page, page_zip);
 		if (ptr != NULL && page != NULL
-		    && page_no == 0 && type == MLOG_4BYTES) {
+		    && page_id.page_no() == 0 && type == MLOG_4BYTES) {
 			ulint	offs = mach_read_from_2(old_ptr);
 			switch (offs) {
 				fil_space_t*	space;
@@ -1331,7 +1497,7 @@ parse_log:
 			case FSP_HEADER_OFFSET + FSP_SIZE:
 			case FSP_HEADER_OFFSET + FSP_FREE_LIMIT:
 			case FSP_HEADER_OFFSET + FSP_FREE + FLST_LEN:
-				space = fil_space_get(space_id);
+				space = fil_space_get(page_id.space());
 				ut_a(space != NULL);
 				val = mach_read_from_4(page + offs);
 
@@ -1507,11 +1673,16 @@ parse_log:
 		break;
 	case MLOG_IBUF_BITMAP_INIT:
 		/* Allow anything in page_type when creating a page. */
-		ptr = ibuf_parse_bitmap_init(ptr, end_ptr, block, mtr);
+		if (block) ibuf_bitmap_init_apply(block);
 		break;
 	case MLOG_INIT_FILE_PAGE2:
 		/* Allow anything in page_type when creating a page. */
-		ptr = fsp_parse_init_file_page(ptr, end_ptr, block);
+		if (block) fsp_apply_init_file_page(block);
+		break;
+	case MLOG_INIT_FREE_PAGE:
+		/* The page can be zero-filled and its previous
+		contents can be ignored. We do not write or apply
+		this record yet. */
 		break;
 	case MLOG_WRITE_STRING:
 		ptr = mlog_parse_string(ptr, end_ptr, page, page_zip);
@@ -1533,8 +1704,7 @@ parse_log:
 		break;
 	case MLOG_ZIP_PAGE_COMPRESS:
 		/* Allow anything in page_type when creating a page. */
-		ptr = page_zip_parse_compress(ptr, end_ptr,
-					      page, page_zip);
+		ptr = page_zip_parse_compress(ptr, end_ptr, block);
 		break;
 	case MLOG_ZIP_PAGE_COMPRESS_NO_DATA:
 		if (NULL != (ptr = mlog_parse_index(
@@ -1557,7 +1727,7 @@ parse_log:
 		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, &err));
 
 		if (err != DB_SUCCESS) {
-			recv_sys->found_corrupt_log = TRUE;
+			recv_sys.found_corrupt_log = TRUE;
 		}
 		break;
 	default:
@@ -1565,7 +1735,7 @@ parse_log:
 		ib::error() << "Incorrect log record type "
 			<< ib::hex(unsigned(type));
 
-		recv_sys->found_corrupt_log = true;
+		recv_sys.found_corrupt_log = true;
 	}
 
 	if (index) {
@@ -1603,7 +1773,7 @@ recv_hash(
 	ulint	space,	/*!< in: space */
 	ulint	page_no)/*!< in: page number */
 {
-	return(hash_calc_hash(recv_fold(space, page_no), recv_sys->addr_hash));
+	return(hash_calc_hash(recv_fold(space, page_no), recv_sys.addr_hash));
 }
 
 /*********************************************************************//**
@@ -1616,10 +1786,12 @@ recv_get_fil_addr_struct(
 	ulint	space,	/*!< in: space id */
 	ulint	page_no)/*!< in: page number */
 {
+	ut_ad(mutex_own(&recv_sys.mutex));
+
 	recv_addr_t*	recv_addr;
 
 	for (recv_addr = static_cast<recv_addr_t*>(
-			HASH_GET_FIRST(recv_sys->addr_hash,
+			HASH_GET_FIRST(recv_sys.addr_hash,
 				       recv_hash(space, page_no)));
 	     recv_addr != 0;
 	     recv_addr = static_cast<recv_addr_t*>(
@@ -1635,26 +1807,18 @@ recv_get_fil_addr_struct(
 	return(NULL);
 }
 
-/*******************************************************************//**
-Adds a new log record to the hash table of log records. */
-static
-void
-recv_add_to_hash_table(
-/*===================*/
-	mlog_id_t	type,		/*!< in: log record type */
-	ulint		space,		/*!< in: space id */
-	ulint		page_no,	/*!< in: page number */
-	byte*		body,		/*!< in: log record body */
-	byte*		rec_end,	/*!< in: log record end */
-	lsn_t		start_lsn,	/*!< in: start lsn of the mtr */
-	lsn_t		end_lsn)	/*!< in: end lsn of the mtr */
+/** Store a redo log record for applying.
+@param type	record type
+@param space	tablespace identifier
+@param page_no	page number
+@param body	record body
+@param rec_end	end of record
+@param lsn	start LSN of the mini-transaction
+@param end_lsn	end LSN of the mini-transaction */
+inline void recv_sys_t::add(mlog_id_t type, ulint space, ulint page_no,
+			    byte* body, byte* rec_end, lsn_t lsn,
+			    lsn_t end_lsn)
 {
-	recv_t*		recv;
-	ulint		len;
-	recv_data_t*	recv_data;
-	recv_data_t**	prev_field;
-	recv_addr_t*	recv_addr;
-
 	ut_ad(type != MLOG_FILE_DELETE);
 	ut_ad(type != MLOG_FILE_CREATE2);
 	ut_ad(type != MLOG_FILE_RENAME2);
@@ -1664,21 +1828,18 @@ recv_add_to_hash_table(
 	ut_ad(type != MLOG_INDEX_LOAD);
 	ut_ad(type != MLOG_TRUNCATE);
 
-	len = ulint(rec_end - body);
-
-	recv = static_cast<recv_t*>(
-		mem_heap_alloc(recv_sys->heap, sizeof(recv_t)));
+	recv_t* recv= static_cast<recv_t*>(mem_heap_alloc(heap, sizeof *recv));
 
 	recv->type = type;
 	recv->len = ulint(rec_end - body);
-	recv->start_lsn = start_lsn;
+	recv->start_lsn = lsn;
 	recv->end_lsn = end_lsn;
 
-	recv_addr = recv_get_fil_addr_struct(space, page_no);
+	recv_addr_t* recv_addr = recv_get_fil_addr_struct(space, page_no);
 
 	if (recv_addr == NULL) {
 		recv_addr = static_cast<recv_addr_t*>(
-			mem_heap_alloc(recv_sys->heap, sizeof(recv_addr_t)));
+			mem_heap_alloc(heap, sizeof(recv_addr_t)));
 
 		recv_addr->space = space;
 		recv_addr->page_no = page_no;
@@ -1686,42 +1847,49 @@ recv_add_to_hash_table(
 
 		UT_LIST_INIT(recv_addr->rec_list, &recv_t::rec_list);
 
-		HASH_INSERT(recv_addr_t, addr_hash, recv_sys->addr_hash,
+		HASH_INSERT(recv_addr_t, addr_hash, addr_hash,
 			    recv_fold(space, page_no), recv_addr);
-		recv_sys->n_addrs++;
-#if 0
-		fprintf(stderr, "Inserting log rec for space %lu, page %lu\n",
-			space, page_no);
-#endif
+		n_addrs++;
+	}
+
+	switch (type) {
+	case MLOG_INIT_FILE_PAGE2:
+	case MLOG_ZIP_PAGE_COMPRESS:
+	case MLOG_INIT_FREE_PAGE:
+		/* Ignore any earlier redo log records for this page. */
+		ut_ad(recv_addr->state == RECV_NOT_PROCESSED
+		      || recv_addr->state == RECV_WILL_NOT_READ);
+		recv_addr->state = RECV_WILL_NOT_READ;
+		mlog_init.add(space, page_no, lsn);
+	default:
+		break;
 	}
 
 	UT_LIST_ADD_LAST(recv_addr->rec_list, recv);
 
-	prev_field = &(recv->data);
+	recv_data_t** prev_field = &recv->data;
 
 	/* Store the log record body in chunks of less than srv_page_size:
-	recv_sys->heap grows into the buffer pool, and bigger chunks could not
+	heap grows into the buffer pool, and bigger chunks could not
 	be allocated */
 
 	while (rec_end > body) {
+		ulint rec_len = ulint(rec_end - body);
 
-		len = ulint(rec_end - body);
-
-		if (len > RECV_DATA_BLOCK_SIZE) {
-			len = RECV_DATA_BLOCK_SIZE;
+		if (rec_len > RECV_DATA_BLOCK_SIZE) {
+			rec_len = RECV_DATA_BLOCK_SIZE;
 		}
 
-		recv_data = static_cast<recv_data_t*>(
-			mem_heap_alloc(recv_sys->heap,
-				       sizeof(recv_data_t) + len));
+		recv_data_t* recv_data = static_cast<recv_data_t*>(
+			mem_heap_alloc(heap, sizeof(recv_data_t) + rec_len));
 
 		*prev_field = recv_data;
 
-		memcpy(recv_data + 1, body, len);
+		memcpy(recv_data + 1, body, rec_len);
 
-		prev_field = &(recv_data->next);
+		prev_field = &recv_data->next;
 
-		body += len;
+		body += rec_len;
 	}
 
 	*prev_field = NULL;
@@ -1761,45 +1929,24 @@ recv_data_copy_to_buf(
 
 /** Apply the hashed log records to the page, if the page lsn is less than the
 lsn of a log record.
-@param just_read_in	whether the page recently arrived to the I/O handler
-@param block		the page in the buffer pool */
-void
-recv_recover_page(bool just_read_in, buf_block_t* block)
+@param[in,out]	block		buffer pool page
+@param[in,out]	mtr		mini-transaction
+@param[in,out]	recv_addr	recovery address
+@param[in,out]	init		page initialization operation, or NULL */
+static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
+			      recv_addr_t* recv_addr,
+			      mlog_init_t::init* init = NULL)
 {
 	page_t*		page;
 	page_zip_des_t*	page_zip;
-	recv_addr_t*	recv_addr;
-	lsn_t		start_lsn;
-	lsn_t		end_lsn;
-	lsn_t		page_lsn;
-	lsn_t		page_newest_lsn;
-	mtr_t		mtr;
 
-	mutex_enter(&(recv_sys->mutex));
-
-	if (recv_sys->apply_log_recs == FALSE) {
-
-		/* Log records should not be applied now */
-
-		mutex_exit(&(recv_sys->mutex));
-
-		return;
-	}
-
-	recv_addr = recv_get_fil_addr_struct(block->page.id.space(),
-					     block->page.id.page_no());
-
-	if ((recv_addr == NULL)
-	    || (recv_addr->state == RECV_BEING_PROCESSED)
-	    || (recv_addr->state == RECV_PROCESSED)) {
-		ut_ad(recv_addr == NULL || recv_needed_recovery);
-
-		mutex_exit(&(recv_sys->mutex));
-
-		return;
-	}
-
+	ut_ad(mutex_own(&recv_sys.mutex));
+	ut_ad(recv_sys.apply_log_recs);
 	ut_ad(recv_needed_recovery);
+	ut_ad(recv_addr->state != RECV_BEING_PROCESSED);
+	ut_ad(recv_addr->state != RECV_PROCESSED);
+	ut_ad(!init || init->created);
+	ut_ad(!init || init->lsn);
 
 	if (UNIV_UNLIKELY(srv_print_verbose_log == 2)) {
 		fprintf(stderr, "Applying log to page %u:%u\n",
@@ -1809,57 +1956,45 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 	DBUG_LOG("ib_log", "Applying log to page " << block->page.id);
 
 	recv_addr->state = RECV_BEING_PROCESSED;
-
-	mutex_exit(&(recv_sys->mutex));
-
-	mtr_start(&mtr);
-	mtr_set_log_mode(&mtr, MTR_LOG_NONE);
+	mutex_exit(&recv_sys.mutex);
 
 	page = block->frame;
 	page_zip = buf_block_get_page_zip(block);
 
-	if (just_read_in) {
-		/* Move the ownership of the x-latch on the page to
-		this OS thread, so that we can acquire a second
-		x-latch on it.  This is needed for the operations to
-		the page to pass the debug checks. */
-
-		rw_lock_x_lock_move_ownership(&block->lock);
+	/* The page may have been modified in the buffer pool.
+	FIL_PAGE_LSN would only be updated right before flushing. */
+	lsn_t page_lsn = buf_page_get_newest_modification(&block->page);
+	if (!page_lsn) {
+		page_lsn = mach_read_from_8(page + FIL_PAGE_LSN);
 	}
 
-	ibool	success = buf_page_get_known_nowait(
-		RW_X_LATCH, block, BUF_KEEP_OLD,
-		__FILE__, __LINE__, &mtr);
-	ut_a(success);
-
-	buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
-
-	/* Read the newest modification lsn from the page */
-	page_lsn = mach_read_from_8(page + FIL_PAGE_LSN);
-
-	/* It may be that the page has been modified in the buffer
-	pool: read the newest modification lsn there */
-
-	page_newest_lsn = buf_page_get_newest_modification(&block->page);
-
-	if (page_newest_lsn) {
-
-		page_lsn = page_newest_lsn;
-	}
-
-	start_lsn = end_lsn = 0;
-
-	fil_space_t* space = fil_space_acquire(block->page.id.space());
+	bool free_page = false;
+	lsn_t start_lsn = 0, end_lsn = 0;
+	const lsn_t init_lsn = init ? init->lsn : 0;
 
 	for (recv_t* recv = UT_LIST_GET_FIRST(recv_addr->rec_list);
 	     recv; recv = UT_LIST_GET_NEXT(rec_list, recv)) {
+		ut_ad(recv->start_lsn);
 		end_lsn = recv->end_lsn;
-
 		ut_ad(end_lsn <= log_sys.log.scanned_lsn);
 
-		ut_ad(recv->start_lsn);
-		if (recv->start_lsn >= page_lsn) {
-			if (!start_lsn) {
+		if (recv->start_lsn < page_lsn) {
+			/* Ignore this record, because there are later changes
+			for this page. */
+			DBUG_LOG("ib_log", "apply skip "
+				 << get_mlog_string(recv->type)
+				 << " LSN " << recv->start_lsn << " < "
+				 << page_lsn);
+		} else if (recv->start_lsn < init_lsn) {
+			DBUG_LOG("ib_log", "init skip "
+				 << get_mlog_string(recv->type)
+				 << " LSN " << recv->start_lsn << " < "
+				 << init_lsn);
+		} else {
+			if (recv->type == MLOG_INIT_FREE_PAGE) {
+				/* This does not really modify the page. */
+				free_page = true;
+			} else if (!start_lsn) {
 				start_lsn = recv->start_lsn;
 			}
 
@@ -1880,10 +2015,8 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 			if (recv->len > RECV_DATA_BLOCK_SIZE) {
 				/* We have to copy the record body to
 				a separate buffer */
-
-				buf = static_cast<byte*>(ut_malloc_nokey(
-								 recv->len));
-
+				buf = static_cast<byte*>
+					(ut_malloc_nokey(recv->len));
 				recv_data_copy_to_buf(buf, recv);
 			} else {
 				buf = reinterpret_cast<byte*>(recv->data)
@@ -1892,10 +2025,9 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 			recv_parse_or_apply_log_rec_body(
 				recv->type, buf, buf + recv->len,
-				block->page.id.space(),
-				block->page.id.page_no(), true, block, &mtr);
+				block->page.id, true, block, &mtr);
 
-			lsn_t end_lsn = recv->start_lsn + recv->len;
+			end_lsn = recv->start_lsn + recv->len;
 			mach_write_to_8(FIL_PAGE_LSN + page, end_lsn);
 			mach_write_to_8(srv_page_size
 					- FIL_PAGE_END_LSN_OLD_CHKSUM
@@ -1912,94 +2044,237 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 		}
 	}
 
-	space->release();
-
 #ifdef UNIV_ZIP_DEBUG
-	if (fil_page_index_page_check(page)) {
-		page_zip_des_t*	page_zip = buf_block_get_page_zip(block);
-
-		ut_a(!page_zip
-		     || page_zip_validate_low(page_zip, page, NULL, FALSE));
-	}
+	ut_ad(!fil_page_index_page_check(page)
+	      || !page_zip
+	      || page_zip_validate_low(page_zip, page, NULL, FALSE));
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (start_lsn) {
 		log_flush_order_mutex_enter();
-		buf_flush_recv_note_modification(block, start_lsn, end_lsn);
+		buf_flush_note_modification(block, start_lsn, end_lsn, NULL);
 		log_flush_order_mutex_exit();
+	} else if (free_page && init) {
+		/* There have been no operations than MLOG_INIT_FREE_PAGE.
+		Any buffered changes must not be merged. A subsequent
+		buf_page_create() from a user thread should discard
+		any buffered changes. */
+		init->created = false;
+		ut_ad(!mtr.has_modifications());
 	}
 
 	/* Make sure that committing mtr does not change the modification
 	lsn values of page */
 
 	mtr.discard_modifications();
+	mtr.commit();
 
-	mtr_commit(&mtr);
+	time_t now = time(NULL);
 
-	ib_time_t time = ut_time();
-
-	mutex_enter(&recv_sys->mutex);
+	mutex_enter(&recv_sys.mutex);
 
 	if (recv_max_page_lsn < page_lsn) {
 		recv_max_page_lsn = page_lsn;
 	}
 
+	ut_ad(recv_addr->state == RECV_BEING_PROCESSED);
 	recv_addr->state = RECV_PROCESSED;
 
-	ut_a(recv_sys->n_addrs > 0);
-	if (ulint n = --recv_sys->n_addrs) {
-		if (recv_sys->report(time)) {
+	ut_a(recv_sys.n_addrs > 0);
+	if (ulint n = --recv_sys.n_addrs) {
+		if (recv_sys.report(now)) {
 			ib::info() << "To recover: " << n << " pages from log";
 			service_manager_extend_timeout(
 				INNODB_EXTEND_TIMEOUT_INTERVAL, "To recover: " ULINTPF " pages from log", n);
 		}
 	}
+}
 
-	mutex_exit(&recv_sys->mutex);
+/** Reduces recv_sys.n_addrs for the corrupted page.
+This function should called when srv_force_recovery > 0.
+@param[in]	page_id	page id of the corrupted page */
+void recv_recover_corrupt_page(page_id_t page_id)
+{
+	ut_ad(srv_force_recovery);
+	mutex_enter(&recv_sys.mutex);
+
+	if (!recv_sys.apply_log_recs) {
+	} else if (recv_addr_t* recv_addr = recv_get_fil_addr_struct(
+			   page_id.space(), page_id.page_no())) {
+		switch (recv_addr->state) {
+		case RECV_WILL_NOT_READ:
+			ut_ad(!"wrong state");
+			break;
+		case RECV_BEING_PROCESSED:
+		case RECV_PROCESSED:
+			break;
+		default:
+			recv_addr->state = RECV_PROCESSED;
+			ut_ad(recv_sys.n_addrs);
+			recv_sys.n_addrs--;
+		}
+	}
+
+	mutex_exit(&recv_sys.mutex);
+}
+
+/** Apply any buffered redo log to a page that was just read from a data file.
+@param[in,out]	bpage	buffer pool page */
+void recv_recover_page(buf_page_t* bpage)
+{
+	mtr_t mtr;
+	mtr.start();
+	mtr.set_log_mode(MTR_LOG_NONE);
+
+	ut_ad(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
+	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
+
+	/* Move the ownership of the x-latch on the page to
+	this OS thread, so that we can acquire a second
+	x-latch on it.  This is needed for the operations to
+	the page to pass the debug checks. */
+	rw_lock_x_lock_move_ownership(&block->lock);
+	buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
+	ibool	success = buf_page_get_known_nowait(
+		RW_X_LATCH, block, BUF_KEEP_OLD,
+		__FILE__, __LINE__, &mtr);
+	ut_a(success);
+
+	mutex_enter(&recv_sys.mutex);
+	if (!recv_sys.apply_log_recs) {
+	} else if (recv_addr_t* recv_addr = recv_get_fil_addr_struct(
+			   bpage->id.space(), bpage->id.page_no())) {
+		switch (recv_addr->state) {
+		case RECV_BEING_PROCESSED:
+		case RECV_PROCESSED:
+			break;
+		default:
+			recv_recover_page(block, mtr, recv_addr);
+			goto func_exit;
+		}
+	}
+
+	mtr.commit();
+func_exit:
+	mutex_exit(&recv_sys.mutex);
+	ut_ad(mtr.has_committed());
 }
 
 /** Reads in pages which have hashed log records, from an area around a given
 page number.
-@param[in]	page_id	page id
-@return number of pages found */
-static ulint recv_read_in_area(const page_id_t page_id)
+@param[in]	page_id	page id */
+static void recv_read_in_area(const page_id_t page_id)
 {
-	recv_addr_t* recv_addr;
 	ulint	page_nos[RECV_READ_AHEAD_AREA];
-	ulint	low_limit;
-	ulint	n;
-
-	low_limit = page_id.page_no()
+	ulint	page_no = page_id.page_no()
 		- (page_id.page_no() % RECV_READ_AHEAD_AREA);
+	ulint*	p = page_nos;
 
-	n = 0;
-
-	for (ulint page_no = low_limit;
-	     page_no < low_limit + RECV_READ_AHEAD_AREA;
-	     page_no++) {
-
-		recv_addr = recv_get_fil_addr_struct(page_id.space(), page_no);
-
-		const page_id_t	cur_page_id(page_id.space(), page_no);
-
-		if (recv_addr && !buf_page_peek(cur_page_id)) {
-
-			mutex_enter(&(recv_sys->mutex));
-
-			if (recv_addr->state == RECV_NOT_PROCESSED) {
-				recv_addr->state = RECV_BEING_READ;
-
-				page_nos[n] = page_no;
-
-				n++;
-			}
-
-			mutex_exit(&(recv_sys->mutex));
+	for (const ulint up_limit = page_no + RECV_READ_AHEAD_AREA;
+	     page_no < up_limit; page_no++) {
+		recv_addr_t* recv_addr = recv_get_fil_addr_struct(
+			page_id.space(), page_no);
+		if (recv_addr
+		    && recv_addr->state == RECV_NOT_PROCESSED
+		    && !buf_page_peek(page_id_t(page_id.space(), page_no))) {
+			recv_addr->state = RECV_BEING_READ;
+			*p++ = page_no;
 		}
 	}
 
-	buf_read_recv_pages(FALSE, page_id.space(), page_nos, n);
-	return(n);
+	mutex_exit(&recv_sys.mutex);
+	buf_read_recv_pages(FALSE, page_id.space(), page_nos,
+			    ulint(p - page_nos));
+	mutex_enter(&recv_sys.mutex);
+}
+
+/** This is another low level function for the recovery system
+to create a page which has buffered page intialization redo log records.
+@param[in]	page_id		page to be created using redo logs
+@param[in,out]	recv_addr	Hashed redo logs for the given page id
+@return whether the page creation successfully */
+static buf_block_t* recv_recovery_create_page_low(const page_id_t page_id,
+                                                  recv_addr_t* recv_addr)
+{
+  mtr_t mtr;
+  mlog_init_t::init &i= mlog_init.last(page_id);
+  const lsn_t end_lsn= UT_LIST_GET_LAST(recv_addr->rec_list)->end_lsn;
+
+  if (end_lsn < i.lsn)
+  {
+    DBUG_LOG("ib_log", "skip log for page "
+             << page_id
+             << " LSN " << end_lsn
+             << " < " << i.lsn);
+    recv_addr->state= RECV_PROCESSED;
+ignore:
+    ut_a(recv_sys.n_addrs);
+    recv_sys.n_addrs--;
+    return NULL;
+  }
+
+  fil_space_t *space= fil_space_acquire_for_io(recv_addr->space);
+  if (!space)
+  {
+    recv_addr->state= RECV_PROCESSED;
+    goto ignore;
+  }
+
+  if (space->enable_lsn)
+  {
+init_fail:
+    space->release_for_io();
+    recv_addr->state= RECV_NOT_PROCESSED;
+    return NULL;
+  }
+
+  /* Determine if a tablespace could be for an internal table
+  for FULLTEXT INDEX. For those tables, no MLOG_INDEX_LOAD record
+  used to be written when redo logging was disabled. Hence, we
+  cannot optimize away page reads, because all the redo
+  log records for initializing and modifying the page in the
+  past could be older than the page in the data file.
+
+  The check is too broad, causing all
+  tables whose names start with FTS_ to skip the optimization. */
+
+  if (strstr(space->name, "/FTS_"))
+    goto init_fail;
+
+  mtr.start();
+  mtr.set_log_mode(MTR_LOG_NONE);
+  buf_block_t *block= buf_page_create(page_id, space->zip_size(), &mtr);
+  if (recv_addr->state == RECV_PROCESSED)
+    /* The page happened to exist in the buffer pool, or it was
+    just being read in. Before buf_page_get_with_no_latch() returned,
+    all changes must have been applied to the page already. */
+    mtr.commit();
+  else
+  {
+    i.created= true;
+    buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
+    recv_recover_page(block, mtr, recv_addr, &i);
+    ut_ad(mtr.has_committed());
+  }
+
+  space->release_for_io();
+  return block;
+}
+
+/** This is a low level function for the recovery system
+to create a page which has buffered intialized redo log records.
+@param[in]      page_id page to be created using redo logs
+@return whether the page creation successfully */
+buf_block_t* recv_recovery_create_page_low(const page_id_t page_id)
+{
+  buf_block_t* block= nullptr;
+  mutex_enter(&recv_sys.mutex);
+  recv_addr_t* recv_addr= recv_get_fil_addr_struct(page_id.space(),
+                                                   page_id.page_no());
+  if (recv_addr && recv_addr->state == RECV_WILL_NOT_READ)
+    block= recv_recovery_create_page_low(page_id, recv_addr);
+  mutex_exit(&recv_sys.mutex);
+  return block;
 }
 
 /** Apply the hash table of stored log records to persistent data pages.
@@ -2008,40 +2283,36 @@ static ulint recv_read_in_area(const page_id_t page_id)
 void recv_apply_hashed_log_recs(bool last_batch)
 {
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	      || is_mariabackup_restore_or_export());
 
-	mutex_enter(&recv_sys->mutex);
+	mutex_enter(&recv_sys.mutex);
 
-	while (recv_sys->apply_batch_on) {
-		bool abort = recv_sys->found_corrupt_log;
-		mutex_exit(&recv_sys->mutex);
+	while (recv_sys.apply_batch_on) {
+		bool abort = recv_sys.found_corrupt_log;
+		mutex_exit(&recv_sys.mutex);
 
 		if (abort) {
 			return;
 		}
 
 		os_thread_sleep(500000);
-		mutex_enter(&recv_sys->mutex);
+		mutex_enter(&recv_sys.mutex);
 	}
 
 	ut_ad(!last_batch == log_mutex_own());
 
-	recv_no_ibuf_operations = !last_batch
-		|| srv_operation == SRV_OPERATION_RESTORE
-		|| srv_operation == SRV_OPERATION_RESTORE_EXPORT;
+	recv_no_ibuf_operations
+		= !last_batch || is_mariabackup_restore_or_export();
 
-	ut_d(recv_no_log_write = recv_no_ibuf_operations);
-
-	if (ulint n = recv_sys->n_addrs) {
+	if (ulint n = recv_sys.n_addrs) {
 		if (!log_sys.log.subformat && !srv_force_recovery
 		    && srv_undo_tablespaces_open) {
 			ib::error() << "Recovery of separately logged"
 				" TRUNCATE operations is no longer supported."
 				" Set innodb_force_recovery=1"
 				" if no *trunc.log files exist";
-			recv_sys->found_corrupt_log = true;
-			mutex_exit(&recv_sys->mutex);
+			recv_sys.found_corrupt_log = true;
+			mutex_exit(&recv_sys.mutex);
 			return;
 		}
 
@@ -2052,71 +2323,83 @@ void recv_apply_hashed_log_recs(bool last_batch)
 		sd_notifyf(0, "STATUS=%s" ULINTPF " pages from redo log",
 			   msg, n);
 	}
-	recv_sys->apply_log_recs = TRUE;
-	recv_sys->apply_batch_on = TRUE;
+	recv_sys.apply_log_recs = true;
+	recv_sys.apply_batch_on = true;
 
 	for (ulint id = srv_undo_tablespaces_open; id--; ) {
-		recv_sys_t::trunc& t = recv_sys->truncated_undo_spaces[id];
+		recv_sys_t::trunc& t = recv_sys.truncated_undo_spaces[id];
 		if (t.lsn) {
 			recv_addr_trim(id + srv_undo_space_id_start, t.pages,
 				       t.lsn);
 		}
 	}
 
-	for (ulint i = 0; i < hash_get_n_cells(recv_sys->addr_hash); i++) {
+	mtr_t mtr;
+
+	for (ulint i = 0; i < hash_get_n_cells(recv_sys.addr_hash); i++) {
 		for (recv_addr_t* recv_addr = static_cast<recv_addr_t*>(
-			     HASH_GET_FIRST(recv_sys->addr_hash, i));
+			     HASH_GET_FIRST(recv_sys.addr_hash, i));
 		     recv_addr;
 		     recv_addr = static_cast<recv_addr_t*>(
 				HASH_GET_NEXT(addr_hash, recv_addr))) {
-
-			if (recv_addr->state == RECV_DISCARDED
-			    || !UT_LIST_GET_LEN(recv_addr->rec_list)) {
-				ut_a(recv_sys->n_addrs);
-				recv_sys->n_addrs--;
+			if (!UT_LIST_GET_LEN(recv_addr->rec_list)) {
+ignore:
+				ut_a(recv_sys.n_addrs);
+				recv_sys.n_addrs--;
 				continue;
 			}
 
-			const page_id_t		page_id(recv_addr->space,
-							recv_addr->page_no);
-			bool			found;
-			const page_size_t&	page_size
-				= fil_space_get_page_size(recv_addr->space,
-							  &found);
+			switch (recv_addr->state) {
+			case RECV_BEING_READ:
+			case RECV_BEING_PROCESSED:
+			case RECV_PROCESSED:
+				continue;
+			case RECV_DISCARDED:
+				goto ignore;
+			case RECV_NOT_PROCESSED:
+			case RECV_WILL_NOT_READ:
+				break;
+			}
 
-			ut_ad(found);
+			const page_id_t page_id(recv_addr->space,
+						recv_addr->page_no);
 
 			if (recv_addr->state == RECV_NOT_PROCESSED) {
-				mutex_exit(&recv_sys->mutex);
-
-				if (buf_page_peek(page_id)) {
-					mtr_t	mtr;
-					mtr.start();
-
-					buf_block_t* block = buf_page_get(
-						page_id, page_size,
-						RW_X_LATCH, &mtr);
-
+apply:
+				mtr.start();
+				mtr.set_log_mode(MTR_LOG_NONE);
+				if (buf_block_t* block = buf_page_get_low(
+					    page_id, 0, RW_X_LATCH, NULL,
+					    BUF_GET_IF_IN_POOL,
+					    __FILE__, __LINE__, &mtr, NULL)) {
 					buf_block_dbg_add_level(
 						block, SYNC_NO_ORDER_CHECK);
-
-					recv_recover_page(FALSE, block);
-					mtr.commit();
+					recv_recover_page(block, mtr,
+							  recv_addr);
+					ut_ad(mtr.has_committed());
 				} else {
+					mtr.commit();
 					recv_read_in_area(page_id);
 				}
-
-				mutex_enter(&recv_sys->mutex);
+			} else if (!recv_recovery_create_page_low(
+					page_id, recv_addr)) {
+				goto apply;
 			}
 		}
 	}
 
 	/* Wait until all the pages have been processed */
 
-	while (recv_sys->n_addrs != 0) {
-		bool abort = recv_sys->found_corrupt_log;
+	while (recv_sys.n_addrs || buf_get_n_pending_read_ios()) {
+		const bool abort = recv_sys.found_corrupt_log
+			|| recv_sys.found_corrupt_fs;
 
-		mutex_exit(&(recv_sys->mutex));
+		if (recv_sys.found_corrupt_fs && !srv_force_recovery) {
+			ib::info() << "Set innodb_force_recovery=1"
+				" to ignore corrupted pages.";
+		}
+
+		mutex_exit(&(recv_sys.mutex));
 
 		if (abort) {
 			return;
@@ -2124,43 +2407,85 @@ void recv_apply_hashed_log_recs(bool last_batch)
 
 		os_thread_sleep(500000);
 
-		mutex_enter(&(recv_sys->mutex));
+		mutex_enter(&(recv_sys.mutex));
 	}
 
 	if (!last_batch) {
 		/* Flush all the file pages to disk and invalidate them in
 		the buffer pool */
 
-		mutex_exit(&(recv_sys->mutex));
+		mutex_exit(&(recv_sys.mutex));
 		log_mutex_exit();
 
 		/* Stop the recv_writer thread from issuing any LRU
 		flush batches. */
-		mutex_enter(&recv_sys->writer_mutex);
+		mutex_enter(&recv_sys.writer_mutex);
 
 		/* Wait for any currently run batch to end. */
 		buf_flush_wait_LRU_batch_end();
 
-		os_event_reset(recv_sys->flush_end);
-		recv_sys->flush_type = BUF_FLUSH_LIST;
-		os_event_set(recv_sys->flush_start);
-		os_event_wait(recv_sys->flush_end);
+		os_event_reset(recv_sys.flush_end);
+		recv_sys.flush_type = BUF_FLUSH_LIST;
+		os_event_set(recv_sys.flush_start);
+		os_event_wait(recv_sys.flush_end);
 
 		buf_pool_invalidate();
 
 		/* Allow batches from recv_writer thread. */
-		mutex_exit(&recv_sys->writer_mutex);
+		mutex_exit(&recv_sys.writer_mutex);
 
 		log_mutex_enter();
-		mutex_enter(&(recv_sys->mutex));
+		mutex_enter(&(recv_sys.mutex));
+		mlog_init.reset();
+	} else if (!recv_no_ibuf_operations) {
+		/* We skipped this in buf_page_create(). */
+		mlog_init.ibuf_merge(mtr);
 	}
 
-	recv_sys->apply_log_recs = FALSE;
-	recv_sys->apply_batch_on = FALSE;
+	recv_sys.apply_log_recs = false;
+	recv_sys.apply_batch_on = false;
 
-	recv_sys_empty_hash();
+	recv_sys.empty();
 
-	mutex_exit(&recv_sys->mutex);
+	mutex_exit(&recv_sys.mutex);
+}
+
+/** Parse the redo log to set the space recovery size and flags
+@param[in]	ptr	pointer to parsing redo buffer
+@param[in]	end_ptr	end of the parsing redo buffer
+@param[in]	space	tablespace id */
+static
+void recv_parse_set_size_and_flags(const byte *ptr, byte *end_ptr,
+                                   ulint space)
+{
+  switch (const uint16_t offset= mach_read_from_2(ptr))
+  {
+  default:
+    break;
+  case FSP_HEADER_OFFSET + FSP_SIZE:
+  case FSP_HEADER_OFFSET + FSP_SPACE_FLAGS:
+    ptr += 2;
+    ulint val= mach_parse_compressed(&ptr, end_ptr);
+    recv_spaces_t::iterator it= recv_spaces.find(space);
+
+    ut_ad(!recv_sys.mlog_checkpoint_lsn || space == TRX_SYS_SPACE ||
+          srv_is_undo_tablespace(space) || it != recv_spaces.end());
+
+    if (offset == FSP_HEADER_OFFSET + FSP_SIZE)
+      fil_space_set_recv_size_and_flags(
+         space, val, FSP_FLAGS_FCRC32_MASK_MARKER);
+    else
+      fil_space_set_recv_size_and_flags(
+         space, 0, static_cast<uint32_t>(val));
+
+    if (it == recv_spaces.end() || it->second.space)
+      return;
+
+    if (offset == FSP_HEADER_OFFSET + FSP_SIZE)
+      it->second.size= val;
+    else
+      it->second.flags= static_cast<uint32_t>(val);
+  }
 }
 
 /** Tries to parse a single log record.
@@ -2187,10 +2512,10 @@ recv_parse_log_rec(
 
 	*body = NULL;
 
-	UNIV_MEM_INVALID(type, sizeof *type);
-	UNIV_MEM_INVALID(space, sizeof *space);
-	UNIV_MEM_INVALID(page_no, sizeof *page_no);
-	UNIV_MEM_INVALID(body, sizeof *body);
+	MEM_UNDEFINED(type, sizeof *type);
+	MEM_UNDEFINED(space, sizeof *space);
+	MEM_UNDEFINED(page_no, sizeof *page_no);
+	MEM_UNDEFINED(body, sizeof *body);
 
 	if (ptr == end_ptr) {
 
@@ -2206,7 +2531,7 @@ recv_parse_log_rec(
 		if (new_ptr != NULL) {
 			const lsn_t	lsn = static_cast<lsn_t>(
 				*space) << 32 | *page_no;
-			ut_a(lsn == recv_sys->recovered_lsn);
+			ut_a(lsn == recv_sys.recovered_lsn);
 		}
 
 		*type = MLOG_LSN;
@@ -2227,7 +2552,7 @@ recv_parse_log_rec(
 	case MLOG_CHECKPOINT | MLOG_SINGLE_REC_FLAG:
 		ib::error() << "Incorrect log record type "
 			<< ib::hex(unsigned(*ptr));
-		recv_sys->found_corrupt_log = true;
+		recv_sys.found_corrupt_log = true;
 		return(0);
 	}
 
@@ -2242,18 +2567,15 @@ recv_parse_log_rec(
 
 	const byte*	old_ptr = new_ptr;
 	new_ptr = recv_parse_or_apply_log_rec_body(
-		*type, new_ptr, end_ptr, *space, *page_no, apply, NULL, NULL);
+		*type, new_ptr, end_ptr, page_id_t(*space, *page_no), apply,
+		NULL, NULL);
 
 	if (UNIV_UNLIKELY(new_ptr == NULL)) {
 		return(0);
 	}
 
-	if (*page_no == 0 && *type == MLOG_4BYTES
-	    && mach_read_from_2(old_ptr) == FSP_HEADER_OFFSET + FSP_SIZE) {
-		old_ptr += 2;
-		fil_space_set_recv_size(*space,
-					mach_parse_compressed(&old_ptr,
-							      end_ptr));
+	if (*page_no == 0 && *type == MLOG_4BYTES && apply) {
+		recv_parse_set_size_and_flags(old_ptr, end_ptr, *space);
 	}
 
 	return ulint(new_ptr - ptr);
@@ -2285,6 +2607,7 @@ recv_calc_lsn_on_data_add(
 @param[in]	space	tablespace ID (could be garbage)
 @param[in]	page_no	page number (could be garbage)
 @return whether processing should continue */
+ATTRIBUTE_COLD
 static
 bool
 recv_report_corrupt_log(
@@ -2296,28 +2619,28 @@ recv_report_corrupt_log(
 	ib::error() <<
 		"############### CORRUPT LOG RECORD FOUND ##################";
 
-	const ulint ptr_offset = ulint(ptr - recv_sys->buf);
+	const ulint ptr_offset = ulint(ptr - recv_sys.buf);
 
 	ib::info() << "Log record type " << type << ", page " << space << ":"
 		<< page_no << ". Log parsing proceeded successfully up to "
-		<< recv_sys->recovered_lsn << ". Previous log record type "
+		<< recv_sys.recovered_lsn << ". Previous log record type "
 		<< recv_previous_parsed_rec_type << ", is multi "
 		<< recv_previous_parsed_rec_is_multi << " Recv offset "
 		<< ptr_offset << ", prev "
 		<< recv_previous_parsed_rec_offset;
 
-	ut_ad(ptr <= recv_sys->buf + recv_sys->len);
+	ut_ad(ptr <= recv_sys.buf + recv_sys.len);
 
 	const ulint	limit	= 100;
 	const ulint	prev_offset = std::min(recv_previous_parsed_rec_offset,
 					       ptr_offset);
 	const ulint	before = std::min(prev_offset, limit);
-	const ulint	after = std::min(recv_sys->len - ptr_offset, limit);
+	const ulint	after = std::min(recv_sys.len - ptr_offset, limit);
 
 	ib::info() << "Hex dump starting " << before << " bytes before and"
 		" ending " << after << " bytes after the corrupted record:";
 
-	const byte* start = recv_sys->buf + prev_offset - before;
+	const byte* start = recv_sys.buf + prev_offset - before;
 
 	ut_print_buf(stderr, start, ulint(ptr - start) + after);
 	putc('\n', stderr);
@@ -2335,14 +2658,56 @@ recv_report_corrupt_log(
 	return(true);
 }
 
+/** Report a MLOG_INDEX_LOAD operation.
+@param[in]	space_id	tablespace id
+@param[in]	page_no		page number
+@param[in]	lsn		log sequence number */
+ATTRIBUTE_COLD static void
+recv_mlog_index_load(ulint space_id, ulint page_no, lsn_t lsn)
+{
+	recv_spaces_t::iterator it = recv_spaces.find(space_id);
+	if (it != recv_spaces.end()) {
+		it->second.mlog_index_load(lsn);
+	}
+
+	if (log_optimized_ddl_op) {
+		log_optimized_ddl_op(space_id);
+	}
+}
+
+/** Check whether read redo log memory exceeds the available memory
+of buffer pool. Store last_stored_lsn if it is not in last phase
+@param[in]	store		whether to store page operations
+@param[in]	available_mem	Available memory in buffer pool to
+				read redo logs. */
+static bool recv_sys_heap_check(store_t* store, ulint available_mem)
+{
+  if (*store != STORE_NO && mem_heap_get_size(recv_sys.heap) >= available_mem)
+  {
+    if (*store == STORE_YES)
+      recv_sys.last_stored_lsn= recv_sys.recovered_lsn;
+
+    *store= STORE_NO;
+    DBUG_PRINT("ib_log",("Ran out of memory and last "
+			 "stored lsn " LSN_PF " last stored offset "
+			 ULINTPF "\n",
+			 recv_sys.recovered_lsn, recv_sys.recovered_offset));
+    return true;
+  }
+
+  return false;
+}
+
 /** Parse log records from a buffer and optionally store them to a
 hash table to wait merging to file pages.
-@param[in]	checkpoint_lsn	the LSN of the latest checkpoint
-@param[in]	store		whether to store page operations
-@param[in]	apply		whether to apply the records
+@param[in]	checkpoint_lsn		the LSN of the latest checkpoint
+@param[in]	store			whether to store page operations
+@param[in]	available_mem		memory to read the redo logs
+@param[in]	apply			whether to apply the records
 @return whether MLOG_CHECKPOINT record was seen the first time,
 or corruption was noticed */
-bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply)
+bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t* store,
+			 ulint available_mem, bool apply)
 {
 	byte*		ptr;
 	byte*		end_ptr;
@@ -2354,17 +2719,25 @@ bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply)
 	ulint		space;
 	ulint		page_no;
 	byte*		body;
+	const bool	last_phase = (*store == STORE_IF_EXISTS);
 
 	ut_ad(log_mutex_own());
-	ut_ad(recv_sys->parse_start_lsn != 0);
+	ut_ad(mutex_own(&recv_sys.mutex));
+	ut_ad(recv_sys.parse_start_lsn != 0);
 loop:
-	ptr = recv_sys->buf + recv_sys->recovered_offset;
+	ptr = recv_sys.buf + recv_sys.recovered_offset;
 
-	end_ptr = recv_sys->buf + recv_sys->len;
+	end_ptr = recv_sys.buf + recv_sys.len;
 
 	if (ptr == end_ptr) {
 
 		return(false);
+	}
+
+	/* Check for memory overflow and ignore the parsing of remaining
+	redo log records if InnoDB ran out of memory */
+	if (recv_sys_heap_check(store, available_mem) && last_phase) {
+		return false;
 	}
 
 	switch (*ptr) {
@@ -2382,7 +2755,7 @@ loop:
 	if (single_rec) {
 		/* The mtr did not modify multiple pages */
 
-		old_lsn = recv_sys->recovered_lsn;
+		old_lsn = recv_sys.recovered_lsn;
 
 		/* Try to parse a log record, fetching its type, space id,
 		page no, and a pointer to the body of the log record */
@@ -2390,12 +2763,12 @@ loop:
 		len = recv_parse_log_rec(&type, ptr, end_ptr, &space,
 					 &page_no, apply, &body);
 
-		if (recv_sys->found_corrupt_log) {
+		if (UNIV_UNLIKELY(recv_sys.found_corrupt_log)) {
 			recv_report_corrupt_log(ptr, type, space, page_no);
 			return(true);
 		}
 
-		if (recv_sys->found_corrupt_fs) {
+		if (UNIV_UNLIKELY(recv_sys.found_corrupt_fs)) {
 			return(true);
 		}
 
@@ -2405,7 +2778,7 @@ loop:
 
 		new_recovered_lsn = recv_calc_lsn_on_data_add(old_lsn, len);
 
-		if (new_recovered_lsn > recv_sys->scanned_lsn) {
+		if (new_recovered_lsn > recv_sys.scanned_lsn) {
 			/* The log record filled a log block, and we require
 			that also the next log block should have been scanned
 			in */
@@ -2414,11 +2787,11 @@ loop:
 		}
 
 		recv_previous_parsed_rec_type = type;
-		recv_previous_parsed_rec_offset = recv_sys->recovered_offset;
+		recv_previous_parsed_rec_offset = recv_sys.recovered_offset;
 		recv_previous_parsed_rec_is_multi = 0;
 
-		recv_sys->recovered_offset += len;
-		recv_sys->recovered_lsn = new_recovered_lsn;
+		recv_sys.recovered_offset += len;
+		recv_sys.recovered_lsn = new_recovered_lsn;
 
 		switch (type) {
 			lsn_t	lsn;
@@ -2434,9 +2807,9 @@ loop:
 					"MLOG_CHECKPOINT(" LSN_PF ") %s at "
 					LSN_PF "\n", lsn,
 					lsn != checkpoint_lsn ? "ignored"
-					: recv_sys->mlog_checkpoint_lsn
+					: recv_sys.mlog_checkpoint_lsn
 					? "reread" : "read",
-					recv_sys->recovered_lsn);
+					recv_sys.recovered_lsn);
 			}
 
 			DBUG_PRINT("ib_log",
@@ -2444,23 +2817,19 @@ loop:
 				    LSN_PF,
 				    lsn,
 				    lsn != checkpoint_lsn ? "ignored"
-				    : recv_sys->mlog_checkpoint_lsn
+				    : recv_sys.mlog_checkpoint_lsn
 				    ? "reread" : "read",
-				    recv_sys->recovered_lsn));
+				    recv_sys.recovered_lsn));
 
 			if (lsn == checkpoint_lsn) {
-				if (recv_sys->mlog_checkpoint_lsn) {
-					/* At recv_reset_logs() we may
-					write a duplicate MLOG_CHECKPOINT
-					for the same checkpoint LSN. Thus
-					recv_sys->mlog_checkpoint_lsn
-					can differ from the current LSN. */
-					ut_ad(recv_sys->mlog_checkpoint_lsn
-					      <= recv_sys->recovered_lsn);
+				if (recv_sys.mlog_checkpoint_lsn) {
+					/* There can be multiple
+					MLOG_CHECKPOINT lsn for the
+					same checkpoint. */
 					break;
 				}
-				recv_sys->mlog_checkpoint_lsn
-					= recv_sys->recovered_lsn;
+				recv_sys.mlog_checkpoint_lsn
+					= recv_sys.recovered_lsn;
 				return(true);
 			}
 			break;
@@ -2472,7 +2841,7 @@ loop:
 			break;
 #endif /* UNIV_LOG_LSN_DEBUG */
 		default:
-			switch (store) {
+			switch (*store) {
 			case STORE_NO:
 				break;
 			case STORE_IF_EXISTS:
@@ -2482,17 +2851,15 @@ loop:
 				}
 				/* fall through */
 			case STORE_YES:
-				recv_add_to_hash_table(
+				recv_sys.add(
 					type, space, page_no, body,
 					ptr + len, old_lsn,
-					recv_sys->recovered_lsn);
+					recv_sys.recovered_lsn);
 			}
 			/* fall through */
 		case MLOG_INDEX_LOAD:
 			if (type == MLOG_INDEX_LOAD) {
-				if (log_optimized_ddl_op) {
-					log_optimized_ddl_op(space);
-				}
+				recv_mlog_index_load(space, page_no, old_lsn);
 			}
 			/* fall through */
 		case MLOG_FILE_NAME:
@@ -2524,17 +2891,21 @@ loop:
 				&type, ptr, end_ptr, &space, &page_no,
 				false, &body);
 
-			if (recv_sys->found_corrupt_log
-			    || type == MLOG_CHECKPOINT
-			    || (ptr != end_ptr
-				&& (*ptr & MLOG_SINGLE_REC_FLAG))) {
-				recv_sys->found_corrupt_log = true;
+			if (UNIV_UNLIKELY(recv_sys.found_corrupt_log)) {
+corrupted_log:
 				recv_report_corrupt_log(
 					ptr, type, space, page_no);
 				return(true);
 			}
 
-			if (recv_sys->found_corrupt_fs) {
+			if (ptr == end_ptr) {
+			} else if (type == MLOG_CHECKPOINT
+				   || (*ptr & MLOG_SINGLE_REC_FLAG)) {
+				recv_sys.found_corrupt_log = true;
+				goto corrupted_log;
+			}
+
+			if (recv_sys.found_corrupt_fs) {
 				return(true);
 			}
 
@@ -2544,7 +2915,7 @@ loop:
 
 			recv_previous_parsed_rec_type = type;
 			recv_previous_parsed_rec_offset
-				= recv_sys->recovered_offset + total_len;
+				= recv_sys.recovered_offset + total_len;
 			recv_previous_parsed_rec_is_multi = 1;
 
 			/* MLOG_FILE_NAME redo log records doesn't make changes
@@ -2557,10 +2928,10 @@ loop:
 
 			if (only_mlog_file) {
 				new_recovered_lsn = recv_calc_lsn_on_data_add(
-					recv_sys->recovered_lsn, len);
+					recv_sys.recovered_lsn, len);
 				mlog_rec_len += len;
-				recv_sys->recovered_offset += len;
-				recv_sys->recovered_lsn = new_recovered_lsn;
+				recv_sys.recovered_offset += len;
+				recv_sys.recovered_lsn = new_recovered_lsn;
 			}
 
 			total_len += len;
@@ -2574,7 +2945,7 @@ loop:
 					    ": multi-log end"
 					    " total_len " ULINTPF
 					    " n=" ULINTPF,
-					    recv_sys->recovered_lsn,
+					    recv_sys.recovered_lsn,
 					    total_len, n_recs));
 				total_len -= mlog_rec_len;
 				break;
@@ -2584,14 +2955,14 @@ loop:
 				   ("scan " LSN_PF ": multi-log rec %s"
 				    " len " ULINTPF
 				    " page " ULINTPF ":" ULINTPF,
-				    recv_sys->recovered_lsn,
+				    recv_sys.recovered_lsn,
 				    get_mlog_string(type), len, space, page_no));
 		}
 
 		new_recovered_lsn = recv_calc_lsn_on_data_add(
-			recv_sys->recovered_lsn, total_len);
+			recv_sys.recovered_lsn, total_len);
 
-		if (new_recovered_lsn > recv_sys->scanned_lsn) {
+		if (new_recovered_lsn > recv_sys.scanned_lsn) {
 			/* The log record filled a log block, and we require
 			that also the next log block should have been scanned
 			in */
@@ -2601,10 +2972,10 @@ loop:
 
 		/* Add all the records to the hash table */
 
-		ptr = recv_sys->buf + recv_sys->recovered_offset;
+		ptr = recv_sys.buf + recv_sys.recovered_offset;
 
 		for (;;) {
-			old_lsn = recv_sys->recovered_lsn;
+			old_lsn = recv_sys.recovered_lsn;
 			/* This will apply MLOG_FILE_ records. We
 			had to skip them in the first scan, because we
 			did not know if the mini-transaction was
@@ -2613,21 +2984,21 @@ loop:
 				&type, ptr, end_ptr, &space, &page_no,
 				apply, &body);
 
-			if (recv_sys->found_corrupt_log
+			if (UNIV_UNLIKELY(recv_sys.found_corrupt_log)
 			    && !recv_report_corrupt_log(
 				    ptr, type, space, page_no)) {
 				return(true);
 			}
 
-			if (recv_sys->found_corrupt_fs) {
+			if (UNIV_UNLIKELY(recv_sys.found_corrupt_fs)) {
 				return(true);
 			}
 
 			ut_a(len != 0);
 			ut_a(!(*ptr & MLOG_SINGLE_REC_FLAG));
 
-			recv_sys->recovered_offset += len;
-			recv_sys->recovered_lsn
+			recv_sys.recovered_offset += len;
+			recv_sys.recovered_lsn
 				= recv_calc_lsn_on_data_add(old_lsn, len);
 
 			switch (type) {
@@ -2642,10 +3013,7 @@ loop:
 				break;
 #endif /* UNIV_LOG_LSN_DEBUG */
 			case MLOG_INDEX_LOAD:
-				/* Mariabackup FIXME: Report an error
-				when encountering MLOG_INDEX_LOAD on
-				--prepare or already on --backup. */
-				ut_a(srv_operation == SRV_OPERATION_NORMAL);
+				recv_mlog_index_load(space, page_no, old_lsn);
 				break;
 			case MLOG_FILE_NAME:
 			case MLOG_FILE_DELETE:
@@ -2657,7 +3025,7 @@ loop:
 				recv_parse_or_apply_log_rec_body(). */
 				break;
 			default:
-				switch (store) {
+				switch (*store) {
 				case STORE_NO:
 					break;
 				case STORE_IF_EXISTS:
@@ -2667,7 +3035,7 @@ loop:
 					}
 					/* fall through */
 				case STORE_YES:
-					recv_add_to_hash_table(
+					recv_sys.add(
 						type, space, page_no,
 						body, ptr + len,
 						old_lsn,
@@ -2683,7 +3051,7 @@ loop:
 }
 
 /** Adds data from a new log block to the parsing buffer of recv_sys if
-recv_sys->parse_start_lsn is non-zero.
+recv_sys.parse_start_lsn is non-zero.
 @param[in]	log_block	log block to add
 @param[in]	scanned_lsn	lsn of how far we were able to find
 				data in this log block
@@ -2695,33 +3063,31 @@ bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn)
 	ulint	start_offset;
 	ulint	end_offset;
 
-	ut_ad(scanned_lsn >= recv_sys->scanned_lsn);
+	ut_ad(scanned_lsn >= recv_sys.scanned_lsn);
 
-	if (!recv_sys->parse_start_lsn) {
+	if (!recv_sys.parse_start_lsn) {
 		/* Cannot start parsing yet because no start point for
 		it found */
-
 		return(false);
 	}
 
 	data_len = log_block_get_data_len(log_block);
 
-	if (recv_sys->parse_start_lsn >= scanned_lsn) {
+	if (recv_sys.parse_start_lsn >= scanned_lsn) {
 
 		return(false);
 
-	} else if (recv_sys->scanned_lsn >= scanned_lsn) {
+	} else if (recv_sys.scanned_lsn >= scanned_lsn) {
 
 		return(false);
 
-	} else if (recv_sys->parse_start_lsn > recv_sys->scanned_lsn) {
-		more_len = (ulint) (scanned_lsn - recv_sys->parse_start_lsn);
+	} else if (recv_sys.parse_start_lsn > recv_sys.scanned_lsn) {
+		more_len = (ulint) (scanned_lsn - recv_sys.parse_start_lsn);
 	} else {
-		more_len = (ulint) (scanned_lsn - recv_sys->scanned_lsn);
+		more_len = (ulint) (scanned_lsn - recv_sys.scanned_lsn);
 	}
 
 	if (more_len == 0) {
-
 		return(false);
 	}
 
@@ -2738,12 +3104,12 @@ bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn)
 	ut_ad(start_offset <= end_offset);
 
 	if (start_offset < end_offset) {
-		ut_memcpy(recv_sys->buf + recv_sys->len,
+		ut_memcpy(recv_sys.buf + recv_sys.len,
 			  log_block + start_offset, end_offset - start_offset);
 
-		recv_sys->len += end_offset - start_offset;
+		recv_sys.len += end_offset - start_offset;
 
-		ut_a(recv_sys->len <= RECV_PARSING_BUF_SIZE);
+		ut_a(recv_sys.len <= RECV_PARSING_BUF_SIZE);
 	}
 
 	return(true);
@@ -2752,52 +3118,55 @@ bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn)
 /** Moves the parsing buffer data left to the buffer start. */
 void recv_sys_justify_left_parsing_buf()
 {
-	ut_memmove(recv_sys->buf, recv_sys->buf + recv_sys->recovered_offset,
-		   recv_sys->len - recv_sys->recovered_offset);
+	memmove(recv_sys.buf, recv_sys.buf + recv_sys.recovered_offset,
+		recv_sys.len - recv_sys.recovered_offset);
 
-	recv_sys->len -= recv_sys->recovered_offset;
+	recv_sys.len -= recv_sys.recovered_offset;
 
-	recv_sys->recovered_offset = 0;
+	recv_sys.recovered_offset = 0;
 }
 
 /** Scan redo log from a buffer and stores new log data to the parsing buffer.
 Parse and hash the log records if new data found.
 Apply log records automatically when the hash table becomes full.
+@param[in]	available_mem		we let the hash table of recs to
+					grow to this size, at the maximum
+@param[in,out]	store_to_hash		whether the records should be
+					stored to the hash table; this is
+					reset if just debug checking is
+					needed, or when the available_mem
+					runs out
+@param[in]	log_block		log segment
+@param[in]	checkpoint_lsn		latest checkpoint LSN
+@param[in]	start_lsn		buffer start LSN
+@param[in]	end_lsn			buffer end LSN
+@param[in,out]	contiguous_lsn		it is known that all groups contain
+					contiguous log data upto this lsn
+@param[out]	group_scanned_lsn	scanning succeeded upto this lsn
 @return true if not able to scan any more in this log group */
-static
-bool
-recv_scan_log_recs(
-/*===============*/
-	ulint		available_memory,/*!< in: we let the hash table of recs
-					to grow to this size, at the maximum */
-	store_t*	store_to_hash,	/*!< in,out: whether the records should be
-					stored to the hash table; this is reset
-					if just debug checking is needed, or
-					when the available_memory runs out */
-	const byte*	log_block,	/*!< in: log segment */
-	lsn_t		checkpoint_lsn,	/*!< in: latest checkpoint LSN */
-	lsn_t		start_lsn,	/*!< in: buffer start LSN */
-	lsn_t		end_lsn,	/*!< in: buffer end LSN */
-	lsn_t*		contiguous_lsn,	/*!< in/out: it is known that all log
-					groups contain contiguous log data up
-					to this lsn */
-	lsn_t*		group_scanned_lsn)/*!< out: scanning succeeded up to
-					this lsn */
+static bool recv_scan_log_recs(
+	ulint		available_mem,
+	store_t*	store_to_hash,
+	const byte*	log_block,
+	lsn_t		checkpoint_lsn,
+	lsn_t		start_lsn,
+	lsn_t		end_lsn,
+	lsn_t*		contiguous_lsn,
+	lsn_t*		group_scanned_lsn)
 {
 	lsn_t		scanned_lsn	= start_lsn;
 	bool		finished	= false;
 	ulint		data_len;
 	bool		more_data	= false;
-	bool		apply		= recv_sys->mlog_checkpoint_lsn != 0;
+	bool		apply		= recv_sys.mlog_checkpoint_lsn != 0;
 	ulint		recv_parsing_buf_size = RECV_PARSING_BUF_SIZE;
-
+	const bool	last_phase = (*store_to_hash == STORE_IF_EXISTS);
 	ut_ad(start_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
 	ut_ad(end_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
 	ut_ad(end_lsn >= start_lsn + OS_FILE_LOG_BLOCK_SIZE);
 
 	const byte* const	log_end = log_block
 		+ ulint(end_lsn - start_lsn);
-
 	do {
 		ut_ad(!finished);
 
@@ -2816,10 +3185,10 @@ recv_scan_log_recs(
 
 		data_len = log_block_get_data_len(log_block);
 
-		if (scanned_lsn + data_len > recv_sys->scanned_lsn
+		if (scanned_lsn + data_len > recv_sys.scanned_lsn
 		    && log_block_get_checkpoint_no(log_block)
-		    < recv_sys->scanned_checkpoint_no
-		    && (recv_sys->scanned_checkpoint_no
+		    < recv_sys.scanned_checkpoint_no
+		    && (recv_sys.scanned_checkpoint_no
 			- log_block_get_checkpoint_no(log_block)
 			> 0x80000000UL)) {
 
@@ -2829,16 +3198,16 @@ recv_scan_log_recs(
 			break;
 		}
 
-		if (!recv_sys->parse_start_lsn
+		if (!recv_sys.parse_start_lsn
 		    && (log_block_get_first_rec_group(log_block) > 0)) {
 
 			/* We found a point from which to start the parsing
 			of log records */
 
-			recv_sys->parse_start_lsn = scanned_lsn
+			recv_sys.parse_start_lsn = scanned_lsn
 				+ log_block_get_first_rec_group(log_block);
-			recv_sys->scanned_lsn = recv_sys->parse_start_lsn;
-			recv_sys->recovered_lsn = recv_sys->parse_start_lsn;
+			recv_sys.scanned_lsn = recv_sys.parse_start_lsn;
+			recv_sys.recovered_lsn = recv_sys.parse_start_lsn;
 		}
 
 		scanned_lsn += data_len;
@@ -2849,17 +3218,17 @@ recv_scan_log_recs(
 		    && checkpoint_lsn == mach_read_from_8(LOG_BLOCK_HDR_SIZE
 							  + 1 + log_block)) {
 			/* The redo log is logically empty. */
-			ut_ad(recv_sys->mlog_checkpoint_lsn == 0
-			      || recv_sys->mlog_checkpoint_lsn
+			ut_ad(recv_sys.mlog_checkpoint_lsn == 0
+			      || recv_sys.mlog_checkpoint_lsn
 			      == checkpoint_lsn);
-			recv_sys->mlog_checkpoint_lsn = checkpoint_lsn;
+			recv_sys.mlog_checkpoint_lsn = checkpoint_lsn;
 			DBUG_PRINT("ib_log", ("found empty log; LSN=" LSN_PF,
 					      scanned_lsn));
 			finished = true;
 			break;
 		}
 
-		if (scanned_lsn > recv_sys->scanned_lsn) {
+		if (scanned_lsn > recv_sys.scanned_lsn) {
 			ut_ad(!srv_log_files_created);
 			if (!recv_needed_recovery) {
 				recv_needed_recovery = true;
@@ -2872,7 +3241,7 @@ recv_scan_log_recs(
 
 				ib::info() << "Starting crash recovery from"
 					" checkpoint LSN="
-					<< recv_sys->scanned_lsn;
+					<< recv_sys.scanned_lsn;
 			}
 
 			/* We were able to find more log data: add it to the
@@ -2885,12 +3254,12 @@ recv_scan_log_recs(
 					= (70 * 1024);
 				);
 
-			if (recv_sys->len + 4 * OS_FILE_LOG_BLOCK_SIZE
+			if (recv_sys.len + 4 * OS_FILE_LOG_BLOCK_SIZE
 			    >= recv_parsing_buf_size) {
 				ib::error() << "Log parsing buffer overflow."
 					" Recovery may have failed!";
 
-				recv_sys->found_corrupt_log = true;
+				recv_sys.found_corrupt_log = true;
 
 				if (!srv_force_recovery) {
 					ib::error()
@@ -2898,14 +3267,21 @@ recv_scan_log_recs(
 						" to ignore this error.";
 					return(true);
 				}
-			} else if (!recv_sys->found_corrupt_log) {
+			} else if (!recv_sys.found_corrupt_log) {
 				more_data = recv_sys_add_to_parsing_buf(
 					log_block, scanned_lsn);
 			}
 
-			recv_sys->scanned_lsn = scanned_lsn;
-			recv_sys->scanned_checkpoint_no
+			recv_sys.scanned_lsn = scanned_lsn;
+			recv_sys.scanned_checkpoint_no
 				= log_block_get_checkpoint_no(log_block);
+		}
+
+		/* During last phase of scanning, there can be redo logs
+		left in recv_sys.buf to parse & store it in recv_sys.heap */
+		if (last_phase
+		    && recv_sys.recovered_lsn < recv_sys.scanned_lsn) {
+			more_data = true;
 		}
 
 		if (data_len < OS_FILE_LOG_BLOCK_SIZE) {
@@ -2919,36 +3295,38 @@ recv_scan_log_recs(
 
 	*group_scanned_lsn = scanned_lsn;
 
-	if (more_data && !recv_sys->found_corrupt_log) {
+	mutex_enter(&recv_sys.mutex);
+
+	if (more_data && !recv_sys.found_corrupt_log) {
 		/* Try to parse more log records */
 
 		if (recv_parse_log_recs(checkpoint_lsn,
-					*store_to_hash, apply)) {
-			ut_ad(recv_sys->found_corrupt_log
-			      || recv_sys->found_corrupt_fs
-			      || recv_sys->mlog_checkpoint_lsn
-			      == recv_sys->recovered_lsn);
-			return(true);
+					store_to_hash, available_mem,
+					apply)) {
+			ut_ad(recv_sys.found_corrupt_log
+			      || recv_sys.found_corrupt_fs
+			      || recv_sys.mlog_checkpoint_lsn
+			      == recv_sys.recovered_lsn);
+			finished = true;
+			goto func_exit;
 		}
 
-		if (*store_to_hash != STORE_NO
-		    && mem_heap_get_size(recv_sys->heap) > available_memory) {
+		recv_sys_heap_check(store_to_hash, available_mem);
 
-			DBUG_PRINT("ib_log", ("Ran out of memory and last "
-					      "stored lsn " LSN_PF,
-					      recv_sys->recovered_lsn));
-
-			recv_sys->last_stored_lsn = recv_sys->recovered_lsn;
-			*store_to_hash = STORE_NO;
-		}
-
-		if (recv_sys->recovered_offset > recv_parsing_buf_size / 4) {
+		if (recv_sys.recovered_offset > recv_parsing_buf_size / 4) {
 			/* Move parsing buffer data to the buffer start */
-
 			recv_sys_justify_left_parsing_buf();
+		}
+
+		/* Need to re-parse the redo log which're stored
+		in recv_sys.buf */
+		if (last_phase && *store_to_hash == STORE_NO) {
+			finished = false;
 		}
 	}
 
+func_exit:
+	mutex_exit(&recv_sys.mutex);
 	return(finished);
 }
 
@@ -2968,32 +3346,31 @@ recv_group_scan_log_recs(
 	bool		last_phase)
 {
 	DBUG_ENTER("recv_group_scan_log_recs");
-	DBUG_ASSERT(!last_phase || recv_sys->mlog_checkpoint_lsn > 0);
+	DBUG_ASSERT(!last_phase || recv_sys.mlog_checkpoint_lsn > 0);
 
-	mutex_enter(&recv_sys->mutex);
-	recv_sys->len = 0;
-	recv_sys->recovered_offset = 0;
-	recv_sys->n_addrs = 0;
-	recv_sys_empty_hash();
+	mutex_enter(&recv_sys.mutex);
+	recv_sys.len = 0;
+	recv_sys.recovered_offset = 0;
+	recv_sys.n_addrs = 0;
+	recv_sys.empty();
 	srv_start_lsn = *contiguous_lsn;
-	recv_sys->parse_start_lsn = *contiguous_lsn;
-	recv_sys->scanned_lsn = *contiguous_lsn;
-	recv_sys->recovered_lsn = *contiguous_lsn;
-	recv_sys->scanned_checkpoint_no = 0;
+	recv_sys.parse_start_lsn = *contiguous_lsn;
+	recv_sys.scanned_lsn = *contiguous_lsn;
+	recv_sys.recovered_lsn = *contiguous_lsn;
+	recv_sys.scanned_checkpoint_no = 0;
 	recv_previous_parsed_rec_type = MLOG_SINGLE_REC_FLAG;
 	recv_previous_parsed_rec_offset	= 0;
 	recv_previous_parsed_rec_is_multi = 0;
 	ut_ad(recv_max_page_lsn == 0);
 	ut_ad(last_phase || !recv_writer_thread_active);
-	mutex_exit(&recv_sys->mutex);
+	mutex_exit(&recv_sys.mutex);
 
 	lsn_t	start_lsn;
 	lsn_t	end_lsn;
-	store_t	store_to_hash	= recv_sys->mlog_checkpoint_lsn == 0
+	store_t	store_to_hash	= recv_sys.mlog_checkpoint_lsn == 0
 		? STORE_NO : (last_phase ? STORE_IF_EXISTS : STORE_YES);
-	ulint	available_mem	= srv_page_size
-		* (buf_pool_get_n_pages()
-		   - (recv_n_pool_free_frames * srv_buf_pool_instances));
+	ulint	available_mem = (buf_pool_get_n_pages() * 2 / 3)
+		<< srv_page_size_shift;
 
 	log_sys.log.scanned_lsn = end_lsn = *contiguous_lsn =
 		ut_uint64_align_down(*contiguous_lsn, OS_FILE_LOG_BLOCK_SIZE);
@@ -3006,6 +3383,8 @@ recv_group_scan_log_recs(
 			redo log records before we have
 			finished the redo log scan. */
 			recv_apply_hashed_log_recs(false);
+			/* Rescan the redo logs from last stored lsn */
+			end_lsn = recv_sys.recovered_lsn;
 		}
 
 		start_lsn = ut_uint64_align_down(end_lsn,
@@ -3019,7 +3398,7 @@ recv_group_scan_log_recs(
 			 start_lsn, end_lsn,
 			 contiguous_lsn, &log_sys.log.scanned_lsn));
 
-	if (recv_sys->found_corrupt_log || recv_sys->found_corrupt_fs) {
+	if (recv_sys.found_corrupt_log || recv_sys.found_corrupt_fs) {
 		DBUG_RETURN(false);
 	}
 
@@ -3038,12 +3417,14 @@ static
 dberr_t
 recv_init_missing_space(dberr_t err, const recv_spaces_t::const_iterator& i)
 {
-	if (srv_operation == SRV_OPERATION_RESTORE
-	    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
-		ib::warn() << "Tablespace " << i->first << " was not"
-			" found at " << i->second.name << " when"
-			" restoring a (partial?) backup. All redo log"
-			" for this file will be ignored!";
+	if (is_mariabackup_restore_or_export()) {
+		if (i->second.name.find(TEMP_TABLE_PATH_PREFIX)
+		    != std::string::npos) {
+			ib::warn() << "Tablespace " << i->first << " was not"
+				" found at " << i->second.name << " when"
+				" restoring a (partial?) backup. All redo log"
+				" for this file will be ignored!";
+		}
 		return(err);
 	}
 
@@ -3079,9 +3460,9 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 {
 	dberr_t err = DB_SUCCESS;
 
-	for (ulint h = 0; h < hash_get_n_cells(recv_sys->addr_hash); h++) {
+	for (ulint h = 0; h < hash_get_n_cells(recv_sys.addr_hash); h++) {
 		for (recv_addr_t* recv_addr = static_cast<recv_addr_t*>(
-			     HASH_GET_FIRST(recv_sys->addr_hash, h));
+			     HASH_GET_FIRST(recv_sys.addr_hash, h));
 		     recv_addr != 0;
 		     recv_addr = static_cast<recv_addr_t*>(
 			     HASH_GET_NEXT(addr_hash, recv_addr))) {
@@ -3114,21 +3495,19 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 		return(err);
 	}
 
-	/* When rescan is not needed then recv_sys->addr_hash will have
-	all space id belongs to redo log. If rescan is needed and
-	innodb_force_recovery > 0 then InnoDB can ignore missing tablespace. */
-	for (recv_spaces_t::iterator i = recv_spaces.begin();
-	     i != recv_spaces.end(); i++) {
-
-		if (i->second.status != file_name_t::MISSING) {
+	/* When rescan is not needed, recv_sys.addr_hash will contain the
+	entire redo log. If rescan is needed or innodb_force_recovery
+	is set, we can ignore missing tablespaces. */
+	for (const recv_spaces_t::value_type& rs : recv_spaces) {
+		if (UNIV_LIKELY(rs.second.status != file_name_t::MISSING)) {
 			continue;
 		}
 
 		missing_tablespace = true;
 
 		if (srv_force_recovery > 0) {
-			ib::warn() << "Tablespace " << i->first
-				<<" was not found at " << i->second.name
+			ib::warn() << "Tablespace " << rs.first
+				<<" was not found at " << rs.second.name
 				<<", and innodb_force_recovery was set."
 				<<" All redo log for this tablespace"
 				<<" will be ignored!";
@@ -3136,9 +3515,9 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 		}
 
 		if (!rescan) {
-			ib::info() << "Tablespace " << i->first
+			ib::info() << "Tablespace " << rs.first
 				<< " was not found at '"
-				<< i->second.name << "', but there"
+				<< rs.second.name << "', but there"
 				<<" were no modifications either.";
 		}
 	}
@@ -3163,32 +3542,34 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 	ut_ad(!srv_read_only_mode);
 	ut_ad(recv_needed_recovery);
 
-	for (recv_spaces_t::iterator i = recv_spaces.begin();
-	     i != recv_spaces.end(); i++) {
-		ut_ad(!is_predefined_tablespace(i->first));
-		ut_ad(i->second.status != file_name_t::DELETED || !i->second.space);
+	for (recv_spaces_t::value_type& rs : recv_spaces) {
+		ut_ad(!is_predefined_tablespace(rs.first));
+		ut_ad(rs.second.status != file_name_t::DELETED
+		      || !rs.second.space);
 
-		if (i->second.status == file_name_t::DELETED) {
+		if (rs.second.status == file_name_t::DELETED) {
 			/* The tablespace was deleted,
 			so we can ignore any redo log for it. */
 			flag_deleted = true;
-		} else if (i->second.space != NULL) {
+		} else if (rs.second.space != NULL) {
 			/* The tablespace was found, and there
 			are some redo log records for it. */
-			fil_names_dirty(i->second.space);
-		} else if (i->second.name == "") {
+			fil_names_dirty(rs.second.space);
+			rs.second.space->enable_lsn = rs.second.enable_lsn;
+		} else if (rs.second.name == "") {
 			ib::error() << "Missing MLOG_FILE_NAME"
 				" or MLOG_FILE_DELETE"
 				" before MLOG_CHECKPOINT for tablespace "
-				<< i->first;
-			recv_sys->found_corrupt_log = true;
+				<< rs.first;
+			recv_sys.found_corrupt_log = true;
 			return(DB_CORRUPTION);
 		} else {
-			i->second.status = file_name_t::MISSING;
+			rs.second.status = file_name_t::MISSING;
 			flag_deleted = true;
 		}
 
-		ut_ad(i->second.status == file_name_t::DELETED || i->second.name != "");
+		ut_ad(rs.second.status == file_name_t::DELETED
+		      || rs.second.name != "");
 	}
 
 	if (flag_deleted) {
@@ -3215,8 +3596,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	dberr_t		err = DB_SUCCESS;
 
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	      || is_mariabackup_restore_or_export());
 
 	/* Initialize red-black tree for fast insertions into the
 	flush_list during recovery process. */
@@ -3237,7 +3617,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	if (err != DB_SUCCESS) {
 
-		srv_start_lsn = recv_sys->recovered_lsn = log_sys.lsn;
+		srv_start_lsn = recv_sys.recovered_lsn = log_sys.lsn;
 		log_mutex_exit();
 		return(err);
 	}
@@ -3252,14 +3632,14 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	/* Start reading the log from the checkpoint lsn. The variable
 	contiguous_lsn contains an lsn up to which the log is known to
 	be contiguously written. */
-	recv_sys->mlog_checkpoint_lsn = 0;
+	recv_sys.mlog_checkpoint_lsn = 0;
 
 	ut_ad(RECV_SCAN_SIZE <= srv_log_buffer_size);
 
 	const lsn_t	end_lsn = mach_read_from_8(
 		buf + LOG_CHECKPOINT_END_LSN);
 
-	ut_ad(recv_sys->n_addrs == 0);
+	ut_ad(recv_sys.n_addrs == 0);
 	contiguous_lsn = checkpoint_lsn;
 	switch (log_sys.log.format) {
 	case 0:
@@ -3274,7 +3654,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 			contiguous_lsn = end_lsn;
 			break;
 		}
-		recv_sys->found_corrupt_log = true;
+		recv_sys.found_corrupt_log = true;
 		log_mutex_exit();
 		return(DB_ERROR);
 	}
@@ -3282,21 +3662,21 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	/* Look for MLOG_CHECKPOINT. */
 	recv_group_scan_log_recs(checkpoint_lsn, &contiguous_lsn, false);
 	/* The first scan should not have stored or applied any records. */
-	ut_ad(recv_sys->n_addrs == 0);
-	ut_ad(!recv_sys->found_corrupt_fs);
+	ut_ad(recv_sys.n_addrs == 0);
+	ut_ad(!recv_sys.found_corrupt_fs);
 
 	if (srv_read_only_mode && recv_needed_recovery) {
 		log_mutex_exit();
 		return(DB_READ_ONLY);
 	}
 
-	if (recv_sys->found_corrupt_log && !srv_force_recovery) {
+	if (recv_sys.found_corrupt_log && !srv_force_recovery) {
 		log_mutex_exit();
 		ib::warn() << "Log scan aborted at LSN " << contiguous_lsn;
 		return(DB_ERROR);
 	}
 
-	if (recv_sys->mlog_checkpoint_lsn == 0) {
+	if (recv_sys.mlog_checkpoint_lsn == 0) {
 		lsn_t scan_lsn = log_sys.log.scanned_lsn;
 		if (!srv_read_only_mode && scan_lsn != checkpoint_lsn) {
 			log_mutex_exit();
@@ -3317,8 +3697,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		rescan = recv_group_scan_log_recs(
 			checkpoint_lsn, &contiguous_lsn, false);
 
-		if ((recv_sys->found_corrupt_log && !srv_force_recovery)
-		    || recv_sys->found_corrupt_fs) {
+		if ((recv_sys.found_corrupt_log && !srv_force_recovery)
+		    || recv_sys.found_corrupt_fs) {
 			log_mutex_exit();
 			return(DB_ERROR);
 		}
@@ -3329,7 +3709,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	user about recovery: */
 
 	if (flush_lsn == checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT
-	    && recv_sys->mlog_checkpoint_lsn == checkpoint_lsn) {
+	    && recv_sys.mlog_checkpoint_lsn == checkpoint_lsn) {
 		/* The redo log is logically empty. */
 	} else if (checkpoint_lsn != flush_lsn) {
 		ut_ad(!srv_log_files_created);
@@ -3361,7 +3741,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		}
 	}
 
-	log_sys.lsn = recv_sys->recovered_lsn;
+	log_sys.lsn = recv_sys.recovered_lsn;
 
 	if (recv_needed_recovery) {
 		bool missing_tablespace = false;
@@ -3384,17 +3764,17 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 			DBUG_PRINT("ib_log", ("Rescan of redo log to validate "
 					      "the missing tablespace. Scan "
 					      "from last stored LSN " LSN_PF,
-					      recv_sys->last_stored_lsn));
+					      recv_sys.last_stored_lsn));
 
-			lsn_t recent_stored_lsn = recv_sys->last_stored_lsn;
+			lsn_t recent_stored_lsn = recv_sys.last_stored_lsn;
 			rescan = recv_group_scan_log_recs(
 				checkpoint_lsn, &recent_stored_lsn, false);
 
-			ut_ad(!recv_sys->found_corrupt_fs);
+			ut_ad(!recv_sys.found_corrupt_fs);
 
 			missing_tablespace = false;
 
-			err = recv_sys->found_corrupt_log
+			err = recv_sys.found_corrupt_log
 				? DB_ERROR
 				: recv_validate_tablespace(
 					rescan, missing_tablespace);
@@ -3406,6 +3786,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 			rescan = true;
 		}
+
+		recv_sys.parse_start_lsn = checkpoint_lsn;
 
 		if (srv_operation == SRV_OPERATION_NORMAL) {
 			buf_dblwr_process();
@@ -3424,15 +3806,15 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 			recv_group_scan_log_recs(
 				checkpoint_lsn, &contiguous_lsn, true);
 
-			if ((recv_sys->found_corrupt_log
+			if ((recv_sys.found_corrupt_log
 			     && !srv_force_recovery)
-			    || recv_sys->found_corrupt_fs) {
+			    || recv_sys.found_corrupt_fs) {
 				log_mutex_exit();
 				return(DB_ERROR);
 			}
 		}
 	} else {
-		ut_ad(!rescan || recv_sys->n_addrs == 0);
+		ut_ad(!rescan || recv_sys.n_addrs == 0);
 	}
 
 	if (log_sys.log.scanned_lsn < checkpoint_lsn
@@ -3446,11 +3828,11 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 			" database is now corrupt!";
 	}
 
-	if (recv_sys->recovered_lsn < checkpoint_lsn) {
+	if (recv_sys.recovered_lsn < checkpoint_lsn) {
 		log_mutex_exit();
 
 		ib::error() << "Recovered only to lsn:"
-			    << recv_sys->recovered_lsn << " checkpoint_lsn: " << checkpoint_lsn;
+			    << recv_sys.recovered_lsn << " checkpoint_lsn: " << checkpoint_lsn;
 
 		return(DB_ERROR);
 	}
@@ -3461,9 +3843,9 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	recv_synchronize_groups();
 
 	if (!recv_needed_recovery) {
-		ut_a(checkpoint_lsn == recv_sys->recovered_lsn);
+		ut_a(checkpoint_lsn == recv_sys.recovered_lsn);
 	} else {
-		srv_start_lsn = recv_sys->recovered_lsn;
+		srv_start_lsn = recv_sys.recovered_lsn;
 	}
 
 	log_sys.buf_free = ulong(log_sys.lsn % OS_FILE_LOG_BLOCK_SIZE);
@@ -3485,11 +3867,13 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	log_sys.next_checkpoint_no = ++checkpoint_no;
 
-	mutex_enter(&recv_sys->mutex);
+	mutex_enter(&recv_sys.mutex);
 
-	recv_sys->apply_log_recs = TRUE;
+	recv_sys.apply_log_recs = true;
+	recv_no_ibuf_operations = is_mariabackup_restore_or_export();
+	ut_d(recv_no_log_write = recv_no_ibuf_operations);
 
-	mutex_exit(&recv_sys->mutex);
+	mutex_exit(&recv_sys.mutex);
 
 	log_mutex_exit();
 
@@ -3510,7 +3894,7 @@ recv_recovery_from_checkpoint_finish(void)
 	required because it grabs various mutexes and we want to
 	ensure that when we enable sync_order_checks there is no
 	mutex currently held by any thread. */
-	mutex_enter(&recv_sys->writer_mutex);
+	mutex_enter(&recv_sys.writer_mutex);
 
 	/* Free the resources of the recovery system */
 	recv_recovery_on = false;
@@ -3520,7 +3904,7 @@ recv_recovery_from_checkpoint_finish(void)
 	in progress batches to finish. */
 	buf_flush_wait_LRU_batch_end();
 
-	mutex_exit(&recv_sys->writer_mutex);
+	mutex_exit(&recv_sys.writer_mutex);
 
 	ulint count = 0;
 	while (recv_writer_thread_active) {
@@ -3533,7 +3917,7 @@ recv_recovery_from_checkpoint_finish(void)
 		}
 	}
 
-	recv_sys_debug_free();
+	recv_sys.debug_free();
 
 	/* Free up the flush_rbt. */
 	buf_flush_free_flush_rbt();
@@ -3576,92 +3960,97 @@ recv_recovery_rollback_active(void)
 	}
 }
 
-/******************************************************//**
-Resets the logs. The contents of log files will be lost! */
-void
-recv_reset_logs(
-/*============*/
-	lsn_t		lsn)		/*!< in: reset to this lsn
-					rounded up to be divisible by
-					OS_FILE_LOG_BLOCK_SIZE, after
-					which we add
-					LOG_BLOCK_HDR_SIZE */
+bool recv_dblwr_t::validate_page(const page_id_t page_id,
+                                 const byte *page,
+                                 const fil_space_t *space,
+                                 byte *tmp_buf)
 {
-	ut_ad(log_mutex_own());
+  if (page_id.page_no() == 0)
+  {
+    ulint flags= fsp_header_get_flags(page);
+    if (!fil_space_t::is_valid_flags(flags, page_id.space()))
+    {
+      ulint cflags= fsp_flags_convert_from_101(flags);
+      if (cflags == ULINT_UNDEFINED)
+      {
+        ib::warn() << "Ignoring a doublewrite copy of page " << page_id
+                   << "due to invalid flags " << ib::hex(flags);
+        return false;
+      }
 
-	log_sys.lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
+      flags= cflags;
+    }
 
-	log_sys.log.lsn = log_sys.lsn;
-	log_sys.log.lsn_offset = LOG_FILE_HDR_SIZE;
+    /* Page 0 is never page_compressed or encrypted. */
+    return !buf_page_is_corrupted(true, page, flags);
+  }
 
-	log_sys.buf_next_to_write = 0;
-	log_sys.write_lsn = log_sys.lsn;
+  ut_ad(tmp_buf);
+  byte *tmp_frame= tmp_buf;
+  byte *tmp_page= tmp_buf + srv_page_size;
+  const uint16_t page_type= mach_read_from_2(page + FIL_PAGE_TYPE);
+  const bool expect_encrypted= space->crypt_data &&
+    space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED;
 
-	log_sys.next_checkpoint_no = 0;
-	log_sys.last_checkpoint_lsn = 0;
+  if (space->full_crc32())
+    return !buf_page_is_corrupted(true, page, space->flags);
 
-	memset(log_sys.buf, 0, srv_log_buffer_size);
-	log_block_init(log_sys.buf, log_sys.lsn);
-	log_block_set_first_rec_group(log_sys.buf, LOG_BLOCK_HDR_SIZE);
+  if (expect_encrypted &&
+      mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION))
+  {
+    if (!fil_space_verify_crypt_checksum(page, space->zip_size()))
+      return false;
+    if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED)
+      return true;
+    if (space->zip_size())
+      return false;
+    memcpy(tmp_page, page, space->physical_size());
+    if (!fil_space_decrypt(space, tmp_frame, tmp_page))
+      return false;
+  }
 
-	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
-	log_sys.lsn += LOG_BLOCK_HDR_SIZE;
+  switch (page_type) {
+  case FIL_PAGE_PAGE_COMPRESSED:
+    memcpy(tmp_page, page, space->physical_size());
+    /* fall through */
+  case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
+    if (space->zip_size())
+      return false; /* ROW_FORMAT=COMPRESSED cannot be page_compressed */
+    ulint decomp= fil_page_decompress(tmp_frame, tmp_page, space->flags);
+    if (!decomp)
+      return false; /* decompression failed */
+    if (decomp == srv_page_size)
+      return false; /* the page was not compressed (invalid page type) */
+    return !buf_page_is_corrupted(true, tmp_page, space->flags);
+  }
 
-	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
-		    (log_sys.lsn - log_sys.last_checkpoint_lsn));
-
-	log_mutex_exit();
-
-	/* Reset the checkpoint fields in logs */
-
-	log_make_checkpoint_at(LSN_MAX, TRUE);
-
-	log_mutex_enter();
+  return !buf_page_is_corrupted(true, page, space->flags);
 }
 
-/** Find a doublewrite copy of a page.
-@param[in]	space_id	tablespace identifier
-@param[in]	page_no		page number
-@return	page frame
-@retval NULL if no page was found */
-
-const byte*
-recv_dblwr_t::find_page(ulint space_id, ulint page_no)
+byte *recv_dblwr_t::find_page(const page_id_t page_id,
+                              const fil_space_t *space, byte *tmp_buf)
 {
-	typedef std::vector<const byte*, ut_allocator<const byte*> >
-		matches_t;
+  byte *result= NULL;
+  lsn_t max_lsn= 0;
 
-	matches_t	matches;
-	const byte*	result = 0;
+  for (byte *page : pages)
+  {
+    if (page_get_page_no(page) != page_id.page_no() ||
+        page_get_space_id(page) != page_id.space())
+      continue;
+    const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
+    if (lsn <= max_lsn ||
+        !validate_page(page_id, page, space, tmp_buf))
+    {
+      /* Mark processed for subsequent iterations in buf_dblwr_process() */
+      memset(page + FIL_PAGE_LSN, 0, 8);
+      continue;
+    }
+    max_lsn= lsn;
+    result= page;
+  }
 
-	for (list::iterator i = pages.begin(); i != pages.end(); ++i) {
-		if (page_get_space_id(*i) == space_id
-		    && page_get_page_no(*i) == page_no) {
-			matches.push_back(*i);
-		}
-	}
-
-	if (matches.size() == 1) {
-		result = matches[0];
-	} else if (matches.size() > 1) {
-
-		lsn_t max_lsn	= 0;
-		lsn_t page_lsn	= 0;
-
-		for (matches_t::iterator i = matches.begin();
-		     i != matches.end();
-		     ++i) {
-
-			page_lsn = mach_read_from_8(*i + FIL_PAGE_LSN);
-
-			if (page_lsn > max_lsn) {
-				max_lsn = page_lsn;
-				result = *i;
-			}
-		}
-	}
-
-	return(result);
+  return result;
 }
 
 #ifndef DBUG_OFF
@@ -3834,6 +4223,9 @@ static const char* get_mlog_string(mlog_id_t type)
 
 	case MLOG_MEMSET:
 		return("MLOG_MEMSET");
+
+	case MLOG_INIT_FREE_PAGE:
+		return("MLOG_INIT_FREE_PAGE");
 
 	case MLOG_FILE_WRITE_CRYPT_DATA:
 		return("MLOG_FILE_WRITE_CRYPT_DATA");

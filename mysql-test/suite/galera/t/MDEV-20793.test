@@ -1,0 +1,78 @@
+#
+# MDEV-20793 Assertion after certification failure during replay.
+#
+# The test outline:
+# In order to produce certification failure three transactions
+# are needed. One transaction is executing on node_1 and two others
+# on node_2. The first transaction from node_2 BF aborts the transaction
+# on node_1, but does not cause certification conflict. The second
+# transaction from node_2 will cause conflict and the transaction on
+# node_1 fails in certification during replay.
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT);
+INSERT INTO t1 VALUES (1, 0), (5, 0);
+
+--let galera_connection_name = node_1_ctrl
+--let galera_server_number = 1
+--source include/galera_connect.inc
+--connection node_1_ctrl
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_slave_threads = 2;
+
+--connection node_1
+# Start transaction which takes gap lock 1 - 5
+SET SESSION wsrep_retry_autocommit = 0;
+START TRANSACTION;
+UPDATE t1 SET f2 = 1;
+SET SESSION debug_sync = "wsrep_before_replay SIGNAL reached WAIT_FOR continue";
+
+--connection node_1_ctrl
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+# Insert into gap from other node. This generates BF abort but does not
+# conflict with update.
+INSERT INTO t1 VALUES (2, 2);
+
+--connection node_1_ctrl
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = local_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+# Make an update which will conflict with update on node_1
+--connection node_2
+UPDATE t1 SET f2 = 2 WHERE f1 = 5;
+
+--connection node_1_ctrl
+--let $galera_sync_point = apply_monitor_slave_enter_sync local_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+
+--connection node_1
+--send COMMIT
+
+--connection node_1_ctrl
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+SET SESSION debug_sync = "now WAIT_FOR reached";
+
+--let $galera_sync_point = local_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+SET SESSION debug_sync = "now SIGNAL continue";
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+SET debug_sync = "RESET";
+
+DROP TABLE t1;
+SET GLOBAL wsrep_slave_threads = 1;

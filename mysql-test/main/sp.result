@@ -1,3 +1,5 @@
+set @save_character_set_client=@@character_set_client;
+set @save_userstat=@@global.userstat, @@global.userstat= 0;
 use test;
 drop table if exists t1,t2,t3,t4;
 drop view if exists v1;
@@ -2293,9 +2295,11 @@ create procedure bug3843()
 analyze table t1|
 call bug3843()|
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 call bug3843()|
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 select 1+2|
 1+2
@@ -2442,7 +2446,7 @@ drop procedure if exists bug4904|
 create procedure bug4904()
 begin
 declare continue handler for sqlstate 'HY000' begin end;
-create table t2 as select * from t3;
+create table not_existing_table as select * from t3;
 end|
 call bug4904()|
 ERROR 42S02: Table 'test.t3' doesn't exist
@@ -3344,7 +3348,8 @@ läbel1: begin end|
 call bug6063()|
 call bug7088_1()|
 call bug7088_2()|
-set character set default|
+set @@character_set_client=@save_character_set_client|
+set @@character_set_results=@save_character_set_client|
 show create procedure bug6063|
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 bug6063		CREATE DEFINER=`root`@`localhost` PROCEDURE `bug6063`()
@@ -4181,7 +4186,7 @@ select v, isnull(v);
 end if;
 end;
 end|
-ERROR 42S22: Unknown column 'undefined_var' in 'field list'
+ERROR 42000: Undeclared variable: undefined_var
 create procedure bug14643_2()
 begin
 declare continue handler for sqlexception select 'boo' as 'Handler';
@@ -4193,7 +4198,7 @@ select 2;
 end case;
 select undefined_var;
 end|
-ERROR 42S22: Unknown column 'undefined_var' in 'field list'
+ERROR 42000: Undeclared variable: undefined_var
 drop procedure if exists bug14304|
 drop table if exists t3, t4|
 create table t3(a int primary key auto_increment)|
@@ -4223,7 +4228,7 @@ create procedure bug14376()
 begin
 declare x int default x;
 end|
-ERROR 42S22: Unknown column 'x' in 'field list'
+ERROR 42000: Undeclared variable: x
 create procedure bug14376()
 begin
 declare x int default 42;
@@ -4331,8 +4336,11 @@ test.t3	optimize	status	OK
 test.v1	optimize	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	optimize	status	Operation failed
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 test.v1	analyze	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	analyze	status	Operation failed
@@ -4350,8 +4358,11 @@ test.t3	optimize	status	OK
 test.v1	optimize	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	optimize	status	Operation failed
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 test.v1	analyze	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	analyze	status	Operation failed
@@ -4369,8 +4380,11 @@ test.t3	optimize	status	OK
 test.v1	optimize	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	optimize	status	Operation failed
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 test.v1	analyze	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	analyze	status	Operation failed
@@ -4469,7 +4483,7 @@ select 'no' as 'v';
 end if;
 select 'done' as 'End';
 end|
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42000: Undeclared variable: v
 create procedure bug14498_2()
 begin
 declare continue handler for sqlexception select 'error' as 'Handler';
@@ -4478,7 +4492,7 @@ select 'yes' as 'v';
 end while;
 select 'done' as 'End';
 end|
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42000: Undeclared variable: v
 create procedure bug14498_3()
 begin
 declare continue handler for sqlexception select 'error' as 'Handler';
@@ -4487,7 +4501,7 @@ select 'maybe' as 'v';
 until v end repeat;
 select 'done' as 'End';
 end|
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42000: Undeclared variable: v
 create procedure bug14498_4()
 begin
 declare continue handler for sqlexception select 'error' as 'Handler';
@@ -4501,7 +4515,7 @@ select '?' as 'v';
 end case;
 select 'done' as 'End';
 end|
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42000: Undeclared variable: v
 create procedure bug14498_5()
 begin
 declare continue handler for sqlexception select 'error' as 'Handler';
@@ -4515,7 +4529,7 @@ select '?' as 'v';
 end case;
 select 'done' as 'End';
 end|
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42000: Undeclared variable: v
 drop table if exists t3|
 drop procedure if exists bug15231_1|
 drop procedure if exists bug15231_2|
@@ -4579,7 +4593,7 @@ call bug15231_3()|
 Result
 Missed it (correct)
 Level	Code	Message
-Warning	1366	Incorrect decimal value: 'zap' for column 'x' at row 1
+Warning	1366	Incorrect decimal value: 'zap' for column ``.``.`x` at row 1
 Result
 Caught it (correct)
 call bug15231_5()|
@@ -5265,7 +5279,7 @@ CREATE DEFINER=longer_than_80_45678901234567890123456789012345678901234567890123
 BEGIN
 SET @a = 1;
 END|
-ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345678' is too long for user name (should be no longer than 80)
+ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345...' is too long for user name (should be no longer than 80)
 CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
 FUNCTION bug16899_f1() RETURNS INT
 BEGIN
@@ -5292,8 +5306,12 @@ drop database if exists това_е_дълго_име_за_база_данни_�
 create database това_е_дълго_име_за_база_данни_нали|
 INSERT INTO mysql.proc VALUES ('това_е_дълго_име_за_база_данни_нали','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','PROCEDURE','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','SQL','CONTAINS_SQL','NO','DEFINER','','','bad_body','root@localhost',now(), now(),'','', 'utf8', 'utf8_general_ci', 'utf8_general_ci', 'n/a', 'NONE')|
 call това_е_дълго_име_за_база_данни_нали.това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго()|
-ERROR HY000: Failed to load routine това_е_дълго_име_за_база_данни_нали.това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго. The table mysql.proc is missing, corrupt, or contains bad data (internal code -6)
+ERROR HY000: Failed to load routine това_е_дълго_име_за_база_данни_нали.това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго (internal code -6). For more details, run SHOW WARNINGS
 drop database това_е_дълго_име_за_база_данни_нали|
+show warnings|
+Level	Code	Message
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 2
+Error	1457	Failed to load routine това_е_дълго_име_за_база_данни_нали.това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго (internal code -6). For more details, run SHOW WARNINGS
 CREATE TABLE t3 (
 Member_ID varchar(15) NOT NULL,
 PRIMARY KEY (Member_ID)
@@ -6218,7 +6236,8 @@ END|
 CALL p1();
 ���
 NULL
-SET NAMES default;
+set @@character_set_client=@save_character_set_client;
+set @@character_set_results=@save_character_set_client;
 DROP PROCEDURE p1;
 drop procedure if exists proc_25411_a;
 drop procedure if exists proc_25411_b;
@@ -6444,7 +6463,7 @@ DROP TABLE t1;
 
 CALL p2('text');
 Warnings:
-Warning	1366	Incorrect integer value: 'text' for column 'v' at row 1
+Warning	1366	Incorrect integer value: 'text' for column ``.``.`v` at row 1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -6766,7 +6785,7 @@ ERROR 42S02: Table 'test.t1' doesn't exist
 create table t1 (a integer)$
 call p1$
 a
-alter table t1 add b integer;
+alter table t1 add b integer$
 call p1$
 a
 drop table t1;
@@ -7611,6 +7630,23 @@ c1	c2	count(c3)
 2012-03-01 02:00:00	3	1
 DROP PROCEDURE p1;
 # End of 5.5 test
+FLUSH USER_STATISTICS;
+CREATE PROCEDURE sp() ALTER TABLE non_existing_table OPTIMIZE PARTITION p0;
+CALL sp;
+Table	Op	Msg_type	Msg_text
+test.non_existing_table	optimize	Error	Table 'test.non_existing_table' doesn't exist
+test.non_existing_table	optimize	status	Operation failed
+SELECT 1;
+1
+1
+DROP PROCEDURE sp;
+CREATE PROCEDURE sp() SET STATEMENT SQL_SELECT_LIMIT=0 FOR SHOW USER_STATISTICS;
+CALL sp;
+User	Total_connections	Concurrent_connections	Connected_time	Busy_time	Cpu_time	Bytes_received	Bytes_sent	Binlog_bytes_written	Rows_read	Rows_sent	Rows_deleted	Rows_inserted	Rows_updated	Select_commands	Update_commands	Other_commands	Commit_transactions	Rollback_transactions	Denied_connections	Lost_connections	Access_denied	Empty_queries	Total_ssl_connections	Max_statement_time_exceeded
+SELECT 1;
+1
+1
+DROP PROCEDURE sp;
 #
 # Bug#12663165 SP DEAD CODE REMOVAL DOESN'T UNDERSTAND CONTINUE HANDLERS
 #
@@ -7700,7 +7736,7 @@ UPDATE t1 SET a = '+' WHERE daynum=tdn();
 SHOW STATUS LIKE '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	2
+Handler_read_key	9
 Handler_read_last	0
 Handler_read_next	4097
 Handler_read_prev	0
@@ -7895,6 +7931,39 @@ CALL sp;
 c	a	b	a	b
 DROP PROCEDURE sp;
 DROP TABLE t1;
+#
+# MDEV-17055: Server crashes in find_order_in_list upon
+# 2nd (3rd) execution of SP with UPDATE
+#
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (c INT);
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 ORDER BY a, b LIMIT 1;
+LOCK TABLE t2 READ;
+CALL sp;
+ERROR HY000: Table 'v1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+DROP PROCEDURE sp;
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 WHERE a=1 and b=2;
+LOCK TABLE t2 READ;
+CALL sp;
+ERROR HY000: Table 'v1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+DROP PROCEDURE sp;
+DROP VIEW v1;
+DROP TABLE t1, t2;
 # End of 5.5 test
 #
 #  MDEV-7040: Crash in field_conv, memcpy_field_possible, part#2
@@ -8247,6 +8316,20 @@ UNION
 SELECT * FROM INFORMATION_SCHEMA.TABLES JOIN INFORMATION_SCHEMA.PARAMETERS;
 DROP FUNCTION f;
 DROP VIEW v;
+#
+# MDEV-17963: Assertion `field_pos < field_count' failed in Protocol_text::store,
+# Assertion `field_handlers == 0 || field_pos < field_count'
+#
+CREATE TABLE t1 (ct time);
+INSERT INTO t1 VALUES ('16:11:28');
+CREATE FUNCTION f1 () RETURNS varchar(100)
+BEGIN
+DECLARE xxx varchar(100);
+ANALYZE SELECT sum(ct) FROM t1 INTO xxx ;
+RETURN xxx;
+END|
+ERROR 0A000: Not allowed to return a result set from a function
+drop table t1;
 #End of 10.1 tests
 #
 # MDEV-11081: CURSOR for query with GROUP BY
@@ -8324,7 +8407,7 @@ DECLARE name VARCHAR(10);
 SET name="hello";
 call p1(name2);
 END|
-ERROR 42S22: Unknown column 'name2' in 'field list'
+ERROR 42000: Undeclared variable: name2
 call p2();
 a
 hello
@@ -8363,12 +8446,44 @@ FETCH c INTO a;
 CLOSE c;
 END;
 $$
-ERROR 22007: Incorrect integer value: 'y' for column 'a' at row 1
+ERROR 22007: Incorrect integer value: 'y' for column ``.``.`a` at row 1
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
-# Start of 10.3 tests
+# MDEV-24220: error when opening a table for the second call of SP
 #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE VIEW v1 AS SELECT MAX(a) as f FROM t1;
+CREATE PROCEDURE p1()
+BEGIN
+SELECT * FROM v1;
+END $
+CALL p1;
+f
+2
+ALTER TABLE t1 DROP a;
+CALL p1;
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# BUG#30366310: USING A FUNCTION TO ASSIGN DEFAULT VALUES TO
+# 2 OR MORE VARIABLES CRASHES SERVER
+#
+create function f1() returns bigint return now()-1|
+create procedure p1()
+begin
+declare b, c bigint default f1();
+select b-c;
+end|
+call p1()|
+b-c
+0
+drop procedure p1|
+drop function f1|
+#End of 10.2 tests
 #
 # MDEV-12007 Allow ROW variables as a cursor FETCH target
 #
@@ -8559,11 +8674,11 @@ RETURN a = timestamp'2038-01-19 03:14:07.999999'
 END
 $$
 SELECT f1(e) FROM t1;
-ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30'
+ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30.000000'
 SELECT f2(e) FROM t1;
-ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30'
+ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30.000000'
 SELECT f3(e) FROM t1;
-ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30'
+ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30.000000'
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP FUNCTION f3;
@@ -8697,3 +8812,81 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP FUNCTION f1;
+#
+# MDEV-16036: Debug assertion failed in resignal on create
+# temporary table 
+#
+set @save_sql_mode= @@sql_mode;
+set sql_mode='ORACLE';
+CREATE or replace procedure p4()
+AS
+CONTINUE HANDLER FOR SQLWARNING
+BEGIN
+NULL;
+END;
+EXIT HANDLER FOR OTHERS -- SQLEXCEPTION
+BEGIN
+GET DIAGNOSTICS CONDITION 1 @sqlstate = RETURNED_SQLSTATE, @errno = MYSQL_ERRNO, @text = MESSAGE_TEXT;
+SELECT @sqlstate, @errno, @text;
+SHOW WARNINGS;
+RESIGNAL;  -- cause DBG_ASSERT failed
+END;
+BEGIN
+CREATE TEMPORARY TABLE IF NOT EXISTS t1(origine VARCHAR2(10) NOT NULL);
+END
+/
+call p4();
+call p4();
+@sqlstate	@errno	@text
+42S01	1050	Table 't1' already exists
+Level	Code	Message
+Note	1050	Table 't1' already exists
+Warnings:
+Note	1050	Table 't1' already exists
+drop procedure p4;
+drop table t1;
+set @@sql_mode=@save_sql_mode;
+set @@global.userstat= @save_userstat;
+#
+# MDEV-17363 Compressed columns cannot be restored from dump
+# COMPRESSED conflicted between data type and SP label,
+# so it's not allowed as an SP label any more.
+#
+CREATE FUNCTION f1() RETURNS TEXT COMPRESSED
+BEGIN
+RETURN '';
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS text  COMPRESSED CHARSET latin1
+BEGIN
+RETURN '';
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURNS TEXT
+COMPRESSED:
+BEGIN
+RETURN '';
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':
+BEGIN
+RETURN '';
+END' at line 2
+# End of 10.3 tests
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-19637 Crash on an SP variable assignment to a wrong subselect
+#
+BEGIN NOT ATOMIC
+DECLARE a INT;
+SET a=(SELECT 1 FROM DUAL UNION SELECT HIGH_PRIORITY 2 FROM DUAL);
+END;
+$$
+ERROR 42000: Incorrect usage/placement of 'HIGH_PRIORITY'
+#
+# End of 10.4 tests
+#

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #ifndef GCALC_SLICESCAN_INCLUDED
@@ -362,9 +362,9 @@ enum Gcalc_scan_events
 
 
 /* 
-   Gcalc_scan_iterator incapsulates the slisescan algorithm.
-   It takes filled Gcalc_heap as an datasource. Then can be
-   iterated trought the vertexes and intersection points with
+   Gcalc_scan_iterator incapsulates the slicescan algorithm.
+   It takes filled Gcalc_heap as a datasource. Then can be
+   iterated through the vertexes and intersection points with
    the step() method. After the 'step()' one usually observes
    the current 'slice' to do the necessary calculations, like
    looking for intersections, calculating the area, whatever.

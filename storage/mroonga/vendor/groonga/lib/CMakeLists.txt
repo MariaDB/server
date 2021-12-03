@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 add_definitions(
   -DGRN_DAT_EXPORT
@@ -89,7 +89,12 @@ else()
 endif()
 set_target_properties(libgroonga PROPERTIES OUTPUT_NAME "groonga")
 
+if (HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
+  set(ATOMIC_LIBS atomic)
+endif()
+
 set(GRN_ALL_LIBRARIES
+    ${ATOMIC_LIBS}
     ${EXECINFO_LIBS}
     ${RT_LIBS}
     ${PTHREAD_LIBS}
@@ -97,7 +102,7 @@ set(GRN_ALL_LIBRARIES
     ${LZ4_LIBS}
     ${LIBZSTD_LIBS}
     ${MESSAGE_PACK_LIBS}
-    ${DL_LIBS}
+    ${CMAKE_DL_LIBS}
     ${M_LIBS}
     ${WS2_32_LIBS}
     ${MRUBY_LIBS}

@@ -1,0 +1,16 @@
+source include/have_debug.inc;
+#
+# MDEV-20079 When setting back the system time while mysqld is running, NOW() and UNIX_TIMESTAMP() results get stuck
+#
+set @old_dbug=@@debug_dbug;
+
+# because NOW() is taken at the beginning of the query and sysdate() is the actual
+# time when sysdate() was evaluated, they don't necessarily have to be equal.
+# but hopefully they're less than within a minute from each other.
+select timestampdiff(minute,now(),sysdate()) as 'must be 0', (unix_timestamp(sysdate()) - unix_timestamp()) div 60 as 'must be 0';
+set @@debug_dbug='+d,system_time_plus_one_hour';
+select timestampdiff(minute,now(),sysdate()) as 'must be 0', (unix_timestamp(sysdate()) - unix_timestamp()) div 60 as 'must be 0';
+set @@debug_dbug='+d,system_time_minus_one_hour:-d,system_time_plus_one_hour';
+select timestampdiff(minute,now(),sysdate()) as 'must be 0', (unix_timestamp(sysdate()) - unix_timestamp()) div 60 as 'must be 0';
+set @@debug_dbug=@old_dbug;
+select timestampdiff(minute,now(),sysdate()) as 'must be 0', (unix_timestamp(sysdate()) - unix_timestamp()) div 60 as 'must be 0';

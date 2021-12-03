@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,252 +27,179 @@ Created 2012-08-21 Sunny Bains.
 #ifndef sync0policy_h
 #define sync0policy_h
 
-#include "univ.i"
 #include "ut0rnd.h"
 #include "os0thread.h"
-#include "sync0types.h"
 #include "srv0mon.h"
+#include "sync0debug.h"
 
 #ifdef UNIV_DEBUG
 
-# define MUTEX_MAGIC_N 979585UL
+template <typename Mutex> class MutexDebug: public latch_t
+{
+  /** Mutex to check for lock order violation */
+  const Mutex *m_mutex;
+  /** Filename from where enter was called */
+  const char *m_filename;
+  /** Line mumber in filename */
+  unsigned m_line;
+  /** Thread ID of the thread that owns the mutex */
+  os_thread_id_t m_thread_id;
+  /** Mutex protecting the above members */
+  mutable OSMutex m_debug_mutex;
 
-template <typename Mutex>
-class MutexDebug {
+
+  void set(const Mutex *mutex, const char *filename, unsigned line,
+           os_thread_id_t thread_id)
+  {
+    m_debug_mutex.enter();
+    m_mutex= mutex;
+    m_filename= filename;
+    m_line= line;
+    m_thread_id= thread_id;
+    m_debug_mutex.exit();
+  }
+
+
+  const MutexDebug get() const
+  {
+    MutexDebug ret;
+    m_debug_mutex.enter();
+    ret.m_mutex= m_mutex;
+    ret.m_filename= m_filename;
+    ret.m_line= m_line;
+    ret.m_thread_id= m_thread_id;
+    m_debug_mutex.exit();
+    return ret;
+  }
+
+
+  /**
+    Called either when mutex is locked or destroyed. Thus members are protected
+    from concurrent modification.
+  */
+  void assert_clean_context()
+  {
+    ut_ad(!m_mutex);
+    ut_ad(!m_filename);
+    ut_ad(!m_line);
+    ut_ad(m_thread_id == os_thread_id_t(ULINT_UNDEFINED));
+  }
+
+
 public:
+  /**
+    Called when the mutex is "created". Note: Not from the constructor
+    but when the mutex is initialised.
+    @param[in]  id  Mutex ID
+  */
+  void init(latch_id_t id)
+  {
+    ut_ad(id != LATCH_ID_NONE);
+    m_id= id;
+    m_debug_mutex.init();
+    set(0, 0, 0, os_thread_id_t(ULINT_UNDEFINED));
+  }
 
-	/** For passing context to SyncDebug */
-	struct Context : public latch_t {
 
-		/** Constructor */
-		Context()
-			:
-			m_mutex(),
-			m_filename(),
-			m_line(),
-			m_thread_id(ULINT_UNDEFINED)
-		{
-			/* No op */
-		}
+  /** Mutex is being destroyed. */
+  void destroy()
+  {
+    assert_clean_context();
+    m_debug_mutex.destroy();
+  }
 
-		/** Create the context for SyncDebug
-		@param[in]	id	ID of the latch to track */
-		Context(latch_id_t id)
-			:
-			latch_t(id)
-		{
-			ut_ad(id != LATCH_ID_NONE);
-		}
 
-		/** Set to locked state
-		@param[in]	mutex		The mutex to acquire
-		@param[in]	filename	File name from where to acquire
-		@param[in]	line		Line number in filename */
-		void locked(
-			const Mutex*		mutex,
-			const char*		filename,
-			unsigned		line)
-			UNIV_NOTHROW
-		{
-			m_mutex = mutex;
+  /**
+    Called when an attempt is made to lock the mutex
+    @param[in]  mutex    Mutex instance to be locked
+    @param[in]  filename Filename from where it was called
+    @param[in]  line     Line number from where it was called
+  */
+  void enter(const Mutex &mutex, const char *filename, unsigned line)
+  {
+    MutexDebug context;
+    ut_ad(!is_owned());
+    context.init(m_id);
+    context.set(&mutex, filename, line, os_thread_get_curr_id());
+    /* Check for latch order violation. */
+    sync_check_lock_validate(&context);
+    context.set(0, 0, 0, os_thread_id_t(ULINT_UNDEFINED));
+    context.destroy();
+  }
 
-			my_atomic_storelint(&m_thread_id,
-					    ulint(os_thread_get_curr_id()));
 
-			m_filename = filename;
+  /**
+    Called when the mutex is locked
+    @param[in]  mutex    Mutex instance that was locked
+    @param[in]  filename Filename from where it was called
+    @param[in]  line     Line number from where it was called
+  */
+  void locked(const Mutex &mutex, const char *filename, unsigned line)
+  {
+    assert_clean_context();
+    set(&mutex, filename, line, os_thread_get_curr_id());
+    sync_check_lock_granted(this);
+  }
 
-			m_line = line;
-		}
 
-		/** Reset to unlock state */
-		void release()
-			UNIV_NOTHROW
-		{
-			m_mutex = NULL;
+  /**
+    Called when the mutex is released
+    @param[in]  mutex  Mutex that was released
+  */
+  void release(const Mutex &mutex)
+  {
+    ut_ad(is_owned());
+    set(0, 0, 0, os_thread_id_t(ULINT_UNDEFINED));
+    sync_check_unlock(this);
+  }
 
-			my_atomic_storelint(&m_thread_id, ULINT_UNDEFINED);
 
-			m_filename = NULL;
+  /** @return true if thread owns the mutex */
+  bool is_owned() const
+  {
+    return os_thread_eq(get_thread_id(), os_thread_get_curr_id());
+  }
 
-			m_line = 0;
-		}
 
-		/** Print information about the latch
-		@return the string representation */
-		virtual std::string to_string() const
-			UNIV_NOTHROW
-		{
-			std::ostringstream msg;
+  /** @return the name of the file from the mutex was acquired */
+  const char* get_enter_filename() const { return get().m_filename; }
 
-			msg << m_mutex->policy().to_string();
 
-			if (m_thread_id != ULINT_UNDEFINED) {
+  /** @return the name of the file from the mutex was acquired */
+  unsigned get_enter_line() const { return get().m_line; }
 
-				msg << " addr: " << m_mutex
-				    << " acquired: " << locked_from().c_str();
 
-			} else {
-				msg << "Not locked";
-			}
+  /** @return id of the thread that was trying to acquire the mutex */
+  os_thread_id_t get_thread_id() const { return get().m_thread_id; }
 
-			return(msg.str());
-		}
 
-		/** @return the name of the file and line number in the file
-		from where the mutex was acquired "filename:line" */
-		virtual std::string locked_from() const
-		{
-			std::ostringstream msg;
+  /**
+    Print information about the latch
+    @return the string representation
+  */
+  virtual std::string to_string() const
+  {
+    std::ostringstream msg;
+    const MutexDebug ctx= get();
 
-			msg << sync_basename(m_filename) << ":" << m_line;
+    msg << m_mutex->policy().to_string();
+    if (ctx.m_mutex)
+      msg << " addr: " << ctx.m_mutex << " acquired: "
+          << sync_basename(ctx.get_enter_filename()) << ":"
+          << ctx.get_enter_line();
+    else
+      msg << "Not locked";
 
-			return(std::string(msg.str()));
-		}
-
-		/** Mutex to check for lock order violation */
-		const Mutex*	m_mutex;
-
-		/** Filename from where enter was called */
-		const char*	m_filename;
-
-		/** Line mumber in filename */
-		unsigned	m_line;
-
-		/** Thread ID of the thread that own(ed) the mutex */
-		ulint		m_thread_id;
-	};
-
-	/** Constructor. */
-	MutexDebug()
-		:
-		m_magic_n(),
-		m_context()
-		UNIV_NOTHROW
-	{
-		/* No op */
-	}
-
-	/* Destructor */
-	virtual ~MutexDebug() { }
-
-	/** Mutex is being destroyed. */
-	void destroy() UNIV_NOTHROW
-	{
-		ut_ad((ulint)my_atomic_loadlint(&m_context.m_thread_id) == ULINT_UNDEFINED);
-
-		m_magic_n = 0;
-
-		m_context.m_thread_id = 0;
-	}
-
-	/** Called when the mutex is "created". Note: Not from the constructor
-	but when the mutex is initialised.
-	@param[in]	id              Mutex ID */
-	void init(latch_id_t id) UNIV_NOTHROW;
-
-	/** Called when an attempt is made to lock the mutex
-	@param[in]	mutex		Mutex instance to be locked
-	@param[in]	filename	Filename from where it was called
-	@param[in]	line		Line number from where it was called */
-	void enter(
-		const Mutex*	mutex,
-		const char*	filename,
-		unsigned	line)
-		UNIV_NOTHROW;
-
-	/** Called when the mutex is locked
-	@param[in]	mutex		Mutex instance that was locked
-	@param[in]	filename	Filename from where it was called
-	@param[in]	line		Line number from where it was called */
-	void locked(
-		const Mutex*	mutex,
-		const char*	filename,
-		unsigned	line)
-		UNIV_NOTHROW;
-
-	/** Called when the mutex is released
-	@param[in]	mutx		Mutex that was released */
-	void release(const Mutex* mutex)
-		UNIV_NOTHROW;
-
-	/** @return true if thread owns the mutex */
-	bool is_owned() const UNIV_NOTHROW
-	{
-		return(os_thread_eq(
-				(os_thread_id_t)my_atomic_loadlint(&m_context.m_thread_id),
-				os_thread_get_curr_id()));
-	}
-
-	/** @return the name of the file from the mutex was acquired */
-	const char* get_enter_filename() const
-		UNIV_NOTHROW
-	{
-		return(m_context.m_filename);
-	}
-
-	/** @return the name of the file from the mutex was acquired */
-	unsigned get_enter_line() const
-		UNIV_NOTHROW
-	{
-		return(m_context.m_line);
-	}
-
-	/** @return id of the thread that was trying to acquire the mutex */
-	os_thread_id_t get_thread_id() const
-		UNIV_NOTHROW
-	{
-		return((os_thread_id_t)my_atomic_loadlint(&m_context.m_thread_id));
-	}
-
-	/** Magic number to check for memory corruption. */
-	ulint			m_magic_n;
-
-	/** Latch state of the mutex owner */
-	Context			m_context;
+    return(msg.str());
+  }
 };
 #endif /* UNIV_DEBUG */
-
-/* Do nothing */
-template <typename Mutex>
-struct NoPolicy {
-	/** Default constructor. */
-	NoPolicy() { }
-
-	void init(const Mutex&, latch_id_t, const char*, uint32_t)
-		UNIV_NOTHROW { }
-	void destroy() UNIV_NOTHROW { }
-	void enter(const Mutex&, const char*, unsigned) UNIV_NOTHROW { }
-	void add(uint32_t, uint32_t) UNIV_NOTHROW { }
-	void locked(const Mutex&, const char*, ulint) UNIV_NOTHROW { }
-	void release(const Mutex&) UNIV_NOTHROW { }
-	std::string to_string() const { return(""); };
-	latch_id_t get_id() const;
-};
 
 /** Collect the metrics per mutex instance, no aggregation. */
 template <typename Mutex>
 struct GenericPolicy
-#ifdef UNIV_DEBUG
-: public MutexDebug<Mutex>
-#endif /* UNIV_DEBUG */
 {
 public:
-	typedef Mutex MutexType;
-
-	/** Constructor. */
-	GenericPolicy()
-		UNIV_NOTHROW
-		:
-#ifdef UNIV_DEBUG
-		MutexDebug<MutexType>(),
-#endif /* UNIV_DEBUG */
-		m_count(),
-		m_id()
-		{ }
-
-	/** Destructor */
-	~GenericPolicy() { }
-
 	/** Called when the mutex is "created". Note: Not from the constructor
 	but when the mutex is initialised.
 	@param[in]	id              Mutex ID
@@ -294,8 +221,6 @@ public:
 		meta.get_counter()->single_register(&m_count);
 
 		sync_file_created_register(this, filename, uint16_t(line));
-
-		ut_d(MutexDebug<MutexType>::init(m_id));
 	}
 
 	/** Called when the mutex is destroyed. */
@@ -307,8 +232,6 @@ public:
 		meta.get_counter()->single_deregister(&m_count);
 
 		sync_file_created_deregister(this);
-
-		ut_d(MutexDebug<MutexType>::destroy());
 	}
 
 	/** Called after a successful mutex acquire.
@@ -334,40 +257,6 @@ public:
 		++m_count.m_calls;
 	}
 
-	/** Called when an attempt is made to lock the mutex
-	@param[in]	mutex		Mutex instance to be locked
-	@param[in]	filename	Filename from where it was called
-	@param[in]	line		Line number from where it was called */
-	void enter(
-		const MutexType&	mutex,
-		const char*		filename,
-		unsigned		line)
-		UNIV_NOTHROW
-	{
-		ut_d(MutexDebug<MutexType>::enter(&mutex, filename, line));
-	}
-
-	/** Called when the mutex is locked
-	@param[in]	mutex		Mutex instance that is locked
-	@param[in]	filename	Filename from where it was called
-	@param[in]	line		Line number from where it was called */
-	void locked(
-		const MutexType&	mutex,
-		const char*		filename,
-		unsigned		line)
-		UNIV_NOTHROW
-	{
-		ut_d(MutexDebug<MutexType>::locked(&mutex, filename, line));
-	}
-
-	/** Called when the mutex is released
-	@param[in]	mutex		Mutex instance that is released */
-	void release(const MutexType& mutex)
-		UNIV_NOTHROW
-	{
-		ut_d(MutexDebug<MutexType>::release(&mutex));
-	}
-
 	/** Print the information about the latch
 	@return the string representation */
 	std::string print() const
@@ -380,14 +269,18 @@ public:
 		return(m_id);
 	}
 
-	/** @return the string representation */
-	std::string to_string() const;
+
+  /** @return the string representation */
+  std::string to_string() const
+  { return sync_mutex_to_string(get_id(), sync_file_created_get(this)); }
+
+#ifdef UNIV_DEBUG
+  MutexDebug<Mutex> context;
+#endif
 
 private:
-	typedef latch_meta_t::CounterType Counter;
-
-	/** The user visible counters, registered with the meta-data.  */
-	Counter::Count		m_count;
+  /** The user visible counters, registered with the meta-data. */
+  latch_meta_t::CounterType::Count m_count;
 
 	/** Latch meta data ID */
 	latch_id_t		m_id;
@@ -397,29 +290,8 @@ private:
 too many of them to count individually. */
 template <typename Mutex>
 class BlockMutexPolicy
-#ifdef UNIV_DEBUG
-: public MutexDebug<Mutex>
-#endif /* UNIV_DEBUG */
 {
 public:
-	typedef Mutex MutexType;
-	typedef typename latch_meta_t::CounterType::Count Count;
-
-	/** Default constructor. */
-	BlockMutexPolicy()
-		:
-#ifdef UNIV_DEBUG
-		MutexDebug<MutexType>(),
-#endif /* UNIV_DEBUG */
-		m_count(),
-		m_id()
-	{
-		/* Do nothing */
-	}
-
-	/** Destructor */
-	~BlockMutexPolicy() { }
-
 	/** Called when the mutex is "created". Note: Not from the constructor
 	but when the mutex is initialised.
 	@param[in]	id              Mutex ID */
@@ -438,8 +310,6 @@ public:
 		ut_ad(meta.get_id() == id);
 
 		m_count = meta.get_counter()->sum_register();
-
-		ut_d(MutexDebug<MutexType>::init(m_id));
 	}
 
 	/** Called when the mutex is destroyed. */
@@ -447,7 +317,6 @@ public:
 		UNIV_NOTHROW
 	{
 		m_count = NULL;
-		ut_d(MutexDebug<MutexType>::destroy());
 	}
 
 	/** Called after a successful mutex acquire.
@@ -471,40 +340,6 @@ public:
 		++m_count->m_calls;
 	}
 
-	/** Called when the mutex is locked
-	@param[in]	mutex		Mutex instance that is locked
-	@param[in]	filename	Filename from where it was called
-	@param[in]	line		Line number from where it was called */
-	void locked(
-		const MutexType&	mutex,
-		const char*		filename,
-		unsigned		line)
-		UNIV_NOTHROW
-	{
-		ut_d(MutexDebug<MutexType>::locked(&mutex, filename, line));
-	}
-
-	/** Called when the mutex is released
-	@param[in]	mutex		Mutex instance that is released */
-	void release(const MutexType& mutex)
-		UNIV_NOTHROW
-	{
-		ut_d(MutexDebug<MutexType>::release(&mutex));
-	}
-
-	/** Called when an attempt is made to lock the mutex
-	@param[in]	mutex		Mutex instance to be locked
-	@param[in]	filename	Filename from where it was called
-	@param[in]	line		Line number from where it was called */
-	void enter(
-		const MutexType&	mutex,
-		const char*		filename,
-		unsigned		line)
-		UNIV_NOTHROW
-	{
-		ut_d(MutexDebug<MutexType>::enter(&mutex, filename, line));
-	}
-
 	/** Print the information about the latch
 	@return the string representation */
 	std::string print() const
@@ -516,19 +351,26 @@ public:
 		return(m_id);
 	}
 
-	/** @return the string representation */
-	std::string to_string() const;
+
+  /**
+    I don't think it makes sense to keep track of the file name
+    and line number for each block mutex. Too much of overhead. Use the
+    latch id to figure out the location from the source.
+
+    @return the string representation
+  */
+  std::string to_string() const
+  { return(sync_mutex_to_string(get_id(), "buf0buf.cc:0")); }
+
+#ifdef UNIV_DEBUG
+  MutexDebug<Mutex> context;
+#endif
 
 private:
-	typedef latch_meta_t::CounterType Counter;
-
-	/** The user visible counters, registered with the meta-data.  */
-	Counter::Count*		m_count;
+  /** The user visible counters, registered with the meta-data. */
+  latch_meta_t::CounterType::Count *m_count;
 
 	/** Latch meta data ID */
 	latch_id_t		m_id;
 };
-
-#include "sync0policy.ic"
-
 #endif /* sync0policy_h */

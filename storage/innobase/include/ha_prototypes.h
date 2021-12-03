@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -40,7 +40,6 @@ class THD;
 // JAN: TODO missing features:
 #undef MYSQL_FT_INIT_EXT
 #undef MYSQL_PFS
-#undef MYSQL_RENAME_INDEX
 #undef MYSQL_STORE_FTS_DOC_ID
 
 /*******************************************************************//**
@@ -119,9 +118,6 @@ ibool
 thd_is_replication_slave_thread(
 /*============================*/
 	THD*	thd);	/*!< in: thread handle */
-
-/** @return whether statement-based replication is active */
-extern "C" int thd_rpl_stmt_based(const THD* thd);
 
 /******************************************************************//**
 Returns true if the transaction this thread is processing has edited
@@ -234,24 +230,18 @@ innobase_casedn_str(
 	char*	a);	/*!< in/out: string to put in lower case */
 
 #ifdef WITH_WSREP
-UNIV_INTERN
-int
-wsrep_innobase_kill_one_trx(void * const thd_ptr,
-                            const trx_t * const bf_trx,
-                            trx_t *victim_trx,
-                            ibool signal);
+void
+wsrep_innobase_kill_one_trx(
+	THD* bf_thd,
+	trx_t *victim_trx,
+	my_bool signal);
+
 ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
                              unsigned char* str, unsigned int str_length,
                              unsigned int buf_length);
 #endif /* WITH_WSREP */
 
-/**********************************************************************//**
-Determines the connection character set.
-@return connection character set */
-CHARSET_INFO*
-innobase_get_charset(
-/*=================*/
-	THD*	thd);	/*!< in: MySQL thread handle */
+extern "C" struct charset_info_st *thd_charset(THD *thd);
 
 /** Determines the current SQL statement.
 Thread unsafe, can only be called from the thread owning the THD.
@@ -262,19 +252,6 @@ const char*
 innobase_get_stmt_unsafe(
 	THD*	thd,
 	size_t*	length);
-
-/** Determines the current SQL statement.
-Thread safe, can be called from any thread as the string is copied
-into the provided buffer.
-@param[in]	thd	MySQL thread handle
-@param[out]	buf	Buffer containing SQL statement
-@param[in]	buflen	Length of provided buffer
-@return			Length of the SQL statement */
-size_t
-innobase_get_stmt_safe(
-	THD*	thd,
-	char*	buf,
-	size_t	buflen);
 
 /******************************************************************//**
 This function is used to find the storage length in bytes of the first n
@@ -362,14 +339,6 @@ thd_trx_is_auto_commit(
 /*===================*/
 	THD*	thd);	/*!< in: thread handle, or NULL */
 
-/******************************************************************//**
-Get the thread start time.
-@return the thread start time in seconds since the epoch. */
-ulint
-thd_start_time_in_secs(
-/*===================*/
-	THD*	thd);	/*!< in: thread handle, or NULL */
-
 /*****************************************************************//**
 A wrapper function of innobase_convert_name(), convert a table name
 to the MySQL system_charset_info (UTF-8) and quote it if needed.
@@ -432,7 +401,6 @@ extern const char* 	TROUBLESHOOTING_MSG;
 extern const char* 	TROUBLESHOOT_DATADICT_MSG;
 extern const char* 	BUG_REPORT_MSG;
 extern const char* 	FORCE_RECOVERY_MSG;
-extern const char*      ERROR_CREATING_MSG;
 extern const char*      OPERATING_SYSTEM_ERROR_MSG;
 extern const char*      FOREIGN_KEY_CONSTRAINTS_MSG;
 extern const char*      SET_TRANSACTION_MSG;
@@ -544,32 +512,6 @@ normalize_table_name_c_low(
 	const char*	name,		/*!< in: table name string */
 	ibool		set_lower_case); /*!< in: TRUE if we want to set
 					name to lower case */
-/*************************************************************//**
-InnoDB index push-down condition check defined in ha_innodb.cc
-@return ICP_NO_MATCH, ICP_MATCH, or ICP_OUT_OF_RANGE */
-
-#include <my_compare.h>
-
-ICP_RESULT
-innobase_index_cond(
-/*================*/
-	void*	file)	/*!< in/out: pointer to ha_innobase */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/******************************************************************//**
-Gets information on the durability property requested by thread.
-Used when writing either a prepare or commit record to the log
-buffer.
-@return the durability property. */
-
-#include <dur_prop.h>
-
-enum durability_properties
-thd_requested_durability(
-/*=====================*/
-	const THD* thd)	/*!< in: thread handle */
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Update the system variable with the given value of the InnoDB
 buffer pool size.
 @param[in]	buf_pool_size	given value of buffer pool size.*/

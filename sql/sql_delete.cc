@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2000, 2019, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Delete of records tables.
@@ -41,7 +41,7 @@
 #include "records.h"                            // init_read_record,
 #include "filesort.h"
 #include "uniques.h"
-#include "sql_derived.h"                        // mysql_handle_list_of_derived
+#include "sql_derived.h"                        // mysql_handle_derived
                                                 // end_read_record
 #include "sql_partition.h"       // make_used_partitions_str
 
@@ -225,19 +225,11 @@ bool Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
 static bool record_should_be_deleted(THD *thd, TABLE *table, SQL_SELECT *sel,
                                      Explain_delete *explain, bool truncate_history)
 {
-  bool check_delete= true;
-
-  if (table->versioned())
-  {
-    bool historical= !table->vers_end_field()->is_max();
-    check_delete= truncate_history ? historical : !historical;
-  }
-
   explain->tracker.on_record_read();
   thd->inc_examined_row_count(1);
   if (table->vfield)
     (void) table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_DELETE);
-  if (check_delete && (!sel || sel->skip_record(thd) > 0))
+  if (!sel || sel->skip_record(thd) > 0)
   {
     explain->tracker.on_record_after_where();
     return true;
@@ -245,6 +237,53 @@ static bool record_should_be_deleted(THD *thd, TABLE *table, SQL_SELECT *sel,
   return false;
 }
 
+static
+int update_portion_of_time(THD *thd, TABLE *table,
+                           const vers_select_conds_t &period_conds,
+                           bool *inside_period)
+{
+  bool lcond= period_conds.field_start->val_datetime_packed(thd)
+              < period_conds.start.item->val_datetime_packed(thd);
+  bool rcond= period_conds.field_end->val_datetime_packed(thd)
+              > period_conds.end.item->val_datetime_packed(thd);
+
+  *inside_period= !lcond && !rcond;
+  if (*inside_period)
+    return 0;
+
+  DBUG_ASSERT(!table->triggers
+              || !table->triggers->has_triggers(TRG_EVENT_INSERT,
+                                                TRG_ACTION_BEFORE));
+
+  int res= 0;
+  Item *src= lcond ? period_conds.start.item : period_conds.end.item;
+  uint dst_fieldno= lcond ? table->s->period.end_fieldno
+                          : table->s->period.start_fieldno;
+
+  ulonglong prev_insert_id= table->file->next_insert_id;
+  store_record(table, record[1]);
+  if (likely(!res))
+    res= src->save_in_field(table->field[dst_fieldno], true);
+
+  if (likely(!res))
+    res= table->update_generated_fields();
+
+  if(likely(!res))
+    res= table->file->ha_update_row(table->record[1], table->record[0]);
+
+  if (likely(!res) && table->triggers)
+    res= table->triggers->process_triggers(thd, TRG_EVENT_INSERT,
+                                           TRG_ACTION_AFTER, true);
+  restore_record(table, record[1]);
+  if (res)
+    table->file->restore_auto_increment(prev_insert_id);
+
+  if (likely(!res) && lcond && rcond)
+    res= table->period_make_insert(period_conds.end.item,
+                                   table->field[table->s->period.start_fieldno]);
+
+  return res;
+}
 
 inline
 int TABLE::delete_row()
@@ -254,12 +293,15 @@ int TABLE::delete_row()
 
   store_record(this, record[1]);
   vers_update_end();
-  int res;
-  if ((res= file->extra(HA_EXTRA_REMEMBER_POS)))
-    return res;
-  if ((res= file->ha_update_row(record[1], record[0])))
-    return res;
-  return file->extra(HA_EXTRA_RESTORE_POS);
+  int err= file->ha_update_row(record[1], record[0]);
+  /*
+     MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got history
+     row with same trx_id which is the result of foreign key action, so we
+     don't need one more history row.
+  */
+  if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
+    return file->ha_delete_row(record[0]);
+  return err;
 }
 
 
@@ -287,7 +329,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   bool		return_error= 0;
   ha_rows	deleted= 0;
   bool          reverse= FALSE;
-  bool          has_triggers;
+  bool          has_triggers= false;
   ORDER *order= (ORDER *) ((order_list && order_list->elements) ?
                            order_list->first : NULL);
   SELECT_LEX   *select_lex= thd->lex->first_select_lex();
@@ -298,7 +340,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   Explain_delete *explain;
   Delete_plan query_plan(thd->mem_root);
   Unique * deltempfile= NULL;
-  bool delete_record, delete_while_scanning;
+  bool delete_record= false;
+  bool delete_while_scanning;
+  bool portion_of_time_through_update;
   DBUG_ENTER("mysql_delete");
 
   query_plan.index= MAX_KEY;
@@ -310,34 +354,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   THD_STAGE_INFO(thd, stage_init_update);
 
-  bool truncate_history= table_list->vers_conditions.is_set();
-  if (truncate_history)
-  {
-    if (table_list->is_view_or_derived())
-    {
-      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
-      DBUG_RETURN(true);
-    }
+  const bool delete_history= table_list->vers_conditions.delete_history;
+  DBUG_ASSERT(!(delete_history && table_list->period_conditions.is_set()));
 
-    TABLE *table= table_list->table;
-    DBUG_ASSERT(table);
-
-    DBUG_ASSERT(!conds || thd->stmt_arena->is_stmt_execute());
-
-    // conds could be cached from previous SP call
-    if (!conds)
-    {
-      if (select_lex->vers_setup_conds(thd, table_list))
-        DBUG_RETURN(TRUE);
-
-      conds= table_list->on_expr;
-      table_list->on_expr= NULL;
-    }
-  }
-
-  if (mysql_handle_list_of_derived(thd->lex, table_list, DT_MERGE_FOR_INSERT))
+  if (thd->lex->handle_list_of_derived(table_list, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE);
-  if (mysql_handle_list_of_derived(thd->lex, table_list, DT_PREPARE))
+  if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE);
 
   if (!table_list->single_table_updatable())
@@ -356,11 +378,16 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.table= table;
   query_plan.updating_a_view= MY_TEST(table_list->view);
 
+  promote_select_describe_flag_if_needed(thd->lex);
+
   if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,
                            select_lex->item_list, &conds,
                            &delete_while_scanning))
     DBUG_RETURN(TRUE);
-  
+
+  if (delete_history)
+    table->vers_write= false;
+
   if (with_select)
     (void) result->prepare(select_lex->item_list, NULL);
 
@@ -425,12 +452,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       - there should be no delete triggers associated with the table.
   */
 
-  has_triggers= (table->triggers &&
-                 table->triggers->has_delete_triggers());
+  has_triggers= table->triggers && table->triggers->has_delete_triggers();
+
   if (!with_select && !using_limit && const_cond_result &&
       (!thd->is_current_stmt_binlog_format_row() &&
        !has_triggers)
-      && !table->versioned(VERS_TIMESTAMP))
+      && !table->versioned(VERS_TIMESTAMP) && !table_list->has_period())
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
@@ -600,20 +627,25 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   */
 
   if ((table->file->ha_table_flags() & HA_CAN_DIRECT_UPDATE_AND_DELETE) &&
-      !has_triggers && !binlog_is_row && !with_select)
+      !has_triggers && !binlog_is_row && !with_select &&
+      !table_list->has_period())
   {
     table->mark_columns_needed_for_delete();
     if (!table->check_virtual_columns_marked_for_read())
     {
       DBUG_PRINT("info", ("Trying direct delete"));
-      if (select && select->cond &&
-          (select->cond->used_tables() == table->map))
+      bool use_direct_delete= !select || !select->cond;
+      if (!use_direct_delete &&
+          (select->cond->used_tables() & ~RAND_TABLE_BIT) == table->map)
       {
         DBUG_ASSERT(!table->file->pushed_cond);
         if (!table->file->cond_push(select->cond))
+        {
+          use_direct_delete= TRUE;
           table->file->pushed_cond= select->cond;
+        }
       }
-      if (!table->file->direct_delete_rows_init())
+      if (use_direct_delete && !table->file->direct_delete_rows_init())
       {
         /* Direct deleting is supported */
         DBUG_PRINT("info", ("Using direct delete"));
@@ -670,7 +702,15 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (unlikely(init_ftfuncs(thd, select_lex, 1)))
     goto got_error;
 
-  table->mark_columns_needed_for_delete();
+  if (table_list->has_period())
+  {
+    table->use_all_columns();
+    table->rpl_write_set= table->write_set;
+  }
+  else
+  {
+    table->mark_columns_needed_for_delete();
+  }
 
   if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
       !table->prepare_triggers_for_delete_stmt_or_event())
@@ -702,7 +742,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     while (!(error=info.read_record()) && !thd->killed &&
           ! thd->is_error())
     {
-      if (record_should_be_deleted(thd, table, select, explain, truncate_history))
+      if (record_should_be_deleted(thd, table, select, explain, delete_history))
       {
         table->file->position(table->record[0]);
         if (unlikely((error=
@@ -727,16 +767,34 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     delete_record= true;
   }
 
+  /*
+    From SQL2016, Part 2, 15.7 <Effect of deleting rows from base table>,
+    General Rules, 8), we can conclude that DELETE FOR PORTTION OF time performs
+    0-2 INSERTS + DELETE. We can substitute INSERT+DELETE with one UPDATE, with
+    a condition of no side effects. The side effect is possible if there is a
+    BEFORE INSERT trigger, since it is the only one splitting DELETE and INSERT
+    operations.
+    Another possible side effect is related to tables of non-transactional
+    engines, since UPDATE is anyway atomic, and DELETE+INSERT is not.
+
+    This optimization is not possible for system-versioned table.
+  */
+  portion_of_time_through_update=
+          !(table->triggers && table->triggers->has_triggers(TRG_EVENT_INSERT,
+                                                             TRG_ACTION_BEFORE))
+          && !table->versioned()
+          && table->file->has_transactions();
+
   THD_STAGE_INFO(thd, stage_updating);
   while (likely(!(error=info.read_record())) && likely(!thd->killed) &&
          likely(!thd->is_error()))
   {
     if (delete_while_scanning)
       delete_record= record_should_be_deleted(thd, table, select, explain,
-                                              truncate_history);
+                                              delete_history);
     if (delete_record)
     {
-      if (!truncate_history && table->triggers &&
+      if (!delete_history && table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                             TRG_ACTION_BEFORE, FALSE))
       {
@@ -750,11 +808,29 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         break;
       }
 
-      error= table->delete_row();
+      if (table_list->has_period() && portion_of_time_through_update)
+      {
+        bool need_delete= true;
+        error= update_portion_of_time(thd, table, table_list->period_conditions,
+                                      &need_delete);
+        if (likely(!error) && need_delete)
+          error= table->delete_row();
+      }
+      else
+      {
+        error= table->delete_row();
+
+        ha_rows rows_inserted;
+        if (likely(!error) && table_list->has_period()
+            && !portion_of_time_through_update)
+          error= table->insert_portion_of_time(thd, table_list->period_conditions,
+                                               &rows_inserted);
+      }
+
       if (likely(!error))
       {
 	deleted++;
-        if (!truncate_history && table->triggers &&
+        if (!delete_history && table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                               TRG_ACTION_AFTER, FALSE))
         {
@@ -800,6 +876,8 @@ terminate_delete:
   }
   THD_STAGE_INFO(thd, stage_end);
   end_read_record(&info);
+  if (table_list->has_period())
+    table->file->ha_release_auto_increment();
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_NORMAL);
   ANALYZE_STOP_TRACKING(&explain->command_tracker);
@@ -854,7 +932,7 @@ cleanup:
                                         transactional_table, FALSE, FALSE,
                                         errcode);
 
-      if (log_result)
+      if (log_result > 0)
       {
 	error=1;
       }
@@ -945,16 +1023,34 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
                                     select_lex->leaf_tables, FALSE, 
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
-  if (table_list->vers_conditions.is_set())
+
+  if (table_list->vers_conditions.is_set() && table_list->is_view_or_derived())
   {
-    if (table_list->is_view())
+    my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
+    DBUG_RETURN(true);
+  }
+
+  if (table_list->has_period())
+  {
+    if (table_list->is_view_or_derived())
     {
       my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
       DBUG_RETURN(true);
     }
-    if (select_lex->vers_setup_conds(thd, table_list))
+
+    if (select_lex->period_setup_conds(thd, table_list))
       DBUG_RETURN(true);
   }
+
+  DBUG_ASSERT(table_list->table);
+  // conds could be cached from previous SP call
+  DBUG_ASSERT(!table_list->vers_conditions.need_setup() ||
+              !*conds || thd->stmt_arena->is_stmt_execute());
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(TRUE);
+
+  *conds= select_lex->where;
+
   if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num,
                               &select_lex->hidden_bit_fields)) ||
       setup_fields(thd, Ref_ptr_array(),
@@ -969,7 +1065,13 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);
   }
 
-  if (unique_table(thd, table_list, table_list->next_global, 0))
+  /*
+      Application-time periods: if FOR PORTION OF ... syntax used, DELETE
+      statement could issue delete_row's mixed with write_row's. This causes
+      problems for myisam and corrupts table, if deleting while scanning.
+   */
+  if (table_list->has_period()
+      || unique_table(thd, table_list, table_list->next_global, 0))
     *delete_while_scanning= false;
 
   if (select_lex->inner_refs_list.elements &&
@@ -1032,14 +1134,11 @@ int mysql_multi_delete_prepare(THD *thd)
                                     FALSE, DELETE_ACL, SELECT_ACL, FALSE))
     DBUG_RETURN(TRUE);
 
-  if (lex->first_select_lex()->handle_derived(thd->lex, DT_MERGE))
-    DBUG_RETURN(TRUE);
-
   /*
     Multi-delete can't be constructed over-union => we always have
     single SELECT on top and have to check underlying SELECTs of it
   */
-  lex->first_select_lex()->exclude_from_table_unique_test= TRUE;
+  lex->first_select_lex()->set_unique_exclude();
   /* Fix tables-to-be-deleted-from list to point at opened tables */
   for (target_tbl= (TABLE_LIST*) aux_tables;
        target_tbl;
@@ -1062,6 +1161,12 @@ int mysql_multi_delete_prepare(THD *thd)
                target_tbl->table_name.str, "DELETE");
       DBUG_RETURN(TRUE);
     }
+  }
+
+  for (target_tbl= (TABLE_LIST*) aux_tables;
+       target_tbl;
+       target_tbl= target_tbl->next_local)
+  {
     /*
       Check that table from which we delete is not used somewhere
       inside subqueries/view.
@@ -1106,12 +1211,6 @@ multi_delete::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   unit= u;
   do_delete= 1;
   THD_STAGE_INFO(thd, stage_deleting_from_main_table);
-  SELECT_LEX *select_lex= u->first_select();
-  if (select_lex->first_cond_optimization)
-  {
-    if (select_lex->handle_derived(thd->lex, DT_MERGE))
-      DBUG_RETURN(TRUE);
-  }
   DBUG_RETURN(0);
 }
 
@@ -1244,11 +1343,6 @@ int multi_delete::send_data(List<Item> &values)
     /* Check if we are using outer join and we didn't find the row */
     if (table->status & (STATUS_NULL_ROW | STATUS_DELETED))
       continue;
-
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
 
     table->file->position(table->record[0]);
     found++;
@@ -1525,10 +1619,11 @@ bool multi_delete::send_eof()
         thd->clear_error();
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
+      thd->thread_specific_used= TRUE;
       if (unlikely(thd->binlog_query(THD::ROW_QUERY_TYPE,
                                      thd->query(), thd->query_length(),
                                      transactional_tables, FALSE, FALSE,
-                                     errcode)) &&
+                                     errcode) > 0) &&
           !normal_tables)
       {
 	local_error=1;  // Log write failed: roll back the SQL statement

@@ -1,13 +1,9 @@
+--source include/default_charset.inc
+
 call mtr.add_suppression("table or database name 't-1'");
 #
 # Check some special create statements.
 #
-
---disable_warnings
-drop table if exists t1,t2,t3,t4,t5;
-drop database if exists mysqltest;
-drop view if exists v1;
---enable_warnings
 
 create table t1 (b char(0));
 insert into t1 values (""),(null);
@@ -27,30 +23,30 @@ drop table t1;
 # Test of some CREATE TABLE'S that should fail
 #
 
---error 1146
+--error ER_NO_SUCH_TABLE
 create table t2 engine=heap select * from t1;
---error 1146
+--error ER_NO_SUCH_TABLE
 create table t2 select auto+1 from t1;
 drop table if exists t1,t2;
---error 1167
+--error ER_WRONG_KEY_COLUMN
 create table t1 (b char(0) not null, index(b));
---error 1163
+--error ER_TABLE_CANT_HANDLE_BLOB
 create table t1 (a int not null,b text) engine=heap;
 drop table if exists t1;
 
---error 1075
+--error ER_WRONG_AUTO_KEY
 create table t1 (ordid int(8) not null auto_increment, ord  varchar(50) not null, primary key (ord,ordid)) engine=heap;
 
--- error 1049
+--error ER_BAD_DB_ERROR
 create table not_existing_database.test (a int);
 create table `a/a` (a int);
 show create table `a/a`;
 create table t1 like `a/a`;
 drop table `a/a`;
 drop table `t1`;
---error 1103
+--error ER_WRONG_TABLE_NAME
 create table `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa int);
---error 1059
+--error ER_TOO_LONG_IDENT
 create table a (`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` int);
 
 #
@@ -60,17 +56,17 @@ create table t1 (a datetime default now());
 drop table t1;
 create table t1 (a datetime on update now());
 drop table t1;
---error 1067
+--error ER_INVALID_DEFAULT
 create table t1 (a int default 100 auto_increment);
---error 1067
+--error ER_INVALID_DEFAULT
 create table t1 (a tinyint default 1000);
---error 1067
+--error ER_INVALID_DEFAULT
 create table t1 (a varchar(5) default 'abcdef');
 
 create table t1 (a varchar(5) default 'abcde');
 insert into t1 values();
 select * from t1;
---error 1067
+--error ER_INVALID_DEFAULT
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 alter column a set default 'abcdef';
 drop table t1;
@@ -95,13 +91,13 @@ create table mysqltest.test2$ (a int);
 drop table mysqltest.test2$;
 drop database mysqltest;
 
---error 1103
+--error ER_WRONG_TABLE_NAME
 create table `` (a int);
---error 1103
+--error ER_WRONG_TABLE_NAME
 drop table if exists ``;
---error 1166
+--error ER_WRONG_COLUMN_NAME
 create table t1 (`` int);
---error 1280
+--error ER_WRONG_NAME_FOR_INDEX
 create table t1 (i int, index `` (i)); 
 
 #
@@ -156,13 +152,13 @@ create table t2 (a int) select * from t1;
 describe t1;
 describe t2;
 drop table if exists t2;
---error 1060
+--error ER_DUP_FIELDNAME
 create table t2 (a int, a float) select * from t1;               
 drop table if exists t2;
---error 1060
+--error ER_DUP_FIELDNAME
 create table t2 (a int) select a as b, a+1 as b from t1;         
 drop table if exists t2;
---error 1060
+--error ER_DUP_FIELDNAME
 create table t2 (b int) select a as b, a+1 as b from t1;         
 drop table if exists t1,t2;
 
@@ -174,7 +170,7 @@ CREATE TABLE t1 (a int not null);
 INSERT INTO t1 values (1),(2),(1);
 --error ER_DUP_ENTRY
 CREATE TABLE t2 (primary key(a)) SELECT * FROM t1;
---error 1146
+--error ER_NO_SUCH_TABLE
 SELECT * from t2;
 DROP TABLE t1;
 DROP TABLE IF EXISTS t2;
@@ -200,7 +196,7 @@ SELECT @@storage_engine;
 CREATE TABLE t1 (a int not null);
 show create table t1;
 drop table t1;
---error 1286
+--error ER_UNKNOWN_STORAGE_ENGINE
 SET SESSION storage_engine="gemini";
 SELECT @@storage_engine;
 CREATE TABLE t1 (a int not null);
@@ -214,11 +210,11 @@ drop table t1;
 #
 create table t1 ( k1 varchar(2), k2 int, primary key(k1,k2));
 insert into t1 values ("a", 1), ("b", 2);
---error 1048
+--error ER_BAD_NULL_ERROR
 insert into t1 values ("c", NULL);
---error 1048
+--error ER_BAD_NULL_ERROR
 insert into t1 values (NULL, 3);
---error 1048
+--error ER_BAD_NULL_ERROR
 insert into t1 values (NULL, NULL);
 drop table t1;
 
@@ -260,11 +256,11 @@ drop table t1;
 #   "Table truncated when creating another table name with Spaces"
 #
 
---error 1103
+--error ER_WRONG_TABLE_NAME
 create table `t1 `(a int);
---error 1102
+--error ER_WRONG_DB_NAME
 create database `db1 `;
---error 1166
+--error ER_WRONG_COLUMN_NAME
 create table t1(`a ` int);
 
 #
@@ -272,11 +268,11 @@ create table t1(`a ` int);
 #   "Parser permits multiple commas without syntax error"
 #
 
---error 1064
+--error ER_PARSE_ERROR
 create table t1 (a int,);
---error 1064
+--error ER_PARSE_ERROR
 create table t1 (a int,,b int);
---error 1064
+--error ER_PARSE_ERROR
 create table t1 (,b int);
 
 #
@@ -318,13 +314,13 @@ create table t2 like t3;
 show create table t2;
 select * from t2;
 create table t3 like t1;
---error 1050
+--error ER_TABLE_EXISTS_ERROR
 create table t3 like mysqltest.t3;
---error 1049
+--error ER_BAD_DB_ERROR
 create table non_existing_database.t1 like t1;
 --error ER_NO_SUCH_TABLE
-create table t3 like non_existing_table;
---error 1050
+create table t4 like non_existing_table;
+--error ER_TABLE_EXISTS_ERROR
 create temporary table t3 like t1;
 drop table t1, t2, t3;
 drop table t3;
@@ -358,7 +354,7 @@ SELECT @@storage_engine;
 CREATE TABLE t1 (a int not null);
 show create table t1;
 drop table t1;
---error 1286
+--error ER_UNKNOWN_STORAGE_ENGINE
 SET SESSION storage_engine="gemini";
 SELECT @@storage_engine;
 CREATE TABLE t1 (a int not null);
@@ -478,9 +474,9 @@ use test;
 # Test for Bug 856 'Naming a key "Primary" causes trouble'
 #
 
---error 1280
+--error ER_WRONG_NAME_FOR_INDEX
 create table t1 (a int, index `primary` (a));
---error 1280
+--error ER_WRONG_NAME_FOR_INDEX
 create table t1 (a int, index `PRIMARY` (a));
 
 create table t1 (`primary` int, index(`primary`));
@@ -489,9 +485,9 @@ create table t2 (`PRIMARY` int, index(`PRIMARY`));
 show create table t2;
 
 create table t3 (a int);
---error 1280
+--error ER_WRONG_NAME_FOR_INDEX
 alter table t3 add index `primary` (a);
---error 1280
+--error ER_WRONG_NAME_FOR_INDEX
 alter table t3 add index `PRIMARY` (a);
 
 create table t4 (`primary` int);
@@ -546,11 +542,11 @@ drop table t1;
 #
 # Bug#10413: Invalid column name is not rejected
 #
---error 1103
+--error ER_WRONG_TABLE_NAME
 create table t1(column.name int);
---error 1103
+--error ER_WRONG_TABLE_NAME
 create table t1(test.column.name int);
---error 1102
+--error ER_WRONG_DB_NAME
 create table t1(xyz.t1.name int);
 create table t1(t1.name int);
 create table t2(test.t2.name int);
@@ -589,7 +585,7 @@ drop table if exists test.t1;
 create database mysqltest;
 use mysqltest;
 create view v1 as select 'foo' from dual;
---error 1347
+--error ER_WRONG_OBJECT
 create table t1 like v1;
 drop view v1;
 drop database mysqltest;
@@ -710,7 +706,7 @@ drop table t1, t2;
 #
 # Bug #15316 SET value having comma not correctly handled
 #
---error 1367
+--error ER_ILLEGAL_VALUE_FOR_TYPE
 create table t1(a set("a,b","c,d") not null);
 
 # End of 4.1 tests
@@ -768,7 +764,6 @@ drop table t1;
 --error ER_CANT_AGGREGATE_2COLLATIONS
 create table t1 select coalesce('a' collate latin1_swedish_ci,'b' collate latin1_bin);
 
-
 # Base vs temporary tables dillema (a.k.a. bug#24508 "Inconsistent
 # results of CREATE TABLE ... SELECT when temporary table exists").
 # In this situation we either have to create non-temporary table and
@@ -776,13 +771,13 @@ create table t1 select coalesce('a' collate latin1_swedish_ci,'b' collate latin1
 # permanent table. After patch for Bug#47418, we create the base table and
 # instert data into it, even though a temporary table exists with the same
 # name.
+
 create temporary table t1 (j int);
 create table if not exists t1 select 1;
 select * from t1;
 drop temporary table t1;
 select * from t1;
 drop table t1;
-
 
 #
 # CREATE TABLE ... SELECT and LOCK TABLES
@@ -792,6 +787,7 @@ drop table t1;
 # the server doesn't crash, hang and produces sensible errors.
 # Includes test for bug #20662 "Infinite loop in CREATE TABLE
 # IF NOT EXISTS ... SELECT with locked tables".
+
 create table t1 (i int);
 insert into t1 values (1), (2);
 lock tables t1 read;
@@ -812,8 +808,12 @@ unlock tables;
 lock table t1 read, t2 read;
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
 create table t2 select * from t1;
+--error ER_TABLE_NOT_LOCKED
+create table t3 select * from t1;
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
 create table if not exists t2 select * from t1;
+--error ER_TABLE_NOT_LOCKED
+create table if not exists t3 select * from t1;
 unlock tables;
 lock table t1 read, t2 write;
 --error ER_TABLE_EXISTS_ERROR
@@ -844,7 +844,7 @@ drop table t1;
 --echo
 --echo Bug #26104 Bug on foreign key class constructor
 --echo
---echo Check that ref_columns is initalized correctly in the constructor
+--echo Check that ref_columns is initialized correctly in the constructor
 --echo and semantic checks in mysql_prepare_table work.
 --echo
 --echo We do not need a storage engine that supports foreign keys
@@ -908,9 +908,9 @@ INSERT IGNORE INTO t1 (b) VALUES (5);
 
 CREATE TABLE IF NOT EXISTS t2 (a INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY)
   SELECT a FROM t1;
---error 1062
+--error ER_DUP_ENTRY
 INSERT INTO t2 SELECT a FROM t1;
---error 1062
+--error ER_DUP_ENTRY
 INSERT INTO t2 SELECT a FROM t1;
 
 DROP TABLE t1, t2;
@@ -970,106 +970,25 @@ drop table t1,t2;
 # Test incorrect database names
 #
 
---error 1102
+--error ER_WRONG_DB_NAME
 CREATE DATABASE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
---error 1102
+--error ER_WRONG_DB_NAME
 DROP DATABASE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
 
 # TODO: enable these tests when RENAME DATABASE is implemented.
-# --error 1049
+# --error ER_BAD_DB_ERROR
 # RENAME DATABASE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa TO a;
-# --error 1102
+# --error ER_WRONG_DB_NAME
 # RENAME DATABASE mysqltest TO aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
 # create database mysqltest;
-# --error 1102
+# --error ER_WRONG_DB_NAME
 # RENAME DATABASE mysqltest TO aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
 # drop database mysqltest;
 
---error 1102
+--error ER_WRONG_DB_NAME
 USE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
---error 1102
+--error ER_WRONG_DB_NAME
 SHOW CREATE DATABASE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
-
-#
-# Bug#21432 Database/Table name limited to 64 bytes, not chars, problems with multi-byte
-#
-set names utf8;
-
-create database имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
-use имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
-select database();
-use test;
-
-select SCHEMA_NAME from information_schema.schemata
-where schema_name='имя_базы_в_кодировке_утф8_длиной_больше_чем_45';
-
-drop database имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
-create table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48
-(
-  имя_поля_в_кодировке_утф8_длиной_больше_чем_45 int,
-  index имя_индекса_в_кодировке_утф8_длиной_больше_чем_48 (имя_поля_в_кодировке_утф8_длиной_больше_чем_45)
-);
-
-create view имя_вью_кодировке_утф8_длиной_больше_чем_42 as
-select имя_поля_в_кодировке_утф8_длиной_больше_чем_45
-from имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-
-# database, table, field, key, view
-select * from имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-
---sorted_result
-select TABLE_NAME from information_schema.tables where
-table_schema='test';
-
-select COLUMN_NAME from information_schema.columns where
-table_schema='test';
-
-select INDEX_NAME from information_schema.statistics where
-table_schema='test';
-
-select TABLE_NAME from information_schema.views where
-table_schema='test';
-
-show create table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-show create view имя_вью_кодировке_утф8_длиной_больше_чем_42;
-
-create trigger имя_триггера_в_кодировке_утф8_длиной_больше_чем_49
-before insert on имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48 for each row set @a:=1;
-select TRIGGER_NAME from information_schema.triggers where
-trigger_schema='test';
-drop trigger имя_триггера_в_кодировке_утф8_длиной_больше_чем_49;
---error 1059
-create trigger
-очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66
-before insert on имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48 for each row set @a:=1;
---error 1059
-drop trigger очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66;
-
-create procedure имя_процедуры_в_кодировке_утф8_длиной_больше_чем_50()
-begin
-end;
-select ROUTINE_NAME from information_schema.routines where
-routine_schema='test';
-drop procedure имя_процедуры_в_кодировке_утф8_длиной_больше_чем_50;
---error 1059
-create procedure очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66()
-begin
-end;
-
-create function имя_функции_в_кодировке_утф8_длиной_больше_чем_49()
-   returns int
-return 0;
-select ROUTINE_NAME from information_schema.routines where
-routine_schema='test';
-drop function имя_функции_в_кодировке_утф8_длиной_больше_чем_49;
---error 1059
-create function очень_очень_очень_очень_очень_очень_очень_очень_длинная_строка_66()
-   returns int
-return 0;
-
-drop view имя_вью_кодировке_утф8_длиной_больше_чем_42;
-drop table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-set names default;
 
 #
 # Bug#21136 CREATE TABLE SELECT within CREATE TABLE SELECT causes server crash
@@ -1928,16 +1847,61 @@ alter table t1 add
   key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx0064 (f64) comment 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy';
 drop table t1;
 
---echo End of 5.5 tests
+--echo #
+--echo # End of 5.5 tests
+--echo #
 
-#
-# MDEV-4880 Attempt to create a table without columns produces ER_ILLEGAL_HA instead of ER_TABLE_MUST_HAVE_COLUMNS
-#
+--echo #
+--echo # MDEV-4880 Attempt to create a table without columns produces ER_ILLEGAL_HA instead of ER_TABLE_MUST_HAVE_COLUMNS
+--echo #
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create table t1;
 
-#
-# MDEV-11231 Server crashes in check_duplicate_key on CREATE TABLE ... SELECT
-#
+--echo #
+--echo # MDEV-11231 Server crashes in check_duplicate_key on CREATE TABLE ... SELECT
+--echo #
 create table t1 (i int, j int, key(i), key(i)) as select 1 as i, 2 as j;
 drop table t1;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-18428 Memory: If transactional=0 is specified in CREATE TABLE, it is not possible to ALTER TABLE
+--echo #
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table t1 (c int(10) unsigned) engine=memory transactional=0;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-17544 No warning when trying to name a primary key constraint.
+--echo #
+CREATE TABLE t1 ( id1 INT, id2 INT, CONSTRAINT `foo` PRIMARY KEY (id1), CONSTRAINT `bar` UNIQUE KEY(id2));
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-21017: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo # is_bulk_op())' failed or late ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+--echo # upon attempt to create existing table
+--echo #
+CREATE TABLE t1 (a INT);
+LOCK TABLE t1 WRITE;
+
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+CREATE TABLE IF NOT EXISTS t1 (s DATE GENERATED ALWAYS AS ('2000-01-01') STORED,
+e DATE, PERIOD FOR app(s,e));
+
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

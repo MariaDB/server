@@ -1,0 +1,8 @@
+set @@global.binlog_checksum = CRC32;
+call mtr.add_suppression("Replication event checksum verification failed");
+call mtr.add_suppression("Error in Log_event::read_log_event");
+# restart: --master_verify_checksum=ON --debug_dbug=+d,corrupt_read_log_event_char
+set @@global.debug_dbug = VALUE;
+set @@global.master_verify_checksum = DO_CHECKSUM;
+set @@global.binlog_checksum = BINLOG_CHECKSUM;
+# EOF the test

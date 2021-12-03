@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
 # Default values that applies to all MySQL Servers
 [mysqld]
@@ -107,6 +107,7 @@ loose-performance-schema-consumer-thread-instrumentation=ON
 binlog-direct-non-transactional-updates
 
 default-storage-engine=myisam
+use_stat_tables=preferably
 
 loose-ssl-ca=@ENV.MYSQL_TEST_DIR/std_data/cacert.pem
 loose-ssl-cert=@ENV.MYSQL_TEST_DIR/std_data/server-cert.pem
@@ -127,4 +128,3 @@ local-infile
 # tables.  Let's enable it in the [server] group, because this group
 # is read after [mysqld] and [embedded]
 loose-aria
-

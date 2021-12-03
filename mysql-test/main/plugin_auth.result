@@ -11,6 +11,8 @@ SELECT plugin,authentication_string FROM mysql.user WHERE User='plug';
 plugin	authentication_string
 test_plugin_server	plug_dest
 ## test plugin auth
+connect(localhost,plug,plug_dest,test,MYSQL_PORT,MYSQL_SOCK);
+connect plug_con,localhost,plug,plug_dest;
 ERROR 28000: Access denied for user 'plug'@'localhost' (using password: YES)
 GRANT PROXY ON plug_dest TO plug;
 test proxies_priv columns
@@ -32,7 +34,6 @@ proxies_priv	CREATE TABLE `proxies_priv` (
   KEY `Grantor` (`Grantor`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8 COLLATE=utf8_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='User proxy privileges'
 connect plug_con,localhost,plug,plug_dest;
-connection plug_con;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 plug@localhost	plug_dest@%
@@ -41,11 +42,18 @@ SET PASSWORD = PASSWORD('plug_dest');
 connection default;
 disconnect plug_con;
 ## test bad credentials
+connect(localhost,plug,bad_credentials,test,MYSQL_PORT,MYSQL_SOCK);
+connect plug_con,localhost,plug,bad_credentials;
 ERROR 28000: Access denied for user 'plug'@'localhost' (using password: YES)
-## test bad default plugin : should get CR_AUTH_PLUGIN_CANNOT_LOAD
+## test bad default plugin : nothing bad happens, as that plugin was't required by the server
+connect plug_con_wrongp,localhost,plug,plug_dest,,,,,wrong_plugin_name;
+select USER(),CURRENT_USER();
+USER()	CURRENT_USER()
+plug@localhost	plug_dest@%
+connection default;
+disconnect plug_con_wrongp;
 ## test correct default plugin
 connect plug_con_rightp,localhost,plug,plug_dest,,,,,auth_test_plugin;
-connection plug_con_rightp;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 plug@localhost	plug_dest@%
@@ -60,7 +68,6 @@ DROP USER grant_user;
 CREATE USER `Ÿ` IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 GRANT PROXY ON plug_dest TO `Ÿ`;
 connect non_ascii,localhost,Ÿ,plug_dest;
-connection non_ascii;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 Ÿ@localhost	plug_dest@%
@@ -74,7 +81,6 @@ GRANT ALL PRIVILEGES ON test_grant_db.* TO new_grant_user
 IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 GRANT PROXY ON plug_dest TO new_grant_user;
 connect plug_con_grant,localhost,new_grant_user,plug_dest;
-connection plug_con_grant;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_grant_user@localhost	plug_dest@%
@@ -91,7 +97,6 @@ connect(localhost,new_grant_user,plug_dest,test,MYSQL_PORT,MYSQL_SOCK);
 connect plug_con_grant_deny,localhost,new_grant_user,plug_dest;
 ERROR 28000: Access denied for user 'new_grant_user'@'localhost' (using password: YES)
 connect plug_con_grant,localhost,new_grant_user,new_password;
-connection plug_con_grant;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_grant_user@localhost	new_grant_user@%
@@ -133,8 +138,6 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 REVOKE PROXY ON grant_plug_dest FROM grant_plug;
 ERROR 42000: There is no such grant defined for user 'grant_plug' on host '%'
 connect grant_plug_dest_con,localhost,grant_plug_dest,grant_plug_dest_passwd;
-connection grant_plug_dest_con;
-in grant_plug_dest_con
 ## testing what an ordinary user can grant 
 this should fail : no rights to grant all
 GRANT PROXY ON ''@'%%' TO grant_plug;
@@ -158,7 +161,6 @@ this should fail : can't create users
 GRANT PROXY ON grant_plug_dest TO grant_plug@localhost;
 ERROR 42000: You are not allowed to create a user with GRANT
 connection default;
-in default connection
 disconnect grant_plug_dest_con;
 # test what root can grant
 should work : root has PROXY to all users
@@ -170,27 +172,24 @@ WITH GRANT OPTION;
 need USAGE : PROXY doesn't contain it.
 GRANT USAGE on *.* TO proxy_admin;
 connect  proxy_admin_con,localhost,proxy_admin,test;
-connection proxy_admin_con;
-in proxy_admin_con;
 should work : proxy_admin has proxy to ''@'%%'
 GRANT PROXY ON future_user TO grant_plug;
 connection default;
-in default connection
 disconnect proxy_admin_con;
 SHOW GRANTS FOR grant_plug;
 Grants for grant_plug@%
-GRANT ALL PRIVILEGES ON *.* TO 'grant_plug'@'%' IDENTIFIED VIA test_plugin_server USING 'grant_plug_dest'
+GRANT ALL PRIVILEGES ON *.* TO `grant_plug`@`%` IDENTIFIED VIA test_plugin_server USING 'grant_plug_dest'
 GRANT PROXY ON 'future_user'@'%' TO 'grant_plug'@'%'
 REVOKE PROXY ON future_user FROM grant_plug;
 SHOW GRANTS FOR grant_plug;
 Grants for grant_plug@%
-GRANT ALL PRIVILEGES ON *.* TO 'grant_plug'@'%' IDENTIFIED VIA test_plugin_server USING 'grant_plug_dest'
+GRANT ALL PRIVILEGES ON *.* TO `grant_plug`@`%` IDENTIFIED VIA test_plugin_server USING 'grant_plug_dest'
 ## testing drop user
 CREATE USER test_drop@localhost;
 GRANT PROXY ON future_user TO test_drop@localhost;
 SHOW GRANTS FOR test_drop@localhost;
 Grants for test_drop@localhost
-GRANT USAGE ON *.* TO 'test_drop'@'localhost'
+GRANT USAGE ON *.* TO `test_drop`@`localhost`
 GRANT PROXY ON 'future_user'@'%' TO 'test_drop'@'localhost'
 DROP USER test_drop@localhost;
 SELECT * FROM mysql.proxies_priv WHERE Host = 'test_drop' AND User = 'localhost';
@@ -221,13 +220,10 @@ SELECT @@LOCAL.proxy_user;
 @@LOCAL.proxy_user
 NULL
 connect plug_con,localhost,plug,plug_dest;
-connection plug_con;
-# in connection plug_con
 SELECT @@LOCAL.proxy_user;
 @@LOCAL.proxy_user
 'plug'@'%'
 connection default;
-# in connection default
 disconnect plug_con;
 ## cleanup
 DROP USER plug;
@@ -253,13 +249,10 @@ SELECT @@LOCAL.external_user;
 @@LOCAL.external_user
 NULL
 connect plug_con,localhost,plug,plug_dest;
-connection plug_con;
-# in connection plug_con
 SELECT @@LOCAL.external_user;
 @@LOCAL.external_user
 plug_dest
 connection default;
-# in connection default
 disconnect plug_con;
 ## cleanup
 DROP USER plug;
@@ -299,6 +292,7 @@ DROP DATABASE shared;
 CALL mtr.add_suppression("Missing system table mysql.proxies_priv.");
 DROP TABLE mysql.proxies_priv;
 # Must come back with mysql.proxies_priv absent.
+# restart
 SELECT * FROM mysql.proxies_priv;
 ERROR 42S02: Table 'mysql.proxies_priv' doesn't exist
 CREATE USER u1@localhost;
@@ -315,7 +309,6 @@ REVOKE PROXY ON u2@localhost FROM u1@localhost;
 ERROR 28000: Access denied for user 'root'@'localhost'
 # go try graning proxy on itself, so that it will need the table
 connect proxy_granter_con,localhost,u2,;
-connection proxy_granter_con;
 GRANT PROXY ON u2@localhost TO u1@localhost;
 ERROR 42S02: Table 'mysql.proxies_priv' doesn't exist
 REVOKE PROXY ON u2@localhost FROM u1@localhost;
@@ -355,13 +348,14 @@ CREATE USER uplain@localhost IDENTIFIED WITH 'cleartext_plugin_server'
 ## test plugin auth
 ERROR 28000: Access denied for user 'uplain'@'localhost' (using password: YES)
 connect cleartext_con,localhost,uplain,cleartext_test;
-connection cleartext_con;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 uplain@localhost	uplain@localhost
 connection default;
 disconnect cleartext_con;
 DROP USER uplain@localhost;
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
 #
 # Bug #59038 : mysql.user.authentication_string column 
 #   causes configuration wizard to fail
@@ -443,6 +437,8 @@ ORDER BY COLUMN_NAME;
 IS_NULLABLE	COLUMN_NAME
 NO	authentication_string
 NO	plugin
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
 #
 # Bug # 11766641: 59792: BIN/MYSQL -UUNKNOWN -PUNKNOWN 
 #  .-> USING PASSWORD: NO 
@@ -471,7 +467,6 @@ CREATE USER bug12818542_dest@localhost
 IDENTIFIED BY 'bug12818542_dest_passwd';
 GRANT PROXY ON bug12818542_dest@localhost TO bug12818542@localhost;
 connect bug12818542_con,localhost,bug12818542,bug12818542_dest;
-connection bug12818542_con;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 bug12818542@localhost	bug12818542_dest@localhost
@@ -479,7 +474,6 @@ SET PASSWORD = PASSWORD('bruhaha');
 connection default;
 disconnect bug12818542_con;
 connect bug12818542_con2,localhost,bug12818542,bug12818542_dest;
-connection bug12818542_con2;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 bug12818542@localhost	bug12818542_dest@localhost

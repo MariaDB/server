@@ -1,6 +1,6 @@
 /*
-  Copyright (c) 2005, 2017, Oracle and/or its affiliates.
-  Copyright (c) 2009, 2018, MariaDB
+  Copyright (c) 2005, 2019, Oracle and/or its affiliates.
+  Copyright (c) 2009, 2021, MariaDB
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -564,7 +564,7 @@ bool ha_partition::initialize_partition(MEM_ROOT *mem_root)
     point.
 
     If you do not implement this, the default delete_table() is called from
-    handler.cc and it will delete all files with the file extentions returned
+    handler.cc and it will delete all files with the file extensions returned
     by bas_ext().
 
     Called from handler.cc by delete_table and  ha_create_table(). Only used
@@ -596,7 +596,7 @@ int ha_partition::delete_table(const char *name)
     Renames a table from one name to another from alter table call.
 
     If you do not implement this, the default rename_table() is called from
-    handler.cc and it will rename all files with the file extentions returned
+    handler.cc and it will rename all files with the file extensions returned
     by bas_ext().
 
     Called from sql_table.cc by mysql_rename_table().
@@ -1367,7 +1367,7 @@ bool print_admin_msg(THD* thd, uint len,
   protocol->store(msgbuf, msg_length, system_charset_info);
   if (protocol->write())
   {
-    sql_print_error("Failed on my_net_write, writing to stderr instead: %s\n",
+    sql_print_error("Failed on my_net_write, writing to stderr instead: %s",
                     msgbuf);
     goto err;
   }
@@ -1480,7 +1480,7 @@ int ha_partition::handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt,
 
 
 /**
-  @brief Check and repair the table if neccesary
+  @brief Check and repair the table if necessary
 
   @param thd    Thread object
 
@@ -2025,6 +2025,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
     DBUG_ASSERT(part_elem->part_state == PART_TO_BE_REORGED);
     part_elem->part_state= PART_TO_BE_DROPPED;
   }
+  DBUG_ASSERT(m_new_file == 0);
   m_new_file= new_file_array;
   if (unlikely((error= copy_partitions(copied, deleted))))
   {
@@ -2033,6 +2034,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
       They will later be deleted through the ddl-log.
     */
     cleanup_new_partition(part_count);
+    m_new_file= 0;
   }
   DBUG_RETURN(error);
 }
@@ -2124,6 +2126,8 @@ int ha_partition::copy_partitions(ulonglong * const copied,
     file->ha_rnd_end();
     reorg_part++;
   }
+  DBUG_EXECUTE_IF("debug_abort_copy_partitions",
+                  DBUG_RETURN(HA_ERR_UNSUPPORTED); );
   DBUG_RETURN(FALSE);
 error:
   m_reorged_file[reorg_part]->ha_rnd_end();
@@ -2194,7 +2198,7 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
   uint num_parts= (num_subparts ? m_file_tot_parts / num_subparts :
                    m_file_tot_parts);
   HA_CREATE_INFO dummy_info;
-  memset(&dummy_info, 0, sizeof(dummy_info));
+  dummy_info.init();
 
   /*
     Since update_create_info() can be called from mysql_prepare_alter_table()
@@ -2240,7 +2244,8 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
         sub_elem= subpart_it++;
         DBUG_ASSERT(sub_elem);
         part= i * num_subparts + j;
-        DBUG_ASSERT(part < m_file_tot_parts && m_file[part]);
+        DBUG_ASSERT(part < m_file_tot_parts);
+        DBUG_ASSERT(m_file[part]);
         dummy_info.data_file_name= dummy_info.index_file_name = NULL;
         m_file[part]->update_create_info(&dummy_info);
         sub_elem->data_file_name = (char*) dummy_info.data_file_name;
@@ -2298,25 +2303,6 @@ void ha_partition::change_table_ptr(TABLE *table_arg, TABLE_SHARE *share)
       (*file_array)->change_table_ptr(table_arg, share);
     } while (*(++file_array));
   }
-}
-
-/*
-  Change comments specific to handler
-
-  SYNOPSIS
-    update_table_comment()
-    comment                       Original comment
-
-  RETURN VALUE
-    new comment
-
-  DESCRIPTION
-    No comment changes so far
-*/
-
-char *ha_partition::update_table_comment(const char *comment)
-{
-  return (char*) comment;                       /* Nothing to change */
 }
 
 
@@ -2547,7 +2533,7 @@ register_query_cache_dependant_tables(THD *thd,
         sub_elem= subpart_it++;
         part= i * num_subparts + j;
         /* we store the end \0 as part of the key */
-        end= strmov(engine_pos, sub_elem->partition_name);
+        end= strmov(engine_pos, sub_elem->partition_name) + 1;
         length= (uint)(end - engine_key);
         /* Copy the suffix also to query cache key */
         memcpy(query_cache_key_end, engine_key_end, (end - engine_key_end));
@@ -2828,6 +2814,8 @@ bool ha_partition::create_handler_file(const char *name)
       }
     }
     (void) mysql_file_close(file, MYF(0));
+    if (result)
+      mysql_file_delete(key_file_partition, file_name, MYF(MY_WME));
   }
   else
     result= TRUE;
@@ -2966,7 +2954,7 @@ error:
 /**
   Read the .par file to get the partitions engines and names
 
-  @param name  Name of table file (without extention)
+  @param name  Name of table file (without extension)
 
   @return Operation status
     @retval true   Failure
@@ -3196,7 +3184,7 @@ static uchar *get_part_name(PART_NAME_DEF *part, size_t *length,
 
   @return Operation status
     @retval true   Failure
-    @retval false  Sucess
+    @retval false  Success
 */
 
 bool ha_partition::insert_partition_name_in_hash(const char *name, uint part_id,
@@ -3322,7 +3310,7 @@ err:
 
   @return Operation status
     @retval true  Failure
-    @retval false Sucess
+    @retval false Success
 */
 
 bool ha_partition::set_ha_share_ref(Handler_share **ha_share_arg)
@@ -3459,8 +3447,7 @@ bool ha_partition::init_partition_bitmaps()
 
 /*
   Open handler object
-
-  SYNOPSIS
+SYNOPSIS
     open()
     name                  Full path of table name
     mode                  Open mode flags
@@ -3586,6 +3573,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   }
   else
   {
+    check_insert_autoincrement();
     if (unlikely((error= open_read_partitions(name_buff, sizeof(name_buff)))))
       goto err_handler;
     m_num_locks= m_file_sample->lock_count();
@@ -3655,11 +3643,13 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
 
 err_handler:
   DEBUG_SYNC(ha_thd(), "partition_open_error");
-  file= &m_file[m_tot_parts - 1];
-  while (file-- != m_file)
+  DBUG_ASSERT(m_tot_parts > 0);
+  for (uint i= m_tot_parts - 1; ; --i)
   {
-    if (bitmap_is_set(&m_opened_partitions, (uint)(file - m_file)))
-      (*file)->ha_close();
+    if (bitmap_is_set(&m_opened_partitions, i))
+      m_file[i]->ha_close();
+    if (!i)
+      break;
   }
 err_alloc:
   free_partition_bitmaps();
@@ -3905,7 +3895,8 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   MY_BITMAP *used_partitions;
   DBUG_ENTER("ha_partition::external_lock");
 
-  DBUG_ASSERT(!auto_increment_lock && !auto_increment_safe_stmt_log_lock);
+  DBUG_ASSERT(!auto_increment_lock);
+  DBUG_ASSERT(!auto_increment_safe_stmt_log_lock);
 
   if (lock_type == F_UNLCK)
     used_partitions= &m_locked_partitions;
@@ -3951,7 +3942,12 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   {
     if (m_part_info->part_expr)
       m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-    if (m_part_info->part_type == VERSIONING_PARTITION)
+    if (m_part_info->part_type == VERSIONING_PARTITION &&
+      /* TODO: MDEV-20345 exclude more inapproriate commands like INSERT
+         These commands may be excluded because working history partition is needed
+         only for versioned DML. */
+      thd->lex->sql_command != SQLCOM_SELECT &&
+      thd->lex->sql_command != SQLCOM_INSERT_SELECT)
       m_part_info->vers_set_hist_part(thd);
   }
   DBUG_RETURN(0);
@@ -4093,8 +4089,24 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
     /* Add partition to be called in reset(). */
     bitmap_set_bit(&m_partitions_to_reset, i);
   }
-  if (lock_type == F_WRLCK && m_part_info->part_expr)
-    m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+  switch (lock_type)
+  {
+  case TL_WRITE_ALLOW_WRITE:
+  case TL_WRITE_CONCURRENT_INSERT:
+  case TL_WRITE_DELAYED:
+  case TL_WRITE_DEFAULT:
+  case TL_WRITE_LOW_PRIORITY:
+  case TL_WRITE:
+  case TL_WRITE_ONLY:
+    if (m_part_info->part_expr)
+      m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+    if (m_part_info->part_type == VERSIONING_PARTITION &&
+      // TODO: MDEV-20345 (see above)
+      thd->lex->sql_command != SQLCOM_SELECT &&
+      thd->lex->sql_command != SQLCOM_INSERT_SELECT)
+      m_part_info->vers_set_hist_part(thd);
+  default:;
+  }
   DBUG_RETURN(error);
 }
 
@@ -4163,8 +4175,8 @@ void ha_partition::unlock_row()
 bool ha_partition::was_semi_consistent_read()
 {
   DBUG_ENTER("ha_partition::was_semi_consistent_read");
-  DBUG_ASSERT(m_last_part < m_tot_parts &&
-              bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
+  DBUG_ASSERT(m_last_part < m_tot_parts);
+  DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
   DBUG_RETURN(m_file[m_last_part]->was_semi_consistent_read());
 }
 
@@ -4245,13 +4257,13 @@ void ha_partition::try_semi_consistent_read(bool yes)
     determining which partition the row should be written to.
 */
 
-int ha_partition::write_row(uchar * buf)
+int ha_partition::write_row(const uchar * buf)
 {
   uint32 part_id;
   int error;
   longlong func_value;
   bool have_auto_increment= table->next_number_field && buf == table->record[0];
-  my_bitmap_map *old_map;
+  MY_BITMAP *old_map;
   THD *thd= ha_thd();
   sql_mode_t saved_sql_mode= thd->variables.sql_mode;
   bool saved_auto_inc_field_not_null= table->auto_increment_field_not_null;
@@ -4271,7 +4283,7 @@ int ha_partition::write_row(uchar * buf)
     /*
       If we have failed to set the auto-increment value for this row,
       it is highly likely that we will not be able to insert it into
-      the correct partition. We must check and fail if neccessary.
+      the correct partition. We must check and fail if necessary.
     */
     if (unlikely(error))
       goto exit;
@@ -4293,9 +4305,9 @@ int ha_partition::write_row(uchar * buf)
     }
   }
 
-  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   error= m_part_info->get_partition_id(m_part_info, &part_id, &func_value);
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   if (unlikely(error))
   {
     m_part_info->err_value= func_value;
@@ -4314,7 +4326,7 @@ int ha_partition::write_row(uchar * buf)
 
   tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
   error= m_file[part_id]->ha_write_row(buf);
-  if (have_auto_increment && !table->s->next_number_keypart)
+  if (!error && have_auto_increment && !table->s->next_number_keypart)
     set_auto_increment_if_higher(table->next_number_field);
   reenable_binlog(thd);
 
@@ -4342,7 +4354,7 @@ exit:
     have the previous row record in it, while new_data will have the newest
     data in it.
     Keep in mind that the server can do updates based on ordering if an
-    ORDER BY clause was used. Consecutive ordering is not guarenteed.
+    ORDER BY clause was used. Consecutive ordering is not guaranteed.
 
     Called from sql_select.cc, sql_acl.cc, sql_update.cc, and sql_insert.cc.
     new_data is always record[0]
@@ -4451,11 +4463,8 @@ exit:
                     table->found_next_number_field->field_index))
   {
     update_next_auto_inc_val();
-    /*
-      The following call is safe as part_share->auto_inc_initialized
-      (tested in the call) is guaranteed to be set for update statements.
-    */
-    set_auto_increment_if_higher(table->found_next_number_field);
+    if (part_share->auto_inc_initialized)
+      set_auto_increment_if_higher(table->found_next_number_field);
   }
   DBUG_RETURN(error);
 }
@@ -4478,7 +4487,7 @@ exit:
     (from either a previous rnd_xxx() or index_xxx() call).
     If you keep a pointer to the last row or can access a primary key it will
     make doing the deletion quite a bit easier.
-    Keep in mind that the server does no guarentee consecutive deletions.
+    Keep in mind that the server does no guarantee consecutive deletions.
     ORDER BY clauses can be used.
 
     Called in sql_acl.cc and sql_udf.cc to manage internal table information.
@@ -4520,7 +4529,7 @@ int ha_partition::delete_row(const uchar *buf)
     or last historical partition, but DELETE HISTORY can delete from any
     historical partition. So, skip the check in this case.
   */
-  if (!thd->lex->vers_conditions.is_set()) // if not DELETE HISTORY
+  if (!thd->lex->vers_conditions.delete_history)
   {
     uint32 part_id;
     error= get_part_for_buf(buf, m_rec0, m_part_info, &part_id);
@@ -4802,6 +4811,42 @@ ha_rows ha_partition::guess_bulk_insert_rows()
 }
 
 
+void ha_partition::sum_copy_info(handler *file)
+{
+  copy_info.records+= file->copy_info.records;
+  copy_info.touched+= file->copy_info.touched;
+  copy_info.copied+=  file->copy_info.copied;
+  copy_info.deleted+= file->copy_info.deleted;
+  copy_info.updated+= file->copy_info.updated;
+}
+
+
+void ha_partition::sum_copy_infos()
+{
+  handler **file_array;
+  bzero(&copy_info, sizeof(copy_info));
+  file_array= m_file;
+  do
+  {
+    if (bitmap_is_set(&(m_opened_partitions), (uint)(file_array - m_file)))
+      sum_copy_info(*file_array);
+  } while (*(++file_array));
+}
+
+void ha_partition::reset_copy_info()
+{
+  handler **file_array;
+  bzero(&copy_info, sizeof(copy_info));
+  file_array= m_file;
+  do
+  {
+    if (bitmap_is_set(&(m_opened_partitions), (uint)(file_array - m_file)))
+      bzero(&(*file_array)->copy_info, sizeof(copy_info));
+  } while (*(++file_array));
+}
+
+
+
 /*
   Finish a large batch of insert rows
 
@@ -4833,6 +4878,7 @@ int ha_partition::end_bulk_insert()
     int tmp;
     if ((tmp= m_file[i]->ha_end_bulk_insert()))
       error= tmp;
+    sum_copy_info(m_file[i]);
   }
   bitmap_clear_all(&m_bulk_insert_started);
   DBUG_RETURN(error);
@@ -4860,7 +4906,7 @@ int ha_partition::end_bulk_insert()
 
     When scan is used we will scan one handler partition at a time.
     When preparing for rnd_pos we will init all handler partitions.
-    No extra cache handling is needed when scannning is not performed.
+    No extra cache handling is needed when scanning is not performed.
 
     Before initialising we will call rnd_end to ensure that we clean up from
     any previous incarnation of a table scan.
@@ -5243,55 +5289,68 @@ bool ha_partition::init_record_priority_queue()
   /*
     Initialize the ordered record buffer.
   */
-  if (!m_ordered_rec_buffer)
+  size_t alloc_len;
+  uint used_parts= bitmap_bits_set(&m_part_info->read_partitions);
+
+  if (used_parts == 0) /* Do nothing since no records expected. */
+    DBUG_RETURN(false);
+
+  /* Allocate record buffer for each used partition. */
+  m_priority_queue_rec_len= m_rec_length + ORDERED_REC_OFFSET;
+  if (!m_using_extended_keys)
+    m_priority_queue_rec_len+= get_open_file_sample()->ref_length;
+  alloc_len= used_parts * m_priority_queue_rec_len;
+  /* Allocate a key for temporary use when setting up the scan. */
+  alloc_len+= table_share->max_key_length;
+  Ordered_blob_storage **blob_storage;
+  Ordered_blob_storage *objs;
+  const size_t n_all= used_parts * table->s->blob_fields;
+
+  if (!my_multi_malloc(MYF(MY_WME), &m_ordered_rec_buffer, alloc_len,
+                       &blob_storage, n_all * sizeof *blob_storage,
+                       &objs, n_all * sizeof *objs, NULL))
+    DBUG_RETURN(true);
+
+  /*
+    We set-up one record per partition and each record has 2 bytes in
+    front where the partition id is written. This is used by ordered
+    index_read.
+    We also set-up a reference to the first record for temporary use in
+    setting up the scan.
+  */
+  char *ptr= (char*) m_ordered_rec_buffer;
+  uint i;
+  for (i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
   {
-    size_t alloc_len;
-    uint used_parts= bitmap_bits_set(&m_part_info->read_partitions);
-    DBUG_ASSERT(used_parts > 0);
-    /* Allocate record buffer for each used partition. */
-    m_priority_queue_rec_len= m_rec_length + PARTITION_BYTES_IN_POS;
-    if (!m_using_extended_keys)
-       m_priority_queue_rec_len += get_open_file_sample()->ref_length;
-    alloc_len= used_parts * m_priority_queue_rec_len;
-    /* Allocate a key for temporary use when setting up the scan. */
-    alloc_len+= table_share->max_key_length;
-
-    if (!(m_ordered_rec_buffer= (uchar*)my_malloc(alloc_len, MYF(MY_WME))))
-      DBUG_RETURN(true);
-
-    /*
-      We set-up one record per partition and each record has 2 bytes in
-      front where the partition id is written. This is used by ordered
-      index_read.
-      We also set-up a reference to the first record for temporary use in
-      setting up the scan.
-    */
-    char *ptr= (char*) m_ordered_rec_buffer;
-    uint i;
-    for (i= bitmap_get_first_set(&m_part_info->read_partitions);
-         i < m_tot_parts;
-         i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    DBUG_PRINT("info", ("init rec-buf for part %u", i));
+    if (table->s->blob_fields)
     {
-      DBUG_PRINT("info", ("init rec-buf for part %u", i));
-      int2store(ptr, i);
-      ptr+= m_priority_queue_rec_len;
+      for (uint j= 0; j < table->s->blob_fields; ++j, ++objs)
+        blob_storage[j]= new (objs) Ordered_blob_storage;
+      *((Ordered_blob_storage ***) ptr)= blob_storage;
+      blob_storage+= table->s->blob_fields;
     }
-    m_start_key.key= (const uchar*)ptr;
+    int2store(ptr + sizeof(String **), i);
+    ptr+= m_priority_queue_rec_len;
+  }
+  m_start_key.key= (const uchar*)ptr;
 
-    /* Initialize priority queue, initialized to reading forward. */
-    int (*cmp_func)(void *, uchar *, uchar *);
-    void *cmp_arg= (void*) this;
-    if (!m_using_extended_keys && !(table_flags() & HA_SLOW_CMP_REF))
-      cmp_func= cmp_key_rowid_part_id;
-    else
-      cmp_func= cmp_key_part_id;
-    DBUG_PRINT("info", ("partition queue_init(1) used_parts: %u", used_parts));
-    if (init_queue(&m_queue, used_parts, 0, 0, cmp_func, cmp_arg, 0, 0))
-    {
-      my_free(m_ordered_rec_buffer);
-      m_ordered_rec_buffer= NULL;
-      DBUG_RETURN(true);
-    }
+  /* Initialize priority queue, initialized to reading forward. */
+  int (*cmp_func)(void *, uchar *, uchar *);
+  void *cmp_arg= (void*) this;
+  if (!m_using_extended_keys && !(table_flags() & HA_SLOW_CMP_REF))
+    cmp_func= cmp_key_rowid_part_id;
+  else
+    cmp_func= cmp_key_part_id;
+  DBUG_PRINT("info", ("partition queue_init(1) used_parts: %u", used_parts));
+  if (init_queue(&m_queue, used_parts, ORDERED_PART_NUM_OFFSET,
+                 0, cmp_func, cmp_arg, 0, 0))
+  {
+    my_free(m_ordered_rec_buffer);
+    m_ordered_rec_buffer= NULL;
+    DBUG_RETURN(true);
   }
   DBUG_RETURN(false);
 }
@@ -5306,6 +5365,20 @@ void ha_partition::destroy_record_priority_queue()
   DBUG_ENTER("ha_partition::destroy_record_priority_queue");
   if (m_ordered_rec_buffer)
   {
+    if (table->s->blob_fields)
+    {
+      char *ptr= (char *) m_ordered_rec_buffer;
+      for (uint i= bitmap_get_first_set(&m_part_info->read_partitions);
+            i < m_tot_parts;
+            i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+      {
+        Ordered_blob_storage **blob_storage= *((Ordered_blob_storage ***) ptr);
+        for (uint b= 0; b < table->s->blob_fields; ++b)
+          blob_storage[b]->blob.free();
+        ptr+= m_priority_queue_rec_len;
+      }
+    }
+
     delete_queue(&m_queue);
     my_free(m_ordered_rec_buffer);
     m_ordered_rec_buffer= NULL;
@@ -5394,8 +5467,7 @@ int ha_partition::index_init(uint inx, bool sorted)
     do
     {
       for (i= 0; i < (*key_info)->user_defined_key_parts; i++)
-        bitmap_set_bit(table->read_set,
-                       (*key_info)->key_part[i].field->field_index);
+        (*key_info)->key_part[i].field->register_field_in_read_map();
     } while (*(++key_info));
   }
   for (i= bitmap_get_first_set(&m_part_info->read_partitions);
@@ -5458,6 +5530,13 @@ int ha_partition::index_end()
     {
       int tmp;
       if ((tmp= (*file)->ha_index_end()))
+        error= tmp;
+    }
+    else if ((*file)->inited == RND)
+    {
+      // Possible due to MRR
+      int tmp;
+      if ((tmp= (*file)->ha_rnd_end()))
         error= tmp;
     }
   } while (*(++file));
@@ -5527,12 +5606,10 @@ static int cmp_part_ids(uchar *ref1, uchar *ref2)
 extern "C" int cmp_key_part_id(void *ptr, uchar *ref1, uchar *ref2)
 {
   ha_partition *file= (ha_partition*)ptr;
-  int res;
-  if ((res= key_rec_cmp(file->m_curr_key_info, ref1 + PARTITION_BYTES_IN_POS,
-                        ref2 + PARTITION_BYTES_IN_POS)))
-  {
+  if (int res= key_rec_cmp(file->m_curr_key_info,
+                           ref1 + PARTITION_BYTES_IN_POS,
+                           ref2 + PARTITION_BYTES_IN_POS))
     return res;
-  }
   return cmp_part_ids(ref1, ref2);
 }
 
@@ -5550,8 +5627,9 @@ extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2)
   {
     return res;
   }
-  if ((res= file->m_file[0]->cmp_ref(ref1 + PARTITION_BYTES_IN_POS + file->m_rec_length,
-                                     ref2 + PARTITION_BYTES_IN_POS + file->m_rec_length)))
+  if ((res= file->get_open_file_sample()->cmp_ref(ref1 +
+          PARTITION_BYTES_IN_POS + file->m_rec_length,
+          ref2 + PARTITION_BYTES_IN_POS + file->m_rec_length)))
   {
     return res;
   }
@@ -5759,12 +5837,6 @@ int ha_partition::index_read_idx_map(uchar *buf, uint index,
 
     get_partition_set(table, buf, index, &m_start_key, &m_part_spec);
 
-    /*
-      We have either found exactly 1 partition
-      (in which case start_part == end_part)
-      or no matching partitions (start_part > end_part)
-    */
-    DBUG_ASSERT(m_part_spec.start_part >= m_part_spec.end_part);
     /* The start part is must be marked as used. */
     DBUG_ASSERT(m_part_spec.start_part > m_part_spec.end_part ||
                 bitmap_is_set(&(m_part_info->read_partitions),
@@ -6207,7 +6279,7 @@ static range_seq_t partition_multi_range_key_init(void *init_params,
   ha_partition *partition= hld->partition;
   uint i= hld->part_id;
   DBUG_ENTER("partition_multi_range_key_init");
-  partition->m_mrr_range_init_flags= flags;
+  // not used: partition->m_mrr_range_init_flags= flags;
   hld->partition_part_key_multi_range= partition->m_part_mrr_range_first[i];
   DBUG_RETURN(init_params);
 }
@@ -6236,9 +6308,10 @@ static bool partition_multi_range_key_skip_record(range_seq_t seq,
 {
   PARTITION_PART_KEY_MULTI_RANGE_HLD *hld=
     (PARTITION_PART_KEY_MULTI_RANGE_HLD *)seq;
+  PARTITION_KEY_MULTI_RANGE *pkmr= (PARTITION_KEY_MULTI_RANGE *)range_info;
   DBUG_ENTER("partition_multi_range_key_skip_record");
   DBUG_RETURN(hld->partition->m_seq_if->skip_record(hld->partition->m_seq,
-                                                    range_info, rowid));
+                                                    pkmr->ptr, rowid));
 }
 
 
@@ -6247,9 +6320,10 @@ static bool partition_multi_range_key_skip_index_tuple(range_seq_t seq,
 {
   PARTITION_PART_KEY_MULTI_RANGE_HLD *hld=
     (PARTITION_PART_KEY_MULTI_RANGE_HLD *)seq;
+  PARTITION_KEY_MULTI_RANGE *pkmr= (PARTITION_KEY_MULTI_RANGE *)range_info;
   DBUG_ENTER("partition_multi_range_key_skip_index_tuple");
   DBUG_RETURN(hld->partition->m_seq_if->skip_index_tuple(hld->partition->m_seq,
-                                                         range_info));
+                                                         pkmr->ptr));
 }
 
 ha_rows ha_partition::multi_range_read_info_const(uint keyno,
@@ -6266,11 +6340,14 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
   uint ret_mrr_mode= 0;
   range_seq_t seq_it;
   part_id_range save_part_spec;
+  Cost_estimate part_cost;
   DBUG_ENTER("ha_partition::multi_range_read_info_const");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
   m_mrr_new_full_buffer_size= 0;
   save_part_spec= m_part_spec;
+
+  cost->reset();
 
   seq_it= seq->init(seq_init_param, n_ranges, *mrr_mode);
   if (unlikely((error= multi_range_key_create_key(seq, seq_it))))
@@ -6278,7 +6355,7 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
     if (likely(error == HA_ERR_END_OF_FILE))    // No keys in range
     {
       rows= 0;
-      goto calc_cost;
+      goto end;
     }
     /*
       This error means that we can't do multi_range_read for the moment
@@ -6307,18 +6384,20 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
       ha_rows tmp_rows;
       uint tmp_mrr_mode;
       m_mrr_buffer_size[i]= 0;
+      part_cost.reset();
       tmp_mrr_mode= *mrr_mode;
       tmp_rows= (*file)->
         multi_range_read_info_const(keyno, &m_part_seq_if,
                                     &m_partition_part_key_multi_range_hld[i],
                                     m_part_mrr_range_length[i],
                                     &m_mrr_buffer_size[i],
-                                    &tmp_mrr_mode, cost);
+                                    &tmp_mrr_mode, &part_cost);
       if (tmp_rows == HA_POS_ERROR)
       {
         m_part_spec= save_part_spec;
         DBUG_RETURN(HA_POS_ERROR);
       }
+      cost->add(&part_cost);
       rows+= tmp_rows;
       ret_mrr_mode|= tmp_mrr_mode;
       m_mrr_new_full_buffer_size+= m_mrr_buffer_size[i];
@@ -6326,15 +6405,8 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
   } while (*(++file));
   *mrr_mode= ret_mrr_mode;
 
-calc_cost:
+end:
   m_part_spec= save_part_spec;
-  cost->reset();
-  cost->avg_io_cost= 1;
-  if ((*mrr_mode & HA_MRR_INDEX_ONLY) && rows > 2)
-    cost->io_count= keyread_time(keyno, n_ranges, (uint) rows);
-  else
-    cost->io_count= read_time(keyno, n_ranges, rows);
-  cost->cpu_cost= (double) rows / TIME_FOR_COMPARE + 0.01;
   DBUG_RETURN(rows);
 }
 
@@ -6347,9 +6419,12 @@ ha_rows ha_partition::multi_range_read_info(uint keyno, uint n_ranges,
 {
   uint i;
   handler **file;
-  ha_rows rows;
+  ha_rows rows= 0;
+  Cost_estimate part_cost;
   DBUG_ENTER("ha_partition::multi_range_read_info");
   DBUG_PRINT("enter", ("partition this: %p", this));
+
+  cost->reset();
 
   m_mrr_new_full_buffer_size= 0;
   file= m_file;
@@ -6358,22 +6433,20 @@ ha_rows ha_partition::multi_range_read_info(uint keyno, uint n_ranges,
     i= (uint)(file - m_file);
     if (bitmap_is_set(&(m_part_info->read_partitions), (i)))
     {
+      ha_rows tmp_rows;
       m_mrr_buffer_size[i]= 0;
-      if ((rows= (*file)->multi_range_read_info(keyno, n_ranges, keys,
-                                                key_parts,
-                                                &m_mrr_buffer_size[i],
-                                                mrr_mode, cost)))
+      part_cost.reset();
+      if ((tmp_rows= (*file)->multi_range_read_info(keyno, n_ranges, keys,
+                                                    key_parts,
+                                                    &m_mrr_buffer_size[i],
+                                                    mrr_mode, &part_cost)))
         DBUG_RETURN(rows);
+      cost->add(&part_cost);
+      rows+= tmp_rows;
       m_mrr_new_full_buffer_size+= m_mrr_buffer_size[i];
     }
   } while (*(++file));
 
-  cost->reset();
-  cost->avg_io_cost= 1;
-  if (*mrr_mode & HA_MRR_INDEX_ONLY)
-    cost->io_count= keyread_time(keyno, n_ranges, (uint) rows);
-  else
-    cost->io_count= read_time(keyno, n_ranges, rows);
   DBUG_RETURN(0);
 }
 
@@ -6390,6 +6463,7 @@ int ha_partition::multi_range_read_init(RANGE_SEQ_IF *seq,
   DBUG_ENTER("ha_partition::multi_range_read_init");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
+  eq_range= 0;
   m_seq_if= seq;
   m_seq= seq->init(seq_init_param, n_ranges, mrr_mode);
   if (unlikely((error= multi_range_key_create_key(seq, m_seq))))
@@ -6501,8 +6575,11 @@ int ha_partition::multi_range_read_next(range_id_t *range_info)
     else if (unlikely((error= handle_unordered_next(table->record[0], FALSE))))
       DBUG_RETURN(error);
 
-    *range_info=
-      ((PARTITION_KEY_MULTI_RANGE *) m_range_info[m_last_part])->ptr;
+    if (!(m_mrr_mode & HA_MRR_NO_ASSOCIATION))
+    {
+      *range_info=
+        ((PARTITION_KEY_MULTI_RANGE *) m_range_info[m_last_part])->ptr;
+    }
   }
   DBUG_RETURN(0);
 }
@@ -6781,6 +6858,48 @@ int ha_partition::pre_ft_end()
 }
 
 
+void ha_partition::swap_blobs(uchar * rec_buf, Ordered_blob_storage ** storage, bool restore)
+{
+  uint *ptr, *end;
+  uint blob_n= 0;
+  table->move_fields(table->field, rec_buf, table->record[0]);
+  for (ptr= table->s->blob_field, end= ptr + table->s->blob_fields;
+       ptr != end; ++ptr, ++blob_n)
+  {
+    DBUG_ASSERT(*ptr < table->s->fields);
+    Field_blob *blob= (Field_blob*) table->field[*ptr];
+    DBUG_ASSERT(blob->flags & BLOB_FLAG);
+    DBUG_ASSERT(blob->field_index == *ptr);
+    if (!bitmap_is_set(table->read_set, *ptr) || blob->is_null())
+      continue;
+
+    Ordered_blob_storage &s= *storage[blob_n];
+
+    if (restore)
+    {
+      /*
+        We protect only blob cache (value or read_value). If the cache was
+        empty that doesn't mean the blob was empty. Blobs allocated by a
+        storage engine should work just fine.
+      */
+      if (!s.blob.is_empty())
+        blob->swap(s.blob, s.set_read_value);
+    }
+    else
+    {
+      bool set_read_value;
+      String *cached= blob->cached(&set_read_value);
+      if (cached)
+      {
+        cached->swap(s.blob);
+        s.set_read_value= set_read_value;
+      }
+    }
+  }
+  table->move_fields(table->field, table->record[0], rec_buf);
+}
+
+
 /**
   Initialize a full text search using the extended API.
 
@@ -7034,8 +7153,8 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
     DBUG_ASSERT(m_part_spec.start_part < m_tot_parts);
     m_ordered_scan_ongoing= m_ordered;
   }
-  DBUG_ASSERT(m_part_spec.start_part < m_tot_parts &&
-              m_part_spec.end_part < m_tot_parts);
+  DBUG_ASSERT(m_part_spec.start_part < m_tot_parts);
+  DBUG_ASSERT(m_part_spec.end_part < m_tot_parts);
   DBUG_RETURN(0);
 }
 
@@ -7494,8 +7613,8 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
   {
     DBUG_PRINT("info", ("reading from part %u (scan_type: %u)",
                         i, m_index_scan_type));
-    DBUG_ASSERT(i == uint2korr(part_rec_buf_ptr));
-    uchar *rec_buf_ptr= part_rec_buf_ptr + PARTITION_BYTES_IN_POS;
+    DBUG_ASSERT(i == uint2korr(part_rec_buf_ptr + ORDERED_PART_NUM_OFFSET));
+    uchar *rec_buf_ptr= part_rec_buf_ptr + ORDERED_REC_OFFSET;
     handler *file= m_file[i];
 
     switch (m_index_scan_type) {
@@ -7575,6 +7694,12 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
         Initialize queue without order first, simply insert
       */
       queue_element(&m_queue, j++)= part_rec_buf_ptr;
+      if (table->s->blob_fields)
+      {
+        Ordered_blob_storage **storage=
+          *((Ordered_blob_storage ***) part_rec_buf_ptr);
+        swap_blobs(rec_buf_ptr, storage, false);
+      }
     }
     else if (error == HA_ERR_KEY_NOT_FOUND)
     {
@@ -7617,7 +7742,7 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
         DBUG_PRINT("info", ("partition !bitmap_is_set(&m_mrr_used_partitions, i)"));
         continue;
       }
-      DBUG_ASSERT(i == uint2korr(part_rec_buf_ptr));
+      DBUG_ASSERT(i == uint2korr(part_rec_buf_ptr + ORDERED_PART_NUM_OFFSET));
       if (smallest_range_seq == m_stock_range_seq[i])
       {
         m_stock_range_seq[i]= 0;
@@ -7664,12 +7789,17 @@ void ha_partition::return_top_record(uchar *buf)
 {
   uint part_id;
   uchar *key_buffer= queue_top(&m_queue);
-  uchar *rec_buffer= key_buffer + PARTITION_BYTES_IN_POS;
+  uchar *rec_buffer= key_buffer + ORDERED_REC_OFFSET;
   DBUG_ENTER("ha_partition::return_top_record");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
-  part_id= uint2korr(key_buffer);
+  part_id= uint2korr(key_buffer + ORDERED_PART_NUM_OFFSET);
   memcpy(buf, rec_buffer, m_rec_length);
+  if (table->s->blob_fields)
+  {
+    Ordered_blob_storage **storage= *((Ordered_blob_storage ***) key_buffer);
+    swap_blobs(buf, storage, true);
+  }
   m_last_part= part_id;
   DBUG_PRINT("info", ("partition m_last_part: %u", m_last_part));
   m_top_entry= part_id;
@@ -7721,7 +7851,7 @@ int ha_partition::handle_ordered_index_scan_key_not_found()
         This partition is used and did return HA_ERR_KEY_NOT_FOUND
         in index_read_map.
       */
-      curr_rec_buf= part_buf + PARTITION_BYTES_IN_POS;
+      curr_rec_buf= part_buf + ORDERED_REC_OFFSET;
       error= m_file[i]->ha_index_next(curr_rec_buf);
       /* HA_ERR_KEY_NOT_FOUND is not allowed from index_next! */
       DBUG_ASSERT(error != HA_ERR_KEY_NOT_FOUND);
@@ -7772,7 +7902,8 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   uint part_id= m_top_entry;
-  uchar *rec_buf= queue_top(&m_queue) + PARTITION_BYTES_IN_POS;
+  uchar *part_rec_buf_ptr= queue_top(&m_queue);
+  uchar *rec_buf= part_rec_buf_ptr + ORDERED_REC_OFFSET;
   handler *file;
 
   if (m_key_not_found)
@@ -7814,7 +7945,16 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
   if (m_index_scan_type == partition_read_range)
   {
     error= file->read_range_next();
-    memcpy(rec_buf, table->record[0], m_rec_length);
+    if (likely(!error))
+    {
+      memcpy(rec_buf, table->record[0], m_rec_length);
+      if (table->s->blob_fields)
+      {
+        Ordered_blob_storage **storage=
+          *((Ordered_blob_storage ***) part_rec_buf_ptr);
+        swap_blobs(rec_buf, storage, false);
+      }
+    }
   }
   else if (m_index_scan_type == partition_read_multi_range)
   {
@@ -7851,6 +7991,11 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
       DBUG_PRINT("info", ("m_mrr_range_current->id: %u",
                           m_mrr_range_current->id));
       memcpy(rec_buf, table->record[0], m_rec_length);
+      if (table->s->blob_fields)
+      {
+        Ordered_blob_storage **storage= *((Ordered_blob_storage ***) part_rec_buf_ptr);
+        swap_blobs(rec_buf, storage, false);
+      }
       if (((PARTITION_KEY_MULTI_RANGE *) m_range_info[part_id])->id !=
           m_mrr_range_current->id)
       {
@@ -7901,9 +8046,8 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
             DBUG_PRINT("info",("partition !bitmap_is_set(&m_mrr_used_partitions, i)"));
             continue;
           }
-          DBUG_PRINT("info",("partition uint2korr: %u",
-                             uint2korr(part_rec_buf_ptr)));
-          DBUG_ASSERT(i == uint2korr(part_rec_buf_ptr));
+          DBUG_ASSERT(i == uint2korr(part_rec_buf_ptr +
+                                     ORDERED_PART_NUM_OFFSET));
           DBUG_PRINT("info", ("partition m_stock_range_seq[%u]: %u",
                               i, m_stock_range_seq[i]));
           if (smallest_range_seq == m_stock_range_seq[i])
@@ -7992,7 +8136,7 @@ int ha_partition::handle_ordered_prev(uchar *buf)
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   uint part_id= m_top_entry;
-  uchar *rec_buf= queue_top(&m_queue) + PARTITION_BYTES_IN_POS;
+  uchar *rec_buf= queue_top(&m_queue) + ORDERED_REC_OFFSET;
   handler *file= m_file[part_id];
 
   if (unlikely((error= file->ha_index_prev(rec_buf))))
@@ -8123,6 +8267,7 @@ int ha_partition::info(uint flag)
   if (flag & HA_STATUS_AUTO)
   {
     bool auto_inc_is_first_in_idx= (table_share->next_number_keypart == 0);
+    bool all_parts_opened= true;
     DBUG_PRINT("info", ("HA_STATUS_AUTO"));
     if (!table->found_next_number_field)
       stats.auto_increment_value= 0;
@@ -8153,6 +8298,15 @@ int ha_partition::info(uint flag)
                    ("checking all partitions for auto_increment_value"));
         do
         {
+          if (!bitmap_is_set(&m_opened_partitions, (uint)(file_array - m_file)))
+          {
+            /*
+              Some partitions aren't opened.
+              So we can't calculate the autoincrement.
+            */
+            all_parts_opened= false;
+            break;
+          }
           file= *file_array;
           file->info(HA_STATUS_AUTO | no_lock_flag);
           set_if_bigger(auto_increment_value,
@@ -8161,7 +8315,7 @@ int ha_partition::info(uint flag)
 
         DBUG_ASSERT(auto_increment_value);
         stats.auto_increment_value= auto_increment_value;
-        if (auto_inc_is_first_in_idx)
+        if (all_parts_opened && auto_inc_is_first_in_idx)
         {
           set_if_bigger(part_share->next_auto_inc_val,
                         auto_increment_value);
@@ -8202,8 +8356,10 @@ int ha_partition::info(uint flag)
     stats.deleted= 0;
     stats.data_file_length= 0;
     stats.index_file_length= 0;
-    stats.check_time= 0;
     stats.delete_length= 0;
+    stats.check_time= 0;
+    stats.checksum= 0;
+    stats.checksum_null= TRUE;
     for (i= bitmap_get_first_set(&m_part_info->read_partitions);
          i < m_tot_parts;
          i= bitmap_get_next_set(&m_part_info->read_partitions, i))
@@ -8217,6 +8373,11 @@ int ha_partition::info(uint flag)
       stats.delete_length+= file->stats.delete_length;
       if (file->stats.check_time > stats.check_time)
         stats.check_time= file->stats.check_time;
+      if (!file->stats.checksum_null)
+      {
+        stats.checksum+= file->stats.checksum;
+        stats.checksum_null= FALSE;
+      }
     }
     if (stats.records && stats.records < 2 &&
         !(m_file[0]->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT))
@@ -8281,6 +8442,7 @@ int ha_partition::info(uint flag)
     ulonglong max_records= 0;
     uint32 i= 0;
     uint32 handler_instance= 0;
+    bool handler_instance_set= 0;
 
     file_array= m_file;
     do
@@ -8293,8 +8455,9 @@ int ha_partition::info(uint flag)
             !bitmap_is_set(&(m_part_info->read_partitions),
                            (uint) (file_array - m_file)))
           file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag);
-        if (file->stats.records > max_records)
+        if (file->stats.records > max_records || !handler_instance_set)
         {
+          handler_instance_set= 1;
           max_records= file->stats.records;
           handler_instance= i;
         }
@@ -8372,10 +8535,8 @@ void ha_partition::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->create_time=          file->stats.create_time;
   stat_info->update_time=          file->stats.update_time;
   stat_info->check_time=           file->stats.check_time;
-  stat_info->check_sum= 0;
-  if (file->ha_table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
-    stat_info->check_sum= file->checksum();
-  return;
+  stat_info->check_sum=            file->stats.checksum;
+  stat_info->check_sum_null=       file->stats.checksum_null;
 }
 
 
@@ -8463,6 +8624,7 @@ int ha_partition::change_partitions_to_open(List<String> *partition_names)
     return 0;
   }
 
+  check_insert_autoincrement();
   if (bitmap_cmp(&m_opened_partitions, &m_part_info->read_partitions) != 0)
     return 0;
 
@@ -8542,7 +8704,7 @@ static int end_keyread_cb(handler* h, void *unused)
        function after completing a query.
     3) It is called when deleting the QUICK_RANGE_SELECT object if the
        QUICK_RANGE_SELECT object had its own handler object. It is called
-       immediatley before close of this local handler object.
+       immediately before close of this local handler object.
   HA_EXTRA_KEYREAD:
   HA_EXTRA_NO_KEYREAD:
     These parameters are used to provide an optimisation hint to the handler.
@@ -8579,7 +8741,7 @@ static int end_keyread_cb(handler* h, void *unused)
   HA_EXTRA_IGNORE_DUP_KEY:
   HA_EXTRA_NO_IGNORE_DUP_KEY:
     Informs the handler to we will not stop the transaction if we get an
-    duplicate key errors during insert/upate.
+    duplicate key errors during insert/update.
     Always called in pair, triggered by INSERT IGNORE and other similar
     SQL constructs.
     Not used by MyISAM.
@@ -8968,7 +9130,6 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
   case HA_EXTRA_BEGIN_ALTER_COPY:
   case HA_EXTRA_END_ALTER_COPY:
-  case HA_EXTRA_FAKE_START_STMT:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {
@@ -9184,7 +9345,6 @@ void ha_partition::late_extra_cache(uint partition_id)
   }
   if (m_extra_prepare_for_update)
   {
-    DBUG_ASSERT(m_extra_cache);
     (void) file->extra(HA_EXTRA_PREPARE_FOR_UPDATE);
   }
   m_extra_cache_part_id= partition_id;
@@ -9342,6 +9502,43 @@ double ha_partition::scan_time()
 
 
 /**
+  @brief
+  Caculate time to scan the given index (index only scan)
+
+  @param inx      Index number to scan
+
+  @return time for scanning index inx
+*/
+
+double ha_partition::key_scan_time(uint inx)
+{
+  double scan_time= 0;
+  uint i;
+  DBUG_ENTER("ha_partition::key_scan_time");
+  for (i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    scan_time+= m_file[i]->key_scan_time(inx);
+  DBUG_RETURN(scan_time);
+}
+
+
+double ha_partition::keyread_time(uint inx, uint ranges, ha_rows rows)
+{
+  double read_time= 0;
+  uint i;
+  DBUG_ENTER("ha_partition::keyread_time");
+  if (!ranges)
+    DBUG_RETURN(handler::keyread_time(inx, ranges, rows));
+  for (i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    read_time+= m_file[i]->keyread_time(inx, ranges, rows);
+  DBUG_RETURN(read_time);
+}
+
+
+/**
   Find number of records in a range.
   @param inx      Index number
   @param min_key  Start of range
@@ -9469,7 +9666,6 @@ double ha_partition::read_time(uint index, uint ranges, ha_rows rows)
 
 ha_rows ha_partition::records()
 {
-  int error;
   ha_rows tot_rows= 0;
   uint i;
   DBUG_ENTER("ha_partition::records");
@@ -9478,9 +9674,10 @@ ha_rows ha_partition::records()
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
   {
-    ha_rows rows;
-    if (unlikely((error= m_file[i]->pre_records()) ||
-                 (rows= m_file[i]->records()) == HA_POS_ERROR))
+    if (unlikely(m_file[i]->pre_records()))
+      DBUG_RETURN(HA_POS_ERROR);
+    const ha_rows rows= m_file[i]->records();
+    if (unlikely(rows == HA_POS_ERROR))
       DBUG_RETURN(HA_POS_ERROR);
     tot_rows+= rows;
   }
@@ -9531,7 +9728,7 @@ uint8 ha_partition::table_cache_type()
 {
   DBUG_ENTER("ha_partition::table_cache_type");
 
-  DBUG_RETURN(m_file[0]->table_cache_type());
+  DBUG_RETURN(get_open_file_sample()->table_cache_type());
 }
 
 
@@ -9778,7 +9975,7 @@ void ha_partition::print_error(int error, myf errflag)
       append_row_to_str(str);
 
       /* Log this error, so the DBA can notice it and fix it! */
-      sql_print_error("Table '%-192s' corrupted: row in wrong partition: %s\n"
+      sql_print_error("Table '%-192s' corrupted: row in wrong partition: %s"
                       "Please REPAIR the table!",
                       table->s->table_name.str,
                       str.c_ptr_safe());
@@ -9952,7 +10149,8 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
                                                Alter_inplace_info *ha_alter_info)
 {
   uint index= 0;
-  enum_alter_inplace_result result= HA_ALTER_INPLACE_NO_LOCK;
+  enum_alter_inplace_result result;
+  alter_table_operations orig_ops;
   ha_partition_inplace_ctx *part_inplace_ctx;
   bool first_is_set= false;
   THD *thd= ha_thd();
@@ -9979,33 +10177,35 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
   if (!part_inplace_ctx->handler_ctx_array)
     DBUG_RETURN(HA_ALTER_ERROR);
 
-  /* Set all to NULL, including the terminating one. */
-  for (index= 0; index <= m_tot_parts; index++)
-    part_inplace_ctx->handler_ctx_array[index]= NULL;
+  do {
+    result= HA_ALTER_INPLACE_NO_LOCK;
+    /* Set all to NULL, including the terminating one. */
+    for (index= 0; index <= m_tot_parts; index++)
+       part_inplace_ctx->handler_ctx_array[index]= NULL;
 
-  ha_alter_info->handler_flags |= ALTER_PARTITIONED;
-  for (index= 0; index < m_tot_parts; index++)
-  {
-    enum_alter_inplace_result p_result=
-      m_file[index]->check_if_supported_inplace_alter(altered_table,
-                                                      ha_alter_info);
-    part_inplace_ctx->handler_ctx_array[index]= ha_alter_info->handler_ctx;
+    ha_alter_info->handler_flags |= ALTER_PARTITIONED;
+    orig_ops= ha_alter_info->handler_flags;
+    for (index= 0; index < m_tot_parts; index++)
+    {
+      enum_alter_inplace_result p_result=
+        m_file[index]->check_if_supported_inplace_alter(altered_table,
+                                                        ha_alter_info);
+      part_inplace_ctx->handler_ctx_array[index]= ha_alter_info->handler_ctx;
 
-    if (index == 0)
-    {
-      first_is_set= (ha_alter_info->handler_ctx != NULL);
+      if (index == 0)
+        first_is_set= (ha_alter_info->handler_ctx != NULL);
+      else if (first_is_set != (ha_alter_info->handler_ctx != NULL))
+      {
+        /* Either none or all partitions must set handler_ctx! */
+        DBUG_ASSERT(0);
+        DBUG_RETURN(HA_ALTER_ERROR);
+      }
+      if (p_result < result)
+        result= p_result;
+      if (result == HA_ALTER_ERROR)
+        break;
     }
-    else if (first_is_set != (ha_alter_info->handler_ctx != NULL))
-    {
-      /* Either none or all partitions must set handler_ctx! */
-      DBUG_ASSERT(0);
-      DBUG_RETURN(HA_ALTER_ERROR);
-    }
-    if (p_result < result)
-      result= p_result;
-    if (result == HA_ALTER_ERROR)
-      break;
-  }
+  } while (orig_ops != ha_alter_info->handler_flags);
 
   ha_alter_info->handler_ctx= part_inplace_ctx;
   /*
@@ -10031,7 +10231,7 @@ bool ha_partition::prepare_inplace_alter_table(TABLE *altered_table,
 
   /*
     Changing to similar partitioning, only update metadata.
-    Non allowed changes would be catched in prep_alter_part_table().
+    Non allowed changes would be caought in prep_alter_part_table().
   */
   if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
   {
@@ -10067,7 +10267,7 @@ bool ha_partition::inplace_alter_table(TABLE *altered_table,
 
   /*
     Changing to similar partitioning, only update metadata.
-    Non allowed changes would be catched in prep_alter_part_table().
+    Non allowed changes would be caught in prep_alter_part_table().
   */
   if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
   {
@@ -10080,7 +10280,12 @@ bool ha_partition::inplace_alter_table(TABLE *altered_table,
 
   for (index= 0; index < m_tot_parts && !error; index++)
   {
-    ha_alter_info->handler_ctx= part_inplace_ctx->handler_ctx_array[index];
+    if ((ha_alter_info->handler_ctx=
+	 part_inplace_ctx->handler_ctx_array[index]) != NULL
+	&& index != 0)
+      ha_alter_info->handler_ctx->set_shared_data
+	(*part_inplace_ctx->handler_ctx_array[index - 1]);
+
     if (m_file[index]->ha_inplace_alter_table(altered_table,
                                               ha_alter_info))
       error= true;
@@ -10110,7 +10315,7 @@ bool ha_partition::commit_inplace_alter_table(TABLE *altered_table,
 
   /*
     Changing to similar partitioning, only update metadata.
-    Non allowed changes would be catched in prep_alter_part_table().
+    Non allowed changes would be caught in prep_alter_part_table().
   */
   if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
   {
@@ -10420,7 +10625,8 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
   DBUG_PRINT("enter", ("offset: %lu  inc: %lu  desired_values: %lu  "
                        "first_value: %lu", (ulong) offset, (ulong) increment,
                       (ulong) nb_desired_values, (ulong) *first_value));
-  DBUG_ASSERT(increment && nb_desired_values);
+  DBUG_ASSERT(increment);
+  DBUG_ASSERT(nb_desired_values);
   *first_value= 0;
   if (table->s->next_number_keypart)
   {
@@ -10511,31 +10717,37 @@ void ha_partition::release_auto_increment()
       m_file[i]->ha_release_auto_increment();
     }
   }
-  else if (next_insert_id)
+  else
   {
-    ulonglong next_auto_inc_val;
     lock_auto_increment();
-    next_auto_inc_val= part_share->next_auto_inc_val;
-    /*
-      If the current auto_increment values is lower than the reserved
-      value, and the reserved value was reserved by this thread,
-      we can lower the reserved value.
-    */
-    if (next_insert_id < next_auto_inc_val &&
-        auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val)
+    if (next_insert_id)
     {
-      THD *thd= ha_thd();
+      ulonglong next_auto_inc_val= part_share->next_auto_inc_val;
       /*
-        Check that we do not lower the value because of a failed insert
-        with SET INSERT_ID, i.e. forced/non generated values.
+        If the current auto_increment values is lower than the reserved
+        value, and the reserved value was reserved by this thread,
+        we can lower the reserved value.
       */
-      if (thd->auto_inc_intervals_forced.maximum() < next_insert_id)
-        part_share->next_auto_inc_val= next_insert_id;
+      if (next_insert_id < next_auto_inc_val &&
+          auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val)
+      {
+        THD *thd= ha_thd();
+        /*
+          Check that we do not lower the value because of a failed insert
+          with SET INSERT_ID, i.e. forced/non generated values.
+        */
+        if (thd->auto_inc_intervals_forced.maximum() < next_insert_id)
+          part_share->next_auto_inc_val= next_insert_id;
+      }
+      DBUG_PRINT("info", ("part_share->next_auto_inc_val: %lu",
+                          (ulong) part_share->next_auto_inc_val));
     }
-    DBUG_PRINT("info", ("part_share->next_auto_inc_val: %lu",
-                        (ulong) part_share->next_auto_inc_val));
-
-    /* Unlock the multi row statement lock taken in get_auto_increment */
+    /*
+      Unlock the multi-row statement lock taken in get_auto_increment.
+      These actions must be performed even if the next_insert_id field
+      contains zero, otherwise if the update_auto_increment fails then
+      an unnecessary lock will remain:
+    */
     if (auto_increment_safe_stmt_log_lock)
     {
       auto_increment_safe_stmt_log_lock= FALSE;
@@ -10558,23 +10770,60 @@ void ha_partition::init_table_handle_for_HANDLER()
 
 
 /**
-  Return the checksum of the table (all partitions)
+  Calculate the checksum of the table (all partitions)
 */
 
-uint ha_partition::checksum() const
+int ha_partition::pre_calculate_checksum()
 {
-  ha_checksum sum= 0;
-
-  DBUG_ENTER("ha_partition::checksum");
+  int error;
+  DBUG_ENTER("ha_partition::pre_calculate_checksum");
+  m_pre_calling= TRUE;
   if ((table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM)))
   {
     handler **file= m_file;
     do
     {
-      sum+= (*file)->checksum();
+      if ((error= (*file)->pre_calculate_checksum()))
+      {
+        DBUG_RETURN(error);
+      }
     } while (*(++file));
   }
-  DBUG_RETURN(sum);
+  DBUG_RETURN(0);
+}
+
+
+int ha_partition::calculate_checksum()
+{
+  int error;
+  stats.checksum= 0;
+  stats.checksum_null= TRUE;
+
+  DBUG_ENTER("ha_partition::calculate_checksum");
+  if (!m_pre_calling)
+  {
+    if ((error= pre_calculate_checksum()))
+    {
+      m_pre_calling= FALSE;
+      DBUG_RETURN(error);
+    }
+  }
+  m_pre_calling= FALSE;
+
+  handler **file= m_file;
+  do
+  {
+    if ((error= (*file)->calculate_checksum()))
+    {
+      DBUG_RETURN(error);
+    }
+    if (!(*file)->stats.checksum_null)
+    {
+      stats.checksum+= (*file)->stats.checksum;
+      stats.checksum_null= FALSE;
+    }
+  } while (*(++file));
+  DBUG_RETURN(0);
 }
 
 
@@ -10664,8 +10913,8 @@ int ha_partition::indexes_are_disabled(void)
   @param repair        If true, move misplaced rows to correct partition.
 
   @return Operation status.
-    @retval 0     Success
-    @retval != 0  Error
+    @retval HA_ADMIN_OK     Success
+    @retval != HA_ADMIN_OK  Error
 */
 
 int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
@@ -10678,6 +10927,14 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
   DBUG_ENTER("ha_partition::check_misplaced_rows");
 
   DBUG_ASSERT(m_file);
+
+  if (m_part_info->vers_info &&
+      read_part_id != m_part_info->vers_info->now_part->id &&
+      !m_part_info->vers_info->interval.is_set())
+  {
+    /* Skip this check as it is not supported for non-INTERVAL history partitions. */
+    DBUG_RETURN(HA_ADMIN_OK);
+  }
 
   if (do_repair)
   {
@@ -10961,7 +11218,7 @@ TABLE_LIST *ha_partition::get_next_global_for_child()
 
 const COND *ha_partition::cond_push(const COND *cond)
 {
-  handler **file= m_file;
+  uint i;
   COND *res_cond= NULL;
   DBUG_ENTER("ha_partition::cond_push");
 
@@ -10971,26 +11228,35 @@ const COND *ha_partition::cond_push(const COND *cond)
       We want to do this in a separate loop to not come into a situation
       where we have only done cond_push() to some of the tables
     */
-    do
+    for (i= bitmap_get_first_set(&m_partitions_to_reset);
+         i < m_tot_parts;
+         i= bitmap_get_next_set(&m_partitions_to_reset, i))
     {
-      if (((*file)->set_top_table_and_fields(top_table,
-                                             top_table_field,
-                                             top_table_fields)))
-        DBUG_RETURN(cond);                      // Abort cond push, no error
-    } while (*(++file));
-    file= m_file;
+      if (bitmap_is_set(&m_opened_partitions, i))
+      {
+        if ((m_file[i]->set_top_table_and_fields(top_table,
+                                                 top_table_field,
+                                                 top_table_fields)))
+          DBUG_RETURN(cond);                      // Abort cond push, no error
+      }
+    }
   }
 
-  do
+  for (i= bitmap_get_first_set(&m_partitions_to_reset);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_partitions_to_reset, i))
   {
-    if ((*file)->pushed_cond != cond)
+    if (bitmap_is_set(&m_opened_partitions, i))
     {
-      if ((*file)->cond_push(cond))
-        res_cond= (COND *) cond;
-      else
-        (*file)->pushed_cond= cond;
+      if (m_file[i]->pushed_cond != cond)
+      {
+        if (m_file[i]->cond_push(cond))
+          res_cond= (COND *) cond;
+        else
+          m_file[i]->pushed_cond= cond;
+      }
     }
-  } while (*(++file));
+  }
   DBUG_RETURN(res_cond);
 }
 
@@ -11002,13 +11268,18 @@ const COND *ha_partition::cond_push(const COND *cond)
 
 void ha_partition::cond_pop()
 {
-  handler **file= m_file;
+  uint i;
   DBUG_ENTER("ha_partition::cond_pop");
 
-  do
+  for (i= bitmap_get_first_set(&m_partitions_to_reset);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_partitions_to_reset, i))
   {
-    (*file)->cond_pop();
-  } while (*(++file));
+    if (bitmap_is_set(&m_opened_partitions, i))
+    {
+      m_file[i]->cond_pop();
+    }
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -11035,6 +11306,7 @@ bool ha_partition::start_bulk_update()
 
   do
   {
+    bzero(&(*file)->copy_info, sizeof((*file)->copy_info));
     if ((*file)->start_bulk_update())
       DBUG_RETURN(TRUE);
   } while (*(++file));
@@ -11092,6 +11364,7 @@ int ha_partition::end_bulk_update()
     if ((tmp= (*file)->end_bulk_update()))
       error= tmp;
   } while (*(++file));
+  sum_copy_infos();
   DBUG_RETURN(error);
 }
 
@@ -11119,13 +11392,12 @@ int ha_partition::bulk_update_row(const uchar *old_data, const uchar *new_data,
   int error= 0;
   uint32 part_id;
   longlong func_value;
-  my_bitmap_map *old_map;
   DBUG_ENTER("ha_partition::bulk_update_row");
 
-  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   error= m_part_info->get_partition_id(m_part_info, &part_id,
                                        &func_value);
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   if (unlikely(error))
   {
     m_part_info->err_value= func_value;
@@ -11188,6 +11460,7 @@ int ha_partition::end_bulk_delete()
     if ((tmp= (*file)->end_bulk_delete()))
       error= tmp;
   } while (*(++file));
+  sum_copy_infos();
   DBUG_RETURN(error);
 }
 
@@ -11304,11 +11577,13 @@ int ha_partition::pre_direct_update_rows_init(List<Item> *update_fields)
     0                         Success
 */
 
-int ha_partition::direct_update_rows(ha_rows *update_rows_result)
+int ha_partition::direct_update_rows(ha_rows *update_rows_result,
+                                     ha_rows *found_rows_result)
 {
   int error;
   bool rnd_seq= FALSE;
   ha_rows update_rows= 0;
+  ha_rows found_rows= 0;
   uint32 i;
   DBUG_ENTER("ha_partition::direct_update_rows");
 
@@ -11320,6 +11595,7 @@ int ha_partition::direct_update_rows(ha_rows *update_rows_result)
   }
 
   *update_rows_result= 0;
+  *found_rows_result= 0;
   for (i= m_part_spec.start_part; i <= m_part_spec.end_part; i++)
   {
     handler *file= m_file[i];
@@ -11335,7 +11611,8 @@ int ha_partition::direct_update_rows(ha_rows *update_rows_result)
       }
       if (unlikely((error= (m_pre_calling ?
                             (file)->pre_direct_update_rows() :
-                            (file)->ha_direct_update_rows(&update_rows)))))
+                            (file)->ha_direct_update_rows(&update_rows,
+                                                          &found_rows)))))
       {
         if (rnd_seq)
         {
@@ -11347,6 +11624,7 @@ int ha_partition::direct_update_rows(ha_rows *update_rows_result)
         DBUG_RETURN(error);
       }
       *update_rows_result+= update_rows;
+      *found_rows_result+= found_rows;
     }
     if (rnd_seq)
     {
@@ -11382,7 +11660,7 @@ int ha_partition::pre_direct_update_rows()
   DBUG_ENTER("ha_partition::pre_direct_update_rows");
   save_m_pre_calling= m_pre_calling;
   m_pre_calling= TRUE;
-  error= direct_update_rows(&not_used);
+  error= direct_update_rows(&not_used, &not_used);
   m_pre_calling= save_m_pre_calling;
   DBUG_RETURN(error);
 }
@@ -11584,23 +11862,29 @@ int ha_partition::pre_direct_delete_rows()
 
 int ha_partition::info_push(uint info_type, void *info)
 {
-  int error= 0;
-  handler **file= m_file;
+  int error= 0, tmp;
+  uint i;
   DBUG_ENTER("ha_partition::info_push");
 
-  do
+  for (i= bitmap_get_first_set(&m_partitions_to_reset);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_partitions_to_reset, i))
   {
-    int tmp;
-    if ((tmp= (*file)->info_push(info_type, info)))
-      error= tmp;
-  } while (*(++file));
+    if (bitmap_is_set(&m_opened_partitions, i))
+    {
+      if ((tmp= m_file[i]->info_push(info_type, info)))
+      {
+        error= tmp;
+      }
+    }
+  }
   DBUG_RETURN(error);
 }
 
 
 void ha_partition::clear_top_table_fields()
 {
-  handler **file;
+  uint i;
   DBUG_ENTER("ha_partition::clear_top_table_fields");
 
   if (set_top_table_fields)
@@ -11609,12 +11893,53 @@ void ha_partition::clear_top_table_fields()
     top_table= NULL;
     top_table_field= NULL;
     top_table_fields= 0;
-    for (file= m_file; *file; file++)
-      (*file)->clear_top_table_fields();
+    for (i= bitmap_get_first_set(&m_partitions_to_reset);
+         i < m_tot_parts;
+         i= bitmap_get_next_set(&m_partitions_to_reset, i))
+    {
+      if (bitmap_is_set(&m_opened_partitions, i))
+      {
+        m_file[i]->clear_top_table_fields();
+      }
+    }
   }
   DBUG_VOID_RETURN;
 }
 
+bool
+ha_partition::can_convert_string(const Field_string* field,
+		                 const Column_definition& new_type) const
+{
+  for (uint index= 0; index < m_tot_parts; index++)
+  {
+    if (!m_file[index]->can_convert_string(field, new_type))
+      return false;
+  }
+  return true;
+}
+
+bool
+ha_partition::can_convert_varstring(const Field_varstring* field,
+		                    const Column_definition& new_type) const{
+  for (uint index= 0; index < m_tot_parts; index++)
+  {
+    if (!m_file[index]->can_convert_varstring(field, new_type))
+      return false;
+  }
+  return true;
+}
+
+bool
+ha_partition::can_convert_blob(const Field_blob* field,
+		               const Column_definition& new_type) const
+{
+  for (uint index= 0; index < m_tot_parts; index++)
+  {
+    if (!m_file[index]->can_convert_blob(field, new_type))
+      return false;
+  }
+  return true;
+}
 
 struct st_mysql_storage_engine partition_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };

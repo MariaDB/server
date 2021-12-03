@@ -1,8 +1,9 @@
+connection node_2;
+connection node_1;
 CREATE USER 'userMW416'@'localhost';
 GRANT SELECT, INSERT, UPDATE ON test.* TO 'userMW416'@'localhost';
-SHOW GLOBAL STATUS LIKE 'wsrep_replicated';
-Variable_name	Value
-wsrep_replicated	2
+connect userMW416, localhost, userMW416,, test, $NODE_MYPORT_1;
+connection userMW416;
 ALTER DATABASE db CHARACTER SET = utf8;
 ERROR 42000: Access denied for user 'userMW416'@'localhost' to database 'db'
 ALTER EVENT ev1 RENAME TO ev2;
@@ -101,6 +102,7 @@ INSTALL PLUGIN plg SONAME 'plg.so';
 Got one of the listed errors
 UNINSTALL PLUGIN plg;
 Got one of the listed errors
+connection node_1;
 DROP USER 'userMW416'@'localhost';
 SHOW DATABASES;
 Database
@@ -109,6 +111,3 @@ mtr
 mysql
 performance_schema
 test
-SHOW GLOBAL STATUS LIKE 'wsrep_replicated';
-Variable_name	Value
-wsrep_replicated	3

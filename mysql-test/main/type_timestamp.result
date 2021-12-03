@@ -532,6 +532,10 @@ DROP TABLE t1;
 # are appended with .0
 #
 CREATE TABLE t1 ( a TIMESTAMP, KEY ( a ) );
+INSERT INTO t1 VALUES( '2010-02-01 09:30:01' );
+INSERT INTO t1 VALUES( '2010-02-01 09:30:02' );
+INSERT INTO t1 VALUES( '2010-02-01 09:30:03' );
+INSERT INTO t1 VALUES( '2010-02-01 09:30:04' );
 INSERT INTO t1 VALUES( '2010-02-01 09:31:01' );
 INSERT INTO t1 VALUES( '2010-02-01 09:31:02' );
 INSERT INTO t1 VALUES( '2010-02-01 09:31:03' );
@@ -548,10 +552,18 @@ a
 2010-02-01 09:31:04
 SELECT * FROM t1 WHERE a <= '2010-02-01 09:31:02.0';
 a
+2010-02-01 09:30:01
+2010-02-01 09:30:02
+2010-02-01 09:30:03
+2010-02-01 09:30:04
 2010-02-01 09:31:01
 2010-02-01 09:31:02
 SELECT * FROM t1 WHERE '2010-02-01 09:31:02.0' >= a;
 a
+2010-02-01 09:30:01
+2010-02-01 09:30:02
+2010-02-01 09:30:03
+2010-02-01 09:30:04
 2010-02-01 09:31:01
 2010-02-01 09:31:02
 EXPLAIN
@@ -766,7 +778,7 @@ SET sql_mode=DEFAULT;
 CREATE TABLE t1 (a TIMESTAMP DEFAULT '0000-00-00 00:00:00');
 SET sql_mode=TRADITIONAL;
 INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
-ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t1`.`a` at row 1
 INSERT INTO t1 VALUES ();
 ERROR 22007: Incorrect default value '0000-00-00 00:00:00' for column 'a'
 INSERT INTO t1 VALUES (DEFAULT);
@@ -807,7 +819,7 @@ CREATE TABLE t1 (a TIMESTAMP);;
 INSERT INTO t1 VALUES (0);
 SET sql_mode='TRADITIONAL';
 CREATE TABLE t2 AS SELECT * FROM t1;
-ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t2`.`a` at row 1
 DROP TABLE t1;
 #
 # End of MDEV-8373 Zero date can be inserted in strict no-zero mode through CREATE TABLE AS SELECT timestamp_field
@@ -872,8 +884,9 @@ SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=' garbage ';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Warning	1292	Truncated incorrect datetime value: ' garbage '
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'0000-00-00 00:00:00' and <cache>(octet_length(TIMESTAMP'0000-00-00 00:00:00')) = 30 + rand()
+Warning	1292	Incorrect datetime value: ' garbage '
+Warning	1292	Incorrect datetime value: ' garbage '
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where octet_length(`test`.`t1`.`a`) = 30 + rand() and `test`.`t1`.`a` = ' garbage '
 DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP);;
 INSERT INTO t1 VALUES ('2001-01-01 00:00:00'),('2001-01-01 00:00:01');
@@ -1032,6 +1045,280 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (a TIMESTAMP);
 INSERT INTO t1 SELECT CAST(20010101 AS UNSIGNED);
 DROP TABLE t1;
+#
+# MDEV-17928 Conversion from TIMESTAMP to VARCHAR SP variables does not work well on fractional digits
+#
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE ts10 TIMESTAMP(1) DEFAULT NOW();
+DECLARE ts16 TIMESTAMP(1) DEFAULT NOW(6);
+DECLARE dt10 DATETIME(1) DEFAULT NOW();
+DECLARE dt16 DATETIME(1) DEFAULT NOW(6);
+DECLARE vts10 VARCHAR(32) DEFAULT ts10;
+DECLARE vts16 VARCHAR(32) DEFAULT ts16;
+DECLARE vdt10 VARCHAR(32) DEFAULT dt10;
+DECLARE vdt16 VARCHAR(32) DEFAULT dt16;
+DECLARE tts10 TEXT(32) DEFAULT ts10;
+DECLARE tts16 TEXT(32) DEFAULT ts16;
+DECLARE tdt10 TEXT(32) DEFAULT dt10;
+DECLARE tdt16 TEXT(32) DEFAULT dt16;
+SELECT vts10, vts16, vdt10, vdt16;
+SELECT tts10, tts16, tdt10, tdt16;
+END;
+$$
+CALL p1;
+vts10	2001-01-01 10:20:30.0
+vts16	2001-01-01 10:20:30.1
+vdt10	2001-01-01 10:20:30.0
+vdt16	2001-01-01 10:20:30.1
+tts10	2001-01-01 10:20:30.0
+tts16	2001-01-01 10:20:30.1
+tdt10	2001-01-01 10:20:30.0
+tdt16	2001-01-01 10:20:30.1
+DROP PROCEDURE p1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+#
+# MDEV-13995 MAX(timestamp) returns a wrong result near DST change
+#
+# Testing Item_func_rollup_const::val_native()
+# There is a bug in the below output (MDEV-16612)
+# Please remove this comment when MDEV-16612 is fixed and results are re-recorded
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1),(2);
+BEGIN NOT ATOMIC
+DECLARE v TIMESTAMP DEFAULT '2001-01-01 10:20:30'; -- "v" will be wrapped into Item_func_rollup_const
+SELECT id, v AS v, COUNT(*) FROM t1 GROUP BY id,v WITH ROLLUP;
+END;
+$$
+id	v	COUNT(*)
+1	2001-01-01 10:20:30	1
+1	2001-01-01 10:20:30	1
+2	2001-01-01 10:20:30	1
+2	2001-01-01 10:20:30	1
+NULL	2001-01-01 10:20:30	2
+DROP TABLE t1;
+#
+# Testing Type_handler_timestamp_common::Item_save_in_field()
+# "txt" is expected to have three fractional digits
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.123456');
+CREATE TABLE t1 (ts1 TIMESTAMP(1) NOT NULL, ts2 TIMESTAMP(3) NOT NULL, txt TEXT);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00', '0000-00-00 00:00:00',COALESCE(ts1,ts2));
+INSERT INTO t1 VALUES (NOW(),NOW(),COALESCE(ts1,ts2));
+INSERT INTO t1 VALUES (NOW(1),NOW(3),COALESCE(ts1,ts2));
+SELECT * FROM t1;
+ts1	ts2	txt
+0000-00-00 00:00:00.0	0000-00-00 00:00:00.000	0000-00-00 00:00:00.000
+2001-01-01 10:20:30.0	2001-01-01 10:20:30.000	2001-01-01 10:20:30.000
+2001-01-01 10:20:30.1	2001-01-01 10:20:30.123	2001-01-01 10:20:30.100
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+#
+# Testing Field_timestamp::store_native
+#
+SET sql_mode='';
+CREATE TABLE t1 (a TIMESTAMP, b TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00','0000-00-00 00:00:00');
+SET sql_mode='STRICT_ALL_TABLES,NO_ZERO_DATE';
+UPDATE t1 SET a=b;
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t1`.`a` at row 1
+UPDATE t1 SET a=COALESCE(b);
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t1`.`a` at row 1
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-17979 Assertion `0' failed in Item::val_native upon SELECT with timestamp, NULLIF, GROUP BY
+#
+CREATE TABLE t1 (a INT, b TIMESTAMP) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'2018-06-19 00:00:00');
+SELECT NULLIF(b, 'N/A') AS f, MAX(a) FROM t1 GROUP BY f;
+f	MAX(a)
+2018-06-19 00:00:00	1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'N/A'
+DROP TABLE t1;
+#
+# MDEV-17972 Assertion `is_valid_value_slow()' failed in Datetime::Datetime
+#
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(6)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+FLUSH TABLES;
+MYD
+FF77777777FFFFFF
+SELECT a, CAST(a AS DATETIME) AS dt0, CAST(a AS DATETIME(6)) AS dt6 FROM t1;
+a	dt0	dt6
+2033-07-07 03:01:11.999999	2033-07-07 03:01:11	2033-07-07 03:01:11.999999
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# MDEV-18072 Assertion `is_null() == item->null_value || conv' failed in Timestamp_or_zero_datetime_native_null::Timestamp_or_zero_datetime_native_null upon query with GROUP BY
+#
+CREATE TABLE t1 (t TIMESTAMP);
+INSERT INTO t1 () VALUES (),();
+SELECT IF(0,t,NULL) AS f FROM t1 GROUP BY 'foo';
+f
+NULL
+DROP TABLE t1;
+#
+# MDEV-18145 Assertion `0' failed in Item::val_native upon SELECT subquery with timestamp
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (pk INT PRIMARY KEY, b TIMESTAMP) ENGINE=MyISAM;
+SELECT ( SELECT b FROM t1 LIMIT 1 ) AS sq FROM t2 LEFT JOIN t3 USING (pk);
+sq
+NULL
+NULL
+DROP TABLE t1, t2, t3;
+#
+# MDEV-18447 Assertion `!is_zero_datetime()' failed in Timestamp_or_zero_datetime::tv
+#
+CREATE TABLE t1 (a TIMESTAMP DEFAULT 0, b TIMESTAMP DEFAULT 0, c TIME DEFAULT 0);
+INSERT INTO t1 VALUES (0,0,0);
+SELECT c IN (GREATEST(a,b)) FROM t1;
+c IN (GREATEST(a,b))
+0
+DROP TABLE t1;
+#
+# MDEV-17969 Assertion `name' failed in THD::push_warning_truncated_value_for_field
+#
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('2018-01-01'),('2019-01-01');
+SET SESSION SQL_MODE= 'STRICT_ALL_TABLES,NO_ZERO_DATE';
+CREATE TABLE t2 SELECT 1 AS f FROM t1 GROUP BY FROM_DAYS(d);
+ERROR 22007: Truncated incorrect date value: '0000-00-00'
+DROP TABLE t1;
+#
+# MDEV-19124 Assertion `0' failed in Item::val_native
+#
+CREATE TABLE t1 (d1 TIMESTAMP(5));
+INSERT INTO t1 VALUES ('2018-10-14 15:31:01');
+SELECT LEAD(d1,1) OVER(ORDER BY d1) FROM t1;
+LEAD(d1,1) OVER(ORDER BY d1)
+NULL
+SELECT LAG(d1,1) OVER(ORDER BY d1) FROM t1;
+LAG(d1,1) OVER(ORDER BY d1)
+NULL
+INSERT INTO t1 VALUES ('2018-10-14 15:31:02');
+INSERT INTO t1 VALUES ('2018-10-14 15:31:03');
+SELECT LEAD(d1,1) OVER(ORDER BY d1) FROM t1;
+LEAD(d1,1) OVER(ORDER BY d1)
+2018-10-14 15:31:02.00000
+2018-10-14 15:31:03.00000
+NULL
+SELECT LAG(d1,1) OVER(ORDER BY d1) FROM t1;
+LAG(d1,1) OVER(ORDER BY d1)
+NULL
+2018-10-14 15:31:01.00000
+2018-10-14 15:31:02.00000
+DROP TABLE t1;
+#
+# MDEV-18240 Assertion `0' failed in Item_cache_timestamp::val_datetime_packed
+#
+CREATE TABLE t1 (c1 timestamp);
+SELECT MIN(t1.c1) AS k1 FROM t1 HAVING (k1 >= ALL(SELECT 'a' UNION SELECT 'r'));
+k1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'r'
+SELECT * FROM t1 HAVING MIN(t1.c1) >= ALL(SELECT 'a' UNION SELECT 'r');
+c1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'r'
+DROP TABLE t1;
+CREATE TABLE t1 (c1 timestamp);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00');
+SELECT * FROM t1 HAVING MIN(t1.c1) >= ALL(SELECT '2010-01-01 10:00:00' UNION SELECT '2001-01-01 10:00:01');
+c1
+SELECT * FROM t1 HAVING MIN(t1.c1) >= ALL(SELECT '2000-01-01 10:00:00' UNION SELECT '2000-01-01 10:00:01');
+c1
+2010-01-01 00:00:00
+DROP TABLE t1;
+#
+# MDEV-18595 Assertion `0' failed in Item_cache_timestamp::val_datetime_packed / Predicant_to_list_comparator::cmp_arg
+#
+CREATE TABLE t1 (t TIMESTAMP DEFAULT '1971-01-01 00:00:00', f INT);
+INSERT INTO t1 VALUES ('1978-05-25 22:25:03',1),('2000-01-01 00:00:00',2);
+SELECT * FROM t1 WHERE f IN (DEFAULT(t),1);
+t	f
+1978-05-25 22:25:03	1
+Warnings:
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`f` at row 1
+Warning	1292	Incorrect datetime value: '2' for column `test`.`t1`.`f` at row 2
+DROP TABLE t1;
+#
+# MDEV-18503 Assertion `native.length() == binlen' failed in Type_handler_timestamp_common::make_sort_key
+#
+SET sql_mode='';
+CREATE TABLE t1 (a TIMESTAMP(3) DEFAULT 0, b TIMESTAMP);
+INSERT INTO t1 (b) VALUES ('2012-12-12 12:12:12'),('1988-08-26 12:12:12');
+SELECT GREATEST(a,b) AS f FROM t1 ORDER BY 1;
+f
+1988-08-26 12:12:12.000
+2012-12-12 12:12:12.000
+SELECT GREATEST(a,b) AS f FROM t1 ORDER BY 1 DESC;
+f
+2012-12-12 12:12:12.000
+1988-08-26 12:12:12.000
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-20417 Assertion `(m_ptr == __null) == item->null_value' failed in VDec::VDec(Item*)
+#
+CREATE TABLE t1 (a TIMESTAMP(4), b TIMESTAMP DEFAULT 0) ENGINE=MyISAM;
+INSERT IGNORE INTO t1 VALUES ('2001-01-01','2002-01-01'),('2003-01-01','2004-01-01');
+SELECT * FROM t1 WHERE DEFAULT(b) - a;
+a	b
+Warnings:
+Warning	1916	Got overflow when converting '-20010101000000' to UNSIGNED INT. Value truncated
+Warning	1916	Got overflow when converting '-20030101000000' to UNSIGNED INT. Value truncated
+SELECT LEFT('', DEFAULT(b)-a) FROM t1;
+LEFT('', DEFAULT(b)-a)
+
+
+Warnings:
+Warning	1916	Got overflow when converting '-20010101000000' to UNSIGNED INT. Value truncated
+Warning	1916	Got overflow when converting '-20030101000000' to UNSIGNED INT. Value truncated
+DROP TABLE t1;
+CREATE  TABLE t1 (a TIMESTAMP(4), b TIMESTAMP DEFAULT 0) ENGINE=MyISAM;
+INSERT IGNORE INTO t1 (a) VALUES ('2001-01-01'),('2003-01-01');
+SELECT * FROM t1 WHERE (SELECT MIN(b) FROM t1) - a;
+a	b
+Warnings:
+Warning	1916	Got overflow when converting '-20010101000000' to UNSIGNED INT. Value truncated
+Warning	1916	Got overflow when converting '-20030101000000' to UNSIGNED INT. Value truncated
+SELECT (SELECT MIN(b) FROM t1) - a FROM t1;
+(SELECT MIN(b) FROM t1) - a
+-20010101000000.0000
+-20030101000000.0000
+DROP TABLE t1;
+#
+# MDEV-22734 Assertion `mon > 0 && mon < 13' failed in sec_since_epoch
+#
+SET time_zone="-02:00";
+CREATE TABLE t1(c TIMESTAMP KEY);
+SELECT * FROM t1 WHERE c='2010-00-01 00:00:00';
+c
+Warnings:
+Warning	1292	Incorrect datetime value: '2010-00-01 00:00:00'
+DROP TABLE t1;
+#
+# MDEV-22854 Garbage returned with SELECT CASE..DEFAULT(timestamp_field_with_now_as_default)
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.456789');
+CREATE TABLE t1 (a TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP);
+INSERT INTO t1 VALUES ('2019-02-23 11:31:04'),('2023-02-09 00:00:00');
+SELECT CASE WHEN a THEN DEFAULT(a) END FROM t1;
+CASE WHEN a THEN DEFAULT(a) END
+2001-01-01 10:20:30.456
+2001-01-01 10:20:30.456
+DROP TABLE t1;
+SET timestamp=DEFAULT;
 #
 # End of 10.4 tests
 #

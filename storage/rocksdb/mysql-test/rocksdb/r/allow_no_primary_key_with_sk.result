@@ -63,6 +63,7 @@ a	b
 123	bbb
 321	ccc
 321	ccc
+# restart
 INSERT INTO t1 (a,b) VALUES (45,'bob');
 SELECT * FROM t1;
 a	b
@@ -147,6 +148,7 @@ a	b
 123	bbb
 321	ccc
 321	ccc
+# restart
 INSERT INTO t1 (a,b) VALUES (45,'bob');
 SELECT * FROM t1;
 a	b
@@ -228,6 +230,7 @@ a	b
 123	bbb
 321	ccc
 321	ccc
+# restart
 INSERT INTO t1 (a,b) VALUES (45,'bob');
 SELECT * FROM t1;
 a	b
@@ -311,6 +314,7 @@ a	b
 123	bbb
 321	ccc
 321	ccc
+# restart
 INSERT INTO t1 (a,b) VALUES (45,'bob');
 SELECT * FROM t1;
 a	b
@@ -401,6 +405,7 @@ a	b
 123	bbb
 321	ccc
 321	ccc
+# restart
 INSERT INTO t1 (a,b) VALUES (45,'bob');
 SELECT * FROM t1;
 a	b
@@ -484,6 +489,7 @@ a	b
 123	bbb
 321	ccc
 321	ccc
+# restart
 INSERT INTO t1 (a,b) VALUES (45,'bob');
 SELECT * FROM t1;
 a	b
@@ -568,6 +574,7 @@ a	b
 123	bbb
 321	ccc
 321	ccc
+# restart
 INSERT INTO t1 (a,b) VALUES (45,'bob');
 SELECT * FROM t1;
 a	b
@@ -747,6 +754,7 @@ a	b
 123	bbb
 321	ccc
 321	ccc
+# restart
 INSERT INTO t1 (a,b) VALUES (45,'bob');
 SELECT * FROM t1;
 a	b
@@ -788,6 +796,7 @@ t1	CREATE TABLE `t1` (
   `i` int(11) NOT NULL AUTO_INCREMENT,
   KEY `i` (`i`)
 ) ENGINE=ROCKSDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+# restart
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

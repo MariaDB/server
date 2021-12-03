@@ -251,6 +251,9 @@ insert into t1 values(1,1,1);
 insert into t1 values(2,2,2);
 insert into t1 values(3,3,3);
 insert into t1 values(4,4,4);
+insert into t1 values(5,5,5);
+insert into t1 values(6,6,6);
+insert into t1 values(7,7,7);
 set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
 select invisible, a ,b from t1 order by b;
 explain select * from t1 where invisible =9;
@@ -278,3 +281,12 @@ SET debug_dbug="+d,test_completely_invisible,test_invisible_index";
 CREATE TABLE t2 LIKE t1;
 SET debug_dbug= DEFAULT;
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-20210
+--echo # If you have an INVISIBLE VIRTUAL column, SHOW CREATE TABLE doesn't list it as INVISIBLE
+--echo #
+
+CREATE TABLE t1 (i INT, v int GENERATED ALWAYS AS (1) VIRTUAL INVISIBLE);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

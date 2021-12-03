@@ -1,0 +1,89 @@
+connection node_2;
+connection node_1;
+connect node_5, 127.0.0.1, root, , test, $NODE_MYPORT_5;
+connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
+connection node_4;
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_1, master_use_gtid=current_pos;;
+START SLAVE;
+include/wait_for_slave_to_start.inc
+connection node_1;
+CREATE TABLE t1(c1 INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY, c2 INTEGER);
+INSERT INTO t1(c2) VALUES(1);
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_3;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+connection node_1;
+include/save_master_gtid.inc
+connection node_4;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+connect node_6, 127.0.0.1, root, , test, $NODE_MYPORT_6;
+connection node_6;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+connection node_2;
+ALTER TABLE t1 ADD COLUMN t3 INTEGER;
+Node 2 column number AFTER ALTER
+SELECT COUNT(*) = 3 FROM information_schema.columns WHERE table_name ='t1';
+COUNT(*) = 3
+1
+connection node_3;
+Node 3 column number AFTER ALTER
+SELECT COUNT(*) = 3 FROM information_schema.columns WHERE table_name ='t1';
+COUNT(*) = 3
+1
+connection node_1;
+include/save_master_gtid.inc
+connection node_4;
+include/sync_with_master_gtid.inc
+Node 4 column number AFTER ALTER
+SELECT COUNT(*) = 3 FROM information_schema.columns WHERE table_name ='t1';
+COUNT(*) = 3
+1
+connection node_6;
+Node 6 column number AFTER ALTER
+SELECT COUNT(*) = 3 FROM information_schema.columns WHERE table_name ='t1';
+COUNT(*) = 3
+1
+connection node_2;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+connection node_1;
+connection node_4;
+connection node_6;
+connection node_1;
+DROP TABLE t1;
+connection node_4;
+STOP SLAVE;
+RESET SLAVE;
+SET GLOBAL wsrep_on = OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on = ON;
+SET GLOBAL GTID_SLAVE_POS="";
+connection node_1;
+SET GLOBAL wsrep_on = OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on = ON;
+connection node_2;
+SET GLOBAL wsrep_on = OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on = ON;
+connection node_3;
+SET GLOBAL wsrep_on = OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on = ON;
+connection node_5;
+SET GLOBAL wsrep_on = OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on = ON;
+connection node_6;
+SET GLOBAL wsrep_on = OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on = ON;

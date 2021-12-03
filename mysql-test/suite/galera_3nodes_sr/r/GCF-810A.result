@@ -1,0 +1,256 @@
+SET GLOBAL debug="d,crash_last_fragment_commit_before_fragment_removal";
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (f1 VARCHAR(10)) ENGINE = InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+crash_last_fragment_commit_before_fragment_removal
+COMMIT;
+Got one of the listed errors
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SET GLOBAL debug = '';
+SET GLOBAL debug="d,crash_last_fragment_commit_after_fragment_removal";
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (f1 VARCHAR(10)) ENGINE = InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+crash_last_fragment_commit_after_fragment_removal
+COMMIT;
+Got one of the listed errors
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SET GLOBAL debug = '';
+SET GLOBAL debug="d,crash_replicate_fragment_success";
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (f1 VARCHAR(10)) ENGINE = InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+crash_replicate_fragment_success
+COMMIT;
+Got one of the listed errors
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SET GLOBAL debug = '';
+SET GLOBAL debug="d,crash_replicate_fragment_after_certify";
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (f1 VARCHAR(10)) ENGINE = InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+crash_replicate_fragment_after_certify
+COMMIT;
+Got one of the listed errors
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SET GLOBAL debug = '';
+SET GLOBAL debug="d,crash_replicate_fragment_before_certify";
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (f1 VARCHAR(10)) ENGINE = InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+crash_replicate_fragment_before_certify
+COMMIT;
+Got one of the listed errors
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SET GLOBAL debug = '';
+DROP TABLE t1;

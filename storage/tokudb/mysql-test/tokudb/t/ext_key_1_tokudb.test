@@ -4,8 +4,6 @@ disable_warnings;
 drop table if exists t;
 enable_warnings;
 
-select @@optimizer_switch;
-
 create table t (id int not null, x int not null, y int not null, primary key(id), key(x)) engine=tokudb;
 
 insert into t values (0,0,0),(1,1,1),(2,2,2),(3,2,3),(4,2,4);

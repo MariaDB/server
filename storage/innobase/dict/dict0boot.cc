@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -47,7 +47,7 @@ dict_hdr_get(
 	dict_hdr_t*	header;
 
 	block = buf_page_get(page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO),
-			     univ_page_size, RW_X_LATCH, mtr);
+			     0, RW_X_LATCH, mtr);
 	header = DICT_HDR + buf_block_get_frame(block);
 
 	buf_block_dbg_add_level(block, SYNC_DICT_HEADER);
@@ -64,52 +64,14 @@ dict_hdr_get_new_id(
 						(not assigned if NULL) */
 	index_id_t*		index_id,	/*!< out: index id
 						(not assigned if NULL) */
-	ulint*			space_id,	/*!< out: space id
+	ulint*			space_id)	/*!< out: space id
 						(not assigned if NULL) */
-	const dict_table_t*	table,		/*!< in: table */
-	bool			disable_redo)	/*!< in: if true and table
-						object is NULL
-						then disable-redo */
 {
 	dict_hdr_t*	dict_hdr;
 	ib_id_t		id;
 	mtr_t		mtr;
 
 	mtr_start(&mtr);
-	if (table) {
-		if (table->is_temporary()) {
-			mtr.set_log_mode(MTR_LOG_NO_REDO);
-		}
-	} else if (disable_redo) {
-		/* In non-read-only mode we need to ensure that space-id header
-		page is written to disk else if page is removed from buffer
-		cache and re-loaded it would assign temporary tablespace id
-		to another tablespace.
-		This is not a case with read-only mode as there is no new object
-		that is created except temporary tablespace. */
-		mtr.set_log_mode(srv_read_only_mode
-				 ? MTR_LOG_NONE : MTR_LOG_NO_REDO);
-	}
-
-	/* Server started and let's say space-id = x
-	- table created with file-per-table
-	- space-id = x + 1
-	- crash
-	Case 1: If it was redo logged then we know that it will be
-		restored to x + 1
-	Case 2: if not redo-logged
-		Header will have the old space-id = x
-		This is OK because on restart there is no object with
-		space id = x + 1
-	Case 3:
-		space-id = x (on start)
-		space-id = x+1 (temp-table allocation) - no redo logging
-		space-id = x+2 (non-temp-table allocation), this get's
-			   redo logged.
-		If there is a crash there will be only 2 entries
-		x (original) and x+2 (new) and disk hdr will be updated
-		to reflect x + 2 entry.
-		We cannot allocate the same space id to different objects. */
 	dict_hdr = dict_hdr_get(&mtr);
 
 	if (table_id) {
@@ -127,8 +89,7 @@ dict_hdr_get_new_id(
 	}
 
 	if (space_id) {
-		*space_id = mtr_read_ulint(dict_hdr + DICT_HDR_MAX_SPACE_ID,
-					   MLOG_4BYTES, &mtr);
+		*space_id = mach_read_from_4(dict_hdr + DICT_HDR_MAX_SPACE_ID);
 		if (fil_assign_new_space_id(space_id)) {
 			mlog_write_ulint(dict_hdr + DICT_HDR_MAX_SPACE_ID,
 					 *space_id, MLOG_4BYTES, &mtr);
@@ -149,9 +110,9 @@ dict_hdr_flush_row_id(void)
 	row_id_t	id;
 	mtr_t		mtr;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
-	id = dict_sys->row_id;
+	id = dict_sys.row_id;
 
 	mtr_start(&mtr);
 
@@ -181,7 +142,7 @@ dict_hdr_create(
 
 	/* Create the dictionary header file block in a new, allocated file
 	segment in the system tablespace */
-	block = fseg_create(fil_system.sys_space, 0,
+	block = fseg_create(fil_system.sys_space,
 			    DICT_HDR + DICT_HDR_FSEG_HEADER, mtr);
 
 	ut_a(DICT_HDR_PAGE_NO == block->page.id.page_no());
@@ -199,8 +160,7 @@ dict_hdr_create(
 	mlog_write_ull(dict_header + DICT_HDR_INDEX_ID,
 		       DICT_HDR_FIRST_ID, mtr);
 
-	mlog_write_ulint(dict_header + DICT_HDR_MAX_SPACE_ID,
-			 0, MLOG_4BYTES, mtr);
+	ut_ad(mach_read_from_4(dict_header + DICT_HDR_MAX_SPACE_ID) == 0);
 
 	/* Obsolete, but we must initialize it anyway. */
 	mlog_write_ulint(dict_header + DICT_HDR_MIX_ID_LOW,
@@ -304,11 +264,11 @@ dict_boot(void)
 	mtr_start(&mtr);
 
 	/* Create the hash tables etc. */
-	dict_init();
+	dict_sys.create();
 
 	heap = mem_heap_create(450);
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	/* Get the dictionary header */
 	dict_hdr = dict_hdr_get(&mtr);
@@ -323,7 +283,7 @@ dict_boot(void)
 	..._MARGIN, it will immediately be updated to the disk-based
 	header. */
 
-	dict_sys->row_id = DICT_HDR_ROW_ID_WRITE_MARGIN
+	dict_sys.row_id = DICT_HDR_ROW_ID_WRITE_MARGIN
 		+ ut_uint64_align_up(mach_read_from_8(dict_hdr + DICT_HDR_ROW_ID),
 				     DICT_HDR_ROW_ID_WRITE_MARGIN);
 
@@ -352,7 +312,7 @@ dict_boot(void)
 
 	dict_table_add_system_columns(table, heap);
 	table->add_to_cache();
-	dict_sys->sys_tables = table;
+	dict_sys.sys_tables = table;
 	mem_heap_empty(heap);
 
 	index = dict_mem_index_create(table, "CLUST_IND",
@@ -361,9 +321,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "NAME", 0);
 
 	index->id = DICT_TABLES_ID;
-	index = dict_index_add_to_cache(
+	dberr_t error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_TABLES));
-	ut_a(index);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		unsigned(table->indexes.start->n_nullable));
@@ -373,9 +333,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_TABLE_IDS_ID;
-	index = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_TABLE_IDS));
-	ut_a(index);
+	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
 	table = dict_mem_table_create("SYS_COLUMNS", fil_system.sys_space,
@@ -393,7 +353,7 @@ dict_boot(void)
 
 	dict_table_add_system_columns(table, heap);
 	table->add_to_cache();
-	dict_sys->sys_columns = table;
+	dict_sys.sys_columns = table;
 	mem_heap_empty(heap);
 
 	index = dict_mem_index_create(table, "CLUST_IND",
@@ -403,9 +363,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "POS", 0);
 
 	index->id = DICT_COLUMNS_ID;
-	index = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_COLUMNS));
-	ut_a(index);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		unsigned(table->indexes.start->n_nullable));
@@ -436,7 +396,7 @@ dict_boot(void)
 	dict_table_get_nth_col(table, DICT_COL__SYS_INDEXES__MERGE_THRESHOLD)
 		->def_val.len = UNIV_SQL_NULL;
 	table->add_to_cache();
-	dict_sys->sys_indexes = table;
+	dict_sys.sys_indexes = table;
 	mem_heap_empty(heap);
 
 	index = dict_mem_index_create(table, "CLUST_IND",
@@ -446,9 +406,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_INDEXES_ID;
-	index = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_INDEXES));
-	ut_a(index);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		unsigned(table->indexes.start->n_nullable));
@@ -465,7 +425,7 @@ dict_boot(void)
 
 	dict_table_add_system_columns(table, heap);
 	table->add_to_cache();
-	dict_sys->sys_fields = table;
+	dict_sys.sys_fields = table;
 	mem_heap_free(heap);
 
 	index = dict_mem_index_create(table, "CLUST_IND",
@@ -475,9 +435,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "POS", 0);
 
 	index->id = DICT_FIELDS_ID;
-	index = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_FIELDS));
-	ut_a(index);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		unsigned(table->indexes.start->n_nullable));
@@ -513,14 +473,14 @@ dict_boot(void)
 		if (err == DB_SUCCESS) {
 			/* Load definitions of other indexes on system tables */
 
-			dict_load_sys_table(dict_sys->sys_tables);
-			dict_load_sys_table(dict_sys->sys_columns);
-			dict_load_sys_table(dict_sys->sys_indexes);
-			dict_load_sys_table(dict_sys->sys_fields);
+			dict_load_sys_table(dict_sys.sys_tables);
+			dict_load_sys_table(dict_sys.sys_columns);
+			dict_load_sys_table(dict_sys.sys_indexes);
+			dict_load_sys_table(dict_sys.sys_fields);
 		}
 	}
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	return(err);
 }

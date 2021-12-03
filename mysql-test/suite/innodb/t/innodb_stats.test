@@ -9,6 +9,9 @@
 
 DROP TABLE IF EXISTS test_innodb_stats;
 
+set @save_use_stat_tables= @@use_stat_tables;
+set @@use_stat_tables= NEVER;
+
 CREATE TABLE test_innodb_stats (
 	a INT,
 	KEY a_key (a)
@@ -59,3 +62,4 @@ CREATE TABLE test_innodb_stats (
 
 -- disable_query_log
 DROP TABLE test_innodb_stats;
+set @@use_stat_tables= @save_use_stat_tables;

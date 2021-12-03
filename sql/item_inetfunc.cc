@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "item_inetfunc.h"
@@ -21,9 +21,18 @@
 
 ///////////////////////////////////////////////////////////////////////////
 
-static const int IN_ADDR_SIZE= sizeof (in_addr);
-static const int IN6_ADDR_SIZE= sizeof (in6_addr);
-static const int IN6_ADDR_NUM_WORDS= IN6_ADDR_SIZE / 2;
+static const size_t IN_ADDR_SIZE= 4;
+static const size_t IN_ADDR_MAX_CHAR_LENGTH= 15;
+
+static const size_t IN6_ADDR_SIZE= 16;
+static const size_t IN6_ADDR_NUM_WORDS= IN6_ADDR_SIZE / 2;
+
+/**
+  Non-abbreviated syntax is 8 groups, up to 4 digits each,
+  plus 7 delimiters between the groups.
+  Abbreviated syntax is even shorter.
+*/
+static const uint IN6_ADDR_MAX_CHAR_LENGTH= 8 * 4 + 7;
 
 static const char HEX_DIGITS[]= "0123456789abcdef";
 
@@ -89,7 +98,6 @@ err:
   return 0;
 }
 
-///////////////////////////////////////////////////////////////////////////
 
 String* Item_func_inet_ntoa::val_str(String* str)
 {
@@ -139,109 +147,264 @@ String* Item_func_inet_ntoa::val_str(String* str)
 
 ///////////////////////////////////////////////////////////////////////////
 
-/**
-  Check the function argument, handle errors properly.
 
-  @return The function value.
-*/
-
-longlong Item_func_inet_bool_base::val_int()
+class Inet4
 {
-  DBUG_ASSERT(fixed);
+  char m_buffer[IN_ADDR_SIZE];
+protected:
+  bool ascii_to_ipv4(const char *str, size_t length);
+  bool character_string_to_ipv4(const char *str, size_t str_length,
+                                CHARSET_INFO *cs)
+  {
+    if (cs->state & MY_CS_NONASCII)
+    {
+      char tmp[IN_ADDR_MAX_CHAR_LENGTH];
+      String_copier copier;
+      uint length= copier.well_formed_copy(&my_charset_latin1, tmp, sizeof(tmp),
+                                           cs, str, str_length);
+      return ascii_to_ipv4(tmp, length);
+    }
+    return ascii_to_ipv4(str, str_length);
+  }
+  bool binary_to_ipv4(const char *str, size_t length)
+  {
+    if (length != sizeof(m_buffer))
+      return true;
+    memcpy(m_buffer, str, length);
+    return false;
+  }
+  // Non-initializing constructor
+  Inet4() { }
+public:
+  void to_binary(char *dst, size_t dstsize) const
+  {
+    DBUG_ASSERT(dstsize >= sizeof(m_buffer));
+    memcpy(dst, m_buffer, sizeof(m_buffer));
+  }
+  bool to_binary(String *to) const
+  {
+    return to->copy(m_buffer, sizeof(m_buffer), &my_charset_bin);
+  }
+  size_t to_string(char *dst, size_t dstsize) const;
+  bool to_string(String *to) const
+  {
+    to->set_charset(&my_charset_latin1);
+    if (to->alloc(INET_ADDRSTRLEN))
+      return true;
+    to->length((uint32) to_string((char*) to->ptr(), INET_ADDRSTRLEN));
+    return false;
+  }
+};
 
-  // String argument expected
-  if (unlikely(args[0]->result_type() != STRING_RESULT))
-    return 0;
 
-  String buffer;
-  String *arg_str= args[0]->val_str(&buffer);
-
-  if (unlikely(!arg_str)) // Out-of memory happened. error has been reported.
-    return 0;   // Or: the underlying field is NULL
-
-  return calc_value(arg_str) ? 1 : 0;
-}
-
-///////////////////////////////////////////////////////////////////////////
-
-/**
-  Check the function argument, handle errors properly.
-
-  @param [out] buffer Buffer for string operations.
-
-  @return The function value.
-*/
-
-String *Item_func_inet_str_base::val_str_ascii(String *buffer)
+class Inet4_null: public Inet4, public Null_flag
 {
-  DBUG_ASSERT(fixed);
-
- // String argument expected
-  if (unlikely(args[0]->result_type() != STRING_RESULT))
+public:
+  // Initialize from a text representation
+  Inet4_null(const char *str, size_t length, CHARSET_INFO *cs)
+   :Null_flag(character_string_to_ipv4(str, length, cs))
+  { }
+  Inet4_null(const String &str)
+   :Inet4_null(str.ptr(), str.length(), str.charset())
+  { }
+  // Initialize from a binary representation
+  Inet4_null(const char *str, size_t length)
+   :Null_flag(binary_to_ipv4(str, length))
+  { }
+  Inet4_null(const Binary_string &str)
+   :Inet4_null(str.ptr(), str.length())
+  { }
+public:
+  const Inet4& to_inet4() const
   {
-    null_value= true;
-    return NULL;
+    DBUG_ASSERT(!is_null());
+    return *this;
   }
-
-  StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
-  String *arg_str= args[0]->val_str(&tmp);
-  if (unlikely(!arg_str))
+  void to_binary(char *dst, size_t dstsize) const
   {
-    // Out-of memory happened. error has been reported.
-    // Or: the underlying field is NULL
-    null_value= true;
-    return NULL;
+    to_inet4().to_binary(dst, dstsize);
   }
+  bool to_binary(String *to) const
+  {
+    return to_inet4().to_binary(to);
+  }
+  size_t to_string(char *dst, size_t dstsize) const
+  {
+    return to_inet4().to_string(dst, dstsize);
+  }
+  bool to_string(String *to) const
+  {
+    return to_inet4().to_string(to);
+  }
+};
 
-  null_value= !calc_value(arg_str, buffer);
 
-  return unlikely(null_value) ? NULL : buffer;
-}
+class Inet6
+{
+  char m_buffer[IN6_ADDR_SIZE];
+protected:
+  bool make_from_item(Item *item);
+  bool ascii_to_ipv6(const char *str, size_t str_length);
+  bool character_string_to_ipv6(const char *str, size_t str_length,
+                                CHARSET_INFO *cs)
+  {
+    if (cs->state & MY_CS_NONASCII)
+    {
+      char tmp[IN6_ADDR_MAX_CHAR_LENGTH];
+      String_copier copier;
+      uint length= copier.well_formed_copy(&my_charset_latin1, tmp, sizeof(tmp),
+                                           cs, str, str_length);
+      return ascii_to_ipv6(tmp, length);
+    }
+    return ascii_to_ipv6(str, str_length);
+  }
+  bool binary_to_ipv6(const char *str, size_t length)
+  {
+    if (length != sizeof(m_buffer))
+      return true;
+    memcpy(m_buffer, str, length);
+    return false;
+  }
+  // Non-initializing constructor
+  Inet6() { }
+public:
+  bool to_binary(String *to) const
+  {
+    return to->copy(m_buffer, sizeof(m_buffer), &my_charset_bin);
+  }
+  size_t to_string(char *dst, size_t dstsize) const;
+  bool to_string(String *to) const
+  {
+    to->set_charset(&my_charset_latin1);
+    if (to->alloc(INET6_ADDRSTRLEN))
+      return true;
+    to->length((uint32) to_string((char*) to->ptr(), INET6_ADDRSTRLEN));
+    return false;
+  }
+  bool is_v4compat() const
+  {
+    static_assert(sizeof(in6_addr) == IN6_ADDR_SIZE, "unexpected in6_addr size");
+    return IN6_IS_ADDR_V4COMPAT((struct in6_addr *) m_buffer);
+  }
+  bool is_v4mapped() const
+  {
+    static_assert(sizeof(in6_addr) == IN6_ADDR_SIZE, "unexpected in6_addr size");
+    return IN6_IS_ADDR_V4MAPPED((struct in6_addr *) m_buffer);
+  }
+};
 
-///////////////////////////////////////////////////////////////////////////
+
+class Inet6_null: public Inet6, public Null_flag
+{
+public:
+  // Initialize from a text representation
+  Inet6_null(const char *str, size_t length, CHARSET_INFO *cs)
+   :Null_flag(character_string_to_ipv6(str, length, cs))
+  { }
+  Inet6_null(const String &str)
+   :Inet6_null(str.ptr(), str.length(), str.charset())
+  { }
+  // Initialize from a binary representation
+  Inet6_null(const char *str, size_t length)
+   :Null_flag(binary_to_ipv6(str, length))
+  { }
+  Inet6_null(const Binary_string &str)
+   :Inet6_null(str.ptr(), str.length())
+  { }
+  // Initialize from an Item
+  Inet6_null(Item *item)
+   :Null_flag(make_from_item(item))
+  { }
+public:
+  const Inet6& to_inet6() const
+  {
+    DBUG_ASSERT(!is_null());
+    return *this;
+  }
+  bool to_binary(String *to) const
+  {
+    DBUG_ASSERT(!is_null());
+    return to_inet6().to_binary(to);
+  }
+  size_t to_string(char *dst, size_t dstsize) const
+  {
+    return to_inet6().to_string(dst, dstsize);
+  }
+  bool to_string(String *to) const
+  {
+    return to_inet6().to_string(to);
+  }
+  bool is_v4compat() const
+  {
+    return to_inet6().is_v4compat();
+  }
+  bool is_v4mapped() const
+  {
+    return to_inet6().is_v4mapped();
+  }
+};
+
+
+bool Inet6::make_from_item(Item *item)
+{
+  String tmp(m_buffer, sizeof(m_buffer), &my_charset_bin);
+  String *str= item->val_str(&tmp);
+  /*
+    Charset could be tested in item->collation.collation before the val_str()
+    call, but traditionally Inet6 functions still call item->val_str()
+    for non-binary arguments and therefore execute side effects.
+  */
+  if (!str || str->length() != sizeof(m_buffer) ||
+      str->charset() != &my_charset_bin)
+    return true;
+  if (str->ptr() != m_buffer)
+      memcpy(m_buffer, str->ptr(), sizeof(m_buffer));
+  return false;
+};
+
 
 /**
   Tries to convert given string to binary IPv4-address representation.
   This is a portable alternative to inet_pton(AF_INET).
 
   @param      str          String to convert.
-  @param      str_len      String length.
-  @param[out] ipv4_address Buffer to store IPv4-address.
+  @param      str_length   String length.
 
   @return Completion status.
-  @retval false Given string does not represent an IPv4-address.
-  @retval true  The string has been converted sucessfully.
+  @retval true  - error, the given string does not represent an IPv4-address.
+  @retval false - ok, the string has been converted successfully.
 
   @note The problem with inet_pton() is that it treats leading zeros in
   IPv4-part differently on different platforms.
 */
 
-static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_address)
+bool Inet4::ascii_to_ipv4(const char *str, size_t str_length)
 {
   if (str_length < 7)
   {
-    DBUG_PRINT("error", ("str_to_ipv4(%.*s): "
+    DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): "
                          "invalid IPv4 address: too short.",
                          (int) str_length, str));
-    return false;
+    return true;
   }
 
-  if (str_length > 15)
+  if (str_length > IN_ADDR_MAX_CHAR_LENGTH)
   {
-    DBUG_PRINT("error", ("str_to_ipv4(%.*s): "
+    DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): "
                          "invalid IPv4 address: too long.",
                          (int) str_length, str));
-    return false;
+    return true;
   }
 
-  unsigned char *ipv4_bytes= (unsigned char *) ipv4_address;
+  unsigned char *ipv4_bytes= (unsigned char *) &m_buffer;
+  const char *str_end= str + str_length;
   const char *p= str;
   int byte_value= 0;
   int chars_in_group= 0;
   int dot_count= 0;
   char c= 0;
 
-  while (((p - str) < (int)str_length) && *p)
+  while (p < str_end && *p)
   {
     c= *p++;
 
@@ -251,30 +414,30 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
 
       if (chars_in_group > 3)
       {
-        DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                              "too many characters in a group.",
                              (int) str_length, str));
-        return false;
+        return true;
       }
 
       byte_value= byte_value * 10 + (c - '0');
 
       if (byte_value > 255)
       {
-        DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                              "invalid byte value.",
                              (int) str_length, str));
-        return false;
+        return true;
       }
     }
     else if (c == '.')
     {
       if (chars_in_group == 0)
       {
-        DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                              "too few characters in a group.",
                              (int) str_length, str));
-        return false;
+        return true;
       }
 
       ipv4_bytes[dot_count]= (unsigned char) byte_value;
@@ -285,79 +448,77 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
 
       if (dot_count > 3)
       {
-        DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                              "too many dots.", (int) str_length, str));
-        return false;
+        return true;
       }
     }
     else
     {
-      DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+      DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                            "invalid character at pos %d.",
                            (int) str_length, str, (int) (p - str)));
-      return false;
+      return true;
     }
   }
 
   if (c == '.')
   {
-    DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+    DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                          "ending at '.'.", (int) str_length, str));
-    return false;
+    return true;
   }
 
   if (dot_count != 3)
   {
-    DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+    DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                          "too few groups.",
                          (int) str_length, str));
-    return false;
+    return true;
   }
 
   ipv4_bytes[3]= (unsigned char) byte_value;
 
-  DBUG_PRINT("info", ("str_to_ipv4(%.*s): valid IPv4 address: %d.%d.%d.%d",
+  DBUG_PRINT("info", ("ascii_to_ipv4(%.*s): valid IPv4 address: %d.%d.%d.%d",
                       (int) str_length, str,
                       ipv4_bytes[0], ipv4_bytes[1],
                       ipv4_bytes[2], ipv4_bytes[3]));
-  return true;
+  return false;
 }
 
-///////////////////////////////////////////////////////////////////////////
 
 /**
   Tries to convert given string to binary IPv6-address representation.
   This is a portable alternative to inet_pton(AF_INET6).
 
   @param      str          String to convert.
-  @param      str_len      String length.
-  @param[out] ipv6_address Buffer to store IPv6-address.
+  @param      str_length   String length.
 
   @return Completion status.
-  @retval false Given string does not represent an IPv6-address.
-  @retval true  The string has been converted sucessfully.
+  @retval true  - error, the given string does not represent an IPv6-address.
+  @retval false - ok, the string has been converted successfully.
 
   @note The problem with inet_pton() is that it treats leading zeros in
   IPv4-part differently on different platforms.
 */
 
-static bool str_to_ipv6(const char *str, int str_length, in6_addr *ipv6_address)
+bool Inet6::ascii_to_ipv6(const char *str, size_t str_length)
 {
   if (str_length < 2)
   {
-    DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: too short.",
-                         str_length, str));
-    return false;
+    DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: too short.",
+                         (int) str_length, str));
+    return true;
   }
 
-  if (str_length > 8 * 4 + 7)
+  if (str_length > IN6_ADDR_MAX_CHAR_LENGTH)
   {
-    DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: too long.",
-                         str_length, str));
-    return false;
+    DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: too long.",
+                         (int) str_length, str));
+    return true;
   }
 
-  memset(ipv6_address, 0, IN6_ADDR_SIZE);
+  memset(m_buffer, 0, sizeof(m_buffer));
 
   const char *p= str;
 
@@ -367,21 +528,21 @@ static bool str_to_ipv6(const char *str, int str_length, in6_addr *ipv6_address)
 
     if (*p != ':')
     {
-      DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
-                           "can not start with ':x'.", str_length, str));
-      return false;
+      DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
+                           "can not start with ':x'.", (int) str_length, str));
+      return true;
     }
   }
 
-  char *ipv6_bytes= (char *) ipv6_address;
-  char *ipv6_bytes_end= ipv6_bytes + IN6_ADDR_SIZE;
-  char *dst= ipv6_bytes;
+  const char *str_end= str + str_length;
+  char *ipv6_bytes_end= m_buffer + sizeof(m_buffer);
+  char *dst= m_buffer;
   char *gap_ptr= NULL;
   const char *group_start_ptr= p;
   int chars_in_group= 0;
   int group_value= 0;
 
-  while (((p - str) < str_length) && *p)
+  while (p < str_end && *p)
   {
     char c= *p++;
 
@@ -393,27 +554,27 @@ static bool str_to_ipv6(const char *str, int str_length, in6_addr *ipv6_address)
       {
         if (gap_ptr)
         {
-          DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
-                               "too many gaps(::).", str_length, str));
-          return false;
+          DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
+                               "too many gaps(::).", (int) str_length, str));
+          return true;
         }
 
         gap_ptr= dst;
         continue;
       }
 
-      if (!*p || ((p - str) >= str_length))
+      if (!*p || p >= str_end)
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
-                             "ending at ':'.", str_length, str));
-        return false;
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
+                             "ending at ':'.", (int) str_length, str));
+        return true;
       }
 
       if (dst + 2 > ipv6_bytes_end)
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
-                             "too many groups (1).", str_length, str));
-        return false;
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
+                             "too many groups (1).", (int) str_length, str));
+        return true;
       }
 
       dst[0]= (unsigned char) (group_value >> 8) & 0xff;
@@ -427,20 +588,21 @@ static bool str_to_ipv6(const char *str, int str_length, in6_addr *ipv6_address)
     {
       if (dst + IN_ADDR_SIZE > ipv6_bytes_end)
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
-                             "unexpected IPv4-part.", str_length, str));
-        return false;
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
+                             "unexpected IPv4-part.", (int) str_length, str));
+        return true;
       }
 
-      if (!str_to_ipv4(group_start_ptr,
-                       str + str_length - group_start_ptr,
-                       (in_addr *) dst))
+      Inet4_null tmp(group_start_ptr, (size_t) (str_end - group_start_ptr),
+                     &my_charset_latin1);
+      if (tmp.is_null())
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
-                             "invalid IPv4-part.", str_length, str));
-        return false;
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
+                             "invalid IPv4-part.", (int) str_length, str));
+        return true;
       }
 
+      tmp.to_binary(dst, IN_ADDR_SIZE);
       dst += IN_ADDR_SIZE;
       chars_in_group= 0;
 
@@ -452,18 +614,18 @@ static bool str_to_ipv6(const char *str, int str_length, in6_addr *ipv6_address)
 
       if (!hdp)
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                              "invalid character at pos %d.",
-                             str_length, str, (int) (p - str)));
-        return false;
+                             (int) str_length, str, (int) (p - str)));
+        return true;
       }
 
       if (chars_in_group >= 4)
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                              "too many digits in group.",
-                             str_length, str));
-        return false;
+                             (int) str_length, str));
+        return true;
       }
 
       group_value <<= 4;
@@ -479,9 +641,9 @@ static bool str_to_ipv6(const char *str, int str_length, in6_addr *ipv6_address)
   {
     if (dst + 2 > ipv6_bytes_end)
     {
-      DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
-                           "too many groups (2).", str_length, str));
-      return false;
+      DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
+                           "too many groups (2).", (int) str_length, str));
+      return true;
     }
 
     dst[0]= (unsigned char) (group_value >> 8) & 0xff;
@@ -493,9 +655,9 @@ static bool str_to_ipv6(const char *str, int str_length, in6_addr *ipv6_address)
   {
     if (dst == ipv6_bytes_end)
     {
-      DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
-                           "no room for a gap (::).", str_length, str));
-      return false;
+      DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
+                           "no room for a gap (::).", (int) str_length, str));
+      return true;
     }
 
     int bytes_to_move= (int)(dst - gap_ptr);
@@ -511,50 +673,49 @@ static bool str_to_ipv6(const char *str, int str_length, in6_addr *ipv6_address)
 
   if (dst < ipv6_bytes_end)
   {
-    DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
-                         "too few groups.", str_length, str));
-    return false;
+    DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
+                         "too few groups.", (int) str_length, str));
+    return true;
   }
 
-  return true;
+  return false;
 }
 
-///////////////////////////////////////////////////////////////////////////
 
 /**
   Converts IPv4-binary-address to a string. This function is a portable
   alternative to inet_ntop(AF_INET).
 
   @param[in] ipv4 IPv4-address data (byte array)
-  @param[out] str A buffer to store string representation of IPv4-address.
-                  It must be at least of INET_ADDRSTRLEN.
+  @param[out] dst A buffer to store string representation of IPv4-address.
+  @param[in]  dstsize Number of bytes avaiable in "dst"
 
   @note The problem with inet_ntop() is that it is available starting from
   Windows Vista, but the minimum supported version is Windows 2000.
 */
 
-static void ipv4_to_str(const in_addr *ipv4, char *str)
+size_t Inet4::to_string(char *dst, size_t dstsize) const
 {
-  const unsigned char *ipv4_bytes= (const unsigned char *) ipv4;
-
-  sprintf(str, "%d.%d.%d.%d",
-          ipv4_bytes[0], ipv4_bytes[1], ipv4_bytes[2], ipv4_bytes[3]);
+  return (size_t) my_snprintf(dst, dstsize, "%d.%d.%d.%d",
+                              (uchar) m_buffer[0], (uchar) m_buffer[1],
+                              (uchar) m_buffer[2], (uchar) m_buffer[3]);
 }
-///////////////////////////////////////////////////////////////////////////
+
 
 /**
   Converts IPv6-binary-address to a string. This function is a portable
   alternative to inet_ntop(AF_INET6).
 
   @param[in] ipv6 IPv6-address data (byte array)
-  @param[out] str A buffer to store string representation of IPv6-address.
+  @param[out] dst A buffer to store string representation of IPv6-address.
                   It must be at least of INET6_ADDRSTRLEN.
+  @param[in] dstsize Number of bytes available dst.
 
   @note The problem with inet_ntop() is that it is available starting from
   Windows Vista, but out the minimum supported version is Windows 2000.
 */
 
-static void ipv6_to_str(const in6_addr *ipv6, char *str)
+size_t Inet6::to_string(char *dst, size_t dstsize) const
 {
   struct Region
   {
@@ -562,6 +723,8 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
     int length;
   };
 
+  const char *ipv6= m_buffer;
+  char *dstend= dst + dstsize;
   const unsigned char *ipv6_bytes= (const unsigned char *) ipv6;
 
   // 1. Translate IPv6-address bytes to words.
@@ -570,7 +733,8 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
 
   uint16 ipv6_words[IN6_ADDR_NUM_WORDS];
 
-  for (int i= 0; i < IN6_ADDR_NUM_WORDS; ++i)
+  DBUG_ASSERT(dstsize > 0); // Need a space at least for the trailing '\0'
+  for (size_t i= 0; i < IN6_ADDR_NUM_WORDS; ++i)
     ipv6_words[i]= (ipv6_bytes[2 * i] << 8) + ipv6_bytes[2 * i + 1];
 
   // 2. Find "the gap" -- longest sequence of zeros in IPv6-address.
@@ -580,7 +744,7 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
   {
     Region rg= { -1, -1 };
 
-    for (int i = 0; i < IN6_ADDR_NUM_WORDS; ++i)
+    for (size_t i= 0; i < IN6_ADDR_NUM_WORDS; ++i)
     {
       if (ipv6_words[i] != 0)
       {
@@ -601,7 +765,7 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
         }
         else
         {
-          rg.pos= i;
+          rg.pos= (int) i;
           rg.length= 1;
         }
       }
@@ -616,10 +780,14 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
 
   // 3. Convert binary data to string.
 
-  char *p= str;
+  char *p= dst;
 
-  for (int i = 0; i < IN6_ADDR_NUM_WORDS; ++i)
+  for (int i= 0; i < (int) IN6_ADDR_NUM_WORDS; ++i)
   {
+    DBUG_ASSERT(dstend >= p);
+    size_t dstsize_available= dstend - p;
+    if (dstsize_available < 5)
+      break;
     if (i == gap.pos)
     {
       // We're at the gap position. We should put trailing ':' and jump to
@@ -646,10 +814,11 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
     {
       // The data represents either IPv4-compatible or IPv4-mapped address.
       // The IPv6-part (zeros or zeros + ffff) has been already put into
-      // the string (str). Now it's time to dump IPv4-part.
+      // the string (dst). Now it's time to dump IPv4-part.
 
-      ipv4_to_str((const in_addr *) (ipv6_bytes + 12), p);
-      return;
+      return (size_t) (p - dst) +
+             Inet4_null((const char *) (ipv6_bytes + 12), 4).
+               to_string(p, dstsize_available);
     }
     else
     {
@@ -660,7 +829,7 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
 
       p += sprintf(p, "%x", ipv6_words[i]);
 
-      if (i != IN6_ADDR_NUM_WORDS - 1)
+      if (i + 1 != IN6_ADDR_NUM_WORDS)
       {
         *p= ':';
         ++p;
@@ -669,6 +838,7 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
   }
 
   *p= 0;
+  return (size_t) (p - dst);
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -676,161 +846,122 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
 /**
   Converts IP-address-string to IP-address-data.
 
-  @param       arg    IP-address-string.
-  @param [out] buffer Buffer to store IP-address-data.
+    ipv4-string -> varbinary(4)
+    ipv6-string -> varbinary(16)
 
   @return Completion status.
-  @retval false Given string does not represent an IP-address.
-  @retval true  The string has been converted sucessfully.
+  @retval NULL  Given string does not represent an IP-address.
+  @retval !NULL The string has been converted successfully.
 */
 
-bool Item_func_inet6_aton::calc_value(const String *arg, String *buffer)
+String *Item_func_inet6_aton::val_str(String *buffer)
 {
-  // ipv4-string -> varbinary(4)
-  // ipv6-string -> varbinary(16)
+  DBUG_ASSERT(fixed);
 
-  in_addr ipv4_address;
-  in6_addr ipv6_address;
+  Ascii_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
+  if ((null_value= tmp.is_null()))
+    return NULL;
 
-  if (str_to_ipv4(arg->ptr(), arg->length(), &ipv4_address))
+  Inet4_null ipv4(*tmp.string());
+  if (!ipv4.is_null())
   {
-    buffer->length(0);
-    buffer->append((char *) &ipv4_address, sizeof (in_addr), &my_charset_bin);
-
-    return true;
+    ipv4.to_binary(buffer);
+    return buffer;
   }
 
-  if (str_to_ipv6(arg->ptr(), arg->length(), &ipv6_address))
+  Inet6_null ipv6(*tmp.string());
+  if (!ipv6.is_null())
   {
-    buffer->length(0);
-    buffer->append((char *) &ipv6_address, sizeof (in6_addr), &my_charset_bin);
-
-    return true;
+    ipv6.to_binary(buffer);
+    return buffer;
   }
 
-  return false;
+  null_value= true;
+  return NULL;
 }
 
-///////////////////////////////////////////////////////////////////////////
 
 /**
   Converts IP-address-data to IP-address-string.
-
-  @param       arg    IP-address-data.
-  @param [out] buffer Buffer to store IP-address-string.
-
-  @return Completion status.
-  @retval false The argument does not correspond to IP-address.
-  @retval true  The string has been converted sucessfully.
 */
 
-bool Item_func_inet6_ntoa::calc_value(const String *arg, String *buffer)
+String *Item_func_inet6_ntoa::val_str_ascii(String *buffer)
 {
-  if (arg->charset() != &my_charset_bin)
-    return false;
+  DBUG_ASSERT(fixed);
 
-  if ((int) arg->length() == IN_ADDR_SIZE)
+  // Binary string argument expected
+  if (unlikely(args[0]->result_type() != STRING_RESULT ||
+               args[0]->collation.collation != &my_charset_bin))
   {
-    char str[INET_ADDRSTRLEN];
-
-    ipv4_to_str((const in_addr *) arg->ptr(), str);
-
-    buffer->length(0);
-    buffer->append(str, (uint32) strlen(str), &my_charset_latin1);
-
-    return true;
-  }
-  else if ((int) arg->length() == IN6_ADDR_SIZE)
-  {
-    char str[INET6_ADDRSTRLEN];
-
-    ipv6_to_str((const in6_addr *) arg->ptr(), str);
-
-    buffer->length(0);
-    buffer->append(str, (uint32) strlen(str), &my_charset_latin1);
-
-    return true;
+    null_value= true;
+    return NULL;
   }
 
-  DBUG_PRINT("info",
-             ("INET6_NTOA(): varbinary(4) or varbinary(16) expected."));
-  return false;
+  String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
+  if ((null_value= tmp.is_null()))
+    return NULL;
+
+  Inet4_null ipv4(static_cast<const Binary_string&>(*tmp.string()));
+  if (!ipv4.is_null())
+  {
+    ipv4.to_string(buffer);
+    return buffer;
+  }
+
+  Inet6_null ipv6(static_cast<const Binary_string&>(*tmp.string()));
+  if (!ipv6.is_null())
+  {
+    ipv6.to_string(buffer);
+    return buffer;
+  }
+
+  DBUG_PRINT("info", ("INET6_NTOA(): varbinary(4) or varbinary(16) expected."));
+  null_value= true;
+  return NULL;
 }
 
-///////////////////////////////////////////////////////////////////////////
 
 /**
   Checks if the passed string represents an IPv4-address.
-
-  @param arg The string to check.
-
-  @return Check status.
-  @retval false The passed string does not represent an IPv4-address.
-  @retval true  The passed string represents an IPv4-address.
 */
 
-bool Item_func_is_ipv4::calc_value(const String *arg)
+longlong Item_func_is_ipv4::val_int()
 {
-  in_addr ipv4_address;
-
-  return str_to_ipv4(arg->ptr(), arg->length(), &ipv4_address);
+  DBUG_ASSERT(fixed);
+  String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
+  return !tmp.is_null() && !Inet4_null(*tmp.string()).is_null();
 }
 
-///////////////////////////////////////////////////////////////////////////
 
 /**
   Checks if the passed string represents an IPv6-address.
-
-  @param arg The string to check.
-
-  @return Check status.
-  @retval false The passed string does not represent an IPv6-address.
-  @retval true  The passed string represents an IPv6-address.
 */
 
-bool Item_func_is_ipv6::calc_value(const String *arg)
+longlong Item_func_is_ipv6::val_int()
 {
-  in6_addr ipv6_address;
-
-  return str_to_ipv6(arg->ptr(), arg->length(), &ipv6_address);
+  DBUG_ASSERT(fixed);
+  String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
+  return !tmp.is_null() && !Inet6_null(*tmp.string()).is_null();
 }
 
-///////////////////////////////////////////////////////////////////////////
 
 /**
   Checks if the passed IPv6-address is an IPv4-compat IPv6-address.
-
-  @param arg The IPv6-address to check.
-
-  @return Check status.
-  @retval false The passed IPv6-address is not an IPv4-compatible IPv6-address.
-  @retval true  The passed IPv6-address is an IPv4-compatible IPv6-address.
 */
 
-bool Item_func_is_ipv4_compat::calc_value(const String *arg)
+longlong Item_func_is_ipv4_compat::val_int()
 {
-  if ((int) arg->length() != IN6_ADDR_SIZE || arg->charset() != &my_charset_bin)
-    return false;
-
-  return IN6_IS_ADDR_V4COMPAT((struct in6_addr *) arg->ptr());
+  Inet6_null ip6(args[0]);
+  return !ip6.is_null() && ip6.is_v4compat();
 }
 
-///////////////////////////////////////////////////////////////////////////
 
 /**
   Checks if the passed IPv6-address is an IPv4-mapped IPv6-address.
-
-  @param arg The IPv6-address to check.
-
-  @return Check status.
-  @retval false The passed IPv6-address is not an IPv4-mapped IPv6-address.
-  @retval true  The passed IPv6-address is an IPv4-mapped IPv6-address.
 */
 
-bool Item_func_is_ipv4_mapped::calc_value(const String *arg)
+longlong Item_func_is_ipv4_mapped::val_int()
 {
-  if ((int) arg->length() != IN6_ADDR_SIZE || arg->charset() != &my_charset_bin)
-    return false;
-
-  return IN6_IS_ADDR_V4MAPPED((struct in6_addr *) arg->ptr());
+  Inet6_null ip6(args[0]);
+  return !ip6.is_null() && ip6.is_v4mapped();
 }

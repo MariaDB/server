@@ -1,0 +1,10 @@
+#
+# MDEV-18788 Live upgrade from MySQL 5.6/5.7 to MariaDB 10.4 fails with "Event Scheduler: An error occurred when initializing system tables"
+#
+create table t1 (a int);
+alter table mysql.column_stats rename to mysql.column_stats1;
+flush tables;
+alter table t1 change a b varchar(100);
+show create table t1;
+alter table mysql.column_stats1 rename to mysql.column_stats;
+drop table t1;

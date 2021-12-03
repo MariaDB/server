@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -1364,6 +1364,31 @@ longlong spider_param_quick_page_size(
 
 /*
  -1 :use table parameter
+  0-:the limitation of memory size
+ */
+static MYSQL_THDVAR_LONGLONG(
+  quick_page_byte, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "The limitation of memory size in a page when acquisition one by one", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  9223372036854775807LL, /* max */
+  0 /* blk */
+);
+
+longlong spider_param_quick_page_byte(
+  THD *thd,
+  longlong quick_page_byte
+) {
+  DBUG_ENTER("spider_param_quick_page_byte");
+  DBUG_RETURN(THDVAR(thd, quick_page_byte) < 0 ?
+    quick_page_byte : THDVAR(thd, quick_page_byte));
+}
+
+/*
+ -1 :use table parameter
   0 :It doesn't use low memory mode.
   1 :It uses low memory mode.
  */
@@ -1953,7 +1978,7 @@ static MYSQL_THDVAR_INT(
   "Remote server transmission existence when UDF is used at condition and \"engine_condition_pushdown=1\"", /* comment */
   NULL, /* check */
   NULL, /* update */
-  -1, /* def */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -3123,6 +3148,30 @@ int spider_param_bka_table_name_type(
     bka_table_name_type : THDVAR(thd, bka_table_name_type));
 }
 
+/*
+ -1 :use table parameter
+  0 :off
+  1 :on
+ */
+static MYSQL_THDVAR_INT(
+  use_cond_other_than_pk_for_update, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Use all conditions even if condition has pk", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  1, /* def */
+  0, /* min */
+  1, /* max */
+  0 /* blk */
+);
+
+int spider_param_use_cond_other_than_pk_for_update(
+  THD *thd
+) {
+  DBUG_ENTER("spider_param_reset_sql_alloc");
+  DBUG_RETURN(THDVAR(thd, use_cond_other_than_pk_for_update));
+}
+
 static int spider_store_last_sts;
 /*
  -1 : use table parameter
@@ -3279,6 +3328,103 @@ uint spider_param_table_crd_thread_count()
 }
 #endif
 
+static int spider_slave_trx_isolation;
+/*
+ -1 :off
+  0 :read uncommitted
+  1 :read committed
+  2 :repeatable read
+  3 :serializable
+ */
+static MYSQL_SYSVAR_INT(
+  slave_trx_isolation,
+  spider_slave_trx_isolation,
+  PLUGIN_VAR_RQCMDARG,
+  "Transaction isolation level when Spider table is used by slave SQL thread",
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  3, /* max */
+  0 /* blk */
+);
+
+int spider_param_slave_trx_isolation()
+{
+  DBUG_ENTER("spider_param_slave_trx_isolation");
+  DBUG_RETURN(spider_slave_trx_isolation);
+}
+
+/*
+ -1 :not set
+  0-:seconds of timeout
+ */
+static MYSQL_THDVAR_INT(
+  remote_wait_timeout, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Wait timeout on remote server", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  2147483647, /* max */
+  0 /* blk */
+);
+
+int spider_param_remote_wait_timeout(
+  THD *thd
+) {
+  DBUG_ENTER("spider_param_remote_wait_timeout");
+  if (likely(thd))
+    DBUG_RETURN(THDVAR(thd, remote_wait_timeout));
+  DBUG_RETURN(-1);
+}
+
+/*
+ -1 :not set
+  0-:seconds of timeout
+ */
+static MYSQL_THDVAR_INT(
+  wait_timeout, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Wait timeout of setting to remote server", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  604800, /* def */
+  -1, /* min */
+  2147483647, /* max */
+  0 /* blk */
+);
+
+int spider_param_wait_timeout(
+  THD *thd
+) {
+  DBUG_ENTER("spider_param_wait_timeout");
+  if (likely(thd))
+    DBUG_RETURN(THDVAR(thd, wait_timeout));
+  DBUG_RETURN(604800);
+}
+
+/*
+  FALSE: no sync
+  TRUE:  sync
+ */
+static MYSQL_THDVAR_BOOL(
+  sync_sql_mode, /* name */
+  PLUGIN_VAR_OPCMDARG, /* opt */
+  "Sync sql_mode", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  TRUE /* def */
+);
+
+bool spider_param_sync_sql_mode(
+  THD *thd
+) {
+  DBUG_ENTER("spider_param_sync_sql_mode");
+  DBUG_RETURN(THDVAR(thd, sync_sql_mode));
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -3330,6 +3476,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(net_write_timeout),
   MYSQL_SYSVAR(quick_mode),
   MYSQL_SYSVAR(quick_page_size),
+  MYSQL_SYSVAR(quick_page_byte),
   MYSQL_SYSVAR(low_mem_read),
   MYSQL_SYSVAR(select_column_mode),
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -3421,11 +3568,16 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(dry_access),
   MYSQL_SYSVAR(delete_all_rows_type),
   MYSQL_SYSVAR(bka_table_name_type),
+  MYSQL_SYSVAR(use_cond_other_than_pk_for_update),
   MYSQL_SYSVAR(connect_error_interval),
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   MYSQL_SYSVAR(table_sts_thread_count),
   MYSQL_SYSVAR(table_crd_thread_count),
 #endif
+  MYSQL_SYSVAR(slave_trx_isolation),
+  MYSQL_SYSVAR(remote_wait_timeout),
+  MYSQL_SYSVAR(wait_timeout),
+  MYSQL_SYSVAR(sync_sql_mode),
   NULL
 };
 

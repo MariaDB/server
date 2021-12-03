@@ -41,7 +41,7 @@ class ha_tokudb;
 
 typedef struct loader_context {
     THD* thd;
-    char write_status_msg[200];
+    char write_status_msg[1024];
     ha_tokudb* ha;
 } *LOADER_CONTEXT;
 
@@ -387,7 +387,8 @@ inline void TOKUDB_SHARE::init_cardinality_counts(
 
     assert_debug(_mutex.is_owned_by_me());
     // can not change number of keys live
-    assert_always(_rec_per_key == NULL && _rec_per_keys == 0);
+    assert_always(_rec_per_key == nullptr);
+    assert_always(_rec_per_keys == 0);
     _rec_per_keys = rec_per_keys;
     _rec_per_key = rec_per_key;
 }
@@ -703,11 +704,11 @@ private:
     void trace_create_table_info(TABLE* form);
     int is_index_unique(bool* is_unique, DB_TXN* txn, DB* db, KEY* key_info, int lock_flags);
     int is_val_unique(bool* is_unique, const uchar* record, KEY* key_info, uint dict_index, DB_TXN* txn);
-    int do_uniqueness_checks(uchar* record, DB_TXN* txn, THD* thd);
+    int do_uniqueness_checks(const uchar* record, DB_TXN* txn, THD* thd);
     void set_main_dict_put_flags(THD* thd, bool opt_eligible, uint32_t* put_flags);
     int insert_row_to_main_dictionary(DBT* pk_key, DBT* pk_val, DB_TXN* txn);
     int insert_rows_to_dictionaries_mult(DBT* pk_key, DBT* pk_val, DB_TXN* txn, THD* thd);
-    void test_row_packing(uchar* record, DBT* pk_key, DBT* pk_val);
+    void test_row_packing(const uchar* record, DBT* pk_key, DBT* pk_val);
     uint32_t fill_row_mutator(
         uchar* buf, 
         uint32_t* dropped_columns, 
@@ -785,7 +786,7 @@ public:
     int rename_table(const char *from, const char *to);
     int optimize(THD * thd, HA_CHECK_OPT * check_opt);
     int analyze(THD * thd, HA_CHECK_OPT * check_opt);
-    int write_row(uchar * buf);
+    int write_row(const uchar * buf);
     int update_row(const uchar * old_data, const uchar * new_data);
     int delete_row(const uchar * buf);
 #if MYSQL_VERSION_ID >= 100000
@@ -871,6 +872,7 @@ public:
     bool primary_key_is_clustered() {
         return true;
     }
+    bool is_clustering_key(uint index);
     int cmp_ref(const uchar * ref1, const uchar * ref2);
     bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes);
 
@@ -914,6 +916,9 @@ public:
 
     Item* idx_cond_push(uint keyno, class Item* idx_cond);
     void cancel_pushed_idx_cond();
+
+    bool can_convert_varstring(const Field_varstring* field,
+                               const Column_definition&new_type) const;
 
 #if defined(TOKU_INCLUDE_ALTER_56) && TOKU_INCLUDE_ALTER_56
  public:
@@ -1022,7 +1027,7 @@ private:
     int get_next(uchar* buf, int direction, DBT* key_to_compare, bool do_key_read);
     int read_data_from_range_query_buff(uchar* buf, bool need_val, bool do_key_read);
     // for ICP, only in MariaDB and MySQL 5.6
-    enum icp_result toku_handler_index_cond_check(Item* pushed_idx_cond);
+    check_result_t toku_handler_index_cond_check(Item* pushed_idx_cond);
     void invalidate_bulk_fetch();
     void invalidate_icp();
     int delete_all_rows_internal();

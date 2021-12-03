@@ -1,0 +1,19 @@
+--- default_row_format_alter.result
++++ default_row_format_alter,compact.reject
+@@ -91,7 +91,7 @@
+ ALTER TABLE t1 ADD b INT;
+ SELECT ROW_FORMAT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
+ ROW_FORMAT
+-Dynamic
++Compact
+ DROP TABLE t1;
+ #
+ # MDEV-23345 Assertion not_redundant() == old.not_redundant() failed
+@@ -102,6 +102,6 @@
+ ALTER TABLE t1 DROP b;
+ SELECT ROW_FORMAT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
+ ROW_FORMAT
+-Dynamic
++Compact
+ DROP TABLE t1;
+ SET GLOBAL innodb_default_row_format = @row_format;

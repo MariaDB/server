@@ -10,5 +10,5 @@ FULLTEXT KEY (title)
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 drop table film_text;

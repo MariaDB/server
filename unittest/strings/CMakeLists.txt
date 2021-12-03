@@ -1,3 +1,3 @@
 
-MY_ADD_TESTS(strings LINK_LIBRARIES strings mysys)
+MY_ADD_TESTS(strings json LINK_LIBRARIES strings mysys)
 

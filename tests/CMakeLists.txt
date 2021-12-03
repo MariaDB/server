@@ -11,7 +11,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 ADD_DEFINITIONS("-DMYSQL_CLIENT")
 
@@ -22,7 +22,7 @@ INCLUDE_DIRECTORIES(BEFORE
   ${CMAKE_BINARY_DIR}/libmariadb/include
   ${CMAKE_SOURCE_DIR}/libmariadb/include)
 
-ADD_EXECUTABLE(mysql_client_test mysql_client_test.c)
+MYSQL_ADD_EXECUTABLE(mysql_client_test mysql_client_test.c COMPONENT Test)
 SET(CLIENT_LIB mariadbclient mysys)
 
 TARGET_LINK_LIBRARIES(mysql_client_test ${CLIENT_LIB})
@@ -33,8 +33,6 @@ IF(WITH_UNIT_TESTS)
   TARGET_LINK_LIBRARIES(bug25714 ${CLIENT_LIB})
   ADD_DEPENDENCIES(bug25714 GenError ${CLIENT_LIB})
 ENDIF()
-
-INSTALL(TARGETS mysql_client_test DESTINATION ${INSTALL_BINDIR} COMPONENT Test)
 
 CHECK_INCLUDE_FILE(event.h HAVE_EVENT_H)
 FIND_LIBRARY(EVENT_LIBRARY event)

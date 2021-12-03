@@ -3,13 +3,7 @@
 #ifndef btr0scrub_h
 #define btr0scrub_h
 
-#include "univ.i"
-
 #include "dict0dict.h"
-#include "data0data.h"
-#include "page0cur.h"
-#include "mtr0mtr.h"
-#include "btr0types.h"
 
 /**
  * enum describing page allocation status
@@ -147,12 +141,7 @@ btr_scrub_skip_page(
 /****************************************************************
 Start iterating a space
 * @return true if scrubbing is turned on */
-UNIV_INTERN
-bool
-btr_scrub_start_space(
-/*===================*/
-	ulint space,              /*!< in: space */
-	btr_scrub_t* scrub_data); /*!< in/out: scrub data */
+bool btr_scrub_start_space(const fil_space_t &space, btr_scrub_t *scrub_data);
 
 /** Complete iterating a space.
 @param[in,out]	scrub_data	 scrub data */

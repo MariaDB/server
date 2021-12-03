@@ -1,0 +1,137 @@
+#
+# Exercise the crash points which crash the server at various points important to SR
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+--connect node_2_check, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connect node_3_check, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+#
+# crash_last_fragment_commit_before_fragment_removal
+#
+
+--connection node_2
+--enable_reconnect
+SET GLOBAL debug_dbug="d,crash_last_fragment_commit_before_fragment_removal";
+--source suite/galera_3nodes/include/galera_expect_node_crash.inc
+--source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
+
+--echo crash_last_fragment_commit_before_fragment_removal
+
+--connection node_2
+--error 2006,2013
+COMMIT;
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE variable_name = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+--source include/start_mysqld.inc
+--source suite/galera_3nodes/include/galera_sr_crash_post_check.inc
+
+#
+# crash_last_fragment_commit_after_fragment_removal
+#
+
+--connection node_2
+SET GLOBAL debug_dbug="d,crash_last_fragment_commit_after_fragment_removal";
+--source suite/galera_3nodes/include/galera_expect_node_crash.inc
+--source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
+
+--echo crash_last_fragment_commit_after_fragment_removal
+ 
+--connection node_2
+--error 2006,2013
+COMMIT;
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE variable_name = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+--source include/start_mysqld.inc
+--source suite/galera_3nodes/include/galera_sr_crash_post_check.inc
+
+#
+# crash_last_fragment_commit_success
+#
+# Case crash_last_fragment_commit_success is commented out,
+# the changes will be visible on slave due to succesful commit,
+# so the galera_sr_crash_post_check will fail.
+#
+
+# --connection node_2
+# SET GLOBAL debug_dbug="d,crash_last_fragment_commit_success";
+# --source suite/galera_3nodes/include/galera_expect_node_crash.inc
+# --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
+
+# --echo crash_last_fragment_commit_success
+
+# --connection node_2
+# --error 2006,2013
+# COMMIT;
+
+# --source include/start_mysqld.inc
+# --source suite/galera_3nodes/include/galera_sr_crash_post_check.inc
+
+#
+# crash_replicate_fragment_success
+#
+
+--connection node_2
+SET GLOBAL debug_dbug="d,crash_replicate_fragment_success";
+--source suite/galera_3nodes/include/galera_expect_node_crash.inc
+--source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
+
+--echo crash_replicate_fragment_success
+
+--connection node_2
+--error 2006,2013
+COMMIT;
+
+--source include/start_mysqld.inc
+--source suite/galera_3nodes/include/galera_sr_crash_post_check.inc
+
+#
+# crash_replicate_fragment_after_certify
+#
+
+--connection node_2
+SET GLOBAL debug_dbug="d,crash_replicate_fragment_after_certify";
+--source suite/galera_3nodes/include/galera_expect_node_crash.inc
+--source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
+
+--echo crash_replicate_fragment_after_certify
+
+--connection node_2
+--error 2006,2013
+COMMIT;
+
+--source include/start_mysqld.inc
+--source suite/galera_3nodes/include/galera_sr_crash_post_check.inc
+
+#
+# crash_replicate_fragment_before_certify
+#
+
+--connection node_2
+SET GLOBAL debug_dbug="d,crash_replicate_fragment_before_certify";
+--source suite/galera_3nodes/include/galera_expect_node_crash.inc
+--source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
+
+--echo crash_replicate_fragment_before_certify
+
+--connection node_2
+--error 2006,2013
+COMMIT;
+
+--source include/start_mysqld.inc
+--source suite/galera_3nodes/include/galera_sr_crash_post_check.inc
+
+
+DROP TABLE t1;

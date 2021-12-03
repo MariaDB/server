@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -268,7 +268,8 @@ int str2my_decimal(uint mask, const char *from, size_t length,
   integer part cannot be larger that 1e18 (otherwise it's an overflow).
   fractional part is microseconds.
 */
-bool my_decimal2seconds(const my_decimal *d, ulonglong *sec, ulong *microsec)
+bool my_decimal2seconds(const my_decimal *d, ulonglong *sec,
+                        ulong *microsec, ulong *nanosec)
 {
   int pos;
   
@@ -286,6 +287,7 @@ bool my_decimal2seconds(const my_decimal *d, ulonglong *sec, ulong *microsec)
   }
 
   *microsec= d->frac ? static_cast<longlong>(d->buf[pos+1]) / (DIG_BASE/1000000) : 0;
+  *nanosec=  d->frac ? static_cast<longlong>(d->buf[pos+1]) % (DIG_BASE/1000000) : 0;
 
   if (pos > 1)
   {
@@ -343,12 +345,12 @@ void my_decimal_trim(ulonglong *precision, uint *scale)
 */
 
 int my_decimal2int(uint mask, const decimal_t *d, bool unsigned_flag,
-		   longlong *l)
+		   longlong *l, decimal_round_mode round_type)
 {
   int res;
   my_decimal rounded;
   /* decimal_round can return only E_DEC_TRUNCATED */
-  decimal_round(d, &rounded, 0, HALF_UP);
+  decimal_round(d, &rounded, 0, round_type);
   res= (unsigned_flag ?
         decimal2ulonglong(&rounded, (ulonglong *) l) :
         decimal2longlong(&rounded, l));
@@ -378,7 +380,7 @@ my_decimal::my_decimal(Field *field)
 {
   init();
   DBUG_ASSERT(!field->is_null());
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   my_decimal *dec=
 #endif
   field->val_decimal(this);

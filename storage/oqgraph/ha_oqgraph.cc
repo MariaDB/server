@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
@@ -799,7 +799,7 @@ void ha_oqgraph::update_key_stats()
 }
 
 
-int ha_oqgraph::write_row(byte * buf)
+int ha_oqgraph::write_row(const byte * buf)
 {
   return HA_ERR_TABLE_READONLY;
 }
@@ -908,7 +908,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   bmove_align(buf, table->s->default_values, table->s->reclength);
   key_restore(buf, (byte*) key, key_info, key_len);
 
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   my_ptrdiff_t ptrdiff= buf - table->record[0];
 
   if (ptrdiff)
@@ -937,7 +937,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
           field[1]->move_field_offset(-ptrdiff);
           field[2]->move_field_offset(-ptrdiff);
         }
-        dbug_tmp_restore_column_map(table->read_set, old_map);
+        dbug_tmp_restore_column_map(&table->read_set, old_map);
         return error_code(oqgraph::NO_MORE_DATA);
       }
     }
@@ -962,7 +962,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
     field[1]->move_field_offset(-ptrdiff);
     field[2]->move_field_offset(-ptrdiff);
   }
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
 
   // Keep the latch around so we can use it in the query result later -
   // See fill_record().
@@ -995,7 +995,7 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
 
   bmove_align(record, table->s->default_values, table->s->reclength);
 
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   my_ptrdiff_t ptrdiff= record - table->record[0];
 
   if (ptrdiff)
@@ -1071,7 +1071,7 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
     field[4]->move_field_offset(-ptrdiff);
     field[5]->move_field_offset(-ptrdiff);
   }
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
 
   return 0;
 }
@@ -1211,7 +1211,7 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
       min_key->flag != HA_READ_KEY_EXACT ||
       max_key->flag != HA_READ_AFTER_KEY)
   {
-    if (min_key->length == key->key_part[0].store_length && !key->key_part[0].field->is_null()) /* ensure select * from x where latch is null is consistent with no latch */
+    if (min_key && min_key->length == key->key_part[0].store_length && !key->key_part[0].field->is_null()) /* ensure select * from x where latch is null is consistent with no latch */
     {
       // If latch is not null and equals 0, return # nodes
 

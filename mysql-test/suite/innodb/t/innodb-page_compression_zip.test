@@ -1,5 +1,7 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 # zlib
 set global innodb_compression_algorithm = 1;

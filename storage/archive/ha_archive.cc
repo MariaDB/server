@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -243,6 +243,20 @@ Archive_share::Archive_share()
 }
 
 
+Archive_share::~Archive_share()
+{
+  DBUG_PRINT("ha_archive", ("~Archive_share: %p", this));
+  if (archive_write_open)
+  {
+    mysql_mutex_lock(&mutex);
+    (void) close_archive_writer();              // Will reset archive_write_open
+    mysql_mutex_unlock(&mutex);
+  }
+  thr_lock_delete(&lock);
+  mysql_mutex_destroy(&mutex);
+}
+
+
 ha_archive::ha_archive(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg), delayed_insert(0), bulk_insert(0)
 {
@@ -371,7 +385,7 @@ int Archive_share::write_v1_metafile()
   @return Length of packed row
 */
 
-unsigned int ha_archive::pack_row_v1(uchar *record)
+unsigned int ha_archive::pack_row_v1(const uchar *record)
 {
   uint *blob, *end;
   uchar *pos;
@@ -676,7 +690,6 @@ int ha_archive::close(void)
     if (azclose(&archive))
       rc= 1;
   }
-
   DBUG_RETURN(rc);
 }
 
@@ -868,7 +881,7 @@ error:
 /*
   This is where the actual row is written out.
 */
-int ha_archive::real_write_row(uchar *buf, azio_stream *writer)
+int ha_archive::real_write_row(const uchar *buf, azio_stream *writer)
 {
   my_off_t written;
   unsigned int r_pack_length;
@@ -917,7 +930,7 @@ uint32 ha_archive::max_row_length(const uchar *record)
 }
 
 
-unsigned int ha_archive::pack_row(uchar *record, azio_stream *writer)
+unsigned int ha_archive::pack_row(const uchar *record, azio_stream *writer)
 {
   uchar *ptr;
   my_ptrdiff_t const rec_offset= record - table->record[0];
@@ -959,7 +972,7 @@ unsigned int ha_archive::pack_row(uchar *record, azio_stream *writer)
   for implementing start_bulk_insert() is that we could skip 
   setting dirty to true each time.
 */
-int ha_archive::write_row(uchar *buf)
+int ha_archive::write_row(const uchar *buf)
 {
   int rc;
   uchar *read_buf= NULL;
@@ -980,7 +993,7 @@ int ha_archive::write_row(uchar *buf)
 
   if (table->next_number_field && record == table->record[0])
   {
-    KEY *mkey= &table->s->key_info[0]; // We only support one key right now
+    KEY *mkey= &table->key_info[0]; // We only support one key right now
     update_auto_increment();
     temp_auto= table->next_number_field->val_int();
 
@@ -1098,7 +1111,7 @@ int ha_archive::index_read_idx(uchar *buf, uint index, const uchar *key,
 {
   int rc;
   bool found= 0;
-  KEY *mkey= &table->s->key_info[index];
+  KEY *mkey= &table->key_info[index];
   current_k_offset= mkey->key_part->offset;
   current_key= key;
   current_key_len= key_len;
@@ -1547,7 +1560,7 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
       share->rows_recorded= 0;
       stats.auto_increment_value= 1;
       share->archive_write.auto_increment= 0;
-      my_bitmap_map *org_bitmap= tmp_use_all_columns(table, table->read_set);
+      MY_BITMAP *org_bitmap= tmp_use_all_columns(table, &table->read_set);
 
       while (!(rc= get_row(&archive, table->record[0])))
       {
@@ -1568,7 +1581,7 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
         }
       }
 
-      tmp_restore_column_map(table->read_set, org_bitmap);
+      tmp_restore_column_map(&table->read_set, org_bitmap);
       share->rows_recorded= (ha_rows)writer.rows;
     }
 
@@ -1671,7 +1684,6 @@ void ha_archive::update_create_info(HA_CREATE_INFO *create_info)
   DBUG_VOID_RETURN;
 }
 
-
 /*
   Hints for optimizer, see ha_tina for more information
 */
@@ -1679,22 +1691,7 @@ int ha_archive::info(uint flag)
 {
   DBUG_ENTER("ha_archive::info");
 
-  mysql_mutex_lock(&share->mutex);
-  if (share->dirty)
-  {
-    DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
-    DBUG_ASSERT(share->archive_write_open);
-    azflush(&(share->archive_write), Z_SYNC_FLUSH);
-    share->dirty= FALSE;
-  }
-
-  /* 
-    This should be an accurate number now, though bulk and delayed inserts can
-    cause the number to be inaccurate.
-  */
-  stats.records= share->rows_recorded;
-  mysql_mutex_unlock(&share->mutex);
-
+  flush_and_clear_pending_writes();
   stats.deleted= 0;
 
   DBUG_PRINT("ha_archive", ("Stats rows is %d\n", (int)stats.records));
@@ -1736,6 +1733,52 @@ int ha_archive::info(uint flag)
   DBUG_RETURN(0);
 }
 
+
+int ha_archive::external_lock(THD *thd, int lock_type)
+{
+  if (lock_type == F_RDLCK)
+  {
+    // We are going to read from the table. Flush any pending writes that we
+    // may have
+    flush_and_clear_pending_writes();
+  }
+  return 0;
+}
+
+
+void ha_archive::flush_and_clear_pending_writes()
+{
+  mysql_mutex_lock(&share->mutex);
+  if (share->dirty)
+  {
+    DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
+    DBUG_ASSERT(share->archive_write_open);
+    azflush(&(share->archive_write), Z_SYNC_FLUSH);
+    share->dirty= FALSE;
+  }
+
+  /* 
+    This should be an accurate number now, though bulk and delayed inserts can
+    cause the number to be inaccurate.
+  */
+  stats.records= share->rows_recorded;
+  mysql_mutex_unlock(&share->mutex);
+}
+
+
+int ha_archive::extra(enum ha_extra_function operation)
+{
+  switch (operation) {
+  case HA_EXTRA_FLUSH:
+    mysql_mutex_lock(&share->mutex);
+    share->close_archive_writer();
+    mysql_mutex_unlock(&share->mutex);
+    break;
+  default:
+    break;
+  }
+  return 0;
+}
 
 /*
   This method tells us that a bulk insert operation is about to occur. We set

@@ -1,0 +1,38 @@
+for master_1
+for child2
+for child3
+connection master_1;
+alter table mysql.spider_table_sts drop column checksum;
+insert into mysql.spider_table_sts values ('auto_test_local', 'tbl_a', 0, 0, 0, 0, 0, '2019-01-01 00:00:00', '2019-01-01 00:00:00', '2019-01-01 00:00:00');
+
+this test is for MDEV-19842
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+create table
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+
+select test 1
+connection master_1;
+SELECT pkey FROM tbl_a;
+ERROR HY000: System table spider_table_sts is different version
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+ERROR HY000: System table spider_table_sts is different version
+connection master_1;
+alter table mysql.spider_table_sts add column checksum bigint unsigned default null after update_time;
+DROP DATABASE IF EXISTS auto_test_local;
+for master_1
+for child2
+for child3
+
+end of test

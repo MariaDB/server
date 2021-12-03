@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /* 
@@ -41,6 +41,7 @@
 /* That one is necessary for defines of OPTION_NO_FOREIGN_KEY_CHECKS etc */
 #include "sql_priv.h"
 #include "sql_basic_types.h"
+#include <atomic>
 #include "log_event.h"
 #include "compat56.h"
 #include "sql_common.h"
@@ -83,6 +84,7 @@ ulong mysqld_net_retry_count = 10L;
 ulong open_files_limit;
 ulong opt_binlog_rows_event_max_size;
 ulonglong test_flags = 0;
+ulong opt_binlog_rows_event_max_encoded_size= MAX_MAX_ALLOWED_PACKET;
 static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;
@@ -93,7 +95,8 @@ static const char *default_dbug_option = "d:t:o,/tmp/mysqlbinlog.trace";
 const char *current_dbug_option= default_dbug_option;
 #endif
 static const char *load_groups[]=
-{ "mysqlbinlog", "client", "client-server", "client-mariadb", 0 };
+{ "mysqlbinlog", "mariadb-binlog", "client", "client-server", "client-mariadb",
+  0 };
 
 static void error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 static void warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
@@ -178,7 +181,7 @@ enum Exit_status {
 */
 static Annotate_rows_log_event *annotate_event= NULL;
 
-void free_annotate_event()
+static void free_annotate_event()
 {
   if (annotate_event)
   {
@@ -229,9 +232,8 @@ bool print_annotate_event(PRINT_EVENT_INFO *print_event_info)
   bool error= 0;
   if (annotate_event)
   {
-    error= annotate_event->print(result_file, print_event_info);
-    delete annotate_event;  // the event should not be printed more than once
-    annotate_event= 0;
+    annotate_event->print(result_file, print_event_info);
+    free_annotate_event();
   }
   return error;
 }
@@ -744,7 +746,7 @@ static bool shall_skip_database(const char *log_dbname)
 /**
   Print "use <db>" statement when current db is to be changed.
 
-  We have to control emiting USE statements according to rewrite-db options.
+  We have to control emitting USE statements according to rewrite-db options.
   We have to do it here (see process_event() below) and to suppress
   producing USE statements by corresponding log event print-functions.
 */
@@ -776,7 +778,7 @@ print_use_stmt(PRINT_EVENT_INFO* pinfo, const Query_log_event *ev)
   // In case of rewrite rule print USE statement for db_to
   my_fprintf(result_file, "use %`s%s\n", db_to, pinfo->delimiter);
 
-  // Copy the *original* db to pinfo to suppress emiting
+  // Copy the *original* db to pinfo to suppress emitting
   // of USE stmts by log_event print-functions.
   memcpy(pinfo->db, db, db_len + 1);
 }
@@ -849,8 +851,14 @@ write_event_header_and_base64(Log_event *ev, FILE *result_file,
   DBUG_ENTER("write_event_header_and_base64");
 
   /* Write header and base64 output to cache */
-  if (ev->print_header(head, print_event_info, FALSE) ||
-      ev->print_base64(body, print_event_info, FALSE))
+  if (ev->print_header(head, print_event_info, FALSE))
+    DBUG_RETURN(ERROR_STOP);
+
+  DBUG_ASSERT(print_event_info->base64_output_mode == BASE64_OUTPUT_ALWAYS);
+
+  if (ev->print_base64(body, print_event_info,
+                       print_event_info->base64_output_mode !=
+                       BASE64_OUTPUT_DECODE_ROWS))
     DBUG_RETURN(ERROR_STOP);
 
   /* Read data from cache and write to result file */
@@ -886,12 +894,13 @@ static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
             type_str);
     return 1;
   }
+
   return ev->print(result_file, print_event_info);
 }
 
 
 static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
-                            ulong table_id, bool is_stmt_end)
+                            ulonglong table_id, bool is_stmt_end)
 {
   Table_map_log_event *ignored_map= 
     print_event_info->m_table_map_ignored.get_table(table_id);
@@ -918,7 +927,7 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     }
   }
 
-  /* 
+  /*
      end of statement check:
        i) destroy/free ignored maps
       ii) if skip event
@@ -929,21 +938,21 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
    */
   if (is_stmt_end)
   {
-    /* 
+    /*
       Now is safe to clear ignored map (clear_tables will also
       delete original table map events stored in the map).
     */
     if (print_event_info->m_table_map_ignored.count() > 0)
       print_event_info->m_table_map_ignored.clear_tables();
 
-    /* 
+    /*
       If there is a kept Annotate event and all corresponding
       rbr-events were filtered away, the Annotate event was not
       freed and it is just the time to do it.
     */
-      free_annotate_event();
+    free_annotate_event();
 
-    /* 
+    /*
        One needs to take into account an event that gets
        filtered but was last event in the statement. If this is
        the case, previous rows events that were written into
@@ -959,8 +968,12 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         my_b_printf(body_cache, "'%s\n", print_event_info->delimiter);
 
       // flush cache
-      if ((copy_event_cache_to_file_and_reinit(&print_event_info->head_cache, result_file) ||
-          copy_event_cache_to_file_and_reinit(&print_event_info->body_cache, result_file)))
+      if ((copy_event_cache_to_file_and_reinit(&print_event_info->head_cache,
+                                               result_file) ||
+           copy_event_cache_to_file_and_reinit(&print_event_info->body_cache,
+                                               result_file) ||
+           copy_event_cache_to_file_and_reinit(&print_event_info->tail_cache,
+                                               result_file)))
         return 1;
     }
   }
@@ -1538,12 +1551,11 @@ end:
       {
         my_fwrite(result_file, (const uchar *) tmp_str.str, tmp_str.length,
                   MYF(MY_NABP));
+        fflush(result_file);
         my_free(tmp_str.str);
       }
     }
 
-    if (remote_opt)
-      ev->temp_buf= 0;
     if (destroy_evt) /* destroy it later if not set (ignored table map) */
       delete ev;
   }
@@ -1598,7 +1610,7 @@ static struct my_option my_options[] =
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"disable-log-bin", 'D', "Disable binary log. This is useful, if you "
-    "enabled --to-last-log and are sending the output to the same MySQL server. "
+    "enabled --to-last-log and are sending the output to the same MariaDB server. "
     "This way you could avoid an endless loop. You would also like to use it "
     "when restoring after a crash to avoid duplication of the statements you "
     "already have. NOTE: you will need a SUPER privilege to use this option.",
@@ -1643,7 +1655,7 @@ static struct my_option my_options[] =
   {"protocol", OPT_MYSQL_PROTOCOL,
    "The protocol to use for connection (tcp, socket, pipe).",
    0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"read-from-remote-server", 'R', "Read binary logs from a MySQL server.",
+  {"read-from-remote-server", 'R', "Read binary logs from a MariaDB server.",
    &remote_opt, &remote_opt, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
   {"raw", 0, "Requires -R. Output raw binlog data instead of SQL "
@@ -1696,7 +1708,7 @@ static struct my_option my_options[] =
   {"start-datetime", OPT_START_DATETIME,
    "Start reading the binlog at first event having a datetime equal or "
    "posterior to the argument; the argument must be a date and time "
-   "in the local time zone, in any format accepted by the MySQL server "
+   "in the local time zone, in any format accepted by the MariaDB server "
    "for DATETIME and TIMESTAMP types, for example: 2004-12-25 11:25:56 "
    "(you should probably use quotes for your shell to set it properly).",
    &start_datetime_str, &start_datetime_str,
@@ -1714,7 +1726,7 @@ static struct my_option my_options[] =
   {"stop-datetime", OPT_STOP_DATETIME,
    "Stop reading the binlog at first event having a datetime equal or "
    "posterior to the argument; the argument must be a date and time "
-   "in the local time zone, in any format accepted by the MySQL server "
+   "in the local time zone, in any format accepted by the MariaDB server "
    "for DATETIME and TIMESTAMP types, for example: 2004-12-25 11:25:56 "
    "(you should probably use quotes for your shell to set it properly).",
    &stop_datetime_str, &stop_datetime_str,
@@ -1738,7 +1750,7 @@ static struct my_option my_options[] =
    0, 0, 0, 0, 0, 0},
   {"to-last-log", 't', "Requires -R. Will not stop at the end of the \
 requested binlog but rather continue printing until the end of the last \
-binlog of the MySQL server. If you send the output to the same MySQL server, \
+binlog of the MariaDB server. If you send the output to the same MariaDB server, \
 that may lead to an endless loop.",
    &to_last_remote_log, &to_last_remote_log, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1760,6 +1772,15 @@ that may lead to an endless loop.",
    "This value must be a multiple of 256.",
    &opt_binlog_rows_event_max_size, &opt_binlog_rows_event_max_size, 0,
    GET_ULONG, REQUIRED_ARG, UINT_MAX,  256, ULONG_MAX,  0, 256,  0},
+#ifndef DBUG_OFF
+  {"debug-binlog-row-event-max-encoded-size", 0,
+   "The maximum size of base64-encoded rows-event in one BINLOG pseudo-query "
+   "instance. When the computed actual size exceeds the limit "
+   "the BINLOG's argument string is fragmented in two.",
+   &opt_binlog_rows_event_max_encoded_size,
+   &opt_binlog_rows_event_max_encoded_size, 0,
+   GET_ULONG, REQUIRED_ARG, UINT_MAX/4,  256, ULONG_MAX,  0, 256,  0},
+#endif
   {"verify-binlog-checksum", 'c', "Verify checksum binlog events.",
    (uchar**) &opt_verify_binlog_checksum, (uchar**) &opt_verify_binlog_checksum,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1875,7 +1896,7 @@ static void usage()
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   printf("\
-Dumps a MySQL binary log in a format usable for viewing or for piping to\n\
+Dumps a MariaDB binary log in a format usable for viewing or for piping to\n\
 the mysql command line client.\n\n");
   printf("Usage: %s [options] log-files\n", my_progname);
   print_defaults("my",load_groups);
@@ -2112,6 +2133,7 @@ static Exit_status safe_connect()
                   opt_ssl_capath, opt_ssl_cipher);
     mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
   }
   mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);
@@ -2281,7 +2303,7 @@ static Exit_status check_master_version()
     break;
   default:
     error("Could not find server version: "
-          "Master reported unrecognized MySQL version '%s'.", row[0]);
+          "Master reported unrecognized MariaDB version '%s'.", row[0]);
     goto err;
   }
   if (!glob_description_event || !glob_description_event->is_valid())
@@ -3198,17 +3220,24 @@ err:
   DBUG_RETURN(retval == ERROR_STOP ? 1 : 0);
 }
 
+uint e_key_get_latest_version_func(uint) { return 1; }
+uint e_key_get_func(uint, uint, uchar*, uint*) { return 1; }
+uint e_ctx_size_func(uint, uint) { return 1; }
+int e_ctx_init_func(void *, const uchar*, uint, const uchar*, uint,
+                    int, uint, uint) { return 1; }
+int e_ctx_update_func(void *, const uchar*, uint, uchar*, uint*) { return 1; }
+int e_ctx_finish_func(void *, uchar*, uint*) { return 1; }
+uint e_encrypted_length_func(uint, uint, uint) { return 1; }
 
-uint dummy1() { return 1; }
 struct encryption_service_st encryption_handler=
 {
-  (uint(*)(uint))dummy1,
-  (uint(*)(uint, uint, uchar*, uint*))dummy1,
-  (uint(*)(uint, uint))dummy1,
-  (int (*)(void*, const uchar*, uint, const uchar*, uint, int, uint, uint))dummy1,
-  (int (*)(void*, const uchar*, uint, uchar*, uint*))dummy1,
-  (int (*)(void*, uchar*, uint*))dummy1,
-  (uint (*)(uint, uint, uint))dummy1
+  e_key_get_latest_version_func,
+  e_key_get_func,
+  e_ctx_size_func,
+  e_ctx_init_func,
+  e_ctx_update_func,
+  e_ctx_finish_func,
+  e_encrypted_length_func
 };
 
 /*

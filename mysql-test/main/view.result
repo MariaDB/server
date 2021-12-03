@@ -1,4 +1,3 @@
-SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='outer_join_with_cache=off';
 create view v1 (c,d) as select a,b from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -613,6 +612,7 @@ create view v2 as select * from v1;
 update v2 set col2='Hello, view world';
 select is_updatable from information_schema.views;
 is_updatable
+YES
 YES
 YES
 select * from t1;
@@ -1279,10 +1279,10 @@ load data infile '../../std_data/loaddata3.dat' ignore into table v1 fields term
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 2
-Warning	1366	Incorrect integer value: 'error      ' for column 'a' at row 3
+Warning	1366	Incorrect integer value: 'error      ' for column `test`.`t1`.`a` at row 3
 Warning	1369	CHECK OPTION failed `test`.`v1`
 Note	1265	Data truncated for column 'a' at row 3
-Warning	1366	Incorrect integer value: 'wrong end  ' for column 'a' at row 4
+Warning	1366	Incorrect integer value: 'wrong end  ' for column `test`.`t1`.`a` at row 4
 Warning	1369	CHECK OPTION failed `test`.`v1`
 select * from t1 order by a,b;
 a	b
@@ -2903,7 +2903,7 @@ DROP VIEW IF EXISTS v2;
 CREATE TABLE t1(a INT, b INT);
 CREATE DEFINER=longer_than_80_456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789@localhost
 VIEW v1 AS SELECT a FROM t1;
-ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345678' is too long for user name (should be no longer than 80)
+ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345...' is too long for user name (should be no longer than 80)
 CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
 VIEW v2 AS SELECT b FROM t1;
 ERROR HY000: String '1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY' is too long for host name (should be no longer than 60)
@@ -3725,76 +3725,76 @@ a
 2
 CREATE VIEW v2 AS SELECT t1.a FROM t1, v1 AS a;
 REPLACE INTO v2(a) SELECT 1 FROM t1,t1 AS c;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 a
 1
-2
+1
+1
 1
 2
-1
 2
-1
+2
 2
 REPLACE INTO v2(a) SELECT 3 FROM t1,t1 AS c;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 a
 1
-2
-3
+1
+1
+1
+1
+1
+1
+1
 1
 2
-3
-1
+2
+2
+2
+2
+2
+2
+2
 2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
+3
+3
 3
 INSERT INTO v2(a) SELECT 1 FROM t1,t1 AS c
 ON DUPLICATE KEY UPDATE `v2`.`a`= 1;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 a
 1
-2
-3
+1
+1
+1
+1
+1
+1
+1
 1
 2
-3
-1
+2
+2
+2
+2
+2
+2
+2
 2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
+3
+3
 3
 DROP VIEW v1;
 DROP VIEW v2;
@@ -4103,7 +4103,7 @@ LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
 LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
 ;
 SELECT 1
-FROM (  SELECT 1
+FROM ((  SELECT 1
 FROM t1 a_alias_1
 LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4111,8 +4111,8 @@ LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
 LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
 LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t1
-LEFT OUTER JOIN (  SELECT 1
+) t1)
+LEFT OUTER JOIN ((  SELECT 1
 FROM t1 a_alias_1
 LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4120,8 +4120,8 @@ LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
 LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
 LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t2 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t2) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
 FROM t1 a_alias_1
 LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4129,8 +4129,8 @@ LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
 LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
 LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t3 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t3) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
 FROM t1 a_alias_1
 LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4138,8 +4138,8 @@ LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
 LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
 LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t4 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t4) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
 FROM t1 a_alias_1
 LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4147,8 +4147,8 @@ LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
 LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
 LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t5 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t5) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
 FROM t1 a_alias_1
 LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4156,8 +4156,8 @@ LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
 LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
 LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t6 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t6) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
 FROM t1 a_alias_1
 LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4165,8 +4165,8 @@ LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
 LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
 LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t7 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t7) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
 FROM t1 a_alias_1
 LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4174,18 +4174,18 @@ LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
 LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
 LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
 LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t8 ON 1=1
+) t8) ON 1=1
 ;
 1
 SELECT 1
-FROM v1 t1
-LEFT OUTER JOIN v1 t2 ON 1=1
-LEFT OUTER JOIN v1 t3 ON 1=1
-LEFT OUTER JOIN v1 t4 ON 1=1
-LEFT OUTER JOIN v1 t5 ON 1=1
-LEFT OUTER JOIN v1 t6 ON 1=1
-LEFT OUTER JOIN v1 t7 ON 1=1
-LEFT OUTER JOIN v1 t8 ON 1=1
+FROM (v1 t1)
+LEFT OUTER JOIN (v1 t2) ON 1=1
+LEFT OUTER JOIN (v1 t3) ON 1=1
+LEFT OUTER JOIN (v1 t4) ON 1=1
+LEFT OUTER JOIN (v1 t5) ON 1=1
+LEFT OUTER JOIN (v1 t6) ON 1=1
+LEFT OUTER JOIN (v1 t7) ON 1=1
+LEFT OUTER JOIN (v1 t8) ON 1=1
 ;
 1
 drop view v1;
@@ -4394,7 +4394,8 @@ DROP VIEW v1,v2;
 DROP TABLE t1;
 CREATE TABLE t1 (a varchar(10), KEY (a)) ;
 INSERT INTO t1 VALUES
-('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM');
+('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'), ('MM'),
+('AA'), ('DD'), ('CC'), ('GG');
 CREATE VIEW v1 AS SELECT * FROM t1;
 # t1 and v1 should return the same result set
 SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
@@ -4623,7 +4624,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or <cache>(NULL is null)) having trigcond(NULL is null))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or 1) having trigcond(NULL is null))))
 SELECT * FROM t1, t2
 WHERE t2.a NOT IN (SELECT t3.b FROM t3 RIGHT JOIN t4 ON (t4.a = t3.a)
 WHERE t4.a >= t1.a);
@@ -4639,7 +4640,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'v1.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or <cache>(NULL is null)) having trigcond(NULL is null))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or 1) having trigcond(NULL is null))))
 SELECT * FROM v1, t2
 WHERE t2.a NOT IN (SELECT t3.b FROM t3 RIGHT JOIN t4 ON (t4.a = t3.a)
 WHERE t4.a >= v1.a);
@@ -5734,6 +5735,21 @@ t37, t38, t39, t40, t41, t42, t43, t44, t45,
 t46, t47, t48, t49, t50, t51, t52, t53, t54,
 t55, t56, t57, t58, t59,t60;
 drop view v60;
+#
+# MDEV-15572: view.test, server crash with --big-tables=1
+#
+set @save_big_tables=@@big_tables;
+set big_tables=ON;
+CREATE TABLE t1 ( f1 int , f2 int , f3 int , f4 int);
+CREATE TABLE t2 ( f1 int , f2 int , f3 int , f4 int);
+CREATE VIEW v1 AS
+SELECT t2.f1, t1.f2, t2.f3, t2.f4 FROM (t1 JOIN t2);
+REPLACE INTO v1 (f1, f2, f3, f4)
+SELECT f1, f2, f3, f4 FROM t1;
+ERROR HY000: Can not modify more than one base table through a join view 'test.v1'
+drop view v1;
+drop table t1, t2;
+set big_tables=@save_big_tables;
 # -----------------------------------------------------------------
 # -- End of 5.5 tests.
 # -----------------------------------------------------------------
@@ -6589,17 +6605,6 @@ INSERT INTO v (f1, f3) VALUES (1,1), (2,2);
 ERROR HY000: Can not modify more than one base table through a join view 'test.v'
 drop view v;
 drop tables t1,t2,t3;
-create table t1 (i int, j int);
-insert t1 values (1,1),(2,2);
-create view v1 as select (2, 3) not in (select i, j from t1);
-select * from v1;
-(2, 3) not in (select i, j from t1)
-1
-show create view v1;
-View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select !((2,3) in (select `t1`.`i`,`t1`.`j` from `t1`)) AS `(2, 3) not in (select i, j from t1)`	latin1	latin1_swedish_ci
-drop view v1;
-drop table t1;
 #
 # MDEV-10704: Assertion `field->field->table == table_arg'
 # failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,
@@ -6704,6 +6709,140 @@ testcase
 drop view v1;
 drop table t1;
 #
+# MDEV-18502: Server crash in find_field_in_tables upon 2nd execution of SP which causes ER_WRONG_GROUP_FIELD
+#
+CREATE TABLE t1 (id INT, f VARCHAR(1));
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'a'),(2,'b');
+CREATE PROCEDURE sp() SELECT f AS f1, MAX(id) AS f2 FROM v1 GROUP BY f1, f2 ORDER BY f1;
+CALL sp;
+ERROR 42000: Can't group on 'f2'
+CALL sp;
+ERROR 42000: Can't group on 'f2'
+DROP PROCEDURE sp;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-24314: create view with derived table without default database
+#
+drop database test;
+create database db1;
+create table db1.t1 (a int);
+insert into db1.t1 values (3),(7),(1);
+create view db1.v1 as select * from (select * from db1.t1) t;
+show create view db1.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `db1`.`v1` AS select `t`.`a` AS `a` from (select `db1`.`t1`.`a` AS `a` from `db1`.`t1`) `t`	latin1	latin1_swedish_ci
+select * from db1.v1;
+a
+3
+7
+1
+drop view db1.v1;
+prepare stmt from "
+create view db1.v1 as select * from (select * from db1.t1) t;
+";
+execute stmt;
+deallocate prepare stmt;
+show create view db1.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `db1`.`v1` AS select `t`.`a` AS `a` from (select `db1`.`t1`.`a` AS `a` from `db1`.`t1`) `t`	latin1	latin1_swedish_ci
+select * from db1.v1;
+a
+3
+7
+1
+drop view db1.v1;
+drop table db1.t1;
+drop database db1;
+create database test;
+use test;
+#
+# MDEV-16940: update of multi-table view returning error used in SP
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2), (3);
+CREATE VIEW v1 AS SELECT a, b FROM t1,t2;
+CREATE PROCEDURE sp1() UPDATE v1 SET a = 8, b = 9;
+CALL sp1;
+ERROR HY000: Can not modify more than one base table through a join view 'test.v1'
+CALL sp1;
+ERROR HY000: Can not modify more than one base table through a join view 'test.v1'
+DROP PROCEDURE sp1;
+DROP VIEW v1;
+DROP TABLE t1, t2;
+#
+# MDEV-23291: SUM column from a derived table returns invalid values
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2);
+CREATE view v1 AS
+SELECT a as x, (select x) as y, (select y) as z FROM t1;
+SELECT sum(z) FROM (SELECT a as x, (select x) as y, (select y) as z FROM t1) q;
+sum(z)
+3
+SELECT sum(z) FROM v1;
+sum(z)
+3
+DROP TABLE t1;
+DROP VIEW v1;
+#
+# MDEV-24454: Crash at change_item_tree
+#
+CREATE TABLE t1(f0 INT);
+CREATE VIEW v1 AS
+SELECT
+f0 AS f1
+FROM t1;
+CREATE VIEW v2 AS
+SELECT
+(SELECT GROUP_CONCAT(v1.f1 SEPARATOR ', ')
+FROM v1 n) AS f2,
+GROUP_CONCAT('' SEPARATOR ', ') AS f3
+FROM v1;
+CREATE VIEW v3 AS
+SELECT 1 as f4 FROM v2;
+CREATE PROCEDURE p1()
+SELECT * FROM v3;
+CALL p1();
+f4
+1
+CALL p1();
+f4
+1
+drop procedure p1;
+drop view v1,v2,v3;
+drop table t1;
+#
+# MDEV-25631: Crash in st_select_lex::mark_as_dependent with
+# VIEW, aggregate and subquery
+#
+CREATE TABLE t1 (i1 int);
+insert into t1 values (1),(2),(3);
+CREATE VIEW v1 AS
+SELECT t1.i1 FROM (t1 a JOIN t1 ON (t1.i1 = (SELECT t1.i1 FROM t1 b)));
+SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
+ERROR 21000: Subquery returns more than 1 row
+delete from t1 where i1 > 1;
+SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
+1
+1
+drop view v1;
+drop table t1;
+#
+# MDEV-26299: Some views force server (and mysqldump) to generate
+# invalid SQL for their definitions
+#
+create view v1 as
+select * from
+(select
+"12345678901234567890123456789012345678901234567890123456789012345") as t1;
+drop view v1;
+CREATE VIEW v1 AS select `t1`.`12345678901234567890123456789012345678901234567890123456789012345` AS `Name_exp_1` from (select '12345678901234567890123456789012345678901234567890123456789012345') `t1`;
+drop view v1;
+#
 # End of 10.2 tests
 #
 #
@@ -6715,5 +6854,43 @@ drop table t1;
 ALTER VIEW IF NOT EXISTS v1 AS SELECT 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'IF NOT EXISTS v1 AS SELECT 1' at line 1
 #
+# MDEV-18605: Loss of column aliases by using view and group
+#
+CREATE TABLE t1 (id int, foo int);
+CREATE VIEW v1 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1;
+INSERT INTO t1 (id, foo) VALUES (1,1),(2,2);
+SELECT v.id, v.foo AS bar  FROM v1 v
+WHERE id = 2;
+id	bar
+2	2
+SELECT v.id, v.foo AS bar  FROM v1 v
+GROUP BY v.id;
+id	bar
+1	1
+2	2
+SELECT v.id, v.foo AS bar  FROM v1 v
+WHERE id = 2
+GROUP BY v.id;
+id	bar
+2	2
+Drop View v1;
+Drop table t1;
+#
 # End of 10.3 tests
 #
+#
+# MDEV-25206: view specification contains unknown column reference
+#
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (2),(3);
+CREATE TABLE t3 (c int);
+CREATE VIEW v1 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+ERROR 42S22: Unknown column 't1.x' in 'on clause'
+INSERT INTO t3 SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+ERROR 42S22: Unknown column 't1.x' in 'on clause'
+CREATE TABLE t4 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+ERROR 42S22: Unknown column 't1.x' in 'on clause'
+DROP TABLE t1,t2,t3;
+# End of 10.4 tests

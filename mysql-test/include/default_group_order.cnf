@@ -1,0 +1,11 @@
+# Define the order that mtr will save groups in the generated my.cnf files
+# The --debug-gdb option is just here to force mtr to remember the group order
+
+[mysqld]
+#debug-gdb=
+[mariadb]
+#debug-gdb=
+[embedded]
+#debug-gdb=
+[server]
+#debug-gdb=

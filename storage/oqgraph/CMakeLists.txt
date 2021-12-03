@@ -1,8 +1,19 @@
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-FUNCTION(CHECK_OQGRAPH)
+SET(CPACK_RPM_oqgraph-engine_PACKAGE_SUMMARY "OQGraph storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_oqgraph-engine_PACKAGE_DESCRIPTION "The Open Query GRAPH computation engine, or OQGRAPH as the engine itself is called,
+allows you to handle hierarchies (tree structures) and complex graphs
+(nodes having many connections in several directions).
+It is intended to be used for retrieving hierarchical information, such as those used for graphs,
+routes or social relationships, in plain SQL." PARENT_SCOPE)
+
+MACRO(CHECK_OQGRAPH)
 MESSAGE(STATUS "Configuring OQGraph")
 FIND_PACKAGE(Boost 1.40.0)
+SET_PACKAGE_PROPERTIES(Boost PROPERTIES
+  PURPOSE "Required for the OQGraph storage engine"
+  TYPE OPTIONAL
+)
 IF(NOT Boost_FOUND)
   MESSAGE(STATUS "Boost not found. OQGraph will not be compiled")
   SET(OQGRAPH_OK 0 CACHE INTERNAL "")
@@ -11,33 +22,22 @@ ENDIF()
 INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
 
 FIND_PACKAGE(Judy)
+SET_PACKAGE_PROPERTIES(Judy PROPERTIES
+  PURPOSE "Required for the OQGraph storage engine"
+  TYPE OPTIONAL
+)
 IF(NOT Judy_FOUND)
   MESSAGE(STATUS "Judy not found. OQGraph will not be compiled")
   SET(OQGRAPH_OK 0 CACHE INTERNAL "")
   RETURN()
 ENDIF()
 INCLUDE_DIRECTORIES(${Judy_INCLUDE_DIR})
+SET(OQGRAPH_OK 1)
+ENDMACRO()
 
-IF(MSVC)
-#  # lp:756966 OQGRAPH on Win64 does not compile
-#  IF (CMAKE_SIZEOF_VOID_P EQUAL 8)
-#    SET(OQGRAPH_OK 0 CACHE INTERNAL "")
-#  ELSE()
-    SET(OQGRAPH_OK 1 CACHE INTERNAL "")
-#  ENDIF()
-ELSE()
-# See if that works. On old gcc it'll fail because of -fno-rtti
-SET(CMAKE_REQUIRED_INCLUDES "${Boost_INCLUDE_DIRS}")
-CHECK_CXX_SOURCE_COMPILES(
-"
-#define BOOST_NO_RTTI 1
-#define BOOST_NO_TYPEID 1
-#include <boost/config.hpp>
-#include <boost/property_map/property_map.hpp>
-int main() { return 0; }
-" OQGRAPH_OK)
+IF(PLUGIN_OQGRAPH STREQUAL "NO")
+  RETURN()
 ENDIF()
-ENDFUNCTION()
 
 IF(NOT DEFINED OQGRAPH_OK)
   CHECK_OQGRAPH()
@@ -57,7 +57,7 @@ IF(MSVC)
   ADD_DEFINITIONS(-DJU_WIN)
 ELSE(MSVC)
   # Fix lp bug 1221555 with -fpermissive, so that errors in gcc 4.7 become warnings for the time being
-  STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+  STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated -fno-strict-aliasing -fpermissive")
 ENDIF(MSVC)
 

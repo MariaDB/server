@@ -16,7 +16,7 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
  @file
@@ -45,7 +45,7 @@ extern "C" {
 /* The max key length of all supported algorithms */
 #define MY_AES_MAX_KEY_LENGTH 32
 
-#define MY_AES_CTX_SIZE 512
+#define MY_AES_CTX_SIZE 656
 
 enum my_aes_mode {
     MY_AES_ECB, MY_AES_CBC

@@ -11,13 +11,20 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_string.h"
-
 #include "my_json_writer.h"
+
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+bool Json_writer::named_item_expected() const
+{
+  return named_items_expectation.size()
+      && named_items_expectation.back();
+}
+#endif
 
 void Json_writer::append_indent()
 {
@@ -27,9 +34,21 @@ void Json_writer::append_indent()
     output.append(' ');
 }
 
+inline void Json_writer::on_start_object()
+{
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  if(!fmt_helper.is_making_writer_calls())
+  {
+    VALIDITY_ASSERT(got_name == named_item_expected());
+    named_items_expectation.push_back(true);
+  }
+#endif
+  fmt_helper.on_start_object();
+}
+
 void Json_writer::start_object()
 {
-  fmt_helper.on_start_object();
+  on_start_object();
 
   if (!element_started)
     start_element();
@@ -39,10 +58,22 @@ void Json_writer::start_object()
   first_child=true;
   element_started= false;
   document_start= false;
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  got_name= false;
+#endif
 }
 
 void Json_writer::start_array()
 {
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  if(!fmt_helper.is_making_writer_calls())
+  {
+    VALIDITY_ASSERT(got_name == named_item_expected());
+    named_items_expectation.push_back(false);
+    got_name= false;
+  }
+#endif
+
   if (fmt_helper.on_start_array())
     return;
 
@@ -59,15 +90,27 @@ void Json_writer::start_array()
 
 void Json_writer::end_object()
 {
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  VALIDITY_ASSERT(named_item_expected());
+  named_items_expectation.pop_back();
+  VALIDITY_ASSERT(!got_name);
+  got_name= false;
+#endif
   indent_level-=INDENT_SIZE;
   if (!first_child)
     append_indent();
+  first_child= false;
   output.append("}");
 }
 
 
 void Json_writer::end_array()
 {
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  VALIDITY_ASSERT(!named_item_expected());
+  named_items_expectation.pop_back();
+  got_name= false;
+#endif
   if (fmt_helper.on_end_array())
     return;
   indent_level-=INDENT_SIZE;
@@ -79,16 +122,26 @@ void Json_writer::end_array()
 
 Json_writer& Json_writer::add_member(const char *name)
 {
-  if (fmt_helper.on_add_member(name))
-    return *this; // handled
+  size_t len= strlen(name);
+  return add_member(name, len);
+}
 
-  // assert that we are in an object
-  DBUG_ASSERT(!element_started);
-  start_element();
+Json_writer& Json_writer::add_member(const char *name, size_t len)
+{
+  if (!fmt_helper.on_add_member(name, len))
+  {
+    // assert that we are in an object
+    DBUG_ASSERT(!element_started);
+    start_element();
 
-  output.append('"');
-  output.append(name);
-  output.append("\": ");
+    output.append('"');
+    output.append(name, len);
+    output.append("\": ", 3);
+  }
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  if (!fmt_helper.is_making_writer_calls())
+    got_name= true;
+#endif
   return *this;
 }
 
@@ -129,33 +182,43 @@ void Json_writer::add_ll(longlong val)
   add_unquoted_str(buf);
 }
 
+void Json_writer::add_ull(ulonglong val)
+{
+  char buf[64];
+  my_snprintf(buf, sizeof(buf), "%llu", val);
+  add_unquoted_str(buf);
+}
+
 
 /* Add a memory size, printing in Kb, Kb, Gb if necessary */
 void Json_writer::add_size(longlong val)
 {
   char buf[64];
+  size_t len;
   if (val < 1024) 
-    my_snprintf(buf, sizeof(buf), "%lld", val);
+    len= my_snprintf(buf, sizeof(buf), "%lld", val);
   else if (val < 1024*1024*16)
   {
     /* Values less than 16MB are specified in KB for precision */
-    size_t len= my_snprintf(buf, sizeof(buf), "%lld", val/1024);
+    len= my_snprintf(buf, sizeof(buf), "%lld", val/1024);
     strcpy(buf + len, "Kb");
+    len+= 2;
   }
   else
   {
-    size_t len= my_snprintf(buf, sizeof(buf), "%lld", val/(1024*1024));
+    len= my_snprintf(buf, sizeof(buf), "%lld", val/(1024*1024));
     strcpy(buf + len, "Mb");
+    len+= 2;
   }
-  add_str(buf);
+  add_str(buf, len);
 }
 
 
 void Json_writer::add_double(double val)
 {
   char buf[64];
-  my_snprintf(buf, sizeof(buf), "%lg", val);
-  add_unquoted_str(buf);
+  size_t len= my_snprintf(buf, sizeof(buf), "%lg", val);
+  add_unquoted_str(buf, len);
 }
 
 
@@ -167,45 +230,82 @@ void Json_writer::add_bool(bool val)
 
 void Json_writer::add_null()
 {
-  add_unquoted_str("null");
+  add_unquoted_str("null", (size_t) 4);
 }
 
 
 void Json_writer::add_unquoted_str(const char* str)
 {
-  if (fmt_helper.on_add_str(str))
+  size_t len= strlen(str);
+  add_unquoted_str(str, len);
+}
+
+void Json_writer::add_unquoted_str(const char* str, size_t len)
+{
+  VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
+                  got_name == named_item_expected());
+  if (on_add_str(str, len))
     return;
 
   if (!element_started)
     start_element();
 
-  output.append(str);
+  output.append(str, len);
   element_started= false;
 }
 
+inline bool Json_writer::on_add_str(const char *str, size_t num_bytes)
+{
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+  got_name= false;
+#endif
+  bool helped= fmt_helper.on_add_str(str, num_bytes);
+  return helped;
+}
 
 void Json_writer::add_str(const char *str)
 {
-  if (fmt_helper.on_add_str(str))
+  size_t len= strlen(str);
+  add_str(str, len);
+}
+
+/*
+  This function is used to add only num_bytes of str to the output string
+*/
+
+void Json_writer::add_str(const char* str, size_t num_bytes)
+{
+  VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
+                  got_name == named_item_expected());
+  if (on_add_str(str, num_bytes))
     return;
 
   if (!element_started)
     start_element();
 
   output.append('"');
-  output.append(str);
+  output.append(str, num_bytes);
   output.append('"');
   element_started= false;
 }
 
-
 void Json_writer::add_str(const String &str)
 {
-  add_str(str.ptr());
+  add_str(str.ptr(), str.length());
 }
 
+Json_writer_temp_disable::Json_writer_temp_disable(THD *thd_arg)
+{
+  thd= thd_arg;
+  thd->opt_trace.disable_tracing_if_required();
+}
+Json_writer_temp_disable::~Json_writer_temp_disable()
+{
+  thd->opt_trace.enable_tracing_if_required();
+}
 
-bool Single_line_formatting_helper::on_add_member(const char *name)
+bool Single_line_formatting_helper::on_add_member(const char *name,
+                                                  size_t len)
 {
   DBUG_ASSERT(state== INACTIVE || state == DISABLED);
   if (state != DISABLED)
@@ -214,7 +314,6 @@ bool Single_line_formatting_helper::on_add_member(const char *name)
     buf_ptr= buffer;
 
     //append member name to the array
-    size_t len= strlen(name);
     if (len < MAX_LINE_LEN)
     {
       memcpy(buf_ptr, name, len);
@@ -267,12 +366,11 @@ void Single_line_formatting_helper::on_start_object()
 }
 
 
-bool Single_line_formatting_helper::on_add_str(const char *str)
+bool Single_line_formatting_helper::on_add_str(const char *str,
+                                               size_t len)
 {
   if (state == IN_ARRAY)
   {
-    size_t len= strlen(str);
-
     // New length will be:
     //  "$string", 
     //  quote + quote + comma + space = 4
@@ -348,9 +446,11 @@ void Single_line_formatting_helper::disable_and_flush()
   while (ptr < buf_ptr)
   {
     char *str= ptr;
+    size_t len= strlen(str);
+
     if (nr == 0)
     {
-      owner->add_member(str);
+      owner->add_member(str, len);
       if (start_array)
         owner->start_array();
     }
@@ -358,13 +458,11 @@ void Single_line_formatting_helper::disable_and_flush()
     {
       //if (nr == 1)
       //  owner->start_array();
-      owner->add_str(str);
+      owner->add_str(str, len);
     }
     
     nr++;
-    while (*ptr!=0)
-      ptr++;
-    ptr++;
+    ptr+= len+1;
   }
   buf_ptr= buffer;
   state= INACTIVE;

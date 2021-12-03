@@ -1,6 +1,6 @@
 # This test uses chmod, can't be run with root permissions
 -- source include/not_as_root.inc
-
+--source include/default_charset.inc
 
 #
 # Basic triggers test
@@ -2184,7 +2184,7 @@ DROP TABLE t1;
 DROP TRIGGER t_insert;
 DROP TABLE t2;
 
---echo End of 5.0 tests
+--echo # End of 5.0 tests
 
 #
 # Bug#25411 (trigger code truncated)
@@ -2406,7 +2406,7 @@ let $MYSQLD_DATADIR = `select @@datadir`;
 DROP DATABASE db1;
 USE test;
 
---echo End of 5.1 tests.
+--echo # End of 5.1 tests.
 
 #
 # Test that using a trigger will not open mysql.proc
@@ -2430,7 +2430,7 @@ select * from t1;
 select * from t2;
 drop table t1,t2;
 
---echo End of 5.2 tests.
+--echo # End of 5.2 tests.
 
 --echo #
 --echo # Bug#34453 Can't change size of file (Errcode: 1224)
@@ -2574,7 +2574,7 @@ SELECT c FROM t1;
 DROP TABLE t1;
 
 --echo
---echo End of 5.5 tests.
+--echo # End of 5.5 tests.
 
 --echo #
 --echo # BUG #910083: materialized subquery in a trigger
@@ -2613,7 +2613,7 @@ SET optimizer_switch=@save_optimizer_switch;
 DROP TRIGGER tr;
 DROP TABLE t1, t2;
 
---echo End of 5.3 tests.
+--echo # End of 5.3 tests.
 
 #
 # MDEV-4829 BEFORE INSERT triggers dont issue 1406 error
@@ -2737,9 +2737,27 @@ while ($n)
  
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-19188 Server Crash When Using a Trigger With A Number of Virtual Columns on INSERT/UPDATE
+--echo #
+
+CREATE TABLE t1 (
+  virt1 INT GENERATED ALWAYS AS (0) VIRTUAL,
+  virt2 INT GENERATED ALWAYS AS (0) VIRTUAL,
+  virt3 INT GENERATED ALWAYS AS (0) VIRTUAL,
+  virt4 INT GENERATED ALWAYS AS (0) VIRTUAL,
+  virt5 INT GENERATED ALWAYS AS (0) VIRTUAL,
+  virt6 INT GENERATED ALWAYS AS (0) VIRTUAL,
+  virt7 INT GENERATED ALWAYS AS (0) VIRTUAL,
+  virt8 INT GENERATED ALWAYS AS (0) VIRTUAL
+);
+INSERT INTO t1 () VALUES ();
+CREATE TRIGGER t1_trigger BEFORE INSERT ON t1 FOR EACH ROW BEGIN END;
+INSERT INTO t1 () VALUES ();
+DROP TABLE t1;
 
 --echo #
---echo # Start of 10.3 tests
+--echo # End of 10.2 tests
 --echo #
 
 --echo #
@@ -2760,3 +2778,7 @@ DELIMITER ;$$
 INSERT INTO t1 (a,b) VALUES (10, 20);
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

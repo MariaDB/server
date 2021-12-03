@@ -21,7 +21,6 @@ insert into t1 values (20000,"A");
 select count(*) as c from t1 group by b having c>1;
 show status like "created_tmp_disk%";
 set @@session.tmp_disk_table_size=1000000;
---replace_regex /The table '.*' is full/The table '#sql_xxx' is full/
 --error ER_RECORD_FILE_FULL
 select count(*) as c from t1 group by b having c>1;
 show status like "created_tmp_disk%";

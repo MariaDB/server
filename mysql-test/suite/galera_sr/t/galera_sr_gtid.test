@@ -1,0 +1,46 @@
+#
+# Test basic Galera operation
+#
+
+--source include/have_log_bin.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY);
+
+SET SESSION wsrep_trx_fragment_size=1;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+
+SET SESSION wsrep_trx_fragment_size=1;
+UPDATE t1 SET f1 = 2;
+
+#--let $gtid_executed_node2 = `SELECT @@global.gtid_executed;`
+
+--connection node_1
+SET SESSION wsrep_trx_fragment_size=0;
+
+--connection node_2
+SET SESSION wsrep_trx_fragment_size=0;
+
+--connection node_1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+
+--disable_query_log
+#--eval SELECT '$gtid_executed_node2' = @@global.gtid_executed AS gtid_executed_equal;
+--enable_query_log
+
+--replace_regex /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/<GTID>/ /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
+--replace_column 2 <Pos> 5 <End_log_pos>
+SHOW BINLOG EVENTS IN 'mysqld-bin.000002' FROM 256;
+
+--connection node_2
+# Perform causal wait
+SELECT 1 FROM DUAL;
+--replace_regex /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/<GTID>/ /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
+--replace_column 2 <Pos> 5 <End_log_pos>
+SHOW BINLOG EVENTS IN 'mysqld-bin.000003' FROM 256;
+
+DROP TABLE t1;

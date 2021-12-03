@@ -82,8 +82,8 @@ Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be
 insert t1 select seq, seq, 1, 1, seq, seq, seq from seq_1_to_2000;
 set @before=unix_timestamp();
 call select_test();
-select unix_timestamp() - @before < 60;
-unix_timestamp() - @before < 60
+select unix_timestamp() - @before < @time;
+unix_timestamp() - @before < @time
 1
 drop procedure select_test;
 drop table t1;

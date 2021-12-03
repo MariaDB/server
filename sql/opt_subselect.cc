@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file
@@ -28,11 +28,13 @@
 
 #include "mariadb.h"
 #include "sql_base.h"
+#include "sql_const.h"
 #include "sql_select.h"
 #include "filesort.h"
 #include "opt_subselect.h"
 #include "sql_test.h"
 #include <my_bit.h>
+#include "opt_trace.h"
 
 /*
   This file contains optimizations for semi-join subqueries.
@@ -437,7 +439,7 @@ Currently, solution #2 is implemented.
 LEX_CSTRING weedout_key= {STRING_WITH_LEN("weedout_key")};
 
 static
-bool subquery_types_allow_materialization(Item_in_subselect *in_subs);
+bool subquery_types_allow_materialization(THD *thd, Item_in_subselect *in_subs);
 static bool replace_where_subcondition(JOIN *, Item **, Item *, Item *, bool);
 static int subq_sj_candidate_cmp(Item_in_subselect* el1, Item_in_subselect* el2,
                                  void *arg);
@@ -451,11 +453,6 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables);
 static SJ_MATERIALIZATION_INFO *
 at_sjmat_pos(const JOIN *join, table_map remaining_tables, const JOIN_TAB *tab,
              uint idx, bool *loose_scan);
-void best_access_path(JOIN *join, JOIN_TAB *s, 
-                             table_map remaining_tables, uint idx, 
-                             bool disable_jbuf, double record_count,
-                             POSITION *pos, POSITION *loose_scan_pos);
-
 static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm, 
                                 Item_in_subselect *subq_pred);
 static bool remove_sj_conds(THD *thd, Item **tree);
@@ -520,8 +517,8 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
         !child_select->is_part_of_union() &&                          // 1
         parent_unit->first_select()->leaf_tables.elements &&          // 2
         child_select->outer_select() &&
-        child_select->outer_select()->leaf_tables.elements &&         // 2A
-        subquery_types_allow_materialization(in_subs) &&
+        child_select->outer_select()->table_list.first &&             // 2A
+        subquery_types_allow_materialization(thd, in_subs) &&
         (in_subs->is_top_level_item() ||                               //3
          optimizer_flag(thd,
                         OPTIMIZER_SWITCH_PARTIAL_MATCH_ROWID_MERGE) || //3
@@ -592,7 +589,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
   {
     Item_in_subselect *in_subs= NULL;
     Item_allany_subselect *allany_subs= NULL;
-    switch (subselect->substype()) {
+    Item_subselect::subs_type substype= subselect->substype();
+    switch (substype) {
     case Item_subselect::IN_SUBS:
       in_subs= (Item_in_subselect *)subselect;
       break;
@@ -604,6 +602,26 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       break;
     }
 
+    /*
+      Try removing "ORDER BY" or even "ORDER BY ... LIMIT" from certain kinds
+      of subqueries. The removal might enable further transformations.
+    */
+    if (substype == Item_subselect::IN_SUBS ||
+        substype == Item_subselect::EXISTS_SUBS ||
+        substype == Item_subselect::ANY_SUBS ||
+        substype == Item_subselect::ALL_SUBS)
+    {
+      // (1) - ORDER BY without LIMIT can be removed from IN/EXISTS subqueries
+      // (2) - for EXISTS, can also remove "ORDER BY ... LIMIT n",
+      //       but cannot remove "ORDER BY ... LIMIT n OFFSET m"
+      if (!select_lex->select_limit ||                               // (1)
+          (substype == Item_subselect::EXISTS_SUBS &&                // (2)
+           !select_lex->offset_limit))                               // (2)
+      {
+        select_lex->join->order= 0;
+        select_lex->join->skip_sort_order= 1;
+      }
+    }
 
     /* Resolve expressions and perform semantic analysis for IN query */
     if (in_subs != NULL)
@@ -674,7 +692,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         select_lex->outer_select()->join &&                           // 6
         parent_unit->first_select()->leaf_tables.elements &&          // 7
         !in_subs->has_strategy() &&                                   // 8
-        select_lex->outer_select()->leaf_tables.elements &&           // 9
+        select_lex->outer_select()->table_list.first &&               // 9
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN) &&                                  // 10
@@ -682,7 +700,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
-      (void)subquery_types_allow_materialization(in_subs);
+      (void)subquery_types_allow_materialization(thd, in_subs);
 
       in_subs->is_flattenable_semijoin= TRUE;
 
@@ -697,14 +715,26 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
           thd->restore_active_arena(arena, &backup);
         in_subs->is_registered_semijoin= TRUE;
       }
+
+      /*
+        Print the transformation into trace. Do it when we've just set
+        is_registered_semijoin=TRUE above, and also do it when we've already
+        had it set.
+      */
+      if (in_subs->is_registered_semijoin)
+      {
+        OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+                            select_lex->select_number,
+                            "IN (SELECT)", "semijoin");
+        trace_transform.add("chosen", true);
+      }
     }
     else
     {
       DBUG_PRINT("info", ("Subquery can't be converted to merged semi-join"));
       /* Test if the user has set a legal combination of optimizer switches. */
-      if (!optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS) &&
-          !optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION))
-        my_error(ER_ILLEGAL_SUBQUERY_OPTIMIZER_SWITCHES, MYF(0));
+      DBUG_ASSERT(optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS |
+                                      OPTIMIZER_SWITCH_MATERIALIZATION));
       /*
         Transform each subquery predicate according to its overloaded
         transformer.
@@ -823,7 +853,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
 */
 
 static 
-bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
+bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
 {
   DBUG_ENTER("subquery_types_allow_materialization");
 
@@ -831,12 +861,23 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
 
   List_iterator<Item> it(in_subs->unit->first_select()->item_list);
   uint elements= in_subs->unit->first_select()->item_list.elements;
+  const char* cause= NULL;
 
   in_subs->types_allow_materialization= FALSE;  // Assign default values
   in_subs->sjm_scan_allowed= FALSE;
-  
+
+  OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+                     in_subs->get_select_lex()->select_number,
+                      "IN (SELECT)", "materialization");
+
+  /*
+    The checks here must be kept in sync with the one in
+    Item_func_in::in_predicate_to_in_subs_transformer().
+  */
+
   bool all_are_fields= TRUE;
   uint32 total_key_length = 0;
+  bool converted_from_in_predicate= in_subs->converted_from_in_predicate;
   for (uint i= 0; i < elements; i++)
   {
     Item *outer= in_subs->left_expr->element_index(i);
@@ -844,9 +885,16 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
     all_are_fields &= (outer->real_item()->type() == Item::FIELD_ITEM && 
                        inner->real_item()->type() == Item::FIELD_ITEM);
     total_key_length += inner->max_length;
-    if (!inner->type_handler()->subquery_type_allows_materialization(inner,
-                                                                     outer))
+    if (!inner->
+         type_handler()->
+         subquery_type_allows_materialization(inner,
+                                              outer,
+                                              converted_from_in_predicate))
+    {
+      trace_transform.add("possible", false);
+      trace_transform.add("cause", "types mismatch");
       DBUG_RETURN(FALSE);
+    }
   }
 
   /*
@@ -856,14 +904,23 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
      Make sure that the length of the key for the temp_table is atleast
      greater than 0.
   */
-  if (!total_key_length || total_key_length > tmp_table_max_key_length() ||
-      elements > tmp_table_max_key_parts())
-    DBUG_RETURN(FALSE);
-
-  in_subs->types_allow_materialization= TRUE;
-  in_subs->sjm_scan_allowed= all_are_fields;
-  DBUG_PRINT("info",("subquery_types_allow_materialization: ok, allowed"));
-  DBUG_RETURN(TRUE);
+  if (!total_key_length)
+    cause= "zero length key for materialized table";
+  else if (total_key_length > tmp_table_max_key_length())
+    cause= "length of key greater than allowed key length for materialized tables";
+  else if (elements > tmp_table_max_key_parts())
+    cause= "#keyparts greater than allowed key parts for materialized tables";
+  else
+  {
+    in_subs->types_allow_materialization= TRUE;
+    in_subs->sjm_scan_allowed= all_are_fields;
+    trace_transform.add("sjm_scan_allowed", all_are_fields)
+                   .add("possible", true);
+    DBUG_PRINT("info",("subquery_types_allow_materialization: ok, allowed"));
+    DBUG_RETURN(TRUE);
+  }
+  trace_transform.add("possible", false).add("cause", cause);
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -1213,15 +1270,31 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
 
     /* Stop processing if we've reached a subquery that's attached to the ON clause */
     if (in_subq->do_not_convert_to_sj)
+    {
+      OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+                          in_subq->get_select_lex()->select_number,
+                          "IN (SELECT)", "semijoin");
+      trace_transform.add("converted_to_semi_join", false)
+                     .add("cause", "subquery attached to the ON clause");
       break;
+    }
 
     if (in_subq->is_flattenable_semijoin) 
     {
+      OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+                          in_subq->get_select_lex()->select_number,
+                          "IN (SELECT)", "semijoin");
       if (join->table_count + 
           in_subq->unit->first_select()->join->table_count >= MAX_TABLES)
+      {
+        trace_transform.add("converted_to_semi_join", false);
+        trace_transform.add("cause",
+                            "table in parent join now exceeds MAX_TABLES");
         break;
+      }
       if (convert_subq_to_sj(join, in_subq))
         goto restore_arena_and_fail;
+      trace_transform.add("converted_to_semi_join", true);
     }
     else
     {
@@ -1357,8 +1430,8 @@ void get_delayed_table_estimates(TABLE *table,
   *startup_cost= item->jtbm_read_time;
 
   /* Calculate cost of scanning the temptable */
-  double data_size= item->jtbm_record_count * 
-                    hash_sj_engine->tmp_table->s->reclength;
+  double data_size= COST_MULT(item->jtbm_record_count,
+                              hash_sj_engine->tmp_table->s->reclength);
   /* Do like in handler::read_time */
   *scan_time= data_size/IO_SIZE + 2;
 } 
@@ -2130,12 +2203,15 @@ int pull_out_semijoin_tables(JOIN *join)
   TABLE_LIST *sj_nest;
   DBUG_ENTER("pull_out_semijoin_tables");
   List_iterator<TABLE_LIST> sj_list_it(join->select_lex->sj_nests);
-   
+
   /* Try pulling out of the each of the semi-joins */
   while ((sj_nest= sj_list_it++))
   {
     List_iterator<TABLE_LIST> child_li(sj_nest->nested_join->join_list);
     TABLE_LIST *tbl;
+    Json_writer_object trace_wrapper(join->thd);
+    Json_writer_object trace(join->thd, "semijoin_table_pullout");
+    Json_writer_array trace_arr(join->thd, "pulled_out_tables");
 
     /*
       Don't do table pull-out for nested joins (if we get nested joins here, it
@@ -2234,7 +2310,8 @@ int pull_out_semijoin_tables(JOIN *join)
             pulled_a_table= TRUE;
             pulled_tables |= tbl->table->map;
             DBUG_PRINT("info", ("Table %s pulled out (reason: func dep)",
-                                tbl->table->alias.c_ptr()));
+                                tbl->table->alias.c_ptr_safe()));
+            trace_arr.add(tbl->table->alias.c_ptr_safe());
             /*
               Pulling a table out of uncorrelated subquery in general makes
               makes it correlated. See the NOTE to this funtion. 
@@ -2340,8 +2417,15 @@ int pull_out_semijoin_tables(JOIN *join)
 bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
 {
   DBUG_ENTER("optimize_semijoin_nests");
+  THD *thd= join->thd;
   List_iterator<TABLE_LIST> sj_list_it(join->select_lex->sj_nests);
   TABLE_LIST *sj_nest;
+  if (!join->select_lex->sj_nests.elements)
+    DBUG_RETURN(FALSE);
+  Json_writer_object wrapper(thd);
+  Json_writer_object trace_semijoin_nest(thd,
+                              "execution_plan_for_potential_materialization");
+  Json_writer_array trace_steps_array(thd, "steps");
   while ((sj_nest= sj_list_it++))
   {
     /* semi-join nests with only constant tables are not valid */
@@ -2387,7 +2471,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
                                          &subjoin_out_rows);
 
         sjm->materialization_cost.convert_from_cost(subjoin_read_time);
-        sjm->rows= subjoin_out_rows;
+        sjm->rows_with_duplicates= sjm->rows= subjoin_out_rows;
         
         // Don't use the following list because it has "stale" items. use
         // ref_pointer_array instead:
@@ -2426,7 +2510,8 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           int tableno;
           double rows= 1.0;
           while ((tableno = tm_it.next_bit()) != Table_map_iterator::BITMAP_END)
-            rows *= join->map2table[tableno]->table->quick_condition_rows;
+            rows= COST_MULT(rows,
+			    join->map2table[tableno]->table->quick_condition_rows);
           sjm->rows= MY_MIN(sjm->rows, rows);
         }
         memcpy((uchar*) sjm->positions,
@@ -2539,7 +2624,7 @@ static uint get_tmp_table_rec_length(Ref_ptr_array p_items, uint elements)
 double
 get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size)
 {
-  if (row_count * row_size > thd->variables.max_heap_table_size)
+  if (row_count > thd->variables.max_heap_table_size / (double) row_size)
     return (double) DISK_TEMPTABLE_LOOKUP_COST;
   else
     return (double) HEAP_TEMPTABLE_LOOKUP_COST;
@@ -2601,21 +2686,24 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
     do
     {
       uint key= keyuse->key;
-      KEY *keyinfo;
       key_part_map bound_parts= 0;
-      bool is_excluded_key= keyuse->is_for_hash_join(); 
-      if (!is_excluded_key)
+      if (!keyuse->is_for_hash_join() &&
+          (table->key_info[key].flags & HA_NOSAME))
       {
-        keyinfo= table->key_info + key;
-        is_excluded_key= !MY_TEST(keyinfo->flags & HA_NOSAME);
-      }
-      if (!is_excluded_key)
-      {
+        KEY *keyinfo= table->key_info + key;
         do  /* For all equalities on all key parts */
         {
-          /* Check if this is "t.keypart = expr(outer_tables) */
+          /*
+            Check if this is "t.keypart = expr(outer_tables)
+
+            Don't allow variants that can produce duplicates:
+            - Dont allow "ref or null"
+            - the keyuse (that is, the operation) must be null-rejecting,
+              unless the other expression is non-NULLable.
+          */
           if (!(keyuse->used_tables & sj_inner_tables) &&
-              !(keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL))
+              !(keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL) &&
+              (keyuse->null_rejecting || !keyuse->val->maybe_null))
           {
             bound_parts |= 1 << keyuse->keypart;
           }
@@ -2708,6 +2796,29 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
 {
   POSITION *pos= join->positions + idx;
   const JOIN_TAB *new_join_tab= pos->table; 
+
+#ifdef HAVE_valgrind
+  new (&pos->firstmatch_picker) Firstmatch_picker;
+  new (&pos->loosescan_picker) LooseScan_picker;
+  new (&pos->sjmat_picker) Sj_materialization_picker;
+  new (&pos->dups_weedout_picker) Duplicate_weedout_picker;
+#endif
+
+  if (join->emb_sjm_nest || //(1)
+      !join->select_lex->have_merged_subqueries) //(2)
+  {
+    /* 
+      (1): We're performing optimization inside SJ-Materialization nest:
+       - there are no other semi-joins inside semi-join nests
+       - attempts to build semi-join strategies here will confuse
+         the optimizer, so bail out.
+      (2): Don't waste time on semi-join optimizations if we don't have any
+           semi-joins
+    */
+    pos->sj_strategy= SJ_OPT_NONE;
+    return;
+  }
+
   Semi_join_strategy_picker *pickers[]=
   {
     &pos->firstmatch_picker,
@@ -2716,19 +2827,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
     &pos->dups_weedout_picker,
     NULL,
   };
-
-  if (join->emb_sjm_nest)
-  {
-    /* 
-      We're performing optimization inside SJ-Materialization nest:
-       - there are no other semi-joins inside semi-join nests
-       - attempts to build semi-join strategies here will confuse
-         the optimizer, so bail out.
-    */
-    pos->sj_strategy= SJ_OPT_NONE;
-    return;
-  }
-
+  Json_writer_array trace_steps(join->thd, "semijoin_strategy_choice");
   /* 
     Update join->cur_sj_inner_tables (Used by FirstMatch in this function and
     LooseScan detector in best_access_path)
@@ -2827,6 +2926,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
             *current_read_time= read_time;
             *current_record_count= rec_count;
             dups_producing_tables &= ~handled_fanout;
+
             //TODO: update bitmap of semi-joins that were handled together with
             // others.
             if (is_multiple_semi_joins(join, join->positions, idx,
@@ -2854,6 +2954,33 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
         }
       }
     }
+
+    if (unlikely(join->thd->trace_started() && pos->sj_strategy != SJ_OPT_NONE))
+    {
+      Json_writer_object tr(join->thd);
+      const char *sname;
+      switch (pos->sj_strategy) {
+        case SJ_OPT_MATERIALIZE:
+          sname= "SJ-Materialization";
+          break;
+        case SJ_OPT_MATERIALIZE_SCAN:
+          sname= "SJ-Materialization-Scan";
+          break;
+        case SJ_OPT_FIRST_MATCH:
+          sname= "FirstMatch";
+          break;
+        case SJ_OPT_DUPS_WEEDOUT:
+          sname= "DuplicateWeedout";
+          break;
+        case SJ_OPT_LOOSE_SCAN:
+          sname= "LooseScan";
+          break;
+        default:
+          DBUG_ASSERT(0);
+          sname="Invalid";
+      }
+      tr.add("chosen_strategy", sname);
+    }
   }
 
   if ((emb_sj_nest= new_join_tab->emb_sj_nest))
@@ -2872,7 +2999,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
 }
 
 
-void Sj_materialization_picker::set_from_prev(struct st_position *prev)
+void Sj_materialization_picker::set_from_prev(POSITION *prev)
 {
   if (prev->sjmat_picker.is_used)
     set_empty();
@@ -2897,6 +3024,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
 {
   bool sjm_scan;
   SJ_MATERIALIZATION_INFO *mat_info;
+  THD *thd= join->thd;
   if ((mat_info= at_sjmat_pos(join, remaining_tables,
                               new_join_tab, idx, &sjm_scan)))
   {
@@ -2933,6 +3061,9 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
       Cost_estimate prefix_cost; 
       signed int first_tab= (int)idx - mat_info->tables;
       double prefix_rec_count;
+      Json_writer_object trace(join->thd);
+      trace.add("strategy", "SJ-Materialization");
+
       if (first_tab < (int)join->const_tables)
       {
         prefix_cost.reset();
@@ -2945,8 +3076,11 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
       }
 
       double mat_read_time= prefix_cost.total_cost();
-      mat_read_time += mat_info->materialization_cost.total_cost() +
-                       prefix_rec_count * mat_info->lookup_cost.total_cost();
+      mat_read_time=
+        COST_ADD(mat_read_time,
+                 COST_ADD(mat_info->materialization_cost.total_cost(),
+                          COST_MULT(prefix_rec_count,
+                                    mat_info->lookup_cost.total_cost())));
 
       /*
         NOTE: When we pick to use SJM[-Scan] we don't memcpy its POSITION
@@ -2958,6 +3092,11 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
       *record_count= prefix_rec_count;
       *handled_fanout= new_join_tab->emb_sj_nest->sj_inner_tables;
       *strategy= SJ_OPT_MATERIALIZE;
+      if (unlikely(trace.trace_started()))
+      {
+        trace.add("records", *record_count);
+        trace.add("read_time", *read_time);
+      }
       return TRUE;
     }
   }
@@ -2966,6 +3105,8 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
   if (sjm_scan_need_tables && /* Have SJM-Scan prefix */
       !(sjm_scan_need_tables & remaining_tables))
   {
+    Json_writer_object trace(join->thd);
+    trace.add("strategy", "SJ-Materialization-Scan");
     TABLE_LIST *mat_nest= 
       join->positions[sjm_scan_last_inner].table->emb_sj_nest;
     SJ_MATERIALIZATION_INFO *mat_info= mat_nest->sj_mat_info;
@@ -2986,9 +3127,12 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     }
 
     /* Add materialization cost */
-    prefix_cost += mat_info->materialization_cost.total_cost() +
-                   prefix_rec_count * mat_info->scan_cost.total_cost();
-    prefix_rec_count *= mat_info->rows;
+    prefix_cost=
+      COST_ADD(prefix_cost,
+               COST_ADD(mat_info->materialization_cost.total_cost(),
+                        COST_MULT(prefix_rec_count,
+                                  mat_info->scan_cost.total_cost())));
+    prefix_rec_count= COST_MULT(prefix_rec_count, mat_info->rows);
     
     uint i;
     table_map rem_tables= remaining_tables;
@@ -2998,25 +3142,50 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     POSITION curpos, dummy;
     /* Need to re-run best-access-path as we prefix_rec_count has changed */
     bool disable_jbuf= (join->thd->variables.join_cache_level == 0);
+    Json_writer_temp_disable trace_semijoin_mat_scan(thd);
     for (i= first_tab + mat_info->tables; i <= idx; i++)
     {
-      best_access_path(join, join->positions[i].table, rem_tables, i,
+      best_access_path(join, join->positions[i].table, rem_tables,
+                       join->positions, i,
                        disable_jbuf, prefix_rec_count, &curpos, &dummy);
-      prefix_rec_count *= curpos.records_read;
-      prefix_cost += curpos.read_time;
+      prefix_rec_count= COST_MULT(prefix_rec_count, curpos.records_read);
+      prefix_cost= COST_ADD(prefix_cost, curpos.read_time);
+      prefix_cost= COST_ADD(prefix_cost,
+                            prefix_rec_count / (double) TIME_FOR_COMPARE);
+      //TODO: take into account join condition selectivity here
     }
 
     *strategy= SJ_OPT_MATERIALIZE_SCAN;
     *read_time=    prefix_cost;
+    /*
+      Note: the next line means we did not remove the subquery's fanout from
+      *record_count. It needs to be removed, as the join prefix is
+
+        ntX  SJM-SCAN(it1 ... itN) | (ot1 ... otN) ...
+
+      here, the SJM-SCAN may have introduced subquery's fanout (duplicate rows,
+      rows that don't have matches in ot1_i). All this fanout is gone after
+      table otN (or earlier) but taking it into account is hard.
+
+      Some consolation here is that SJM-Scan strategy is applicable when the
+      subquery is smaller than tables otX. If the subquery has large cardinality,
+      we can greatly overestimate *record_count here, but it doesn't matter as
+      SJ-Materialization-Lookup is a better strategy anyway.
+    */
     *record_count= prefix_rec_count;
     *handled_fanout= mat_nest->sj_inner_tables;
+    if (unlikely(trace.trace_started()))
+    {
+      trace.add("records", *record_count);
+      trace.add("read_time", *read_time);
+    }
     return TRUE;
   }
   return FALSE;
 }
 
 
-void LooseScan_picker::set_from_prev(struct st_position *prev)
+void LooseScan_picker::set_from_prev(POSITION *prev)
 {
   if (prev->loosescan_picker.is_used)
     set_empty();
@@ -3037,7 +3206,7 @@ bool LooseScan_picker::check_qep(JOIN *join,
                                  double *read_time,
                                  table_map *handled_fanout,
                                  sj_strategy_enum *strategy,
-                                 struct st_position *loose_scan_pos)
+                                 POSITION *loose_scan_pos)
 {
   POSITION *first= join->positions + first_loosescan_table; 
   /* 
@@ -3073,6 +3242,8 @@ bool LooseScan_picker::check_qep(JOIN *join,
       !(remaining_tables & loosescan_need_tables) &&
       (new_join_tab->table->map & loosescan_need_tables))
   {
+    Json_writer_object trace(join->thd);
+    trace.add("strategy", "LooseScan");
     /* 
       Ok we have LooseScan plan and also have all LooseScan sj-nest's
       inner tables and outer correlated tables into the prefix.
@@ -3103,12 +3274,17 @@ bool LooseScan_picker::check_qep(JOIN *join,
     */
     *strategy= SJ_OPT_LOOSE_SCAN;
     *handled_fanout= first->table->emb_sj_nest->sj_inner_tables;
+    if (unlikely(trace.trace_started()))
+    {
+      trace.add("records", *record_count);
+      trace.add("read_time", *read_time);
+    }
     return TRUE;
   }
   return FALSE;
 }
 
-void Firstmatch_picker::set_from_prev(struct st_position *prev)
+void Firstmatch_picker::set_from_prev(POSITION *prev)
 {
   if (prev->firstmatch_picker.is_used)
     invalidate_firstmatch_prefix();
@@ -3182,6 +3358,8 @@ bool Firstmatch_picker::check_qep(JOIN *join,
       if (in_firstmatch_prefix() && 
           !(firstmatch_need_tables & remaining_tables))
       {
+        Json_writer_object trace(join->thd);
+        trace.add("strategy", "FirstMatch");
         /*
           Got a complete FirstMatch range. Calculate correct costs and fanout
         */
@@ -3214,6 +3392,11 @@ bool Firstmatch_picker::check_qep(JOIN *join,
         *handled_fanout= firstmatch_need_tables;
         /* *record_count and *read_time were set by the above call */
         *strategy= SJ_OPT_FIRST_MATCH;
+        if (unlikely(trace.trace_started()))
+        {
+          trace.add("records", *record_count);
+          trace.add("read_time", *read_time);
+        }
         return TRUE;
       }
     }
@@ -3292,6 +3475,9 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     double sj_inner_fanout= 1.0;
     double sj_outer_fanout= 1.0;
     uint temptable_rec_size;
+    Json_writer_object trace(join->thd);
+    trace.add("strategy", "DuplicateWeedout");
+
     if (first_tab == join->const_tables)
     {
       prefix_rec_count= 1.0;
@@ -3310,16 +3496,18 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     for (uint j= first_dupsweedout_table; j <= idx; j++)
     {
       POSITION *p= join->positions + j;
-      current_fanout *= p->records_read;
-      dups_cost += p->read_time + current_fanout / TIME_FOR_COMPARE;
+      current_fanout= COST_MULT(current_fanout, p->records_read);
+      dups_cost= COST_ADD(dups_cost,
+                          COST_ADD(p->read_time,
+                                   current_fanout / TIME_FOR_COMPARE));
       if (p->table->emb_sj_nest)
       {
-        sj_inner_fanout *= p->records_read;
+        sj_inner_fanout= COST_MULT(sj_inner_fanout, p->records_read);
         dups_removed_fanout |= p->table->table->map;
       }
       else
       {
-        sj_outer_fanout *= p->records_read;
+        sj_outer_fanout= COST_MULT(sj_outer_fanout, p->records_read);
         temptable_rec_size += p->table->table->file->ref_length;
       }
     }
@@ -3338,17 +3526,23 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
                                                     sj_outer_fanout,
                                                     temptable_rec_size);
 
-    double write_cost= join->positions[first_tab].prefix_record_count* 
-                       sj_outer_fanout * one_write_cost;
-    double full_lookup_cost= join->positions[first_tab].prefix_record_count* 
-                             sj_outer_fanout* sj_inner_fanout * 
-                             one_lookup_cost;
-    dups_cost += write_cost + full_lookup_cost;
+    double write_cost= COST_MULT(join->positions[first_tab].prefix_record_count,
+                                 sj_outer_fanout * one_write_cost);
+    double full_lookup_cost=
+             COST_MULT(join->positions[first_tab].prefix_record_count,
+                       COST_MULT(sj_outer_fanout,
+                                 sj_inner_fanout * one_lookup_cost));
+    dups_cost= COST_ADD(dups_cost, COST_ADD(write_cost, full_lookup_cost));
     
     *read_time= dups_cost;
     *record_count= prefix_rec_count * sj_outer_fanout;
     *handled_fanout= dups_removed_fanout;
     *strategy= SJ_OPT_DUPS_WEEDOUT;
+    if (unlikely(trace.trace_started()))
+    {
+      trace.add("records", *record_count);
+      trace.add("read_time", *read_time);
+    }
     return TRUE;
   }
   return FALSE;
@@ -3490,8 +3684,8 @@ static void recalculate_prefix_record_count(JOIN *join, uint start, uint end)
     if (j == join->const_tables)
       prefix_count= 1.0;
     else
-      prefix_count= join->best_positions[j-1].prefix_record_count *
-                    join->best_positions[j-1].records_read;
+      prefix_count= COST_MULT(join->best_positions[j-1].prefix_record_count,
+			      join->best_positions[j-1].records_read);
 
     join->best_positions[j].prefix_record_count= prefix_count;
   }
@@ -3542,12 +3736,20 @@ static void recalculate_prefix_record_count(JOIN *join, uint start, uint end)
 
 void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
 {
+  join->sjm_lookup_tables= 0;
+  join->sjm_scan_tables= 0;
+  if (!join->select_lex->sj_nests.elements)
+    return;
+
+  THD *thd= join->thd;
   uint table_count=join->table_count;
   uint tablenr;
   table_map remaining_tables= 0;
   table_map handled_tabs= 0;
-  join->sjm_lookup_tables= 0;
-  join->sjm_scan_tables= 0;
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_array trace_semijoin_strategies(thd,
+                                              "fix_semijoin_strategies_for_picked_join_order");
+
   for (tablenr= table_count - 1 ; tablenr != join->const_tables - 1; tablenr--)
   {
     POSITION *pos= join->best_positions + tablenr;
@@ -3572,8 +3774,18 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       first= tablenr - sjm->tables + 1;
       join->best_positions[first].n_sj_tables= sjm->tables;
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","SJ-Materialization");
+      Json_writer_array semijoin_plan(thd, "join_order");
       for (uint i= first; i < first+ sjm->tables; i++)
+      {
+        if (unlikely(thd->trace_started()))
+        {
+          Json_writer_object trace_one_table(thd);
+          trace_one_table.add_table_name(join->best_positions[i].table);
+        }
         join->sjm_lookup_tables |= join->best_positions[i].table->table->map;
+      }
     }
     else if (pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
     {
@@ -3611,9 +3823,18 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
 
       POSITION dummy;
       join->cur_sj_inner_tables= 0;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","SJ-Materialization-Scan");
+      Json_writer_array semijoin_plan(thd, "join_order");
       for (i= first + sjm->tables; i <= tablenr; i++)
       {
-        best_access_path(join, join->best_positions[i].table, rem_tables, i, 
+        Json_writer_object trace_one_table(thd);
+        if (unlikely(thd->trace_started()))
+        {
+          trace_one_table.add_table_name(join->best_positions[i].table);
+        }
+        best_access_path(join, join->best_positions[i].table, rem_tables,
+                         join->best_positions, i,
                          FALSE, prefix_rec_count,
                          join->best_positions + i, &dummy);
         prefix_rec_count *= join->best_positions[i].records_read;
@@ -3641,12 +3862,21 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         join buffering
       */ 
       join->cur_sj_inner_tables= 0;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","FirstMatch");
+      Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        Json_writer_object trace_one_table(thd);
+        if (unlikely(thd->trace_started()))
+        {
+          trace_one_table.add_table_name(join->best_positions[idx].table);
+        }
         if (join->best_positions[idx].use_join_buffer)
         {
-           best_access_path(join, join->best_positions[idx].table, 
-                            rem_tables, idx, TRUE /* no jbuf */,
+           best_access_path(join, join->best_positions[idx].table,
+                            rem_tables, join->best_positions, idx,
+                            TRUE /* no jbuf */,
                             record_count, join->best_positions + idx, &dummy);
         }
         record_count *= join->best_positions[idx].records_read;
@@ -3671,12 +3901,21 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         join buffering
       */ 
       join->cur_sj_inner_tables= 0;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","LooseScan");
+      Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        Json_writer_object trace_one_table(thd);
+        if (unlikely(thd->trace_started()))
+        {
+          trace_one_table.add_table_name(join->best_positions[idx].table);
+        }
         if (join->best_positions[idx].use_join_buffer || (idx == first))
         {
            best_access_path(join, join->best_positions[idx].table,
-                            rem_tables, idx, TRUE /* no jbuf */,
+                            rem_tables, join->best_positions, idx,
+                            TRUE /* no jbuf */,
                             record_count, join->best_positions + idx,
                             &loose_scan_pos);
            if (idx==first)
@@ -3706,6 +3945,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
 
     if (pos->sj_strategy == SJ_OPT_DUPS_WEEDOUT)
     {
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","DuplicateWeedout");
       /* 
         Duplicate Weedout starting at pos->first_dupsweedout_table, ending at
         this table.
@@ -4248,17 +4489,12 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   table->temp_pool_slot = temp_pool_slot;
   table->copy_blobs= 1;
   table->in_use= thd;
-  table->quick_keys.init();
-  table->covering_keys.init();
-  table->keys_in_use_for_query.init();
 
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, tmpname, tmpname);
   share->blob_field= blob_field;
   share->table_charset= NULL;
   share->primary_key= MAX_KEY;               // Indicate no primary key
-  share->keys_for_keyread.init();
-  share->keys_in_use.init();
 
   /* Create the field */
   {
@@ -4272,9 +4508,9 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     if (!field)
       DBUG_RETURN(0);
     field->table= table;
-    field->key_start.init(0);
-    field->part_of_key.init(0);
-    field->part_of_sortkey.init(0);
+    field->key_start.clear_all();
+    field->part_of_key.clear_all();
+    field->part_of_sortkey.clear_all();
     field->unireg_check= Field::NONE;
     field->flags= (NOT_NULL_FLAG | BINARY_FLAG | NO_DEFAULT_VALUE_FLAG);
     field->reset_fields();
@@ -4357,7 +4593,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     field->reset();
     /*
       Test if there is a default field value. The test for ->ptr is to skip
-      'offset' fields generated by initalize_tables
+      'offset' fields generated by initialize_tables
     */
     // Initialize the table field:
     bzero(field->ptr, field->pack_length());
@@ -5512,23 +5748,24 @@ int select_value_catcher::send_data(List<Item> &items)
 
 /**
   @brief
-    Add new conditions after optimize_cond() call
+    Attach conditions to already optimized condition
 
-  @param thd         the thread handle
-  @param cond        the condition where to attach new conditions
-  @param cond_eq     IN/OUT the multiple equalities of cond
-  @param new_conds   IN/OUT the list of conditions needed to add
-  @param cond_value  the returned value of the condition
+  @param thd              the thread handle
+  @param cond             the condition to which add new conditions
+  @param cond_eq          IN/OUT the multiple equalities of cond
+  @param new_conds        the list of conditions to be added
+  @param cond_value       the returned value of the condition
+                          if it can be evaluated
 
   @details
-    The method creates new condition through conjunction of cond and
+    The method creates new condition through union of cond and
     the conditions from new_conds list.
     The method is called after optimize_cond() for cond. The result
-    of the conjunction should be the same as if it was done before the
+    of the union should be the same as if it was done before the
     the optimize_cond() call.
 
-  @retval NULL       if an error occurs
   @retval otherwise  the created condition
+  @retval NULL       if an error occurs
 */
 
 Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
@@ -5538,15 +5775,17 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
 {
   COND_EQUAL new_cond_equal;
   Item *item;
-  Item_equal *equality;
+  Item_equal *mult_eq;
   bool is_simplified_cond= false;
+  /* The list where parts of the new condition are stored. */
   List_iterator<Item> li(new_conds);
   List_iterator_fast<Item_equal> it(new_cond_equal.current_level);
 
   /*
-    Creates multiple equalities new_cond_equal from new_conds list
-    equalities. If multiple equality can't be created or the condition
-    from new_conds list isn't an equality the method leaves it in new_conds
+    Create multiple equalities from the equalities of the list new_conds.
+    Save the created multiple equalities in new_cond_equal.
+    If multiple equality can't be created or the condition
+    from new_conds list isn't an equality leave it in new_conds
     list.
 
     The equality can't be converted into the multiple equality if it
@@ -5559,8 +5798,8 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
         ((Item_func *) item)->functype() == Item_func::EQ_FUNC &&
         check_simple_equality(thd,
                              Item::Context(Item::ANY_SUBST,
-                             ((Item_func_equal *)item)->compare_type_handler(),
-                             ((Item_func_equal *)item)->compare_collation()),
+                             ((Item_func_eq *)item)->compare_type_handler(),
+                             ((Item_func_eq *)item)->compare_collation()),
                              ((Item_func *)item)->arguments()[0],
                              ((Item_func *)item)->arguments()[1],
                              &new_cond_equal))
@@ -5572,161 +5811,219 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
       ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
   {
     /*
-      cond is an AND-condition.
-      The method conjugates the AND-condition cond, created multiple
-      equalities new_cond_equal and remain conditions from new_conds.
-
-      First, the method disjoins multiple equalities of cond and
-      merges new_cond_equal multiple equalities with these equalities.
-      It checks if after the merge the multiple equalities are knowingly
-      true or false equalities.
-      It attaches to cond the conditions from new_conds list and the result
-      of the merge of multiple equalities. The multiple equalities are
-      attached only to the upper level of AND-condition cond. So they
-      should be pushed down to the inner levels of cond AND-condition
-      if needed. It is done by propagate_new_equalities().
+      Case when cond is an AND-condition.
+      Union AND-condition cond, created multiple equalities from
+      new_cond_equal and remaining conditions from new_conds.
     */
     COND_EQUAL *cond_equal= &((Item_cond_and *) cond)->m_cond_equal;
     List<Item_equal> *cond_equalities= &cond_equal->current_level;
     List<Item> *and_args= ((Item_cond_and *)cond)->argument_list();
-    and_args->disjoin((List<Item> *) cond_equalities);
-    and_args->append(&new_conds);
 
-    while ((equality= it++))
+    /*
+      Disjoin multiple equalities of cond.
+      Merge these multiple equalities with the multiple equalities of
+      new_cond_equal. Save the result in new_cond_equal.
+      Check if after the merge some multiple equalities are knowingly
+      true or false.
+    */
+    and_args->disjoin((List<Item> *) cond_equalities);
+    while ((mult_eq= it++))
     {
-      equality->upper_levels= 0;
-      equality->merge_into_list(thd, cond_equalities, false, false);
+      mult_eq->upper_levels= 0;
+      mult_eq->merge_into_list(thd, cond_equalities, false, false);
     }
     List_iterator_fast<Item_equal> ei(*cond_equalities);
-    while ((equality= ei++))
+    while ((mult_eq= ei++))
     {
-      if (equality->const_item() && !equality->val_int())
+      if (mult_eq->const_item() && !mult_eq->val_int())
         is_simplified_cond= true;
-      equality->fixed= 0;
-      if (equality->fix_fields(thd, NULL))
-        return NULL;
+      else
+      {
+        mult_eq->unfix_fields();
+        if (mult_eq->fix_fields(thd, NULL))
+          return NULL;
+      }
     }
 
+    li.rewind();
+    while ((item=li++))
+    {
+      /*
+        There still can be some equalities at not top level of new_conds
+        conditions that are not transformed into multiple equalities.
+        To transform them build_item_equal() is called.
+
+        Examples of not top level equalities:
+
+        1. (t1.a = 3) OR (t1.b > 5)
+            (t1.a = 3) - not top level equality.
+            It is inside OR condition
+
+        2. ((t3.d = t3.c) AND (t3.c < 15)) OR (t3.d > 1)
+           (t1.d = t3.c) - not top level equality.
+           It is inside AND condition which is a part of OR condition
+      */
+      if (item->type() == Item::COND_ITEM &&
+          ((Item_cond *)item)->functype() == Item_func::COND_OR_FUNC)
+      {
+        item= item->build_equal_items(thd,
+                                      &((Item_cond_and *) cond)->m_cond_equal,
+                                      false, NULL);
+      }
+      and_args->push_back(item, thd->mem_root);
+    }
     and_args->append((List<Item> *) cond_equalities);
     *cond_eq= &((Item_cond_and *) cond)->m_cond_equal;
-
-    propagate_new_equalities(thd, cond, cond_equalities,
-                             cond_equal->upper_levels,
-                             &is_simplified_cond);
-    cond= cond->propagate_equal_fields(thd,
-                                       Item::Context_boolean(),
-                                       cond_equal);
   }
   else
   {
     /*
-      cond isn't AND-condition or is NULL.
+      Case when cond isn't an AND-condition or is NULL.
       There can be several cases:
 
       1. cond is a multiple equality.
-         In this case cond is merged with the multiple equalities of
+         In this case merge cond with the multiple equalities of
          new_cond_equal.
-         The new condition is created with the conjunction of new_conds
-         list conditions and the result of merge of multiple equalities.
+         Create new condition from the created multiple equalities
+         and new_conds list conditions.
       2. cond is NULL
-         The new condition is created from the conditions of new_conds
-         list and multiple equalities from new_cond_equal.
+         Create new condition from new_conds list conditions
+         and multiple equalities from new_cond_equal.
       3. Otherwise
-         In this case the new condition is created from cond, remain conditions
-         from new_conds list and created multiple equalities from
-         new_cond_equal.
+         Create new condition through union of cond, conditions from new_conds
+         list and created multiple equalities from new_cond_equal.
     */
     List<Item> new_conds_list;
     /* Flag is set to true if cond is a multiple equality */
     bool is_mult_eq= (cond && cond->type() == Item::FUNC_ITEM &&
         ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC);
 
+    /*
+      If cond is non-empty and is not multiple equality save it as
+      a part of a new condition.
+    */
     if (cond && !is_mult_eq &&
         new_conds_list.push_back(cond, thd->mem_root))
       return NULL;
 
-    if (new_conds.elements > 0)
-    {
-      li.rewind();
-      while ((item=li++))
-      {
-        if (item->fix_fields_if_needed(thd, NULL))
-          return NULL;
-        if (item->const_item() && !item->val_int())
-          is_simplified_cond= true;
-      }
-
-      if (new_conds.elements > 1)
-        new_conds_list.append(&new_conds);
-      else
-      {
-        li.rewind();
-        item= li++;
-        if (new_conds_list.push_back(item, thd->mem_root))
-          return NULL;
-      }
-    }
-
+    /*
+      If cond is a multiple equality merge it with new_cond_equal
+      multiple equalities.
+    */
     if (is_mult_eq)
     {
       Item_equal *eq_cond= (Item_equal *)cond;
       eq_cond->upper_levels= 0;
       eq_cond->merge_into_list(thd, &new_cond_equal.current_level,
                                false, false);
-
-       while ((equality= it++))
-       {
-         if (equality->const_item() && !equality->val_int())
-           is_simplified_cond= true;
-       }
-       (*cond_eq)->copy(new_cond_equal);
     }
 
-    if (new_cond_equal.current_level.elements > 0)
+    /**
+      Fix created multiple equalities and check if they are knowingly
+      true or false.
+    */
+    List_iterator_fast<Item_equal> ei(new_cond_equal.current_level);
+    while ((mult_eq=ei++))
     {
-      if (new_cond_equal.current_level.elements +
-          new_conds_list.elements == 1)
+      if (mult_eq->const_item() && !mult_eq->val_int())
+        is_simplified_cond= true;
+      else
       {
-        it.rewind();
-        equality= it++;
-        equality->fixed= 0;
-        if (equality->fix_fields(thd, NULL))
+        mult_eq->unfix_fields();
+        if (mult_eq->fix_fields(thd, NULL))
           return NULL;
       }
-      new_conds_list.append((List<Item> *)&new_cond_equal.current_level);
     }
 
-    if (new_conds_list.elements > 1)
+    /*
+      Create AND condition if new condition will have two or
+      more elements.
+    */
+    Item_cond_and *and_cond= 0;
+    COND_EQUAL *inherited= 0;
+    if (new_conds_list.elements +
+        new_conds.elements +
+        new_cond_equal.current_level.elements > 1)
     {
-      Item_cond_and *and_cond=
-        new (thd->mem_root) Item_cond_and(thd, new_conds_list);
-
+      and_cond= new (thd->mem_root) Item_cond_and(thd);
       and_cond->m_cond_equal.copy(new_cond_equal);
+      inherited= &and_cond->m_cond_equal;
+    }
+
+    li.rewind();
+    while ((item=li++))
+    {
+      /*
+        Look for the comment in the case when cond is an
+        AND condition above the build_equal_items() call.
+      */
+      if (item->type() == Item::COND_ITEM &&
+          ((Item_cond *)item)->functype() == Item_func::COND_OR_FUNC)
+      {
+        item= item->build_equal_items(thd, inherited, false, NULL);
+      }
+      new_conds_list.push_back(item, thd->mem_root);
+    }
+    new_conds_list.append((List<Item> *)&new_cond_equal.current_level);
+
+    if (and_cond)
+    {
+      and_cond->argument_list()->append(&new_conds_list);
       cond= (Item *)and_cond;
-      *cond_eq= &((Item_cond_and *)cond)->m_cond_equal;
+      *cond_eq= &((Item_cond_and *) cond)->m_cond_equal;
     }
     else
     {
       List_iterator_fast<Item> iter(new_conds_list);
       cond= iter++;
+      if (cond->type() == Item::FUNC_ITEM &&
+          ((Item_func *)cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+      {
+        if (!(*cond_eq))
+          *cond_eq= new COND_EQUAL();
+        (*cond_eq)->copy(new_cond_equal);
+      }
+      else
+        *cond_eq= 0;
     }
-
-    if (cond->fix_fields_if_needed(thd, NULL))
-      return NULL;
-
-    if (new_cond_equal.current_level.elements > 0)
-      cond= cond->propagate_equal_fields(thd,
-                                         Item::Context_boolean(),
-                                         &new_cond_equal);
   }
 
+  if (!cond)
+    return NULL;
+
+  if (*cond_eq)
+  {
+    /*
+      The multiple equalities are attached only to the upper level
+      of AND-condition cond.
+      Push them down to the bottom levels of cond AND-condition if needed.
+    */
+    propagate_new_equalities(thd, cond,
+                             &(*cond_eq)->current_level,
+                             0,
+                             &is_simplified_cond);
+    cond= cond->propagate_equal_fields(thd,
+                                       Item::Context_boolean(),
+                                       *cond_eq);
+    cond->update_used_tables();
+  }
+  /* Check if conds has knowingly true or false parts. */
+  if (cond &&
+      !is_simplified_cond &&
+      cond->walk(&Item::is_simplified_cond_processor, 0, 0))
+    is_simplified_cond= true;
+
+
   /*
-    If it was found that some of the created condition parts are knowingly
-    true or false equalities the method calls removes_eq_cond() to remove them
-    from cond and set the cond_value to the appropriate value.
+    If it was found that there are some knowingly true or false equalities
+    remove them  from cond and set cond_value to the appropriate value.
   */
-  if (is_simplified_cond)
+  if (cond && is_simplified_cond)
     cond= cond->remove_eq_conds(thd, cond_value, true);
+
+  if (cond && cond->fix_fields_if_needed(thd, NULL))
+    return NULL;
+
   return cond;
 }
 
@@ -6221,14 +6518,16 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
       The cost of executing the subquery and storing its result in an indexed
       temporary table.
     */
-    double materialization_cost= inner_read_time_1 +
-                                 write_cost * inner_record_count_1;
+    double materialization_cost= COST_ADD(inner_read_time_1,
+                                          COST_MULT(write_cost,
+                                                    inner_record_count_1));
 
-    materialize_strategy_cost= materialization_cost +
-                               outer_lookup_keys * lookup_cost;
+    materialize_strategy_cost= COST_ADD(materialization_cost,
+                                        COST_MULT(outer_lookup_keys,
+                                                  lookup_cost));
 
     /* C.2 Compute the cost of the IN=>EXISTS strategy. */
-    in_exists_strategy_cost= outer_lookup_keys * inner_read_time_2;
+    in_exists_strategy_cost= COST_MULT(outer_lookup_keys, inner_read_time_2);
 
     /* C.3 Compare the costs and choose the cheaper strategy. */
     if (materialize_strategy_cost >= in_exists_strategy_cost)
@@ -6398,33 +6697,27 @@ bool JOIN::choose_tableless_subquery_plan()
 }
 
 
-/*
-  Check if the item exists in the fields list of the left part of
-  the IN subquery predicate subq_pred and returns its corresponding
-  item from the select of the right part of subq_pred.
-*/
-Item *Item::get_corresponding_field_in_insubq(Item_in_subselect *subq_pred)
+bool Item::pushable_equality_checker_for_subquery(uchar *arg)
 {
-  DBUG_ASSERT(type() == Item::FIELD_ITEM ||
-              (type() == Item::REF_ITEM &&
-               ((Item_ref *) this)->ref_type() == Item_ref::VIEW_REF));
-
-  List_iterator<Field_pair> it(subq_pred->corresponding_fields);
-  Field_pair *ret;
-  Item_field *field_item= (Item_field *) (real_item());
-  while ((ret= it++))
-  {
-    if (field_item->field == ret->field)
-      return ret->corresponding_item;
-  }
-  return NULL;
+  return
+  get_corresponding_field_pair(this,
+                            ((Item_in_subselect *)arg)->corresponding_fields);
 }
 
 
-bool Item_field::excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
+/*
+  Checks if 'item' or some item equal to it is equal to the field from
+  some Field_pair of 'pair_list' and returns matching Field_pair or
+  NULL if the matching Field_pair wasn't found.
+*/
+
+Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list)
 {
-  if (((Item *)this)->get_corresponding_field_in_insubq(subq_pred))
-    return true;
+  Field_pair *field_pair= get_corresponding_field_pair(item, pair_list);
+  if (field_pair)
+    return field_pair;
+
+  Item_equal *item_equal= item->get_item_equal();
   if (item_equal)
   {
     Item_equal_fields_iterator it(*item_equal);
@@ -6433,10 +6726,19 @@ bool Item_field::excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
     {
       if (equal_item->const_item())
         continue;
-      if (equal_item->get_corresponding_field_in_insubq(subq_pred))
-        return true;
+      field_pair= get_corresponding_field_pair(equal_item, pair_list);
+      if (field_pair)
+        return field_pair;
     }
   }
+  return NULL;
+}
+
+
+bool Item_field::excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
+{
+  if (find_matching_field_pair(((Item *) this), subq_pred->corresponding_fields))
+    return true;
   return false;
 }
 
@@ -6446,7 +6748,7 @@ bool Item_direct_view_ref::excl_dep_on_in_subq_left_part(Item_in_subselect *subq
   if (item_equal)
   {
     DBUG_ASSERT(real_item()->type() == Item::FIELD_ITEM);
-    if (((Item *)this)->get_corresponding_field_in_insubq(subq_pred))
+    if (get_corresponding_field_pair(((Item *)this), subq_pred->corresponding_fields))
       return true;
   }
   return (*ref)->excl_dep_on_in_subq_left_part(subq_pred);
@@ -6510,7 +6812,7 @@ Item *get_corresponding_item(THD *thd, Item *item,
               (item->type() == Item::REF_ITEM &&
               ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF));
 
-  Item *corresonding_item;
+  Field_pair *field_pair;
   Item_equal *item_equal= item->get_item_equal();
 
   if (item_equal)
@@ -6519,15 +6821,20 @@ Item *get_corresponding_item(THD *thd, Item *item,
     Item *equal_item;
     while ((equal_item= it++))
     {
-      corresonding_item=
-        equal_item->get_corresponding_field_in_insubq(subq_pred);
-      if (corresonding_item)
-        return corresonding_item;
+      field_pair=
+        get_corresponding_field_pair(equal_item, subq_pred->corresponding_fields);
+      if (field_pair)
+        return field_pair->corresponding_item;
     }
-    return NULL;
   }
   else
-    return item->get_corresponding_field_in_insubq(subq_pred);
+  {
+    field_pair=
+        get_corresponding_field_pair(item, subq_pred->corresponding_fields);
+    if (field_pair)
+        return field_pair->corresponding_item;
+  }
+  return NULL;
 }
 
 
@@ -6800,11 +7107,13 @@ bool Item_in_subselect::pushdown_cond_for_in_subquery(THD *thd, Item *cond)
     remaining_cond->transform(thd,
                               &Item::in_subq_field_transformer_for_having,
                               (uchar *)this);
-  if (!remaining_cond)
+  if (!remaining_cond ||
+      remaining_cond->walk(&Item::cleanup_excluding_const_fields_processor,
+                           0, 0))
     goto exit;
 
-  remaining_cond->walk(&Item::cleanup_excluding_const_fields_processor,
-                       0, 0);
+  mark_or_conds_to_avoid_pushdown(remaining_cond);
+
   sel->cond_pushed_into_having= remaining_cond;
 
 exit:

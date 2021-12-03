@@ -1,0 +1,10 @@
+--source include/not_embedded.inc
+--source include/have_ucs2.inc
+
+create or replace table t1 (col1 char(10) character set ucs2, filler char(100), key(col1)) ;
+insert into t1 values ('a', 'a');
+insert into t1 values ('a', 'a');
+set optimizer_trace=1;
+explain format=json select * from t1 force index(col1) where col1 >='a';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;

@@ -26,6 +26,22 @@
 #include "tztime.h"
 #include "item.h"
 
+bool Item_func_history::val_bool()
+{
+  Item_field *f= static_cast<Item_field *>(args[0]);
+  DBUG_ASSERT(f->fixed);
+  DBUG_ASSERT(f->field->flags & VERS_ROW_END);
+  return !f->field->is_max();
+}
+
+void Item_func_history::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  args[0]->print(str, query_type);
+  str->append(')');
+}
+
 Item_func_trt_ts::Item_func_trt_ts(THD *thd, Item* a, TR_table::field_id_t _trt_field) :
   Item_datetimefunc(thd, a),
   trt_field(_trt_field)
@@ -61,10 +77,7 @@ Item_func_trt_ts::get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate)
 
   null_value= !trt.query(trx_id);
   if (null_value)
-  {
-    my_error(ER_VERS_NO_TRX_ID, MYF(0), (longlong) trx_id);
     return true;
-  }
 
   return trt[trt_field]->get_date(res, fuzzydate);
 }
@@ -142,7 +155,9 @@ Item_func_trt_id::val_int()
   else
   {
     MYSQL_TIME commit_ts;
-    if (args[0]->get_date(current_thd, &commit_ts, date_mode_t(0)))
+    THD *thd= current_thd;
+    Datetime::Options opt(TIME_CONV_NONE, thd);
+    if (args[0]->get_date(thd, &commit_ts, opt))
     {
       null_value= true;
       return 0;

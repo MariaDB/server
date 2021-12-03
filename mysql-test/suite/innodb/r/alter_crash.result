@@ -3,6 +3,9 @@
 #
 CREATE TABLE t1(c1 INT PRIMARY KEY, c2 CHAR(1), c3 INT UNSIGNED) ENGINE=InnoDB;
 SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG='+d,create_index_metadata_fail';
+ALTER TABLE t1 ADD INDEX (c2), ADD INDEX (c3);
+ERROR HY000: The table 't1' is full
 SET DEBUG_DBUG='+d,ib_create_table_fail_too_many_trx';
 ALTER TABLE t1 ADD INDEX (c2), ADD INDEX (c3);
 ERROR HY000: Too many active concurrent transactions
@@ -14,6 +17,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	Warning	InnoDB: Index c2 is marked as corrupted
 test.t1	check	Warning	InnoDB: Index c3 is marked as corrupted
 test.t1	check	error	Corrupt
+# restart
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	Warning	InnoDB: Index c2 is marked as corrupted
@@ -44,6 +48,7 @@ SET DEBUG_DBUG='+d,innodb_alter_commit_crash_after_commit';
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
 ERROR HY000: Lost connection to MySQL server during query
 # Restart mysqld after the crash and reconnect.
+# restart
 SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = ID;
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
@@ -83,6 +88,7 @@ SET DEBUG_DBUG='+d,innodb_alter_commit_crash_before_commit';
 ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
 ERROR HY000: Lost connection to MySQL server during query
 # Startup the server after the crash
+# restart
 SELECT * FROM information_schema.innodb_sys_tables
 WHERE name LIKE 'test/#sql-%';
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
@@ -121,6 +127,7 @@ SET DEBUG_DBUG='+d,innodb_alter_commit_crash_after_commit';
 ALTER TABLE t1 ADD INDEX (b), CHANGE c d int, ALGORITHM=INPLACE;
 ERROR HY000: Lost connection to MySQL server during query
 # Restart mysqld after the crash and reconnect.
+# restart
 SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = ID;
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
@@ -145,3 +152,41 @@ SELECT * FROM t1;
 a	b	d
 1	NULL	NULL
 DROP TABLE t1;
+#
+# MDEV-22637 Rollback of insert fails when column reorder happens
+#
+SET @@SQL_MODE = REPLACE(@@SQL_MODE, 'STRICT_TRANS_TABLES', '');
+SET @@SQL_MODE = REPLACE(@@SQL_MODE, 'STRICT_ALL_TABLES', '');
+CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(100),
+f3 CHAR(100), f4 CHAR(100))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, "This is column2", "This is column3",
+"This is column4");
+set DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL scanned WAIT_FOR insert_done';
+ALTER TABLE t1 ADD COLUMN f6 int after f3, add primary key(f6, f4(3), f3(3));
+connect con1,localhost,root,,;
+SET DEBUG_SYNC = 'now WAIT_FOR scanned';
+BEGIN;
+INSERT INTO t1(f1, f2) VALUES(2, "This is column2 value");
+ROLLBACK;
+set DEBUG_SYNC = 'now SIGNAL insert_done';
+connection default;
+Warnings:
+Warning	1265	Data truncated for column 'f3' at row 3
+Warning	1265	Data truncated for column 'f4' at row 3
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f2` char(100) DEFAULT NULL,
+  `f3` char(100) NOT NULL,
+  `f6` int(11) NOT NULL,
+  `f4` char(100) NOT NULL,
+  PRIMARY KEY (`f6`,`f4`(3),`f3`(3))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+disconnect con1;
+DROP TABLE t1;
+SET DEBUG_SYNC = 'RESET';
+SET SQL_MODE=DEFAULT;

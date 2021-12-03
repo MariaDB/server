@@ -232,6 +232,8 @@ let $con_aux2= con2;
 let $table= t1;
 
 connection con1;
+set @save_dbug=@@debug_dbug;
+set debug_dbug="+d,cache_sp_in_show_create";
 --echo # Cache all functions used in the tests below so statements
 --echo # calling them won't need to open and lock mysql.proc table
 --echo # and we can assume that each statement locks its tables
@@ -257,6 +259,7 @@ show create function f14;
 show create function f15;
 show create function f16;
 show create function f17;
+set debug_dbug=@save_dbug;
 --enable_result_log
 connection default;
 
@@ -974,12 +977,12 @@ SET DEBUG_SYNC= 'now WAIT_FOR opened';
 SET DEBUG_SYNC= 'now SIGNAL dropped';
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 --echo # Sending:
---send FLUSH TABLES
+--send FLUSH TABLES t1
 
 connection default;
 --echo # Waiting for FLUSH TABLES to be blocked.
 let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist
-  WHERE state= 'Waiting for table flush' AND info= 'FLUSH TABLES';
+  WHERE state= 'Waiting for table metadata lock' AND info= 'FLUSH TABLES t1';
 --source include/wait_condition.inc
 SET DEBUG_SYNC= 'now SIGNAL dropped';
 

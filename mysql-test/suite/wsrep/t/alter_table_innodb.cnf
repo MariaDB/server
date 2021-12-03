@@ -1,0 +1,12 @@
+!include include/default_mysqld.cnf
+
+[mysqld]
+wsrep-on=0
+
+[mysqld.1]
+wsrep-on=0
+#galera_port=@OPT.port
+#ist_port=@OPT.port
+#sst_port=@OPT.port
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=10M'
+wsrep_cluster_address='not empty but invalid'

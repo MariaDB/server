@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,25 +27,8 @@ Created 2013/03/27 Jimmy Yang and Allen Lai
 #ifndef gis0rtree_h
 #define gis0rtree_h
 
-#include "univ.i"
-#include "my_base.h"
-
-#include "data0type.h"
-#include "data0types.h"
-#include "dict0types.h"
-#include "hash0hash.h"
-#include "mem0mem.h"
-#include "page0page.h"
-#include "rem0types.h"
-#include "row0types.h"
-#include "trx0types.h"
-#include "ut0vec.h"
-#include "ut0wqueue.h"
-#include "que0types.h"
-#include "gis0geo.h"
-#include "gis0type.h"
-#include "btr0types.h"
 #include "btr0cur.h"
+#include "rem0types.h"
 
 /* Whether MBR 'a' contains 'b' */
 #define	MBR_CONTAIN_CMP(a, b)					\
@@ -106,7 +89,7 @@ rtr_page_split_and_insert(
 	btr_cur_t*	cursor,	/*!< in/out: cursor at which to insert; when the
 				function returns, the cursor is positioned
 				on the predecessor of the inserted record */
-	ulint**		offsets,/*!< out: offsets on inserted record */
+	rec_offs**	offsets,/*!< out: offsets on inserted record */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
@@ -168,7 +151,7 @@ rtr_rec_cal_increase(
 				dtuple in some of the common fields, or which
 				has an equal number or more fields than
 				dtuple */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	double*		area);	/*!< out: increased area */
 
 /****************************************************************//**
@@ -179,22 +162,6 @@ rtr_ins_enlarge_mbr(
 /*=================*/
 	btr_cur_t*		cursor,	/*!< in: btr cursor */
 	mtr_t*			mtr);	/*!< in: mtr */
-
-/********************************************************************//**
-*/
-void
-rtr_get_father_node(
-/*================*/
-	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: the tree level of search */
-	const dtuple_t* tuple,	/*!< in: data tuple; NOTE: n_fields_cmp in
-				tuple must be set so that it cannot get
-				compared to the node ptr page number field! */
-	btr_cur_t*	sea_cur,/*!< in: search cursor */
-	btr_cur_t*	cursor,	/*!< in/out: tree cursor; the cursor page is
-				s- or x-latched */
-	ulint		page_no,/*!< in: current page no */
-	mtr_t*		mtr);	/*!< in: mtr */
 
 /**************************************************************//**
 push a nonleaf index node to the search path */
@@ -224,23 +191,8 @@ rtr_non_leaf_insert_stack_push(
 	double			mbr_inc);	/*!< in: MBR needs to be
 						enlarged */
 
-/*****************************************************************//**
-Allocates a new Split Sequence Number.
-@return new SSN id */
-UNIV_INLINE
-node_seq_t
-rtr_get_new_ssn_id(
-/*===============*/
-	dict_index_t*	index);		/*!< in: the index struct */
-
-/*****************************************************************//**
-Get the current Split Sequence Number.
-@return current SSN id */
-UNIV_INLINE
-node_seq_t
-rtr_get_current_ssn_id(
-/*===================*/
-	dict_index_t*	index);		/*!< in/out: the index struct */
+#define rtr_get_new_ssn_id(index) (index)->assign_ssn()
+#define rtr_get_current_ssn_id(index) (index)->ssn()
 
 /********************************************************************//**
 Create a RTree search info structure */
@@ -291,7 +243,7 @@ void
 rtr_get_mbr_from_rec(
 /*=================*/
 	const rec_t*	rec,	/*!< in: data tuple */
-	const ulint*	offsets,/*!< in: offsets array */
+	const rec_offs*	offsets,/*!< in: offsets array */
 	rtr_mbr_t*	mbr);	/*!< out MBR */
 
 /****************************************************************//**
@@ -323,10 +275,10 @@ rtr_page_get_father(
 Returns the father block to a page. It is assumed that mtr holds
 an X or SX latch on the tree.
 @return rec_get_offsets() of the node pointer record */
-ulint*
+rec_offs*
 rtr_page_get_father_block(
 /*======================*/
-	ulint*		offsets,/*!< in: work area for the return value */
+	rec_offs*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
 	dict_index_t*	index,	/*!< in: b-tree index */
 	buf_block_t*	block,	/*!< in: child page in the index */
@@ -433,8 +385,8 @@ rtr_merge_and_update_mbr(
 /*=====================*/
 	btr_cur_t*		cursor,		/*!< in/out: cursor */
 	btr_cur_t*		cursor2,	/*!< in: the other cursor */
-	ulint*			offsets,	/*!< in: rec offsets */
-	ulint*			offsets2,	/*!< in: rec offsets */
+	rec_offs*		offsets,	/*!< in: rec offsets */
+	rec_offs*		offsets2,	/*!< in: rec offsets */
 	page_t*			child_page,	/*!< in: the child page. */
 	mtr_t*			mtr);		/*!< in: mtr */
 
@@ -454,8 +406,8 @@ rtr_merge_mbr_changed(
 /*==================*/
 	btr_cur_t*	cursor,		/*!< in: cursor */
 	btr_cur_t*	cursor2,	/*!< in: the other cursor */
-	ulint*		offsets,	/*!< in: rec offsets */
-	ulint*		offsets2,	/*!< in: rec offsets */
+	rec_offs*	offsets,	/*!< in: rec offsets */
+	rec_offs*	offsets2,	/*!< in: rec offsets */
 	rtr_mbr_t*	new_mbr);	/*!< out: MBR to update */
 
 
@@ -466,7 +418,7 @@ bool
 rtr_update_mbr_field(
 /*=================*/
 	btr_cur_t*	cursor,		/*!< in: cursor pointed to rec.*/
-	ulint*		offsets,	/*!< in: offsets on rec. */
+	rec_offs*	offsets,	/*!< in: offsets on rec. */
 	btr_cur_t*	cursor2,	/*!< in/out: cursor pointed to rec
 					that should be deleted.
 					this cursor is for btr_compress to

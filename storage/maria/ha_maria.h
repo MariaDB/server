@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface                               /* gcc class implementation */
@@ -32,7 +32,7 @@
 #define HA_RECOVER_QUICK        8       /* Don't check rows in data file */
 
 C_MODE_START
-ICP_RESULT index_cond_func_maria(void *arg);
+check_result_t index_cond_func_maria(void *arg);
 C_MODE_END
 
 extern TYPELIB maria_recover_typelib;
@@ -68,13 +68,12 @@ public:
   uint max_supported_key_part_length() const
   { return max_supported_key_length(); }
   enum row_type get_row_type() const;
-  uint checksum() const;
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share);
   virtual double scan_time();
 
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
-  int write_row(uchar * buf);
+  int write_row(const uchar * buf);
   int update_row(const uchar * old_data, const uchar * new_data);
   int delete_row(const uchar * buf);
   int index_read_map(uchar * buf, const uchar * key, key_part_map keypart_map,
@@ -152,15 +151,9 @@ public:
 
   }
   int optimize(THD * thd, HA_CHECK_OPT * check_opt);
-  int restore(THD * thd, HA_CHECK_OPT * check_opt);
-  int backup(THD * thd, HA_CHECK_OPT * check_opt);
   int assign_to_keycache(THD * thd, HA_CHECK_OPT * check_opt);
   int preload_keys(THD * thd, HA_CHECK_OPT * check_opt);
   bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes);
-#ifdef HAVE_REPLICATION
-  int dump(THD * thd, int fd);
-  int net_read_dump(NET * net);
-#endif
 #ifdef HAVE_QUERY_CACHE
   my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
@@ -172,6 +165,7 @@ public:
   {
     return file;
   }
+  static bool has_active_transaction(THD *thd);
   static int implicit_commit(THD *thd, bool new_trn);
   /**
    * Multi Range Read interface
@@ -194,7 +188,7 @@ public:
   int find_unique_row(uchar *record, uint unique_idx);
 private:
   DsMrr_impl ds_mrr;
-  friend ICP_RESULT index_cond_func_maria(void *arg);
+  friend check_result_t index_cond_func_maria(void *arg);
   friend void reset_thd_trn(THD *thd);
 };
 

@@ -22,6 +22,12 @@ SELECT @@global.innodb_checksum_algorithm;
 SET GLOBAL innodb_checksum_algorithm = 'strict_none';
 SELECT @@global.innodb_checksum_algorithm;
 
+SET GLOBAL innodb_checksum_algorithm = 'full_crc32';
+SELECT @@global.innodb_checksum_algorithm;
+
+SET GLOBAL innodb_checksum_algorithm = 'strict_full_crc32';
+SELECT @@global.innodb_checksum_algorithm;
+
 -- error ER_WRONG_VALUE_FOR_VAR
 SET GLOBAL innodb_checksum_algorithm = '';
 SELECT @@global.innodb_checksum_algorithm;

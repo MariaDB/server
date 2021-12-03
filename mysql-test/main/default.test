@@ -1,3 +1,5 @@
+--source include/have_innodb.inc
+
 #
 # test of already fixed bugs
 #
@@ -2073,11 +2075,16 @@ set sql_mode=default;
 # MDEV-10201 Bad results for CREATE TABLE t1 (a INT DEFAULT b, b INT DEFAULT 4)
 #
 create table t1 (a int default b, b int default 4, t text);
-insert into t1 (b, t) values (5, '1 column is omitted');
-insert into t1 values (default, 5, '2 column gets DEFAULT, keyword');
-insert into t1 values (default(a), 5, '3 column gets DEFAULT(a), expression');
-insert into t1 values (default(a)+0, 5, '4 also expression DEFAULT(0)+0');
-insert into t1 values (b, 5, '5 the value of the DEFAULT(a), that is b');
+insert t1 (b, t) values (5, '1 column is omitted');
+insert t1 values (default, 5, '2 column gets DEFAULT, keyword');
+insert t1 values (default(a), 5, '3 column gets DEFAULT(a), expression');
+insert t1 values (default(a)+0, 5, '4 also expression DEFAULT(0)+0');
+insert t1 values (b, 5, '5 the value of the DEFAULT(a), that is b');
+# and the same in a different order
+insert t1 (t,b,a) values ('6 reversed, column gets DEFAULT, keyword', 5, default);
+insert t1 (t,b,a) values ('7 reversed, column gets DEFAULT(a), expression', 5, default(a));
+insert t1 (t,b,a) values ('8 reversed, also expression DEFAULT(0)+0', 5, default(a)+0);
+insert t1 (t,b,a) values ('9 reversed, the value of the DEFAULT(a), that is b', 5, b);
 select * from t1 order by t;
 drop table t1;
 
@@ -2102,5 +2109,29 @@ CREATE OR REPLACE TABLE t1(i int);
 ALTER TABLE t1 ADD b CHAR(255) DEFAULT `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-18278 Misleading error message in error log upon failed table creation
+--echo #
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+create table t1 (a int as (a));
+show warnings;
 
 --echo # end of 10.2 test
+
+--echo #
+--echo # MDEV-22703 DEFAULT() on a BLOB column can overwrite the default
+--echo # record, which can cause crashes when accessing already released
+--echo # memory.
+--echo #
+
+CREATE TEMPORARY TABLE t1 (h POINT DEFAULT ST_GEOMFROMTEXT('Point(1 1)')) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES (),();
+ALTER TABLE t1 FORCE;
+--disable_result_log
+SELECT DEFAULT(h) FROM t1;
+--enable_result_log
+SELECT length(DEFAULT(h)) FROM t1;
+INSERT INTO t1 () VALUES ();
+drop table t1;
+
+--echo # end of 10.3 test

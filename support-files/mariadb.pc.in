@@ -3,11 +3,12 @@ prefix=@CMAKE_INSTALL_PREFIX@
 exec_prefix=${prefix}
 libdir=${prefix}/@INSTALL_LIBDIR@
 includedir=${prefix}/@INSTALL_INCLUDEDIR@
-# those are rarely present or not at all, but we export them regardless
+# its common to want to know where to install it.
+plugindir=${prefix}/@INSTALL_PLUGINDIR@
+# Below are rarely present or not at all, but we export them regardless
 bindir=${prefix}/@INSTALL_BINDIR@
 sbindir=${prefix}/@INSTALL_SBINDIR@
 scriptdir=${prefix}/@INSTALL_SCRIPTDIR@
-plugindir=${prefix}/@INSTALL_PLUGINDIR@
 docdir=${prefix}/@INSTALL_DOCDIR@
 mandir=${prefix}/@INSTALL_MANDIR@
 sharedir=${prefix}/@INSTALL_SHAREDIR@
@@ -20,4 +21,4 @@ Description: @CPACK_PACKAGE_DESCRIPTION_SUMMARY@
 URL: @CPACK_PACKAGE_URL@
 Version: @VERSION@
 Libs: -L${libdir} @LIBS_FOR_CLIENTS@
-Cflags: -I${includedir} -I${includedir}/.. @CFLAGS_FOR_CLIENTS@
+Cflags: -I${includedir} @CFLAGS_FOR_CLIENTS@

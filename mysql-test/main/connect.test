@@ -14,10 +14,6 @@
 
 SET global secure_auth=0;
 
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
-
 #connect (con1,localhost,root,,"");
 #show tables;
 connect (con1,localhost,root,,mysql);
@@ -66,8 +62,13 @@ connect (fail_con,localhost,test,zorro,test2);
 connect (fail_con,localhost,test,zorro,);
 
 # check if old password version also works
+source include/switch_to_mysql_user.inc;
 update mysql.user set plugin="", authentication_string="", password=old_password("gambling2") where user=_binary"test";
 flush privileges;
+show grants for test@localhost;
+update mysql.user set plugin='mysql_old_password' where user='test';
+flush privileges;
+show grants for test@localhost;
 
 connect (con10,localhost,test,gambling2,);
 connect (con5,localhost,test,gambling2,mysql);
@@ -97,11 +98,10 @@ connect (fail_con,localhost,test,zorro,test2);
 --error ER_ACCESS_DENIED_ERROR
 connect (fail_con,localhost,test,zorro,);
 
-
+source include/switch_to_mysql_global_priv.inc;
 # remove user 'test' so that other tests which may use 'test'
 # do not depend on this test.
 delete from mysql.user where user=_binary"test";
-flush privileges;
 
 #
 # Bug#12517 Clear user variables and replication events before
@@ -217,6 +217,7 @@ SELECT user FROM information_schema.processlist ORDER BY id;
 
 --echo
 --echo # -- Resetting variables...
+--replace_result $saved_max_connections #max_connections#
 --eval SET GLOBAL max_connections = $saved_max_connections
 
 --echo
@@ -251,11 +252,8 @@ let $wait_condition =
 
 --echo
 --echo # -- Waiting for connections to close...
-let $wait_condition =
-  SELECT COUNT(*) = 1
-  FROM information_schema.processlist
-  WHERE db = 'test';
---source include/wait_condition.inc
+let $count_sessions=1;
+--source include/wait_until_count_sessions.inc
 
 --echo
 DROP USER mysqltest_u1@localhost;
@@ -406,6 +404,7 @@ connection default;
 #
 # cannot connect when password is set and plugin=mysql_native_password
 #
+source include/switch_to_mysql_user.inc;
 update mysql.user set plugin='mysql_native_password' where user = 'mysqltest_up1';
 update mysql.user set plugin='mysql_old_password' where user = 'mysqltest_up2';
 select user, password, plugin, authentication_string from mysql.user
@@ -421,12 +420,13 @@ select user(), current_user();
 disconnect pcon7;
 connection default;
 
+source include/switch_to_mysql_global_priv.inc;
+
 DROP USER mysqltest_up1@'%';
 DROP USER mysqltest_up2@'%';
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
-
 
 --echo #
 --echo # BUG#1010351: New "via" keyword in 5.2+ can't be used as identifier anymore
@@ -438,10 +438,6 @@ drop table t1;
 create table t1 (col1 int);
 alter table t1 add via int not null;
 drop table t1;
-
---disable_warnings
-drop procedure if exists p1;
---enable_warnings
 
 delimiter |;
 create procedure p1(x int)
@@ -457,6 +453,58 @@ delimiter ;|
 call p1(2);
 drop procedure p1;
 
-
-
 SET global secure_auth=default;
+
+--echo #
+--echo # MDEV-19282: Log more specific warning with log_warnings=2 if
+--echo # connection is aborted prior to authentication
+--echo # MDEV-19277: Add status variable that gets incremented if
+--echo # connection is aborted prior to authentication
+--echo #
+
+flush status;
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+
+SET GLOBAL log_warnings=2;
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= This connection closed normally without authentication
+--source include/search_pattern_in_file.inc
+
+--perl
+use Socket;
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"))
+  or die "Can't create a tcp socket!\n";
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("localhost")))
+  or die "Can't connect to port $ENV{MASTER_MYPORT}!\n";
+exit(0);
+EOF
+--echo # let tcp to detect disconnect
+select sleep(1);
+
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+
+--let SEARCH_PATTERN= This connection closed normally without authentication
+--source include/search_pattern_in_file.inc
+
+SET @save_connect_timeout= @@connect_timeout;
+SET GLOBAL connect_timeout=2;
+
+--perl
+use Socket;
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"))
+  or die "Can't create a tcp socket!\n";
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("localhost")))
+  or die "Can't connect to port $ENV{MASTER_MYPORT}!\n";
+sleep 3;
+exit(0);
+EOF
+
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+
+--let SEARCH_PATTERN= This connection closed normally without authentication
+--source include/search_pattern_in_file.inc
+
+SET GLOBAL log_warnings=default;
+SET GLOBAL connect_timeout= @save_connect_timeout;
+
+--echo # End of 10.4 tests

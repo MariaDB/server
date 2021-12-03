@@ -1,0 +1,4 @@
+[binlogon]
+log-bin
+
+[binlogoff]

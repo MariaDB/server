@@ -138,7 +138,9 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo # Cleanup.
 --echo #
 --echo # reset variable value to pass testcase checks
+--disable_query_log
 eval SET @@global.max_allowed_packet = $orig_max_allowed_packet;
+--enable_query_log
 DROP TABLE t1;
 
 --echo remove_file \$MYSQLTEST_VARDIR/$mysqlbinlog_output

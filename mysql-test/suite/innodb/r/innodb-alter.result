@@ -198,11 +198,11 @@ t3	CREATE TABLE `t3` (
 ALTER TABLE t3 CHANGE
 `1234567890123456789012345678901234567890123456789012345678901234`
 `倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠倡倢倣値倥倦倧倨倩倪倫倬倭倮倯倰倱倲倳倴倵倶倷倸倹债倻值倽倾倿偀` INT;
-ERROR 42000: Identifier name '倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠' is too long
+ERROR 42000: Identifier name '倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借...' is too long
 ALTER TABLE t3 CHANGE
 `1234567890123456789012345678901234567890123456789012345678901234`
 `倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠倡倢倣値倥倦倧倨倩倪倫倬倭倮倯倰倱倲倳倴倵倶倷倸倹债倻值倽倾倿ä` INT;
-ERROR 42000: Identifier name '倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠' is too long
+ERROR 42000: Identifier name '倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借...' is too long
 ALTER TABLE t3 CHANGE
 `1234567890123456789012345678901234567890123456789012345678901234`
 `倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠倡倢倣値倥倦倧倨倩倪倫倬倭倮倯倰倱倲倳倴倵倶倷倸倹债倻值倽倾ä` INT;
@@ -210,7 +210,7 @@ ALTER TABLE t3 CHANGE
 `倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠倡倢倣値倥倦倧倨倩倪倫倬倭倮倯倰倱倲倳倴倵倶倷倸倹债倻值倽倾Ä`
 c3 INT;
 ALTER TABLE t3 CHANGE c3 𐌀𐌁𐌂𐌃𐌄𐌅𐌆𐌇𐌈𐌉𐌊𐌋𐌌𐌍𐌎𐌏𐌐𐌑𐌒𐌓𐌔𐌕𐌖𐌗𐌘𐌙𐌚𐌛𐌜 INT;
-ERROR HY000: Invalid utf8mb4 character string: '\xF0\x90\x8C\x80\xF0\x90\x8C\x81\xF0\x90\x8C\x82\xF0\x90\x8C\x83'
+ERROR HY000: Invalid utf8mb4 character string: '\xF0\x90\x8C\x80\xF0\x90\x8C\x81\xF0\x90\x8C\x82\xF0\x90\x8C\...'
 ALTER TABLE t3 CHANGE c3 😲 INT;
 ERROR HY000: Invalid utf8mb4 character string: '\xF0\x9F\x98\xB2'
 ALTER TABLE t3 RENAME TO t2;
@@ -439,17 +439,17 @@ tt	CREATE TABLE `tt` (
   FULLTEXT KEY `ct` (`ct`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 CREATE TABLE tu (
 pk INT PRIMARY KEY, FTS_DOC_ID BIGINT UNSIGNED NOT NULL, t TEXT,
 FULLTEXT INDEX(t)
 ) ENGINE=InnoDB;
 ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 DROP TABLE tu;
 CREATE TABLE tv (
 pk INT PRIMARY KEY, FTS_DOC_ID BIGINT UNSIGNED NOT NULL, t TEXT,
@@ -457,9 +457,9 @@ UNIQUE INDEX FTS_DOC_ID_INDEX(FTS_DOC_ID),
 FULLTEXT INDEX(t)
 ) ENGINE=InnoDB;
 ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 DROP TABLE tv;
 ALTER TABLE t1o CHANGE c1 dB_row_Id INT, ALGORITHM=COPY;
 ERROR 42000: Incorrect column name 'dB_row_Id'
@@ -500,8 +500,6 @@ ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try ALGORITHM=COPY
 ALTER TABLE t1o ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
 ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try ALGORITHM=COPY
-ALTER TABLE t1o ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL;
 ALTER TABLE t1o DROP COLUMN FTS_DOC_ID, ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot drop or rename FTS_DOC_ID. Try ALGORITHM=COPY
 ALTER TABLE t1o DROP COLUMN FTS_DOC_ID;
@@ -517,7 +515,7 @@ ERROR 42000: Incorrect column name 'FTS_DOC_ID'
 ALTER TABLE t1o ADD FULLTEXT INDEX(ct),
 CHANGE c1 FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
 ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 CREATE TABLE t1n LIKE t1o;
 ALTER TABLE t1n ADD FULLTEXT INDEX(ct);
 ALTER TABLE t1n CHANGE c1 Fts_DOC_ID INT, ALGORITHM=INPLACE;
@@ -590,7 +588,7 @@ t1n	CREATE TABLE `t1n` (
 DROP TABLE t1n;
 ALTER TABLE t1o MODIFY c1 BIGINT UNSIGNED NOT NULL, DROP INDEX ct,
 ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 ALTER TABLE t1o MODIFY c1 BIGINT UNSIGNED NOT NULL, DROP INDEX ct;
 ALTER TABLE t1o CHANGE c1 FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
 ALGORITHM=INPLACE;
@@ -818,6 +816,7 @@ ADD FOREIGN KEY(dd) REFERENCES t1(d),
 ALGORITHM=INPLACE;
 ALTER TABLE t1 CHANGE b B INT, ALGORITHM=INPLACE;
 ALTER TABLE t2 CHANGE aa AA INT, ALGORITHM=INPLACE;
+# restart
 ALTER TABLE t1 CHANGE d D INT, ALGORITHM=INPLACE;
 ALTER TABLE t2 CHANGE bb BB INT, ALGORITHM=INPLACE;
 SHOW CREATE TABLE t1;
@@ -881,6 +880,27 @@ NAME
 a
 b
 DROP TABLE t1;
+# and an MDEV-18041 regression related to indexes prefixes
+create table `test` (
+`test_old` varchar(255) NOT NULL,
+`other` varchar(255) NOT NULL,
+PRIMARY KEY (`test_old`,`other`),
+UNIQUE KEY uk (`test_old`(100), `other`)
+) ENGINE=InnoDB;
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+name	pos
+test_old	0
+other	1
+test_old	0
+other	1
+alter table `test` CHANGE COLUMN `test_old` `test_new` varchar(255) NOT NULL;
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+name	pos
+test_new	0
+other	1
+test_new	0
+other	1
+drop table `test`;
 #
 # BUG 20029625 - HANDLE_FATAL_SIGNAL (SIG=11) IN
 #                DICT_MEM_TABLE_COL_RENAME_LOW
@@ -933,6 +953,7 @@ DROP TABLE t1, parent;
 #BUG#21514135 SCHEMA MISMATCH ERROR WHEN IMPORTING TABLESPACE AFTER
 #DROPPING AN INDEX
 #
+SET NAMES utf8mb4;
 CREATE DATABASE source_db;
 CREATE DATABASE dest_db;
 CREATE TABLE source_db.t1 (
@@ -1031,10 +1052,12 @@ a
 10
 DROP TABLE t1;
 CREATE TABLE t1 (a INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
-iNSERT INTO t1 VALUES (10);
-ALTER TABLE t1 ADD b DATE NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0);
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t1 VALUES (10);
+ALTER TABLE t1 ADD b DATE NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0), algorithm=copy;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'b' at row 1
 SELECT * FROM t1;
 a	b
 10	2001-01-01
@@ -1043,8 +1066,27 @@ CREATE TABLE t1 (a INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
 iNSERT INTO t1 VALUES (10);
 ALTER TABLE t1 ADD b TIME NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0);
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'b' at row 1
 SELECT * FROM t1;
 a	b
 10	10:20:30
+DROP TABLE t1;
+#
+# MDEV-18042 Server crashes in mysql_alter_table upon adding a non-null
+# date column under NO_ZERO_DATE with ALGORITHM=INPLACE
+#
+SET @OLD_SQL_MODE= @@SQL_MODE;
+SET @@SQL_MODE= 'NO_ZERO_DATE';
+CREATE OR REPLACE TABLE t1 (i INT) ENGINE=MyISAM;
+ALTER TABLE t1 ADD COLUMN d DATE NOT NULL, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+CREATE OR REPLACE TABLE t1 (i INT) ENGINE=InnoDB;
+ALTER TABLE t1 ADD d DATETIME NOT NULL CHECK (f <= 0), ALGORITHM=COPY;
+ERROR 42S22: Unknown column 'f' in 'CHECK'
+CREATE OR REPLACE TABLE t1 (a int) ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN b DATETIME NOT NULL, LOCK=NONE;
+# Cleanup
+SET @@SQL_MODE= @OLD_SQL_MODE;
 DROP TABLE t1;

@@ -1,5 +1,7 @@
 set default_storage_engine='tokudb';
 drop table if exists tt;
+set @save_use_stat_tables =  @@use_stat_tables;
+set @@use_stat_tables = COMPLEMENTARY;
 create table tt (a int, b int, c int, primary key(a), key(b), key(c));
 insert into tt values (0, 0, 0), (0+1, 0, 0), (0+2, 0, 0), (0+3, 0, 0);
 insert into tt values (4, 4, 0), (4+1, 4, 0), (4+2, 4, 0), (4+3, 4, 0);
@@ -136,6 +138,7 @@ tt	1	b	1	b	A	500	NULL	NULL	YES	BTREE
 tt	1	c	1	c	A	500	NULL	NULL	YES	BTREE		
 analyze table tt;
 Table	Op	Msg_type	Msg_text
+test.tt	analyze	status	Engine-independent statistics collected
 test.tt	analyze	status	OK
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -155,4 +158,5 @@ flush tables;
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 tt	0	PRIMARY	1	a	A	500	NULL	NULL		BTREE		
+set @@use_stat_tables =  @save_use_stat_tables;
 drop table tt;

@@ -1,0 +1,36 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 VARCHAR(254)) ENGINE=InnoDB;
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+SET SESSION wsrep_trx_fragment_size = 512;
+SET GLOBAL wsrep_provider_options='repl.max_ws_size=4096';
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+connection node_2;
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+connection node_1;
+COMMIT;
+connection node_2;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SELECT COUNT(*) = 100 FROM t1;
+COUNT(*) = 100
+1
+DROP TABLE t1;
+DROP TABLE ten;
+connection node_1;
+call mtr.add_suppression('WSREP: transaction size limit.*');
+call mtr.add_suppression('WSREP: rbr write fail.*');
+call mtr.add_suppression('WSREP: Maximum writeset size exceeded by.*');
+call mtr.add_suppression('WSREP: transaction size exceeded.*');

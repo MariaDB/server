@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "maria_def.h"
 
@@ -28,7 +28,7 @@ int maria_rprev(MARIA_HA *info, uchar *buf, int inx)
   register uint flag;
   MARIA_SHARE *share= info->s;
   MARIA_KEYDEF *keyinfo;
-  ICP_RESULT   icp_res= ICP_MATCH;
+  check_result_t check= CHECK_POS;
   DBUG_ENTER("maria_rprev");
 
   if ((inx = _ma_check_index(info,inx)) < 0)
@@ -58,7 +58,7 @@ int maria_rprev(MARIA_HA *info, uchar *buf, int inx)
   {
     my_off_t cur_keypage= info->last_keypage;
     while (!(*share->row_is_visible)(info) ||
-           ((icp_res= ma_check_index_cond(info, inx, buf)) == ICP_NO_MATCH))
+           ((check= ma_check_index_cond(info, inx, buf)) == CHECK_NEG))
     {
       /*
         If we are at the last (i.e. first?) key on the key page, 
@@ -86,7 +86,7 @@ int maria_rprev(MARIA_HA *info, uchar *buf, int inx)
   info->update&= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
   info->update|= HA_STATE_PREV_FOUND;
 
-  if (error || icp_res != ICP_MATCH)
+  if (error || check != CHECK_POS)
   {
     fast_ma_writeinfo(info);
     if (my_errno == HA_ERR_KEY_NOT_FOUND)

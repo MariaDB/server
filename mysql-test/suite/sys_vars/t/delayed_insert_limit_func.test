@@ -63,8 +63,6 @@ LOCK TABLE v1 READ;
 
 connection con1;
 
-delimiter |;
-send
 INSERT DELAYED INTO t1 VALUES('7','1','1');
 INSERT DELAYED INTO t1 VALUES('8','1','1');
 INSERT DELAYED INTO t1 VALUES('9','1','1');
@@ -101,8 +99,7 @@ INSERT DELAYED INTO t1 VALUES('39','1','1');
 INSERT DELAYED INTO t1 VALUES('40','1','1');
 INSERT DELAYED INTO t1 VALUES('41','1','1');
 INSERT DELAYED INTO t1 VALUES('42','1','1');
-INSERT DELAYED INTO t1 VALUES('43','1','1');|
-delimiter ;|
+INSERT DELAYED INTO t1 VALUES('43','1','1');
 
 connection con0;
 let $wait_condition=
@@ -120,10 +117,6 @@ let $wait_condition=
    WHERE state = 'Waiting for table level lock' AND info = '$my_select';
 --source include/wait_condition.inc
 UNLOCK TABLES;
-
-connection con1;
---echo Asynchronous "reap" result
-reap;
 
 connection con0;
 --echo Asynchronous "reap" result
@@ -161,10 +154,6 @@ LOCK TABLE v1 READ;
 
 connection con1;
 
---echo Asynchronous execute
-delimiter |;
-
-send
 INSERT DELAYED INTO t1 VALUES('7');
 INSERT DELAYED INTO t1 VALUES('8');
 INSERT DELAYED INTO t1 VALUES('9');
@@ -180,9 +169,7 @@ INSERT DELAYED INTO t1 VALUES('18');
 INSERT DELAYED INTO t1 VALUES('19');
 INSERT DELAYED INTO t1 VALUES('20');
 INSERT DELAYED INTO t1 VALUES('21');
-INSERT DELAYED INTO t1 VALUES('22');|
-
-delimiter ;|
+INSERT DELAYED INTO t1 VALUES('22');
 
 connection con0;
 let $wait_condition=
@@ -192,7 +179,7 @@ let $wait_condition=
 --echo Asynchronous execute
 # Due to performance and server behaveiour the test observes values between 6 and 22.
 # In any case the value must not be outside of that range.
-let $my_select= SELECT COUNT(*) BETWEEN 6 AND 22 FROM t1;
+let $my_select= SELECT COUNT(*) FROM t1;
 send;
 eval $my_select;
 
@@ -203,9 +190,6 @@ let $wait_condition=
    WHERE state = 'Waiting for table level lock' AND info = '$my_select';
 --source include/wait_condition.inc
 UNLOCK TABLES;
-
-connection con1;
-reap;
 
 connection con0;
 --echo Asynchronous "reap" result

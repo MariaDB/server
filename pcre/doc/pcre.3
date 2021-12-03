@@ -1,16 +1,15 @@
-.TH PCRE 3 "10 February 2015" "PCRE 8.37"
+.TH PCRE 3 "14 June 2021" "PCRE 8.45"
 .SH NAME
 PCRE - Perl-compatible regular expressions (original API)
 .SH "PLEASE TAKE NOTE"
 .rs
 .sp
-This document relates to PCRE releases that use the original API,
-with library names libpcre, libpcre16, and libpcre32. January 2015 saw the
-first release of a new API, known as PCRE2, with release numbers starting at
-10.00 and library names libpcre2-8, libpcre2-16, and libpcre2-32. The old
-libraries (now called PCRE1) are still being maintained for bug fixes, but
-there will be no new development. New projects are advised to use the new PCRE2
-libraries.
+This document relates to PCRE releases that use the original API, with library
+names libpcre, libpcre16, and libpcre32. January 2015 saw the first release of
+a new API, known as PCRE2, with release numbers starting at 10.00 and library
+names libpcre2-8, libpcre2-16, and libpcre2-32. The old libraries (now called
+PCRE1) are now at end of life, and 8.45 is the final release. New projects are
+advised to use the new PCRE2 libraries.
 .
 .
 .SH INTRODUCTION
@@ -146,7 +145,7 @@ performance.
 One way of guarding against this possibility is to use the
 \fBpcre_fullinfo()\fP function to check the compiled pattern's options for UTF.
 Alternatively, from release 8.33, you can set the PCRE_NEVER_UTF option at
-compile time. This causes an compile time error if a pattern contains a
+compile time. This causes a compile time error if a pattern contains a
 UTF-setting sequence.
 .P
 If your application is one that supports UTF, be aware that validity checking
@@ -225,6 +224,6 @@ two digits 10, at the domain cam.ac.uk.
 .rs
 .sp
 .nf
-Last updated: 10 February 2015
-Copyright (c) 1997-2015 University of Cambridge.
+Last updated: 14 June 2021
+Copyright (c) 1997-2021 University of Cambridge.
 .fi

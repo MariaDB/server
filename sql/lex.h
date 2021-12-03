@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* This file includes all reserved words and functions */
@@ -23,7 +23,7 @@
 #include "lex_symbol.h"
 
 SYM_GROUP sym_group_common= {"", ""};
-SYM_GROUP sym_group_geom= {"Spatial extentions", "HAVE_SPATIAL"};
+SYM_GROUP sym_group_geom= {"Spatial extensions", "HAVE_SPATIAL"};
 SYM_GROUP sym_group_rtree= {"RTree keys", "HAVE_RTREE_KEYS"};
 
 /* We don't want to include sql_yacc.h into gen_lex_hash */
@@ -45,7 +45,7 @@ SYM_GROUP sym_group_rtree= {"RTree keys", "HAVE_RTREE_KEYS"};
   lists
 */
 
-static SYMBOL symbols[] = {
+SYMBOL symbols[] = {
   { "&&",		SYM(AND_AND_SYM)},
   { "<=",		SYM(LE)},
   { "<>",		SYM(NE)},
@@ -55,6 +55,7 @@ static SYMBOL symbols[] = {
   { ">>",		SYM(SHIFT_RIGHT)},
   { "<=>",		SYM(EQUAL_SYM)},
   { "ACCESSIBLE",	SYM(ACCESSIBLE_SYM)},
+  { "ACCOUNT",		SYM(ACCOUNT_SYM)},
   { "ACTION",		SYM(ACTION)},
   { "ADD",		SYM(ADD)},
   { "ADMIN",            SYM(ADMIN_SYM)},
@@ -230,6 +231,7 @@ static SYMBOL symbols[] = {
   { "EXISTS",		SYM(EXISTS)},
   { "EXIT",             SYM(EXIT_MARIADB_SYM)},
   { "EXPANSION",	SYM(EXPANSION_SYM)},
+  { "EXPIRE",		SYM(EXPIRE_SYM)},
   { "EXPORT",           SYM(EXPORT_SYM)},
   { "EXPLAIN",		SYM(DESCRIBE)},
   { "EXTENDED",		SYM(EXTENDED_SYM)},
@@ -418,6 +420,7 @@ static SYMBOL symbols[] = {
   { "NATIONAL",		SYM(NATIONAL_SYM)},
   { "NATURAL",		SYM(NATURAL)},
   { "NCHAR",		SYM(NCHAR_SYM)},
+  { "NEVER",		SYM(NEVER_SYM)},
   { "NEW",              SYM(NEW_SYM)},
   { "NEXT",		SYM(NEXT_SYM)},
   { "NEXTVAL",		SYM(NEXTVAL_SYM)},
@@ -476,6 +479,7 @@ static SYMBOL symbols[] = {
   { "POINT",		SYM(POINT_SYM)},
   { "POLYGON",		SYM(POLYGON)},
   { "PORT",		SYM(PORT_SYM)},
+  { "PORTION",		SYM(PORTION_SYM)},
   { "PRECEDES",         SYM(PRECEDES_SYM)},
   { "PRECEDING",        SYM(PRECEDING_SYM)},
   { "PRECISION",	SYM(PRECISION)},
@@ -589,6 +593,7 @@ static SYMBOL symbols[] = {
   { "SONAME",		SYM(SONAME_SYM)},
   { "SOUNDS",		SYM(SOUNDS_SYM)},
   { "SOURCE",           SYM(SOURCE_SYM)},
+  { "STAGE",            SYM(STAGE_SYM)},
   { "STORED",           SYM(STORED_SYM)},
   { "SPATIAL",		SYM(SPATIAL_SYM)},
   { "SPECIFIC",         SYM(SPECIFIC_SYM)},
@@ -726,7 +731,7 @@ static SYMBOL symbols[] = {
 };
 
 
-static SYMBOL sql_functions[] = {
+SYMBOL sql_functions[] = {
   { "ADDDATE",		SYM(ADDDATE_SYM)},
   { "BIT_AND",		SYM(BIT_AND)},
   { "BIT_OR",		SYM(BIT_OR)},
@@ -776,5 +781,8 @@ static SYMBOL sql_functions[] = {
   { "VAR_POP",		SYM(VARIANCE_SYM)},
   { "VAR_SAMP",		SYM(VAR_SAMP_SYM)},
 };
+
+size_t symbols_length= sizeof(symbols) / sizeof(SYMBOL);
+size_t sql_functions_length= sizeof(sql_functions) / sizeof(SYMBOL);
 
 #endif /* LEX_INCLUDED */

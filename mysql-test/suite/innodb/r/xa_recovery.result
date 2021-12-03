@@ -5,11 +5,21 @@ XA START 'x';
 UPDATE t1 set a=2;
 XA END 'x';
 XA PREPARE 'x';
+connect  con2,localhost,root;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+XA START 'y';
+INSERT INTO t2 VALUES (1);
+XA END 'y';
+XA PREPARE 'y';
 connection default;
+# restart: --innodb-force-recovery=2
 disconnect con1;
+disconnect con2;
 connect  con1,localhost,root;
 SELECT * FROM t1 LOCK IN SHARE MODE;
 connection default;
+DROP TABLE t2;
+# restart
 disconnect con1;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t1;
@@ -20,3 +30,6 @@ SELECT * FROM t1;
 a
 1
 DROP TABLE t1;
+SET GLOBAL innodb_fast_shutdown=0;
+# restart
+XA ROLLBACK 'y';

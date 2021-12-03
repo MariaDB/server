@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,8 +26,6 @@ Created Jan 06, 2010 Vasil Dimov
 
 #ifndef dict0stats_h
 #define dict0stats_h
-
-#include "univ.i"
 
 #include "dict0types.h"
 #include "trx0types.h"
@@ -117,16 +115,16 @@ dict_stats_deinit(
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
 @param[in,out]	table	persistent or temporary table
-@param[in]	thd	current session */
-void dict_stats_update_if_needed(dict_table_t* table, THD* thd)
-	MY_ATTRIBUTE((nonnull(1)));
+@param[in]	trx	transaction */
+void dict_stats_update_if_needed(dict_table_t *table, const trx_t &trx)
+	MY_ATTRIBUTE((nonnull));
 #else
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
 @param[in,out]	table	persistent or temporary table */
-void dict_stats_update_if_needed_func(dict_table_t* table)
+void dict_stats_update_if_needed_func(dict_table_t *table)
 	MY_ATTRIBUTE((nonnull));
-# define dict_stats_update_if_needed(t,thd) dict_stats_update_if_needed_func(t)
+# define dict_stats_update_if_needed(t,trx) dict_stats_update_if_needed_func(t)
 #endif
 
 /*********************************************************************//**
@@ -189,7 +187,6 @@ dict_stats_rename_table(
 	char*		errstr,		/*!< out: error string if != DB_SUCCESS
 					is returned */
 	size_t		errstr_sz);	/*!< in: errstr size */
-#ifdef MYSQL_RENAME_INDEX
 /*********************************************************************//**
 Renames an index in InnoDB persistent stats storage.
 This function creates its own transaction and commits it.
@@ -203,7 +200,6 @@ dict_stats_rename_index(
 	const char*		old_index_name,	/*!< in: old index name */
 	const char*		new_index_name)	/*!< in: new index name */
 	__attribute__((warn_unused_result));
-#endif /* MYSQL_RENAME_INDEX */
 
 /** Save an individual index's statistic into the persistent statistics
 storage.
@@ -220,7 +216,7 @@ rolled back only in the case of error, but not freed.
 dberr_t
 dict_stats_save_index_stat(
 	dict_index_t*	index,
-	ib_time_t	last_update,
+	time_t		last_update,
 	const char*	stat_name,
 	ib_uint64_t	stat_value,
 	ib_uint64_t*	sample_size,

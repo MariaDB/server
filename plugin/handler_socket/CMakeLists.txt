@@ -1,7 +1,8 @@
 
-IF(WIN32)
+IF(WIN32 OR WITHOUT_SERVER)
   # Handlersocket does not compile on Windows, compiles but does 
-  # not start on FreeBSD.  
+  # not start on FreeBSD.
+  # It is a server plugin and disable it explicitly here.
   RETURN()
 ENDIF()
 

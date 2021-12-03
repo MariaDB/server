@@ -1,0 +1,109 @@
+#
+# This test is a modified version of Gabor Orosz (GOro) test in jira tracker:
+# https://jira.mariadb.org/browse/MDEV-25551
+#
+# The underlying problem with MDEV-25551 turned out to be that
+# transactions having changes for tables with no primary key, 
+# were not safe to apply in parallel. This is due to excessive locking
+# in innodb side, and even non related row modifications could end up
+# in lock conflict during applying.
+#
+# The test verifies that a transaction executing a streaming replication
+# will disable parallel applying if it modifies a table with no primary key.
+# And, if PA was disabled temporarily, it will be relaxed if next fragment
+# contains changes for table with primary key.
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+
+# Setup
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+
+# Ensure that we have enough applier threads to process transactions in parallel
+SET GLOBAL wsrep_slave_threads = 2;
+
+flush status;
+
+--connection node_1
+CREATE TABLE t1 (f1 int, f2 int) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 int primary key, f2 int) ENGINE=InnoDB;
+INSERT INTO t1  VALUES (1,0);
+INSERT INTO t1  VALUES (2,0);
+
+INSERT INTO t2  VALUES (1,0);
+INSERT INTO t2  VALUES (2,0);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*)=2 FROM t2;
+--source include/wait_condition.inc
+
+# remember status for received replication counter and certification dependency distance
+--let $cert_deps_distance = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cert_deps_distance'`
+
+--connection node_1
+# Invoke the first transaction
+set session wsrep_trx_fragment_size=1;
+START TRANSACTION;
+UPDATE t1 SET f2=1 where f1=1;
+
+--connection node_2
+# verify that certification dependency distance has dropped
+--disable_query_log
+--eval  SELECT  VARIABLE_VALUE < $cert_deps_distance as 'distance' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cert_deps_distance'
+--enable_query_log
+
+# if deps distance dropped, it is indirect evidence that parallel applying was not approved
+
+# Try next that PA retricting is relaxed, if next fragment updates table t1 with primary key
+# wsrep_cert_deps_distance cannot be trsuted in this test phase, we verify parallel applying
+# by setting sync point for applier thread
+
+# Set up a synchronization point to catch update on t2
+--let $galera_sync_point = commit_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+update t2 set f2=1 where f1=1;
+
+--connection node_2
+# Wait for the update t2 to apply until commit phase
+--let $galera_sync_point = commit_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+
+# Set up a synchronization point to catch the SR trx applying
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+# continue SR transaction, and now update t2, which has PK
+UPDATE t2 set f2=2 where f1=2;
+
+--connection node_2
+# Wait for the update t2 to apply until commit phase
+--let $galera_sync_point = apply_monitor_slave_enter_sync commit_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+
+# Let the first transaction to proceed
+--let $galera_sync_point = commit_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--connection node_1
+COMMIT;
+
+# Teardown
+--connection node_1
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+
+DROP TABLE t1;
+DROP TABLE t2;
+--connection node_2
+SET GLOBAL wsrep_slave_threads = DEFAULT;

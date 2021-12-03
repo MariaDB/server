@@ -27,7 +27,7 @@ PLUGIN_STATUS	ACTIVE
 PLUGIN_TYPE	AUTHENTICATION
 PLUGIN_TYPE_VERSION	2.2
 PLUGIN_LIBRARY	auth_ed25519.so
-PLUGIN_LIBRARY_VERSION	1.13
+PLUGIN_LIBRARY_VERSION	1.14
 PLUGIN_AUTHOR	Sergei Golubchik
 PLUGIN_DESCRIPTION	Elliptic curve ED25519 based authentication
 PLUGIN_LICENSE	GPL
@@ -37,26 +37,30 @@ PLUGIN_AUTH_VERSION	1.1
 create user test1@localhost identified via ed25519 using 'ZIgUREUg5PVgQ6LskhXmO+eZLS0nC8be6HPjYWR4YJY';
 show grants for test1@localhost;
 Grants for test1@localhost
-GRANT USAGE ON *.* TO 'test1'@'localhost' IDENTIFIED VIA ed25519 USING 'ZIgUREUg5PVgQ6LskhXmO+eZLS0nC8be6HPjYWR4YJY'
+GRANT USAGE ON *.* TO `test1`@`localhost` IDENTIFIED VIA ed25519 USING 'ZIgUREUg5PVgQ6LskhXmO+eZLS0nC8be6HPjYWR4YJY'
 drop user test1@localhost;
+create user test1@localhost identified via ed25519 using 'foo';
+ERROR HY000: Password hash should be 43 characters long
+create user test1@localhost identified via ed25519 using '>>>1234567890123456789012345678901234567890';
+ERROR HY000: Password hash should be base64 encoded
 create user test1@localhost identified via ed25519 using password('foo');
 show grants for test1@localhost;
 Grants for test1@localhost
-GRANT USAGE ON *.* TO 'test1'@'localhost' IDENTIFIED VIA ed25519 USING 'vubFBzIrapbfHct1/J72dnUryz5VS7lA6XHH8sIx4TI'
+GRANT USAGE ON *.* TO `test1`@`localhost` IDENTIFIED VIA ed25519 USING 'vubFBzIrapbfHct1/J72dnUryz5VS7lA6XHH8sIx4TI'
 select ed25519_password('foo');
 ed25519_password('foo')
 vubFBzIrapbfHct1/J72dnUryz5VS7lA6XHH8sIx4TI
 set password for test1@localhost = password('bar');
 show create user test1@localhost;
 CREATE USER for test1@localhost
-CREATE USER 'test1'@'localhost' IDENTIFIED VIA ed25519 USING 'pfzkeWMzkTefY1oshXS+/kATeN51M+4jxi3/cbyTd10'
+CREATE USER `test1`@`localhost` IDENTIFIED VIA ed25519 USING 'pfzkeWMzkTefY1oshXS+/kATeN51M+4jxi3/cbyTd10'
 select ed25519_password('bar');
 ed25519_password('bar')
 pfzkeWMzkTefY1oshXS+/kATeN51M+4jxi3/cbyTd10
 set password for test1@localhost = 'ZIgUREUg5PVgQ6LskhXmO+eZLS0nC8be6HPjYWR4YJY';
 show create user test1@localhost;
 CREATE USER for test1@localhost
-CREATE USER 'test1'@'localhost' IDENTIFIED VIA ed25519 USING 'ZIgUREUg5PVgQ6LskhXmO+eZLS0nC8be6HPjYWR4YJY'
+CREATE USER `test1`@`localhost` IDENTIFIED VIA ed25519 USING 'ZIgUREUg5PVgQ6LskhXmO+eZLS0nC8be6HPjYWR4YJY'
 connect(localhost,test1,public,test,PORT,SOCKET);
 connect con1, localhost, test1, public;
 ERROR 28000: Access denied for user 'test1'@'localhost' (using password: YES)

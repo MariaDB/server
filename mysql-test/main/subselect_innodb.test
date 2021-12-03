@@ -611,3 +611,54 @@ FROM t1
 
 DROP TABLE t1,t2,t3,t4;
 
+
+--echo #
+--echo # MDEV-23535: SIGSEGV, SIGABRT and SIGILL in typeinfo for Item_func_set_collation (on optimized builds)
+--echo #
+
+set @save_character_set_connection=@@character_set_connection;
+set character_set_connection='utf8';
+
+CREATE TABLE t1(a DATETIME, b VARCHAR(50)) ENGINE=INNODB;
+INSERT INTO t1 VALUES ('2019-03-10 02:55:05', '2019-03-10 02:55:05');
+CREATE TABLE t2(a VARCHAR(50)) ENGINE=INNODB;
+INSERT INTO t2 VALUES ('2019-03-10 02:55:05');
+SELECT * FROM t1 WHERE (SELECT 1,CONCAT(a) FROM t1) = (SELECT 1,CONCAT(a) FROM t2);
+DROP TABLE t1,t2;
+
+set character_set_connection=@save_character_set_connection;
+
+--echo # 
+--echo # MDEV-17362: SIGSEGV in JOIN::optimize_inner or Assertion `fixed == 0'
+--echo # failed in  Item_equal::fix_fields, server crashes after 2nd execution
+--echo # of PS
+--echo # 
+
+create table t1 (a int, b int);
+create table t2 (x int, y int);
+ 
+insert into t1 values (1,1),(2,2);
+insert into t2 values (1,1),(2,2),(2,3);
+
+--echo # here we can see conditions pushdown (see HAVING):
+prepare stmt from "
+explain extended
+SELECT * FROM t1
+WHERE a = b
+      AND (a,b) IN (SELECT t2.x, COUNT(t2.y) FROM t2 WHERE 1=2 GROUP BY t2.x);";
+
+execute stmt;
+
+--echo # here re-execution of the pushdown does not crash:
+prepare stmt from "
+SELECT * FROM t1
+WHERE a = b
+      AND (a,b) IN (SELECT t2.x, COUNT(t2.y) FROM t2 WHERE 1=2 GROUP BY t2.x);";
+
+execute stmt;
+execute stmt;
+execute stmt;
+
+drop table t1,t2;
+
+--echo # End of 10.4 tests

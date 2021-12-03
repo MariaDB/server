@@ -1,5 +1,5 @@
 # Copyright (c) 2005, 2015, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2017, MariaDB
+# Copyright (c) 2008, 2019, MariaDB
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 #
 # Suppress some common (not fatal) errors in system libraries found by valgrind
@@ -1779,3 +1779,141 @@
    fun:CRYPTO_malloc
    fun:ENGINE_new
 }
+
+#
+# OpenSSL 1.0.1l problems
+#
+
+{
+   OpenSSL 1.0.1l wrong jump
+   Memcheck:Cond
+   fun:bcmp
+   obj:/usr/lib64/libcrypto.so*
+   fun:FIPS_selftest
+}
+
+{
+   OpenSSL 1.0.1l wrong jump 2
+   Memcheck:Cond
+   obj:/usr/lib64/libcrypto.so*
+   fun:FIPS_mode_set
+   obj:/usr/lib64/libcrypto.so*
+}
+
+
+
+##
+## The following is a copy of facebook/mysql-5.6 suppressions:
+##
+
+#
+# RocksDB Storage Engine suppressions start
+#
+
+{
+   Still reachable for once-per-process initializations
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb16ThreadStatusUtil19NewColumnFamilyInfoEPKNS_2DBEPKNS_16ColumnFamilyDataERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPKNS_3EnvE
+   fun:_ZNK7rocksdb6DBImpl21NewThreadStatusCfInfoEPNS_16ColumnFamilyDataE
+   fun:_ZN7rocksdb2DB4OpenERKNS_9DBOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKSt6vectorINS_22ColumnFamilyDescriptorESaISD_EEPSC_IPNS_18ColumnFamilyHandleESaISJ_EEPPS0_
+   fun:_ZN7rocksdb13TransactionDB4OpenERKNS_9DBOptionsERKNS_20TransactionDBOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKSt6vectorINS_22ColumnFamilyDescriptorESaISG_EEPSF_IPNS_18ColumnFamilyHandleESaISM_EEPPS0_
+   fun:_ZN7myrocksL17rocksdb_init_funcEPv
+}
+
+
+{
+   Still reachable for once-per-process initializations 2
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb16ThreadStatusUtil19NewColumnFamilyInfoEPKNS_2DBEPKNS_16ColumnFamilyDataERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPKNS_3EnvE
+   fun:_ZNK7rocksdb6DBImpl21NewThreadStatusCfInfoEPNS_16ColumnFamilyDataE
+   fun:_ZN7rocksdb6DBImpl4OpenERKNS_9DBOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKSt6vectorINS_22ColumnFamilyDescriptorESaISD_EEPSC_IPNS_18ColumnFamilyHandleESaISJ_EEPPNS_2DBEbb
+   fun:_ZN7rocksdb13TransactionDB4OpenERKNS_9DBOptionsERKNS_20TransactionDBOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKSt6vectorINS_22ColumnFamilyDescriptorESaISG_EEPSF_IPNS_18ColumnFamilyHandleESaISM_EEPPS0_
+#   fun:_ZN7myrocksL17rocksdb_init_funcEPv
+#  ^ commenting the above out because we are hitting the --num-callers=16
+#    limitation that MTR sets for valgrind
+}
+
+{
+   Still reachable for once-per-process initializations 3
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb16ThreadStatusUtil19NewColumnFamilyInfoEPKNS_2DBEPKNS_16ColumnFamilyDataERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPKNS_3EnvE
+   fun:_ZNK7rocksdb6DBImpl21NewThreadStatusCfInfoEPNS_16ColumnFamilyDataE
+   fun:_ZN7rocksdb6DBImpl22CreateColumnFamilyImplERKNS_19ColumnFamilyOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPPNS_18ColumnFamilyHandleE
+}
+
+{
+   Still reachable for once-per-process initializations
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb19ThreadStatusUpdater14RegisterThreadENS_12ThreadStatus10ThreadTypeEm
+   fun:_ZN7rocksdb16ThreadStatusUtil14RegisterThreadEPKNS_3EnvENS_12ThreadStatus10ThreadTypeE
+   fun:_ZN7rocksdb14ThreadPoolImpl4Impl15BGThreadWrapperEPv
+   ...
+}
+
+{
+   Still reachable for once-per-process initializations
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb14ThreadLocalPtr14InitSingletonsEv
+   fun:_ZN7rocksdb3Env7DefaultEv
+   fun:_ZN7rocksdb9DBOptionsC1Ev
+   ...
+   fun:_ZN7myrocksL27rdb_init_rocksdb_db_optionsEv
+}
+
+{
+   Still reachable for once-per-process initializations
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb12_GLOBAL__N_18PosixEnv*
+   fun:_ZN7rocksdb3Env7DefaultEv
+   fun:_ZN7rocksdb9DBOptionsC1Ev
+   ...
+   fun:_ZN7myrocksL27rdb_init_rocksdb_db_optionsEv
+}
+
+{
+   Still reachable for thread local storage initialization (SetHandle)
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZNSt13unordered_mapIjPFvPvESt4hashIjESt8equal_toIjESaISt4pairIKjS2_EEEixERS8_
+   fun:_ZN7rocksdb14ThreadLocalPtr10StaticMeta10SetHandlerEjPFvPvE
+   fun:_ZN7rocksdb14ThreadLocalPtrC1EPFvPvE
+   ...
+}
+
+{
+   Still reachable for thread local storage initialization (ReclaimId)
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb10autovectorIjLm8EE9push_backERKj
+   fun:_ZN7rocksdb14ThreadLocalPtr10StaticMeta9ReclaimIdEj
+   fun:_ZN7rocksdb14ThreadLocalPtrD1Ev
+   ...
+}
+
+{
+   Static initialization
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_Z41__static_initialization_and_destruction_0ii
+   ...
+}
+
+##
+## RocksDB Storage Engine suppressions end
+##
+

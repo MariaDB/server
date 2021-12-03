@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef MYSQL_PLUGIN_INCLUDED
 #define MYSQL_PLUGIN_INCLUDED
@@ -75,7 +75,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_PLUGIN_INTERFACE_VERSION 0x0104
 
 /* MariaDB plugin interface version */
-#define MARIA_PLUGIN_INTERFACE_VERSION 0x010d
+#define MARIA_PLUGIN_INTERFACE_VERSION 0x010e
 
 /*
   The allowable types of plugins

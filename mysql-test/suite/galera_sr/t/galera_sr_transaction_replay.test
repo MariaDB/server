@@ -1,0 +1,260 @@
+#
+# This test tests the operation of SR transaction replay. If a
+# potentially conflicting remote transaction arrives at
+# just the right time during the commit of a local transaction,
+# the local transaction will be aborted and replayed.
+#
+# This test is divided in two sections:
+# 1) Test the scenario where the last fragment does not have write set
+#    payload, just commit flag is replicated
+# 2) Test the scenario where the last fragment has write set payload
+#    and commit flag
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+# Control connection for manipulating galera sync points
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_1
+
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+
+#########################################################################
+#
+# 1) Replay without commit fragment write set payload
+#
+#########################################################################
+
+INSERT INTO t1 VALUES (1, 'a');
+INSERT INTO t1 VALUES (2, 'a');
+
+--connection node_1
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
+
+#
+# Block the commit from node_2
+#
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+#
+# Issue conflicting UPDATE from node_2 and wait until it hits the
+# apply monitor (but does not apply yet)
+#
+--connection node_2
+UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+
+#
+# Set a new sync point to block in local monitor on node_1 commit
+#
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = local_monitor_master_enter_sync
+--source include/galera_set_sync_point.inc
+
+#
+# Send the commit on node_1
+#
+--connection node_1
+--send COMMIT
+
+#
+# Wait until commit reaches sync point
+#
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $galera_sync_point = apply_monitor_slave_enter_sync local_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+
+#
+# Release conflicting slave transaction and wait until it has BF
+# aborted pending COMMIT
+#
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = abort_trx_end
+--source include/galera_set_sync_point.inc
+
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+
+--let $galera_sync_point = abort_trx_end local_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+
+#
+# Release both threads, local thread will now replay
+#
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = abort_trx_end
+--source include/galera_signal_sync_point.inc
+
+--let $galera_sync_point = local_monitor_master_enter_sync
+--source include/galera_signal_sync_point.inc
+
+#
+# Commit must succeed
+#
+--connection node_1
+--reap
+
+
+#
+# Check the outcome and that wsrep schema SR table is empty
+#
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+#
+# wsrep_local_replays has increased by 1
+#
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 1 AS wsrep_local_replays;
+--enable_query_log
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+DELETE FROM t1;
+
+#########################################################################
+#
+# 2) Replay with commit fragment write set payload
+#
+#########################################################################
+
+INSERT INTO t1 VALUES (1, 'a');
+INSERT INTO t1 VALUES (2, 'a');
+
+--connection node_1
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+
+#
+# Do first update SR on
+#
+UPDATE t1 SET f2 = 'x' WHERE f1 = 1;
+
+#
+# Disable SR for following statements
+#
+SET SESSION wsrep_trx_fragment_size = 0;
+
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
+
+#
+# Block the commit from node_2
+#
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+#
+# Issue conflicting UPDATE from node_2 and wait until it hits the
+# apply monitor (but does not apply yet)
+#
+--connection node_2
+UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+
+#
+# Set a new sync point to block in local monitor on node_1 commit
+#
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = local_monitor_master_enter_sync
+--source include/galera_set_sync_point.inc
+
+#
+# Send the commit on node_1
+#
+--connection node_1
+--send COMMIT
+
+#
+# Wait until commit reaches sync point
+#
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $galera_sync_point = apply_monitor_slave_enter_sync local_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+
+#
+# Release conflicting slave transaction and wait until it has BF
+# aborted pending COMMIT
+#
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = abort_trx_end
+--source include/galera_set_sync_point.inc
+
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+
+--let $galera_sync_point = abort_trx_end local_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+
+#
+# Release both threads, local thread will now replay
+#
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = abort_trx_end
+--source include/galera_signal_sync_point.inc
+
+--let $galera_sync_point = local_monitor_master_enter_sync
+--source include/galera_signal_sync_point.inc
+
+#
+# Commit must succeed
+#
+--connection node_1
+--reap
+
+
+#
+# Check the outcome and that wsrep schema SR table is empty
+#
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+#
+# wsrep_local_replays has increased by 1
+#
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 2 AS wsrep_local_replays;
+--enable_query_log
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+DELETE FROM t1;
+
+DROP TABLE t1;

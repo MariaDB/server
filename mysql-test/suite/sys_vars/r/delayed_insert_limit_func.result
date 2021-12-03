@@ -52,14 +52,12 @@ INSERT DELAYED INTO t1 VALUES('39','1','1');
 INSERT DELAYED INTO t1 VALUES('40','1','1');
 INSERT DELAYED INTO t1 VALUES('41','1','1');
 INSERT DELAYED INTO t1 VALUES('42','1','1');
-INSERT DELAYED INTO t1 VALUES('43','1','1');|
+INSERT DELAYED INTO t1 VALUES('43','1','1');
 connection con0;
 SELECT COUNT(*) FROM t1;
 connection default;
 ** Wait till con0 is blocked **
 UNLOCK TABLES;
-connection con1;
-Asynchronous "reap" result
 connection con0;
 Asynchronous "reap" result
 The next result suffers from
@@ -85,7 +83,6 @@ INSERT INTO t1 VALUES('5');
 INSERT INTO t1 VALUES('6');
 LOCK TABLE v1 READ;
 connection con1;
-Asynchronous execute
 INSERT DELAYED INTO t1 VALUES('7');
 INSERT DELAYED INTO t1 VALUES('8');
 INSERT DELAYED INTO t1 VALUES('9');
@@ -101,23 +98,22 @@ INSERT DELAYED INTO t1 VALUES('18');
 INSERT DELAYED INTO t1 VALUES('19');
 INSERT DELAYED INTO t1 VALUES('20');
 INSERT DELAYED INTO t1 VALUES('21');
-INSERT DELAYED INTO t1 VALUES('22');|
+INSERT DELAYED INTO t1 VALUES('22');
 connection con0;
 Asynchronous execute
-SELECT COUNT(*) BETWEEN 6 AND 22 FROM t1;
+SELECT COUNT(*) FROM t1;
 connection default;
 ** Wait till con0 is blocked **
 UNLOCK TABLES;
-connection con1;
 connection con0;
 Asynchronous "reap" result
-COUNT(*) BETWEEN 6 AND 22
-1
+COUNT(*)
+22
 connection default;
 Checking if the delayed insert gives the same result afterwards
-SELECT COUNT(*) BETWEEN 6 AND 22 FROM t1;
-COUNT(*) BETWEEN 6 AND 22
-1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+22
 connection default;
 DROP TABLE t1;
 DROP VIEW v1;

@@ -1350,7 +1350,7 @@ int merge_row_arrays_base (struct row dest[/*an+bn*/], struct row a[/*an*/], int
  * Arguments:
  *   dest    write the rows here
  *   a,b     the rows being merged
- *   an,bn   the lenth of a and b respectively.
+ *   an,bn   the length of a and b respectively.
  *   dest_db We need the dest_db to run the comparison function.
  *   compare We need the compare function for the dest_db.
  */
@@ -1449,7 +1449,7 @@ static int merge_row_arrays (struct row dest[/*an+bn*/], struct row a[/*an*/], i
  * Arguments:
  *   dest    write the rows here
  *   a,b     the rows being merged
- *   an,bn   the lenth of a and b respectively.
+ *   an,bn   the length of a and b respectively.
  *   dest_db We need the dest_db to run the comparison function.
  *   compare We need the compare function for the dest_db.
  */

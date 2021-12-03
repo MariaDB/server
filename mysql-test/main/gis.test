@@ -762,7 +762,6 @@ drop table t1;
 --echo #                      on char > 31 bytes".
 --echo #
 create table t1(a char(32) not null) engine=myisam;
---replace_regex /'[^']*test\.#sql-[0-9a-f_]*'/'#sql-temporary'/
 --error ER_WRONG_ARGUMENTS
 create spatial index i on t1 (a);
 drop table t1;
@@ -1573,6 +1572,25 @@ CREATE TABLE t2 AS SELECT WITHIN(g1,g1) as w1,WITHIN(g2,g2) AS w2 FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t1,t2;
 
+
+#
+# MDEV-3934 Assertion `((keypart_map+1) & keypart_map) == 0' failed in _mi_pack_key with an index on a POINT column
+#
+
+CREATE TABLE t1 (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      point_data POINT NOT NULL,
+      PRIMARY KEY (id),
+      KEY idx_point_data(point_data)
+) ENGINE=MyISAM;
+INSERT t1 (point_data) VALUES
+    (GeomFromText('Point(37.0248492 23.8512726)')),
+    (GeomFromText('Point(38.0248492 23.8512726)'));
+SELECT id FROM t1
+WHERE ST_Contains(point_data, GeomFromText('Point(38.0248492 23.8512726)'));
+DROP TABLE t1;
+
+
 --echo #
 --echo # Start of 10.2 tests
 --echo #
@@ -1763,8 +1781,30 @@ INSERT INTO t1 (a,b) VALUES (Point(1,1),Point(1,1));
 SELECT c FROM t1;
 DROP TABLE t1;
 
+#
+# MDEV-13923 Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' failed upon altering table with geometry field
+#
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+create table t1 (p point default "qwer");
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+create table t1 (p point default 0);
+--error ER_INVALID_DEFAULT
+create table t1 (p point not null default st_geometryfromtext('point 0)'));
+create table t1 (p point not null default st_geometryfromtext('point(0 0)'));
+insert into t1 values(default);
+select st_astext(p) from t1;
+drop table t1;
+
 --echo #
---echo # Start of 10.3 tests
+--echo # MDEV-21056 Memory leak after query with DEFAULT on a geometry field
+--echo #
+
+CREATE TABLE t1 (f POINT DEFAULT ST_GEOMFROMTEXT('Point(0 0)'));
+SELECT ST_GEOMFROMTEXT('Point(1 1)') IN ( DEFAULT( `f` ), ST_GEOMFROMTEXT('Point(2 2)') ) AS x FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
 --echo #
 
 --echo #
@@ -2077,6 +2117,8 @@ SELECT CAST(POINT(1,1) AS SIGNED) FROM t1;
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT CAST(POINT(1,1) AS UNSIGNED) FROM t1;
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST(POINT(1,1) AS FLOAT) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT CAST(POINT(1,1) AS DOUBLE) FROM t1;
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT CAST(POINT(1,1) AS DECIMAL(10,1)) FROM t1;
@@ -2094,6 +2136,8 @@ SELECT CAST(a AS SIGNED) FROM t1;
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT CAST(a AS UNSIGNED) FROM t1;
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST(a AS FLOAT) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT CAST(a AS DOUBLE) FROM t1;
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT CAST(a AS DECIMAL(10,1)) FROM t1;
@@ -2110,6 +2154,8 @@ SELECT CAST(a AS DATETIME) FROM t1;
 SELECT CAST(COALESCE(a) AS SIGNED) FROM t1;
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT CAST(COALESCE(a) AS UNSIGNED) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST(COALESCE(a) AS FLOAT) FROM t1;
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT CAST(COALESCE(a) AS DOUBLE) FROM t1;
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
@@ -3055,6 +3101,25 @@ SELECT POINT(1,1)+0x60;
 SELECT (1,0) IN ((POINT(1,1),0),(0,0));
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT (1,(0,0)) IN ((1,(POINT(1,1),0)),(0,(0,0)));
+
+--echo #
+--echo # MDEV-19819 ALTER from POINT to LINESTRING erroneously preserves POINT values
+--echo #
+
+CREATE TABLE t1 (a POINT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (Point(0,0));
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+ALTER TABLE t1 MODIFY a LINESTRING;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a LINESTRING);
+CREATE TABLE t2 (a POINT);
+INSERT INTO t2 VALUES (POINT(0,0));
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+INSERT INTO t1 SELECT * FROM t2;
+SELECT AsText(a) FROM t1;
+DROP TABLE t1, t2;
+
 
 --echo #
 --echo # End of 10.4 tests

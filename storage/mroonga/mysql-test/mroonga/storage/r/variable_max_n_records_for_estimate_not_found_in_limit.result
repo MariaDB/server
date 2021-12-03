@@ -6,6 +6,7 @@ INDEX (id)
 INSERT INTO ids VALUES (1);
 INSERT INTO ids VALUES (2);
 INSERT INTO ids VALUES (3);
+INSERT INTO ids VALUES (4),(5),(6),(7);
 DELETE FROM ids WHERE id < 2;
 SET mroonga_max_n_records_for_estimate = 1;
 EXPLAIN SELECT * FROM ids WHERE id > 0;

@@ -512,7 +512,7 @@ toku_verify_ft_with_progress (FT_HANDLE ft_handle, int (*progress_callback)(void
     if (r == 0) {
         toku_ft_lock(ft_handle->ft);
         ft_handle->ft->h->time_of_last_verification = time(NULL);
-        ft_handle->ft->h->dirty = 1;
+        ft_handle->ft->h->set_dirty();
         toku_ft_unlock(ft_handle->ft);
     }
     return r;

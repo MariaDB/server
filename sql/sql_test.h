@@ -11,12 +11,13 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_TEST_INCLUDED
 #define SQL_TEST_INCLUDED
 
 #include "mysqld.h"
+#include "opt_trace_context.h"
 
 class JOIN;
 struct TABLE_LIST;
@@ -34,6 +35,7 @@ void print_keyuse_array(DYNAMIC_ARRAY *keyuse_array);
 void print_sjm(SJ_MATERIALIZATION_INFO *sjm);
 void dump_TABLE_LIST_graph(SELECT_LEX *select_lex, TABLE_LIST* tl);
 #endif
+void print_keyuse_array_for_trace(THD *thd, DYNAMIC_ARRAY *keyuse_array);
 void mysql_print_status();
 
 #endif /* SQL_TEST_INCLUDED */

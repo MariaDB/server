@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2018, MariaDB Corporation.
+Copyright (C) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 /**************************************************//**
@@ -39,10 +39,9 @@ my_bool srv_encrypt_log;
 /** Redo log encryption key ID */
 #define LOG_DEFAULT_ENCRYPTION_KEY 1
 
-typedef union {
-	uint32_t	words[MY_AES_BLOCK_SIZE / sizeof(uint32_t)];
+struct aes_block_t {
 	byte		bytes[MY_AES_BLOCK_SIZE];
-} aes_block_t;
+};
 
 struct crypt_info_t {
 	ulint		checkpoint_no; /*!< checkpoint no; 32 bits */
@@ -60,6 +59,9 @@ struct crypt_info_t {
 
 /** The crypt info */
 static crypt_info_t info;
+
+/** Initialization vector used for temporary files/tablespace */
+static byte tmp_iv[MY_AES_BLOCK_SIZE];
 
 /** Crypt info when upgrading from 10.1 */
 static crypt_info_t infos[5 * 2];
@@ -91,7 +93,8 @@ static bool init_crypt_key(crypt_info_t* info, bool upgrade = false)
 	byte	mysqld_key[MY_AES_MAX_KEY_LENGTH];
 	uint	keylen = sizeof mysqld_key;
 
-	compile_time_assert(16 == sizeof info->crypt_key);
+	compile_time_assert(16 == sizeof info->crypt_key.bytes);
+	compile_time_assert(16 == MY_AES_BLOCK_SIZE);
 
 	if (uint rc = encryption_key_get(LOG_DEFAULT_ENCRYPTION_KEY,
 					 info->key_version, mysqld_key,
@@ -101,6 +104,7 @@ static bool init_crypt_key(crypt_info_t* info, bool upgrade = false)
 			<< info->key_version << " failed (" << rc
 			<< "). Maybe the key or the required encryption "
 			"key management plugin was not found.";
+		info->key_version = ENCRYPTION_KEY_VERSION_INVALID;
 		return false;
 	}
 
@@ -113,13 +117,14 @@ static bool init_crypt_key(crypt_info_t* info, bool upgrade = false)
 	uint dst_len;
 	int err= my_aes_crypt(MY_AES_ECB,
 			      ENCRYPTION_FLAG_NOPAD | ENCRYPTION_FLAG_ENCRYPT,
-			      info->crypt_msg.bytes, sizeof info->crypt_msg,
+			      info->crypt_msg.bytes, MY_AES_BLOCK_SIZE,
 			      info->crypt_key.bytes, &dst_len,
 			      mysqld_key, keylen, NULL, 0);
 
 	if (err != MY_AES_OK || dst_len != MY_AES_BLOCK_SIZE) {
 		ib::error() << "Getting redo log crypto key failed: err = "
 			<< err << ", len = " << dst_len;
+		info->key_version = ENCRYPTION_KEY_VERSION_INVALID;
 		return false;
 	}
 
@@ -170,10 +175,10 @@ bool log_crypt(byte* buf, lsn_t lsn, ulint size, log_crypt_t op)
 		byte* key_ver = &buf[OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_KEY
 				     - LOG_BLOCK_CHECKSUM];
 		const uint dst_size
-			= log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4
+			= log_sys.log.format == log_t::FORMAT_ENC_10_4
 			? sizeof dst - LOG_BLOCK_KEY
 			: sizeof dst;
-		if (log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4) {
+		if (log_sys.log.format == log_t::FORMAT_ENC_10_4) {
 			const uint key_version = info.key_version;
 			switch (op) {
 			case LOG_ENCRYPT_ROTATE_KEY:
@@ -212,7 +217,7 @@ bool log_crypt(byte* buf, lsn_t lsn, ulint size, log_crypt_t op)
 			buf + LOG_CRYPT_HDR_SIZE, dst_size,
 			reinterpret_cast<byte*>(dst), &dst_len,
 			const_cast<byte*>(info.crypt_key.bytes),
-			sizeof info.crypt_key,
+			MY_AES_BLOCK_SIZE,
 			reinterpret_cast<byte*>(aes_ctr_iv), sizeof aes_ctr_iv,
 			op == LOG_DECRYPT
 			? ENCRYPTION_FLAG_DECRYPT | ENCRYPTION_FLAG_NOPAD
@@ -237,9 +242,6 @@ UNIV_INTERN
 bool
 log_crypt_init()
 {
-	ut_ad(log_mutex_own());
-	ut_ad(log_sys.is_encrypted());
-
 	info.key_version = encryption_key_get_latest_version(
 		LOG_DEFAULT_ENCRYPTION_KEY);
 
@@ -249,7 +251,8 @@ log_crypt_init()
 		return false;
 	}
 
-	if (my_random_bytes(info.crypt_msg.bytes, sizeof info.crypt_msg)
+	if (my_random_bytes(tmp_iv, MY_AES_BLOCK_SIZE) != MY_AES_OK
+	    || my_random_bytes(info.crypt_msg.bytes, sizeof info.crypt_msg)
 	    != MY_AES_OK
 	    || my_random_bytes(info.crypt_nonce.bytes, sizeof info.crypt_nonce)
 	    != MY_AES_OK) {
@@ -287,7 +290,7 @@ log_crypt_101_read_checkpoint(const byte* buf)
 		infos_used++;
 		info.checkpoint_no = checkpoint_no;
 		info.key_version = mach_read_from_4(buf + 4);
-		memcpy(info.crypt_msg.bytes, buf + 8, sizeof info.crypt_msg);
+		memcpy(info.crypt_msg.bytes, buf + 8, MY_AES_BLOCK_SIZE);
 		memcpy(info.crypt_nonce.bytes, buf + 24,
 		       sizeof info.crypt_nonce);
 
@@ -316,6 +319,7 @@ log_crypt_101_read_block(byte* buf)
 	for (const crypt_info_t* const end = info + infos_used; info < end;
 	     info++) {
 		if (info->key_version
+		    && info->key_version != ENCRYPTION_KEY_VERSION_INVALID
 		    && info->checkpoint_no == checkpoint_no) {
 			goto found;
 		}
@@ -327,6 +331,9 @@ log_crypt_101_read_block(byte* buf)
 	/* MariaDB Server 10.1 would use the first key if it fails to
 	find a key for the current checkpoint. */
 	info = infos;
+	if (info->key_version == ENCRYPTION_KEY_VERSION_INVALID) {
+		return false;
+	}
 found:
 	byte dst[OS_FILE_LOG_BLOCK_SIZE];
 	uint dst_len;
@@ -371,13 +378,14 @@ void
 log_crypt_write_checkpoint_buf(byte* buf)
 {
 	ut_ad(info.key_version);
-	compile_time_assert(16 == sizeof info.crypt_msg);
+	compile_time_assert(16 == sizeof info.crypt_msg.bytes);
+	compile_time_assert(16 == MY_AES_BLOCK_SIZE);
 	compile_time_assert(LOG_CHECKPOINT_CRYPT_MESSAGE
 			    - LOG_CHECKPOINT_CRYPT_NONCE
 			    == sizeof info.crypt_nonce);
 
 	memcpy(buf + LOG_CHECKPOINT_CRYPT_MESSAGE, info.crypt_msg.bytes,
-	       sizeof info.crypt_msg);
+	       MY_AES_BLOCK_SIZE);
 	memcpy(buf + LOG_CHECKPOINT_CRYPT_NONCE, info.crypt_nonce.bytes,
 	       sizeof info.crypt_nonce);
 	mach_write_to_4(buf + LOG_CHECKPOINT_CRYPT_KEY, info.key_version);
@@ -396,13 +404,14 @@ log_crypt_read_checkpoint_buf(const byte* buf)
 #if MY_AES_BLOCK_SIZE != 16
 # error "MY_AES_BLOCK_SIZE != 16; redo log checkpoint format affected"
 #endif
-	compile_time_assert(16 == sizeof info.crypt_msg);
+	compile_time_assert(16 == sizeof info.crypt_msg.bytes);
+	compile_time_assert(16 == MY_AES_BLOCK_SIZE);
 	compile_time_assert(LOG_CHECKPOINT_CRYPT_MESSAGE
 			    - LOG_CHECKPOINT_CRYPT_NONCE
 			    == sizeof info.crypt_nonce);
 
 	memcpy(info.crypt_msg.bytes, buf + LOG_CHECKPOINT_CRYPT_MESSAGE,
-	       sizeof info.crypt_msg);
+	       MY_AES_BLOCK_SIZE);
 	memcpy(info.crypt_nonce.bytes, buf + LOG_CHECKPOINT_CRYPT_NONCE,
 	       sizeof info.crypt_nonce);
 
@@ -414,7 +423,6 @@ log_crypt_read_checkpoint_buf(const byte* buf)
 @param[in]	size		size of the block
 @param[out]	dst		destination block
 @param[in]	offs		offset to block
-@param[in]	space_id	tablespace id
 @param[in]	encrypt		true=encrypt; false=decrypt
 @return whether the operation succeeded */
 UNIV_INTERN
@@ -424,19 +432,17 @@ log_tmp_block_encrypt(
 	ulint		size,
 	byte*		dst,
 	uint64_t	offs,
-	ulint		space_id,
 	bool		encrypt)
 {
 	uint dst_len;
-	uint64_t aes_ctr_iv[MY_AES_BLOCK_SIZE / sizeof(uint64_t)];
-	bzero(aes_ctr_iv, sizeof aes_ctr_iv);
-	aes_ctr_iv[0] = space_id;
-	aes_ctr_iv[1] = offs;
+	uint64_t iv[MY_AES_BLOCK_SIZE / sizeof(uint64_t)];
+	iv[0] = offs;
+	memcpy(iv + 1, tmp_iv, sizeof iv - sizeof *iv);
 
 	int rc = encryption_crypt(
-		src, (uint)size, dst, &dst_len,
-		const_cast<byte*>(info.crypt_key.bytes), (uint)(sizeof info.crypt_key),
-		reinterpret_cast<byte*>(aes_ctr_iv), (uint)(sizeof aes_ctr_iv),
+		src, uint(size), dst, &dst_len,
+		const_cast<byte*>(info.crypt_key.bytes), MY_AES_BLOCK_SIZE,
+		reinterpret_cast<byte*>(iv), uint(sizeof iv),
 		encrypt
 		? ENCRYPTION_FLAG_ENCRYPT|ENCRYPTION_FLAG_NOPAD
 		: ENCRYPTION_FLAG_DECRYPT|ENCRYPTION_FLAG_NOPAD,

@@ -17,7 +17,7 @@ call mtr.add_suppression("Failed to decrypt");
 1;770A8A65DA156D24EE2A093277530142
 EOF
 
---exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
@@ -32,7 +32,7 @@ INSERT INTO t1 VALUES (1);
 2;770A8A65DA156D24EE2A093277530143
 EOF
 
---exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys2.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys2.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
@@ -44,7 +44,7 @@ INSERT INTO t1 VALUES (2);
 --shutdown_server
 --source include/wait_until_disconnected.inc
 
---exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 

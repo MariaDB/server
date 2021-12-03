@@ -13,10 +13,11 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
 config=".my.cnf.$$"
 command=".mysql.$$"
+output=".my.output.$$"
 
 trap "interrupt" 1 2 3 6 15
 
@@ -216,7 +217,7 @@ prepare() {
 do_query() {
     echo "$1" >$command
     #sed 's,^,> ,' < $command  # Debugging
-    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command
+    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command >$output
     return $?
 }
 
@@ -268,15 +269,18 @@ get_root_password() {
 	echo
 	stty echo
 	if [ "x$password" = "x" ]; then
-	    hadpass=0
+	    emptypass=1
 	else
-	    hadpass=1
+	    emptypass=0
 	fi
 	rootpass=$password
 	make_config
-	do_query ""
+	do_query "show create user root@localhost"
 	status=$?
     done
+    if grep -q unix_socket $output; then
+      emptypass=0
+    fi
     echo "OK, successfully used password, moving on..."
     echo
 }
@@ -304,7 +308,7 @@ set_root_password() {
     fi
 
     esc_pass=`basic_single_escape "$password1"`
-    do_query "UPDATE mysql.user SET Password=PASSWORD('$esc_pass') WHERE User='root';"
+    do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', PASSWORD('$esc_pass')) WHERE User='root';"
     if [ $? -eq 0 ]; then
 	echo "Password updated successfully!"
 	echo "Reloading privilege tables.."
@@ -324,7 +328,7 @@ set_root_password() {
 }
 
 remove_anonymous_users() {
-    do_query "DELETE FROM mysql.user WHERE User='';"
+    do_query "DELETE FROM mysql.global_priv WHERE User='';"
     if [ $? -eq 0 ]; then
 	echo " ... Success!"
     else
@@ -336,7 +340,7 @@ remove_anonymous_users() {
 }
 
 remove_remote_root() {
-    do_query "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+    do_query "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
     if [ $? -eq 0 ]; then
 	echo " ... Success!"
     else
@@ -386,7 +390,7 @@ interrupt() {
 
 cleanup() {
     echo "Cleaning up..."
-    rm -f $config $command
+    rm -f $config $command $output
 }
 
 # Remove the files before exiting.
@@ -405,9 +409,8 @@ echo "NOTE: RUNNING ALL PARTS OF THIS SCRIPT IS RECOMMENDED FOR ALL MariaDB"
 echo "      SERVERS IN PRODUCTION USE!  PLEASE READ EACH STEP CAREFULLY!"
 echo
 echo "In order to log into MariaDB to secure it, we'll need the current"
-echo "password for the root user.  If you've just installed MariaDB, and"
-echo "you haven't set the root password yet, the password will be blank,"
-echo "so you should just press enter here."
+echo "password for the root user. If you've just installed MariaDB, and"
+echo "haven't set the root password yet, you should just press enter here."
 echo
 
 get_root_password
@@ -417,15 +420,47 @@ get_root_password
 # Set the root password
 #
 
-echo "Setting the root password ensures that nobody can log into the MariaDB"
-echo "root user without the proper authorisation."
+echo "Setting the root password or using the unix_socket ensures that nobody"
+echo "can log into the MariaDB root user without the proper authorisation."
 echo
 
 while true ; do
-    if [ $hadpass -eq 0 ]; then
+    if [ $emptypass -eq 1 ]; then
+	echo $echo_n "Enable unix_socket authentication? [Y/n] $echo_c"
+    else
+	echo "You already have your root account protected, so you can safely answer 'n'."
+	echo
+	echo $echo_n "Switch to unix_socket authentication [Y/n] $echo_c"
+    fi
+    read reply
+    validate_reply $reply && break
+done
+
+if [ "$reply" = "n" ]; then
+  echo " ... skipping."
+else
+  emptypass=0
+  do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.password_last_changed', UNIX_TIMESTAMP(), '$.plugin', 'mysql_native_password', '$.authentication_string', 'invalid', '$.auth_or', json_array(json_object(), json_object('plugin', 'unix_socket'))) WHERE User='root';"
+  if [ $? -eq 0 ]; then
+   echo "Enabled successfully!"
+   echo "Reloading privilege tables.."
+   reload_privilege_tables
+   if [ $? -eq 1 ]; then
+     clean_and_exit
+   fi
+   echo
+  else
+   echo "Failed!"
+   clean_and_exit
+  fi
+fi
+echo
+
+while true ; do
+    if [ $emptypass -eq 1 ]; then
 	echo $echo_n "Set root password? [Y/n] $echo_c"
     else
-	echo "You already have a root password set, so you can safely answer 'n'."
+	echo "You already have your root account protected, so you can safely answer 'n'."
 	echo
 	echo $echo_n "Change the root password? [Y/n] $echo_c"
     fi

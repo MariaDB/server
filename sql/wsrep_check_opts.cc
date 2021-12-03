@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include "mysqld.h"
@@ -33,7 +33,7 @@ int wsrep_check_opts()
         autoinc_lock_mode->val_int(&is_null, 0, OPT_GLOBAL, 0) != 2)
     {
       WSREP_ERROR("Parallel applying (wsrep_slave_threads > 1) requires"
-                  " innodb_autoinc_lock_mode = 2.");
+                  " innodb_autoinc_lock_mode= 2.");
       return 1;
     }
   }
@@ -63,7 +63,7 @@ int wsrep_check_opts()
   else
   {
     // non-mysqldump SST requires wsrep_cluster_address on startup
-    if (!wsrep_cluster_address || !wsrep_cluster_address[0])
+    if (!wsrep_cluster_address_exists())
     {
       WSREP_ERROR ("%s SST method requires wsrep_cluster_address to be "
                    "configured on startup.", wsrep_sst_method);
@@ -88,7 +88,7 @@ int wsrep_check_opts()
   {
     if (global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
     {
-      WSREP_ERROR("Only binlog_format = 'ROW' is currently supported. "
+      WSREP_ERROR("Only binlog_format= 'ROW' is currently supported. "
                   "Configured value: '%s'. Please adjust your "
                   "configuration.",
                   binlog_format_names[global_system_variables.binlog_format]);

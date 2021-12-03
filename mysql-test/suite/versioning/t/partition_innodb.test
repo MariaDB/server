@@ -1,0 +1,93 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+--source suite/versioning/common.inc
+
+--echo # MDEV-15951 system versioning by trx id doesn't work with partitioning
+--echo # currently trx_id does not support partitioning by system_time
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t1(
+  i int,
+  row_start bigint unsigned generated always as row start,
+  row_end bigint unsigned generated always as row end,
+  period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning partition by system_time (
+  partition p0 history,
+  partition pn current
+);
+
+create or replace table t1(
+  i int,
+  row_start bigint unsigned generated always as row start,
+  row_end bigint unsigned generated always as row end,
+  period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+alter table t1  partition by system_time (
+  partition p0 history,
+  partition pn current
+);
+
+drop table t1;
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by key() (
+  partition p1,
+  partition p2
+);
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by key(a, row_start) (
+  partition p1,
+  partition p2
+);
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by hash(a + row_end * 2) (
+  partition p1,
+  partition p2
+);
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by range columns (a, row_start) (
+  partition p1 values less than (100, 100)
+);
+
+--echo #
+--echo # MDEV-18794 Assertion `!m_innodb' failed in ha_partition::cmp_ref upon SELECT from partitioned table
+--echo #
+create or replace table t1 (pk int auto_increment, i int, c char(1), primary key (pk), key(i))
+engine=innodb with system versioning partition by key() partitions 2;
+insert into t1 (i, c) values (1, 'a'), (2, 'b'), (null, 'c'), (null, 'b');
+alter table t1 drop system versioning;
+replace into t1 select * from t1;
+select * from t1 where i > 0 or pk = 1000 limit 1;
+drop table t1;
+
+--echo # End of 10.3 tests
+
+--source suite/versioning/common_finish.inc

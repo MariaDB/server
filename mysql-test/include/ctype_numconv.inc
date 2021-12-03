@@ -194,12 +194,12 @@ show create table t1;
 drop table t1;
 
 select hex(concat(ceiling(0.5)));
-create table t1 as select concat(ceiling(0.5)) as c1;
+create table t1 as select ceiling(0.5) as c0, concat(ceiling(0.5)) as c1;
 show create table t1;
 drop table t1;
 
 select hex(concat(floor(0.5)));
-create table t1 as select concat(floor(0.5)) as c1;
+create table t1 as select floor(0.5) as c0, concat(floor(0.5)) as c1;
 show create table t1;
 drop table t1;
 

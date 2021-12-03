@@ -1,0 +1,53 @@
+#
+# Shut down master (node #2) while an SR transaction is in progress
+# 
+
+--source include/galera_cluster.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_2
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE = InnoDB;
+
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+
+INSERT INTO t1 VALUES (1),(2),(3);
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# Confirm that SR table on slave is empty
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) = 0 FROM t1;
+
+--connection node_2
+--source include/start_mysqld.inc
+
+# SR table on master should be empty too
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+# Confirm that the INSERT can be re-issued
+INSERT INTO t1 VALUES (1),(2),(3);
+
+--connection node_1
+SELECT COUNT(*) = 3 FROM t1;
+
+DROP TABLE t1;
+
+--connection node_2
+CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for ");
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

@@ -188,7 +188,7 @@ create table t1(f1 time);
 insert into t1 values ('23:38:57');
 select f1, f1 = '2010-10-11 23:38:57' from t1;
 f1	f1 = '2010-10-11 23:38:57'
-23:38:57	0
+23:38:57	1
 drop table t1;
 #
 # MDEV-4634 Crash in CONVERT_TZ
@@ -320,7 +320,7 @@ DROP TABLE t2,t1;
 SET sql_mode=traditional;
 CREATE TABLE t1 (a TIME(6));
 INSERT INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED));
-ERROR 22007: Incorrect time value: '18446744069414584320' for column 'a' at row 1
+ERROR 22007: Incorrect time value: '18446744069414584320' for column `test`.`t1`.`a` at row 1
 SET sql_mode=DEFAULT;
 INSERT IGNORE INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED));
 Warnings:
@@ -1179,7 +1179,7 @@ SELECT CAST(a AS TIME), CAST(-9223372036854775808 AS TIME) FROM t1;
 CAST(a AS TIME)	CAST(-9223372036854775808 AS TIME)
 -838:59:59	-838:59:59
 Warnings:
-Warning	1292	Incorrect time value: '-9223372036854775808' for column 'a' at row 1
+Warning	1292	Incorrect time value: '-9223372036854775808' for column `test`.`t1`.`a` at row 1
 Warning	1292	Truncated incorrect time value: '-9223372036854775808'
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b DECIMAL, c DOUBLE);
@@ -1196,12 +1196,12 @@ a	TIME(a)	TIME(b)	TIME(c)
 9	00:00:09	00:00:09	00:00:09.000000
 9000000	838:59:59	838:59:59	838:59:59.999999
 Warnings:
-Warning	1292	Incorrect time value: '-9000000' for column 'a' at row 1
-Warning	1292	Incorrect time value: '-9000000' for column 'b' at row 1
-Warning	1292	Incorrect time value: '-9000000' for column 'c' at row 1
-Warning	1292	Incorrect time value: '9000000' for column 'a' at row 6
-Warning	1292	Incorrect time value: '9000000' for column 'b' at row 6
-Warning	1292	Incorrect time value: '9000000' for column 'c' at row 6
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`b` at row 1
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`c` at row 1
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`a` at row 6
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`b` at row 6
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`c` at row 6
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b DECIMAL, c DOUBLE);
 INSERT INTO t1 VALUES (0,0,0),(1,1,1),(9,9,9);
@@ -1213,9 +1213,9 @@ a	TIME(a)	TIME(b)	TIME(c)
 9	00:00:09	00:00:09	00:00:09.000000
 9000000	838:59:59	838:59:59	838:59:59.999999
 Warnings:
-Warning	1292	Incorrect time value: '9000000' for column 'a' at row 4
-Warning	1292	Incorrect time value: '9000000' for column 'b' at row 4
-Warning	1292	Incorrect time value: '9000000' for column 'c' at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`a` at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`b` at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`c` at row 4
 DROP TABLE t1;
 #
 # MDEV-8862 Wrong field type for MAX(COALESCE(datetime_column))
@@ -1257,6 +1257,72 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` =
 drop table t1;
 SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set @@old_mode= @save_old_mode;
+#
+# MDEV-21319 COUNT(*) returns 1, actual SELECT returns no result in 10.3.21, but 1 result in 10.1.41
+#
+CREATE OR REPLACE TABLE t1
+(
+id INT NOT NULL PRIMARY KEY,
+id2 INT,
+k TINYINT,
+j INT,
+t TIME,
+KEY k1 (id2,k,j,t)
+);
+INSERT INTO t1 VALUES
+(53,54,1,0,'10:09:59'),
+(54,54,1,0,'16:28:41'),
+(55,54,1,0,'16:29:10'),
+(56,54,1,0,'16:29:43'),
+(57,54,1,0,'16:30:16'),
+(58,54,1,0,'16:30:49'),
+(59,54,1,0,'16:31:23'),
+(60,54,1,0,'16:31:55'),
+(61,54,1,0,'16:32:28'),
+(62,54,1,0,'16:33:01'),
+(63,54,1,0,'16:33:34'),
+(64,54,1,0,'16:34:07'),
+(65,54,1,0,'16:34:40'),
+(66,54,1,0,'16:35:13'),
+(67,54,1,0,'16:35:46'),
+(68,54,1,0,'16:36:19');
+SELECT t FROM t1 GROUP BY t HAVING t=MAX(t);
+t
+10:09:59
+16:28:41
+16:29:10
+16:29:43
+16:30:16
+16:30:49
+16:31:23
+16:31:55
+16:32:28
+16:33:01
+16:33:34
+16:34:07
+16:34:40
+16:35:13
+16:35:46
+16:36:19
+SELECT t FROM t1 WHERE id2=54 AND j=0 AND k=1 GROUP BY t HAVING t=MAX(t);
+t
+10:09:59
+16:28:41
+16:29:10
+16:29:43
+16:30:16
+16:30:49
+16:31:23
+16:31:55
+16:32:28
+16:33:01
+16:33:34
+16:34:07
+16:34:40
+16:35:13
+16:35:46
+16:36:19
+DROP TABLE t1;
 #
 # End of 10.1 tests
 #
@@ -1301,6 +1367,30 @@ SELECT CAST(f1() AS TIME);
 CAST(f1() AS TIME)
 00:00:00
 DROP FUNCTION  f1;
+#
+# MDEV-21619 Server crash or assertion failures in my_datetime_to_str
+#
+CREATE TABLE t1 (f TIME, KEY(f));
+INSERT INTO t1 VALUES ('10:10:10'),('20:20:20');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '23:59:59';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	f	f	4	NULL	2	50.00	Using where; Using index
+Warnings:
+Warning	1292	Truncated incorrect time value: '1995.0000000'
+Note	1003	select `test`.`t1`.`f` AS `f` from `test`.`t1` where '00:00:00.000000' between `test`.`t1`.`f` and <cache>('23:59:59')
+DROP TABLE t1;
+#
+# MDEV-27098 Subquery using the ALL keyword on TIME columns produces a wrong result
+#
+CREATE TABLE t1 (d TIME);
+INSERT INTO t1 VALUES ('120:00:00'), ('20:00:00'), ('-120:00:00'), ('-220:00:00');
+SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
+d
+120:00:00
+SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
+d
+-220:00:00
+DROP TABLE t1;
 #
 # End of 10.2 tests
 #
@@ -1608,7 +1698,7 @@ INSERT INTO t1 VALUES ('23:00:03', 'yes');
 INSERT INTO t1 VALUES ('23:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
+1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
 a	filler
 23:00:03	yes
@@ -1686,7 +1776,7 @@ INSERT INTO t1 VALUES ('24:00:03', 'yes');
 INSERT INTO t1 VALUES ('24:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
+1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
 a	filler
 24:00:03	yes
@@ -1764,7 +1854,7 @@ INSERT INTO t1 VALUES ('838:00:03', 'yes');
 INSERT INTO t1 VALUES ('838:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
+1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
 a	filler
 838:00:03	yes
@@ -1842,7 +1932,7 @@ INSERT INTO t1 VALUES ('23:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('23:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	5	Using index condition
+1	SIMPLE	t1	range	a	a	5	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
 a	filler
 23:00:03.1	yes
@@ -1920,7 +2010,7 @@ INSERT INTO t1 VALUES ('838:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('838:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	5	Using index condition
+1	SIMPLE	t1	range	a	a	5	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
 a	filler
 838:00:03.1	yes
@@ -2167,6 +2257,168 @@ Warnings:
 Warning	1292	Truncated incorrect datetime value: 'z'
 Warning	1292	Truncated incorrect datetime value: 'z'
 Warning	1292	Truncated incorrect time value: 'z'
+#
+# MDEV-17319 Assertion `ts_type != MYSQL_TIMESTAMP_TIME' failed upon inserting into TIME field
+#
+CREATE TABLE t1 (t TIME);
+SET SESSION SQL_MODE='TRADITIONAL';
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00'),('0000-00-00 00:00:00');
+ERROR 22007: Incorrect time value: '0000-00-00 00:00:00' for column `test`.`t1`.`t` at row 1
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+#
+# MDEV-18070 Assertion `nanoseconds <= 1000000000' failed in Temporal::add_nanoseconds_ssff with TIME_ROUND_FRACTIONAL
+#
+CREATE TABLE t1 (t TIME);
+SET SQL_MODE= 'TIME_ROUND_FRACTIONAL';
+INSERT INTO t1 VALUES (3e19);
+Warnings:
+Warning	1264	Out of range value for column 't' at row 1
+DROP TABLE t1;
+#
+# MDEV-18876 Assertion `is_valid_time_slow()' failed in Time::valid_MYSQL_TIME_to_valid_value
+#
+CREATE TABLE t1 (f INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT f FROM t1 ORDER BY 1 && ( '1972-11-06 16:58:58' BETWEEN CONVERT( 0, TIME ) AND '20:31:05' );
+f
+1
+2
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(32));
+INSERT INTO t1 VALUES ('1972-11-06 16:58:58');
+SELECT * FROM t1 WHERE a < TIME'20:31:05';
+a
+1972-11-06 16:58:58
+SELECT a < TIME'20:31:05' FROM t1;
+a < TIME'20:31:05'
+1
+DROP TABLE t1;
+SELECT '1972-11-06 16:58:58' < TIME'20:31:05';
+'1972-11-06 16:58:58' < TIME'20:31:05'
+1
+#
+# MDEV-23525 Wrong result of MIN(time_expr) and MAX(time_expr) with GROUP BY
+#
+SET timestamp=UNIX_TIMESTAMP('2020-08-21 18:19:20');
+CREATE PROCEDURE p1()
+BEGIN
+SELECT MIN(t), MAX(t) FROM t1;
+SELECT i, MIN(t), MAX(t) FROM t1 GROUP BY i;
+SELECT i, MIN(COALESCE(t)), MAX(COALESCE(t)) FROM t1 GROUP BY i;
+SELECT i, MIN(t+INTERVAL 1 SECOND), MAX(t+INTERVAL 1 SECOND) FROM t1 GROUP BY i;
+SELECT i, MIN(TIME'10:20:30'+INTERVAL 1 SECOND) FROM t1 GROUP BY i;
+SELECT i, MIN(CURRENT_TIME), MAX(CURRENT_TIME) FROM t1 GROUP BY i;
+SELECT
+i,
+MIN((SELECT MAX(CURRENT_TIME) FROM t1)),
+MAX((SELECT MAX(CURRENT_TIME) FROM t1))
+FROM t1 GROUP BY i;
+SELECT
+i,
+MIN(NAME_CONST('name',TIME'10:20:30')),
+MAX(NAME_CONST('name',TIME'10:20:30'))
+FROM t1 GROUP BY i;
+EXECUTE IMMEDIATE "SELECT i, MIN(?),MAX(?) FROM t1 GROUP BY i"
+                    USING TIME'10:20:30', TIME'10:20:30';
+END;
+$$
+CREATE TABLE t1 (i INT, t TIME);
+INSERT INTO t1 VALUES (1,'10:20:30');
+INSERT INTO t1 VALUES (1,'100:20:20');
+CALL p1;
+MIN(t)	MAX(t)
+10:20:30	100:20:20
+i	MIN(t)	MAX(t)
+1	10:20:30	100:20:20
+i	MIN(COALESCE(t))	MAX(COALESCE(t))
+1	10:20:30	100:20:20
+i	MIN(t+INTERVAL 1 SECOND)	MAX(t+INTERVAL 1 SECOND)
+1	10:20:31	100:20:21
+i	MIN(TIME'10:20:30'+INTERVAL 1 SECOND)
+1	10:20:31
+i	MIN(CURRENT_TIME)	MAX(CURRENT_TIME)
+1	18:19:20	18:19:20
+i	MIN((SELECT MAX(CURRENT_TIME) FROM t1))	MAX((SELECT MAX(CURRENT_TIME) FROM t1))
+1	18:19:20	18:19:20
+i	MIN(NAME_CONST('name',TIME'10:20:30'))	MAX(NAME_CONST('name',TIME'10:20:30'))
+1	10:20:30	10:20:30
+i	MIN(?)	MAX(?)
+1	10:20:30	10:20:30
+DROP TABLE t1;
+CREATE TABLE t1 (i INT, t TIME(3));
+INSERT INTO t1 VALUES (1,'10:20:30.123');
+INSERT INTO t1 VALUES (1,'100:20:20.123');
+CALL p1;
+MIN(t)	MAX(t)
+10:20:30.123	100:20:20.123
+i	MIN(t)	MAX(t)
+1	10:20:30.123	100:20:20.123
+i	MIN(COALESCE(t))	MAX(COALESCE(t))
+1	10:20:30.123	100:20:20.123
+i	MIN(t+INTERVAL 1 SECOND)	MAX(t+INTERVAL 1 SECOND)
+1	10:20:31.123	100:20:21.123
+i	MIN(TIME'10:20:30'+INTERVAL 1 SECOND)
+1	10:20:31
+i	MIN(CURRENT_TIME)	MAX(CURRENT_TIME)
+1	18:19:20	18:19:20
+i	MIN((SELECT MAX(CURRENT_TIME) FROM t1))	MAX((SELECT MAX(CURRENT_TIME) FROM t1))
+1	18:19:20	18:19:20
+i	MIN(NAME_CONST('name',TIME'10:20:30'))	MAX(NAME_CONST('name',TIME'10:20:30'))
+1	10:20:30	10:20:30
+i	MIN(?)	MAX(?)
+1	10:20:30	10:20:30
+DROP TABLE t1;
+CREATE TABLE t1 (i INT, t TIME(6));
+INSERT INTO t1 VALUES (1,'10:20:30.123456');
+INSERT INTO t1 VALUES (1,'100:20:20.123456');
+CALL p1;
+MIN(t)	MAX(t)
+10:20:30.123456	100:20:20.123456
+i	MIN(t)	MAX(t)
+1	10:20:30.123456	100:20:20.123456
+i	MIN(COALESCE(t))	MAX(COALESCE(t))
+1	10:20:30.123456	100:20:20.123456
+i	MIN(t+INTERVAL 1 SECOND)	MAX(t+INTERVAL 1 SECOND)
+1	10:20:31.123456	100:20:21.123456
+i	MIN(TIME'10:20:30'+INTERVAL 1 SECOND)
+1	10:20:31
+i	MIN(CURRENT_TIME)	MAX(CURRENT_TIME)
+1	18:19:20	18:19:20
+i	MIN((SELECT MAX(CURRENT_TIME) FROM t1))	MAX((SELECT MAX(CURRENT_TIME) FROM t1))
+1	18:19:20	18:19:20
+i	MIN(NAME_CONST('name',TIME'10:20:30'))	MAX(NAME_CONST('name',TIME'10:20:30'))
+1	10:20:30	10:20:30
+i	MIN(?)	MAX(?)
+1	10:20:30	10:20:30
+DROP TABLE t1;
+SET @@global.mysql56_temporal_format=false;
+CREATE TABLE t1 (i INT, t TIME(6));
+INSERT INTO t1 VALUES (1,'10:20:30.123456');
+INSERT INTO t1 VALUES (1,'100:20:20.123456');
+CALL p1;
+MIN(t)	MAX(t)
+10:20:30.123456	100:20:20.123456
+i	MIN(t)	MAX(t)
+1	10:20:30.123456	100:20:20.123456
+i	MIN(COALESCE(t))	MAX(COALESCE(t))
+1	10:20:30.123456	100:20:20.123456
+i	MIN(t+INTERVAL 1 SECOND)	MAX(t+INTERVAL 1 SECOND)
+1	10:20:31.123456	100:20:21.123456
+i	MIN(TIME'10:20:30'+INTERVAL 1 SECOND)
+1	10:20:31
+i	MIN(CURRENT_TIME)	MAX(CURRENT_TIME)
+1	18:19:20	18:19:20
+i	MIN((SELECT MAX(CURRENT_TIME) FROM t1))	MAX((SELECT MAX(CURRENT_TIME) FROM t1))
+1	18:19:20	18:19:20
+i	MIN(NAME_CONST('name',TIME'10:20:30'))	MAX(NAME_CONST('name',TIME'10:20:30'))
+1	10:20:30	10:20:30
+i	MIN(?)	MAX(?)
+1	10:20:30	10:20:30
+DROP TABLE t1;
+SET @@global.mysql56_temporal_format=default;
+DROP PROCEDURE p1;
+SET timestamp=DEFAULT;
 #
 # End of 10.4 tests
 #

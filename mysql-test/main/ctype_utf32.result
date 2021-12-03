@@ -132,10 +132,10 @@ t1	CREATE TABLE `t1` (
 insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
 explain select * from t1 where a like 'abc%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	43	NULL	1	Using where; Using index
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
 explain select * from t1 where a like concat('abc','%');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	43	NULL	1	Using where; Using index
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
 select * from t1 where a like "abc%";
 a
 abc
@@ -668,6 +668,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf32_general_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 SET NAMES latin1;
 SET collation_connection='utf32_bin';
 create table t1 select repeat('a',4000) a;
@@ -805,6 +811,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf32_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 select hex(substr(_utf32 0x000000e4000000e500000068,1));
 hex(substr(_utf32 0x000000e4000000e500000068,1))
 000000E4000000E500000068
@@ -985,31 +997,31 @@ create table t1 (utf32 varchar(2) character set utf32);
 Wrong character with pad
 insert ignore into t1 values (0x110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Wrong chsaracter without pad
 insert ignore into t1 values (0x00110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Wrong character with pad followed by another wrong character
 insert ignore into t1 values (0x11000000110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x11\x00\x00\x00\x11\x00...' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x11\x00\x00\x00\x11\x00...' for column `test`.`t1`.`utf32` at row 1
 Good character with pad followed by bad character
 insert ignore into t1 values (0x10000000110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Good character without pad followed by bad character
 insert ignore into t1 values (0x0010000000110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Wrong character with the second byte higher than 0x10
 insert ignore into t1 values (0x00800037);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x80\x007' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x80\x007' for column `test`.`t1`.`utf32` at row 1
 Wrong character with pad with the second byte higher than 0x10
 insert ignore into t1 values (0x00800037);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x80\x007' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x80\x007' for column `test`.`t1`.`utf32` at row 1
 drop table t1;
 select _utf32'a' collate utf32_general_ci = 0xfffd;
 _utf32'a' collate utf32_general_ci = 0xfffd
@@ -1294,7 +1306,7 @@ create table t1 (a varchar(334) character set utf32 primary key);
 ERROR 42000: Specified key was too long; max key length is 1000 bytes
 create table t1 (a varchar(333) character set utf32, key(a));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 insert into t1 values (repeat('a',333)), (repeat('b',333));
 flush tables;
 check table t1;
@@ -1492,7 +1504,9 @@ ab
 ab
 AE
 AE
-SET max_sort_length=4;
+SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
 SELECT * FROM t1 ORDER BY s1;
 s1
 ab
@@ -1561,12 +1575,12 @@ CREATE TABLE t1 (utf32 CHAR(5) CHARACTER SET utf32, latin1 CHAR(5) CHARACTER SET
 INSERT INTO t1 (utf32) VALUES (0xc581);
 UPDATE IGNORE t1 SET latin1 = utf32;
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x00\xC5\x81' for column 'latin1' at row 1
+Warning	1366	Incorrect string value: '\x00\x00\xC5\x81' for column `test`.`t1`.`latin1` at row 1
 DELETE FROM t1;
 INSERT INTO t1 (utf32) VALUES (0x100cc);
 UPDATE IGNORE t1 SET latin1 = utf32;
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x01\x00\xCC' for column 'latin1' at row 1
+Warning	1366	Incorrect string value: '\x00\x01\x00\xCC' for column `test`.`t1`.`latin1` at row 1
 DROP TABLE t1;
 #
 # Bug#55912 FORMAT with locale set fails for numbers < 1000
@@ -1576,7 +1590,7 @@ CREATE TABLE t1 AS SELECT format(123,2,'no_NO');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `format(123,2,'no_NO')` varchar(45) CHARACTER SET utf32 DEFAULT NULL
+  `format(123,2,'no_NO')` varchar(17) CHARACTER SET utf32 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT * FROM t1;
 format(123,2,'no_NO')
@@ -2855,6 +2869,26 @@ DROP TABLE t1;
 # End of ctype_pad.inc
 #
 SET STORAGE_ENGINE=Default;
+#
+# MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
+# 10.2 tests
+#
+SET NAMES utf8, COLLATION_CONNECTION=utf32_bin;
+CREATE TABLE t1(c1 ENUM('a','b','ac') CHARACTER SET 'Binary',c2 JSON,c3 INT);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` enum('\0\0\0a','\0\0\0b','\0\0\0a\0\0\0c') CHARACTER SET binary DEFAULT NULL,
+  `c2` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`c2`)),
+  `c3` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 (c1) VALUES (1),(2),(3);
+SELECT HEX(c1) FROM t1 ORDER BY c1;
+HEX(c1)
+00000061
+00000062
+0000006100000063
+DROP TABLE t1;
 #
 # End of 10.2 tests
 #

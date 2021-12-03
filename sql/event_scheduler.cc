@@ -1,4 +1,5 @@
-/* Copyright (c) 2006, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2006, 2019, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2020, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -150,7 +151,7 @@ deinit_event_thread(THD *thd)
 {
   thd->proc_info= "Clearing";
   DBUG_PRINT("exit", ("Event thread finishing"));
-  unlink_not_visible_thd(thd);
+  server_threads.erase(thd);
   delete thd;
 }
 
@@ -185,7 +186,7 @@ pre_init_event_thread(THD* thd)
   thd->net.read_timeout= slave_net_timeout;
   thd->variables.option_bits|= OPTION_AUTO_IS_NULL;
   thd->client_capabilities|= CLIENT_MULTI_RESULTS;
-  add_to_active_threads(thd);
+  server_threads.insert(thd);
 
   /*
     Guarantees that we will see the thread in SHOW PROCESSLIST though its
@@ -433,7 +434,7 @@ Event_scheduler::start(int *err_no)
     scheduler_thd= NULL;
     deinit_event_thread(new_thd);
 
-    delete scheduler_param_value;
+    my_free(scheduler_param_value);
     ret= true;
   }
 
@@ -495,6 +496,7 @@ Event_scheduler::run(THD *thd)
       DBUG_PRINT("info", ("job_data is NULL, the thread was killed"));
     }
     DBUG_PRINT("info", ("state=%s", scheduler_states_names[state].str));
+    free_root(thd->mem_root, MYF(0));
   }
 
   LOCK_DATA();
@@ -679,20 +681,20 @@ end:
     Event_scheduler::workers_count()
 */
 
+static my_bool workers_count_callback(THD *thd, uint32_t *count)
+{
+  if (thd->system_thread == SYSTEM_THREAD_EVENT_WORKER)
+    ++*count;
+  return 0;
+}
+
+
 uint
 Event_scheduler::workers_count()
 {
-  THD *tmp;
-  uint count= 0;
-
+  uint32_t count= 0;
   DBUG_ENTER("Event_scheduler::workers_count");
-  mysql_mutex_lock(&LOCK_thread_count);       // For unlink from list
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-    if (tmp->system_thread == SYSTEM_THREAD_EVENT_WORKER)
-      ++count;
-  mysql_mutex_unlock(&LOCK_thread_count);
-  DBUG_PRINT("exit", ("%d", count));
+  server_threads.iterate(workers_count_callback, &count);
   DBUG_RETURN(count);
 }
 

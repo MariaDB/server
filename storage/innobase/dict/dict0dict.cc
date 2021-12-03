@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -45,11 +45,6 @@ dict_index_t*	dict_ind_redundant;
 extern uint	ibuf_debug;
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
-/**********************************************************************
-Issue a warning that the row is too big. */
-void
-ib_warn_row_too_big(const dict_table_t*	table);
-
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "btr0sea.h"
@@ -65,7 +60,6 @@ ib_warn_row_too_big(const dict_table_t*	table);
 #include "lock0lock.h"
 #include "mach0data.h"
 #include "mem0mem.h"
-#include "os0once.h"
 #include "page0page.h"
 #include "page0zip.h"
 #include "pars0pars.h"
@@ -85,17 +79,7 @@ ib_warn_row_too_big(const dict_table_t*	table);
 #include <algorithm>
 
 /** the dictionary system */
-dict_sys_t*	dict_sys	= NULL;
-
-/** @brief the data dictionary rw-latch protecting dict_sys
-
-table create, drop, etc. reserve this in X-mode; implicit or
-backround operations purge, rollback, foreign key checks reserve this
-in S-mode; we cannot trust that MySQL protects implicit or background
-operations a table drop since MySQL does not know of them; therefore
-we need this; NOTE: a transaction which reserves this must keep book
-on the mode in trx_t::dict_operation_lock_mode */
-rw_lock_t*	dict_operation_lock;
+dict_sys_t	dict_sys;
 
 /** Percentage of compression failures that are allowed in a single
 round */
@@ -178,22 +162,6 @@ static
 ibool
 dict_lru_validate(void);
 /*===================*/
-/**********************************************************************//**
-Check if table is in the dictionary table LRU list.
-@return TRUE if table found */
-static
-ibool
-dict_lru_find_table(
-/*================*/
-	const dict_table_t*	find_table);	/*!< in: table to find */
-/**********************************************************************//**
-Check if a table exists in the dict table non-LRU list.
-@return TRUE if table found */
-static
-ibool
-dict_non_lru_find_table(
-/*====================*/
-	const dict_table_t*	find_table);	/*!< in: table to find */
 #endif /* UNIV_DEBUG */
 
 /* Stream for storing detailed information about the latest foreign key
@@ -252,158 +220,24 @@ dict_get_db_name_len(
 	return ulint(s - name);
 }
 
-/** Reserve the dictionary system mutex. */
-void
-dict_mutex_enter_for_mysql_func(const char *file, unsigned line)
+/** Open a persistent table.
+@param[in]	table_id	persistent table identifier
+@param[in]	ignore_err	errors to ignore
+@param[in]	cached_only	whether to skip loading
+@return persistent table
+@retval	NULL if not found */
+static dict_table_t* dict_table_open_on_id_low(
+	table_id_t		table_id,
+	dict_err_ignore_t	ignore_err,
+	bool			cached_only)
 {
-	mutex_enter_loc(&dict_sys->mutex, file, line);
-}
+	dict_table_t* table = dict_sys.get_table(table_id);
 
-/********************************************************************//**
-Releases the dictionary system mutex for MySQL. */
-void
-dict_mutex_exit_for_mysql(void)
-/*===========================*/
-{
-	mutex_exit(&dict_sys->mutex);
-}
-
-/** Allocate and init a dict_table_t's stats latch.
-This function must not be called concurrently on the same table object.
-@param[in,out]	table_void	table whose stats latch to create */
-static
-void
-dict_table_stats_latch_alloc(
-	void*	table_void)
-{
-	dict_table_t*	table = static_cast<dict_table_t*>(table_void);
-
-	/* Note: rw_lock_create() will call the constructor */
-
-	table->stats_latch = static_cast<rw_lock_t*>(
-		ut_malloc_nokey(sizeof(rw_lock_t)));
-
-	ut_a(table->stats_latch != NULL);
-
-	rw_lock_create(dict_table_stats_key, table->stats_latch,
-		       SYNC_INDEX_TREE);
-}
-
-/** Deinit and free a dict_table_t's stats latch.
-This function must not be called concurrently on the same table object.
-@param[in,out]	table	table whose stats latch to free */
-static
-void
-dict_table_stats_latch_free(
-	dict_table_t*	table)
-{
-	rw_lock_free(table->stats_latch);
-	ut_free(table->stats_latch);
-}
-
-/** Create a dict_table_t's stats latch or delay for lazy creation.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to create
-@param[in]	enabled	if false then the latch is disabled
-and dict_table_stats_lock()/unlock() become noop on this table. */
-void
-dict_table_stats_latch_create(
-	dict_table_t*	table,
-	bool		enabled)
-{
-	if (!enabled) {
-		table->stats_latch = NULL;
-		table->stats_latch_created = os_once::DONE;
-		return;
+	if (!table && !cached_only) {
+		table = dict_load_table_on_id(table_id, ignore_err);
 	}
 
-	/* We create this lazily the first time it is used. */
-	table->stats_latch = NULL;
-	table->stats_latch_created = os_once::NEVER_DONE;
-}
-
-/** Destroy a dict_table_t's stats latch.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to destroy */
-void
-dict_table_stats_latch_destroy(
-	dict_table_t*	table)
-{
-	if (table->stats_latch_created == os_once::DONE
-	    && table->stats_latch != NULL) {
-
-		dict_table_stats_latch_free(table);
-	}
-}
-
-/** Lock the appropriate latch to protect a given table's statistics.
-@param[in]	table		table whose stats to lock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_lock(
-	dict_table_t*	table,
-	ulint		latch_mode)
-{
-	ut_ad(table != NULL);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	os_once::do_or_wait_for_done(
-		&table->stats_latch_created,
-		dict_table_stats_latch_alloc, table);
-
-	if (table->stats_latch == NULL) {
-		/* This is a dummy table object that is private in the current
-		thread and is not shared between multiple threads, thus we
-		skip any locking. */
-		return;
-	}
-
-	switch (latch_mode) {
-	case RW_S_LATCH:
-		rw_lock_s_lock(table->stats_latch);
-		break;
-	case RW_X_LATCH:
-		rw_lock_x_lock(table->stats_latch);
-		break;
-	case RW_NO_LATCH:
-		/* fall through */
-	default:
-		ut_error;
-	}
-}
-
-/** Unlock the latch that has been locked by dict_table_stats_lock().
-@param[in]	table		table whose stats to unlock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_unlock(
-	dict_table_t*	table,
-	ulint		latch_mode)
-{
-	ut_ad(table != NULL);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	if (table->stats_latch == NULL) {
-		/* This is a dummy table object that is private in the current
-		thread and is not shared between multiple threads, thus we
-		skip any locking. */
-		return;
-	}
-
-	switch (latch_mode) {
-	case RW_S_LATCH:
-		rw_lock_s_unlock(table->stats_latch);
-		break;
-	case RW_X_LATCH:
-		rw_lock_x_unlock(table->stats_latch);
-		break;
-	case RW_NO_LATCH:
-		/* fall through */
-	default:
-		ut_error;
-	}
+	return table;
 }
 
 /**********************************************************************//**
@@ -416,7 +250,7 @@ dict_table_try_drop_aborted(
 	dict_table_t*	table,		/*!< in: table, or NULL if it
 					needs to be looked up again */
 	table_id_t	table_id,	/*!< in: table identifier */
-	int32		ref_count)	/*!< in: expected table->n_ref_count */
+	uint32_t	ref_count)	/*!< in: expected table->n_ref_count */
 {
 	trx_t*		trx;
 
@@ -427,7 +261,7 @@ dict_table_try_drop_aborted(
 
 	if (table == NULL) {
 		table = dict_table_open_on_id_low(
-			table_id, DICT_ERR_IGNORE_NONE, FALSE);
+			table_id, DICT_ERR_IGNORE_FK_NOKEY, FALSE);
 	} else {
 		ut_ad(table->id == table_id);
 	}
@@ -436,20 +270,20 @@ dict_table_try_drop_aborted(
 	    && !UT_LIST_GET_FIRST(table->locks)) {
 		/* Silence a debug assertion in row_merge_drop_indexes(). */
 		ut_d(table->acquire());
-		row_merge_drop_indexes(trx, table, TRUE);
+		row_merge_drop_indexes(trx, table, true);
 		ut_d(table->release());
 		ut_ad(table->get_ref_count() == ref_count);
 		trx_commit_for_mysql(trx);
 	}
 
 	row_mysql_unlock_data_dictionary(trx);
-	trx_free(trx);
+	trx->free();
 }
 
 /**********************************************************************//**
 When opening a table,
 try to drop any indexes after an aborted index creation.
-Release the dict_sys->mutex. */
+Release the dict_sys.mutex. */
 static
 void
 dict_table_try_drop_aborted_and_mutex_exit(
@@ -469,11 +303,11 @@ dict_table_try_drop_aborted_and_mutex_exit(
 		was aborted. */
 		table_id_t	table_id = table->id;
 
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 
 		dict_table_try_drop_aborted(table, table_id, 1);
 	} else {
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 }
 
@@ -489,10 +323,10 @@ dict_table_close(
 					index creation */
 {
 	if (!dict_locked) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_a(table->get_ref_count() > 0);
 
 	const bool last_handle = table->release();
@@ -511,14 +345,7 @@ dict_table_close(
 	MONITOR_DEC(MONITOR_TABLE_REFERENCE);
 
 	ut_ad(dict_lru_validate());
-
-#ifdef UNIV_DEBUG
-	if (table->can_be_evicted) {
-		ut_ad(dict_lru_find_table(table));
-	} else {
-		ut_ad(dict_non_lru_find_table(table));
-	}
-#endif /* UNIV_DEBUG */
+	ut_ad(dict_sys.find(table));
 
 	if (!dict_locked) {
 		table_id_t	table_id	= table->id;
@@ -526,9 +353,12 @@ dict_table_close(
 			&& table->drop_aborted
 			&& dict_table_get_first_index(table);
 
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 
-		if (drop_aborted) {
+		/* dict_table_try_drop_aborted() can generate undo logs.
+		So it should be avoided after shutdown of background
+		threads */
+		if (drop_aborted && !srv_undo_sources) {
 			dict_table_try_drop_aborted(NULL, table_id, 0);
 		}
 	}
@@ -536,9 +366,9 @@ dict_table_close(
 
 /********************************************************************//**
 Closes the only open handle to a table and drops a table while assuring
-that dict_sys->mutex is held the whole time.  This assures that the table
+that dict_sys.mutex is held the whole time.  This assures that the table
 is not evicted after the close when the count of open handles goes to zero.
-Because dict_sys->mutex is held, we do not need to call
+Because dict_sys.mutex is held, we do not need to call
 dict_table_prevent_eviction().  */
 void
 dict_table_close_and_drop(
@@ -548,8 +378,7 @@ dict_table_close_and_drop(
 {
 	dberr_t err = DB_SUCCESS;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 	ut_ad(trx->dict_operation != TRX_DICT_OP_NONE);
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 
@@ -736,61 +565,6 @@ dict_table_get_nth_v_col_mysql(
 	return(dict_table_get_nth_v_col(table, i));
 }
 
-/** Allocate and init the autoinc latch of a given table.
-This function must not be called concurrently on the same table object.
-@param[in,out]	table_void	table whose autoinc latch to create */
-static
-void
-dict_table_autoinc_alloc(
-	void*	table_void)
-{
-	dict_table_t*	table = static_cast<dict_table_t*>(table_void);
-	table->autoinc_mutex = UT_NEW_NOKEY(ib_mutex_t());
-	ut_a(table->autoinc_mutex != NULL);
-	mutex_create(LATCH_ID_AUTOINC, table->autoinc_mutex);
-}
-
-/** Allocate and init the zip_pad_mutex of a given index.
-This function must not be called concurrently on the same index object.
-@param[in,out]	index_void	index whose zip_pad_mutex to create */
-static
-void
-dict_index_zip_pad_alloc(
-	void*	index_void)
-{
-	dict_index_t*	index = static_cast<dict_index_t*>(index_void);
-	index->zip_pad.mutex = UT_NEW_NOKEY(SysMutex());
-	ut_a(index->zip_pad.mutex != NULL);
-	mutex_create(LATCH_ID_ZIP_PAD_MUTEX, index->zip_pad.mutex);
-}
-
-/********************************************************************//**
-Acquire the autoinc lock. */
-void
-dict_table_autoinc_lock(
-/*====================*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	os_once::do_or_wait_for_done(
-		&table->autoinc_mutex_created,
-		dict_table_autoinc_alloc, table);
-
-	mutex_enter(table->autoinc_mutex);
-}
-
-/** Acquire the zip_pad_mutex latch.
-@param[in,out]	index	the index whose zip_pad_mutex to acquire.*/
-static
-void
-dict_index_zip_pad_lock(
-	dict_index_t*	index)
-{
-	os_once::do_or_wait_for_done(
-		&index->zip_pad.mutex_created,
-		dict_index_zip_pad_alloc, index);
-
-	mutex_enter(index->zip_pad.mutex);
-}
 
 /** Get all the FTS indexes on a table.
 @param[in]	table	table
@@ -815,16 +589,6 @@ dict_table_get_all_fts_indexes(
 	}
 
 	return(ib_vector_size(indexes));
-}
-
-/********************************************************************//**
-Release the autoinc lock. */
-void
-dict_table_autoinc_unlock(
-/*======================*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	mutex_exit(table->autoinc_mutex);
 }
 
 /** Looks for column n in an index.
@@ -884,47 +648,29 @@ dict_index_get_nth_col_or_prefix_pos(
 	return(ULINT_UNDEFINED);
 }
 
-/** Returns TRUE if the index contains a column or a prefix of that column.
-@param[in]	index		index
+/** Check if the index contains a column or a prefix of that column.
 @param[in]	n		column number
 @param[in]	is_virtual	whether it is a virtual col
-@return TRUE if contains the column or its prefix */
-bool
-dict_index_contains_col_or_prefix(
-	const dict_index_t*	index,
-	ulint			n,
-	bool			is_virtual)
+@return whether the index contains the column or its prefix */
+bool dict_index_t::contains_col_or_prefix(ulint n, bool is_virtual) const
 {
-	const dict_field_t*	field;
-	const dict_col_t*	col;
-	ulint			pos;
-	ulint			n_fields;
+	ut_ad(magic_n == DICT_INDEX_MAGIC_N);
 
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	if (dict_index_is_clust(index)) {
+	if (is_primary()) {
 		return(!is_virtual);
 	}
 
-	if (is_virtual) {
-		col = &dict_table_get_nth_v_col(index->table, n)->m_col;
-	} else {
-		col = dict_table_get_nth_col(index->table, n);
-	}
+	const dict_col_t* col = is_virtual
+		? &dict_table_get_nth_v_col(table, n)->m_col
+		: dict_table_get_nth_col(table, n);
 
-	n_fields = dict_index_get_n_fields(index);
-
-	for (pos = 0; pos < n_fields; pos++) {
-		field = dict_index_get_nth_field(index, pos);
-
-		if (col == field->col) {
-
-			return(true);
+	for (ulint pos = 0; pos < n_fields; pos++) {
+		if (col == fields[pos].col) {
+			return true;
 		}
 	}
 
-	return(false);
+	return false;
 }
 
 /********************************************************************//**
@@ -946,7 +692,6 @@ dict_index_get_nth_field_pos(
 	ulint			n_fields;
 	ulint			pos;
 
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	field2 = dict_index_get_nth_field(index2, n);
@@ -994,26 +739,20 @@ dict_table_open_on_id(
 	dict_table_t*	table;
 
 	if (!dict_locked) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	table = dict_table_open_on_id_low(
 		table_id,
 		table_op == DICT_TABLE_OP_LOAD_TABLESPACE
 		? DICT_ERR_IGNORE_RECOVER_LOCK
-		: DICT_ERR_IGNORE_NONE,
+		: DICT_ERR_IGNORE_FK_NOKEY,
 		table_op == DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
 
 	if (table != NULL) {
-
-		if (table->can_be_evicted) {
-			dict_move_to_mru(table);
-		}
-
-		table->acquire();
-
+		dict_sys.acquire(table);
 		MONITOR_INC(MONITOR_TABLE_REFERENCE);
 	}
 
@@ -1055,8 +794,6 @@ dict_table_col_in_clustered_key(
 	ulint			pos;
 	ulint			n_fields;
 
-	ut_ad(table);
-
 	col = dict_table_get_nth_col(table, n);
 
 	index = dict_table_get_first_index(table);
@@ -1075,59 +812,46 @@ dict_table_col_in_clustered_key(
 	return(FALSE);
 }
 
-/**********************************************************************//**
-Inits the data dictionary module. */
-void
-dict_init(void)
-/*===========*/
+/** Initialise the data dictionary cache. */
+void dict_sys_t::create()
 {
-	dict_operation_lock = static_cast<rw_lock_t*>(
-		ut_zalloc_nokey(sizeof(*dict_operation_lock)));
+  ut_ad(this == &dict_sys);
+  ut_ad(!is_initialised());
+  m_initialised= true;
+  UT_LIST_INIT(table_LRU, &dict_table_t::table_LRU);
+  UT_LIST_INIT(table_non_LRU, &dict_table_t::table_LRU);
 
-	dict_sys = static_cast<dict_sys_t*>(ut_zalloc_nokey(sizeof(*dict_sys)));
+  mutex_create(LATCH_ID_DICT_SYS, &mutex);
 
-	UT_LIST_INIT(dict_sys->table_LRU, &dict_table_t::table_LRU);
-	UT_LIST_INIT(dict_sys->table_non_LRU, &dict_table_t::table_LRU);
+  const ulint hash_size = buf_pool_get_curr_size()
+    / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
 
-	mutex_create(LATCH_ID_DICT_SYS, &dict_sys->mutex);
+  table_hash= hash_create(hash_size);
+  table_id_hash= hash_create(hash_size);
+  temp_id_hash= hash_create(hash_size);
 
-	dict_sys->table_hash = hash_create(
-		buf_pool_get_curr_size()
-		/ (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE));
+  rw_lock_create(dict_operation_lock_key, &latch, SYNC_DICT_OPERATION);
 
-	dict_sys->table_id_hash = hash_create(
-		buf_pool_get_curr_size()
-		/ (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE));
+  if (!srv_read_only_mode)
+  {
+    dict_foreign_err_file= os_file_create_tmpfile();
+    ut_a(dict_foreign_err_file);
+  }
 
-	rw_lock_create(dict_operation_lock_key,
-		       dict_operation_lock, SYNC_DICT_OPERATION);
-
-	if (!srv_read_only_mode) {
-		dict_foreign_err_file = os_file_create_tmpfile();
-		ut_a(dict_foreign_err_file);
-	}
-
-	mutex_create(LATCH_ID_DICT_FOREIGN_ERR, &dict_foreign_err_mutex);
+  mutex_create(LATCH_ID_DICT_FOREIGN_ERR, &dict_foreign_err_mutex);
 }
 
-/**********************************************************************//**
-Move to the most recently used segment of the LRU list. */
-void
-dict_move_to_mru(
-/*=============*/
-	dict_table_t*	table)		/*!< in: table to move to MRU */
+/** Acquire a reference to a cached table. */
+inline void dict_sys_t::acquire(dict_table_t* table)
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(dict_lru_validate());
-	ut_ad(dict_lru_find_table(table));
+  ut_ad(dict_sys.find(table));
+  if (table->can_be_evicted)
+  {
+    UT_LIST_REMOVE(dict_sys.table_LRU, table);
+    UT_LIST_ADD_FIRST(dict_sys.table_LRU, table);
+  }
 
-	ut_a(table->can_be_evicted);
-
-	UT_LIST_REMOVE(dict_sys->table_LRU, table);
-
-	UT_LIST_ADD_FIRST(dict_sys->table_LRU, table);
-
-	ut_ad(dict_lru_validate());
+  table->acquire();
 }
 
 /**********************************************************************//**
@@ -1153,16 +877,16 @@ dict_table_open_on_name(
 	DBUG_PRINT("dict_table_open_on_name", ("table: '%s'", table_name));
 
 	if (!dict_locked) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
 	ut_ad(table_name);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	table = dict_table_check_if_in_cache_low(table_name);
 
 	if (table == NULL) {
-		table = dict_load_table(table_name, true, ignore_err);
+		table = dict_load_table(table_name, ignore_err);
 	}
 
 	ut_ad(!table || table->cached);
@@ -1170,10 +894,10 @@ dict_table_open_on_name(
 	if (table != NULL) {
 
 		/* If table is encrypted or corrupted */
-		if (ignore_err == DICT_ERR_IGNORE_NONE
+		if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY)
 		    && !table->is_readable()) {
 			/* Make life easy for drop table. */
-			dict_table_prevent_eviction(table);
+			dict_sys.prevent_eviction(table);
 
 			if (table->corrupted) {
 
@@ -1181,31 +905,22 @@ dict_table_open_on_name(
 					<< " is corrupted. Please "
 					"drop the table and recreate.";
 				if (!dict_locked) {
-					mutex_exit(&dict_sys->mutex);
+					mutex_exit(&dict_sys.mutex);
 				}
 
 				DBUG_RETURN(NULL);
 			}
 
-			if (table->can_be_evicted) {
-				dict_move_to_mru(table);
-			}
-
-			table->acquire();
+			dict_sys.acquire(table);
 
 			if (!dict_locked) {
-				mutex_exit(&dict_sys->mutex);
+				mutex_exit(&dict_sys.mutex);
 			}
 
 			DBUG_RETURN(table);
 		}
 
-		if (table->can_be_evicted) {
-			dict_move_to_mru(table);
-		}
-
-		table->acquire();
-
+		dict_sys.acquire(table);
 		MONITOR_INC(MONITOR_TABLE_REFERENCE);
 	}
 
@@ -1226,8 +941,7 @@ dict_table_add_system_columns(
 	dict_table_t*	table,	/*!< in/out: table */
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 {
-	ut_ad(table);
-	ut_ad(table->n_def == (table->n_cols - DATA_N_SYS_COLS));
+	ut_ad(table->n_def == table->n_cols - DATA_N_SYS_COLS);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(!table->cached);
 
@@ -1257,65 +971,64 @@ dict_table_add_system_columns(
 }
 
 /** Add the table definition to the data dictionary cache */
-void
-dict_table_t::add_to_cache()
+void dict_table_t::add_to_cache()
 {
-	ut_ad(dict_lru_validate());
-	ut_ad(mutex_own(&dict_sys->mutex));
-
 	cached = TRUE;
 
-	ulint fold = ut_fold_string(name.m_name);
-	ulint id_fold = ut_fold_ull(id);
+	dict_sys.add(this);
+}
+
+/** Add a table definition to the data dictionary cache */
+inline void dict_sys_t::add(dict_table_t* table)
+{
+	ut_ad(!find(table));
+
+	ulint fold = ut_fold_string(table->name.m_name);
+
+	new (&table->autoinc_mutex) std::mutex();
 
 	/* Look for a table with the same name: error if such exists */
 	{
 		dict_table_t*	table2;
-		HASH_SEARCH(name_hash, dict_sys->table_hash, fold,
+		HASH_SEARCH(name_hash, table_hash, fold,
 			    dict_table_t*, table2, ut_ad(table2->cached),
-			    !strcmp(table2->name.m_name, name.m_name));
+			    !strcmp(table2->name.m_name, table->name.m_name));
 		ut_a(table2 == NULL);
 
 #ifdef UNIV_DEBUG
 		/* Look for the same table pointer with a different name */
-		HASH_SEARCH_ALL(name_hash, dict_sys->table_hash,
+		HASH_SEARCH_ALL(name_hash, table_hash,
 				dict_table_t*, table2, ut_ad(table2->cached),
-				table2 == this);
+				table2 == table);
 		ut_ad(table2 == NULL);
 #endif /* UNIV_DEBUG */
 	}
+	HASH_INSERT(dict_table_t, name_hash, table_hash, fold, table);
 
 	/* Look for a table with the same id: error if such exists */
+	hash_table_t* id_hash = table->is_temporary()
+		? temp_id_hash : table_id_hash;
+	const ulint id_fold = ut_fold_ull(table->id);
 	{
 		dict_table_t*	table2;
-		HASH_SEARCH(id_hash, dict_sys->table_id_hash, id_fold,
+		HASH_SEARCH(id_hash, id_hash, id_fold,
 			    dict_table_t*, table2, ut_ad(table2->cached),
-			    table2->id == id);
+			    table2->id == table->id);
 		ut_a(table2 == NULL);
 
 #ifdef UNIV_DEBUG
 		/* Look for the same table pointer with a different id */
-		HASH_SEARCH_ALL(id_hash, dict_sys->table_id_hash,
+		HASH_SEARCH_ALL(id_hash, id_hash,
 				dict_table_t*, table2, ut_ad(table2->cached),
-				table2 == this);
+				table2 == table);
 		ut_ad(table2 == NULL);
 #endif /* UNIV_DEBUG */
+
+		HASH_INSERT(dict_table_t, id_hash, id_hash, id_fold, table);
 	}
 
-	/* Add table to hash table of tables */
-	HASH_INSERT(dict_table_t, name_hash, dict_sys->table_hash, fold,
-		    this);
-
-	/* Add table to hash table of tables based on table id */
-	HASH_INSERT(dict_table_t, id_hash, dict_sys->table_id_hash, id_fold,
-		    this);
-
-	if (can_be_evicted) {
-		UT_LIST_ADD_FIRST(dict_sys->table_LRU, this);
-	} else {
-		UT_LIST_ADD_FIRST(dict_sys->table_non_LRU, this);
-	}
-
+	UT_LIST_ADD_FIRST(table->can_be_evicted ? table_LRU : table_non_LRU,
+			  table);
 	ut_ad(dict_lru_validate());
 }
 
@@ -1328,9 +1041,7 @@ dict_table_can_be_evicted(
 /*======================*/
 	dict_table_t*	table)		/*!< in: table to test */
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-
+	ut_d(dict_sys.assert_locked());
 	ut_a(table->can_be_evicted);
 	ut_a(table->foreign_set.empty());
 	ut_a(table->referenced_set.empty());
@@ -1346,25 +1057,12 @@ dict_table_can_be_evicted(
 		}
 
 #ifdef BTR_CUR_HASH_ADAPT
+		/* We cannot really evict the table if adaptive hash
+		index entries are pointing to any of its indexes. */
 		for (dict_index_t* index = dict_table_get_first_index(table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
-
-			btr_search_t*	info = btr_search_get_info(index);
-
-			/* We are not allowed to free the in-memory index
-			struct dict_index_t until all entries in the adaptive
-			hash index that point to any of the page belonging to
-			his b-tree index are dropped. This is so because
-			dropping of these entries require access to
-			dict_index_t struct. To avoid such scenario we keep
-			a count of number of such pages in the search_info and
-			only free the dict_index_t struct when this count
-			drops to zero.
-
-			See also: dict_index_remove_from_cache_low() */
-
-			if (btr_search_info_get_ref_count(info, index) > 0) {
+			if (index->n_ahi_pages()) {
 				return(FALSE);
 			}
 		}
@@ -1375,6 +1073,73 @@ dict_table_can_be_evicted(
 
 	return(FALSE);
 }
+
+#ifdef BTR_CUR_HASH_ADAPT
+/** @return a clone of this */
+dict_index_t *dict_index_t::clone() const
+{
+  ut_ad(n_fields);
+  ut_ad(!(type & (DICT_IBUF | DICT_SPATIAL | DICT_FTS)));
+  ut_ad(online_status == ONLINE_INDEX_COMPLETE);
+  ut_ad(is_committed());
+  ut_ad(!is_dummy);
+  ut_ad(!parser);
+  ut_ad(!index_fts_syncing);
+  ut_ad(!online_log);
+  ut_ad(!rtr_track);
+
+  const size_t size= sizeof *this + n_fields * sizeof(*fields) +
+#ifdef BTR_CUR_ADAPT
+    sizeof *search_info +
+#endif
+    1 + strlen(name) +
+    n_uniq * (sizeof *stat_n_diff_key_vals +
+              sizeof *stat_n_sample_sizes +
+              sizeof *stat_n_non_null_key_vals);
+
+  mem_heap_t* heap= mem_heap_create(size);
+  dict_index_t *index= static_cast<dict_index_t*>(mem_heap_dup(heap, this,
+                                                               sizeof *this));
+  *index= *this;
+  rw_lock_create(index_tree_rw_lock_key, &index->lock, SYNC_INDEX_TREE);
+  index->heap= heap;
+  index->name= mem_heap_strdup(heap, name);
+  index->fields= static_cast<dict_field_t*>
+    (mem_heap_dup(heap, fields, n_fields * sizeof *fields));
+#ifdef BTR_CUR_ADAPT
+  index->search_info= btr_search_info_create(index->heap);
+#endif /* BTR_CUR_ADAPT */
+  index->stat_n_diff_key_vals= static_cast<ib_uint64_t*>
+    (mem_heap_zalloc(heap, n_uniq * sizeof *stat_n_diff_key_vals));
+  index->stat_n_sample_sizes= static_cast<ib_uint64_t*>
+    (mem_heap_zalloc(heap, n_uniq * sizeof *stat_n_sample_sizes));
+  index->stat_n_non_null_key_vals= static_cast<ib_uint64_t*>
+    (mem_heap_zalloc(heap, n_uniq * sizeof *stat_n_non_null_key_vals));
+  new (&index->zip_pad.mutex) std::mutex();
+  return index;
+}
+
+/** Clone this index for lazy dropping of the adaptive hash.
+@return this or a clone */
+dict_index_t *dict_index_t::clone_if_needed()
+{
+  if (!search_info->ref_count)
+    return this;
+  dict_index_t *prev= UT_LIST_GET_PREV(indexes, this);
+
+  table->autoinc_mutex.lock();
+  UT_LIST_REMOVE(table->indexes, this);
+  UT_LIST_ADD_LAST(table->freed_indexes, this);
+  dict_index_t *index= clone();
+  set_freed();
+  if (prev)
+    UT_LIST_INSERT_AFTER(table->indexes, prev, index);
+  else
+    UT_LIST_ADD_FIRST(table->indexes, index);
+  table->autoinc_mutex.unlock();
+  return index;
+}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /**********************************************************************//**
 Make room in the table cache by evicting an unused table. The unused table
@@ -1396,11 +1161,10 @@ dict_make_room_in_cache(
 
 	ut_a(pct_check > 0);
 	ut_a(pct_check <= 100);
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 	ut_ad(dict_lru_validate());
 
-	i = len = UT_LIST_GET_LEN(dict_sys->table_LRU);
+	i = len = UT_LIST_GET_LEN(dict_sys.table_LRU);
 
 	if (len < max_tables) {
 		return(0);
@@ -1414,7 +1178,7 @@ dict_make_room_in_cache(
 	/* Find a suitable candidate to evict from the cache. Don't scan the
 	entire LRU list. Only scan pct_check list entries. */
 
-	for (table = UT_LIST_GET_LAST(dict_sys->table_LRU);
+	for (table = UT_LIST_GET_LAST(dict_sys.table_LRU);
 	     table != NULL
 	     && i > check_up_to
 	     && (len - n_evicted) > max_tables;
@@ -1425,15 +1189,8 @@ dict_make_room_in_cache(
 	        prev_table = UT_LIST_GET_PREV(table_LRU, table);
 
 		if (dict_table_can_be_evicted(table)) {
-
-			DBUG_EXECUTE_IF("crash_if_fts_table_is_evicted",
-			{
-				  if (table->fts &&
-				      dict_table_has_fts_index(table)) {
-					ut_ad(0);
-				  }
-			};);
-			dict_table_remove_from_cache(table, true);
+			ut_ad(!table->fts);
+			dict_sys.remove(table, true);
 
 			++n_evicted;
 		}
@@ -1442,25 +1199,6 @@ dict_make_room_in_cache(
 	}
 
 	return(n_evicted);
-}
-
-/**********************************************************************//**
-Move a table to the non-LRU list from the LRU list. */
-void
-dict_table_move_from_lru_to_non_lru(
-/*================================*/
-	dict_table_t*	table)	/*!< in: table to move from LRU to non-LRU */
-{
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(dict_lru_find_table(table));
-
-	ut_a(table->can_be_evicted);
-
-	UT_LIST_REMOVE(dict_sys->table_LRU, table);
-
-	UT_LIST_ADD_LAST(dict_sys->table_non_LRU, table);
-
-	table->can_be_evicted = FALSE;
 }
 
 /** Looks for an index with the given id given a table instance.
@@ -1498,14 +1236,11 @@ dict_index_find_on_id_low(
 /*======================*/
 	index_id_t	id)	/*!< in: index id */
 {
+	if (!dict_sys.is_initialised()) return NULL;
+
 	dict_table_t*	table;
 
-	/* This can happen if the system tablespace is the wrong page size */
-	if (dict_sys == NULL) {
-		return(NULL);
-	}
-
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
+	for (table = UT_LIST_GET_FIRST(dict_sys.table_LRU);
 	     table != NULL;
 	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
 
@@ -1516,7 +1251,7 @@ dict_index_find_on_id_low(
 		}
 	}
 
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_non_LRU);
+	for (table = UT_LIST_GET_FIRST(dict_sys.table_non_LRU);
 	     table != NULL;
 	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
 
@@ -1569,22 +1304,17 @@ dict_table_rename_in_cache(
 	char		old_name[MAX_FULL_NAME_LEN + 1];
 	os_file_type_t	ftype;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	/* store the old/current name to an automatic variable */
-	if (strlen(table->name.m_name) + 1 <= sizeof(old_name)) {
-		strcpy(old_name, table->name.m_name);
-	} else {
-		ib::fatal() << "Too long table name: "
-			<< table->name
-			<< ", max length is " << MAX_FULL_NAME_LEN;
-	}
+	ut_a(strlen(table->name.m_name) < sizeof old_name);
+	strcpy(old_name, table->name.m_name);
 
 	fold = ut_fold_string(new_name);
 
 	/* Look for a table with the same name: error if such exists */
 	dict_table_t*	table2;
-	HASH_SEARCH(name_hash, dict_sys->table_hash, fold,
+	HASH_SEARCH(name_hash, dict_sys.table_hash, fold,
 			dict_table_t*, table2, ut_ad(table2->cached),
 			(ut_strcmp(table2->name.m_name, new_name) == 0));
 	DBUG_EXECUTE_IF("dict_table_rename_in_cache_failure",
@@ -1626,7 +1356,7 @@ dict_table_rename_in_cache(
 			return(DB_OUT_OF_MEMORY);
 		}
 
-		fil_delete_tablespace(table->space_id);
+		fil_delete_tablespace(table->space_id, !table->space);
 
 		/* Delete any temp file hanging around. */
 		if (os_file_status(filepath, &exists, &ftype)
@@ -1678,7 +1408,7 @@ dict_table_rename_in_cache(
 	}
 
 	/* Remove table from the hash tables of tables */
-	HASH_DELETE(dict_table_t, name_hash, dict_sys->table_hash,
+	HASH_DELETE(dict_table_t, name_hash, dict_sys.table_hash,
 		    ut_fold_string(old_name), table);
 
 	if (strlen(new_name) > strlen(table->name.m_name)) {
@@ -1693,7 +1423,7 @@ dict_table_rename_in_cache(
 	strcpy(table->name.m_name, new_name);
 
 	/* Add table to hash table of tables */
-	HASH_INSERT(dict_table_t, name_hash, dict_sys->table_hash, fold,
+	HASH_INSERT(dict_table_t, name_hash, dict_sys.table_hash, fold,
 		    table);
 
 	if (!rename_also_foreigns) {
@@ -1768,7 +1498,7 @@ dict_table_rename_in_cache(
 
 			ulint	db_len;
 			char*	old_id;
-			char    old_name_cs_filename[MAX_TABLE_NAME_LEN+20];
+			char    old_name_cs_filename[MAX_FULL_NAME_LEN+1];
 			uint    errors = 0;
 
 			/* All table names are internally stored in charset
@@ -1784,8 +1514,8 @@ dict_table_rename_in_cache(
 			/* The old table name in my_charset_filename is stored
 			in old_name_cs_filename */
 
-			strncpy(old_name_cs_filename, old_name,
-				MAX_TABLE_NAME_LEN);
+			strcpy(old_name_cs_filename, old_name);
+			old_name_cs_filename[MAX_FULL_NAME_LEN] = '\0';
 			if (strstr(old_name, TEMP_TABLE_PATH_PREFIX) == NULL) {
 
 				innobase_convert_to_system_charset(
@@ -1806,8 +1536,9 @@ dict_table_rename_in_cache(
 				} else {
 					/* Old name already in
 					my_charset_filename */
-					strncpy(old_name_cs_filename, old_name,
-						MAX_TABLE_NAME_LEN);
+					strcpy(old_name_cs_filename, old_name);
+					old_name_cs_filename[MAX_FULL_NAME_LEN]
+						= '\0';
 				}
 			}
 
@@ -1833,7 +1564,7 @@ dict_table_rename_in_cache(
 
 				/* This is a generated >= 4.0.18 format id */
 
-				char	table_name[MAX_TABLE_NAME_LEN] = "";
+				char	table_name[MAX_TABLE_NAME_LEN + 1];
 				uint	errors = 0;
 
 				if (strlen(table->name.m_name)
@@ -1848,6 +1579,7 @@ dict_table_rename_in_cache(
 				/* Convert the table name to UTF-8 */
 				strncpy(table_name, table->name.m_name,
 					MAX_TABLE_NAME_LEN);
+				table_name[MAX_TABLE_NAME_LEN] = '\0';
 				innobase_convert_to_system_charset(
 					strchr(table_name, '/') + 1,
 					strchr(table->name.m_name, '/') + 1,
@@ -1857,9 +1589,10 @@ dict_table_rename_in_cache(
 					/* Table name could not be converted
 					from charset my_charset_filename to
 					UTF-8. This means that the table name
-					is already in UTF-8 (#mysql#50). */
+					is already in UTF-8 (#mysql50#). */
 					strncpy(table_name, table->name.m_name,
 						MAX_TABLE_NAME_LEN);
+					table_name[MAX_TABLE_NAME_LEN] = '\0';
 				}
 
 				/* Replace the prefix 'databasename/tablename'
@@ -1952,18 +1685,18 @@ dict_table_change_id_in_cache(
 	dict_table_t*	table,	/*!< in/out: table object already in cache */
 	table_id_t	new_id)	/*!< in: new id to set */
 {
-	ut_ad(table);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+	ut_ad(!table->is_temporary());
 
 	/* Remove the table from the hash table of id's */
 
-	HASH_DELETE(dict_table_t, id_hash, dict_sys->table_id_hash,
+	HASH_DELETE(dict_table_t, id_hash, dict_sys.table_id_hash,
 		    ut_fold_ull(table->id), table);
 	table->id = new_id;
 
 	/* Add the table back to the hash table */
-	HASH_INSERT(dict_table_t, id_hash, dict_sys->table_id_hash,
+	HASH_INSERT(dict_table_t, id_hash, dict_sys.table_id_hash,
 		    ut_fold_ull(table->id), table);
 }
 
@@ -1971,16 +1704,15 @@ dict_table_change_id_in_cache(
 @param[in,out]	table	cached table definition to be evicted
 @param[in]	lru	whether this is part of least-recently-used eviction
 @param[in]	keep	whether to keep (not free) the object */
-void dict_table_remove_from_cache(dict_table_t* table, bool lru, bool keep)
+void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 {
 	dict_foreign_t*	foreign;
 	dict_index_t*	index;
 
-	ut_ad(table);
 	ut_ad(dict_lru_validate());
 	ut_a(table->get_ref_count() == 0);
 	ut_a(table->n_rec_locks == 0);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(find(table));
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	/* Remove the foreign constraints from the cache */
@@ -2009,22 +1741,20 @@ void dict_table_remove_from_cache(dict_table_t* table, bool lru, bool keep)
 
 	/* Remove table from the hash tables of tables */
 
-	HASH_DELETE(dict_table_t, name_hash, dict_sys->table_hash,
+	HASH_DELETE(dict_table_t, name_hash, table_hash,
 		    ut_fold_string(table->name.m_name), table);
 
-	HASH_DELETE(dict_table_t, id_hash, dict_sys->table_id_hash,
-		    ut_fold_ull(table->id), table);
+	hash_table_t* id_hash = table->is_temporary()
+		? temp_id_hash : table_id_hash;
+	const ulint id_fold = ut_fold_ull(table->id);
+	HASH_DELETE(dict_table_t, id_hash, id_hash, id_fold, table);
 
 	/* Remove table from LRU or non-LRU list. */
 	if (table->can_be_evicted) {
-		ut_ad(dict_lru_find_table(table));
-		UT_LIST_REMOVE(dict_sys->table_LRU, table);
+		UT_LIST_REMOVE(table_LRU, table);
 	} else {
-		ut_ad(dict_non_lru_find_table(table));
-		UT_LIST_REMOVE(dict_sys->table_non_LRU, table);
+		UT_LIST_REMOVE(table_non_LRU, table);
 	}
-
-	ut_ad(dict_lru_validate());
 
 	if (lru && table->drop_aborted) {
 		/* When evicting the table definition,
@@ -2032,9 +1762,7 @@ void dict_table_remove_from_cache(dict_table_t* table, bool lru, bool keep)
 		and free the index pages. */
 		trx_t* trx = trx_create();
 
-		ut_ad(mutex_own(&dict_sys->mutex));
-		ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-
+		ut_d(dict_sys.assert_locked());
 		/* Mimic row_mysql_lock_data_dictionary(). */
 		trx->dict_operation_lock_mode = RW_X_LATCH;
 
@@ -2042,7 +1770,7 @@ void dict_table_remove_from_cache(dict_table_t* table, bool lru, bool keep)
 		row_merge_drop_indexes_dict(trx, table->id);
 		trx_commit_for_mysql(trx);
 		trx->dict_operation_lock_mode = 0;
-		trx_free(trx);
+		trx->free();
 	}
 
 	/* Free virtual column template if any */
@@ -2051,9 +1779,33 @@ void dict_table_remove_from_cache(dict_table_t* table, bool lru, bool keep)
 		UT_DELETE(table->vc_templ);
 	}
 
-	if (!keep) {
-		dict_mem_table_free(table);
+	if (keep) {
+		table->autoinc_mutex.~mutex();
+		return;
 	}
+
+#ifdef BTR_CUR_HASH_ADAPT
+	if (table->fts) {
+		fts_optimize_remove_table(table);
+		fts_free(table);
+		table->fts = NULL;
+	}
+
+	table->autoinc_mutex.lock();
+
+	ulint freed = UT_LIST_GET_LEN(table->freed_indexes);
+
+	table->vc_templ = NULL;
+	table->id = 0;
+	table->autoinc_mutex.unlock();
+
+	if (UNIV_UNLIKELY(freed != 0)) {
+		return;
+	}
+#endif /* BTR_CUR_HASH_ADAPT */
+
+	table->autoinc_mutex.~mutex();
+	dict_mem_table_free(table);
 }
 
 /****************************************************************//**
@@ -2081,250 +1833,24 @@ dict_col_name_is_reserved(
 	return(FALSE);
 }
 
-/****************************************************************//**
-If a record of this index might not fit on a single B-tree page,
-return TRUE.
-@return TRUE if the index record could become too big */
-static
-ibool
-dict_index_too_big_for_tree(
-/*========================*/
-	const dict_table_t*	table,		/*!< in: table */
-	const dict_index_t*	new_index,	/*!< in: index */
-	bool			strict)		/*!< in: TRUE=report error if
-						records could be too big to
-						fit in an B-tree page */
-{
-	ulint	comp;
-	ulint	i;
-	/* maximum possible storage size of a record */
-	ulint	rec_max_size;
-	/* maximum allowed size of a record on a leaf page */
-	ulint	page_rec_max;
-	/* maximum allowed size of a node pointer record */
-	ulint	page_ptr_max;
-
-	/* FTS index consists of auxiliary tables, they shall be excluded from
-	index row size check */
-	if (new_index->type & DICT_FTS) {
-		return(false);
-	}
-
-	DBUG_EXECUTE_IF(
-		"ib_force_create_table",
-		return(FALSE););
-
-	comp = dict_table_is_comp(table);
-
-	const page_size_t page_size(dict_tf_get_page_size(table->flags));
-
-	if (page_size.is_compressed()
-	    && page_size.physical() < srv_page_size) {
-		/* On a compressed page, two records must fit in the
-		uncompressed page modification log. On compressed pages
-		with size.physical() == srv_page_size,
-		this limit will never be reached. */
-		ut_ad(comp);
-		/* The maximum allowed record size is the size of
-		an empty page, minus a byte for recoding the heap
-		number in the page modification log.  The maximum
-		allowed node pointer size is half that. */
-		page_rec_max = page_zip_empty_size(new_index->n_fields,
-						   page_size.physical());
-		if (page_rec_max) {
-			page_rec_max--;
-		}
-		page_ptr_max = page_rec_max / 2;
-		/* On a compressed page, there is a two-byte entry in
-		the dense page directory for every record.  But there
-		is no record header. */
-		rec_max_size = 2;
-	} else {
-		/* The maximum allowed record size is half a B-tree
-		page(16k for 64k page size).  No additional sparse
-		page directory entry will be generated for the first
-		few user records. */
-		page_rec_max = (comp || srv_page_size < UNIV_PAGE_SIZE_MAX)
-			? page_get_free_space_of_empty(comp) / 2
-			: REDUNDANT_REC_MAX_DATA_SIZE;
-
-		page_ptr_max = page_rec_max;
-		/* Each record has a header. */
-		rec_max_size = comp
-			? REC_N_NEW_EXTRA_BYTES
-			: REC_N_OLD_EXTRA_BYTES;
-	}
-
-	if (comp) {
-		/* Include the "null" flags in the
-		maximum possible record size. */
-		rec_max_size += UT_BITS_IN_BYTES(
-			unsigned(new_index->n_nullable));
-	} else {
-		/* For each column, include a 2-byte offset and a
-		"null" flag.  The 1-byte format is only used in short
-		records that do not contain externally stored columns.
-		Such records could never exceed the page limit, even
-		when using the 2-byte format. */
-		rec_max_size += 2 * unsigned(new_index->n_fields);
-	}
-
-	/* Compute the maximum possible record size. */
-	for (i = 0; i < new_index->n_fields; i++) {
-		const dict_field_t*	field
-			= dict_index_get_nth_field(new_index, i);
-		const dict_col_t*	col
-			= dict_field_get_col(field);
-		ulint			field_max_size;
-		ulint			field_ext_max_size;
-
-		/* In dtuple_convert_big_rec(), variable-length columns
-		that are longer than BTR_EXTERN_LOCAL_STORED_MAX_SIZE
-		may be chosen for external storage.
-
-		Fixed-length columns, and all columns of secondary
-		index records are always stored inline. */
-
-		/* Determine the maximum length of the index field.
-		The field_ext_max_size should be computed as the worst
-		case in rec_get_converted_size_comp() for
-		REC_STATUS_ORDINARY records. */
-
-		field_max_size = dict_col_get_fixed_size(col, comp);
-		if (field_max_size && field->fixed_len != 0) {
-			/* dict_index_add_col() should guarantee this */
-			ut_ad(!field->prefix_len
-			      || field->fixed_len == field->prefix_len);
-			/* Fixed lengths are not encoded
-			in ROW_FORMAT=COMPACT. */
-			field_ext_max_size = 0;
-			goto add_field_size;
-		}
-
-		field_max_size = dict_col_get_max_size(col);
-		field_ext_max_size = field_max_size < 256 ? 1 : 2;
-
-		if (field->prefix_len) {
-			if (field->prefix_len < field_max_size) {
-				field_max_size = field->prefix_len;
-			}
-		} else if (field_max_size > BTR_EXTERN_LOCAL_STORED_MAX_SIZE
-			   && dict_index_is_clust(new_index)) {
-
-			/* In the worst case, we have a locally stored
-			column of BTR_EXTERN_LOCAL_STORED_MAX_SIZE bytes.
-			The length can be stored in one byte.  If the
-			column were stored externally, the lengths in
-			the clustered index page would be
-			BTR_EXTERN_FIELD_REF_SIZE and 2. */
-			field_max_size = BTR_EXTERN_LOCAL_STORED_MAX_SIZE;
-			field_ext_max_size = 1;
-		}
-
-		if (comp) {
-			/* Add the extra size for ROW_FORMAT=COMPACT.
-			For ROW_FORMAT=REDUNDANT, these bytes were
-			added to rec_max_size before this loop. */
-			rec_max_size += field_ext_max_size;
-		}
-add_field_size:
-		rec_max_size += field_max_size;
-
-		/* Check the size limit on leaf pages. */
-		if (rec_max_size >= page_rec_max) {
-			ib::error_or_warn(strict)
-				<< "Cannot add field " << field->name
-				<< " in table " << table->name
-				<< " because after adding it, the row size is "
-				<< rec_max_size
-				<< " which is greater than maximum allowed"
-				" size (" << page_rec_max
-				<< ") for a record on index leaf page.";
-
-			return(TRUE);
-		}
-
-		/* Check the size limit on non-leaf pages.  Records
-		stored in non-leaf B-tree pages consist of the unique
-		columns of the record (the key columns of the B-tree)
-		and a node pointer field.  When we have processed the
-		unique columns, rec_max_size equals the size of the
-		node pointer record minus the node pointer column. */
-		if (i + 1 == dict_index_get_n_unique_in_tree(new_index)
-		    && rec_max_size + REC_NODE_PTR_SIZE >= page_ptr_max) {
-
-			return(TRUE);
-		}
-	}
-
-	return(FALSE);
-}
-
-/** Clears the virtual column's index list before index is
-being freed.
-@param[in]  index   Index being freed */
-void dict_index_remove_from_v_col_list(dict_index_t* index)
-{
-	/* Index is not completely formed */
-	if (!index->cached) {
-		return;
-	}
-        if (dict_index_has_virtual(index)) {
-                const dict_col_t*       col;
-                const dict_v_col_t*     vcol;
-
-                for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
-                        col =  dict_index_get_nth_col(index, i);
-                        if (col->is_virtual()) {
-                                vcol = reinterpret_cast<const dict_v_col_t*>(
-                                        col);
-				/* This could be NULL, when we do add
-                                virtual column, add index together. We do not
-                                need to track this virtual column's index */
-				if (vcol->v_indexes == NULL) {
-                                        continue;
-                                }
-				dict_v_idx_list::iterator       it;
-				for (it = vcol->v_indexes->begin();
-                                     it != vcol->v_indexes->end(); ++it) {
-                                        dict_v_idx_t    v_index = *it;
-                                        if (v_index.index == index) {
-                                                vcol->v_indexes->erase(it);
-                                                break;
-                                        }
-				}
-			}
-		}
-	}
-}
-
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
-@param[in]	index	index; NOTE! The index memory
+@param[in,out]	index	index; NOTE! The index memory
 			object is freed in this function!
 @param[in]	page_no	root page number of the index
-@param[in]	strict	TRUE=refuse to create the index
-			if records could be too big to fit in
-			an B-tree page
-@param[out]	err	DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION
-@param[in]	add_v	new virtual column that being added along with
-			an add index call
-@return	the added index
-@retval	NULL	on error */
-dict_index_t*
+@param[in]	add_v	virtual columns being added along with ADD INDEX
+@return DB_SUCCESS, or DB_CORRUPTION */
+dberr_t
 dict_index_add_to_cache(
-	dict_index_t*		index,
+	dict_index_t*&		index,
 	ulint			page_no,
-	bool			strict,
-	dberr_t*		err,
 	const dict_add_v_col_t* add_v)
 {
 	dict_index_t*	new_index;
 	ulint		n_ord;
 	ulint		i;
 
-	ut_ad(index);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_ad(index->n_def == index->n_fields);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(!dict_index_is_online_ddl(index));
@@ -2338,8 +1864,8 @@ dict_index_add_to_cache(
 	if (!dict_index_find_cols(index, add_v)) {
 
 		dict_mem_index_free(index);
-		if (err) *err = DB_CORRUPTION;
-		return NULL;
+		index = NULL;
+		return DB_CORRUPTION;
 	}
 
 	/* Build the cache internal representation of the index,
@@ -2366,20 +1892,6 @@ dict_index_add_to_cache(
 	new_index->disable_ahi = index->disable_ahi;
 #endif
 
-	if (dict_index_too_big_for_tree(index->table, new_index, strict)) {
-
-		if (strict) {
-			dict_mem_index_free(new_index);
-			dict_mem_index_free(index);
-			if (err) *err = DB_TOO_BIG_RECORD;
-			return NULL;
-		} else if (current_thd != NULL) {
-			/* Avoid the warning to be printed
-			during recovery. */
-			ib_warn_row_too_big(index->table);
-		}
-	}
-
 	n_ord = new_index->n_uniq;
 	/* Flag the ordering columns and also set column max_prefix */
 
@@ -2403,6 +1915,9 @@ dict_index_add_to_cache(
 			   > field->col->max_prefix) {
 			/* Set the max_prefix value based on the
 			prefix_len. */
+			ut_ad(field->col->is_binary()
+			      || field->prefix_len % field->col->mbmaxlen == 0
+			      || field->prefix_len % 4 == 0);
 			field->col->max_prefix = field->prefix_len;
 		}
 		ut_ad(field->col->ord_part == 1);
@@ -2450,8 +1965,8 @@ dict_index_add_to_cache(
 	new_index->n_core_fields = new_index->n_fields;
 
 	dict_mem_index_free(index);
-	if (err) *err = DB_SUCCESS;
-	return new_index;
+	index = new_index;
+	return DB_SUCCESS;
 }
 
 /**********************************************************************//**
@@ -2468,7 +1983,11 @@ dict_index_remove_from_cache_low(
 	ut_ad(table && index);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_ad(table->id);
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(!index->freed());
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* No need to acquire the dict_index_t::lock here because
 	there can't be any active operations on this index (or table). */
@@ -2476,15 +1995,25 @@ dict_index_remove_from_cache_low(
 	if (index->online_log) {
 		ut_ad(index->online_status == ONLINE_INDEX_CREATION);
 		row_log_free(index->online_log);
+		index->online_log = NULL;
 	}
+
+	/* Remove the index from the list of indexes of the table */
+	UT_LIST_REMOVE(table->indexes, index);
+
+	/* The index is being dropped, remove any compression stats for it. */
+	if (!lru_evict && DICT_TF_GET_ZIP_SSIZE(index->table->flags)) {
+		mutex_enter(&page_zip_stat_per_index_mutex);
+		page_zip_stat_per_index.erase(index->id);
+		mutex_exit(&page_zip_stat_per_index_mutex);
+	}
+
+	/* Remove the index from affected virtual column index list */
+	index->detach_columns();
 
 #ifdef BTR_CUR_HASH_ADAPT
 	/* We always create search info whether or not adaptive
 	hash index is enabled or not. */
-	btr_search_t*	info = btr_search_get_info(index);
-	ulint		retries = 0;
-	ut_ad(info);
-
 	/* We are not allowed to free the in-memory index struct
 	dict_index_t until all entries in the adaptive hash index
 	that point to any of the page belonging to his b-tree index
@@ -2494,30 +2023,16 @@ dict_index_remove_from_cache_low(
 	only free the dict_index_t struct when this count drops to
 	zero. See also: dict_table_can_be_evicted() */
 
-	do {
-		if (!btr_search_info_get_ref_count(info, index)
-		    || !buf_LRU_drop_page_hash_for_tablespace(table)) {
-			break;
-		}
-
-		ut_a(++retries < 10000);
-	} while (srv_shutdown_state == SRV_SHUTDOWN_NONE || !lru_evict);
+	if (index->n_ahi_pages()) {
+		table->autoinc_mutex.lock();
+		index->set_freed();
+		UT_LIST_ADD_LAST(table->freed_indexes, index);
+		table->autoinc_mutex.unlock();
+		return;
+	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	rw_lock_free(&index->lock);
-
-	/* The index is being dropped, remove any compression stats for it. */
-	if (!lru_evict && DICT_TF_GET_ZIP_SSIZE(index->table->flags)) {
-		mutex_enter(&page_zip_stat_per_index_mutex);
-		page_zip_stat_per_index.erase(index->id);
-		mutex_exit(&page_zip_stat_per_index_mutex);
-	}
-
-	/* Remove the index from the list of indexes of the table */
-	UT_LIST_REMOVE(table->indexes, index);
-
-	/* Remove the index from affected virtual column index list */
-	index->detach_columns();
 
 	dict_mem_index_free(index);
 }
@@ -2550,7 +2065,7 @@ dict_index_find_cols(
 
 	const dict_table_t* table = index->table;
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	for (ulint i = 0; i < index->n_fields; i++) {
 		ulint		j;
@@ -2648,18 +2163,8 @@ dict_index_add_col(
 
 	if (col->is_virtual()) {
 		dict_v_col_t*	v_col = reinterpret_cast<dict_v_col_t*>(col);
-
-		/* When v_col->v_indexes==NULL,
-		ha_innobase::commit_inplace_alter_table(commit=true)
-		will evict and reload the table definition, and
-		v_col->v_indexes will not be NULL for the new table. */
-		if (v_col->v_indexes != NULL) {
-			/* Register the index with the virtual column index
-			list */
-			v_col->v_indexes->push_back(
-				dict_v_idx_t(index, index->n_def));
-		}
-
+		/* Register the index with the virtual column index list */
+		v_col->v_indexes.push_front(dict_v_idx_t(index, index->n_def));
 		col_name = dict_table_get_v_col_name_mysql(
 			table, dict_col_get_no(col));
 	} else {
@@ -2806,30 +2311,6 @@ dict_table_copy_types(
 	dict_table_copy_v_types(tuple, table);
 }
 
-/********************************************************************
-Wait until all the background threads of the given table have exited, i.e.,
-bg_threads == 0. Note: bg_threads_mutex must be reserved when
-calling this. */
-void
-dict_table_wait_for_bg_threads_to_exit(
-/*===================================*/
-	dict_table_t*	table,	/*< in: table */
-	ulint		delay)	/*< in: time in microseconds to wait between
-				checks of bg_threads. */
-{
-	fts_t*		fts = table->fts;
-
-	ut_ad(mutex_own(&fts->bg_threads_mutex));
-
-	while (fts->bg_threads > 0) {
-		mutex_exit(&fts->bg_threads_mutex);
-
-		os_thread_sleep(delay);
-
-		mutex_enter(&fts->bg_threads_mutex);
-	}
-}
-
 /*******************************************************************//**
 Builds the internal dictionary cache representation for a clustered
 index, containing also system fields not defined by the user.
@@ -2848,10 +2329,10 @@ dict_index_build_internal_clust(
 	ulint		i;
 	ibool*		indexed;
 
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(index->is_primary());
+	ut_ad(!index->has_virtual());
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	/* Create a new index object with certainly enough fields */
 	new_index = dict_mem_index_create(index->table, index->name,
@@ -2962,7 +2443,6 @@ dict_index_build_internal_clust(
 	/* Add to new_index non-system columns of table not yet included
 	there */
 	for (i = 0; i + DATA_N_SYS_COLS < ulint(table->n_cols); i++) {
-
 		dict_col_t*	col = dict_table_get_nth_col(table, i);
 		ut_ad(col->mtype != DATA_SYS);
 
@@ -3004,7 +2484,7 @@ dict_index_build_internal_non_clust(
 	ut_ad(table && index);
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(!dict_index_is_ibuf(index));
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	/* The clustered index should be the first in the list of indexes */
 	clust_index = UT_LIST_GET_FIRST(table->indexes);
@@ -3098,7 +2578,7 @@ dict_index_build_internal_fts(
 	dict_index_t*	new_index;
 
 	ut_ad(index->type == DICT_FTS);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	/* Create a new index */
 	new_index = dict_mem_index_create(index->table, index->name,
@@ -3131,11 +2611,6 @@ dict_index_build_internal_fts(
 	return(new_index);
 }
 /*====================== FOREIGN KEY PROCESSING ========================*/
-
-#define  DB_FOREIGN_KEY_IS_PREFIX_INDEX 200
-#define  DB_FOREIGN_KEY_COL_NOT_NULL    201
-#define  DB_FOREIGN_KEY_COLS_NOT_EQUAL  202
-#define  DB_FOREIGN_KEY_INDEX_NOT_FOUND 203
 
 /** Check whether the dict_table_t is a partition.
 A partitioned table on the SQL level is composed of InnoDB tables,
@@ -3172,7 +2647,7 @@ dict_foreign_remove_from_cache(
 /*===========================*/
 	dict_foreign_t*	foreign)	/*!< in, own: foreign constraint */
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_a(foreign);
 
 	if (foreign->referenced_table != NULL) {
@@ -3197,7 +2672,7 @@ dict_foreign_find(
 	dict_table_t*	table,		/*!< in: table object */
 	dict_foreign_t*	foreign)	/*!< in: foreign constraint */
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	ut_ad(dict_foreign_set_validate(table->foreign_set));
 	ut_ad(dict_foreign_set_validate(table->referenced_set));
@@ -3243,7 +2718,7 @@ dict_foreign_find_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
-	ulint*			error,	/*!< out: error code */
+	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
 					error happened */
@@ -3251,17 +2726,15 @@ dict_foreign_find_index(
 					/*!< out: index where error
 					happened */
 {
-	dict_index_t*	index;
-
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	if (error) {
-		*error = DB_FOREIGN_KEY_INDEX_NOT_FOUND;
+		*error = FK_INDEX_NOT_FOUND;
 	}
 
-	index = dict_table_get_first_index(table);
-
-	while (index != NULL) {
+	for (dict_index_t* index = dict_table_get_first_index(table);
+	     index;
+	     index = dict_table_get_next_index(index)) {
 		if (types_idx != index
 		    && !index->to_be_dropped
 		    && !dict_index_is_online_ddl(index)
@@ -3269,42 +2742,17 @@ dict_foreign_find_index(
 			    table, col_names, columns, n_cols,
 			    index, types_idx,
 			    check_charsets, check_null,
-			    error, err_col_no,err_index)) {
+			    error, err_col_no, err_index)) {
 			if (error) {
-				*error = DB_SUCCESS;
+				*error = FK_SUCCESS;
 			}
 
 			return(index);
 		}
-
-		index = dict_table_get_next_index(index);
 	}
 
 	return(NULL);
 }
-#ifdef WITH_WSREP
-dict_index_t*
-wsrep_dict_foreign_find_index(
-/*====================*/
-	dict_table_t*	table,	/*!< in: table */
-	const char**	col_names, /*!< in: column names, or NULL
-					to use table->col_names */
-	const char**	columns,/*!< in: array of column names */
-	ulint		n_cols,	/*!< in: number of columns */
-	dict_index_t*	types_idx, /*!< in: NULL or an index to whose types the
-				   column types must match */
-	ibool		check_charsets,
-				/*!< in: whether to check charsets.
-				only has an effect if types_idx != NULL */
-	ulint		check_null)
-				/*!< in: nonzero if none of the columns must
-				be declared NOT NULL */
-{
-	return dict_foreign_find_index(
-		table, col_names, columns, n_cols, types_idx, check_charsets,
-		check_null, NULL, NULL, NULL);
-}
-#endif /* WITH_WSREP */
 /**********************************************************************//**
 Report an error in a foreign key definition. */
 static
@@ -3376,7 +2824,7 @@ dict_foreign_add_to_cache(
 	DBUG_ENTER("dict_foreign_add_to_cache");
 	DBUG_PRINT("dict_foreign_add_to_cache", ("id: %s", foreign->id));
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	for_table = dict_table_check_if_in_cache_low(
 		foreign->foreign_table_name_lookup);
@@ -3401,15 +2849,11 @@ dict_foreign_add_to_cache(
 	}
 
 	if (ref_table && !for_in_cache->referenced_table) {
-		ulint index_error;
-		ulint err_col;
-		dict_index_t *err_index=NULL;
-
 		index = dict_foreign_find_index(
 			ref_table, NULL,
 			for_in_cache->referenced_col_names,
 			for_in_cache->n_fields, for_in_cache->foreign_index,
-			check_charsets, false, &index_error, &err_col, &err_index);
+			check_charsets, false);
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -3441,10 +2885,6 @@ dict_foreign_add_to_cache(
 	}
 
 	if (for_table && !for_in_cache->foreign_table) {
-		ulint index_error;
-		ulint err_col;
-		dict_index_t *err_index=NULL;
-
 		index = dict_foreign_find_index(
 			for_table, col_names,
 			for_in_cache->foreign_col_names,
@@ -3452,8 +2892,7 @@ dict_foreign_add_to_cache(
 			for_in_cache->referenced_index, check_charsets,
 			for_in_cache->type
 			& (DICT_FOREIGN_ON_DELETE_SET_NULL
-				| DICT_FOREIGN_ON_UPDATE_SET_NULL),
-			&index_error, &err_col, &err_index);
+			   | DICT_FOREIGN_ON_UPDATE_SET_NULL));
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -3499,11 +2938,11 @@ dict_foreign_add_to_cache(
 	list. Otherwise it will be evicted from the cache. */
 
 	if (ref_table != NULL) {
-		dict_table_prevent_eviction(ref_table);
+		dict_sys.prevent_eviction(ref_table);
 	}
 
 	if (for_table != NULL) {
-		dict_table_prevent_eviction(for_table);
+		dict_sys.prevent_eviction(for_table);
 	}
 
 	ut_ad(dict_lru_validate());
@@ -4165,7 +3604,7 @@ dict_foreign_push_index_error(
 	const char*	latest_foreign,	/*!< in: start of latest foreign key
 					constraint name */
 	const char**	columns,	/*!< in: foreign key columns */
-	ulint		index_error,	/*!< in: error code */
+	fkerr_t		index_error,	/*!< in: error code */
 	ulint		err_col,	/*!< in: column where error happened
 					*/
 	dict_index_t*	err_index,	/*!< in: index where error happened
@@ -4174,37 +3613,37 @@ dict_foreign_push_index_error(
 	FILE*		ef)		/*!< in: output stream */
 {
 	switch (index_error) {
-	case DB_FOREIGN_KEY_INDEX_NOT_FOUND: {
+	case FK_SUCCESS:
+		break;
+	case FK_INDEX_NOT_FOUND:
 		fprintf(ef,
-			"%s table '%s' with foreign key constraint"
+			"%s table %s with foreign key constraint"
 			" failed. There is no index in the referenced"
 			" table where the referenced columns appear"
 			" as the first columns near '%s'.\n",
 			operation, create_name, latest_foreign);
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
-			"%s table '%s' with foreign key constraint"
+			"%s table %s with foreign key constraint"
 			" failed. There is no index in the referenced"
 			" table where the referenced columns appear"
 			" as the first columns near '%s'.",
 			operation, create_name, latest_foreign);
-		break;
-	}
-	case DB_FOREIGN_KEY_IS_PREFIX_INDEX: {
+		return;
+	case FK_IS_PREFIX_INDEX:
 		fprintf(ef,
-			"%s table '%s' with foreign key constraint"
+			"%s table %s with foreign key constraint"
 			" failed. There is only prefix index in the referenced"
 			" table where the referenced columns appear"
 			" as the first columns near '%s'.\n",
 			operation, create_name, latest_foreign);
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
-			"%s table '%s' with foreign key constraint"
+			"%s table %s with foreign key constraint"
 			" failed. There is only prefix index in the referenced"
 			" table where the referenced columns appear"
 			" as the first columns near '%s'.",
 			operation, create_name, latest_foreign);
-		break;
-	}
-	case DB_FOREIGN_KEY_COL_NOT_NULL: {
+		return;
+	case FK_COL_NOT_NULL:
 		fprintf(ef,
 			"%s table %s with foreign key constraint"
 			" failed. You have defined a SET NULL condition but "
@@ -4215,9 +3654,8 @@ dict_foreign_push_index_error(
 			" failed. You have defined a SET NULL condition but "
 			"column '%s' on index is defined as NOT NULL near '%s'.",
 			operation, create_name, columns[err_col], latest_foreign);
-		break;
-	}
-	case DB_FOREIGN_KEY_COLS_NOT_EQUAL: {
+		return;
+	case FK_COLS_NOT_EQUAL:
 		dict_field_t*	field;
 		const char*	col_name;
 		field = dict_index_get_nth_field(err_index, err_col);
@@ -4236,11 +3674,9 @@ dict_foreign_push_index_error(
 			" failed. Field type or character set for column '%s' "
 			"does not mach referenced column '%s' near '%s'.",
 			operation, create_name, columns[err_col], col_name, latest_foreign);
-		break;
+		return;
 	}
-	default:
-		ut_error;
-	}
+	DBUG_ASSERT(!"unknown error");
 }
 
 /*********************************************************************//**
@@ -4272,7 +3708,7 @@ dict_create_foreign_constraints_low(
 	const char*	start_of_latest_foreign	= sql_string;
 	const char*	start_of_latest_set     = NULL;
 	FILE*		ef			= dict_foreign_err_file;
-	ulint		index_error		= DB_SUCCESS;
+	fkerr_t		index_error		= FK_SUCCESS;
 	dict_index_t*	err_index		= NULL;
 	ulint		err_col;
 	const char*	constraint_name;
@@ -4294,10 +3730,9 @@ dict_create_foreign_constraints_low(
 	const char*	create_table_name;
 	const char*	orig;
 	char	create_name[MAX_TABLE_NAME_LEN + 1];
-	char	operation[8];
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	table = dict_table_get_low(name);
 	/* First check if we are actually doing an ALTER TABLE, and in that
@@ -4305,40 +3740,32 @@ dict_create_foreign_constraints_low(
 	orig = ptr;
 	ptr = dict_accept(cs, ptr, "ALTER", &success);
 
-	strcpy((char *)operation, success ? "Alter " : "Create ");
+	const char* const operation = success ? "Alter " : "Create ";
 
 	if (!success) {
 		orig = ptr;
 		ptr = dict_scan_to(ptr, "CREATE");
 		ptr = dict_scan_to(ptr, "TABLE");
 		ptr = dict_accept(cs, ptr, "TABLE", &success);
+		create_table_name = NULL;
 
 		if (success) {
 			ptr = dict_scan_table_name(cs, ptr, &table_to_create, name,
-					&success, heap, &create_table_name);
+						   &success, heap, &create_table_name);
 		}
 
-		if (success) {
-			char *bufend;
-			bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-					create_table_name, strlen(create_table_name),
-					trx->mysql_thd);
-			create_name[bufend-create_name]='\0';
-			ptr = orig;
-		} else {
-			char *bufend;
-			ptr = orig;
-			bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-					name, strlen(name), trx->mysql_thd);
-			create_name[bufend-create_name]='\0';
-		}
-
-		goto loop;
+		ptr = orig;
+		const char* n = create_table_name ? create_table_name : name;
+		char *bufend = innobase_convert_name(create_name, MAX_TABLE_NAME_LEN,
+						     n, strlen(n), trx->mysql_thd);
+		create_name[bufend-create_name] = '\0';
+	} else {
+		strncpy(create_name, name, sizeof create_name);
+		create_name[(sizeof create_name) - 1] = '\0';
 	}
 
 	if (table == NULL) {
 		mutex_enter(&dict_foreign_err_mutex);
-		dict_foreign_error_report_low(ef, create_name);
 		dict_foreign_error_report_low(ef, create_name);
 		fprintf(ef, "%s table %s with foreign key constraint"
 			" failed. Table %s not found from data dictionary."
@@ -4361,11 +3788,19 @@ dict_create_foreign_constraints_low(
 	}
 
 	orig = ptr;
-	ptr = dict_accept(cs, ptr, "TABLE", &success);
-
-	if (!success) {
-
-		goto loop;
+	for (;;) {
+		ptr = dict_accept(cs, ptr, "TABLE", &success);
+		if (success) {
+			break;
+		}
+		ptr = dict_accept(cs, ptr, "ONLINE", &success);
+		if (success) {
+			continue;
+		}
+		ptr = dict_accept(cs, ptr, "IGNORE", &success);
+		if (!success) {
+			goto loop;
+		}
 	}
 
 	/* We are doing an ALTER TABLE: scan the table name we are altering */
@@ -4374,19 +3809,13 @@ dict_create_foreign_constraints_low(
 	ptr = dict_scan_table_name(cs, ptr, &table_to_alter, name,
 				   &success, heap, &referenced_table_name);
 
-	if (table_to_alter) {
-		char *bufend;
-		bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-				table_to_alter->name.m_name, strlen(table_to_alter->name.m_name),
-				trx->mysql_thd);
+	{
+		const char* n = table_to_alter
+			? table_to_alter->name.m_name : referenced_table_name;
+		char* bufend = innobase_convert_name(
+			create_name, MAX_TABLE_NAME_LEN, n, strlen(n),
+			trx->mysql_thd);
 		create_name[bufend-create_name]='\0';
-	} else {
-		char *bufend;
-		bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-				referenced_table_name, strlen(referenced_table_name),
-				trx->mysql_thd);
-		create_name[bufend-create_name]='\0';
-
 	}
 
 	if (!success) {
@@ -5168,7 +4597,7 @@ dict_create_foreign_constraints(
 	heap = mem_heap_create(10000);
 
 	err = dict_create_foreign_constraints_low(
-		trx, heap, innobase_get_charset(trx->mysql_thd),
+		trx, heap, thd_charset(trx->mysql_thd),
 		str, name, reject_fks);
 
 	mem_heap_free(heap);
@@ -5201,10 +4630,9 @@ dict_foreign_parse_drop_constraints(
 	const char*		id;
 	CHARSET_INFO*		cs;
 
-	ut_a(trx);
 	ut_a(trx->mysql_thd);
 
-	cs = innobase_get_charset(trx->mysql_thd);
+	cs = thd_charset(trx->mysql_thd);
 
 	*n = 0;
 
@@ -5217,7 +4645,7 @@ dict_foreign_parse_drop_constraints(
 
 	ptr = str;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 loop:
 	ptr = dict_scan_to(ptr, "DROP");
 
@@ -5319,14 +4747,14 @@ syntax_error:
 
 /**********************************************************************//**
 Returns an index object if it is found in the dictionary cache.
-Assumes that dict_sys->mutex is already being held.
+Assumes that dict_sys.mutex is already being held.
 @return index, NULL if not found */
 dict_index_t*
 dict_index_get_if_in_cache_low(
 /*===========================*/
 	index_id_t	index_id)	/*!< in: index id */
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	return(dict_index_find_on_id_low(index_id));
 }
@@ -5342,15 +4770,15 @@ dict_index_get_if_in_cache(
 {
 	dict_index_t*	index;
 
-	if (dict_sys == NULL) {
+	if (!dict_sys.is_initialised()) {
 		return(NULL);
 	}
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	index = dict_index_get_if_in_cache_low(index_id);
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	return(index);
 }
@@ -5367,9 +4795,8 @@ dict_index_check_search_tuple(
 	const dict_index_t*	index,	/*!< in: index tree */
 	const dtuple_t*		tuple)	/*!< in: tuple used in a search */
 {
-	ut_a(index);
-	ut_a(dtuple_get_n_fields_cmp(tuple)
-	     <= dict_index_get_n_unique_in_tree(index));
+	ut_ad(dtuple_get_n_fields_cmp(tuple)
+	      <= dict_index_get_n_unique_in_tree(index));
 	return(TRUE);
 }
 #endif /* UNIV_DEBUG */
@@ -5433,53 +4860,15 @@ dict_index_build_node_ptr(
 
 	dtype_set(dfield_get_type(field), DATA_SYS_CHILD, DATA_NOT_NULL, 4);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, !level, n_unique, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index,
+				  level ? 0 : index->n_core_fields,
+				  n_unique, heap);
 	dtuple_set_info_bits(tuple, dtuple_get_info_bits(tuple)
 			     | REC_STATUS_NODE_PTR);
 
 	ut_ad(dtuple_check_typed(tuple));
 
 	return(tuple);
-}
-
-/**********************************************************************//**
-Copies an initial segment of a physical record, long enough to specify an
-index entry uniquely.
-@return pointer to the prefix record */
-rec_t*
-dict_index_copy_rec_order_prefix(
-/*=============================*/
-	const dict_index_t*	index,	/*!< in: index */
-	const rec_t*		rec,	/*!< in: record for which to
-					copy prefix */
-	ulint*			n_fields,/*!< out: number of fields copied */
-	byte**			buf,	/*!< in/out: memory buffer for the
-					copied prefix, or NULL */
-	ulint*			buf_size)/*!< in/out: buffer size */
-{
-	ulint		n;
-
-	UNIV_PREFETCH_R(rec);
-
-	if (dict_index_is_ibuf(index)) {
-		ut_ad(!dict_table_is_comp(index->table));
-		n = rec_get_n_fields_old(rec);
-	} else {
-		if (page_rec_is_leaf(rec)) {
-			n = dict_index_get_n_unique_in_tree(index);
-		} else if (dict_index_is_spatial(index)) {
-			ut_ad(dict_index_get_n_unique_in_tree_nonleaf(index)
-			      == DICT_INDEX_SPATIAL_NODEPTR_SIZE);
-			/* For R-tree, we have to compare
-			the child page numbers as well. */
-			n = DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
-		} else {
-			n = dict_index_get_n_unique_in_tree(index);
-		}
-	}
-
-	*n_fields = n;
-	return(rec_copy_prefix_to_buf(rec, index, n, buf, buf_size));
 }
 
 /** Convert a physical record into a search tuple.
@@ -5497,11 +4886,14 @@ dict_index_build_data_tuple(
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
+	ut_ad(!index->is_clust());
+
 	dtuple_t* tuple = dtuple_create(heap, n_fields);
 
 	dict_index_copy_types(tuple, index, n_fields);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, leaf, n_fields, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index,
+				  leaf ? n_fields : 0, n_fields, heap);
 
 	ut_ad(dtuple_check_typed(tuple));
 
@@ -5674,7 +5066,7 @@ dict_print_info_on_foreign_keys(
 	dict_foreign_t*	foreign;
 	std::string 	str;
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	for (dict_foreign_set::iterator it = table->foreign_set.begin();
 	     it != table->foreign_set.end();
@@ -5741,12 +5133,12 @@ dict_print_info_on_foreign_keys(
 		}
 	}
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 	return str;
 }
 
 /** Given a space_id of a file-per-table tablespace, search the
-dict_sys->table_LRU list and return the dict_table_t* pointer for it.
+dict_sys.table_LRU list and return the dict_table_t* pointer for it.
 @param	space	tablespace
 @return table if found, NULL if not */
 static
@@ -5759,13 +5151,13 @@ dict_find_single_table_by_space(const fil_space_t* space)
 
 	ut_ad(space->id > 0);
 
-	if (dict_sys == NULL) {
+	if (!dict_sys.is_initialised()) {
 		/* This could happen when it's in redo processing. */
 		return(NULL);
 	}
 
-	table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
-	num_item =  UT_LIST_GET_LEN(dict_sys->table_LRU);
+	table = UT_LIST_GET_FIRST(dict_sys.table_LRU);
+	num_item =  UT_LIST_GET_LEN(dict_sys.table_LRU);
 
 	/* This function intentionally does not acquire mutex as it is used
 	by error handling code in deep call stack as last means to avoid
@@ -5839,9 +5231,9 @@ dict_set_corrupted(
 		row_mysql_lock_data_dictionary(trx);
 	}
 
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(!dict_table_is_comp(dict_sys->sys_tables));
-	ut_ad(!dict_table_is_comp(dict_sys->sys_indexes));
+	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_ad(!dict_table_is_comp(dict_sys.sys_tables));
+	ut_ad(!dict_table_is_comp(dict_sys.sys_indexes));
 	ut_ad(!sync_check_iterate(dict_sync_check()));
 
 	/* Mark the table as corrupted only if the clustered index
@@ -5858,7 +5250,7 @@ dict_set_corrupted(
 
 	/* If this is read only mode, do not update SYS_INDEXES, just
 	mark it as corrupted in memory */
-	if (srv_read_only_mode) {
+	if (high_level_read_only) {
 		index->type |= DICT_CORRUPT;
 		goto func_exit;
 	}
@@ -5869,7 +5261,7 @@ dict_set_corrupted(
 	mtr_start(&mtr);
 	index->type |= DICT_CORRUPT;
 
-	sys_index = UT_LIST_GET_FIRST(dict_sys->sys_indexes->indexes);
+	sys_index = UT_LIST_GET_FIRST(dict_sys.sys_indexes->indexes);
 
 	/* Find the index row in SYS_INDEXES */
 	tuple = dtuple_create(heap, 2);
@@ -5929,14 +5321,15 @@ dict_set_corrupted_index_cache_only(
 {
 	ut_ad(index != NULL);
 	ut_ad(index->table != NULL);
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(!dict_table_is_comp(dict_sys->sys_tables));
-	ut_ad(!dict_table_is_comp(dict_sys->sys_indexes));
+	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_ad(!dict_table_is_comp(dict_sys.sys_tables));
+	ut_ad(!dict_table_is_comp(dict_sys.sys_indexes));
 
 	/* Mark the table as corrupted only if the clustered index
 	is corrupted */
 	if (dict_index_is_clust(index)) {
 		index->table->corrupted = TRUE;
+		index->table->file_unreadable = true;
 	}
 
 	index->type |= DICT_CORRUPT;
@@ -5959,11 +5352,10 @@ dict_index_set_merge_threshold(
 	btr_cur_t	cursor;
 
 	ut_ad(index != NULL);
-	ut_ad(!dict_table_is_comp(dict_sys->sys_tables));
-	ut_ad(!dict_table_is_comp(dict_sys->sys_indexes));
+	ut_ad(!dict_table_is_comp(dict_sys.sys_tables));
+	ut_ad(!dict_table_is_comp(dict_sys.sys_indexes));
 
-	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&(dict_sys->mutex));
+	dict_sys_lock();
 
 	heap = mem_heap_create(sizeof(dtuple_t) + 2 * (sizeof(dfield_t)
 			       + sizeof(que_fork_t) + sizeof(upd_node_t)
@@ -5971,7 +5363,7 @@ dict_index_set_merge_threshold(
 
 	mtr_start(&mtr);
 
-	sys_index = UT_LIST_GET_FIRST(dict_sys->sys_indexes->indexes);
+	sys_index = UT_LIST_GET_FIRST(dict_sys.sys_indexes->indexes);
 
 	/* Find the index row in SYS_INDEXES */
 	tuple = dtuple_create(heap, 2);
@@ -6011,8 +5403,7 @@ dict_index_set_merge_threshold(
 	mtr_commit(&mtr);
 	mem_heap_free(heap);
 
-	mutex_exit(&(dict_sys->mutex));
-	rw_lock_x_unlock(dict_operation_lock);
+	dict_sys_unlock();
 }
 
 #ifdef UNIV_DEBUG
@@ -6043,14 +5434,14 @@ void
 dict_set_merge_threshold_all_debug(
 	uint	merge_threshold_all)
 {
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	dict_set_merge_threshold_list_debug(
-		&dict_sys->table_LRU, merge_threshold_all);
+		&dict_sys.table_LRU, merge_threshold_all);
 	dict_set_merge_threshold_list_debug(
-		&dict_sys->table_non_LRU, merge_threshold_all);
+		&dict_sys.table_non_LRU, merge_threshold_all);
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 }
 
 #endif /* UNIV_DEBUG */
@@ -6086,23 +5477,16 @@ dict_ind_free()
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 dict_index_t*
-dict_table_get_index_on_name(
-	dict_table_t*	table,
-	const char*	name,
-	bool		committed)
+dict_table_get_index_on_name(dict_table_t* table, const char* name)
 {
 	dict_index_t*	index;
 
 	index = dict_table_get_first_index(table);
 
 	while (index != NULL) {
-		if (index->is_committed() == committed
-		    && strcmp(index->name, name) == 0) {
-
+		if (index->is_committed() && !strcmp(index->name, name)) {
 			return(index);
 		}
 
@@ -6203,7 +5587,7 @@ dict_table_check_for_dup_indexes(
 	const dict_index_t*	index1;
 	const dict_index_t*	index2;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	/* The primary index _must_ exist */
 	ut_a(UT_LIST_GET_LEN(table->indexes) > 0);
@@ -6280,7 +5664,7 @@ dict_table_schema_check(
 	dict_table_t*	table;
 	ulint		i;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	table = dict_table_get_low(req_schema->table_name);
 
@@ -6524,110 +5908,96 @@ dict_fs2utf8(
 	}
 }
 
-/** Resize the hash tables besed on the current buffer pool size. */
-void
-dict_resize()
+/** Resize the hash tables based on the current buffer pool size. */
+void dict_sys_t::resize()
 {
-	dict_table_t*	table;
+  ut_ad(this == &dict_sys);
+  ut_ad(is_initialised());
+  mutex_enter(&mutex);
 
-	mutex_enter(&dict_sys->mutex);
+  /* all table entries are in table_LRU and table_non_LRU lists */
+  hash_table_free(table_hash);
+  hash_table_free(table_id_hash);
+  hash_table_free(temp_id_hash);
 
-	/* all table entries are in table_LRU and table_non_LRU lists */
-	hash_table_free(dict_sys->table_hash);
-	hash_table_free(dict_sys->table_id_hash);
+  const ulint hash_size = buf_pool_get_curr_size()
+    / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
+  table_hash = hash_create(hash_size);
+  table_id_hash = hash_create(hash_size);
+  temp_id_hash = hash_create(hash_size);
 
-	dict_sys->table_hash = hash_create(
-		buf_pool_get_curr_size()
-		/ (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE));
+  for (dict_table_t* table= UT_LIST_GET_FIRST(table_LRU); table;
+       table= UT_LIST_GET_NEXT(table_LRU, table))
+  {
+    ut_ad(!table->is_temporary());
+    ulint fold= ut_fold_string(table->name.m_name);
+    ulint id_fold= ut_fold_ull(table->id);
 
-	dict_sys->table_id_hash = hash_create(
-		buf_pool_get_curr_size()
-		/ (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE));
+    HASH_INSERT(dict_table_t, name_hash, table_hash, fold, table);
+    HASH_INSERT(dict_table_t, id_hash, table_id_hash, id_fold, table);
+  }
 
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_LRU); table;
-	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
-		ulint	fold = ut_fold_string(table->name.m_name);
-		ulint	id_fold = ut_fold_ull(table->id);
+  for (dict_table_t* table = UT_LIST_GET_FIRST(table_non_LRU); table;
+       table = UT_LIST_GET_NEXT(table_LRU, table)) {
+	  ulint	fold = ut_fold_string(table->name.m_name);
+	  ulint	id_fold = ut_fold_ull(table->id);
 
-		HASH_INSERT(dict_table_t, name_hash, dict_sys->table_hash,
-			    fold, table);
+	  HASH_INSERT(dict_table_t, name_hash, table_hash, fold, table);
 
-		HASH_INSERT(dict_table_t, id_hash, dict_sys->table_id_hash,
-			    id_fold, table);
-	}
+	  hash_table_t* id_hash = table->is_temporary()
+	    ? temp_id_hash : table_id_hash;
 
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_non_LRU); table;
-	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
-		ulint	fold = ut_fold_string(table->name.m_name);
-		ulint	id_fold = ut_fold_ull(table->id);
+	  HASH_INSERT(dict_table_t, id_hash, id_hash, id_fold, table);
+  }
 
-		HASH_INSERT(dict_table_t, name_hash, dict_sys->table_hash,
-			    fold, table);
-
-		HASH_INSERT(dict_table_t, id_hash, dict_sys->table_id_hash,
-			    id_fold, table);
-	}
-
-	mutex_exit(&dict_sys->mutex);
+  mutex_exit(&mutex);
 }
 
-/**********************************************************************//**
-Closes the data dictionary module. */
-void
-dict_close(void)
-/*============*/
+/** Close the data dictionary cache on shutdown. */
+void dict_sys_t::close()
 {
-	if (dict_sys == NULL) {
-		/* This should only happen if a failure occurred
-		during redo log processing. */
-		return;
-	}
+  ut_ad(this == &dict_sys);
+  if (!is_initialised()) return;
 
-	/* Acquire only because it's a pre-condition. */
-	mutex_enter(&dict_sys->mutex);
+  mutex_enter(&mutex);
 
-	/* Free the hash elements. We don't remove them from the table
-	because we are going to destroy the table anyway. */
-	for (ulint i = 0; i < hash_get_n_cells(dict_sys->table_id_hash); i++) {
-		dict_table_t*	table;
+  /* Free the hash elements. We don't remove them from the table
+  because we are going to destroy the table anyway. */
+  for (ulint i = 0; i < hash_get_n_cells(table_hash); i++)
+  {
+    dict_table_t* table = static_cast<dict_table_t*>(HASH_GET_FIRST(table_hash,
+								    i));
 
-		table = static_cast<dict_table_t*>(
-			HASH_GET_FIRST(dict_sys->table_hash, i));
+    while (table)
+    {
+      dict_table_t* prev_table = table;
+      table = static_cast<dict_table_t*>(HASH_GET_NEXT(name_hash, prev_table));
+      dict_sys.remove(prev_table);
+    }
+  }
 
-		while (table) {
-			dict_table_t*	prev_table = table;
+  hash_table_free(table_hash);
 
-			table = static_cast<dict_table_t*>(
-				HASH_GET_NEXT(name_hash, prev_table));
-			ut_ad(prev_table->magic_n == DICT_TABLE_MAGIC_N);
-			dict_table_remove_from_cache(prev_table);
-		}
-	}
+  /* table_id_hash contains the same elements as in table_hash,
+  therefore we don't delete the individual elements. */
+  hash_table_free(table_id_hash);
 
-	hash_table_free(dict_sys->table_hash);
+  /* No temporary tables should exist at this point. */
+  hash_table_free(temp_id_hash);
 
-	/* The elements are the same instance as in dict_sys->table_hash,
-	therefore we don't delete the individual elements. */
-	hash_table_free(dict_sys->table_id_hash);
+  mutex_exit(&mutex);
+  mutex_free(&mutex);
+  rw_lock_free(&latch);
 
-	mutex_exit(&dict_sys->mutex);
-	mutex_free(&dict_sys->mutex);
+  mutex_free(&dict_foreign_err_mutex);
 
-	rw_lock_free(dict_operation_lock);
+  if (dict_foreign_err_file)
+  {
+    fclose(dict_foreign_err_file);
+    dict_foreign_err_file = NULL;
+  }
 
-	ut_free(dict_operation_lock);
-	dict_operation_lock = NULL;
-
-	mutex_free(&dict_foreign_err_mutex);
-
-	if (dict_foreign_err_file) {
-		fclose(dict_foreign_err_file);
-		dict_foreign_err_file = NULL;
-	}
-
-	ut_free(dict_sys);
-
-	dict_sys = NULL;
+  m_initialised= false;
 }
 
 #ifdef UNIV_DEBUG
@@ -6641,16 +6011,16 @@ dict_lru_validate(void)
 {
 	dict_table_t*	table;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
+	for (table = UT_LIST_GET_FIRST(dict_sys.table_LRU);
 	     table != NULL;
 	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
 
 		ut_a(table->can_be_evicted);
 	}
 
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_non_LRU);
+	for (table = UT_LIST_GET_FIRST(dict_sys.table_non_LRU);
 	     table != NULL;
 	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
 
@@ -6658,62 +6028,6 @@ dict_lru_validate(void)
 	}
 
 	return(TRUE);
-}
-
-/**********************************************************************//**
-Check if a table exists in the dict table LRU list.
-@return TRUE if table found in LRU list */
-static
-ibool
-dict_lru_find_table(
-/*================*/
-	const dict_table_t*	find_table)	/*!< in: table to find */
-{
-	dict_table_t*		table;
-
-	ut_ad(find_table != NULL);
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
-	     table != NULL;
-	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
-
-		ut_a(table->can_be_evicted);
-
-		if (table == find_table) {
-			return(TRUE);
-		}
-	}
-
-	return(FALSE);
-}
-
-/**********************************************************************//**
-Check if a table exists in the dict table non-LRU list.
-@return TRUE if table found in non-LRU list */
-static
-ibool
-dict_non_lru_find_table(
-/*====================*/
-	const dict_table_t*	find_table)	/*!< in: table to find */
-{
-	dict_table_t*		table;
-
-	ut_ad(find_table != NULL);
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_non_LRU);
-	     table != NULL;
-	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
-
-		ut_a(!table->can_be_evicted);
-
-		if (table == find_table) {
-			return(TRUE);
-		}
-	}
-
-	return(FALSE);
 }
 #endif /* UNIV_DEBUG */
 /*********************************************************************//**
@@ -6743,7 +6057,7 @@ dict_foreign_qualify_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
-	ulint*			error,	/*!< out: error code */
+	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
 					error happened */
@@ -6755,7 +6069,11 @@ dict_foreign_qualify_index(
 		return(false);
 	}
 
-	if (index->type & (DICT_SPATIAL | DICT_FTS)) {
+	if (index->type & (DICT_SPATIAL | DICT_FTS | DICT_CORRUPT)) {
+		return false;
+	}
+
+	if (index->online_status >= ONLINE_INDEX_ABORTED) {
 		return false;
 	}
 
@@ -6771,7 +6089,7 @@ dict_foreign_qualify_index(
 			/* We do not accept column prefix
 			indexes here */
 			if (error && err_col_no && err_index) {
-				*error = DB_FOREIGN_KEY_IS_PREFIX_INDEX;
+				*error = FK_IS_PREFIX_INDEX;
 				*err_col_no = i;
 				*err_index = (dict_index_t*)index;
 			}
@@ -6781,7 +6099,7 @@ dict_foreign_qualify_index(
 		if (check_null
 		    && (field->col->prtype & DATA_NOT_NULL)) {
 			if (error && err_col_no && err_index) {
-				*error = DB_FOREIGN_KEY_COL_NOT_NULL;
+				*error = FK_COL_NOT_NULL;
 				*err_col_no = i;
 				*err_index = (dict_index_t*)index;
 			}
@@ -6811,7 +6129,7 @@ dict_foreign_qualify_index(
 			    dict_index_get_nth_col(types_idx, i),
 			    check_charsets)) {
 			if (error && err_col_no && err_index) {
-				*error = DB_FOREIGN_KEY_COLS_NOT_EQUAL;
+				*error = FK_COLS_NOT_EQUAL;
 				*err_col_no = i;
 				*err_index = (dict_index_t*)index;
 			}
@@ -6838,6 +6156,7 @@ dict_index_zip_pad_update(
 	ulint	fail_pct;
 
 	ut_ad(info);
+	ut_ad(info->pad % ZIP_PAD_INCR == 0);
 
 	total = info->success + info->failure;
 
@@ -6862,17 +6181,13 @@ dict_index_zip_pad_update(
 	if (fail_pct > zip_threshold) {
 		/* Compression failures are more then user defined
 		threshold. Increase the pad size to reduce chances of
-		compression failures. */
-		ut_ad(info->pad % ZIP_PAD_INCR == 0);
+		compression failures.
 
-		/* Only do increment if it won't increase padding
+		Only do increment if it won't increase padding
 		beyond max pad size. */
 		if (info->pad + ZIP_PAD_INCR
 		    < (srv_page_size * zip_pad_max) / 100) {
-			/* Use atomics even though we have the mutex.
-			This is to ensure that we are able to read
-			info->pad atomically. */
-			my_atomic_addlint(&info->pad, ZIP_PAD_INCR);
+			info->pad.fetch_add(ZIP_PAD_INCR);
 
 			MONITOR_INC(MONITOR_PAD_INCREMENTS);
 		}
@@ -6889,12 +6204,7 @@ dict_index_zip_pad_update(
 		padding. */
 		if (info->n_rounds >= ZIP_PAD_SUCCESSFUL_ROUND_LIMIT
 		    && info->pad > 0) {
-
-			ut_ad(info->pad % ZIP_PAD_INCR == 0);
-			/* Use atomics even though we have the mutex.
-			This is to ensure that we are able to read
-			info->pad atomically. */
-			my_atomic_addlint(&info->pad, ulint(-ZIP_PAD_INCR));
+			info->pad.fetch_sub(ZIP_PAD_INCR);
 
 			info->n_rounds = 0;
 
@@ -6911,18 +6221,16 @@ dict_index_zip_success(
 /*===================*/
 	dict_index_t*	index)	/*!< in/out: index to be updated. */
 {
-	ut_ad(index);
-
 	ulint zip_threshold = zip_failure_threshold_pct;
 	if (!zip_threshold) {
 		/* Disabled by user. */
 		return;
 	}
 
-	dict_index_zip_pad_lock(index);
+	index->zip_pad.mutex.lock();
 	++index->zip_pad.success;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	dict_index_zip_pad_unlock(index);
+	index->zip_pad.mutex.unlock();
 }
 
 /*********************************************************************//**
@@ -6933,18 +6241,16 @@ dict_index_zip_failure(
 /*===================*/
 	dict_index_t*	index)	/*!< in/out: index to be updated. */
 {
-	ut_ad(index);
-
 	ulint zip_threshold = zip_failure_threshold_pct;
 	if (!zip_threshold) {
 		/* Disabled by user. */
 		return;
 	}
 
-	dict_index_zip_pad_lock(index);
+	index->zip_pad.mutex.lock();
 	++index->zip_pad.failure;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	dict_index_zip_pad_unlock(index);
+	index->zip_pad.mutex.unlock();
 }
 
 /*********************************************************************//**
@@ -6960,14 +6266,12 @@ dict_index_zip_pad_optimal_page_size(
 	ulint	min_sz;
 	ulint	sz;
 
-	ut_ad(index);
-
 	if (!zip_failure_threshold_pct) {
 		/* Disabled by user. */
 		return(srv_page_size);
 	}
 
-	pad = my_atomic_loadlint(&index->zip_pad.pad);
+	pad = index->zip_pad.pad;
 
 	ut_ad(pad < srv_page_size);
 	sz = srv_page_size - pad;
@@ -7009,168 +6313,20 @@ UNIV_INTERN
 ulint
 dict_sys_get_size()
 {
-	ulint size = 0;
+	/* No mutex; this is a very crude approximation anyway */
+	ulint size = UT_LIST_GET_LEN(dict_sys.table_LRU)
+		+ UT_LIST_GET_LEN(dict_sys.table_non_LRU);
+	size *= sizeof(dict_table_t)
+		+ sizeof(dict_index_t) * 2
+		+ (sizeof(dict_col_t) + sizeof(dict_field_t)) * 10
+		+ sizeof(dict_field_t) * 5 /* total number of key fields */
+		+ 200; /* arbitrary, covering names and overhead */
 
-	ut_ad(dict_sys);
-
-	mutex_enter(&dict_sys->mutex);
-
-	for(ulint i = 0; i < hash_get_n_cells(dict_sys->table_hash); i++) {
-		dict_table_t* table;
-
-		for (table = static_cast<dict_table_t*>(HASH_GET_FIRST(dict_sys->table_hash,i));
-		     table != NULL;
-		     table = static_cast<dict_table_t*>(HASH_GET_NEXT(name_hash, table))) {
-			dict_index_t* index;
-			size += mem_heap_get_size(table->heap) + strlen(table->name.m_name) +1;
-
-			for(index = dict_table_get_first_index(table);
-			    index != NULL;
-			    index = dict_table_get_next_index(index)) {
-				size += mem_heap_get_size(index->heap);
-			}
-		}
-	}
-
-	mutex_exit(&dict_sys->mutex);
-
-	return (size);
+	return size;
 }
 
-/** Look for any dictionary objects that are found in the given tablespace.
-@param[in]	space_id	Tablespace ID to search for.
-@return true if tablespace is empty. */
-bool
-dict_space_is_empty(
-	ulint	space_id)
+bool dict_table_t::is_stats_table() const
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mtr_t		mtr;
-	bool		found = false;
-
-	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys->mutex);
-	mtr_start(&mtr);
-
-	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLES);
-	     rec != NULL;
-	     rec = dict_getnext_system(&pcur, &mtr)) {
-		const byte*	field;
-		ulint		len;
-		ulint		space_id_for_table;
-
-		field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_TABLES__SPACE, &len);
-		ut_ad(len == 4);
-		space_id_for_table = mach_read_from_4(field);
-
-		if (space_id_for_table == space_id) {
-			found = true;
-		}
-	}
-
-	mtr_commit(&mtr);
-	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
-
-	return(!found);
-}
-
-/** Find the space_id for the given name in sys_tablespaces.
-@param[in]	name	Tablespace name to search for.
-@return the tablespace ID. */
-ulint
-dict_space_get_id(
-	const char*	name)
-{
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mtr_t		mtr;
-	ulint		name_len = strlen(name);
-	ulint		id = ULINT_UNDEFINED;
-
-	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys->mutex);
-	mtr_start(&mtr);
-
-	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLESPACES);
-	     rec != NULL;
-	     rec = dict_getnext_system(&pcur, &mtr)) {
-		const byte*	field;
-		ulint		len;
-
-		field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_TABLESPACES__NAME, &len);
-		ut_ad(len > 0);
-		ut_ad(len < OS_FILE_MAX_PATH);
-
-		if (len == name_len && ut_memcmp(name, field, len) == 0) {
-
-			field = rec_get_nth_field_old(
-				rec, DICT_FLD__SYS_TABLESPACES__SPACE, &len);
-			ut_ad(len == 4);
-			id = mach_read_from_4(field);
-
-			/* This is normally called by dict_getnext_system()
-			at the end of the index. */
-			btr_pcur_close(&pcur);
-			break;
-		}
-	}
-
-	mtr_commit(&mtr);
-	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
-
-	return(id);
-}
-
-/** Determine the extent size (in pages) for the given table
-@param[in]	table	the table whose extent size is being
-			calculated.
-@return extent size in pages (256, 128 or 64) */
-ulint
-dict_table_extent_size(
-	const dict_table_t*	table)
-{
-	const ulint	mb_1 = 1024 * 1024;
-	const ulint	mb_2 = 2 * mb_1;
-	const ulint	mb_4 = 4 * mb_1;
-
-	page_size_t	page_size = dict_table_page_size(table);
-	ulint	pages_in_extent = FSP_EXTENT_SIZE;
-
-	if (page_size.is_compressed()) {
-
-		ulint	disk_page_size	= page_size.physical();
-
-		switch (disk_page_size) {
-		case 1024:
-			pages_in_extent = mb_1/1024;
-			break;
-		case 2048:
-			pages_in_extent = mb_1/2048;
-			break;
-		case 4096:
-			pages_in_extent = mb_1/4096;
-			break;
-		case 8192:
-			pages_in_extent = mb_1/8192;
-			break;
-		case 16384:
-			pages_in_extent = mb_1/16384;
-			break;
-		case 32768:
-			pages_in_extent = mb_2/32768;
-			break;
-		case 65536:
-			pages_in_extent = mb_4/65536;
-			break;
-		default:
-			ut_ad(0);
-		}
-	}
-
-	return(pages_in_extent);
+  return !strcmp(name.m_name, TABLE_STATS_NAME) ||
+         !strcmp(name.m_name, INDEX_STATS_NAME);
 }

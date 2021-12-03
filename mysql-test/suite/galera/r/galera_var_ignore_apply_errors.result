@@ -1,0 +1,186 @@
+connection node_2;
+connection node_1;
+connection node_2;
+SET GLOBAL wsrep_ignore_apply_errors = 1;
+connection node_1;
+SET GLOBAL wsrep_on = OFF;
+CREATE TABLE t1 (f1 INTEGER);
+SET GLOBAL wsrep_on = ON;
+DROP TABLE t1;
+SET GLOBAL wsrep_on = OFF;
+CREATE SCHEMA s1;
+SET GLOBAL wsrep_on = ON;
+DROP SCHEMA s1;
+CREATE TABLE t1 (f1 INTEGER);
+SET GLOBAL wsrep_on = OFF;
+CREATE INDEX idx1 ON t1 (f1);
+SET GLOBAL wsrep_on = ON;
+DROP INDEX idx1 ON t1;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER);
+SET GLOBAL wsrep_on = OFF;
+CREATE INDEX idx1 ON t1 (f1);
+SET GLOBAL wsrep_on = ON;
+ALTER TABLE t1 DROP INDEX idx1;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INTEGER);
+SET GLOBAL wsrep_on = OFF;
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;
+SET GLOBAL wsrep_on = ON;
+ALTER TABLE t1 DROP COLUMN f2;
+DROP TABLE t1;
+connection node_2;
+SET GLOBAL wsrep_ignore_apply_errors = 2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER);
+SET GLOBAL wsrep_on = OFF;
+INSERT INTO t1 VALUES (1);
+SET GLOBAL wsrep_on = ON;
+DELETE FROM t1 WHERE f1 = 1;
+connection node_1;
+SELECT COUNT(*) as expect_0 FROM t1;
+expect_0
+0
+connection node_2;
+SELECT COUNT(*) as expect_0 FROM t1;
+expect_0
+0
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER);
+INSERT INTO t1 VALUES (2);
+SET GLOBAL wsrep_on = OFF;
+INSERT INTO t1 VALUES (1);
+SET GLOBAL wsrep_on = ON;
+START TRANSACTION;
+INSERT INTO t1 VALUES (3);
+DELETE FROM t1 WHERE f1 = 1;
+DELETE FROM t1 WHERE f1 = 2;
+COMMIT;
+connection node_1;
+SELECT COUNT(*) as expect_1 FROM t1;
+expect_1
+1
+connection node_2;
+SELECT COUNT(*) as expect_1 FROM t1;
+expect_1
+1
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+connection node_2;
+SET SESSION wsrep_on = OFF;
+DELETE FROM t1 WHERE f1 = 3;
+SET SESSION wsrep_on = ON;
+connection node_1;
+DELETE FROM t1;
+SELECT COUNT(*) as expect_0 FROM t1;
+expect_0
+0
+connection node_2;
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'Primary'
+1
+SELECT COUNT(*) as expect_0 FROM t1;
+expect_0
+0
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+connection node_2;
+SET SESSION wsrep_on = OFF;
+DELETE FROM t1 WHERE f1 = 3;
+SET SESSION wsrep_on = ON;
+connection node_1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+DELETE FROM t1 WHERE f1 = 1;
+DELETE FROM t1 WHERE f1 = 2;
+DELETE FROM t1 WHERE f1 = 3;
+DELETE FROM t1 WHERE f1 = 4;
+DELETE FROM t1 WHERE f1 = 5;
+COMMIT;
+SET AUTOCOMMIT=ON;
+SELECT COUNT(*) as expect_0 FROM t1;
+expect_0
+0
+connection node_2;
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'Primary'
+1
+SELECT COUNT(*) as expect_0 FROM t1;
+expect_0
+0
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3);
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3);
+connection node_2;
+SET SESSION wsrep_on = OFF;
+DELETE FROM t2 WHERE f1 = 2;
+DELETE FROM t1 WHERE f1 = 3;
+SET SESSION wsrep_on = ON;
+connection node_1;
+DELETE t1, t2 FROM t1 JOIN t2 WHERE t1.f1 = t2.f1;
+SELECT COUNT(*) as expect_0 FROM t1;
+expect_0
+0
+connection node_2;
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'Primary'
+1
+SELECT COUNT(*) as expect_0 FROM t1;
+expect_0
+0
+DROP TABLE t1,t2;
+connection node_1;
+CREATE TABLE parent (id INT NOT NULL, PRIMARY KEY (id)) ENGINE=INNODB;
+INSERT INTO parent VALUES (1),(2),(3);
+CREATE TABLE child (id INT, parent_id INT, INDEX par_ind (parent_id), FOREIGN KEY (parent_id) REFERENCES parent(id) ON DELETE CASCADE) ENGINE=INNODB;
+INSERT INTO child VALUES (1,1),(2,2),(3,3);
+connection node_2;
+SET SESSION wsrep_on = OFF;
+DELETE FROM child WHERE parent_id = 2;
+SET SESSION wsrep_on = ON;
+connection node_1;
+DELETE FROM parent;
+SELECT COUNT(*) as expect_0 FROM parent;
+expect_0
+0
+SELECT COUNT(*) as expect_0 FROM child;
+expect_0
+0
+connection node_2;
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'Primary'
+1
+SELECT COUNT(*) as expect_0 FROM parent;
+expect_0
+0
+SELECT COUNT(*) as expect_0 FROM child;
+expect_0
+0
+DROP TABLE child, parent;
+connection node_2;
+SET GLOBAL wsrep_ignore_apply_errors = 4;
+connection node_2;
+SET GLOBAL wsrep_on = OFF;
+CREATE TABLE t1 (f1 INTEGER);
+SET GLOBAL wsrep_on = ON;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER, f2 INTEGER);
+DROP TABLE t1;
+connection node_2;
+SET GLOBAL wsrep_ignore_apply_errors = 7;
+CALL mtr.add_suppression("Can't find record in 't.*'");
+CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows event");
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table 'test.t1'' on query. Default database: 'test'. Query: 'DROP TABLE t1', Error_code: 1051");
+CALL mtr.add_suppression("Slave SQL: Error 'Can't drop database 's1'; database doesn't exist' on query. Default database: 'test'. Query: 'DROP SCHEMA s1', Error_code: 1008");
+CALL mtr.add_suppression("Slave SQL: Error 'Can't DROP 'idx1'; check that column/key exists' on query. Default database: 'test'. Query: 'DROP INDEX idx1 ON t1', Error_code: 1091");
+CALL mtr.add_suppression("Slave SQL: Error 'Can't DROP 'idx1'; check that column/key exists' on query. Default database: 'test'. Query: 'ALTER TABLE t1 DROP INDEX idx1', Error_code: 1091");
+CALL mtr.add_suppression("Slave SQL: Error 'Can't DROP 'f2'; check that column/key exists' on query. Default database: 'test'. Query: 'ALTER TABLE t1 DROP COLUMN f2', Error_code: 1091");
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query.");

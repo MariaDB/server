@@ -4,9 +4,7 @@ set @@optimizer_switch='semijoin_with_cache=on';
 set @@optimizer_switch='outer_join_with_cache=on';
 set @@optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set join_cache_level=6;
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	6
+set optimizer_search_depth=62;
 set @optimizer_switch_for_join_nested_test=@@optimizer_switch;
 set @join_cache_level_for_join_nested_test=@@join_cache_level;
 DROP TABLE IF EXISTS t0,t1,t2,t3,t4,t5,t6,t7,t8,t9;
@@ -1073,9 +1071,9 @@ t0.b=t1.b AND
 (t8.b=t9.b OR t8.c IS NULL) AND
 (t9.a=1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t0	ref	idx_a	idx_a	5	const	1	100.00	Using where
-1	SIMPLE	t1	ref	idx_b	idx_b	5	test.t0.b	2	100.00	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	t9	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t0	ref	idx_a	idx_a	5	const	2	100.00	
+1	SIMPLE	t9	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	idx_b	NULL	NULL	NULL	7	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ref	idx_b	idx_b	5	test.t2.b	2	100.00	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
@@ -1220,13 +1218,13 @@ INSERT INTO t3 VALUES (0), (1), (2), (3), (4), (5);
 EXPLAIN SELECT a, b, c FROM t1 LEFT JOIN (t2, t3) ON c < 3 and b = c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	5	NULL	21	Using index
-1	SIMPLE	t3	index	c	c	5	NULL	6	Using where; Using index
-1	SIMPLE	t2	ref	b	b	5	test.t3.c	2	Using index
+1	SIMPLE	t2	range	b	b	5	NULL	3	Using where; Using index
+1	SIMPLE	t3	ref	c	c	5	test.t2.b	2	Using index
 EXPLAIN SELECT a, b, c FROM t1 LEFT JOIN (t2, t3) ON b < 3 and b = c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	5	NULL	21	Using index
-1	SIMPLE	t3	index	c	c	5	NULL	6	Using where; Using index
-1	SIMPLE	t2	ref	b	b	5	test.t3.c	2	Using index
+1	SIMPLE	t2	range	b	b	5	NULL	3	Using where; Using index
+1	SIMPLE	t3	ref	c	c	5	test.t2.b	2	Using index
 SELECT a, b, c FROM t1 LEFT JOIN (t2, t3) ON b < 3 and b = c;
 a	b	c
 NULL	0	0
@@ -1342,7 +1340,7 @@ EXPLAIN SELECT * FROM t1 LEFT JOIN (t2 LEFT JOIN t3 ON c21=c31) ON c11=c21;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t1.c11	0	Using where; Using join buffer (flat, BNLH join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	0	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.c11	0	Using where; Using join buffer (incremental, BNLH join)
 DROP TABLE t1,t2,t3;
 CREATE TABLE t1 (goods int(12) NOT NULL, price varchar(128) NOT NULL);
 INSERT INTO t1 VALUES (23, 2340), (26, 9900);
@@ -1977,6 +1975,39 @@ Note	1003	select 1 AS `K1`,'T1Row1' AS `Name`,`t2a`.`K2` AS `K2`,`t2a`.`K1r` AS 
 DROP VIEW v1;
 DROP TABLE t1,t2;
 set optimizer_search_depth= @tmp_mdev621;
+#
+# MDEV-19588: Nested left joins using optimized join cache
+#
+set optimizer_switch='optimize_join_buffer_size=on';
+set @save_join_cache_level= @@join_cache_level;
+set join_cache_level=2;
+CREATE TABLE t1 (i1 int, c1 varchar(20), pk int) engine=myisam;
+CREATE TABLE t2 (pk int, c1 varchar(20), i1 int) engine=myisam;
+INSERT INTO t2 VALUES (7,'a',-912),(8,'a',5);
+CREATE TABLE t3 (pk int, c1 varchar(20), i1 int) engine=myisam;
+INSERT INTO t3 VALUES
+(1,'a',-145),(2,'a',6),(3,'a',1),(7,'a',NULL),(8,'a',889),(9,'a',146),
+(10,'a',177),(16,'a',-433),(17,'a',NULL),(18,'a',2),(19,'a',3),(20,'a',5),
+(21,'a',-484),(22,'a',369),(23,'a',-192),(24,'a',-163),(25,'a',5),(26,'a',NULL);
+SELECT t3.*
+FROM t3 LEFT JOIN t1 LEFT JOIN t2 ON t1.i1 = t2.i1 ON t3.i1 = t1.i1
+WHERE t2.pk < 13 OR t3.i1 IS NULL;
+pk	c1	i1
+7	a	NULL
+17	a	NULL
+26	a	NULL
+explain extended SELECT t3.*
+FROM t3 LEFT JOIN t1 LEFT JOIN t2 ON t1.i1 = t2.i1 ON t3.i1 = t1.i1
+WHERE t2.pk < 13 OR t3.i1 IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	18	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	0	0.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select `test`.`t3`.`pk` AS `pk`,`test`.`t3`.`c1` AS `c1`,`test`.`t3`.`i1` AS `i1` from `test`.`t3` left join (`test`.`t1` left join `test`.`t2` on(`test`.`t2`.`i1` = `test`.`t3`.`i1`)) on(`test`.`t1`.`i1` = `test`.`t3`.`i1`) where `test`.`t2`.`pk` < 13 or `test`.`t3`.`i1` is null
+DROP TABLE t1,t2,t3;
+set join_cache_level= @save_join_cache_level;
+set optimizer_switch=@save_optimizer_switch;
 CREATE TABLE t5 (a int, b int, c int, PRIMARY KEY(a), KEY b_i (b));
 CREATE TABLE t6 (a int, b int, c int, PRIMARY KEY(a), KEY b_i (b));
 CREATE TABLE t7 (a int, b int, c int, PRIMARY KEY(a), KEY b_i (b));
@@ -2002,8 +2033,8 @@ ON t6.b >= 2 AND t5.b=t7.b AND
 (t8.a > 0 OR t8.c IS NULL) AND t6.a>0 AND t7.a>0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t7	ref	PRIMARY,b_i	b_i	5	test.t5.b	2	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	t6	ALL	PRIMARY,b_i	NULL	NULL	NULL	7	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t7	ref|filter	PRIMARY,b_i	b_i|PRIMARY	5|4	test.t5.b	2 (29%)	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan; Using rowid filter
+1	SIMPLE	t6	range	PRIMARY,b_i	PRIMARY	4	NULL	3	Using where; Rowid-ordered scan; Using join buffer (incremental, BNL join)
 1	SIMPLE	t8	ref	b_i	b_i	5	test.t5.b	2	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 SELECT t5.a,t5.b,t6.a,t6.b,t7.a,t7.b,t8.a,t8.b
 FROM t5 
@@ -2083,9 +2114,6 @@ a	b	a	b	a	b	a	b
 3	2	NULL	NULL	NULL	NULL	NULL	NULL
 DROP TABLE t5,t6,t7,t8;
 set join_cache_level=default;
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	2
 set @@optimizer_switch=@save_optimizer_switch_jcl6;
 set @optimizer_switch_for_join_nested_test=NULL;
 set @join_cache_level_for_join_nested_test=NULL;

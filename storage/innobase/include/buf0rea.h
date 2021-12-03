@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,39 +27,30 @@ Created 11/5/1995 Heikki Tuuri
 #ifndef buf0rea_h
 #define buf0rea_h
 
-#include "univ.i"
 #include "buf0buf.h"
-#include "buf0types.h"
 
 /** High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
 an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
 @param[in]	page_id		page id
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @retval DB_SUCCESS if the page was read and is not corrupted,
 @retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
 @retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
 after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
-dberr_t
-buf_read_page(
-	const page_id_t		page_id,
-	const page_size_t&	page_size);
+dberr_t buf_read_page(const page_id_t page_id, ulint zip_size);
 
-/********************************************************************//**
-High-level function which reads a page asynchronously from a file to the
+/** High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
 an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
 @param[in]	page_id		page id
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	sync		true if synchronous aio is desired */
 void
-buf_read_page_background(
-	const page_id_t		page_id,
-	const page_size_t&	page_size,
-	bool			sync);
+buf_read_page_background(const page_id_t page_id, ulint zip_size, bool sync);
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
 value of accessed pages from the random read-ahead area. Does not read any
@@ -72,16 +63,13 @@ performed by ibuf routines, a situation which could result in a deadlock if
 the OS does not support asynchronous i/o.
 @param[in]	page_id		page id of a page which the current thread
 wants to access
-@param[in]	page_size	page size
-@param[in]	inside_ibuf	TRUE if we are inside ibuf routine
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in]	ibuf		whether we are inside ibuf routine
 @return number of page read requests issued; NOTE that if we read ibuf
 pages, it may happen that the page at the given page number does not
 get read even if we return a positive value! */
 ulint
-buf_read_ahead_random(
-	const page_id_t		page_id,
-	const page_size_t&	page_size,
-	ibool			inside_ibuf);
+buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf);
 
 /** Applies linear read-ahead if in the buf_pool the page is a border page of
 a linear read-ahead area and all the pages in the area have been accessed.
@@ -106,14 +94,11 @@ NOTE 3: the calling thread must want access to the page given: this rule is
 set to prevent unintended read-aheads performed by ibuf routines, a situation
 which could result in a deadlock if the OS does not support asynchronous io.
 @param[in]	page_id		page id; see NOTE 3 above
-@param[in]	page_size	page size
-@param[in]	inside_ibuf	TRUE if we are inside ibuf routine
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in]	ibuf		whether if we are inside ibuf routine
 @return number of page read requests issued */
 ulint
-buf_read_ahead_linear(
-	const page_id_t		page_id,
-	const page_size_t&	page_size,
-	ibool			inside_ibuf);
+buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf);
 
 /********************************************************************//**
 Issues read requests for pages which the ibuf module wants to read in, in

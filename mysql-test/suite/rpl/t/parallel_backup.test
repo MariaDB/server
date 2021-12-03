@@ -1,0 +1,75 @@
+--source include/have_innodb.inc
+# The test is not format specific, MIXED is required to optimize testing time
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-21953: deadlock between BACKUP STAGE BLOCK_COMMIT and parallel
+--echo # replication
+--echo #
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE = innodb;
+
+--sync_slave_with_master
+--source include/stop_slave.inc
+SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode   = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_threads= 2;
+SET @@global.slave_parallel_mode   = 'optimistic';
+
+--connection master
+INSERT INTO  t1 VALUES (1);
+INSERT INTO  t1 VALUES (2);
+--save_master_pos
+
+# The plot:
+# Block the 1st of two workers and, at waiting-for-prior-commit by the 2nd,
+# issue BACKUP commands.
+# BLOCK_COMMIT may hang so it is --send.
+# Release the 1st worker to observe a deadlock unless its fixed.
+
+--connect (aux_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,)
+BEGIN;
+# block the 1st worker and wait for the 2nd ready to commit
+INSERT INTO t1 VALUES (1);
+
+--connection slave
+--source include/start_slave.inc
+
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) > 0 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+# While the 1st worker is locked out run backup
+--connect (backup_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,)
+BACKUP STAGE START;
+--send BACKUP STAGE BLOCK_COMMIT
+
+# release the 1st work
+--connection aux_slave
+--sleep 1
+ROLLBACK;
+
+--connection backup_slave
+--reap
+BACKUP STAGE END;
+
+--connection slave
+--sync_with_master
+
+--let $diff_tables= master:t1,slave:t1
+--source include/diff_tables.inc
+
+
+# Clean up.
+--connection slave
+--source include/stop_slave.inc
+SET @@global.slave_parallel_threads= @old_parallel_threads;
+SET @@global.slave_parallel_mode   = @old_parallel_mode;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t1;
+
+--source include/rpl_end.inc

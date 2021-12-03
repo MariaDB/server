@@ -1,0 +1,9 @@
+--source include/galera_cluster.inc
+
+--connection node_1
+--replace_regex /18446744073709551/ERROR/ /[0-9]+/#/
+show status like 'wsrep_cluster_conf_id';
+
+--connection node_2
+--replace_regex /18446744073709551/ERROR/ /[0-9]+/#/
+show status like 'wsrep_cluster_conf_id';

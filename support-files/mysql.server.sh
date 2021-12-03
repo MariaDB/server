@@ -91,16 +91,15 @@ datadir_set=
 
 #
 # Use LSB init script functions for printing messages, if possible
-#
+# Include non-LSB RedHat init functions to make systemctl redirect work
+init_functions="/etc/init.d/functions"
 lsb_functions="/lib/lsb/init-functions"
-if test -f $lsb_functions ; then
+if test -f $lsb_functions; then
   . $lsb_functions
-else
-  # Include non-LSB RedHat init functions to make systemctl redirect work
-  init_functions="/etc/init.d/functions"
-  if test -f $init_functions; then
-    . $init_functions
-  fi
+fi
+
+if test -f $init_functions; then
+  . $init_functions
   log_success_msg()
   {
     echo " SUCCESS! $@"
@@ -185,7 +184,11 @@ fi
 user='@MYSQLD_USER@'
 
 su_kill() {
-  su - $user -s /bin/sh -c "kill $*" >/dev/null 2>&1
+  if test "$USER" = "$user"; then
+    kill $* >/dev/null 2>&1
+  else
+    su - $user -s /bin/sh -c "kill $*" >/dev/null 2>&1
+  fi
 }
 
 #
@@ -384,7 +387,7 @@ case "$mode" in
       fi
     else
       # Try to find appropriate mysqld process
-      mysqld_pid=`pgrep $libexecdir/mysqld`
+      mysqld_pid=`pgrep -f $libexecdir/mysqld`
 
       # test if multiple pids exist
       pid_count=`echo $mysqld_pid | wc -w`

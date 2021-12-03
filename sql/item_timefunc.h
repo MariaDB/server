@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* Function items used by mysql */
@@ -166,28 +166,13 @@ public:
 };
 
 
-class Item_func_month :public Item_func
+class Item_func_month :public Item_long_func
 {
 public:
-  Item_func_month(THD *thd, Item *a): Item_func(thd, a)
-  { collation.set_numeric(); }
+  Item_func_month(THD *thd, Item *a): Item_long_func(thd, a)
+  { }
   longlong val_int();
-  double val_real()
-  { DBUG_ASSERT(fixed == 1); return (double) Item_func_month::val_int(); }
-  String *val_str(String *str)
-  {
-    longlong nr= val_int();
-    if (null_value)
-      return 0;
-    str->set(nr, collation.collation);
-    return str;
-  }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
-  {
-    return get_date_from_int(thd, ltime, fuzzydate);
-  }
   const char *func_name() const { return "month"; }
-  const Type_handler *type_handler() const { return &type_handler_long; }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -437,20 +422,13 @@ public:
 };
 
 
-class Item_func_weekday :public Item_func
+class Item_func_weekday :public Item_long_func
 {
   bool odbc_type;
 public:
   Item_func_weekday(THD *thd, Item *a, bool type_arg):
-    Item_func(thd, a), odbc_type(type_arg) { collation.set_numeric(); }
+    Item_long_func(thd, a), odbc_type(type_arg) { }
   longlong val_int();
-  double val_real() { DBUG_ASSERT(fixed == 1); return (double) val_int(); }
-  String *val_str(String *str)
-  {
-    DBUG_ASSERT(fixed == 1);
-    str->set(val_int(), &my_charset_bin);
-    return null_value ? 0 : str;
-  }
   const char *func_name() const
   {
      return (odbc_type ? "dayofweek" : "weekday");
@@ -459,7 +437,6 @@ public:
   {
     return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
-  const Type_handler *type_handler() const { return &type_handler_long; }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -477,11 +454,11 @@ public:
   { return get_item_copy<Item_func_weekday>(thd, this); }
 };
 
-class Item_func_dayname :public Item_func_weekday
+class Item_func_dayname :public Item_str_func
 {
   MY_LOCALE *locale;
  public:
-  Item_func_dayname(THD *thd, Item *a): Item_func_weekday(thd, a, 0) {}
+  Item_func_dayname(THD *thd, Item *a): Item_str_func(thd, a) {}
   const char *func_name() const { return "dayname"; }
   String *val_str(String *str);
   const Type_handler *type_handler() const { return &type_handler_varchar; }
@@ -491,6 +468,12 @@ class Item_func_dayname :public Item_func_weekday
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
+  bool check_valid_arguments_processor(void *int_arg)
+  {
+    return !has_date_args();
+  }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_dayname>(thd, this); }
 };
 
 
@@ -615,6 +598,10 @@ public:
   double val_real() { return Time(this).to_double(); }
   String *val_str(String *to) { return Time(this).to_string(to, decimals); }
   my_decimal *val_decimal(my_decimal *to) { return Time(this).to_decimal(to); }
+  bool val_native(THD *thd, Native *to)
+  {
+    return Time(thd, this).to_native(to, decimals);
+  }
 };
 
 
@@ -874,6 +861,10 @@ class Item_func_from_unixtime :public Item_datetimefunc
   const char *func_name() const { return "from_unixtime"; }
   bool fix_length_and_dec();
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_from_unixtime>(thd, this); }
 };
@@ -957,7 +948,7 @@ public:
   bool fix_length_and_dec();
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
-  enum precedence precedence() const { return ADDINTERVAL_PRECEDENCE; }
+  enum precedence precedence() const { return INTERVAL_PRECEDENCE; }
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_date_add_interval>(thd, this); }
@@ -993,12 +984,12 @@ class Item_extract :public Item_int_func,
         EXTRACT(DAY FROM '-24:00:00') -> -1
     */
     set_handler(handler_by_length(max_length= length + 1/*sign*/, 11));
-    m_date_mode= TIME_INTERVAL_DAY;
+    m_date_mode= Temporal::Options(TIME_INTERVAL_DAY, current_thd);
   }
   void set_time_length(uint32 length)
   {
     set_handler(handler_by_length(max_length= length + 1/*sign*/, 11));
-    m_date_mode= TIME_INTERVAL_hhmmssff;
+    m_date_mode= Temporal::Options(TIME_INTERVAL_hhmmssff, current_thd);
   }
  public:
   const interval_type int_type; // keep it public
@@ -1080,6 +1071,9 @@ class Item_char_typecast :public Item_str_func
   void check_truncation_with_warn(String *src, size_t dstlen);
   void fix_length_and_dec_internal(CHARSET_INFO *fromcs);
 public:
+  // Methods used by ColumnStore
+  uint get_cast_length() const { return cast_length; }
+public:
   Item_char_typecast(THD *thd, Item *a, uint length_arg, CHARSET_INFO *cs_arg):
     Item_str_func(thd, a), cast_length(length_arg), cast_cs(cs_arg),
     m_suppress_warning_to_error_escalation(false) {}
@@ -1117,7 +1111,7 @@ public:
   { }
   String *val_str(String *to)
   {
-    Interval_DDhhmmssff it(current_thd, args[0]);
+    Interval_DDhhmmssff it(current_thd, args[0], m_fsp);
     null_value= !it.is_valid_interval_DDhhmmssff();
     return it.to_string(to, m_fsp);
   }
@@ -1159,6 +1153,7 @@ public:
     return args[0]->type_handler()->
            Item_time_typecast_fix_length_and_dec(this);
   }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_time_typecast>(thd, this); }
 };
@@ -1180,6 +1175,7 @@ public:
     return args[0]->type_handler()->
            Item_datetime_typecast_fix_length_and_dec(this);
   }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_datetime_typecast>(thd, this); }
 };
@@ -1222,7 +1218,7 @@ public:
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    Datetime dt(thd, args[0], date_mode_t(0));
+    Datetime dt(thd, args[0], Datetime::Options(TIME_CONV_NONE, thd));
     if (!dt.is_valid_datetime())
       return null_value= true;
     Interval_DDhhmmssff it(thd, args[1]);
@@ -1249,6 +1245,9 @@ public:
 class Item_func_add_time :public Item_handled_func
 {
   int sign;
+public:
+  // Methods used by ColumnStore
+  int get_sign() const { return sign; }
 public:
   Item_func_add_time(THD *thd, Item *a, Item *b, bool neg_arg)
    :Item_handled_func(thd, a, b), sign(neg_arg ? -1 : 1)
@@ -1334,6 +1333,9 @@ class Item_func_timestamp_diff :public Item_longlong_func
   bool check_arguments() const
   { return check_argument_types_can_return_date(0, arg_count); }
   const interval_type int_type;
+public:
+  // Methods used by ColumnStore
+  interval_type get_int_type() const { return int_type; };
 public:
   Item_func_timestamp_diff(THD *thd, Item *a, Item *b, interval_type type_arg):
     Item_longlong_func(thd, a, b), int_type(type_arg) {}
@@ -1461,7 +1463,8 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const
   {
-    Datetime dt(thd, item->arguments()[0], date_mode_t(0));
+    Datetime::Options opt(TIME_CONV_NONE, thd);
+    Datetime dt(thd, item->arguments()[0], opt);
     if (!dt.is_valid_datetime() ||
          dt.check_date_with_warn(thd, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
       return (item->null_value= true);
@@ -1489,7 +1492,11 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const
   {
-    Date d(thd, item->arguments()[0], date_mode_t(0));
+    /*
+      The first argument is known to be of the DATE data type (not DATETIME).
+      We don't need rounding here.
+    */
+    Date d(thd, item->arguments()[0], TIME_CONV_NONE);
     if (!d.is_valid_date() ||
          d.check_date_with_warn(thd, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
       return (item->null_value= true);
@@ -1542,10 +1549,10 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const
   {
-    if (item->arguments()[0]->get_date(thd, to, date_mode_t(0)) ||
+    if (item->arguments()[0]->
+          get_date(thd, to, Datetime::Options(TIME_CONV_NONE, thd)) ||
         (to->time_type != MYSQL_TIMESTAMP_TIME &&
-         check_date_with_warn(thd, to, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE,
-                              MYSQL_TIMESTAMP_ERROR)))
+         check_date_with_warn(thd, to, TIME_NO_ZEROS, MYSQL_TIMESTAMP_ERROR)))
       return (item->null_value= true);
     return (item->null_value= add(thd, item->arguments()[1],
                                   int_type(item), sub(item), to));
@@ -1581,7 +1588,8 @@ public:
                 MYSQL_TIME *to, date_mode_t fuzzy) const
   {
     DBUG_ASSERT(item->is_fixed());
-    Datetime dt(thd, item->arguments()[0], date_mode_t(0));
+    Datetime::Options opt(TIME_CONV_NONE, thd);
+    Datetime dt(thd, item->arguments()[0], opt);
     if (!dt.is_valid_datetime())
       return item->null_value= true;
     Interval_DDhhmmssff it(thd, item->arguments()[1]);
@@ -1650,7 +1658,8 @@ public:
   {
     DBUG_ASSERT(item->is_fixed());
     // Detect a proper timestamp type based on the argument values
-    Temporal_hybrid l_time1(thd, item->arguments()[0], TIME_TIME_ONLY);
+    Temporal_hybrid l_time1(thd, item->arguments()[0],
+                            Temporal::Options(TIME_TIME_ONLY, thd));
     if (!l_time1.is_valid_temporal())
       return (item->null_value= true);
     Interval_DDhhmmssff l_time2(thd, item->arguments()[1]);

@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU Library General Public
 # License along with this library; if not, write to the Free
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA
+# MA 02110-1335  USA
 
 use Getopt::Long;
 use POSIX qw(strftime getcwd);
@@ -308,7 +308,9 @@ sub report_mysqlds
 
 sub start_mysqlds()
 {
-  my (@groups, $com, $tmp, $i, @options, $j, $mysqld_found, $info_sent);
+  my (@groups, $com, $tmp, $i, @options, $j, $mysqld_found, $suffix_found, $info_sent);
+
+  $suffix_found= 0;
 
   if (!$opt_no_log)
   {
@@ -327,6 +329,7 @@ sub start_mysqlds()
     $mysqld_found= 1; # The default
     $mysqld_found= 0 if (!length($mysqld));
     $com= "$mysqld";
+
     for ($j = 0, $tmp= ""; defined($options[$j]); $j++)
     {
       if ("--mysqladmin=" eq substr($options[$j], 0, 13))
@@ -347,6 +350,10 @@ sub start_mysqlds()
         $options[$j]= quote_shell_word($options[$j]);
         $tmp.= " $options[$j]";
       }
+      elsif ("--defaults-group-suffix=" eq substr($options[$j], 0, 24))
+      {
+        $suffix_found= 1;
+      }
       else
       {
 	$options[$j]= quote_shell_word($options[$j]);
@@ -362,6 +369,13 @@ sub start_mysqlds()
       print "wanted mysqld binary.\n\n";
       $info_sent= 1;
     }
+
+    if (!$suffix_found)
+    {
+      $com.= " --defaults-group-suffix=";
+      $com.= substr($groups[$i],6);
+    }
+
     $com.= $tmp;
 
     if ($opt_wsrep_new_cluster) {

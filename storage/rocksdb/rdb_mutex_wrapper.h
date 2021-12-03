@@ -37,9 +37,9 @@ class Rdb_mutex : public rocksdb::TransactionDBMutex {
   Rdb_mutex(const Rdb_mutex &p) = delete;
   Rdb_mutex &operator=(const Rdb_mutex &p) = delete;
 
-public:
+ public:
   Rdb_mutex();
-  virtual ~Rdb_mutex();
+  virtual ~Rdb_mutex() override;
 
   /*
     Override parent class's virtual methods of interrest.
@@ -55,13 +55,13 @@ public:
   //         TimedOut if timed out,
   //         or other Status on failure.
   // If returned status is OK, TransactionDB will eventually call UnLock().
-  virtual rocksdb::Status
-  TryLockFor(int64_t timeout_time MY_ATTRIBUTE((__unused__))) override;
+  virtual rocksdb::Status TryLockFor(
+      int64_t timeout_time MY_ATTRIBUTE((__unused__))) override;
 
   // Unlock Mutex that was successfully locked by Lock() or TryLockUntil()
   virtual void UnLock() override;
 
-private:
+ private:
   mysql_mutex_t m_mutex;
   friend class Rdb_cond_var;
 
@@ -75,9 +75,9 @@ class Rdb_cond_var : public rocksdb::TransactionDBCondVar {
   Rdb_cond_var(const Rdb_cond_var &) = delete;
   Rdb_cond_var &operator=(const Rdb_cond_var &) = delete;
 
-public:
+ public:
   Rdb_cond_var();
-  virtual ~Rdb_cond_var();
+  virtual ~Rdb_cond_var() override;
 
   /*
     Override parent class's virtual methods of interrest.
@@ -88,8 +88,8 @@ public:
   // Returns OK if notified.
   // Returns non-OK if TransactionDB should stop waiting and fail the operation.
   // May return OK spuriously even if not notified.
-  virtual rocksdb::Status
-  Wait(const std::shared_ptr<rocksdb::TransactionDBMutex> mutex) override;
+  virtual rocksdb::Status Wait(
+      const std::shared_ptr<rocksdb::TransactionDBMutex> mutex) override;
 
   // Block current thread until condition variable is notifiesd by a call to
   // Notify() or NotifyAll(), or if the timeout is reached.
@@ -103,9 +103,9 @@ public:
   // Returns other status if TransactionDB should otherwis stop waiting and
   //  fail the operation.
   // May return OK spuriously even if not notified.
-  virtual rocksdb::Status
-  WaitFor(const std::shared_ptr<rocksdb::TransactionDBMutex> mutex,
-          int64_t timeout_time) override;
+  virtual rocksdb::Status WaitFor(
+      const std::shared_ptr<rocksdb::TransactionDBMutex> mutex,
+      int64_t timeout_time) override;
 
   // If any threads are waiting on *this, unblock at least one of the
   // waiting threads.
@@ -114,12 +114,12 @@ public:
   // Unblocks all threads waiting on *this.
   virtual void NotifyAll() override;
 
-private:
+ private:
   mysql_cond_t m_cond;
 };
 
 class Rdb_mutex_factory : public rocksdb::TransactionDBMutexFactory {
-public:
+ public:
   Rdb_mutex_factory(const Rdb_mutex_factory &) = delete;
   Rdb_mutex_factory &operator=(const Rdb_mutex_factory &) = delete;
   Rdb_mutex_factory() {}
@@ -127,17 +127,17 @@ public:
     Override parent class's virtual methods of interrest.
   */
 
-  virtual std::shared_ptr<rocksdb::TransactionDBMutex>
-  AllocateMutex() override {
+  virtual std::shared_ptr<rocksdb::TransactionDBMutex> AllocateMutex()
+      override {
     return std::make_shared<Rdb_mutex>();
   }
 
-  virtual std::shared_ptr<rocksdb::TransactionDBCondVar>
-  AllocateCondVar() override {
+  virtual std::shared_ptr<rocksdb::TransactionDBCondVar> AllocateCondVar()
+      override {
     return std::make_shared<Rdb_cond_var>();
   }
 
-  virtual ~Rdb_mutex_factory() {}
+  virtual ~Rdb_mutex_factory() override {}
 };
 
-} // namespace myrocks
+}  // namespace myrocks

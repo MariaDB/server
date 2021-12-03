@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* Copy data from a textfile to table */
@@ -41,6 +41,8 @@
 #include "sql_trigger.h"
 #include "sql_derived.h"
 #include "sql_show.h"
+
+#include "wsrep_mysqld.h"
 
 extern "C" int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t Count);
 
@@ -98,44 +100,39 @@ public:
 #define PUSH(A) *(stack_pos++)=(A)
 
 #ifdef WITH_WSREP
-/** If requested by wsrep_load_data_splitting, commit and restart
-the transaction after every 10,000 inserted rows. */
-
-static bool wsrep_load_data_split(THD *thd, const TABLE *table,
-				  const COPY_INFO &info)
+/** If requested by wsrep_load_data_splitting and streaming replication is
+    not enabled, replicate a streaming fragment every 10,000 rows.*/
+class Wsrep_load_data_split
 {
-  DBUG_ENTER("wsrep_load_data_split");
-
-  if (!wsrep_load_data_splitting || !wsrep_on(thd)
-      || !info.records || (info.records % 10000)
-      || !thd->transaction.stmt.ha_list
-      || thd->transaction.stmt.ha_list->ht() != binlog_hton
-      || !thd->transaction.stmt.ha_list->next()
-      || thd->transaction.stmt.ha_list->next()->next())
-    DBUG_RETURN(false);
-
-  if (handlerton* hton= thd->transaction.stmt.ha_list->next()->ht())
+public:
+  Wsrep_load_data_split(THD *thd)
+    : m_thd(thd)
+    , m_load_data_splitting(wsrep_load_data_splitting)
+    , m_fragment_unit(thd->wsrep_trx().streaming_context().fragment_unit())
+    , m_fragment_size(thd->wsrep_trx().streaming_context().fragment_size())
   {
-    if (hton->db_type != DB_TYPE_INNODB)
-      DBUG_RETURN(false);
-    WSREP_DEBUG("intermediate transaction commit in LOAD DATA");
-    if (wsrep_run_wsrep_commit(thd, true) != WSREP_TRX_OK) DBUG_RETURN(true);
-    if (binlog_hton->commit(binlog_hton, thd, true)) DBUG_RETURN(true);
-    wsrep_post_commit(thd, true);
-    hton->commit(hton, thd, true);
-    table->file->extra(HA_EXTRA_FAKE_START_STMT);
+    if (WSREP(m_thd) && m_load_data_splitting)
+    {
+      /* Override streaming settings with backward compatible values for
+         load data splitting */
+      m_thd->wsrep_cs().streaming_params(wsrep::streaming_context::row, 10000);
+    }
   }
 
-  DBUG_RETURN(false);
-}
-# define WSREP_LOAD_DATA_SPLIT(thd,table,info)		\
-  if (wsrep_load_data_split(thd,table,info))		\
-  {							\
-    table->auto_increment_field_not_null= FALSE;	\
-    DBUG_RETURN(1);					\
+  ~Wsrep_load_data_split()
+  {
+    if (WSREP(m_thd) && m_load_data_splitting)
+    {
+      /* Restore original settings */
+      m_thd->wsrep_cs().streaming_params(m_fragment_unit, m_fragment_size);
+    }
   }
-#else /* WITH_WSREP */
-#define WSREP_LOAD_DATA_SPLIT(thd,table,info) /* empty */
+private:
+  THD *m_thd;
+  my_bool m_load_data_splitting;
+  enum wsrep::streaming_context::fragment_unit m_fragment_unit;
+  size_t m_fragment_size;
+};
 #endif /* WITH_WSREP */
 
 class READ_INFO: public Load_data_param
@@ -355,6 +352,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   bool transactional_table __attribute__((unused));
   DBUG_ENTER("mysql_load");
 
+#ifdef WITH_WSREP
+  Wsrep_load_data_split wsrep_load_data_split(thd);
+#endif /* WITH_WSREP */
   /*
     Bug #34283
     mysqlbinlog leaves tmpfile after termination if binlog contains
@@ -387,8 +387,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
     DBUG_RETURN(TRUE);
-  if (mysql_handle_single_derived(thd->lex, table_list, DT_MERGE_FOR_INSERT) ||
-      mysql_handle_single_derived(thd->lex, table_list, DT_PREPARE))
+  if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
+    DBUG_RETURN(TRUE);
+  if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE);
   if (setup_tables_and_check_access(thd,
                                     &thd->lex->first_select_lex()->context,
@@ -405,6 +406,11 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       check_key_in_view(thd, table_list))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "LOAD");
+    DBUG_RETURN(TRUE);
+  }
+  if (table_list->is_multitable())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "Multi-table VIEW", "LOAD");
     DBUG_RETURN(TRUE);
   }
   if (table_list->prepare_where(thd, 0, TRUE) ||
@@ -641,6 +647,10 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
+    if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS) &&
+        (error= table_list->table->file->ha_rnd_init_with_error(0)))
+      goto err;
+
     thd_progress_init(thd, 2);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
     {
@@ -659,6 +669,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       error= read_sep_field(thd, info, table_list, fields_vars,
                             set_fields, set_values, read_info,
                             *ex->enclosed, skip_lines, ignore);
+
+    if (table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      table_list->table->file->ha_rnd_end();
 
     thd_proc_info(thd, "End bulk insert");
     if (likely(!error))
@@ -1006,7 +1019,6 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
-    WSREP_LOAD_DATA_SPLIT(thd, table, info);
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= FALSE;
     if (err)
@@ -1149,7 +1161,6 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
-    WSREP_LOAD_DATA_SPLIT(thd, table, info);
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= FALSE;
     if (err)
@@ -1272,7 +1283,6 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
     
-    WSREP_LOAD_DATA_SPLIT(thd, table, info);
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= false;
     if (err)
@@ -2011,8 +2021,8 @@ int READ_INFO::read_xml(THD *thd)
       
     case '=': /* attribute name end - read the value */
       //check for tag field and attribute name
-      if(!memcmp(tag.c_ptr_safe(), STRING_WITH_LEN("field")) &&
-         !memcmp(attribute.c_ptr_safe(), STRING_WITH_LEN("name")))
+      if(!strcmp(tag.c_ptr_safe(), "field") &&
+         !strcmp(attribute.c_ptr_safe(), "name"))
       {
         /*
           this is format <field name="xx">xx</field>
@@ -2043,7 +2053,7 @@ int READ_INFO::read_xml(THD *thd)
       chr= read_value(delim, &value);
       if (attribute.length() > 0 && value.length() > 0)
       {
-        DBUG_PRINT("read_xml", ("lev:%i att:%s val:%s\n",
+        DBUG_PRINT("read_xml", ("lev:%i att:%s val:%s",
                                 level + 1,
                                 attribute.c_ptr_safe(),
                                 value.c_ptr_safe()));

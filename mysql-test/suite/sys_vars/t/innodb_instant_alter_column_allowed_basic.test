@@ -1,0 +1,34 @@
+--source include/have_innodb.inc
+
+SET @start_global_value = @@global.innodb_instant_alter_column_allowed;
+SET GLOBAL innodb_instant_alter_column_allowed=never;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.innodb_instant_alter_column_allowed;
+show global variables like 'innodb_instant_alter_column_allowed';
+show session variables like 'innodb_instant_alter_column_allowed';
+SELECT * FROM information_schema.global_variables
+WHERE variable_name='innodb_instant_alter_column_allowed';
+SELECT * FROM information_schema.session_variables
+WHERE variable_name='innodb_instant_alter_column_allowed';
+
+--error ER_WRONG_VALUE_FOR_VAR
+set global innodb_instant_alter_column_allowed=no;
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_instant_alter_column_allowed=1.1;
+--error ER_WRONG_VALUE_FOR_VAR
+set global innodb_instant_alter_column_allowed=-1;
+select @@global.innodb_instant_alter_column_allowed;
+--error ER_WRONG_VALUE_FOR_VAR
+set global innodb_instant_alter_column_allowed=3;
+select @@global.innodb_instant_alter_column_allowed;
+set global innodb_instant_alter_column_allowed=2;
+select @@global.innodb_instant_alter_column_allowed;
+set global innodb_instant_alter_column_allowed=1;
+select @@global.innodb_instant_alter_column_allowed;
+set global innodb_instant_alter_column_allowed=0;
+select @@global.innodb_instant_alter_column_allowed;
+set global innodb_instant_alter_column_allowed=default;
+select @@global.innodb_instant_alter_column_allowed;
+
+SET GLOBAL innodb_instant_alter_column_allowed = @start_global_value;

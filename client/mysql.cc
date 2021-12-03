@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* mysql command tool
  * Commands compatible with mSQL by David J. Hughes
@@ -40,6 +40,7 @@
 #include "my_readline.h"
 #include <signal.h>
 #include <violite.h>
+#include <my_sys.h>
 #include <source_revision.h>
 #if defined(USE_LIBEDIT_INTERFACE) && defined(HAVE_LOCALE_H)
 #include <locale.h>
@@ -89,7 +90,14 @@ extern "C" {
 #if defined(__WIN__)
 #include <conio.h>
 #else
-#include <readline.h>
+# ifdef __APPLE__
+#  include <editline/readline.h>
+# else
+#  include <readline.h>
+#  if !defined(USE_LIBEDIT_INTERFACE)
+#   include <history.h>
+#  endif
+# endif
 #define HAVE_READLINE
 #define USE_POPEN
 #endif
@@ -160,6 +168,7 @@ static uint my_end_arg;
 static char * opt_mysql_unix_port=0;
 static int connect_flag=CLIENT_INTERACTIVE;
 static my_bool opt_binary_mode= FALSE;
+static my_bool opt_connect_expired_password= FALSE;
 static int interrupted_query= 0;
 static char *current_host,*current_db,*current_user=0,*opt_password=0,
             *current_prompt=0, *delimiter_str= 0,
@@ -197,6 +206,7 @@ static uint delimiter_length= 1;
 unsigned short terminal_width= 80;
 
 static uint opt_protocol=0;
+static const char *opt_protocol_type= "";
 static CHARSET_INFO *charset_info= &my_charset_latin1;
 
 #include "sslopt-vars.h"
@@ -278,9 +288,9 @@ static COMMANDS commands[] = {
   { "edit",   'e', com_edit,   0, "Edit command with $EDITOR."},
 #endif
   { "ego",    'G', com_ego,    0,
-    "Send command to mysql server, display result vertically."},
+    "Send command to MariaDB server, display result vertically."},
   { "exit",   'q', com_quit,   0, "Exit mysql. Same as quit."},
-  { "go",     'g', com_go,     0, "Send command to mysql server." },
+  { "go",     'g', com_go,     0, "Send command to MariaDB server." },
   { "help",   'h', com_help,   1, "Display this help." },
 #ifdef USE_POPEN
   { "nopager",'n', com_nopager,0, "Disable pager, print to stdout." },
@@ -1031,7 +1041,7 @@ static COMMANDS commands[] = {
 };
 
 static const char *load_default_groups[]=
-{ "mysql", "client", "client-server", "client-mariadb", 0 };
+{ "mysql", "mariadb-client", "client", "client-server", "client-mariadb", 0 };
 
 static int         embedded_server_arg_count= 0;
 static char       *embedded_server_args[MAX_SERVER_ARGS];
@@ -1039,24 +1049,8 @@ static const char *embedded_server_groups[]=
 { "server", "embedded", "mysql_SERVER", "mariadb_SERVER", 0 };
 
 #ifdef HAVE_READLINE
-/*
- HIST_ENTRY is defined for libedit, but not for the real readline
- Need to redefine it for real readline to find it
-*/
-#if !defined(HAVE_HIST_ENTRY)
-typedef struct _hist_entry {
-  const char      *line;
-  const char      *data;
-} HIST_ENTRY; 
-#endif
-
-extern "C" int add_history(const char *command); /* From readline directory */
-extern "C" int read_history(const char *command);
-extern "C" int write_history(const char *command);
-extern "C" HIST_ENTRY *history_get(int num);
-extern "C" int history_length;
 static int not_in_history(const char *line);
-static void initialize_readline (char *name);
+static void initialize_readline ();
 static void fix_history(String *final_command);
 #endif
 
@@ -1237,7 +1231,7 @@ int main(int argc,char *argv[])
   }
 
 #ifdef HAVE_READLINE
-  initialize_readline((char*) my_progname);
+  initialize_readline();
   if (!status.batch && !quick && !opt_html && !opt_xml)
   {
     /* read-history from file, default ~/.mysql_history*/
@@ -1297,8 +1291,8 @@ sig_handler mysql_end(int sig)
 {
 #ifndef _WIN32
   /*
-    Ingnoring SIGQUIT and SIGINT signals when cleanup process starts.
-    This will help in resolving the double free issues, which occures in case
+    Ignoring SIGQUIT and SIGINT signals when cleanup process starts.
+    This will help in resolving the double free issues, which occurs in case
     the signal handler function is started in between the clean up function.
   */
   signal(SIGQUIT, SIG_IGN);
@@ -1361,6 +1355,7 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
 		  opt_ssl_capath, opt_ssl_cipher);
     mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
   }
   mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);
@@ -1537,7 +1532,7 @@ static struct my_option my_long_options[] =
    &ignore_spaces, &ignore_spaces, 0, GET_BOOL, NO_ARG, 0, 0,
    0, 0, 0, 0},
   {"init-command", OPT_INIT_COMMAND,
-   "SQL Command to execute when connecting to MySQL server. Will "
+   "SQL Command to execute when connecting to MariaDB server. Will "
    "automatically be re-executed when reconnecting.",
    &opt_init_command, &opt_init_command, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1599,11 +1594,12 @@ static struct my_option my_long_options[] =
    "Get progress reports for long running commands (like ALTER TABLE)",
    &opt_progress_reports, &opt_progress_reports, 0, GET_BOOL, NO_ARG, 1, 0,
    0, 0, 0, 0},
-  {"prompt", OPT_PROMPT, "Set the mysql prompt to this value.",
+  {"prompt", OPT_PROMPT, "Set the command line prompt to this value.",
    &current_prompt, &current_prompt, 0, GET_STR_ALLOC,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe).",
-   0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   &opt_protocol_type, &opt_protocol_type, 0, GET_STR,  REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0},
   {"quick", 'q',
    "Don't cache result, print it row by row. This may slow down the server "
    "if the output is suspended. Doesn't use history file.",
@@ -1680,12 +1676,20 @@ static struct my_option my_long_options[] =
     &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"binary-mode", 0,
-   "By default, ASCII '\\0' is disallowed and '\\r\\n' is translated to '\\n'. "
-   "This switch turns off both features, and also turns off parsing of all client"
-   "commands except \\C and DELIMITER, in non-interactive mode (for input "
-   "piped to mysql or loaded using the 'source' command). This is necessary "
-   "when processing output from mysqlbinlog that may contain blobs.",
+   "Binary mode allows certain character sequences to be processed as data "
+   "that would otherwise be treated with a special meaning by the parser. "
+   "Specifically, this switch turns off parsing of all client commands except "
+   "\\C and DELIMITER in non-interactive mode (i.e., when binary mode is "
+   "combined with either 1) piped input, 2) the --batch mysql option, or 3) "
+   "the 'source' command). Also, in binary mode, occurrences of '\\r\\n' and "
+   "ASCII '\\0' are preserved within strings, whereas by default, '\\r\\n' is "
+   "translated to '\\n' and '\\0' is disallowed in user input.",
    &opt_binary_mode, &opt_binary_mode, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"connect-expired-password", 0,
+   "Notify the server that this client is prepared to handle expired "
+   "password sandbox mode even if --batch was specified.",
+   &opt_connect_expired_password, &opt_connect_expired_password, 0, GET_BOOL,
+   NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -1779,8 +1783,10 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     break;
   case OPT_MYSQL_PROTOCOL:
 #ifndef EMBEDDED_LIBRARY
-    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
-                                              opt->name)) <= 0)
+    if (!argument[0])
+      opt_protocol= 0;
+    else if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                                   opt->name)) <= 0)
       exit(1);
 #endif
     break;
@@ -1867,6 +1873,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
   case 'W':
 #ifdef __WIN__
     opt_protocol = MYSQL_PROTOCOL_PIPE;
+    opt_protocol_type= "pipe";
 #endif
     break;
 #include <sslopt-case.h>
@@ -2316,8 +2323,15 @@ static bool add_line(String &buffer, char *line, size_t line_length,
     {
       // Found possbile one character command like \c
 
-      if (!(inchar = (uchar) *++pos))
-	break;				// readline adds one '\'
+      /*
+        The null-terminating character (ASCII '\0') marks the end of user
+        input. Then, by default, upon encountering a '\0' while parsing, it
+        should stop.  However, some data naturally contains binary zeros
+        (e.g., zipped files). Real_binary_mode signals the parser to expect
+        '\0' within the data and not to end parsing if found.
+       */
+      if (!(inchar = (uchar) *++pos) && (!real_binary_mode || !*in_string))
+        break;				// readline adds one '\'
       if (*in_string || inchar == 'N')	// \N is short for NULL
       {					// Don't allow commands in string
 	*out++='\\';
@@ -2652,10 +2666,11 @@ static int fake_magic_space(const char *, int)
 }
 
 
-static void initialize_readline (char *name)
+static void initialize_readline ()
 {
   /* Allow conditional parsing of the ~/.inputrc file. */
-  rl_readline_name = name;
+  rl_readline_name= (char *) "mysql";
+  rl_terminal_name= getenv("TERM");
 
   /* Tell the completer that we want a crack first. */
 #if defined(USE_NEW_READLINE_INTERFACE)
@@ -3127,7 +3142,7 @@ com_help(String *buffer __attribute__((unused)),
 
   put_info("\nGeneral information about MariaDB can be found at\n"
            "http://mariadb.org\n", INFO_INFO);
-  put_info("List of all MySQL commands:", INFO_INFO);
+  put_info("List of all client commands:", INFO_INFO);
   if (!named_cmds)
     put_info("Note that all text commands must be first on line and end with ';'",INFO_INFO);
   for (i = 0; commands[i].name; i++)
@@ -3194,7 +3209,7 @@ static int
 com_go(String *buffer,char *line __attribute__((unused)))
 {
   char		buff[200]; /* about 110 chars used so far */
-  char          time_buff[53+3+1]; /* time max + space&parens + NUL */
+  char		time_buff[53+3+1]; /* time max + space & parens + NUL */
   MYSQL_RES	*result;
   ulonglong	timer;
   ulong		warnings= 0;
@@ -3214,7 +3229,7 @@ com_go(String *buffer,char *line __attribute__((unused)))
 
   if (buffer->is_empty())
   {
-    if (status.batch)				// Ignore empty quries
+    if (status.batch)				// Ignore empty queries.
       return 0;
     return put_info("No query specified\n",INFO_ERROR);
 
@@ -3279,7 +3294,7 @@ com_go(String *buffer,char *line __attribute__((unused)))
     else
       time_buff[0]= '\0';
 
-    /* Every branch must truncate  buff . */
+    /* Every branch must truncate buff. */
     if (result)
     {
       if (!mysql_num_rows(result) && ! quick && !column_types_flag)
@@ -3502,6 +3517,7 @@ print_field_types(MYSQL_RES *result)
   while ((field = mysql_fetch_field(result)))
   {
     tee_fprintf(PAGER, "Field %3u:  `%s`\n"
+                       "Org_field:  `%s`\n"
                        "Catalog:    `%s`\n"
                        "Database:   `%s`\n"
                        "Table:      `%s`\n"
@@ -3513,8 +3529,8 @@ print_field_types(MYSQL_RES *result)
                        "Decimals:   %u\n"
                        "Flags:      %s\n\n",
                 ++i,
-                field->name, field->catalog, field->db, field->table,
-                field->org_table, fieldtype2str(field->type),
+                field->name, field->org_name, field->catalog, field->db,
+                field->table, field->org_table, fieldtype2str(field->type),
                 get_charset_name(field->charsetnr), field->charsetnr,
                 field->length, field->max_length, field->decimals,
                 fieldflags2str(field->flags));
@@ -3771,9 +3787,10 @@ print_table_data_html(MYSQL_RES *result)
   MYSQL_FIELD	*field;
 
   mysql_field_seek(result,0);
-  (void) tee_fputs("<TABLE BORDER=1><TR>", PAGER);
+  (void) tee_fputs("<TABLE BORDER=1>", PAGER);
   if (column_names)
   {
+    (void) tee_fputs("<TR>", PAGER);
     while((field = mysql_fetch_field(result)))
     {
       tee_fputs("<TH>", PAGER);
@@ -4681,8 +4698,12 @@ sql_real_connect(char *host,char *database,char *user,char *password,
 	    select_limit,max_join_size);
     mysql_options(&mysql, MYSQL_INIT_COMMAND, init_command);
   }
-
+  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *)my_default_csname();
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
+
+  my_bool can_handle_expired= opt_connect_expired_password || !status.batch;
+  mysql_options(&mysql, MYSQL_OPT_CAN_HANDLE_EXPIRED_PASSWORDS, &can_handle_expired);
 
   if (!do_connect(&mysql, host, user, password, database,
                   connect_flag | CLIENT_MULTI_STATEMENTS))
@@ -4698,7 +4719,11 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     return -1;					// Retryable
   }
 
-  charset_info= get_charset_by_name(mysql.charset->name, MYF(0));
+  if (!(charset_info= get_charset_by_name(mysql.charset->name, MYF(0))))
+  {
+    put_info("Unknown default character set", INFO_ERROR);
+    return 1;
+  }
 
   
   connected=1;
@@ -4708,7 +4733,7 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   /*
     CLIENT_PROGRESS_OBSOLETE is set only if we requested it in
     mysql_real_connect() and the server also supports it
-  */
+*/
   if (mysql.client_flag & CLIENT_PROGRESS_OBSOLETE)
     mysql_options(&mysql, MYSQL_PROGRESS_CALLBACK, (void*) report_progress);
 #else
@@ -4777,7 +4802,7 @@ com_status(String *buffer __attribute__((unused)),
   tee_fprintf(stdout, "\nConnection id:\t\t%lu\n",mysql_thread_id(&mysql));
   /*
     Don't remove "limit 1",
-    it is protection againts SQL_SELECT_LIMIT=0
+    it is protection against SQL_SELECT_LIMIT=0
   */
   if (!mysql_store_result_for_lazy(&result))
   {
@@ -5126,7 +5151,7 @@ static const char *construct_prompt()
   time_t  lclock = time(NULL);			// Get the date struct
   struct tm *t = localtime(&lclock);
 
-  /* parse thru the settings for the prompt */
+  /* parse through the settings for the prompt */
   for (char *c = current_prompt; *c ; c++)
   {
     if (*c != PROMPT_CHAR)

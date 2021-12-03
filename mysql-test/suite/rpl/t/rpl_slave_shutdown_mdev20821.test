@@ -1,0 +1,171 @@
+# MDEV-20821 parallel slave server shutdown hang
+#
+# Test the bug condition of a parallel slave server shutdown
+# hang when the parallel workers were idle.
+# The bug reported scenario is extented to cover the multi-sources case as well as
+# checking is done for both the idle and busy workers cases.
+# 
+# MDEV-25336 Parallel replication causes failed assert while restarting
+#   Since this test case involves slave restart this will help in testing
+#   Mdev-25336 too.
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--let $rpl_topology= 1->3
+--source include/rpl_init.inc
+
+#
+# A. idle workers.
+#
+--connection server_3
+set default_master_connection = '';
+--source include/start_slave.inc
+
+set default_master_connection = 'm2';
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
+eval change master to master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+select @@global.slave_parallel_workers as two;
+
+# At this point worker threads have no assignement.
+# Shutdown must not hang.
+# In 10.2/10.3 there should not be any assert failure `prev != 0 && next != 0'
+--connection server_3
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+wait
+EOF
+--send SHUTDOWN
+--reap
+--source include/wait_until_disconnected.inc
+
+--connection server_3
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+restart
+EOF
+
+# No hang is *proved* to occur when this point is reached.
+--connection server_3
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+#
+# B. resting workers after some busy time
+#
+--connection server_1
+create table t1 (i int primary key) engine=Innodb;
+
+--connection server_2
+create table t2 (i int primary key) engine=Innodb;
+
+--connection server_3
+set default_master_connection = '';
+--source include/start_slave.inc
+
+set default_master_connection = 'm2';
+--source include/start_slave.inc
+
+--connection server_2
+insert into t2 values (1);
+--save_master_pos
+
+--connection server_3
+--sync_with_master 0,'m2'
+
+--connection server_1
+insert into t1 values (1);
+--save_master_pos
+
+--connection server_3
+--sync_with_master 0,''
+
+# In 10.2/10.3 there should not be any assert failure `prev != 0 && next != 0'
+# At this point worker threads have no assignement.
+# Shutdown must not hang.
+
+--connection server_3
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+wait
+EOF
+--send SHUTDOWN
+--reap
+--source include/wait_until_disconnected.inc
+
+--connection server_3
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+restart
+EOF
+
+# No hang is *proved* to occur when this point is reached.
+--connection server_3
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+#
+# C. busy workers
+#
+--connection server_3
+set default_master_connection = '';
+--source include/start_slave.inc
+
+set default_master_connection = 'm2';
+--source include/start_slave.inc
+
+--connect (conn_block_server3, 127.0.0.1, root,, test, $SERVER_MYPORT_3,)
+begin;
+  insert into t1 values (2);
+  insert into t2 values (2);
+
+--connection server_1
+insert into t1 values (2);
+--connection server_2
+insert into t2 values (2);
+
+
+# In 10.2/10.3 there should not be any assert failure `prev != 0 && next != 0'
+# At this point there's a good chance the worker threads are busy.
+# SHUTDOWN must proceed without any delay as above.
+--connection server_3
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+wait
+EOF
+--send SHUTDOWN
+--reap
+--source include/wait_until_disconnected.inc
+
+--connection server_3
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+restart
+EOF
+
+# No hang is *proved* to occur when this point is reached.
+--connection server_3
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+
+# Cleanup
+
+--connection server_3
+set default_master_connection = '';
+--source include/start_slave.inc
+
+set default_master_connection = 'm2';
+--source include/start_slave.inc
+
+--connection server_1
+drop table t1;
+
+--connection server_2
+drop table t2;
+--save_master_pos
+
+# (!) The following block is critical to avoid check-mysqld_3.reject by mtr:
+--connection server_3
+--sync_with_master 0,'m2'
+set default_master_connection = 'm2';
+--source include/stop_slave.inc
+RESET SLAVE ALL;
+set default_master_connection = '';
+
+--source include/rpl_end.inc

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_TABLE_INCLUDED
 #define SQL_TABLE_INCLUDED
@@ -198,8 +198,8 @@ int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
                                int create_table_mode, TABLE_LIST *table);
 
 handler *mysql_create_frm_image(THD *thd,
-                                const LEX_CSTRING *db,
-                                const LEX_CSTRING *table_name,
+                                const LEX_CSTRING &db,
+                                const LEX_CSTRING &table_name,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info,
                                 int create_table_mode,
@@ -252,8 +252,6 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
                     const char *table_path=0);
 void close_cached_table(THD *thd, TABLE *table);
 void sp_prepare_create_field(THD *thd, Column_definition *sql_field);
-CHARSET_INFO* get_sql_field_charset(Column_definition *sql_field,
-                                    HA_CREATE_INFO *create_info);
 bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags);
 int write_bin_log(THD *thd, bool clear_error,
                   char const *query, ulong query_length,

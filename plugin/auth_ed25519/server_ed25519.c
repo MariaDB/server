@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2017, MariaDB
+   Copyright (c) 2017, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,9 +12,10 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <mysql/plugin_auth.h>
+#include <mysqld_error.h>
 #include "common.h"
 
 #if !defined(__attribute__) && !defined(__GNUC__)
@@ -41,7 +42,7 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
   /* prepare random nonce */
   if (my_random_bytes((unsigned char *)nonce, (int)sizeof(nonce)))
-    return CR_AUTH_USER_CREDENTIALS;
+    return CR_ERROR; // eh? OpenSSL error
 
   /* send it */
   if (vio->write_packet(vio, reply + CRYPTO_BYTES, NONCE_BYTES))
@@ -54,7 +55,7 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
   if (crypto_sign_open(reply, CRYPTO_BYTES + NONCE_BYTES,
                        (unsigned char*)info->auth_string))
-    return CR_ERROR;
+    return CR_AUTH_USER_CREDENTIALS; // wrong password provided by the user
 
   return CR_OK;
 }
@@ -77,12 +78,18 @@ static int digest_to_binary(const char *d, size_t dlen,
   char pw[PASSWORD_LEN_BUF];
 
   if (*blen < CRYPTO_PUBLICKEYBYTES || dlen != PASSWORD_LEN)
+  {
+    my_printf_error(ER_PASSWD_LENGTH, "Password hash should be %d characters long", 0, PASSWORD_LEN);
     return 1;
+  }
 
   *blen= CRYPTO_PUBLICKEYBYTES;
   memcpy(pw, d, PASSWORD_LEN);
   pw[PASSWORD_LEN]= '=';
-  return my_base64_decode(pw, PASSWORD_LEN_BUF, b, 0, 0) != CRYPTO_PUBLICKEYBYTES;
+  if (my_base64_decode(pw, PASSWORD_LEN_BUF, b, 0, 0) == CRYPTO_PUBLICKEYBYTES)
+    return 0;
+  my_printf_error(ER_PASSWD_LENGTH, "Password hash should be base64 encoded", 0);
+  return 1;
 }
 
 static struct st_mysql_auth info =

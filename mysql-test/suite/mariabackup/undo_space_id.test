@@ -17,7 +17,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir
 list_files $basedir undo*;
 
 --echo # xtrabackup prepare
-exec $XTRABACKUP --prepare --apply-log-only --target-dir=$basedir;
+exec $XTRABACKUP --prepare --target-dir=$basedir;
 --echo # Display undo log files from targer directory
 list_files $basedir undo*;
 

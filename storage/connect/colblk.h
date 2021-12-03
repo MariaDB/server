@@ -1,7 +1,7 @@
 /*************** Colblk H Declares Source Code File (.H) ***************/
 /*  Name: COLBLK.H    Version 1.7                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2019    */
 /*                                                                     */
 /*  This file contains the COLBLK and derived classes declares.        */
 /***********************************************************************/
@@ -38,7 +38,8 @@ class DllExport COLBLK : public XOBJECT {
   virtual PTDB    GetTo_Tdb(void) {return To_Tdb;}
   virtual int     GetClustered(void) {return 0;}
   virtual int     IsClustered(void) {return FALSE;}
-	virtual PSZ     GetJpath(PGLOBAL g, bool proj) {return NULL;}
+  virtual bool    Stringify(void) {return FALSE;}
+  virtual PSZ     GetJpath(PGLOBAL g, bool proj) {return NULL;}
 					PCOL    GetNext(void) {return Next;}
           PSZ     GetName(void) {return Name;}
           int     GetIndex(void) {return Index;}
@@ -62,7 +63,7 @@ class DllExport COLBLK : public XOBJECT {
           bool    IsVirtual(void) {return Cdp->IsVirtual();}
           bool    IsNullable(void) {return Nullable;}
           void    SetNullable(bool b) {Nullable = b;}
-
+          void    SetName(PSZ name_var) { Name= name_var; }
   // Methods
   virtual void    Reset(void);
   virtual bool    Compare(PXOB xp);

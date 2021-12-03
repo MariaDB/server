@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef _sql_plugin_h
 #define _sql_plugin_h
@@ -22,10 +22,11 @@
   that is defined in plugin.h
 */
 #define SHOW_always_last SHOW_KEY_CACHE_LONG, \
-            SHOW_LONG_STATUS, SHOW_DOUBLE_STATUS, \
             SHOW_HAVE, SHOW_MY_BOOL, SHOW_HA_ROWS, SHOW_SYS, \
-            SHOW_LONG_NOFLUSH, SHOW_LONGLONG_STATUS, SHOW_UINT32_STATUS, \
-            SHOW_LEX_STRING
+            SHOW_LONG_NOFLUSH, SHOW_LEX_STRING, SHOW_ATOMIC_COUNTER_UINT32_T, \
+      /* SHOW_*_STATUS must be at the end, SHOW_LONG_STATUS being first */ \
+            SHOW_LONG_STATUS, SHOW_DOUBLE_STATUS, SHOW_LONGLONG_STATUS, \
+            SHOW_UINT32_STATUS
 #include "mariadb.h"
 #undef SHOW_always_last
 
@@ -38,6 +39,7 @@ enum enum_plugin_load_option { PLUGIN_OFF, PLUGIN_ON, PLUGIN_FORCE,
   PLUGIN_FORCE_PLUS_PERMANENT };
 extern const char *global_plugin_typelib_names[];
 
+extern volatile int global_plugin_version;
 extern ulong dlopen_count;
 
 #include <my_sys.h>
@@ -196,9 +198,6 @@ extern void sync_dynamic_session_variables(THD* thd, bool global_lock);
 extern bool plugin_dl_foreach(THD *thd, const LEX_CSTRING *dl,
                               plugin_foreach_func *func, void *arg);
 
-sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
-                         bool throw_error, bool locked);
-
 extern void sync_dynamic_session_variables(THD* thd, bool global_lock);
 #endif
 
@@ -206,4 +205,3 @@ extern void sync_dynamic_session_variables(THD* thd, bool global_lock);
 extern void wsrep_plugins_pre_init();
 extern void wsrep_plugins_post_init();
 #endif /* WITH_WSREP */
-

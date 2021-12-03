@@ -1,4 +1,5 @@
 --source include/not_embedded.inc
+select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
 
 --error ER_MALFORMED_DEFINER
 grant select on *.* to current_role;
@@ -25,7 +26,7 @@ show grants;
 grant r1 to current_user() identified by 'barfoo';
 show grants;
 set password='';
-#cleanup after MDEV-16238
-update mysql.user set plugin='';
 
+#cleanup
 drop role r1;
+update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

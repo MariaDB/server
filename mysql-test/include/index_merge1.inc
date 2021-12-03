@@ -2,11 +2,10 @@
 #
 # Index merge tests
 #
-# The variables
-#     $engine_type         -- storage engine to be tested
+# The variable
 #     $merge_table_support -- 1 storage engine supports merge tables
 #                          -- 0 storage engine does not support merge tables
-# have to be set before sourcing this script.
+# has to be set before sourcing this script.
 #
 # Note: The comments/expectations refer to MyISAM.
 #       They might be not valid for other storage engines.
@@ -16,14 +15,9 @@
 #               old name was t/index_merge.test
 #               main code went into include/index_merge1.inc
 #
+--source include/have_sequence.inc
 
 --echo #---------------- Index merge test 1 -------------------------------------------
-
-eval SET SESSION STORAGE_ENGINE = $engine_type;
-
---disable_warnings
-drop table if exists t0, t1, t2, t3, t4;
---enable_warnings
 
 # Create and fill a table with simple keys
 create table t0
@@ -32,18 +26,7 @@ create table t0
   INDEX i1(key1)
 );
 
---disable_query_log
-insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
-
-let $1=7;
-set @d=8;
-while ($1)
-{
-  eval insert into t0 select key1+@d from t0;
-  eval set @d=@d*2;
-  dec $1;
-}
---enable_query_log
+insert into t0(key1) select seq from seq_1_to_1024;
 
 alter table t0 add key2 int not null, add index i2(key2);
 alter table t0 add key3 int not null, add index i3(key3);
@@ -57,12 +40,12 @@ update t0 set key2=key1,key3=key1,key4=key1,key5=key1,key6=key1,key7=key1,key8=1
 analyze table t0;
 
 # 1. One index
-explain select * from t0 where key1 < 3 or key1 > 1020;
+explain select * from t0 where key1 < 3 or key1 > 920 and key1 < 924;
 
 # 2. Simple cases
 explain
-select * from t0 where key1 < 3 or key2 > 1020;
-select * from t0 where key1 < 3 or key2 > 1020;
+select * from t0 where key1 < 3 or key2 > 920 and key2 < 924;
+select * from t0 where key1 < 3 or key2 > 920 and key2 < 924;
 
 select * from t0 where key1=1022; # MDEV-13535 no-key-read select after keyread
 
@@ -115,7 +98,6 @@ select * from t0 where (key1 < 3 or key2 < 6) and (key1 < 7 or key3 < 4);
 
 select * from t0 where (key1 < 3 or key2 < 6) and (key1 < 7 or key3 < 4);
 
-
 explain select * from t0 where
   (key1 < 3 or key2 < 3) and (key3 < 4 or key4 < 4) and (key5 < 2 or key6 < 2);
 
@@ -146,6 +128,10 @@ select * from t0 where
     key1 < 7;
 
 #   tree_or(List<SEL_IMERGE>, List<SEL_IMERGE>).
+select count(*) from t0 where
+    ((key1 < 4 or key2 < 4) and (key3 <5 or key5 < 4))
+  or
+    ((key5 < 5 or key6 < 6) and (key7 <7 or key8 < 4));
 explain select * from t0 where
     ((key1 < 4 or key2 < 4) and (key3 <5 or key5 < 4))
   or
@@ -215,7 +201,7 @@ create table t4 (
   index i2_2(key2, key2_1)
 );
 
-insert into t4 select key1,key1,key1 div 10, key1 % 10, key1 % 10, key1 from t0;
+insert into t4 select seq,seq,seq div 10, seq % 10, seq % 10, seq from seq_1_to_1024;
 
 #   the following will be handled by index_merge:
 select * from t4 where key1a = 3 or key1b = 4;
@@ -362,6 +348,7 @@ INSERT INTO t1 VALUES ('foo','bar', 'ZZ'),('fuz','baz', 'ZZ');
 
 --disable_query_log
 let $1=9;
+begin;
 while ($1)
 {
   eval INSERT INTO t1 SELECT * from t1 WHERE cola = 'foo';
@@ -374,6 +361,7 @@ while ($1)
   eval INSERT INTO t1 SELECT * from t1 WHERE cola <> 'foo';
   dec $1;
 }
+commit;
 
 --enable_query_log
 
@@ -388,14 +376,13 @@ if ($merge_table_support)
 #
 # BUG#17314: Index_merge/intersection not choosen by the optimizer for MERGE tables
 #
-create table t0 (a int);
-insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (
   a int, b int,
   filler1 char(200), filler2 char(200),
   key(a),key(b)
 );
-insert into t1 select @v:= A.a, @v, 't1', 'filler2' from t0 A, t0 B, t0 C;
+insert into t1 select @v:= seq % 10, @v, 't1', 'filler2' from seq_1_to_1000;
+
 create table t2 like t1;
 
 create table t3 (
@@ -409,8 +396,7 @@ explain select * from t1 where a=1 and b=1;
 --replace_column 9 #
 explain select * from t3 where a=1 and b=1;
 
-drop table t3;
-drop table t0, t1, t2;
+drop table t1, t2, t3;
 }
 
 #
@@ -476,6 +462,7 @@ create table t2(
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1;
 insert into t2 select * from t1;
 
+
 --echo must use sort-union rather than union:
 --replace_column 9 #
 explain select * from t1 where a=4 or b=4;
@@ -486,9 +473,9 @@ select * from t1 ignore index(a,b) where a=4 or b=4;
 
 --echo must use union, not sort-union:
 --replace_column 9 #
-explain select * from t2 where a=4 or b=4;
+explain select * from t2 where a=2 or b=2;
 --sorted_result
-select * from t2 where a=4 or b=4;
+select * from t2 where a=2 or b=2;
 
 drop table t1, t2;
 
@@ -509,16 +496,13 @@ DROP TABLE t1;
 --echo #
 --echo # BUG#40974: Incorrect query results when using clause evaluated using range check
 --echo #
-create table t0 (a int);
-insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-
 create table t1 (a int);
 insert into t1 values (1),(2);
 create table t2(a int, b int);
 insert into t2 values (1,1), (2, 1000);
 create table t3 (a int, b int, filler char(100), key(a), key(b));
 
-insert into t3 select 1000, 1000,'filler' from t0 A, t0 B, t0 C; 
+insert into t3 select 1000, 1000,'filler' from seq_1_to_1000;
 insert into t3 values (1,1,'data');
 insert into t3 values (1,1,'data');
 -- echo The plan should be ALL/ALL/ALL(Range checked for each record (index map: 0x3)
@@ -530,20 +514,14 @@ select * from t1
 where exists (select 1 from t2, t3 
               where t2.a=t1.a and (t3.a=t2.b or t3.b=t2.b or t3.b=t2.b+1));
 
-drop table t0, t1, t2, t3;
+drop table t1, t2, t3;
 
 --echo #
 --echo # BUG#44810: index merge and order by with low sort_buffer_size 
 --echo # crashes server!
 --echo #
 CREATE TABLE t1(a VARCHAR(128),b VARCHAR(128),KEY(A),KEY(B));
-INSERT INTO t1 VALUES (REPEAT('a',128),REPEAT('b',128));
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT REPEAT('a',128),REPEAT('b',128) FROM seq_1_to_64;
 SET SESSION sort_buffer_size=1024*8;
 EXPLAIN 
 SELECT * FROM t1 FORCE INDEX(a,b) WHERE a LIKE 'a%' OR b LIKE 'b%' 

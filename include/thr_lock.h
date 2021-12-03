@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* For use with thr_lock:s */
 
@@ -168,9 +168,9 @@ void thr_set_lock_wait_callback(void (*before_wait)(void),
                                 void (*after_wait)(void));
 
 #ifdef WITH_WSREP
-  typedef my_bool (* wsrep_thd_is_brute_force_fun)(void *, my_bool);
-  typedef int (* wsrep_abort_thd_fun)(void *, void *, my_bool);
-  typedef int (* wsrep_on_fun)(void *);
+  typedef my_bool (* wsrep_thd_is_brute_force_fun)(const MYSQL_THD, my_bool);
+  typedef my_bool(* wsrep_abort_thd_fun)(MYSQL_THD, MYSQL_THD, my_bool);
+  typedef my_bool (* wsrep_on_fun)(const MYSQL_THD);
   void wsrep_thr_lock_init(
     wsrep_thd_is_brute_force_fun bf_fun, wsrep_abort_thd_fun abort_fun,
     my_bool debug, my_bool convert_LOCK_to_trx, wsrep_on_fun on_fun);

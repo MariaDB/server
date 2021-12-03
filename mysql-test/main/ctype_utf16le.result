@@ -136,10 +136,10 @@ t1	CREATE TABLE `t1` (
 insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
 explain select * from t1 where a like 'abc%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	43	NULL	1	Using where; Using index
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
 explain select * from t1 where a like concat('abc','%');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	43	NULL	1	Using where; Using index
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
 select * from t1 where a like "abc%";
 a
 abc
@@ -713,6 +713,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 SET NAMES utf8, collation_connection='utf16le_bin';
 create table t1 select repeat('a',4000) a;
 delete from t1;
@@ -849,6 +855,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf16le_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 #
 # Bug#10344 Some string functions fail for UCS2
 #
@@ -1124,7 +1136,7 @@ INSERT INTO t1 VALUES (0xDF84);
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY column s1 VARCHAR(50) CHARACTER SET utf16le;
 Warnings:
-Warning	1366	Incorrect string value: '\xDF\x84' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xDF\x84' for column `test`.`t1`.`s1` at row 1
 SELECT HEX(s1) FROM t1;
 HEX(s1)
 3F00
@@ -1136,7 +1148,7 @@ CREATE TABLE t1 (s1 VARCHAR(5) CHARACTER SET ucs2, s2 VARCHAR(5) CHARACTER SET u
 INSERT INTO t1 (s1) VALUES (0xdf84);
 UPDATE IGNORE t1 set s2 = s1;
 Warnings:
-Warning	1366	Incorrect string value: '\xDF\x84' for column 's2' at row 1
+Warning	1366	Incorrect string value: '\xDF\x84' for column `test`.`t1`.`s2` at row 1
 SELECT HEX(s2) FROM t1;
 HEX(s2)
 3F00
@@ -1752,7 +1764,9 @@ ab
 ab
 AE
 AE
-SET max_sort_length=4;
+SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
 SELECT * FROM t1 ORDER BY s1;
 s1
 ab
@@ -2985,6 +2999,39 @@ DROP TABLE t1;
 # End of ctype_pad.inc
 #
 SET STORAGE_ENGINE=Default;
+#
+# MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+#
+SET NAMES utf8;
+SET SESSION character_set_connection= utf16le;
+CREATE TABLE kv (v TEXT CHARACTER SET latin1);
+CREATE TABLE t (a INT);
+CREATE VIEW v AS SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+LOAD DATA INFILE 'MYSQLD_DATADIR/test/v.frm' REPLACE INTO TABLE kv CHARACTER SET latin1;
+SELECT LOWER(v) FROM kv WHERE v LIKE _binary'query=%';
+LOWER(v)
+query=select `information_schema`.`tables`.`table_catalog` as `table_catalog`,`information_schema`.`tables`.`table_schema` as `table_schema`,`information_schema`.`tables`.`table_name` as `table_name`,`information_schema`.`tables`.`table_type` as `table_type`,`information_schema`.`tables`.`engine` as `engine`,`information_schema`.`tables`.`version` as `version`,`information_schema`.`tables`.`row_format` as `row_format`,`information_schema`.`tables`.`table_rows` as `table_rows`,`information_schema`.`tables`.`avg_row_length` as `avg_row_length`,`information_schema`.`tables`.`data_length` as `data_length`,`information_schema`.`tables`.`max_data_length` as `max_data_length`,`information_schema`.`tables`.`index_length` as `index_length`,`information_schema`.`tables`.`data_free` as `data_free`,`information_schema`.`tables`.`auto_increment` as `auto_increment`,`information_schema`.`tables`.`create_time` as `create_time`,`information_schema`.`tables`.`update_time` as `update_time`,`information_schema`.`tables`.`check_time` as `check_time`,`information_schema`.`tables`.`table_collation` as `table_collation`,`information_schema`.`tables`.`checksum` as `checksum`,`information_schema`.`tables`.`create_options` as `create_options`,`information_schema`.`tables`.`table_comment` as `table_comment`,`information_schema`.`tables`.`max_index_length` as `max_index_length`,`information_schema`.`tables`.`temporary` as `temporary` from `information_schema`.`tables` where `information_schema`.`tables`.`table_name` = 't1'
+TRUNCATE TABLE kv;
+SELECT * FROM v;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+LOCK TABLE t WRITE;
+UNLOCK TABLES;
+DROP VIEW v;
+DROP TABLE t;
+DROP TABLE kv;
+CREATE TABLE t (a INT);
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=CONCAT('t',0x00,'1');
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+LOCK TABLE t WRITE;
+UNLOCK TABLES;
+DROP TABLE t;
+CREATE TABLE t (a INT);
+SELECT TABLE_NAME, HEX(TABLE_NAME) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=CONCAT('t',0x00,'1');
+TABLE_NAME	HEX(TABLE_NAME)
+SELECT TABLE_NAME, TABLE_SCHEMA, HEX(TABLE_NAME) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=CONCAT('test',0x00,'1');
+TABLE_NAME	TABLE_SCHEMA	HEX(TABLE_NAME)
+DROP TABLE t;
+SET NAMES utf8;
 #
 # End of 10.2 tests
 #

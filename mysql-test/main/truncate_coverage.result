@@ -40,7 +40,7 @@ TRUNCATE TABLE m1;
 connection con2;
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 # Sending:
-FLUSH TABLES;
+FLUSH TABLES m1;
 connection default;
 # Waiting for FLUSH TABLES to be blocked.
 SET DEBUG_SYNC= 'now SIGNAL dropped';

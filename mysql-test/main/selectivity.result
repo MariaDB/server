@@ -10,6 +10,9 @@ set use_stat_tables='preferably';
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
 set @save_histogram_size=@@histogram_size;
 set @save_histogram_type=@@histogram_type;
+set join_cache_level=2;
+set @@global.histogram_size=0,@@local.histogram_size=0;
+set histogram_type='single_prec_hb';
 set optimizer_use_condition_selectivity=3;
 create table t1 (a int);
 insert into t1 values
@@ -141,9 +144,9 @@ order by s_suppkey;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	supplier	ALL	PRIMARY	NULL	NULL	NULL	10	100.00	Using filesort
 1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	10	100.00	Using where
-3	DERIVED	lineitem	range	i_l_shipdate,i_l_suppkey	i_l_shipdate	4	NULL	268	100.00	Using where; Using temporary; Using filesort
-2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	268	100.00	
-4	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	268	100.00	Using where; Using temporary; Using filesort
+3	DERIVED	lineitem	range	i_l_shipdate,i_l_suppkey	i_l_shipdate	4	NULL	269	100.00	Using where; Using temporary; Using filesort
+2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	269	100.00	
+4	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	269	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_suppkey` AS `s_suppkey`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`revenue0`.`total_revenue` AS `total_revenue` from `dbt3_s001`.`supplier` join `dbt3_s001`.`revenue0` where `revenue0`.`supplier_no` = `dbt3_s001`.`supplier`.`s_suppkey` and `revenue0`.`total_revenue` = (/* select#2 */ select max(`revenue0`.`total_revenue`) from `dbt3_s001`.`revenue0`) order by `dbt3_s001`.`supplier`.`s_suppkey`
 select s_suppkey, s_name, s_address, s_phone, total_revenue
@@ -162,9 +165,9 @@ order by s_suppkey;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	supplier	ALL	PRIMARY	NULL	NULL	NULL	10	100.00	Using filesort
 1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	10	100.00	Using where
-3	DERIVED	lineitem	range	i_l_shipdate,i_l_suppkey	i_l_shipdate	4	NULL	268	100.00	Using where; Using temporary; Using filesort
-2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	268	100.00	
-4	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	268	100.00	Using where; Using temporary; Using filesort
+3	DERIVED	lineitem	range	i_l_shipdate,i_l_suppkey	i_l_shipdate	4	NULL	269	100.00	Using where; Using temporary; Using filesort
+2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	269	100.00	
+4	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	269	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_suppkey` AS `s_suppkey`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`revenue0`.`total_revenue` AS `total_revenue` from `dbt3_s001`.`supplier` join `dbt3_s001`.`revenue0` where `revenue0`.`supplier_no` = `dbt3_s001`.`supplier`.`s_suppkey` and `revenue0`.`total_revenue` = (/* select#2 */ select max(`revenue0`.`total_revenue`) from `dbt3_s001`.`revenue0`) order by `dbt3_s001`.`supplier`.`s_suppkey`
 select s_suppkey, s_name, s_address, s_phone, total_revenue
@@ -400,7 +403,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	SUBQUERY	customer	ALL	NULL	NULL	NULL	NULL	150	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.customer.c_custkey' of SELECT #4 was resolved in SELECT #2
-Note	1003	/* select#1 */ select substr(`dbt3_s001`.`customer`.`c_phone`,1,2) AS `cntrycode`,count(0) AS `numcust`,sum(`dbt3_s001`.`customer`.`c_acctbal`) AS `totacctbal` from `dbt3_s001`.`customer` where substr(`dbt3_s001`.`customer`.`c_phone`,1,2) in ('10','20','14','19','11','28','25') and `dbt3_s001`.`customer`.`c_acctbal` > (/* select#3 */ select avg(`dbt3_s001`.`customer`.`c_acctbal`) from `dbt3_s001`.`customer` where `dbt3_s001`.`customer`.`c_acctbal` > 0.00 and substr(`dbt3_s001`.`customer`.`c_phone`,1,2) in ('10','20','14','19','11','28','25')) and !<in_optimizer>(1,<expr_cache><`dbt3_s001`.`customer`.`c_custkey`>(exists(/* select#4 */ select 1 from `dbt3_s001`.`orders` where `dbt3_s001`.`orders`.`o_custkey` = `dbt3_s001`.`customer`.`c_custkey`))) group by substr(`dbt3_s001`.`customer`.`c_phone`,1,2) order by substr(`dbt3_s001`.`customer`.`c_phone`,1,2)
+Note	1003	/* select#1 */ select substr(`dbt3_s001`.`customer`.`c_phone`,1,2) AS `cntrycode`,count(0) AS `numcust`,sum(`dbt3_s001`.`customer`.`c_acctbal`) AS `totacctbal` from `dbt3_s001`.`customer` where substr(`dbt3_s001`.`customer`.`c_phone`,1,2) in ('10','20','14','19','11','28','25') and `dbt3_s001`.`customer`.`c_acctbal` > (/* select#3 */ select avg(`dbt3_s001`.`customer`.`c_acctbal`) from `dbt3_s001`.`customer` where `dbt3_s001`.`customer`.`c_acctbal` > 0.00 and substr(`dbt3_s001`.`customer`.`c_phone`,1,2) in ('10','20','14','19','11','28','25')) and !<in_optimizer>(1,<expr_cache><`dbt3_s001`.`customer`.`c_custkey`>(exists(/* select#4 */ select 1 from `dbt3_s001`.`orders` where `dbt3_s001`.`orders`.`o_custkey` = `dbt3_s001`.`customer`.`c_custkey` limit 1))) group by substr(`dbt3_s001`.`customer`.`c_phone`,1,2) order by substr(`dbt3_s001`.`customer`.`c_phone`,1,2)
 select cntrycode, count(*) as numcust, sum(c_acctbal) as totacctbal
 from  (
 select substr(c_phone, 1, 2) as cntrycode, c_acctbal
@@ -441,7 +444,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	SUBQUERY	customer	ALL	NULL	NULL	NULL	NULL	150	91.00	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.customer.c_custkey' of SELECT #4 was resolved in SELECT #2
-Note	1003	/* select#1 */ select substr(`dbt3_s001`.`customer`.`c_phone`,1,2) AS `cntrycode`,count(0) AS `numcust`,sum(`dbt3_s001`.`customer`.`c_acctbal`) AS `totacctbal` from `dbt3_s001`.`customer` where substr(`dbt3_s001`.`customer`.`c_phone`,1,2) in ('10','20','14','19','11','28','25') and `dbt3_s001`.`customer`.`c_acctbal` > (/* select#3 */ select avg(`dbt3_s001`.`customer`.`c_acctbal`) from `dbt3_s001`.`customer` where `dbt3_s001`.`customer`.`c_acctbal` > 0.00 and substr(`dbt3_s001`.`customer`.`c_phone`,1,2) in ('10','20','14','19','11','28','25')) and !<in_optimizer>(1,<expr_cache><`dbt3_s001`.`customer`.`c_custkey`>(exists(/* select#4 */ select 1 from `dbt3_s001`.`orders` where `dbt3_s001`.`orders`.`o_custkey` = `dbt3_s001`.`customer`.`c_custkey`))) group by substr(`dbt3_s001`.`customer`.`c_phone`,1,2) order by substr(`dbt3_s001`.`customer`.`c_phone`,1,2)
+Note	1003	/* select#1 */ select substr(`dbt3_s001`.`customer`.`c_phone`,1,2) AS `cntrycode`,count(0) AS `numcust`,sum(`dbt3_s001`.`customer`.`c_acctbal`) AS `totacctbal` from `dbt3_s001`.`customer` where substr(`dbt3_s001`.`customer`.`c_phone`,1,2) in ('10','20','14','19','11','28','25') and `dbt3_s001`.`customer`.`c_acctbal` > (/* select#3 */ select avg(`dbt3_s001`.`customer`.`c_acctbal`) from `dbt3_s001`.`customer` where `dbt3_s001`.`customer`.`c_acctbal` > 0.00 and substr(`dbt3_s001`.`customer`.`c_phone`,1,2) in ('10','20','14','19','11','28','25')) and !<in_optimizer>(1,<expr_cache><`dbt3_s001`.`customer`.`c_custkey`>(exists(/* select#4 */ select 1 from `dbt3_s001`.`orders` where `dbt3_s001`.`orders`.`o_custkey` = `dbt3_s001`.`customer`.`c_custkey` limit 1))) group by substr(`dbt3_s001`.`customer`.`c_phone`,1,2) order by substr(`dbt3_s001`.`customer`.`c_phone`,1,2)
 select cntrycode, count(*) as numcust, sum(c_acctbal) as totacctbal
 from  (
 select substr(c_phone, 1, 2) as cntrycode, c_acctbal
@@ -985,7 +988,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	7	100.00	
 2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	14	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` join `test`.`t2` where <cache>(<in_optimizer>(1,exists(/* select#2 */ select 1 from `test`.`t1` join `test`.`t2`))) and `test`.`t1`.`a` <> `test`.`t2`.`b` or `test`.`t1`.`a` <= 4
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` join `test`.`t2` where <cache>(<in_optimizer>(1,exists(/* select#2 */ select 1 from `test`.`t1` join `test`.`t2` limit 1))) and `test`.`t1`.`a` <> `test`.`t2`.`b` or `test`.`t1`.`a` <= 4
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 DROP TABLE t1,t2;
 set use_stat_tables=@save_use_stat_tables;
@@ -1369,14 +1372,14 @@ test.t2	analyze	status	Table is already up to date
 explain extended 
 select * from t1 straight_join t2 where t1.a=t2.a and t1.a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	0.99	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.96	Using where
 1	SIMPLE	t2	ref	a	a	5	test.t1.a	10	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` straight_join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 10
 explain extended 
 select * from t1 straight_join t2 where t1.a=t2.a and t2.a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	0.99	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.96	Using where
 1	SIMPLE	t2	ref	a	a	5	test.t1.a	10	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` straight_join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 10
@@ -1631,7 +1634,310 @@ SELECT @cnt;
 @cnt
 2
 alter table  t1 force;
-set @@use_stat_tables= @save_use_stat_tables;
-set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 drop table t1;
 drop function f1;
+#
+# MDEV-19834 Selectivity of an equality condition discounted twice
+#
+create table t1 (a int, b int, key (b), key (a));
+insert into t1
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1 ;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+# Check what info the optimizer has about selectivities
+explain extended select * from t1 use index () where a in (17,51,5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	3.90	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`a` in (17,51,5)
+explain extended select * from t1 use index () where b=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	5.47	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`b` = 2
+# Now, the equality is used for ref access, while the range condition
+# gives selectivity data
+explain extended select * from t1 where a in (17,51,5) and b=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	58 (3%)	2.90	Using where; Using rowid filter
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` in (17,51,5)
+drop table t1;
+set use_stat_tables= @save_use_stat_tables;
+set @@histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+#
+# MDEV-20576: failing assertion DBUG_ASSERT(0.0 < sel && sel <= 1)
+#
+set @@optimizer_use_condition_selectivity=2;
+set names utf8;
+CREATE DATABASE world;
+use world;
+CREATE TABLE Country (
+Code char(3) NOT NULL default '',
+Name char(52) NOT NULL default '',
+SurfaceArea float(10,2) NOT NULL default '0.00',
+Population int(11) NOT NULL default '0',
+Capital int(11) default NULL,
+PRIMARY KEY  (Code),
+UNIQUE INDEX (Name)
+);
+CREATE TABLE City (
+ID int(11) NOT NULL auto_increment,
+Name char(35) NOT NULL default '',
+Country char(3) NOT NULL default '',
+Population int(11) NOT NULL default '0',
+PRIMARY KEY  (ID),
+INDEX (Population),
+INDEX (Country) 
+);
+CREATE TABLE CountryLanguage (
+Country char(3) NOT NULL default '',
+Language char(30) NOT NULL default '',
+Percentage float(3,1) NOT NULL default '0.0',
+PRIMARY KEY  (Country, Language),
+INDEX (Percentage)
+);
+CREATE INDEX Name ON City(Name);
+CREATE INDEX CountryPopulation ON City(Country,Population);
+CREATE INDEX CountryName ON City(Country,Name);
+set @@optimizer_use_condition_selectivity=2;
+EXPLAIN
+SELECT * FROM City WHERE Country='FIN';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	City	ref	Country,CountryPopulation,CountryName	CountryName	3	const	5	Using index condition
+DROP DATABASE world;
+use test;
+CREATE TABLE t1 (
+a INT,
+b INT NOT NULL,
+c char(100),
+KEY (b, c),
+KEY (b, a, c)
+) ENGINE=MyISAM
+DEFAULT CHARSET = utf8;
+INSERT INTO t1 VALUES
+(1,  1, 1),
+(2,  2, 2),
+(3,  3, 3),
+(4,  4, 4),
+(5,  5, 5),
+(6,  6, 6),
+(7,  7, 7),
+(8,  8, 8),
+(9,  9, 9);
+INSERT INTO t1 SELECT a + 10,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 20,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 40,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 80,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 160, b, c FROM t1;
+INSERT INTO t1 SELECT a + 320, b, c FROM t1;
+INSERT INTO t1 SELECT a + 640, b, c FROM t1;
+INSERT INTO t1 SELECT a + 1280, b, c FROM t1 LIMIT 80;
+EXPLAIN
+SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b,b_2	b	4	NULL	226	Using where
+SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
+a
+2071
+2061
+2051
+2041
+2031
+2021
+2011
+2001
+1991
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+DROP TABLE t1;
+#
+# MDEV-20424: New default value for optimizer_use_condition-selectivity
+# leads to bad plan
+#
+create table t1(a int, b int, c int, d int, key(a,b));
+insert into t1 select 50,seq-1,seq-1,seq from seq_1_to_10;
+insert into t1 select seq-1,seq-1,seq-1,seq from seq_1_to_100 limit 90;
+create table t2(a int, b int, c int, primary key(a));
+insert into t2 select seq-1,seq-1,seq-1 from seq_1_to_100;
+create table t3(a int, b int, c int, primary key(a));
+insert into t3 select seq-1,seq-1,seq-1 from seq_1_to_100 limit 30;
+set optimizer_use_condition_selectivity=1;
+explain extended select t1.b,t2.a,t3.a,t3.b from t1,t2,t3
+where t1.c = t2.a AND t1.d = t3.a and t1.a = 50 and t1.b <= 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	10	NULL	9	100.00	Using index condition; Using where
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t1.d	1	100.00	
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.c	1	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t2`.`a` = `test`.`t1`.`c` and `test`.`t3`.`a` = `test`.`t1`.`d` and `test`.`t1`.`a` = 50 and `test`.`t1`.`b` <= 100
+select t1.b,t2.a,t3.a,t3.b from t1,t2,t3
+where t1.c = t2.a AND t1.d = t3.a and t1.a = 50 and t1.b <= 100;
+b	a	a	b
+0	0	1	1
+1	1	2	2
+2	2	3	3
+3	3	4	4
+4	4	5	5
+5	5	6	6
+6	6	7	7
+7	7	8	8
+8	8	9	9
+9	9	10	10
+set optimizer_use_condition_selectivity=2;
+explain extended select t1.b,t2.a,t3.a,t3.b from t1,t2,t3
+where t1.c = t2.a AND t1.d = t3.a and t1.a = 50 and t1.b <= 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	10	NULL	9	9.00	Using index condition; Using where
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t1.d	1	100.00	
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.c	1	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t2`.`a` = `test`.`t1`.`c` and `test`.`t3`.`a` = `test`.`t1`.`d` and `test`.`t1`.`a` = 50 and `test`.`t1`.`b` <= 100
+select t1.b,t2.a,t3.a,t3.b from t1,t2,t3
+where t1.c = t2.a AND t1.d = t3.a and t1.a = 50 and t1.b <= 100;
+b	a	a	b
+0	0	1	1
+1	1	2	2
+2	2	3	3
+3	3	4	4
+4	4	5	5
+5	5	6	6
+6	6	7	7
+7	7	8	8
+8	8	9	9
+9	9	10	10
+set optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+drop table t1,t2,t3;
+#
+# MDEV-20519: Query plan regression with optimizer_use_condition_selectivity=4
+#
+create table t1 (id int, a int, PRIMARY KEY(id), key(a));
+insert into t1 select seq,seq from seq_1_to_100;
+create table t2 (id int, a int, b int, PRIMARY KEY(id), key(a), key(b));
+insert into t2 select seq,seq,seq from seq_1_to_100;
+set optimizer_switch='exists_to_in=off';
+set optimizer_use_condition_selectivity=2;
+SELECT * FROM t1
+WHERE
+EXISTS (SELECT * FROM t1 A INNER JOIN t2 ON t2.a = A.id
+WHERE A.a=t1.a AND t2.b < 20);
+id	a
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+13	13
+14	14
+15	15
+16	16
+17	17
+18	18
+19	19
+explain SELECT * FROM t1
+WHERE
+EXISTS (SELECT * FROM t1 A INNER JOIN t2 ON t2.a = A.id
+WHERE A.a=t1.a AND t2.b < 20);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+2	DEPENDENT SUBQUERY	A	ref	PRIMARY,a	a	5	test.t1.a	1	
+2	DEPENDENT SUBQUERY	t2	ref	a,b	a	5	test.A.id	1	Using where
+EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	const	PRIMARY,a	PRIMARY	4	const	1	
+1	SIMPLE	B	ref	a	a	5	const	1	
+explain SELECT * FROM t1
+WHERE
+EXISTS (SELECT * FROM t1 A INNER JOIN t2 ON t2.a = A.id
+WHERE A.a=t1.a AND t2.b < 20);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+2	DEPENDENT SUBQUERY	A	ref	PRIMARY,a	a	5	test.t1.a	1	
+2	DEPENDENT SUBQUERY	t2	ref	a,b	a	5	test.A.id	1	Using where
+set optimizer_switch= @save_optimizer_switch;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1,t2;
+#
+# MDEV-21495: Conditional jump or move depends on uninitialised value in sel_arg_range_seq_next
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+set optimizer_use_condition_selectivity=4;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * from t1 WHERE a = 5 and b = 5;
+a	b
+5	5
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1;
+# End of 10.1 tests
+#
+# MDEV-22583: Selectivity for BIT columns in filtered column for EXPLAIN is incorrect
+#
+SET optimizer_use_condition_selectivity=4;
+SET histogram_size=255;
+CREATE TABLE t1 (a BIT(32), b INT);
+INSERT INTO t1 VALUES (80, 80), (81, 81), (82, 82);
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN EXTENDED SELECT * from t1 where t1.a >= 81;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	66.41	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` >= 81
+SELECT HEX(a), b from t1 where t1.a >= 81;
+HEX(a)	b
+51	81
+52	82
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set histogram_size=@save_histogram_size;
+DROP TABLE t1;
+#
+# MDEV-19474: Histogram statistics are used even with optimizer_use_condition_selectivity=3
+#
+CREATE TABLE t1(a int);
+INSERT INTO t1 values (1),(2),(2),(3),(4);
+SET optimizer_use_condition_selectivity=4;
+SET histogram_size= 255;
+set use_stat_tables='preferably';
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	39.84	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2
+SET optimizer_use_condition_selectivity=3;
+# filtered should show 25 %
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	25.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2
+FLUSH TABLES;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	25.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set histogram_size=@save_histogram_size;
+set use_stat_tables= @save_use_stat_tables;
+DROP TABLE t1;
+# End of 10.2 tests
+set @@global.histogram_size=@save_histogram_size;

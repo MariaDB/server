@@ -11,7 +11,7 @@
    
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -349,14 +349,20 @@ Rpl_filter::set_do_table(const char* table_spec)
   int status;
 
   if (do_table_inited)
-    my_hash_reset(&do_table);
-
-  status= parse_filter_rule(table_spec, &Rpl_filter::add_do_table);
-
-  if (!do_table.records)
   {
     my_hash_free(&do_table);
     do_table_inited= 0;
+  }
+
+  status= parse_filter_rule(table_spec, &Rpl_filter::add_do_table);
+
+  if (do_table_inited && status)
+  {
+    if (!do_table.records)
+    {
+      my_hash_free(&do_table);
+      do_table_inited= 0;
+    }
   }
 
   return status;
@@ -369,14 +375,20 @@ Rpl_filter::set_ignore_table(const char* table_spec)
   int status;
 
   if (ignore_table_inited)
-    my_hash_reset(&ignore_table);
-
-  status= parse_filter_rule(table_spec, &Rpl_filter::add_ignore_table);
-
-  if (!ignore_table.records)
   {
     my_hash_free(&ignore_table);
     ignore_table_inited= 0;
+  }
+
+  status= parse_filter_rule(table_spec, &Rpl_filter::add_ignore_table);
+
+  if (ignore_table_inited && status)
+  {
+    if (!ignore_table.records)
+    {
+      my_hash_free(&ignore_table);
+      ignore_table_inited= 0;
+    }
   }
 
   return status;
@@ -411,14 +423,20 @@ Rpl_filter::set_wild_do_table(const char* table_spec)
   int status;
 
   if (wild_do_table_inited)
+  {
     free_string_array(&wild_do_table);
+    wild_do_table_inited= 0;
+  }
 
   status= parse_filter_rule(table_spec, &Rpl_filter::add_wild_do_table);
 
-  if (!wild_do_table.elements)
+  if (wild_do_table_inited && status)
   {
-    delete_dynamic(&wild_do_table);
-    wild_do_table_inited= 0;
+    if (!wild_do_table.elements)
+    {
+      delete_dynamic(&wild_do_table);
+      wild_do_table_inited= 0;
+    }
   }
 
   return status;
@@ -431,14 +449,20 @@ Rpl_filter::set_wild_ignore_table(const char* table_spec)
   int status;
 
   if (wild_ignore_table_inited)
+  {
     free_string_array(&wild_ignore_table);
+    wild_ignore_table_inited= 0;
+  }
 
   status= parse_filter_rule(table_spec, &Rpl_filter::add_wild_ignore_table);
 
-  if (!wild_ignore_table.elements)
+  if (wild_ignore_table_inited && status)
   {
-    delete_dynamic(&wild_ignore_table);
-    wild_ignore_table_inited= 0;
+    if (!wild_ignore_table.elements)
+    {
+      delete_dynamic(&wild_ignore_table);
+      wild_ignore_table_inited= 0;
+    }
   }
 
   return status;

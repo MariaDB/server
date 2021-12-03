@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,17 +29,9 @@ Created 2/2/1994 Heikki Tuuri
 
 #ifndef UNIV_INNOCHECKSUM
 #include "mach0data.h"
-#ifdef UNIV_DEBUG
-# include "log0recv.h"
-#endif /* !UNIV_DEBUG */
 #include "rem0cmp.h"
 #include "mtr0log.h"
 #include "page0zip.h"
-
-#ifdef UNIV_MATERIALIZE
-#undef UNIV_INLINE
-#define UNIV_INLINE
-#endif
 
 /*************************************************************//**
 Returns the max trx id field value. */
@@ -91,7 +83,8 @@ UNIV_INLINE
 ib_uint64_t
 page_get_autoinc(const page_t* page)
 {
-	ut_ad(page_is_root(page));
+	ut_ad(fil_page_index_page_check(page));
+	ut_ad(!page_has_siblings(page));
 	return(mach_read_from_8(PAGE_HEADER + PAGE_ROOT_AUTO_INC + page));
 }
 
@@ -355,6 +348,26 @@ page_rec_is_last(
 }
 
 /************************************************************//**
+true if distance between the records (measured in number of times we have to
+move to the next record) is at most the specified value */
+UNIV_INLINE
+bool
+page_rec_distance_is_at_most(
+/*=========================*/
+	const rec_t*	left_rec,
+	const rec_t*	right_rec,
+	ulint		val)
+{
+	for (ulint i = 0; i <= val; i++) {
+		if (left_rec == right_rec) {
+			return (true);
+		}
+		left_rec = page_rec_get_next_const(left_rec);
+	}
+	return (false);
+}
+
+/************************************************************//**
 true if the record is the second last user record on a page.
 @return true if the second last user record */
 UNIV_INLINE
@@ -408,7 +421,7 @@ page_get_middle_rec(
 Gets the page number.
 @return page number */
 UNIV_INLINE
-ulint
+uint32_t
 page_get_page_no(
 /*=============*/
 	const page_t*	page)	/*!< in: page */
@@ -422,7 +435,7 @@ page_get_page_no(
 Gets the tablespace identifier.
 @return space id */
 UNIV_INLINE
-ulint
+uint32_t
 page_get_space_id(
 /*==============*/
 	const page_t*	page)	/*!< in: page */
@@ -654,6 +667,11 @@ page_rec_get_next_low(
 
 		return(NULL);
 	}
+
+	ut_ad(page_rec_is_infimum(rec)
+	      || (!page_is_leaf(page) && !page_has_prev(page))
+	      || !(rec_get_info_bits(page + offs, comp)
+		   & REC_INFO_MIN_REC_FLAG));
 
 	return(page + offs);
 }
@@ -911,27 +929,6 @@ page_get_free_space_of_empty(
 		       - 2 * PAGE_DIR_SLOT_SIZE));
 }
 
-/***********************************************************************//**
-Write a 32-bit field in a data dictionary record. */
-UNIV_INLINE
-void
-page_rec_write_field(
-/*=================*/
-	rec_t*	rec,	/*!< in/out: record to update */
-	ulint	i,	/*!< in: index of the field to update */
-	ulint	val,	/*!< in: value to write */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction */
-{
-	byte*	data;
-	ulint	len;
-
-	data = rec_get_nth_field_old(rec, i, &len);
-
-	ut_ad(len == 4);
-
-	mlog_write_ulint(data, val, MLOG_4BYTES, mtr);
-}
-
 /************************************************************//**
 Each user record on a page, and also the deleted user records in the heap
 takes its size plus the fraction of the dir cell size /
@@ -1017,7 +1014,7 @@ page_mem_free(
 	rec_t*			rec,		/*!< in: pointer to the
 						(origin of) record */
 	const dict_index_t*	index,		/*!< in: index of rec */
-	const ulint*		offsets)	/*!< in: array returned by
+	const rec_offs*		offsets)	/*!< in: array returned by
 						rec_get_offsets() */
 {
 	rec_t*		free;
@@ -1096,13 +1093,8 @@ page_get_instant(const page_t* page)
 		break;
 	}
 #endif /* UNIV_DEBUG */
-	return(i >> 3);
+	return static_cast<uint16_t>(i >> 3);  /* i / 8 */
 }
 #endif /* !UNIV_INNOCHECKSUM */
-
-#ifdef UNIV_MATERIALIZE
-#undef UNIV_INLINE
-#define UNIV_INLINE	UNIV_INLINE_ORIGINAL
-#endif
 
 #endif

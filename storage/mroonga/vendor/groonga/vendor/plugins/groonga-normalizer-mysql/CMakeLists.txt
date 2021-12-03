@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Library General Public
 # License along with this library; if not, write to the Free
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA
+# MA 02110-1335  USA
 
 cmake_minimum_required(VERSION 2.6)
 set(GROONGA_NORMALIZER_MYSQL_PROJECT_NAME "groonga-normalizer-mysql")
@@ -25,11 +25,10 @@ if(DEFINED GROONGA_NORMALIZER_MYSQL_EMBED)
 else()
   set(GROONGA_NORMALIZER_MYSQL_EMBED_DEFAULT OFF)
 endif()
-option(GROONGA_NORMALIZER_MYSQL_EMBED
-  "Build as a static library to embed into an application"
-  ${GROONGA_NORMALIZER_MYSQL_EMBED_DEFAULT})
+set(GROONGA_NORMALIZER_MYSQL_EMBED ${GROONGA_NORMALIZER_MYSQL_EMBED_DEFAULT}
+  CACHE BOOL "Build as a static library to embed into an application")
 
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/version" VERSION)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/version_full" VERSION)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
   set(GROONGA_NORMALIZER_MYSQL_BUNDLED FALSE)

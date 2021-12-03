@@ -12,39 +12,19 @@ connection default;
 # Cleanly shutdown mysqld
 disconnect con1;
 # Corrupt FIL_PAGE_OFFSET in bug16720368.ibd,
-# and update the checksum to the "don't care" value.
-# Restart mysqld
-# This will succeed after a clean shutdown, due to
-# fil_open_single_table_tablespace(check_space_id=FALSE).
+# and recompute innodb_checksum_algorithm=crc32
+# restart
 SELECT COUNT(*) FROM bug16720368;
-COUNT(*)
-8
+ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
+INSERT INTO bug16720368 VALUES(1);
+ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
 INSERT INTO bug16720368_1 VALUES(1);
-# The table is unaccessible, because after a crash we will
-# validate the tablespace header.
-SELECT COUNT(*) FROM bug16720368;
-ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
-INSERT INTO bug16720368 VALUES(0,1);
-ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
-# The table is readable thanks to innodb-force-recovery.
-SELECT COUNT(*) FROM bug16720368;
-COUNT(*)
-8
-INSERT INTO bug16720368 VALUES(0,1);
-# Shut down the server cleanly to hide the corruption.
-# The table is accessible, because after a clean shutdown we will
-# NOT validate the tablespace header.
-# We can modify the existing pages, but we cannot allocate or free
-# any pages, because that would hit the corruption on page 0.
-SELECT COUNT(*) FROM bug16720368;
-COUNT(*)
-9
 # Shut down the server to uncorrupt the data.
-# Restart the server after uncorrupting the file.
+# restart
 INSERT INTO bug16720368 VALUES(9,1);
 SELECT COUNT(*) FROM bug16720368;
 COUNT(*)
-10
+9
 DROP TABLE bug16720368, bug16720368_1;
 #
 # Bug#16735660 ASSERT TABLE2 == NULL, ROLLBACK OF RESURRECTED TXNS,
@@ -64,7 +44,9 @@ connection default;
 # Kill the server
 disconnect con1;
 # Attempt to start without an *.ibd file.
+# restart
 FOUND 1 /\[ERROR\] InnoDB: Tablespace [0-9]+ was not found at .*test.bug16735660.ibd/ in mysqld.1.err
+# restart
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM bug16735660;
 a

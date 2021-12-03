@@ -358,3 +358,36 @@ CREATE TABLE raise (raise int);
 DROP TABLE raise;
 CREATE TABLE reuse (reuse int);
 DROP TABLE reuse;
+#
+# MDEV-17363 Compressed columns cannot be restored from dump
+# COMPRESSED is not valid as an SP label any more
+# but is still valid as an SP variable name.
+#
+BEGIN NOT ATOMIC
+compressed:
+BEGIN
+SELECT 1 AS a;
+END;
+END
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'compressed:
+BEGIN
+SELECT 1 AS a;
+END;
+END' at line 2
+BEGIN NOT ATOMIC
+`compressed`:
+BEGIN
+SELECT 1 AS a;
+END;
+END
+$$
+a
+1
+BEGIN NOT ATOMIC
+DECLARE compressed INT DEFAULT 1;
+SELECT compressed;
+END
+$$
+compressed
+1

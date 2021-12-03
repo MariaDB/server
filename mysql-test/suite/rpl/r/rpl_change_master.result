@@ -22,4 +22,8 @@ n
 connection master;
 drop table t1;
 connection slave;
+connection master;
+CHANGE MASTER TO MASTER_USER='root', MASTER_SSL=0, MASTER_SSL_CA='', MASTER_SSL_CERT='',
+MASTER_SSL_KEY='', MASTER_SSL_CRL='', MASTER_SSL_CRLPATH='';
+CHANGE MASTER TO MASTER_USER='root', MASTER_PASSWORD='', MASTER_SSL=0;
 include/rpl_end.inc

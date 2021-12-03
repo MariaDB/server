@@ -1354,11 +1354,11 @@ MAX(f1)
 TEST-INFO: SLAVE:  The INSERT is committed (Succeeded)
 connection master;
 SELECT user FROM mysql.user WHERE user = 'user1';
-user
+User
 user1
 connection slave;
 SELECT user FROM mysql.user WHERE user = 'user1';
-user
+User
 user1
 connection master;
 
@@ -1399,11 +1399,11 @@ MAX(f1)
 TEST-INFO: SLAVE:  The INSERT is committed (Succeeded)
 connection master;
 SELECT user FROM mysql.user WHERE user = 'rename1';
-user
+User
 rename1
 connection slave;
 SELECT user FROM mysql.user WHERE user = 'rename1';
-user
+User
 rename1
 connection master;
 
@@ -1444,10 +1444,10 @@ MAX(f1)
 TEST-INFO: SLAVE:  The INSERT is committed (Succeeded)
 connection master;
 SELECT user FROM mysql.user WHERE user = 'rename1';
-user
+User
 connection slave;
 SELECT user FROM mysql.user WHERE user = 'rename1';
-user
+User
 use test;
 connection master;
 DROP TEMPORARY TABLE mysqltest1.t22;

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Describe, check and repair of MyISAM tables */
 
@@ -45,9 +45,6 @@
 #include <my_getopt.h>
 #ifdef HAVE_SYS_VADVISE_H
 #include <sys/vadvise.h>
-#endif
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
 #endif
 #include "rt_index.h"
 #include <mysqld_error.h>
@@ -102,6 +99,9 @@ int chk_status(HA_CHECK *param, register MI_INFO *info)
 {
   MYISAM_SHARE *share=info->s;
 
+  /* Protection for HA_EXTRA_FLUSH */
+  mysql_mutex_lock(&share->intern_lock);
+
   if (mi_is_crashed_on_repair(info))
     mi_check_print_warning(param,
 			   "Table is marked as crashed and last repair failed");
@@ -121,6 +121,7 @@ int chk_status(HA_CHECK *param, register MI_INFO *info)
     if (param->testflag & T_UPDATE_STATE)
       param->warning_printed=save;
   }
+  mysql_mutex_unlock(&share->intern_lock);
   return 0;
 }
 
@@ -282,7 +283,7 @@ static int check_k_link(HA_CHECK *param, register MI_INFO *info, uint nr)
     /*
       Read the key block with MI_MIN_KEY_BLOCK_LENGTH to find next link.
       If the key cache block size is smaller than block_size, we can so
-      avoid unecessary eviction of cache block.
+      avoid unnecessary eviction of cache block.
     */
     if (!(buff=key_cache_read(info->s->key_cache,
                               info->s->kfile, next_link, DFLT_INIT_HITS,
@@ -1586,6 +1587,8 @@ int mi_repair(HA_CHECK *param, register MI_INFO *info,
   sort_param.filepos=new_header_length;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(info->dfile, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
   sort_info.dupp=0;
   sort_param.fix_datafile= (my_bool) (! rep_quick);
   sort_param.master=1;
@@ -1896,7 +1899,7 @@ int flush_blocks(HA_CHECK *param, KEY_CACHE *key_cache, File file,
 } /* flush_blocks */
 
 
-	/* Sort index for more efficent reads */
+	/* Sort index for more efficient reads */
 
 int mi_sort_index(HA_CHECK *param, register MI_INFO *info, char * name)
 {
@@ -2291,6 +2294,8 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
   sort_info.buff=0;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(param->read_cache.file, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
 
   sort_param.wordlist=NULL;
   init_alloc_root(&sort_param.wordroot, "sort", FTPARSER_MEMROOT_ALLOC_SIZE, 0,
@@ -2611,7 +2616,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
 			const char * name, int rep_quick)
 {
   int got_error;
-  uint i,key, total_key_length, istep;
+  uint i,key, istep;
   ulong rec_length;
   ha_rows start_records;
   my_off_t new_header_length,del;
@@ -2758,6 +2763,8 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   sort_info.buff=0;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(param->read_cache.file, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
 
   if (share->data_file_type == DYNAMIC_RECORD)
     rec_length=MY_MAX(share->base.min_pack_length+1,share->base.min_block_length);
@@ -2795,7 +2802,9 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
     mi_check_print_error(param,"Not enough memory for key!");
     goto err;
   }
-  total_key_length=0;
+#ifdef USING_SECOND_APPROACH
+  uint total_key_length=0;
+#endif
   rec_per_key_part= param->rec_per_key_part;
   info->state->records=info->state->del=share->state.split=0;
   info->state->empty=0;
@@ -2864,7 +2873,9 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
       if (keyseg->flag & HA_NULL_PART)
         sort_param[i].key_length++;
     }
+#ifdef USING_SECOND_APPROACH
     total_key_length+=sort_param[i].key_length;
+#endif
 
     if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
     {
@@ -3051,13 +3062,13 @@ err:
   /*
     Destroy the write cache. The master thread did already detach from
     the share by remove_io_thread() or it was not yet started (if the
-    error happend before creating the thread).
+    error happened before creating the thread).
   */
   (void) end_io_cache(&info->rec_cache);
   /*
     Destroy the new data cache in case of non-quick repair. All slave
     threads did either detach from the share by remove_io_thread()
-    already or they were not yet started (if the error happend before
+    already or they were not yet started (if the error happened before
     creating the threads).
   */
   if (!rep_quick && my_b_inited(&new_data_cache))
@@ -4598,7 +4609,7 @@ void update_auto_increment_key(HA_CHECK *param, MI_INFO *info,
          keypart_k=c_k for arbitrary constants c_1 ... c_k) 
      
      = {assuming that values have uniform distribution and index contains all
-        tuples from the domain (or that {c_1, ..., c_k} tuple is choosen from
+        tuples from the domain (or that {c_1, ..., c_k} tuple is chosen from
         index tuples}
      
      = #tuples-in-the-index / #distinct-tuples-in-the-index.
@@ -4666,7 +4677,7 @@ static ha_checksum mi_byte_checksum(const uchar *buf, uint length)
   return crc;
 }
 
-static my_bool mi_too_big_key_for_sort(MI_KEYDEF *key, ha_rows rows)
+my_bool mi_too_big_key_for_sort(MI_KEYDEF *key, ha_rows rows)
 {
   uint key_maxlength=key->maxlength;
   if (key->flag & HA_FULLTEXT)
@@ -4679,38 +4690,6 @@ static my_bool mi_too_big_key_for_sort(MI_KEYDEF *key, ha_rows rows)
           (key->flag & (HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY | HA_FULLTEXT) &&
 	  ((ulonglong) rows * key_maxlength > myisam_max_temp_length));
 }
-
-/*
-  Deactivate all indexes that can be recreated fast.
-  These include packed keys on which sorting will use more temporary
-  space than the max allowed file length or for which the unpacked keys
-  will take much more space than packed keys.
-  Note that 'rows' may be zero for the case when we don't know how many
-  rows we will put into the file.
- */
-
-void mi_disable_indexes_for_rebuild(MI_INFO *info, ha_rows rows,
-                                    my_bool all_keys)
-{
-  MYISAM_SHARE *share=info->s;
-  MI_KEYDEF    *key=share->keyinfo;
-  uint          i;
-
-  DBUG_ASSERT(info->state->records == 0 &&
-              (!rows || rows >= MI_MIN_ROWS_TO_DISABLE_INDEXES));
-  for (i=0 ; i < share->base.keys ; i++,key++)
-  {
-    if (!(key->flag & (HA_SPATIAL | HA_AUTO_KEY)) &&
-        ! mi_too_big_key_for_sort(key,rows) && info->s->base.auto_key != i+1 &&
-        (all_keys || !(key->flag & HA_NOSAME))) 
-    {
-      mi_clear_key_active(share->state.key_map, i);
-      info->update|= HA_STATE_CHANGED;
-      info->create_unique_index_by_sort= all_keys;
-    }
-  }
-}
-
 
 /*
   Return TRUE if we can use repair by sorting

@@ -1380,3 +1380,37 @@ DROP VIEW v1;
 DROP TABLE t1,t2;
 
 set optimizer_search_depth= @tmp_mdev621;
+
+--echo #
+--echo # MDEV-19588: Nested left joins using optimized join cache
+--echo #
+
+set optimizer_switch='optimize_join_buffer_size=on';
+
+set @save_join_cache_level= @@join_cache_level;
+set join_cache_level=2;
+
+CREATE TABLE t1 (i1 int, c1 varchar(20), pk int) engine=myisam;
+
+CREATE TABLE t2 (pk int, c1 varchar(20), i1 int) engine=myisam;
+INSERT INTO t2 VALUES (7,'a',-912),(8,'a',5);
+
+CREATE TABLE t3 (pk int, c1 varchar(20), i1 int) engine=myisam;
+INSERT INTO t3 VALUES
+(1,'a',-145),(2,'a',6),(3,'a',1),(7,'a',NULL),(8,'a',889),(9,'a',146),
+(10,'a',177),(16,'a',-433),(17,'a',NULL),(18,'a',2),(19,'a',3),(20,'a',5),
+(21,'a',-484),(22,'a',369),(23,'a',-192),(24,'a',-163),(25,'a',5),(26,'a',NULL);
+
+let $q=
+SELECT t3.*
+FROM t3 LEFT JOIN t1 LEFT JOIN t2 ON t1.i1 = t2.i1 ON t3.i1 = t1.i1
+WHERE t2.pk < 13 OR t3.i1 IS NULL;
+
+eval $q;
+eval explain extended $q;
+
+DROP TABLE t1,t2,t3;
+
+set join_cache_level= @save_join_cache_level;
+
+set optimizer_switch=@save_optimizer_switch;

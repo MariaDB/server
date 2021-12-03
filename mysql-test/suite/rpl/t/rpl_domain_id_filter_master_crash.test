@@ -64,7 +64,6 @@ connection master;
 #--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --source include/wait_until_connected_again.inc
 --echo # Master has restarted successfully
-set @@global.debug_dbug="-d";
 save_master_pos;
 
 --connection slave

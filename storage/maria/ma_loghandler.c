@@ -1,4 +1,5 @@
 /* Copyright (C) 2007 MySQL AB & Sanja Belkin. 2010 Monty Program Ab.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "maria_def.h"
 #include "trnman.h"
@@ -19,6 +20,9 @@
 #include "ma_key_recover.h" /* For some in-write hooks */
 #include "ma_checkpoint.h"
 #include "ma_servicethread.h"
+#include "ma_recovery.h"
+#include "ma_loghandler_lsn.h"
+#include "ma_recovery_util.h"
 
 /*
   On Windows, neither my_open() nor mysql_file_sync() work for directories.
@@ -55,6 +59,8 @@ static mysql_cond_t  COND_soft_sync;
 /** @brief control structure for checkpoint background thread */
 static MA_SERVICE_THREAD_CONTROL soft_sync_control=
   {0, FALSE, FALSE, &LOCK_soft_sync, &COND_soft_sync};
+
+uint log_purge_disabled= 0;
 
 
 /* transaction log file descriptor */
@@ -464,7 +470,6 @@ static ulonglong flush_start= 0;
 #define TRANSLOG_CLSN_LEN_BITS 0xC0    /* Mask to get compressed LSN length */
 
 
-#include <my_atomic.h>
 /* an array that maps id of a MARIA_SHARE to this MARIA_SHARE */
 static MARIA_SHARE **id_to_share= NULL;
 
@@ -3394,10 +3399,9 @@ static uint16 translog_get_chunk_header_length(uchar *chunk)
     DBUG_PRINT("info", ("TRANSLOG_CHUNK_LNGTH = 3"));
     DBUG_RETURN(3);
     break;
-  default:
-    DBUG_ASSERT(0);
-    DBUG_RETURN(0);                               /* Keep compiler happy */
   }
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);                               /* Keep compiler happy */
 }
 
 
@@ -3613,13 +3617,15 @@ my_bool translog_init_with_table(const char *directory,
   int old_log_was_recovered= 0, logs_found= 0;
   uint old_flags= flags;
   uint32 start_file_num= 1;
-  TRANSLOG_ADDRESS sure_page, last_page, last_valid_page, checkpoint_lsn;
+  TRANSLOG_ADDRESS UNINIT_VAR(sure_page), last_page, last_valid_page,
+    checkpoint_lsn;
   my_bool version_changed= 0;
   DBUG_ENTER("translog_init_with_table");
 
   translog_syncs= 0;
   flush_start= 0;
   id_to_share= NULL;
+  log_purge_disabled= 0;
 
   log_descriptor.directory_fd= -1;
   log_descriptor.is_everything_flushed= 1;
@@ -3856,7 +3862,14 @@ my_bool translog_init_with_table(const char *directory,
     my_bool pageok;
 
     DBUG_PRINT("info", ("The log is really present"));
-    DBUG_ASSERT(sure_page <= last_page);
+    if (sure_page > last_page)
+    {
+      my_printf_error(HA_ERR_GENERIC, "Aria engine: log data error\n"
+                      "last_log_page:   " LSN_FMT " is less than\n"
+                      "checkpoint page: " LSN_FMT, MYF(0),
+                      LSN_IN_PARTS(last_page), LSN_IN_PARTS(sure_page));
+      goto err;
+    }
 
     /* TODO: check page size */
 
@@ -4004,7 +4017,7 @@ my_bool translog_init_with_table(const char *directory,
   if (!logs_found)
   {
     TRANSLOG_FILE *file= (TRANSLOG_FILE*)my_malloc(sizeof(TRANSLOG_FILE),
-                                                   MYF(0));
+                                                   MYF(MY_WME));
     DBUG_PRINT("info", ("The log is not found => we will create new log"));
     if (file == NULL)
        goto err;
@@ -5326,7 +5339,7 @@ static uchar *translog_put_LSN_diff(LSN base_lsn, LSN lsn, uchar *dst)
 {
   uint64 diff;
   DBUG_ENTER("translog_put_LSN_diff");
-  DBUG_PRINT("enter", ("Base: " LSN_FMT "  val: " LSN_FMT "  dst:%p",
+  DBUG_PRINT("enter", ("Base: " LSN_FMT "  val: " LSN_FMT "  dst: %p",
                        LSN_IN_PARTS(base_lsn), LSN_IN_PARTS(lsn),
                        dst));
   DBUG_ASSERT(base_lsn > lsn);
@@ -5372,7 +5385,7 @@ static uchar *translog_put_LSN_diff(LSN base_lsn, LSN lsn, uchar *dst)
     dst[1]= 1;
     lsn_store(dst + 2, lsn);
   }
-  DBUG_PRINT("info", ("new dst:%p", dst));
+  DBUG_PRINT("info", ("new dst: %p", dst));
   DBUG_RETURN(dst);
 }
 
@@ -5433,15 +5446,15 @@ static uchar *translog_get_LSN_from_diff(LSN base_lsn, uchar *src, uchar *dst)
                           src + 1 + LSN_STORE_SIZE));
       DBUG_RETURN(src + 1 + LSN_STORE_SIZE);
     }
-    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 8) + *((uint8*)src));
+    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 8) | *((uint8*)src));
     break;
   case 1:
     diff= uint2korr(src);
-    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 16) + diff);
+    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 16) | diff);
     break;
   case 2:
     diff= uint3korr(src);
-    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 24) + diff);
+    rec_offset= LSN_OFFSET(base_lsn) - ((first_byte << 24) | diff);
     break;
   case 3:
   {
@@ -7896,6 +7909,34 @@ static my_bool translog_sync_files(uint32 min, uint32 max,
 }
 
 
+/**
+   check_skipped_lsn
+
+   Check if lsn skipped in redo is ok
+*/
+
+void check_skipped_lsn(MARIA_HA *info, LSN lsn, my_bool index_file,
+                       pgcache_page_no_t page)
+{
+  if (lsn <= log_descriptor.horizon)
+  {
+    DBUG_PRINT("info", ("Page is up to date, skipping redo"));
+  }
+  else
+  {
+    /* Give error, but don't flood the log */
+    if (skipped_lsn_err_count++ < 10 && ! info->s->redo_error_given++)
+    {
+      eprint(tracef, "Table %s has wrong LSN: " LSN_FMT " on page: %llu",
+             (index_file ? info->s->data_file_name.str :
+              info->s->index_file_name.str),
+             LSN_IN_PARTS(lsn), (ulonglong) page);
+      recovery_found_crashed_tables++;
+    }
+  }
+}
+
+
 /*
   @brief Flushes buffers with LSNs in them less or equal address <lsn>
 
@@ -7991,7 +8032,7 @@ void translog_flush_buffers(TRANSLOG_ADDRESS *lsn,
     {
       struct st_translog_buffer *buffer= log_descriptor.buffers + i;
       translog_buffer_lock(buffer);
-      DBUG_PRINT("info", ("Check buffer:%p  #: %u  "
+      DBUG_PRINT("info", ("Check buffer: %p  #: %u  "
                           "prev last LSN: " LSN_FMT "  "
                           "last LSN: " LSN_FMT "  status: %s",
                           buffer,
@@ -8668,7 +8709,7 @@ my_bool translog_purge(TRANSLOG_ADDRESS low)
         mysql_rwlock_unlock(&log_descriptor.open_files_lock);
         translog_close_log_file(file);
       }
-      if (log_purge_type == TRANSLOG_PURGE_IMMIDIATE)
+      if (log_purge_type == TRANSLOG_PURGE_IMMIDIATE && ! log_purge_disabled)
       {
         char path[FN_REFLEN], *file_name;
         file_name= translog_filename_by_fileno(i, path);
@@ -8721,7 +8762,7 @@ my_bool translog_purge_at_flush()
 
   mysql_mutex_lock(&log_descriptor.purger_lock);
 
-  if (unlikely(log_descriptor.min_need_file == 0))
+  if (unlikely(log_descriptor.min_need_file == 0 || log_purge_disabled))
   {
     DBUG_PRINT("info", ("No info about min need file => exit"));
     mysql_mutex_unlock(&log_descriptor.purger_lock);
@@ -9284,4 +9325,23 @@ void dump_page(uchar *buffer, File handler)
     dump_header_page(buffer);
   }
   dump_datapage(buffer, handler);
+}
+
+
+/*
+  Handle backup calls
+*/
+
+void translog_disable_purge()
+{
+  mysql_mutex_lock(&log_descriptor.purger_lock);
+  log_purge_disabled++;
+  mysql_mutex_unlock(&log_descriptor.purger_lock);
+}
+
+void translog_enable_purge()
+{
+  mysql_mutex_lock(&log_descriptor.purger_lock);
+  log_purge_disabled--;
+  mysql_mutex_unlock(&log_descriptor.purger_lock);
 }

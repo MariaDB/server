@@ -3448,6 +3448,36 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
+# MDEV-11015 Assertion failed: precision > 0 in decimal_bin_size upon SELECT with DISTINCT, CAST and other functions
+#
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATETIME ) ) AS f FROM t1;
+f
+NULL
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'foo'
+Warning	1292	Truncated incorrect datetime value: 'bar'
+DROP TABLE t1;
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS TIME) ) AS f FROM t1;
+f
+NULL
+Warnings:
+Warning	1292	Incorrect time value: 'foo'
+Warning	1292	Incorrect time value: 'bar'
+DROP TABLE t1;
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATE) ) AS f FROM t1;
+f
+NULL
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'foo'
+Warning	1292	Truncated incorrect datetime value: 'bar'
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
 #
@@ -3753,10 +3783,154 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
+# MDEV-17759 Assertion `precision > 0' failed in decimal_bin_size upon CREATE TABLE .. SELECT
+#
+SET sql_mode='';
+CREATE TABLE t1 (d DECIMAL(43,0) UNSIGNED);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 AS SELECT
+IFNULL(SLEEP(0.01), NULL DIV d) AS f0,
+IFNULL(SLEEP(0.01), '' DIV d) AS f1
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f0` decimal(1,0) DEFAULT NULL,
+  `f1` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+#
+# MDEV-17325 NULL-ability problems with LEAST() in combination with NO_ZERO_DATE and NO_ZERO_IN_DATE
+#
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+SELECT
+LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+LEAST(0,DATE'2001-01-01') AS i1,
+LEAST(20010001,DATE'2001-01-01') AS i2,
+LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					s1	10	10	0	Y	128	0	63
+def					s2	10	10	0	Y	128	0	63
+def					s3	12	26	0	Y	128	0	63
+def					s4	12	26	0	Y	128	0	63
+def					i1	10	10	0	Y	128	0	63
+def					i2	10	10	0	Y	128	0	63
+def					i3	12	19	0	Y	128	0	63
+def					i4	12	19	0	Y	128	0	63
+s1	s2	s3	s4	i1	i2	i3	i4
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '0001-00-01 00:00:00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '2001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '2001-00-01 00:00:00'
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+CREATE TABLE t1 AS SELECT
+LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+LEAST(0,DATE'2001-01-01') AS i1,
+LEAST(20010001,DATE'2001-01-01') AS i2,
+LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '0001-00-01 00:00:00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '2001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '2001-00-01 00:00:00'
+SELECT * FROM t1;
+s1	s2	s3	s4	i1	i2	i3	i4
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `s1` date DEFAULT NULL,
+  `s2` date DEFAULT NULL,
+  `s3` datetime DEFAULT NULL,
+  `s4` datetime DEFAULT NULL,
+  `i1` date DEFAULT NULL,
+  `i2` date DEFAULT NULL,
+  `i3` datetime DEFAULT NULL,
+  `i4` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+SELECT * FROM t1;
+c1
+2001-01-01 00:00:00
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` datetime NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET old_mode=ZERO_DATE_TIME_CAST;
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00 10:20:30'
+SELECT * FROM t1;
+c1
+NULL
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET old_mode=DEFAULT;
+SET timestamp=DEFAULT;
+SET sql_mode=DEFAULT;
+SET sql_mode='';
+SELECT LEAST(999,TIME'10:20:30') AS c1;
+c1
+NULL
+Warnings:
+Warning	1292	Incorrect time value: '999'
+CREATE TABLE t1 AS SELECT LEAST(999,TIME'10:20:30') AS c1;
+Warnings:
+Warning	1292	Incorrect time value: '999'
+SELECT * FROM t1;
+c1
+NULL
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-18456 Assertion `item->maybe_null' failed in Type_handler_temporal_result::make_sort_key
+#
+CREATE TABLE t1 (t TIME NOT NULL);
+INSERT INTO t1 VALUES ('00:20:11'),('14:52:05');
+SELECT GREATEST('9999', t) FROM t1 ORDER BY 1;
+GREATEST('9999', t)
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect time value: '9999'
+Warning	1292	Incorrect time value: '9999'
+Warning	1292	Incorrect time value: '9999'
+Warning	1292	Incorrect time value: '9999'
+DROP TABLE t1;
+#
 # End of 10.3 tests
-#
-#
-# Start of 10.4 tests
 #
 #
 # MDEV-17325 NULL-ability problems with LEAST() in combination with NO_ZERO_DATE and NO_ZERO_IN_DATE

@@ -2,6 +2,7 @@
 #define MY_ATOMIC_INCLUDED
 
 /* Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2018, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   This header defines five atomic operations:
@@ -112,8 +113,6 @@
 #include "atomic/solaris.h"
 #elif defined(HAVE_GCC_C11_ATOMICS)
 #include "atomic/gcc_builtins.h"
-#elif defined(HAVE_GCC_ATOMIC_BUILTINS)
-#include "atomic/gcc_sync.h"
 #endif
 
 #if SIZEOF_LONG == 4
@@ -170,5 +169,4 @@
 #define my_atomic_casptr_strong_explicit(P, E, D, S, F) \
   my_atomic_casptr((P), (E), (D))
 #endif
-
 #endif /* MY_ATOMIC_INCLUDED */

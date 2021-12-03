@@ -8,7 +8,7 @@
 drop table if exists t0,t1,t2,t3,t4,t5;
 --enable_warnings
 
-SET @save_optimizer_switch=@@optimizer_switch;
+SET @org_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch=ifnull(@optimizer_switch_for_join_outer_test,'outer_join_with_cache=off');
 if (`select @join_cache_level_for_join_outer_test is null`)
 {
@@ -1575,6 +1575,7 @@ CREATE TABLE t3 ( a int, b int NOT NULL , PRIMARY KEY (b)) ;
 INSERT INTO t3 VALUES 
   (0,6),(0,7),(0,8),(2,9),(0,10),(2,21),(0,22),(2,23),(2,24),(2,25);
 
+set @save_join_cache_level= @@join_cache_level;
 SET SESSION join_cache_level=4;
 
 EXPLAIN EXTENDED
@@ -1588,7 +1589,7 @@ EXECUTE stmt;
 
 DEALLOCATE PREPARE stmt;
 
-SET SESSION join_cache_level=default;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3;
 
@@ -1976,7 +1977,7 @@ set @save_join_cache_level= @@join_cache_level;
 SET  @@join_cache_level = 3;
 SELECT t1.b1+'0' , t2.b2 + '0' FROM t1 LEFT JOIN t2 ON b1 = b2;
 DROP TABLE t1, t2;
-set @join_cache_level= @save_join_cache_level;
+set @@join_cache_level= @save_join_cache_level;
 
 --echo #
 --echo # MDEV-14779: using left join causes incorrect results with materialization and derived tables
@@ -2040,7 +2041,240 @@ ORDER BY tb1.i1;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-19790 : IS NOT TRUE / IS NOT FALSE predicates over
+--echo #              inner tables of outer joins
+--echo #
+
+create table t1 (a int);
+create table t2 (b int);
+insert into t1 values (3), (7), (1);
+insert into t2 values (7), (4), (3);
+select * from t1 left join t2 on a=b;
+
+let $q=
+select * from t1 left join t2 on a=b where (b > 3) is not true;
+eval $q;
+eval explain extended $q;
+
+let $q=
+select * from t1 left join t2 on a=b where (b > 3) is not false;
+eval $q;
+eval explain extended $q;
+
+drop table t1,t2;
+
 --echo # end of 5.5 tests
+
+--echo #
+--echo # MDEV-19258: chained right joins all converted to inner joins
+--echo #
+
+ CREATE TABLE t1 (
+  id int NOT NULL AUTO_INCREMENT,
+  timestamp bigint NOT NULL,
+  modifiedBy varchar(255) DEFAULT NULL,
+  PRIMARY KEY (id)
+);
+
+CREATE TABLE t2 (
+  id int NOT NULL,
+  REV int NOT NULL,
+  REVTYPE tinyint DEFAULT NULL,
+  profile_id int DEFAULT NULL,
+  PRIMARY KEY (id,REV)
+);
+
+CREATE TABLE t3 (
+  id int NOT NULL,
+  REV int NOT NULL,
+  person_id int DEFAULT NULL,
+  PRIMARY KEY (id,REV)
+);
+
+CREATE TABLE t4 (
+  id int NOT NULL,
+  REV int NOT NULL,
+  PRIMARY KEY (id,REV)
+);
+
+INSERT INTO t1 VALUES
+(1,1294391193890,'Cxqy$*9.kKeE'),(2,1294643906883,'rE4wqGV0gif@'),
+(3,1294643927456,'L?3yt(%dY$Br'),(4,1294644343525,'WH&ObiZ$#2S4'),
+(5,1294644616416,'YXnCbt?olUZ0'),(6,1294644954537,'8Npe4!(#lU@k'),
+(7,1294645046659,'knc0GhXB1#ib'),(8,1294645183829,'w*oPpVfuS8^m'),
+(9,1294645386701,'hwXR@3qVzrbU'),(10,1294645525982,'BeLW*Y9ndP0l'),
+(11,1294645627723,'nTegib^)qZ$I'),(12,1294650860266,'u62C^Kzx3wH8'),
+(13,1294657613745,'4&BkFjGa!qLg'),(14,1294660627161,')anpt312SCoh'),
+(15,1294661023336,'LtJ2PX?*kTmx'),(16,1294662838066,'POGRr@?#ofpl'),
+(17,1294663020989,'o.)1EOT2jnF7'),(18,1294663308065,'&TZ0F0LHE6.h'),
+(19,1294664900039,'j)kSC%^In$9d'),(20,1294668904556,'97glN50)cAo.'),
+(21,1294728056853,'lrKZxmw?I.Ek'),(22,1294728157174,'@P*SRg!pT.q?'),
+(23,1294728327099,'W9gPrptF.)8n'),(24,1294728418481,'$q*c^sM&URd#'),
+(25,1294728729620,'9*f4&bTPRtHo'),(26,1294728906014,')4VtTEnS7$oI'),
+(27,1294732190003,'8dkNSPq2u3AQ'),(28,1294733205065,'SV2N6IoEf438'),
+(29,1294741984927,'rBKj.0S^Ey%*'),(30,1294751748352,'j$2DvlBqk)Fw'),
+(31,1294753902212,'C$N6OrEw8elz'),(32,1294758120598,'DCSVZw!rnxXq'),
+(33,1294761769556,'OTS@QU8a6s5c'),(34,1294816845305,'IUE2stG0D3L5'),
+(35,1294816966909,'Xd16yka.9nHe'),(36,1294817116302,'lOQHZpm%!8qb'),
+(37,1294817374775,'^&pE3IhNf7ey'),(38,1294817538907,'oEn4#7C0Vhfp'),
+(39,1294818482950,'bx54J*O0Va&?'),(40,1294819047024,'J%@a&1.qgdb?'),
+(41,1294821826077,'C9kojr$L3Phz'),(42,1294825454458,'gG#BOnM80ZPi'),
+(43,1294904129918,'F^!TrjM#zdvc'),(44,1294904254166,'Va&Tb)k0RvlM'),
+(45,1294904414964,'dJjq0M6HvhR#'),(46,1294904505784,'nJmxg)ELqY(b'),
+(47,1294904602835,'dhF#or$Vge!7'),(48,1294904684728,'?bIh5E3l!0em'),
+(49,1294904877898,'Y*WflOdcxnk.'),(50,1294905002390,'*?H!lUgez5A.'),
+(51,1294905096043,'wlEIY3n9uz!p'),(52,1294905404621,'T?qv3H6&hlQD'),
+(53,1294905603922,'S@Bhys^Ti7bt'),(54,1294905788416,'KR?a5NVukz#l'),
+(55,1294905993190,'A*&q4kWhED!o'),(56,1294906205254,'fT0%7z0DF6h*'),
+(57,1294906319680,'LhzdW4?ivjR0'),(58,1294906424296,'h0KDlns%U*6T'),
+(59,1294906623844,'b$CfB1noI6Ax'),(60,1294911258896,'#T1*LP!3$Oys');
+
+
+INSERT INTO t2 VALUES
+(1,1,0,10209),(1,42480,1,10209),(1,61612,1,10209),(1,257545,1,10209),
+(1,385332,1,10209),(1,1687999,1,10209),(3,1,0,10210),(3,617411,2,10210),
+(4,11,0,14),(4,95149,1,10211),(4,607890,2,10211),(5,1,0,10212),
+(6,1,0,10213),(6,93344,1,10213),(6,295578,1,10213),(6,295579,1,10213),
+(6,295644,1,10213),(7,1,0,10214),(7,12,1,7),(7,688796,1,10214),
+(7,1140433,1,10214),(7,1715227,1,10214),(8,1,0,10215),(8,74253,1,10215),
+(8,93345,1,10215),(8,12,2,2),(9,1,0,10216),(9,93342,1,10216),
+(9,122354,1,10216),(9,301499,2,10216),(10,11,0,5),(10,93343,1,10217),
+(10,122355,1,10217),(10,123050,1,10217),(10,301500,2,10217),(11,1,0,10218),
+(11,87852,1,10218),(11,605499,2,10218),(12,1,0,10219),(12,88024,1,10219),
+(12,605892,2,10219),(13,1,0,10220);
+
+INSERT INTO t3 VALUES
+(1,1,300003),(1,117548,NULL),(2,1,300003),(2,117548,300006),
+(3,1,300153),(3,117548,NULL),(4,1,300153),(4,117548,NULL),
+(5,1,300153),(5,117548,NULL),(6,1,300182),(6,117548,NULL),
+(7,1,300205),(7,117548,NULL),(8,1,300217),(8,117548,NULL),
+(9,1,300290),(9,117548,NULL),(10,1,300290),(10,117548,NULL),
+(11,1,300405),(11,117548,NULL),(12,1,300670),(12,117548,NULL),
+(13,1,300670),(13,117548,NULL),(14,1,300006),(14,117548,NULL),
+(15,1,300671),(15,117548,NULL),(16,1,300732),(16,117548,NULL);
+
+INSERT INTO t4 VALUES
+(300000,1),(300001,1),(300003,1),(300004,1),
+(300005,1),(300005,688796),(300006,1),(300006,97697),
+(300009,1),(300010,1),(300011,1),(300012,1),(300013,1),
+(300014,1),(300015,1),(300016,1),(300017,1),(300018,1),
+(300019,1),(300020,1),(300021,1),(300022,1),(300023,1),
+(300024,1),(300025,1),(300026,1),(300027,1),(300028,1);
+
+let $q1=
+SELECT *
+FROM t1 INNER JOIN t2 ON t2.REV=t1.id
+        INNER JOIN t3 ON t3.id=t2.profile_id
+        INNER JOIN t4 ON t4.id=t3.person_id
+WHERE t1.timestamp < 1294664900039 AND t1.timestamp > 1294644616416  AND
+      t2.REVTYPE=2;
+
+--echo # This should have join order of t2,t3,t4,t1
+eval EXPLAIN EXTENDED $q1;
+eval $q1;
+
+let $q2=
+SELECT *
+FROM t1 RIGHT JOIN t2 ON t2.REV=t1.id
+        RIGHT JOIN t3 ON t3.id=t2.profile_id
+        RIGHT JOIN t4 ON t4.id=t3.person_id
+WHERE t1.timestamp < 1294664900039 AND t1.timestamp > 1294644616416
+      AND t2.REVTYPE=2;
+
+--echo # This should have join order of t2,t3,t4,t1 with the same plan as above
+--echo # because all RIGHT JOIN operations are converted into INNER JOIN
+eval EXPLAIN EXTENDED $q2;
+eval $q2;
+
+DROP TABLE t1,t2,t3,t4;
+
+--echo # end of 10.1 tests
+
+--echo #
+--echo # MDEV-25362: name resolution for subqueries in ON expressions
+--echo #
+
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+create table t3 (e int, f int);
+create table t4 (g int, h int);
+
+--error ER_BAD_FIELD_ERROR
+explain
+select *
+from
+  t1 left join
+   (t2
+    join
+    t3 on
+    (t3.f=t1.a)
+   ) on (t2.c=t1.a );
+
+# This must produce an error:
+--error ER_BAD_FIELD_ERROR
+explain
+select *
+from
+  t1 left join
+   (t2
+    join
+    t3 on
+    (t3.f=(select max(g) from t4 where t4.h=t1.a))
+   ) on (t2.c=t1.a );
+
+drop table t1,t2,t3,t4;
+
+create table t1 (a int);
+insert into t1 values (1),(2);
+create table t2 (b int);
+insert into t2 values (1),(2);
+create table t3 (c int);
+insert into t3 values (1),(2);
+
+--error ER_BAD_FIELD_ERROR
+select * from ( select * from t1 left join t2
+                              on b in (select x from t3 as sq1)
+              ) as sq2;
+
+drop table t1,t2,t3;
+
+--echo # end of 10.2 tests
+
+--echo #
+--echo # MDEV-22866: Crash in join optimizer with constant outer join nest
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+
+CREATE TABLE t3 (c INT, KEY(c)) ENGINE=MyISAM;
+
+CREATE TABLE t4 (d INT, KEY(d)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (5),(6);
+
+CREATE TABLE t5 (e INT) ENGINE=MyISAM;
+INSERT INTO t5 VALUES (7),(8);
+
+CREATE TABLE t6 (f INT) ENGINE=MyISAM;
+INSERT INTO t6 VALUES (9),(10);
+
+SELECT *
+FROM
+  t1
+  LEFT JOIN (
+    t2 LEFT JOIN (
+       t3 JOIN
+       t4 ON t3.c = t4.d and t3.c >2 and t3.c<0
+    ) ON t2.b >= t4.d
+  ) ON t1.a <= t2.b
+  LEFT JOIN t5 ON t2.b = t5.e
+  LEFT JOIN t6 ON t3.c = t6.f;
+
+drop table t1,t2,t3,t4,t5,t6;
 
 --echo #
 --echo # MDEV-17518: Range optimization doesn't use ON expressions from nested outer joins
@@ -2102,4 +2336,6 @@ WHERE t3.pk IN (2);
 drop view v4;
 drop table t1,t2,t3,t4;
 
-SET optimizer_switch=@save_optimizer_switch;
+--echo # end of 10.3 tests
+
+SET optimizer_switch=@org_optimizer_switch;

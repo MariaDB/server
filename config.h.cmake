@@ -11,7 +11,7 @@
  
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef MY_CONFIG_H
 #define MY_CONFIG_H
@@ -21,7 +21,6 @@
 #cmakedefine _GNU_SOURCE 1
 #cmakedefine HAVE_ALLOCA_H 1
 #cmakedefine HAVE_ARPA_INET_H 1
-#cmakedefine HAVE_ASM_MSR_H 1
 #cmakedefine HAVE_ASM_TERMBITS_H 1
 #cmakedefine HAVE_CRYPT_H 1
 #cmakedefine HAVE_CURSES_H 1
@@ -174,6 +173,7 @@
 #cmakedefine HAVE_DECL_MADVISE 1
 #cmakedefine HAVE_DECL_MHA_MAPSIZE_VA 1
 #cmakedefine HAVE_MALLINFO 1
+#cmakedefine HAVE_MALLINFO2 1
 #cmakedefine HAVE_MEMCPY 1
 #cmakedefine HAVE_MEMMOVE 1
 #cmakedefine HAVE_MKSTEMP 1
@@ -184,12 +184,8 @@
 #cmakedefine HAVE_PERROR 1
 #cmakedefine HAVE_POLL 1
 #cmakedefine HAVE_POSIX_FALLOCATE 1
-#cmakedefine HAVE_LINUX_FALLOC_H 1
 #cmakedefine HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE 1
 #cmakedefine HAVE_PREAD 1
-#cmakedefine HAVE_PAUSE_INSTRUCTION 1
-#cmakedefine HAVE_FAKE_PAUSE_INSTRUCTION 1
-#cmakedefine HAVE_RDTSCLL 1
 #cmakedefine HAVE_READ_REAL_TIME 1
 #cmakedefine HAVE_PTHREAD_ATTR_CREATE 1
 #cmakedefine HAVE_PTHREAD_ATTR_GETGUARDSIZE 1
@@ -197,6 +193,7 @@
 #cmakedefine HAVE_PTHREAD_ATTR_SETSCOPE 1
 #cmakedefine HAVE_PTHREAD_ATTR_SETSTACKSIZE 1
 #cmakedefine HAVE_PTHREAD_CONDATTR_CREATE 1
+#cmakedefine HAVE_PTHREAD_GETAFFINITY_NP 1
 #cmakedefine HAVE_PTHREAD_KEY_DELETE 1
 #cmakedefine HAVE_PTHREAD_KILL 1
 #cmakedefine HAVE_PTHREAD_RWLOCK_RDLOCK 1
@@ -219,6 +216,7 @@
 #cmakedefine HAVE_SIGACTION 1
 #cmakedefine HAVE_SIGTHREADMASK 1
 #cmakedefine HAVE_SIGWAIT 1
+#cmakedefine HAVE_SIGWAITINFO 1
 #cmakedefine HAVE_SLEEP 1
 #cmakedefine HAVE_SNPRINTF 1
 #cmakedefine HAVE_STPCPY 1
@@ -244,7 +242,6 @@
 /* Symbols we may use */
 #cmakedefine HAVE_SYS_ERRLIST 1
 /* used by stacktrace functions */
-#cmakedefine HAVE_BSS_START 1
 #cmakedefine HAVE_BACKTRACE 1
 #cmakedefine HAVE_BACKTRACE_SYMBOLS 1
 #cmakedefine HAVE_BACKTRACE_SYMBOLS_FD 1
@@ -380,10 +377,10 @@
 #cmakedefine HAVE_SVR3_SIGNALS 1
 #cmakedefine HAVE_V7_SIGNALS 1
 #cmakedefine HAVE_ERR_remove_thread_state 1
+#cmakedefine HAVE_X509_check_host 1
 
 #cmakedefine HAVE_SOLARIS_STYLE_GETHOST 1
 
-#cmakedefine HAVE_GCC_ATOMIC_BUILTINS 1
 #cmakedefine HAVE_GCC_C11_ATOMICS 1
 #cmakedefine HAVE_SOLARIS_ATOMIC 1
 #cmakedefine HAVE_DECL_SHM_HUGETLB 1
@@ -444,7 +441,11 @@
 /*
   MySQL features
 */
-#cmakedefine ENABLED_LOCAL_INFILE 1
+#define LOCAL_INFILE_MODE_OFF  0
+#define LOCAL_INFILE_MODE_ON   1
+#define LOCAL_INFILE_MODE_AUTO 2
+#define ENABLED_LOCAL_INFILE LOCAL_INFILE_MODE_@ENABLED_LOCAL_INFILE@
+
 #cmakedefine ENABLED_PROFILING 1
 #cmakedefine EXTRA_DEBUG 1
 #cmakedefine USE_SYMDIR 1

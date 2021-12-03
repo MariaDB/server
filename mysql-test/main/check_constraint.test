@@ -27,7 +27,6 @@ insert into t1 values (101,101),(102,102),(600,600),(103,103);
 select * from t1;
 set check_constraint_checks=@save_check_constraint;
 
---replace_regex /failed for.*/failed for table/
 --error ER_CONSTRAINT_FAILED
 alter table t1 add c int default 0 check (c < 10);
 
@@ -163,3 +162,25 @@ insert into t values (-1, 0);
 insert into t values (1,1);
 
 drop table t;
+
+#
+# check constraints and auto_is_null typo
+#
+create table t1 (a int auto_increment primary key, b int, check (b > 5));
+--error ER_CONSTRAINT_FAILED
+insert t1 (b) values (1);
+insert t1 (b) values (10);
+select * from t1 where a is null;
+set sql_auto_is_null=1;
+select * from t1 where a is null;
+--error ER_CONSTRAINT_FAILED
+insert t1 (b) values (1);
+drop table t1;
+
+--echo #
+--echo # MDEV-24274 ALTER TABLE with CHECK CONSTRAINTS gives "Out of Memory" error
+--echo #
+create table t1 (id varchar(2), constraint id check (id regexp '[a-z]'));
+alter table t1 force;
+show create table t1;
+drop table t1;

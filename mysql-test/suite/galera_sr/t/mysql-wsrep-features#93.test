@@ -1,0 +1,29 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# This test sets a SAVEPOINT at the very beginning
+# of the transaction. When ROLLBACK TO SAVEPOINT is
+# issued, mysql performs a full rollback on SEs that
+# where not part of the transaction.
+# Test that SR transactions are rolled back, and
+# cleaned up properly in this case.
+#
+
+CREATE TABLE t1 (f1 INTEGER);
+SET SESSION WSREP_TRX_FRAGMENT_SIZE=1;
+
+START TRANSACTION;
+
+SAVEPOINT a;
+INSERT INTO t1 VALUES (1);
+ROLLBACK TO SAVEPOINT a;
+
+INSERT INTO t1 values (2);
+COMMIT;
+
+SELECT COUNT(*) = 0 from mysql.wsrep_streaming_log;
+--connection node_2
+SELECT COUNT(*) = 0 from mysql.wsrep_streaming_log;
+
+DROP TABLE t1;

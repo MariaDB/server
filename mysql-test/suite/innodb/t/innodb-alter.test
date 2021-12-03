@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/default_charset.inc
 
 SET NAMES utf8mb4;
 
@@ -272,13 +273,8 @@ ALTER TABLE t1o ADD FULLTEXT INDEX(cu),
 ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
 
 # Replace the hidden FTS_DOC_ID column with a user-visible one.
-# This used to work if there is at most one fulltext index.
-# Currently, we disallow native ALTER TABLE if the table
-# contains any FULLTEXT indexes.
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1o ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
 ALGORITHM=INPLACE;
-ALTER TABLE t1o ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL;
 # Replace the user-visible FTS_DOC_ID column with a hidden one.
 # We do not support this in-place.
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
@@ -545,6 +541,19 @@ SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C INNER JOIN
   WHERE T.NAME='test/t1';
 DROP TABLE t1;
 
+--echo # and an MDEV-18041 regression related to indexes prefixes
+create table `test` (
+  `test_old` varchar(255) NOT NULL,
+  `other` varchar(255) NOT NULL,
+  PRIMARY KEY (`test_old`,`other`),
+  UNIQUE KEY uk (`test_old`(100), `other`)
+) ENGINE=InnoDB;
+
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+alter table `test` CHANGE COLUMN `test_old` `test_new` varchar(255) NOT NULL;
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+drop table `test`;
+
 
 --echo #
 --echo # BUG 20029625 - HANDLE_FATAL_SIGNAL (SIG=11) IN
@@ -576,6 +585,9 @@ DROP TABLE t1, parent;
 --echo #
 let $source_db = source_db;
 let $dest_db = dest_db;
+
+--source include/default_charset.inc
+SET NAMES utf8mb4;
 
 eval CREATE DATABASE $source_db;
 eval CREATE DATABASE $dest_db;
@@ -640,9 +652,9 @@ DROP TABLE t1;
 
 # DATETIME-to-DATE truncation is OK
 CREATE TABLE t1 (a INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
-iNSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (10);
 --enable_info
-ALTER TABLE t1 ADD b DATE NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0);
+ALTER TABLE t1 ADD b DATE NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0), algorithm=copy;
 --disable_info
 SELECT * FROM t1;
 DROP TABLE t1;
@@ -654,6 +666,28 @@ iNSERT INTO t1 VALUES (10);
 ALTER TABLE t1 ADD b TIME NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0);
 --disable_info
 SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18042 Server crashes in mysql_alter_table upon adding a non-null
+--echo # date column under NO_ZERO_DATE with ALGORITHM=INPLACE
+--echo #
+
+SET @OLD_SQL_MODE= @@SQL_MODE;
+SET @@SQL_MODE= 'NO_ZERO_DATE';
+CREATE OR REPLACE TABLE t1 (i INT) ENGINE=MyISAM;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 ADD COLUMN d DATE NOT NULL, ALGORITHM=INPLACE;
+ 
+CREATE OR REPLACE TABLE t1 (i INT) ENGINE=InnoDB;
+--error ER_BAD_FIELD_ERROR
+ALTER TABLE t1 ADD d DATETIME NOT NULL CHECK (f <= 0), ALGORITHM=COPY;
+
+CREATE OR REPLACE TABLE t1 (a int) ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN b DATETIME NOT NULL, LOCK=NONE;
+
+--echo # Cleanup
+SET @@SQL_MODE= @OLD_SQL_MODE;
 DROP TABLE t1;
 
 #

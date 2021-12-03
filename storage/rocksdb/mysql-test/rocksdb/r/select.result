@@ -68,6 +68,7 @@ a
 SELECT FOUND_ROWS();
 FOUND_ROWS()
 3
+SET @save_query_cache=@@global.query_cache_size;
 SET GLOBAL query_cache_size = 1024*1024;
 SELECT SQL_CACHE * FROM t1, t2;
 a	b	pk	a	b	pk
@@ -89,7 +90,7 @@ a	b	pk	a	b	pk
 200	bar	6	1	z	2
 200	bar	6	100	foobar	1
 200	bar	6	200	bar	3
-SET GLOBAL query_cache_size = 1048576;
+SET @@global.query_cache_size=@save_query_cache;
 SELECT a+10 AS field1, CONCAT(b,':',b) AS field2 FROM t1 
 WHERE b > 'b' AND a IS NOT NULL 
 GROUP BY 2 DESC, field1 ASC

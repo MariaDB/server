@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # Add executable plus some additional MySQL specific stuff
 # Usage (same as for standard CMake's ADD_EXECUTABLE)
@@ -63,21 +63,25 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
     UNSET(EXCLUDE_FROM_ALL)
   ENDIF()
   ADD_EXECUTABLE(${target} ${WIN32} ${MACOSX_BUNDLE} ${EXCLUDE_FROM_ALL} ${sources})
+
   # tell CPack where to install
   IF(NOT ARG_EXCLUDE_FROM_ALL)
     IF(NOT ARG_DESTINATION)
       SET(ARG_DESTINATION ${INSTALL_BINDIR})
     ENDIF()
     IF(ARG_COMPONENT)
-      SET(COMP COMPONENT ${ARG_COMPONENT})
+      SET(COMP ${ARG_COMPONENT})
     ELSEIF(MYSQL_INSTALL_COMPONENT)
-      SET(COMP COMPONENT ${MYSQL_INSTALL_COMPONENT})
+      SET(COMP ${MYSQL_INSTALL_COMPONENT})
     ELSE()
-      SET(COMP COMPONENT Client)
+      SET(COMP Client)
     ENDIF()
     IF (COMP MATCHES ${SKIP_COMPONENTS})
       RETURN()
     ENDIF()
-    MYSQL_INSTALL_TARGETS(${target} DESTINATION ${ARG_DESTINATION} ${COMP})
+    MYSQL_INSTALL_TARGETS(${target} DESTINATION ${ARG_DESTINATION} COMPONENT ${COMP})
   ENDIF()
+
+  # create mariadb named symlink
+  CREATE_MARIADB_SYMLINK(${target} ${ARG_DESTINATION} ${COMP})
 ENDFUNCTION()

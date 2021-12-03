@@ -4,17 +4,8 @@
 
 # Not supported in embedded
 -- source include/not_embedded.inc
-
-# This test case needs to crash the server. Needs a debug server.
 -- source include/have_debug.inc
-
-# Don't test this under valgrind, memory leaks will occur.
--- source include/not_valgrind.inc
-
-# Avoid CrashReporter popup on Mac
--- source include/not_crashrep.inc
-
--- source include/have_innodb.inc
+-- source include/have_debug_sync.inc
 
 # Create Insert Procedure
 DELIMITER |;
@@ -62,21 +53,11 @@ CALL populate_t1();
 
 SELECT COUNT(*) FROM t1;
 
+--enable_info
 CREATE INDEX idx_title ON t1(title);
+--disable_info
 
---source include/restart_mysqld.inc
-
-CHECK TABLE t1;
-
-SELECT * FROM t1 WHERE title = 'a10';
-
-SELECT * FROM t1 WHERE title = 'a5000';
-
-SELECT * FROM t1 WHERE title = 'a10000';
-
-SELECT * FROM t1 WHERE title = 'a10010';
-
-DROP TABLE t1;
+RENAME TABLE t1 TO t0;
 
 -- echo # Test Blob
 
@@ -104,13 +85,29 @@ INSERT INTO t1 VALUES
 
 SELECT CHAR_LENGTH(b) FROM t1;
 
-ALTER TABLE t1 DROP COLUMN c;
+--enable_info
+ALTER TABLE t1 DROP COLUMN c, FORCE;
+--disable_info
 
 --source include/restart_mysqld.inc
 
-CHECK TABLE t1;
+CHECK TABLE t0,t1;
 
 SELECT CHAR_LENGTH(b) FROM t1;
+
+DROP TABLE t1;
+
+RENAME TABLE t0 to t1;
+
+CHECK TABLE t1;
+
+SELECT * FROM t1 WHERE title = 'a10';
+
+SELECT * FROM t1 WHERE title = 'a5000';
+
+SELECT * FROM t1 WHERE title = 'a10000';
+
+SELECT * FROM t1 WHERE title = 'a10010';
 
 DROP TABLE t1;
 
@@ -140,17 +137,16 @@ if ($row_format == 'COMPRESSED')
 CALL populate_t1();
 -- enable_query_log
 
-SET debug_dbug='+d,crash_commit_before';
-
-# Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-
---error 2013
+connect (hang,localhost,root);
+SET DEBUG_SYNC='alter_table_inplace_trans_commit SIGNAL hung WAIT_FOR ever';
+send
 CREATE INDEX idx_title ON t1(title);
 
---enable_reconnect
---source include/wait_until_connected_again.inc
---disable_reconnect
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+disconnect hang;
 
 SELECT COUNT(*) FROM t1;
 
@@ -194,28 +190,21 @@ INSERT INTO t1 VALUES
 
 SELECT CHAR_LENGTH(b) FROM t1;
 
-SET debug_dbug='+d,crash_commit_before';
+connect (hang,localhost,root);
+SET DEBUG_SYNC='alter_table_inplace_trans_commit SIGNAL hung WAIT_FOR ever';
+send
+ALTER TABLE t1 DROP COLUMN c, FORCE;
 
-# Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-
---error 2013
-ALTER TABLE t1 DROP COLUMN c;
-
---enable_reconnect
---source include/wait_until_connected_again.inc
---disable_reconnect
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+--source include/restart_mysqld.inc
+disconnect hang;
+let $shutdown_timeout=60;
 
 CHECK TABLE t1;
 
 SELECT CHAR_LENGTH(b) FROM t1;
 
 DROP TABLE t1;
-
-# Restore global variables
-if ($row_format == 'COMPRESSED')
-{
-  SET GLOBAL innodb_file_per_table=default;
-}
 
 DROP PROCEDURE populate_t1;

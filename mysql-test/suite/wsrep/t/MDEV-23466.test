@@ -1,0 +1,10 @@
+#
+# MDEV-23466: SIGABRT in wsrep::server_state::provider on
+# SELECT WSREP_LAST_SEEN_GTID() on optimized builds
+#
+
+--source include/have_innodb.inc
+--source include/have_wsrep.inc
+--source include/have_binlog_format_row.inc
+
+SELECT WSREP_LAST_SEEN_GTID();

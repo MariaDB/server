@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef _SP_PCONTEXT_H_
 #define _SP_PCONTEXT_H_
@@ -22,7 +22,6 @@
 #endif
 
 #include "sql_string.h"                         // LEX_STRING
-#include "mysql_com.h"                          // enum_field_types
 #include "field.h"                              // Create_field
 #include "sql_array.h"                          // Dynamic_array
 

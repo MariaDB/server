@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -118,23 +118,32 @@ Tablespace::open_or_create(bool is_temp)
 
 			/* Create the tablespace entry for the multi-file
 			tablespace in the tablespace manager. */
+			ulint fsp_flags = 0;
+
+			switch (srv_checksum_algorithm) {
+			case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+			case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+				fsp_flags = (FSP_FLAGS_FCRC32_MASK_MARKER
+					     | FSP_FLAGS_FCRC32_PAGE_SSIZE());
+				break;
+			default:
+				fsp_flags = FSP_FLAGS_PAGE_SSIZE();
+			}
+
 			space = fil_space_create(
-				m_name, m_space_id, FSP_FLAGS_PAGE_SSIZE(),
+				m_name, m_space_id, fsp_flags,
 				is_temp
 				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
 				NULL);
+			if (!space) {
+				return DB_ERROR;
+			}
 		}
 
 		ut_a(fil_validate());
 
-		/* Create the tablespace node entry for this data file. */
-		if (!fil_node_create(
-			    it->m_filepath, it->m_size, space, false,
-			    TRUE)) {
-
-		       err = DB_ERROR;
-		       break;
-		}
+		space->add(it->m_filepath, OS_FILE_CLOSED, it->m_size,
+			   false, true);
 	}
 
 	return(err);

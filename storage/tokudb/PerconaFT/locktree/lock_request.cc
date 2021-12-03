@@ -32,6 +32,20 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
     You should have received a copy of the GNU Affero General Public License
     along with PerconaFT.  If not, see <http://www.gnu.org/licenses/>.
+
+----------------------------------------
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
 ======= */
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
@@ -77,6 +91,10 @@ void lock_request::destroy(void) {
     toku_destroy_dbt(&m_left_key_copy);
     toku_destroy_dbt(&m_right_key_copy);
     toku_cond_destroy(&m_wait_cond);
+}
+
+void lock_request::clearmem(char c) {
+     memset(this, c, sizeof(* this));
 }
 
 // set the lock request parameters. this API allows a lock request to be reused.

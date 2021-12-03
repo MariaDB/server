@@ -16,7 +16,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -41,7 +41,7 @@ struct xb_read_filt_ctxt_t {
 	/* Move these to union if any other filters are added in future */
 	xb_page_bitmap_range	*bitmap_range;	/*!< changed page bitmap range
 						iterator for space_id */
-	page_size_t	page_size;	/*!< page size */
+	ulint		page_size;		/*!< page size */
 	ulint		filter_batch_end;/*!< the ending page id of the
 						 current changed page block in
 						 the bitmap */

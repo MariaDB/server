@@ -1,17 +1,24 @@
 /* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifndef MYSQL_PERFORMANCE_SCHEMA_INTERFACE_H
 #define MYSQL_PERFORMANCE_SCHEMA_INTERFACE_H
@@ -1142,7 +1149,7 @@ typedef void (*register_socket_v1_t)
   @return an instrumented mutex
 */
 typedef struct PSI_mutex* (*init_mutex_v1_t)
-  (PSI_mutex_key key, const void *identity);
+  (PSI_mutex_key key, void *identity);
 
 /**
   Mutex instrumentation destruction API.
@@ -1157,7 +1164,7 @@ typedef void (*destroy_mutex_v1_t)(struct PSI_mutex *mutex);
   @return an instrumented rwlock
 */
 typedef struct PSI_rwlock* (*init_rwlock_v1_t)
-  (PSI_rwlock_key key, const void *identity);
+  (PSI_rwlock_key key, void *identity);
 
 /**
   Rwlock instrumentation destruction API.
@@ -1172,7 +1179,7 @@ typedef void (*destroy_rwlock_v1_t)(struct PSI_rwlock *rwlock);
   @return an instrumented cond
 */
 typedef struct PSI_cond* (*init_cond_v1_t)
-  (PSI_cond_key key, const void *identity);
+  (PSI_cond_key key, void *identity);
 
 /**
   Cond instrumentation destruction API.

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -263,24 +263,6 @@ btr_pcur_move_to_prev_on_page(
 }
 
 /*********************************************************//**
-Moves the persistent cursor to the last record on the same page. */
-UNIV_INLINE
-void
-btr_pcur_move_to_last_on_page(
-/*==========================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-	UT_NOT_USED(mtr);
-	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
-
-	page_cur_set_after_last(btr_pcur_get_block(cursor),
-				btr_pcur_get_page_cur(cursor));
-
-	cursor->old_stored = false;
-}
-
-/*********************************************************//**
 Moves the persistent cursor to the next user record in the tree. If no user
 records are left, the cursor ends up 'after last in tree'.
 @return TRUE if the cursor moved forward, ending on a user record */
@@ -463,14 +445,14 @@ btr_pcur_open_low(
 #endif /* BTR_CUR_HASH_ADAPT */
 		file, line, mtr, autoinc);
 
-	if (err != DB_SUCCESS) {
-		ib::warn() << " Error code: " << err
-			   << " btr_pcur_open_low "
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+		ib::warn() << "btr_pcur_open_low"
 			   << " level: " << level
 			   << " called from file: "
 			   << file << " line: " << line
 			   << " table: " << index->table->name
-			   << " index: " << index->name;
+			   << " index: " << index->name
+			   << " error: " << err;
 	}
 
 	cursor->pos_state = BTR_PCUR_IS_POSITIONED;

@@ -1,0 +1,28 @@
+--source include/have_wsrep.inc
+--source include/force_restart.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--let $galera_version=26.4.9
+source include/check_galera_version.inc;
+
+source include/galera_variables_ok.inc;
+
+--replace_column 2 #
+SHOW GLOBAL STATUS LIKE 'wsrep%';
+
+--echo # Should show nothing.
+SHOW STATUS LIKE 'x';
+
+SELECT @@global.wsrep_cluster_address;
+SELECT @@global.wsrep_on;
+
+SHOW STATUS LIKE 'threads_connected';
+SHOW STATUS LIKE 'wsrep_thread_count';
+
+--echo # variables
+
+SELECT VARIABLE_NAME FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE "wsrep%" ORDER BY VARIABLE_NAME;
+

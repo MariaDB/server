@@ -33,6 +33,10 @@ SET @@global.wsrep_sst_method="xtrabackup-v2";
 SELECT @@global.wsrep_sst_method;
 @@global.wsrep_sst_method
 xtrabackup-v2
+SET @@global.wsrep_sst_method="mariabackup";
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+mariabackup
 SET @@global.wsrep_sst_method=default;
 SELECT @@global.wsrep_sst_method;
 @@global.wsrep_sst_method

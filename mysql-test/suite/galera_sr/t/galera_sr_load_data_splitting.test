@@ -1,0 +1,50 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/big_test.inc
+
+#
+# Test Streaming Replication and LOAD DATA splitting operating at the same time
+#
+
+--let $wsrep_trx_fragment_size_orig = `SELECT @@wsrep_trx_fragment_size`
+--let $wsrep_load_data_splitting_orig = `SELECT @@wsrep_load_data_splitting`
+
+SET SESSION wsrep_trx_fragment_size = 512;
+SET GLOBAL wsrep_load_data_splitting = TRUE;
+
+
+# Create a file for LOAD DATA with 95K entries
+--perl
+open(FILE, ">", "$ENV{'MYSQLTEST_VARDIR'}/tmp/galera_sr_load_data.csv") or die;
+foreach  my $i (1..95000) {
+	print FILE "$i\n";
+}
+EOF
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+# Record wsrep_last_committed as it was before LOAD DATA
+--connection node_2
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_1
+--disable_query_log
+--eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/galera_sr_load_data.csv' INTO TABLE t1;
+--enable_query_log
+
+--connection node_2
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+SELECT COUNT(*) = 95000 FROM t1;
+
+# LOAD-ing 95K rows causes 10 'commits' to be registered
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after - $wsrep_last_committed_before = 10 AS wsrep_last_committed_diff;
+--enable_query_log
+
+--connection node_1
+--disable_query_log
+--eval SET GLOBAL wsrep_load_data_splitting = $wsrep_load_data_splitting_orig;
+--enable_query_log
+
+DROP TABLE t1;

@@ -1,0 +1,100 @@
+SET @@SQL_MODE = 'ORACLE';
+##########################################################################
+#      Test verifies Gtid_log_event/Xid_log_event specific print         #
+##########################################################################
+CREATE TABLE tm (f INT) ENGINE=MYISAM;
+INSERT INTO tm VALUES (10);
+CREATE TABLE t(f INT) ENGINE=INNODB;
+INSERT INTO t VALUES (10);
+CREATE OR REPLACE PROCEDURE simpleproc (param1 OUT INT) AS
+BEGIN
+SELECT COUNT(*) INTO param1 FROM t;
+END;
+/
+CREATE FUNCTION f1 RETURN INT
+AS
+BEGIN
+RETURN 10;
+END;
+/
+FLUSH LOGS;
+##########################################################################
+#      Delete data from master so that it can be restored from binlog    #
+##########################################################################
+DROP FUNCTION f1;
+DROP PROCEDURE simpleproc;
+DROP TABLE tm;
+DROP TABLE t;
+##########################################################################
+#               Post recovery using mysqlbinlog                          #
+##########################################################################
+SHOW TABLES;
+Tables_in_test
+t
+tm
+SELECT * FROM tm;
+f
+10
+SELECT * FROM t;
+f
+10
+SELECT f1();
+f1()
+10
+CALL simpleproc(@a);
+SELECT @a;
+@a
+1
+"*****     Clean Up     *****"
+DROP TABLE t,tm;
+DROP PROCEDURE simpleproc;
+DROP FUNCTION f1;
+RESET MASTER;
+##########################################################################
+#      Test verifies Gtid_log_event/Xid_log_event/Qery_log_event         #
+#      specific print along with flashback option                        #
+##########################################################################
+CREATE TABLE tm(f INT) ENGINE=MYISAM;
+INSERT INTO tm VALUES (10);
+INSERT INTO tm VALUES (20);
+CREATE TABLE t(f INT) ENGINE=INNODB;
+INSERT INTO t VALUES (10);
+INSERT INTO t VALUES (20);
+##########################################################################
+#                         Initial data                                   #
+##########################################################################
+SELECT * FROM tm;
+f
+10
+20
+SELECT * FROM t;
+f
+10
+20
+FLUSH LOGS;
+DELETE FROM tm WHERE f=20;
+DELETE FROM t WHERE f=20;
+FLUSH LOGS;
+##########################################################################
+#                     Data after deletion                                #
+##########################################################################
+SELECT * FROM tm;
+f
+10
+SELECT * FROM t;
+f
+10
+FOUND 2 /START TRANSACTION/ in test.sql
+##########################################################################
+#             Data after recovery using flashback                        #
+##########################################################################
+SELECT * FROM tm;
+f
+10
+20
+SELECT * FROM t;
+f
+10
+20
+"*****     Clean Up     *****"
+DROP TABLE t,tm;

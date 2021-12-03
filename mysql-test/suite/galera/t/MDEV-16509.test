@@ -1,0 +1,145 @@
+#
+# Test various executions which go through binlog group commit
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+--let $galera_connection_name = ctrl
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+# Scenario 1: Block INSERT after commit order release after queued for
+# group commit. Verify that
+#
+# - WSREP_LAST_SEEN_GTID is not advanced before commit finishes
+# - The INSERT does not become visible before commit finishes
+
+# Turn off sync wait to avoid blocking and use WSREP_LAST_SEEN_GTID()
+# to observe gtid position.
+SET SESSION wsrep_sync_wait = 0;
+--let $last_seen_gtid_prev = `SELECT WSREP_LAST_SEEN_GTID()`
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+# Set up sync points
+SET DEBUG_SYNC = "wsrep_before_commit_order_leave SIGNAL bcol_reached WAIT_FOR bcol_continue";
+SET DEBUG_SYNC = "wsrep_after_commit_order_leave SIGNAL acol_reached WAIT_FOR acol_continue";
+SET DEBUG_SYNC = "after_group_after_commit SIGNAL after_group_reached WAIT_FOR after_group_continue";
+# Send insert which will block in the sync points above
+--send INSERT INTO t1 VALUES (1)
+
+--connection ctrl
+# INSERT has gone through wsrep_ordered_commit() and the transaction is
+# committed in memory.
+SET DEBUG_SYNC = "now WAIT_FOR bcol_reached";
+--disable_query_log
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match
+--enable_query_log
+SELECT * FROM t1;
+SET DEBUG_SYNC = "now SIGNAL bcol_continue";
+
+# SE commit finished but wsrep_after_commit() has not called yet.
+SET DEBUG_SYNC = "now WAIT_FOR acol_reached";
+--disable_query_log
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match
+--enable_query_log
+SELECT * FROM t1;
+SET DEBUG_SYNC = "now SIGNAL acol_continue";
+
+SET DEBUG_SYNC = "now WAIT_FOR after_group_reached";
+--disable_query_log
+--eval SELECT WSREP_LAST_SEEN_GTID() != '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_do_not_match
+--enable_query_log
+SET DEBUG_SYNC = "now SIGNAL after_group_continue";
+
+--connection node_1
+--reap
+
+#
+# Scenario 2: Verify that two INSERTs from two different connections
+# queue for commit.
+#
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+SET SESSION wsrep_sync_wait = 0;
+
+--connection ctrl
+--let $last_seen_gtid_prev = `SELECT WSREP_LAST_SEEN_GTID()`
+
+--connection node_1
+SET DEBUG_SYNC = "wsrep_before_commit_order_leave SIGNAL bcol_reached_1 WAIT_FOR bcol_continue_1";
+SET DEBUG_SYNC = "wsrep_after_commit_order_leave SIGNAL acol_reached_1 WAIT_FOR acol_continue_1";
+SET DEBUG_SYNC = "after_group_after_commit SIGNAL agac_reached_1 WAIT_FOR agac_continue_1";
+--send INSERT INTO t1 VALUES (2);
+--connection ctrl
+SET DEBUG_SYNC = "now WAIT_FOR bcol_reached_1";
+
+--disable_query_log
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match
+--enable_query_log
+
+--connection node_1a
+SET DEBUG_SYNC = "wsrep_before_commit_order_leave SIGNAL bcol_reached_2 WAIT_FOR bcol_continue_2";
+SET DEBUG_SYNC = "wsrep_after_commit_order_leave SIGNAL acol_reached_2 WAIT_FOR acol_continue_2";
+SET DEBUG_SYNC = "after_group_after_commit SIGNAL agac_reached_2 WAIT_FOR agac_continue_2";
+--send INSERT INTO t1 VALUES (3);
+
+# Now INSERTs are queued, node_1 waiting after releasing commit order,
+# node_1a waiting before releasing commit order.
+--connection ctrl
+SET DEBUG_SYNC = "now SIGNAL bcol_continue_1";
+SET DEBUG_SYNC = "now WAIT_FOR acol_reached_1";
+SET DEBUG_SYNC = "now WAIT_FOR bcol_reached_2";
+
+--disable_query_log
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match
+--enable_query_log
+
+SET DEBUG_SYNC = "now SIGNAL bcol_continue_2";
+SET DEBUG_SYNC = "now WAIT_FOR acol_reached_2";
+
+--disable_query_log
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match
+--enable_query_log
+
+# Last seen GTIDs are incremented one by one once after_group_after_commit
+# is reached.
+SET DEBUG_SYNC = "now SIGNAL acol_continue_1";
+SET DEBUG_SYNC = "now WAIT_FOR agac_reached_1";
+
+--disable_query_log
+--eval SELECT WSREP_LAST_SEEN_GTID() != '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_no_match
+--enable_query_log
+
+--let $last_seen_gtid_prev = `SELECT WSREP_LAST_SEEN_GTID()`
+SET DEBUG_SYNC = "now SIGNAL acol_continue_2";
+SET DEBUG_SYNC = "now WAIT_FOR agac_reached_2";
+--disable_query_log
+--eval SELECT WSREP_LAST_SEEN_GTID() != '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_no_match
+--enable_query_log
+
+SET DEBUG_SYNC = "now SIGNAL agac_continue_1";
+
+--connection node_1
+--reap
+
+--connection ctrl
+SET DEBUG_SYNC = "now SIGNAL agac_continue_2";
+
+--connection node_1a
+--reap
+
+--connection ctrl
+SET DEBUG_SYNC = "RESET";
+
+DROP TABLE t1;
+
+--disconnect ctrl
+--disconnect node_1a
+--source include/galera_end.inc

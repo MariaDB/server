@@ -1,6 +1,7 @@
 #
 #  Window Functions Tests
 #
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t1,t2;
@@ -2218,7 +2219,492 @@ drop table t1;
 drop view v1;
 
 --echo #
---echo # Start of 10.3 tests
+--echo # MDEV-17676: Assertion `inited==NONE || (inited==RND && scan)' failed in handler::ha_rnd_init
+--echo #
+
+CREATE TABLE t1 (b1 text NOT NULL);
+INSERT INTO t1 VALUES  ('2'),('1');
+EXPLAIN
+SELECT DISTINCT MIN(b1) OVER () FROM t1;
+SELECT DISTINCT MIN(b1) OVER () FROM t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-15424: Unreasonal SQL Error (1356) on select from view
+--echo #
+
+create table t1 (id int, n1 int);
+insert into t1 values (1,1), (2,1), (3,2), (4,4);
+
+create view v1 as SELECT ifnull(max(n1) over (partition by n1),'aaa') FROM t1;
+explain select * from v1;
+select * from v1;
+drop table t1;
+drop view v1;
+
+--echo #
+--echo # MDEV-18431: Select max + row_number giving incorrect result
+--echo #
+
+create table t1 (id int, v int);
+insert into t1 values (1, 1), (1,2), (1,3), (2, 1), (2, 2);
+
+select e.id,
+ (select max(t1.v) from t1 where t1.id=e.id) as a,
+ row_number() over (partition by e.id order by e.v) as b,
+ (select max(t1.v) from t1 where t1.id=e.id) + (row_number() over (partition by e.id order by e.v)) as sum_a_b
+from t1 e;
+drop table t1;
+
+--echo #
+--echo # MDEV-15837: Assertion `item1->type() == Item::FIELD_ITEM && item2->type() == Item::FIELD_ITEM'
+--echo # failed in compare_order_elements function
+--echo #
+
+CREATE TABLE t1 (a1 int);
+insert into t1 values (1),(2),(3);
+SELECT  rank() OVER (ORDER BY 1), ROW_NUMBER() OVER (ORDER BY (EXPORT_SET(5,'Y','N',',',4))) FROM t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-17781: Server crashes in next_linear_tab
+--echo #
+
+CREATE TABLE t1 (i1 int);
+explain
+(SELECT AVG(0) OVER (), MAX('2') FROM t1)
+UNION ALL
+(SELECT AVG(0) OVER (), MAX('2') FROM t1);
+(SELECT AVG(0) OVER (), MAX('2') FROM t1)
+UNION ALL
+(SELECT AVG(0) OVER (), MAX('2') FROM t1);
+drop table t1;
+
+--echo #
+--echo # MDEV-14791: Crash with order by expression containing window functions
+--echo #
+
+CREATE TABLE t1 (b1 int, b2 int);
+INSERT INTO t1 VALUES (1,1),(0,0);
+
+explain
+SELECT b1 from t1 order by row_number() over (ORDER BY b2) + 1;
+
+SELECT b1 from t1 order by row_number() over (ORDER BY b2) + 1;
+
+explain
+SELECT b1 from t1 order by row_number() over (ORDER BY b2);
+
+SELECT b1 from t1 order by row_number() over (ORDER BY b2);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a int, b int, c int);
+INSERT INTO t1 VALUES (2,3,207), (1,21,909), (7,13,312), (8,64,248);
+
+explain
+SELECT * FROM t1 ORDER BY max(t1.a) over (partition by c);
+SELECT * FROM t1 ORDER BY max(t1.a) over (partition by c);
+
+explain
+SELECT max(t1.a) over (partition by c) as x, b, c from t1 order by max(t1.a) over (partition by c);
+SELECT max(t1.a) over (partition by c) as x, b, c from t1 order by max(t1.a) over (partition by c);
+
+drop table t1;
+
+--echo #
+--echo # MDEV-18373: DENSE_RANK is not calculated correctly
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 values (60, 1515),(60, 2000),(70, 2000),(55, 1600);
+
+select b, dense_rank() over (order by sum(a)) from t1 group by  b;
+select b, dense_rank() over (order by sum(a)+1) from t1 group by  b;
+
+select b, row_number() over (partition by sum(a)) from t1 group by b;
+select b, row_number() over (partition by sum(a)+1) from t1 group by b;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-18015: Assertion `global_status_var.global_memory_used == 0' failed when using UDF,
+--echo # window functions and views
+--echo #
+
+create table t1 (id int, n1 int);
+insert into t1 values (1,1),(2,1),(3,2),(4,4);
+explain
+select max(n1) over (partition by 'abc') from t1;
+select max(n1) over (partition by 'abc') from t1;
+
+explain
+select rank() over (partition by 'abc' order by 'xyz') from t1;
+select rank() over (partition by 'abc' order by 'xyz') from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-19380: ASAN heap-use-after-free in Protocol::net_store_data
+--echo #
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+SELECT (SELECT MIN('foo') OVER() FROM t1 LIMIT 1) as x;
+drop table t1;
+
+--echo #
+--echo # MDEV-16579: Wrong result of query using DISTINCT COUNT(*) OVER (*)
+--echo #
+
+CREATE TABLE t1 (i int) ;
+INSERT INTO t1 VALUES (1),(0),(1),(2),(0),(1),(2),(1),(2);
+
+SELECT  DISTINCT COUNT(*) OVER (), MOD(MIN(i),2) FROM t1 GROUP BY i ;
+drop table t1;
+
+--echo #
+--echo # MDEV-21318: Wrong results with window functions and implicit grouping
+--echo #
+
+CREATE TABLE t1 (a INT);
+
+--echo #
+--echo #  With empty const table
+--echo #  The expected result here is 1, NULL
+--echo #
+
+explain
+SELECT row_number() over(), sum(1) FROM t1;
+SELECT row_number() over(), sum(1) FROM t1;
+
+insert into t1 values (2);
+
+--echo #
+--echo #  Const table has 1 row, but still impossible where
+--echo #  The expected result here is 1, NULL
+--echo #
+
+EXPLAIN SELECT row_number() over(), sum(1) FROM t1 where a=1;
+SELECT row_number() over(), sum(1) FROM t1 where a=1;
+
+--echo #
+--echo #  Impossible HAVING
+--echo #  Empty result is expected
+--echo #
+
+EXPLAIN SELECT row_number() over(), sum(1) FROM t1 where a=1 having 1=0;
+SELECT row_number() over(), sum(1) FROM t1 where a=1 having 1=0;
+
+--echo #
+--echo #  const table has 1 row, no impossible where
+--echo #  The expected result here is 1, 2
+--echo #
+
+EXPLAIN SELECT row_number() over(), sum(a) FROM t1 where a=2;
+SELECT row_number() over(), sum(a) FROM t1 where a=2;
+drop table t1;
+
+--echo #
+--echo # Impossible Where
+--echo #
+
+create table t1(a int);
+insert into t1 values (1);
+
+--echo #
+--echo # Expected result is NULL, 0, NULL
+--echo #
+EXPLAIN SELECT MAX(a) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+SELECT MAX(a) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+
+--echo #
+--echo # Expected result is 1, 0, NULL
+--echo #
+
+EXPLAIN
+SELECT MAX(1) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+SELECT MAX(1) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-22461: JOIN::make_aggr_tables_info(): Assertion `select_options & (1ULL << 17)' failed.
+--echo #
+
+CREATE TEMPORARY TABLE t0 (a INT PRIMARY KEY ) ;
+INSERT INTO t0 VALUES (1),(2),(3);
+
+SELECT a FROM t0
+WHERE a < 8
+GROUP BY 1.5
+WINDOW v2 AS ( PARTITION BY a ORDER BY a DESC );
+
+SELECT a, ROW_NUMBER() OVER v2
+FROM t0
+WHERE a < 8
+GROUP BY 1.5
+WINDOW v2 AS ( PARTITION BY a ORDER BY a DESC );
+
+drop table t0;
+
+--echo #
+--echo # MDEV-16230:Server crashes when Analyze format=json is run with a window function with
+--echo # empty PARTITION BY and ORDER BY clauses
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT row_number() OVER() FROM t1;
+SELECT row_number() OVER() FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22984: Throw an error when arguments to window functions are window functions
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+SELECT NTILE(MAX(a) OVER (PARTITION BY a)) OVER (PARTITION BY a ORDER BY b) FROM t1;
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+SELECT FIRST_VALUE(MAX(a) OVER (PARTITION BY a)) OVER (ORDER BY a) AS x FROM t1 GROUP BY a;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12059: Assertion `precision > 0' failed with a window function or window aggregate function
+--echo #
+
+CREATE TABLE t1 (d DECIMAL(1,0) UNSIGNED);
+INSERT INTO t1 VALUES (1),(2);
+SELECT MIN(d) OVER () FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22463: Element_type &Bounds_checked_array<Item *>::operator[](size_t) [Element_type = Item *]:
+--echo # Assertion `n < m_size' failed
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c INT, d INT, e INT, f INT, g int, h INT, i INT);
+INSERT INTO t1 SELECT seq,seq,seq,seq, seq,seq,seq,seq,seq FROM seq_1_to_5;
+
+SELECT ROW_NUMBER() OVER w2 FROM t1 WINDOW w2 AS (PARTITION BY -1,0,1,2,3,4,5,6);
+--sorted_result
+SELECT a FROM t1 ORDER BY ROW_NUMBER() OVER (PARTITION BY -1,1,0,2,3,4,5,6,7,8);
+SELECT a,b FROM t1 WINDOW w2 AS (PARTITION BY -1,1,0,2,3,4);
+SELECT ROW_NUMBER() OVER w2 FROM t1 WINDOW w2 AS (PARTITION BY -1,0,1,2,3,4,5,6);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18916: crash in Window_spec::print_partition() with decimals
+--echo #
+
+--error ER_TOO_BIG_SCALE
+SELECT cast((rank() over w1) as decimal (53,56));
+--error ER_WRONG_WINDOW_SPEC_NAME
+SELECT cast((rank() over w1) as decimal (53,30));
+
+--echo #
+--echo # MDEV-15180: server crashed with NTH_VALUE()
+--echo #
+
+CREATE TABLE t1 (i1 int, a int);
+INSERT INTO t1 VALUES (1, 1), (2, 2),(3, 3);
+
+CREATE TABLE t2 (i2 int);
+INSERT INTO t2 VALUES (1),(2),(5),(1),(7),(4),(3);
+
+CREATE VIEW v1 AS (SELECT * FROM t1,t2 WHERE t1.i1=t2.i2) ;
+SELECT NTH_VALUE(i1, i1) OVER (PARTITION BY i1) FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-25032 Window functions without column references get removed from ORDER BY
+--echo #
+
+create table t1 (id int, score double);
+insert into t1 values
+(1, 5),
+(1, 6),
+(1, 6),
+(1, 6),
+(1, 7),
+(1, 8.1),
+(1, 9),
+(1, 10);
+select id, row_number() over () rn
+from t1
+order by rn desc;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-25630: Crash with window function in left expr of IN subquery
+--echo #
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT lag(i) over (ORDER BY i) IN ( SELECT 1 FROM t1 a) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT sum(i) over () IN ( SELECT 1 FROM t1 a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25565: 2-nd call of SP with SELECT from view / derived table / CTE
+--echo #             returning the result  of calculation of 2 window
+--echo #             functions that use the same window specification
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (7), (1), (1), (3), (1), (5);
+
+create view v2 as select a from t1 group by a;
+create view v1 as select * from v2;
+
+let $q1=
+select v1.a,
+          sum(v1.a) over (partition by v1.a  order by v1.a) as k,
+          avg(v1.a) over (partition by v1.a  order by v1.a) as m
+from v1;
+
+eval create procedure sp1() $q1;
+call sp1();
+call sp1();
+
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q2=
+select * from
+  ( select dt1.a,
+           sum(dt1.a) over (partition by dt1.a  order by dt1.a) as k,
+           avg(dt1.a) over (partition by dt1.a  order by dt1.a) as m
+    from (select * from v2) as dt1
+  ) as dt;
+
+eval create procedure sp2() $q2;
+call sp2();
+call sp2();
+
+eval prepare stmt from "$q2";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q3=
+select * from
+  ( select dt1.a,
+           sum(dt1.a) over (partition by dt1.a  order by dt1.a) as k,
+           avg(dt1.a) over (partition by dt1.a  order by dt1.a) as m
+    from ( select * from (select * from t1 group by a) as dt2 ) as dt1
+  ) as dt;
+
+eval create procedure sp3() $q3;
+call sp3();
+call sp3();
+
+eval prepare stmt from "$q3";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q4=
+with cte1 as (select * from (select * from t1 group by a) as dt2),
+     cte as
+     ( select cte1.a,
+              sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+              avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+       from cte1 )
+select * from cte;
+
+eval create procedure sp4() $q4;
+call sp4();
+call sp4();
+
+eval prepare stmt from "$q4";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q5=
+with cte1 as (select * from v2),
+     cte as
+     ( select cte1.a,
+              sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+              avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+       from cte1 )
+select * from cte;
+
+eval create procedure sp5() $q5;
+call sp5();
+call sp5();
+
+eval prepare stmt from "$q5";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q6=
+with
+cte1 as (with cte2 as (select * from t1 group by a) select * from cte2),
+     cte as
+     ( select cte1.a,
+              sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+              avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+       from cte1 )
+select * from cte;
+
+eval create procedure sp6() $q6;
+call sp6();
+call sp6();
+
+eval prepare stmt from "$q6";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q7=
+with
+     cte2 as (select * from v1),
+     cte1 as (select * from cte2),
+     cte as
+     ( select cte1.a,
+              sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+              avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+       from cte1 )
+select * from cte;
+
+eval create procedure sp7() $q7;
+call sp7();
+call sp7();
+
+eval prepare stmt from "$q7";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+
+drop procedure sp1;
+drop procedure sp2;
+drop procedure sp3;
+drop procedure sp4;
+drop procedure sp5;
+drop procedure sp6;
+drop procedure sp7;
+drop view v1,v2;
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
 --echo #
 
 --echo #
@@ -2234,6 +2720,33 @@ CREATE TABLE t1 (d time);
 INSERT INTO t1 VALUES ('00:00:01'),('00:00:02');
 SELECT *, LEAD(d) OVER (ORDER BY d) AS x FROM t1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-20351 Window function BIT_OR() OVER (..) return a wrong data type
+--echo #
+CREATE TABLE t1 (pk INT, a INT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (1, 0, 1), (2, 0, 18446744073709551615);
+
+CREATE TABLE t2 AS
+SELECT pk, a, bit_or(b) AS bit_or FROM t1 GROUP BY pk;
+SHOW CREATE TABLE t2;
+SELECT * FROM t1;
+DROP TABLE t2;
+
+CREATE OR REPLACE TABLE t2 AS
+SELECT pk, a, BIT_OR(b) OVER (PARTITION BY a ORDER BY pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS bit_or
+  FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
 
 --echo #
 --echo # MDEV-16722: Assertion `type() != NULL_ITEM' failed

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_DB_INCLUDED
 #define SQL_DB_INCLUDED
@@ -20,14 +20,13 @@
 
 class THD;
 
-int mysql_create_db(THD *thd, const LEX_CSTRING *db,
-                    const DDL_options_st &options,
+int mysql_create_db(THD *thd, const LEX_CSTRING *db, DDL_options_st options,
                     const Schema_specification_st *create);
 bool mysql_alter_db(THD *thd, const LEX_CSTRING *db,
                     const Schema_specification_st *create);
 bool mysql_rm_db(THD *thd, const LEX_CSTRING *db, bool if_exists);
 bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db);
-bool mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
+uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
                      bool force_switch);
 
 bool mysql_opt_change_db(THD *thd,

@@ -12,7 +12,7 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with this program; if not, write to the Free Software
--- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+-- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
 # This part converts any old privilege tables to privilege tables suitable
 # for current version of MySQL
@@ -27,12 +27,15 @@
 set sql_mode='';
 set storage_engine=Aria;
 set enforce_storage_engine=NULL;
+set alter_algorithm=DEFAULT;
+
+set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
 
 ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 
 # Detect whether or not we had the Grant_priv column
 SET @hadGrantPriv:=0;
-SELECT @hadGrantPriv:=1 FROM user WHERE Grant_priv LIKE '%';
+SELECT @hadGrantPriv:=1 FROM user WHERE Grant_priv IS NOT NULL;
 
 ALTER TABLE user add Grant_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
                  add References_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
@@ -117,7 +120,7 @@ ALTER TABLE func add type enum ('function','aggregate') COLLATE utf8_general_ci 
 
 # Detect whether we had Show_db_priv
 SET @hadShowDbPriv:=0;
-SELECT @hadShowDbPriv:=1 FROM user WHERE Show_db_priv LIKE '%';
+SELECT @hadShowDbPriv:=1 FROM user WHERE Show_db_priv IS NOT NULL;
 
 ALTER TABLE user
 ADD Show_db_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Alter_priv,
@@ -168,6 +171,14 @@ ALTER TABLE user
 # of columns MariaDB expects in the user table.
 ALTER TABLE user
   ADD Password char(41) character set latin1 collate latin1_bin NOT NULL default '' AFTER User;
+
+# In MySQL the Unix socket authentication plugin has a different name. Thus the
+# references to it need to be renamed in the user table. Thanks to the WHERE
+# clauses this applies only to MySQL->MariaDB upgrades and nothing else.
+UPDATE user
+  SET plugin='unix_socket' WHERE plugin='auth_socket';
+DELETE FROM plugin
+  WHERE name='auth_socket';
 
 ALTER TABLE user
   MODIFY Password char(41) character set latin1 collate latin1_bin NOT NULL default '',
@@ -265,7 +276,7 @@ ALTER TABLE plugin
 # Detect whether we had Create_view_priv
 #
 SET @hadCreateViewPriv:=0;
-SELECT @hadCreateViewPriv:=1 FROM user WHERE Create_view_priv LIKE '%';
+SELECT @hadCreateViewPriv:=1 FROM user WHERE Create_view_priv IS NOT NULL;
 
 #
 # Create VIEWs privileges (v5.0)
@@ -295,7 +306,7 @@ UPDATE user SET Create_view_priv=Create_priv, Show_view_priv=Create_priv where u
 #
 #
 SET @hadCreateRoutinePriv:=0;
-SELECT @hadCreateRoutinePriv:=1 FROM user WHERE Create_routine_priv LIKE '%';
+SELECT @hadCreateRoutinePriv:=1 FROM user WHERE Create_routine_priv IS NOT NULL;
 
 #
 # Create PROCEDUREs privileges (v5.0)
@@ -337,7 +348,7 @@ ALTER TABLE user MODIFY max_user_connections int(11) DEFAULT '0' NOT NULL AFTER 
 #
 
 SET @hadCreateUserPriv:=0;
-SELECT @hadCreateUserPriv:=1 FROM user WHERE Create_user_priv LIKE '%';
+SELECT @hadCreateUserPriv:=1 FROM user WHERE Create_user_priv IS NOT NULL;
 
 ALTER TABLE user ADD Create_user_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
 ALTER TABLE user MODIFY Create_user_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
@@ -417,7 +428,8 @@ ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
                             'NO_ENGINE_SUBSTITUTION',
                             'PAD_CHAR_TO_FULL_LENGTH',
                             'EMPTY_STRING_IS_NULL',
-                            'SIMULTANEOUS_ASSIGNMENT'
+                            'SIMULTANEOUS_ASSIGNMENT',
+                            'TIME_ROUND_FRACTIONAL'
                             ) DEFAULT '' NOT NULL,
                  DEFAULT CHARACTER SET utf8;
 
@@ -498,11 +510,16 @@ ALTER TABLE proc MODIFY comment
 ALTER TABLE proc ADD aggregate enum('NONE', 'GROUP') DEFAULT 'NONE' NOT NULL
                      AFTER body_utf8;
 
+# Update definer of Add/DropGeometryColumn procedures to 'mariadb.sys'
+# To consider the scenarios in MDEV-23102, only update the definer when it's 'root'
+UPDATE proc SET Definer = 'mariadb.sys@localhost' WHERE Definer = 'root@localhost' AND Name = 'AddGeometryColumn';
+UPDATE proc SET Definer = 'mariadb.sys@localhost' WHERE Definer = 'root@localhost' AND Name = 'DropGeometryColumn';
+
 #
 # EVENT privilege
 #
 SET @hadEventPriv := 0;
-SELECT @hadEventPriv :=1 FROM user WHERE Event_priv LIKE '%';
+SELECT @hadEventPriv :=1 FROM user WHERE Event_priv IS NOT NULL;
 
 ALTER TABLE user ADD Event_priv enum('N','Y') character set utf8 DEFAULT 'N' NOT NULL AFTER Create_user_priv;
 ALTER TABLE user MODIFY Event_priv enum('N','Y') character set utf8 DEFAULT 'N' NOT NULL AFTER Create_user_priv;
@@ -553,7 +570,8 @@ ALTER TABLE event MODIFY sql_mode
                             'NO_ENGINE_SUBSTITUTION',
                             'PAD_CHAR_TO_FULL_LENGTH',
                             'EMPTY_STRING_IS_NULL',
-                            'SIMULTANEOUS_ASSIGNMENT'
+                            'SIMULTANEOUS_ASSIGNMENT',
+                            'TIME_ROUND_FRACTIONAL'
                             ) DEFAULT '' NOT NULL AFTER on_completion;
 ALTER TABLE event MODIFY name char(64) CHARACTER SET utf8 NOT NULL default '';
 
@@ -595,7 +613,7 @@ set global event_scheduler=original;
 #
 
 SET @hadTriggerPriv := 0;
-SELECT @hadTriggerPriv :=1 FROM user WHERE Trigger_priv LIKE '%';
+SELECT @hadTriggerPriv :=1 FROM user WHERE Trigger_priv IS NOT NULL;
 
 ALTER TABLE user ADD Trigger_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Event_priv;
 ALTER TABLE user MODIFY Trigger_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Event_priv;
@@ -610,7 +628,7 @@ UPDATE user SET Trigger_priv=Super_priv WHERE @hadTriggerPriv = 0;
 #
 
 SET @hadCreateTablespacePriv := 0;
-SELECT @hadCreateTablespacePriv :=1 FROM user WHERE Create_tablespace_priv LIKE '%';
+SELECT @hadCreateTablespacePriv :=1 FROM user WHERE Create_tablespace_priv IS NOT NULL;
 
 ALTER TABLE user ADD Create_tablespace_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Trigger_priv;
 ALTER TABLE user MODIFY Create_tablespace_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Trigger_priv;
@@ -625,7 +643,7 @@ ALTER TABLE user change Truncate_versioning_priv Delete_history_priv enum('N','Y
 ALTER TABLE db change Truncate_versioning_priv Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
 
 SET @had_user_delete_history_priv := 0;
-SELECT @had_user_delete_history_priv :=1 FROM user WHERE Delete_history_priv LIKE '%';
+SELECT @had_user_delete_history_priv :=1 FROM user WHERE Delete_history_priv IS NOT NULL;
 
 ALTER TABLE user add Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
 ALTER TABLE user modify Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
@@ -634,76 +652,66 @@ ALTER TABLE db modify Delete_history_priv enum('N','Y') COLLATE utf8_general_ci 
 
 UPDATE user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_priv = 0;
 
-ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
-                 ADD authentication_string TEXT NOT NULL;
-ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
-                 MODIFY authentication_string TEXT NOT NULL;
-ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
-ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
-ALTER TABLE user ADD default_role char(80) binary DEFAULT '' NOT NULL;
-ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
+ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AFTER max_user_connections,
+                 ADD authentication_string TEXT NOT NULL AFTER plugin;
+ALTER TABLE user CHANGE auth_string authentication_string TEXT NOT NULL;
+
+ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER authentication_string;
+ALTER TABLE user ADD password_last_changed timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL after password_expired;
+ALTER TABLE user ADD password_lifetime smallint unsigned DEFAULT NULL after password_last_changed;
+ALTER TABLE user ADD account_locked enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL after password_lifetime;
+ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER account_locked;
+ALTER TABLE user ADD default_role char(80) binary DEFAULT '' NOT NULL AFTER is_role;
+ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL AFTER default_role;
+
 -- Somewhere above, we ran ALTER TABLE user .... CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin.
---  we want password_expired column to have collation utf8_general_ci.
-ALTER TABLE user MODIFY password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
-ALTER TABLE user MODIFY is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+-- we want password_expired column to have collation utf8_general_ci.
+-- Order columns correctly that were not ordered until MDEV-23201 (ff8ffef3e1915d7a9caa07d9461cd8d47c4baf98)
 
--- Need to pre-fill mysql.proxies_priv with access for root even when upgrading from
--- older versions
-
-CREATE TEMPORARY TABLE tmp_proxies_priv LIKE proxies_priv;
-INSERT INTO tmp_proxies_priv VALUES ('localhost', 'root', '', '', TRUE, '', now());
-INSERT INTO proxies_priv SELECT * FROM tmp_proxies_priv WHERE @had_proxies_priv_table=0;
-DROP TABLE tmp_proxies_priv;
+ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AFTER max_user_connections,
+                 MODIFY authentication_string TEXT NOT NULL AFTER plugin,
+                 MODIFY password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER authentication_string,
+                 MODIFY is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER password_expired,
+                 MODIFY default_role char(80) binary DEFAULT '' NOT NULL AFTER is_role,
+                 MODIFY max_statement_time decimal(12,6) DEFAULT 0 NOT NULL AFTER default_role,
+-- MDEV-24122 formerly mysql5.7 users may have the following columns password_last_changed,
+-- password_lifetime and account_locked. Ensure they are beyond the end of the user columns
+-- used by MariaDB. MariaDB-10.4 will use these in the creation of mysql.global_priv.
+-- password_last_changed has a DEFAULT/ON UPDATE of CURRENT_TIMESTAMP to keep track of
+-- time until 10.4 added.
+                 MODIFY IF EXISTS password_last_changed timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER max_statement_time,
+                 MODIFY IF EXISTS password_lifetime smallint unsigned DEFAULT NULL AFTER password_last_changed,
+                 MODIFY IF EXISTS account_locked enum('N', 'Y') CHARACTER SET utf8 DEFAULT 'N' NOT NULL after password_lifetime;
 
 -- Checking for any duplicate hostname and username combination are exists.
 -- If exits we will throw error.
-DROP PROCEDURE IF EXISTS mysql.count_duplicate_host_names;
 DELIMITER //
-CREATE PROCEDURE mysql.count_duplicate_host_names()
-BEGIN
+BEGIN NOT ATOMIC
   SET @duplicate_hosts=(SELECT count(*) FROM mysql.user GROUP BY user, lower(host) HAVING count(*) > 1 LIMIT 1);
   IF @duplicate_hosts > 1 THEN
     SIGNAL SQLSTATE '45000'  SET MESSAGE_TEXT = 'Multiple accounts exist for @user_name, @host_name that differ only in Host lettercase; remove all except one of them';
   END IF;
 END //
 DELIMITER ;
-CALL mysql.count_duplicate_host_names();
 -- Get warnings (if any)
 SHOW WARNINGS;
-DROP PROCEDURE mysql.count_duplicate_host_names;
 
 # Convering the host name to lower case for existing users
 UPDATE user SET host=LOWER( host ) WHERE LOWER( host ) <> host;
 
-# fix bad data when upgrading from unfixed InnoDB (MDEV-13360)
-set @str="delete from innodb_index_stats where length(table_name) > 64";
-set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
-prepare stmt from @str;
-execute stmt;
-set @str=replace(@str, "innodb_index_stats", "innodb_table_stats");
-prepare stmt from @str;
-execute stmt;
+DELIMITER //
+if @have_innodb then
+  # fix bad data when upgrading from unfixed InnoDB (MDEV-13360)
+  delete from innodb_index_stats where length(table_name) > 64;
+  delete from innodb_table_stats where length(table_name) > 64;
 
-# update table_name and timestamp fields in the innodb stat tables
-set @str="alter table mysql.innodb_index_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199)";
-set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
-prepare stmt from @str;
-execute stmt;
+  # update table_name and timestamp fields in the innodb stat tables
+  alter table innodb_index_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199);
+  alter table innodb_table_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199);
 
-set @str="alter table mysql.innodb_table_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199)";
-set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
-prepare stmt from @str;
-execute stmt;
-
-set @str=replace(@str, "innodb_index_stats", "innodb_table_stats");
-prepare stmt from @str;
-execute stmt;
-
-SET @innodb_index_stats_fk= (select count(*) from information_schema.referential_constraints where constraint_schema='mysql' and table_name = 'innodb_index_stats' and referenced_table_name = 'innodb_table_stats' and constraint_name = 'innodb_index_stats_ibfk_1');
-SET @str=IF(@innodb_index_stats_fk > 0 and @have_innodb > 0, "ALTER TABLE mysql.innodb_index_stats DROP FOREIGN KEY `innodb_index_stats_ibfk_1`", "SET @dummy = 0");
-PREPARE stmt FROM @str;
-EXECUTE stmt;
-DROP PREPARE stmt; 
+  alter table innodb_index_stats drop foreign key if exists innodb_index_stats_ibfk_1;
+end if //
+DELIMITER ;
 
 # MDEV-4332 longer user names
 alter table user         modify User         char(80)  binary not null default '';
@@ -758,7 +766,7 @@ ALTER TABLE proc ENGINE=Aria transactional=1;
 ALTER TABLE event ENGINE=Aria transactional=1;
 ALTER TABLE proxies_priv ENGINE=Aria transactional=1;
 
--- The folloing tables doesn't have to be transactional
+-- The following tables doesn't have to be transactional
 ALTER TABLE help_topic ENGINE=Aria transactional=0;
 ALTER TABLE help_category ENGINE=Aria transactional=0;
 ALTER TABLE help_relation ENGINE=Aria transactional=0;
@@ -766,3 +774,63 @@ ALTER TABLE help_keyword ENGINE=Aria transactional=0;
 ALTER TABLE table_stats ENGINE=Aria transactional=0;
 ALTER TABLE column_stats ENGINE=Aria transactional=0;
 ALTER TABLE index_stats ENGINE=Aria transactional=0;
+
+DELIMITER //
+IF 'BASE TABLE' = (select table_type from information_schema.tables where table_schema=database() and table_name='user') THEN
+  CREATE TABLE IF NOT EXISTS global_priv (Host char(60) binary DEFAULT '', User char(80) binary DEFAULT '', Priv JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Priv)), PRIMARY KEY Host (Host,User)) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Users and global privileges'
+  SELECT Host, User, JSON_COMPACT(JSON_OBJECT('access',
+                             1*('Y'=Select_priv)+
+                             2*('Y'=Insert_priv)+
+                             4*('Y'=Update_priv)+
+                             8*('Y'=Delete_priv)+
+                            16*('Y'=Create_priv)+
+                            32*('Y'=Drop_priv)+
+                            64*('Y'=Reload_priv)+
+                           128*('Y'=Shutdown_priv)+
+                           256*('Y'=Process_priv)+
+                           512*('Y'=File_priv)+
+                          1024*('Y'=Grant_priv)+
+                          2048*('Y'=References_priv)+
+                          4096*('Y'=Index_priv)+
+                          8192*('Y'=Alter_priv)+
+                         16384*('Y'=Show_db_priv)+
+                         32768*('Y'=Super_priv)+
+                         65536*('Y'=Create_tmp_table_priv)+
+                        131072*('Y'=Lock_tables_priv)+
+                        262144*('Y'=Execute_priv)+
+                        524288*('Y'=Repl_slave_priv)+
+                       1048576*('Y'=Repl_client_priv)+
+                       2097152*('Y'=Create_view_priv)+
+                       4194304*('Y'=Show_view_priv)+
+                       8388608*('Y'=Create_routine_priv)+
+                      16777216*('Y'=Alter_routine_priv)+
+                      33554432*('Y'=Create_user_priv)+
+                      67108864*('Y'=Event_priv)+
+                     134217728*('Y'=Trigger_priv)+
+                     268435456*('Y'=Create_tablespace_priv)+
+                     536870912*('Y'=Delete_history_priv),
+                    'ssl_type', ssl_type-1,
+                    'ssl_cipher', ssl_cipher,
+                    'x509_issuer', x509_issuer,
+                    'x509_subject', x509_subject,
+                    'max_questions', max_questions,
+                    'max_updates', max_updates,
+                    'max_connections', max_connections,
+                    'max_user_connections', max_user_connections,
+                    'max_statement_time', max_statement_time,
+                    'plugin', if(plugin>'',plugin,if(length(password)=16,'mysql_old_password','mysql_native_password')),
+                    'authentication_string', if(plugin>'' and authentication_string>'',authentication_string,password),
+                    'password_last_changed', if(password_expired='Y', 0, if(password_last_changed, UNIX_TIMESTAMP(password_last_changed), UNIX_TIMESTAMP())),
+                    'password_lifetime', ifnull(password_lifetime, -1),
+                    'account_locked', 'Y'=account_locked,
+                    'default_role', default_role,
+                    'is_role', 'Y'=is_role)) as Priv
+  FROM user;
+  DROP TABLE user;
+END IF//
+
+IF 1 = (SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def' and TABLE_SCHEMA = 'mysql' and TABLE_NAME='user' and (DEFINER = 'root@localhost' or (DEFINER = 'mariadb.sys@localhost' and VIEW_DEFINITION LIKE "%'N' AS `password_expired`%"))) THEN
+  DROP VIEW IF EXISTS mysql.user;
+END IF//
+
+DELIMITER ;

@@ -3,6 +3,7 @@ SHOW VARIABLES LIKE 'innodb_encrypt%';
 Variable_name	Value
 innodb_encrypt_log	ON
 innodb_encrypt_tables	ON
+innodb_encrypt_temporary_tables	OFF
 innodb_encryption_rotate_key_age	15
 innodb_encryption_rotation_iops	100
 innodb_encryption_threads	4
@@ -18,7 +19,7 @@ innodb_system
 # Success!
 # Now turn off encryption and wait for threads to decrypt everything
 SET GLOBAL innodb_encrypt_tables = off;
-# Wait max 10 min for key encryption threads to encrypt all spaces
+# Wait max 10 min for key encryption threads to decrypt all spaces
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
 AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
 NAME
@@ -53,10 +54,12 @@ NAME
 innodb_system
 # Success!
 # Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
+# restart: --innodb_encrypt_tables=0 --innodb_encryption_threads=0
 SHOW VARIABLES LIKE 'innodb_encrypt%';
 Variable_name	Value
 innodb_encrypt_log	ON
 innodb_encrypt_tables	OFF
+innodb_encrypt_temporary_tables	OFF
 innodb_encryption_rotate_key_age	15
 innodb_encryption_rotation_iops	100
 innodb_encryption_threads	0

@@ -1,8 +1,8 @@
 --source include/have_partition.inc
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
+--source include/default_optimizer_switch.inc
 
-SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='outer_join_with_cache=off';
 
 #
@@ -2054,7 +2054,9 @@ flush status;
 create table t1(f1 char(1));
 create view v1 as select * from t1;
 select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+--disable_ps_protocol
 show status like "Created_tmp%";
+--enable_ps_protocol
 drop view v1;
 drop table t1;
 
@@ -2063,7 +2065,9 @@ set @@optimizer_switch='derived_merge=OFF';
 create table t1(f1 char(1));
 create view v1 as select * from t1;
 select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+--disable_ps_protocol
 show status like "Created_tmp%";
+--enable_ps_protocol
 drop view v1;
 drop table t1;
 set @@optimizer_switch=@tmp;
@@ -2369,6 +2373,7 @@ DROP TABLE t1;
 # Bug#15943 mysql_next_result hangs on invalid SHOW CREATE VIEW
 #
 
+--disable_ps_protocol
 delimiter //;
 drop table if exists t1;
 drop view if exists v1;
@@ -2379,6 +2384,7 @@ show create view v1;
 drop view v1;
 //
 delimiter ;//
+--enable_ps_protocol
 
 
 #
@@ -3658,12 +3664,12 @@ SELECT * FROM v1;
 CREATE VIEW v2 AS SELECT t1.a FROM t1, v1 AS a;
 
 REPLACE INTO v2(a) SELECT 1 FROM t1,t1 AS c;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 REPLACE INTO v2(a) SELECT 3 FROM t1,t1 AS c;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 INSERT INTO v2(a) SELECT 1 FROM t1,t1 AS c
 ON DUPLICATE KEY UPDATE `v2`.`a`= 1;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 
 DROP VIEW v1;
 DROP VIEW v2;
@@ -3889,7 +3895,9 @@ CREATE VIEW v1 AS SELECT f1() FROM t1;
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 copy_file std_data/bug48449.frm $MYSQLD_DATADIR/test/v2.frm;
 
+enable_prepare_warnings;
 SHOW CREATE VIEW v1;
+disable_prepare_warnings;
 
 DROP VIEW v1,v2;
 DROP TABLE t1,t2;
@@ -4042,7 +4050,7 @@ CREATE OR REPLACE view v1 AS
 ;
 
 SELECT 1
-FROM (  SELECT 1
+FROM ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4050,8 +4058,8 @@ FROM (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t1
-LEFT OUTER JOIN (  SELECT 1
+) t1)
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4059,8 +4067,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t2 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t2) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4068,8 +4076,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t3 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t3) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4077,8 +4085,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t4 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t4) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4086,8 +4094,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t5 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t5) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4095,8 +4103,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t6 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t6) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4104,8 +4112,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t7 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t7) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4113,18 +4121,18 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t8 ON 1=1
+) t8) ON 1=1
 ;
 
 SELECT 1
-FROM v1 t1
-LEFT OUTER JOIN v1 t2 ON 1=1
-LEFT OUTER JOIN v1 t3 ON 1=1
-LEFT OUTER JOIN v1 t4 ON 1=1
-LEFT OUTER JOIN v1 t5 ON 1=1
-LEFT OUTER JOIN v1 t6 ON 1=1
-LEFT OUTER JOIN v1 t7 ON 1=1
-LEFT OUTER JOIN v1 t8 ON 1=1
+FROM (v1 t1)
+LEFT OUTER JOIN (v1 t2) ON 1=1
+LEFT OUTER JOIN (v1 t3) ON 1=1
+LEFT OUTER JOIN (v1 t4) ON 1=1
+LEFT OUTER JOIN (v1 t5) ON 1=1
+LEFT OUTER JOIN (v1 t6) ON 1=1
+LEFT OUTER JOIN (v1 t7) ON 1=1
+LEFT OUTER JOIN (v1 t8) ON 1=1
 ;
 
 drop view v1;
@@ -4248,7 +4256,8 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (a varchar(10), KEY (a)) ;
 INSERT INTO t1 VALUES
-  ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM');
+  ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'), ('MM'),
+  ('AA'), ('DD'), ('CC'), ('GG');
 
 CREATE VIEW v1 AS SELECT * FROM t1;
 
@@ -5615,6 +5624,26 @@ t46, t47, t48, t49, t50, t51, t52, t53, t54,
 t55, t56, t57, t58, t59,t60;
 drop view v60;
 
+--echo #
+--echo # MDEV-15572: view.test, server crash with --big-tables=1
+--echo #
+
+set @save_big_tables=@@big_tables;
+set big_tables=ON;
+CREATE TABLE t1 ( f1 int , f2 int , f3 int , f4 int);
+CREATE TABLE t2 ( f1 int , f2 int , f3 int , f4 int);
+
+CREATE VIEW v1 AS
+	SELECT t2.f1, t1.f2, t2.f3, t2.f4 FROM (t1 JOIN t2);
+
+--error ER_VIEW_MULTIUPDATE
+REPLACE INTO v1 (f1, f2, f3, f4)
+	SELECT f1, f2, f3, f4 FROM t1;
+
+drop view v1;
+drop table t1, t2;
+set big_tables=@save_big_tables;
+
 --echo # -----------------------------------------------------------------
 --echo # -- End of 5.5 tests.
 --echo # -----------------------------------------------------------------
@@ -6274,17 +6303,6 @@ INSERT INTO v (f1, f3) VALUES (1,1), (2,2);
 drop view v;
 drop tables t1,t2,t3;
 
-#
-# MDEV-11784 View is created with invalid definition which causes ERROR 1241 (21000): Operand should contain 1 column(s)
-#
-create table t1 (i int, j int);
-insert t1 values (1,1),(2,2);
-create view v1 as select (2, 3) not in (select i, j from t1);
-select * from v1;
-show create view v1;
-drop view v1;
-drop table t1;
-
 --echo #
 --echo # MDEV-10704: Assertion `field->field->table == table_arg'
 --echo # failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,
@@ -6399,6 +6417,158 @@ drop view v1;
 drop table t1;
 
 --echo #
+--echo # MDEV-18502: Server crash in find_field_in_tables upon 2nd execution of SP which causes ER_WRONG_GROUP_FIELD
+--echo #
+
+CREATE TABLE t1 (id INT, f VARCHAR(1));
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'a'),(2,'b');
+CREATE PROCEDURE sp() SELECT f AS f1, MAX(id) AS f2 FROM v1 GROUP BY f1, f2 ORDER BY f1;
+--error ER_WRONG_GROUP_FIELD
+CALL sp;
+--error ER_WRONG_GROUP_FIELD
+CALL sp;
+DROP PROCEDURE sp;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-24314: create view with derived table without default database
+--echo #
+
+drop database test;
+
+create database db1;
+create table db1.t1 (a int);
+insert into db1.t1 values (3),(7),(1);
+
+create view db1.v1 as select * from (select * from db1.t1) t;
+show create view db1.v1;
+select * from db1.v1;
+drop view db1.v1;
+
+prepare stmt from "
+create view db1.v1 as select * from (select * from db1.t1) t;
+";
+execute stmt;
+deallocate prepare stmt;
+show create view db1.v1;
+select * from db1.v1;
+drop view db1.v1;
+
+drop table db1.t1;
+drop database db1;
+
+create database test;
+use test;
+
+--echo #
+--echo # MDEV-16940: update of multi-table view returning error used in SP
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2), (3);
+
+CREATE VIEW v1 AS SELECT a, b FROM t1,t2;
+
+CREATE PROCEDURE sp1() UPDATE v1 SET a = 8, b = 9;
+
+--error ER_VIEW_MULTIUPDATE
+CALL sp1;
+--error ER_VIEW_MULTIUPDATE
+CALL sp1;
+
+DROP PROCEDURE sp1;
+DROP VIEW v1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-23291: SUM column from a derived table returns invalid values
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2);
+
+CREATE view v1 AS
+SELECT a as x, (select x) as y, (select y) as z FROM t1;
+
+SELECT sum(z) FROM (SELECT a as x, (select x) as y, (select y) as z FROM t1) q;
+SELECT sum(z) FROM v1;
+
+DROP TABLE t1;
+DROP VIEW v1;
+
+--echo #
+--echo # MDEV-24454: Crash at change_item_tree
+--echo #
+
+CREATE TABLE t1(f0 INT);
+
+CREATE VIEW v1 AS
+SELECT
+  f0 AS f1
+FROM t1;
+
+CREATE VIEW v2 AS
+SELECT
+  (SELECT GROUP_CONCAT(v1.f1 SEPARATOR ', ')
+   FROM v1 n) AS f2,
+  GROUP_CONCAT('' SEPARATOR ', ') AS f3
+FROM v1;
+
+CREATE VIEW v3 AS
+SELECT 1 as f4 FROM v2;
+
+CREATE PROCEDURE p1()
+  SELECT * FROM v3;
+
+CALL p1();
+CALL p1();
+
+drop procedure p1;
+drop view v1,v2,v3;
+drop table t1;
+
+--echo #
+--echo # MDEV-25631: Crash in st_select_lex::mark_as_dependent with
+--echo # VIEW, aggregate and subquery
+--echo #
+
+CREATE TABLE t1 (i1 int);
+insert into t1 values (1),(2),(3); #not important
+CREATE VIEW v1 AS
+	SELECT t1.i1 FROM (t1 a JOIN t1 ON (t1.i1 = (SELECT t1.i1 FROM t1 b)));
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
+delete from t1 where i1 > 1;
+SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
+
+drop view v1;
+drop table t1;
+
+
+--echo #
+--echo # MDEV-26299: Some views force server (and mysqldump) to generate
+--echo # invalid SQL for their definitions
+--echo #
+
+create view v1 as
+ select * from
+  (select
+  "12345678901234567890123456789012345678901234567890123456789012345") as t1;
+
+let $definition=`select VIEW_DEFINITION from information_schema.views where TABLE_NAME="v1"`;
+
+drop view v1;
+
+eval CREATE VIEW v1 AS $definition;
+
+drop view v1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -6415,5 +6585,49 @@ drop table t1;
 ALTER VIEW IF NOT EXISTS v1 AS SELECT 1;
 
 --echo #
+--echo # MDEV-18605: Loss of column aliases by using view and group
+--echo #
+
+CREATE TABLE t1 (id int, foo int);
+CREATE VIEW v1 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1;
+
+INSERT INTO t1 (id, foo) VALUES (1,1),(2,2);
+
+SELECT v.id, v.foo AS bar  FROM v1 v
+  WHERE id = 2;
+
+SELECT v.id, v.foo AS bar  FROM v1 v
+  GROUP BY v.id;
+
+SELECT v.id, v.foo AS bar  FROM v1 v
+  WHERE id = 2
+  GROUP BY v.id;
+
+#Cleanup
+Drop View v1;
+Drop table t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-25206: view specification contains unknown column reference
+--echo #
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (2),(3);
+CREATE TABLE t3 (c int);
+
+--error ER_BAD_FIELD_ERROR
+CREATE VIEW v1 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+--error ER_BAD_FIELD_ERROR
+INSERT INTO t3 SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+--error ER_BAD_FIELD_ERROR
+CREATE TABLE t4 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+
+DROP TABLE t1,t2,t3;
+
+--echo # End of 10.4 tests

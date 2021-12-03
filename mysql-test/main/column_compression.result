@@ -860,9 +860,9 @@ foo
 bar
 DROP TABLE t1;
 FLUSH STATUS;
-CREATE TABLE t1(a TEXT CHARSET ucs2 COMPRESSED, KEY(a(10)));
+CREATE TABLE t1(a TEXT COMPRESSED CHARSET ucs2, KEY(a(10)));
 ERROR HY000: Compressed column 'a' can't be used in key specification
-CREATE TABLE t1(a TEXT CHARSET ucs2 COMPRESSED);
+CREATE TABLE t1(a TEXT COMPRESSED CHARSET ucs2);
 ALTER TABLE t1 ADD KEY(a(10));
 ERROR HY000: Compressed column 'a' can't be used in key specification
 SHOW CREATE TABLE t1;
@@ -900,7 +900,7 @@ SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND 
 DATA_LENGTH
 1008
 # Rebuild back
-ALTER TABLE t1 MODIFY COLUMN a TEXT CHARSET ucs2 COMPRESSED;
+ALTER TABLE t1 MODIFY COLUMN a TEXT COMPRESSED CHARSET ucs2;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -975,7 +975,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 COLUMN_COMPRESSIONS	2
 COLUMN_DECOMPRESSIONS	10
 # Make sure online add column works (requires InnoDB)
-ALTER TABLE t1 ADD COLUMN b TEXT CHARSET ucs2 COMPRESSED DEFAULT "must be visible";
+ALTER TABLE t1 ADD COLUMN b TEXT COMPRESSED CHARSET ucs2 DEFAULT "must be visible";
 SELECT LEFT(a, 10), LENGTH(a), b FROM t1;
 LEFT(a, 10)	LENGTH(a)	b
 aaaaaaaaaa	2000	must be visible
@@ -1054,9 +1054,9 @@ DROP TABLE t1;
 # MDEV-13540 - Server crashes in copy or Assertion `0' failed in virtual
 #              Field* Field_varstring_compressed::new_key_field
 #
-CREATE TABLE t1 (c1 TEXT CHARSET ucs2 COMPRESSED) ENGINE=MyISAM;
+CREATE TABLE t1 (c1 TEXT COMPRESSED CHARSET ucs2) ENGINE=MyISAM;
 INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
-CREATE TABLE t2 (c2 TEXT CHARSET ucs2 COMPRESSED) ENGINE=MyISAM;
+CREATE TABLE t2 (c2 TEXT COMPRESSED CHARSET ucs2) ENGINE=MyISAM;
 INSERT IGNORE INTO t2 VALUES ('qux'),('abc');
 SELECT * FROM t1 WHERE c1 NOT IN ( SELECT c2 FROM t2 WHERE c2 = c1 );
 c1
@@ -1067,7 +1067,7 @@ DROP TABLE t1, t2;
 # MDEV-13541 - Server crashes in next_breadth_first_tab or Assertion `0'
 #              failed in Field_varstring_compressed::new_key_field
 #
-CREATE TABLE t1 (c TEXT CHARSET ucs2 COMPRESSED) ENGINE=InnoDB;
+CREATE TABLE t1 (c TEXT COMPRESSED CHARSET ucs2) ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('foo'),('bar');
 SELECT DISTINCT c FROM t1;
 c
@@ -1291,19 +1291,23 @@ foo
 bar
 DROP TABLE t1;
 CREATE TABLE t1(a CHAR(100) COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1(a CHAR(100) NOT NULL COMPRESSED);
 ERROR 42000: Incorrect column specifier for column 'a'
 CREATE TABLE t1(a INT COMPRESSED);
-ERROR 42000: Incorrect column specifier for column 'a'
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1(a BLOB COMPRESSED=unknown);
 ERROR HY000: Unknown compression method: unknown
 CREATE TABLE t1(a BLOB COMPRESSED COMPRESSED);
-DROP TABLE t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
 CREATE TABLE t1(a INT);
 ALTER TABLE t1 MODIFY a INT COMPRESSED;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED' at line 1
+ALTER TABLE t1 MODIFY a INT NOT NULL COMPRESSED;
 ERROR 42000: Incorrect column specifier for column 'a'
 DROP TABLE t1;
 # Test CSV
-CREATE TABLE t1(a BLOB NOT NULL COMPRESSED) ENGINE=CSV;
+CREATE TABLE t1(a BLOB COMPRESSED NOT NULL) ENGINE=CSV;
 INSERT INTO t1 VALUES(REPEAT('a', 110));
 SELECT LENGTH(a) FROM t1;
 LENGTH(a)
@@ -1452,8 +1456,8 @@ DROP TABLE t1;
 #
 CREATE TABLE t1
 (
-a VARCHAR(10) CHARACTER SET latin1 COMPRESSED,
-b VARCHAR(10) CHARACTER SET utf8 COMPRESSED
+a VARCHAR(10) COMPRESSED CHARACTER SET latin1,
+b VARCHAR(10) COMPRESSED CHARACTER SET utf8
 );
 SELECT COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH, CHARACTER_OCTET_LENGTH
 FROM INFORMATION_SCHEMA.COLUMNS
@@ -1475,7 +1479,7 @@ DROP TABLE t1;
 #
 # MDEV-16729 VARCHAR COMPRESSED is created with a wrong length for multi-byte character sets
 #
-CREATE OR REPLACE TABLE t1 (a VARCHAR(1000) CHARACTER SET utf8 COMPRESSED);
+CREATE OR REPLACE TABLE t1 (a VARCHAR(1000) COMPRESSED CHARACTER SET utf8);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1485,4 +1489,1186 @@ SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
 COLUMN_TYPE
 varchar(1000) /*!100301 COMPRESSED*/
+DROP TABLE t1;
+#
+# MDEV-17363 - Compressed columns cannot be restored from dump
+#
+CREATE TABLE t1(a INT NOT NULL COMPRESSED);
+ERROR 42000: Incorrect column specifier for column 'a'
+SHOW WARNINGS;
+Level	Code	Message
+Error	1063	Incorrect column specifier for column 'a'
+CREATE TABLE t1(
+a JSON COMPRESSED,
+b VARCHAR(1000) COMPRESSED BINARY,
+c NVARCHAR(1000) COMPRESSED BINARY,
+d TINYTEXT COMPRESSED BINARY
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`a`)),
+  `b` varchar(1000) /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL,
+  `c` varchar(1000) /*!100301 COMPRESSED*/ CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `d` tinytext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# VARCHAR and TEXT variants
+#
+#
+# The following statements run without warnings.
+# The `compressed opt_binary` grammar sequence is covered.
+#
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED BINARY);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED BINARY ASCII);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED BYTE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(10) /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED ASCII);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED UNICODE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ CHARACTER SET ucs2 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED CHARACTER SET utf8);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements run without warnings.
+# They have extra column attributes (or GENERATED) after COMPRESSED.
+#
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED BYTE DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(10) /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED BINARY DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED ASCII DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED CHARACTER SET utf8 DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ CHARACTER SET utf8 DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED CHARACTER SET utf8 GENERATED ALWAYS AS (REPEAT('a',100)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ CHARACTER SET utf8 GENERATED ALWAYS AS (repeat('a',100)) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements return deprecated syntax warnings
+#
+CREATE TABLE t1 (a VARCHAR(10) BINARY COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) ASCII COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) BYTE COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(10) /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements fail by the grammar,
+# because COMPRESSED immediately follows  'field_type'.
+#
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED BYTE COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED BINARY COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED ASCII COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED CHARACTER SET utf8 COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements are not prohibited by the *.yy grammar,
+# because the sequence `field_type attribute COMPRESSED` is allowed
+# (notice there is at least one attribute after `field_type`).
+# The first COMPRESSED is parsed inside `field_type`.
+# The second COMPRESSED passes through the parser but then is caught
+# inside Column_definition::set_compressed_deprecated_with_type_check()
+# and a syntax error is raised.
+#
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED BYTE DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED BINARY DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED ASCII DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED CHARACTER SET utf8 DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements run without warnings.
+# The `compressed opt_binary` grammar sequence is covered.
+#
+CREATE TABLE t1 (a TINYTEXT COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COMPRESSED BINARY);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COMPRESSED BINARY ASCII);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COMPRESSED BYTE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COMPRESSED ASCII);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COMPRESSED UNICODE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ CHARACTER SET ucs2 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COMPRESSED CHARACTER SET utf8);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements run without warnings.
+# They have extra column attributes (or GENERATED) after COMPRESSED.
+#
+CREATE TABLE t1 (a TINYTEXT COMPRESSED BYTE DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyblob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COMPRESSED BINARY DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COMPRESSED ASCII DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COMPRESSED CHARACTER SET utf8 DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ CHARACTER SET utf8 DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COMPRESSED CHARACTER SET utf8 GENERATED ALWAYS AS (REPEAT('a',100)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ CHARACTER SET utf8 GENERATED ALWAYS AS (repeat('a',100)) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements return deprecated syntax warnings
+#
+CREATE TABLE t1 (a TINYTEXT BINARY COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT ASCII COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT BYTE COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements fail by the grammar,
+# because COMPRESSED immediately follows  'field_type'.
+#
+CREATE TABLE t1 (a TINYTEXT COMPRESSED BYTE COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TINYTEXT COMPRESSED BINARY COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TINYTEXT COMPRESSED ASCII COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TINYTEXT COMPRESSED CHARACTER SET utf8 COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements are not prohibited by the *.yy grammar,
+# because the sequence `field_type attribute COMPRESSED` is allowed
+# (notice there is at least one attribute after `field_type`).
+# The first COMPRESSED is parsed inside `field_type`.
+# The second COMPRESSED passes through the parser but then is caught
+# inside Column_definition::set_compressed_deprecated_with_type_check()
+# and a syntax error is raised.
+#
+CREATE TABLE t1 (a TINYTEXT COMPRESSED BYTE DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TINYTEXT COMPRESSED BINARY DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TINYTEXT COMPRESSED ASCII DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TINYTEXT COMPRESSED CHARACTER SET utf8 DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements run without warnings.
+# The `compressed opt_binary` grammar sequence is covered.
+#
+CREATE TABLE t1 (a TEXT COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COMPRESSED BINARY);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COMPRESSED BINARY ASCII);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COMPRESSED BYTE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COMPRESSED ASCII);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COMPRESSED UNICODE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ CHARACTER SET ucs2 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COMPRESSED CHARACTER SET utf8);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements run without warnings.
+# They have extra column attributes (or GENERATED) after COMPRESSED.
+#
+CREATE TABLE t1 (a TEXT COMPRESSED BYTE DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COMPRESSED BINARY DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COMPRESSED ASCII DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COMPRESSED CHARACTER SET utf8 DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ CHARACTER SET utf8 DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COMPRESSED CHARACTER SET utf8 GENERATED ALWAYS AS (REPEAT('a',100)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ CHARACTER SET utf8 GENERATED ALWAYS AS (repeat('a',100)) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements return deprecated syntax warnings
+#
+CREATE TABLE t1 (a TEXT BINARY COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT ASCII COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT BYTE COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements fail by the grammar,
+# because COMPRESSED immediately follows  'field_type'.
+#
+CREATE TABLE t1 (a TEXT COMPRESSED BYTE COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TEXT COMPRESSED BINARY COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TEXT COMPRESSED ASCII COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TEXT COMPRESSED CHARACTER SET utf8 COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements are not prohibited by the *.yy grammar,
+# because the sequence `field_type attribute COMPRESSED` is allowed
+# (notice there is at least one attribute after `field_type`).
+# The first COMPRESSED is parsed inside `field_type`.
+# The second COMPRESSED passes through the parser but then is caught
+# inside Column_definition::set_compressed_deprecated_with_type_check()
+# and a syntax error is raised.
+#
+CREATE TABLE t1 (a TEXT COMPRESSED BYTE DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TEXT COMPRESSED BINARY DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TEXT COMPRESSED ASCII DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TEXT COMPRESSED CHARACTER SET utf8 DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements run without warnings.
+# The `compressed opt_binary` grammar sequence is covered.
+#
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED BINARY);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED BINARY ASCII);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED BYTE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED ASCII);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED UNICODE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ CHARACTER SET ucs2 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED CHARACTER SET utf8);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements run without warnings.
+# They have extra column attributes (or GENERATED) after COMPRESSED.
+#
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED BYTE DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumblob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED BINARY DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED ASCII DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED CHARACTER SET utf8 DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ CHARACTER SET utf8 DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED CHARACTER SET utf8 GENERATED ALWAYS AS (REPEAT('a',100)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ CHARACTER SET utf8 GENERATED ALWAYS AS (repeat('a',100)) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements return deprecated syntax warnings
+#
+CREATE TABLE t1 (a MEDIUMTEXT BINARY COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT ASCII COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT BYTE COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements fail by the grammar,
+# because COMPRESSED immediately follows  'field_type'.
+#
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED BYTE COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED BINARY COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED ASCII COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED CHARACTER SET utf8 COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements are not prohibited by the *.yy grammar,
+# because the sequence `field_type attribute COMPRESSED` is allowed
+# (notice there is at least one attribute after `field_type`).
+# The first COMPRESSED is parsed inside `field_type`.
+# The second COMPRESSED passes through the parser but then is caught
+# inside Column_definition::set_compressed_deprecated_with_type_check()
+# and a syntax error is raised.
+#
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED BYTE DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED BINARY DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED ASCII DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a MEDIUMTEXT COMPRESSED CHARACTER SET utf8 DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements run without warnings.
+# The `compressed opt_binary` grammar sequence is covered.
+#
+CREATE TABLE t1 (a LONGTEXT COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COMPRESSED BINARY);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COMPRESSED BINARY ASCII);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COMPRESSED BYTE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COMPRESSED ASCII);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COMPRESSED UNICODE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ CHARACTER SET ucs2 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COMPRESSED CHARACTER SET utf8);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements run without warnings.
+# They have extra column attributes (or GENERATED) after COMPRESSED.
+#
+CREATE TABLE t1 (a LONGTEXT COMPRESSED BYTE DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longblob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COMPRESSED BINARY DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COMPRESSED ASCII DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COMPRESSED CHARACTER SET utf8 DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ CHARACTER SET utf8 DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COMPRESSED CHARACTER SET utf8 GENERATED ALWAYS AS (REPEAT('a',100)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ CHARACTER SET utf8 GENERATED ALWAYS AS (repeat('a',100)) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements return deprecated syntax warnings
+#
+CREATE TABLE t1 (a LONGTEXT BINARY COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT ASCII COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT BYTE COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements fail by the grammar,
+# because COMPRESSED immediately follows  'field_type'.
+#
+CREATE TABLE t1 (a LONGTEXT COMPRESSED BYTE COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a LONGTEXT COMPRESSED BINARY COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a LONGTEXT COMPRESSED ASCII COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a LONGTEXT COMPRESSED CHARACTER SET utf8 COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements are not prohibited by the *.yy grammar,
+# because the sequence `field_type attribute COMPRESSED` is allowed
+# (notice there is at least one attribute after `field_type`).
+# The first COMPRESSED is parsed inside `field_type`.
+# The second COMPRESSED passes through the parser but then is caught
+# inside Column_definition::set_compressed_deprecated_with_type_check()
+# and a syntax error is raised.
+#
+CREATE TABLE t1 (a LONGTEXT COMPRESSED BYTE DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a LONGTEXT COMPRESSED BINARY DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a LONGTEXT COMPRESSED ASCII DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a LONGTEXT COMPRESSED CHARACTER SET utf8 DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# VARBINARY and BLOB variables
+#
+#
+# The following statements run without warnings.
+#
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements run without warnings.
+# They have extra column attributes (or GENERATED) after COMPRESSED.
+#
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED GENERATED ALWAYS AS (REPEAT('a',10)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ GENERATED ALWAYS AS (repeat('a',10)) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements return deprecated syntax warnings
+#
+CREATE TABLE t1 (a VARCHAR(10) DEFAULT '' COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) NULL COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements fail by the grammar,
+# because COMPRESSED immediately follows  'field_type'.
+#
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements are not prohibited by the *.yy grammar,
+# because the sequence `field_type attribute COMPRESSED` is allowed
+# (notice there is at least one attribute after `field_type`).
+# The first COMPRESSED is parsed inside `field_type`.
+# The second COMPRESSED passes through the parser but then is caught
+# inside Column_definition::set_compressed_deprecated_with_type_check()
+# and a syntax error is raised.
+#
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a VARCHAR(10) COMPRESSED NULL COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements run without warnings.
+#
+CREATE TABLE t1 (a TINYBLOB COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements run without warnings.
+# They have extra column attributes (or GENERATED) after COMPRESSED.
+#
+CREATE TABLE t1 (a TINYBLOB COMPRESSED DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyblob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYBLOB COMPRESSED NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYBLOB COMPRESSED GENERATED ALWAYS AS (REPEAT('a',10)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyblob /*!100301 COMPRESSED*/ GENERATED ALWAYS AS (repeat('a',10)) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements return deprecated syntax warnings
+#
+CREATE TABLE t1 (a TINYBLOB DEFAULT '' COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyblob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYBLOB NULL COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements fail by the grammar,
+# because COMPRESSED immediately follows  'field_type'.
+#
+CREATE TABLE t1 (a TINYBLOB COMPRESSED COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements are not prohibited by the *.yy grammar,
+# because the sequence `field_type attribute COMPRESSED` is allowed
+# (notice there is at least one attribute after `field_type`).
+# The first COMPRESSED is parsed inside `field_type`.
+# The second COMPRESSED passes through the parser but then is caught
+# inside Column_definition::set_compressed_deprecated_with_type_check()
+# and a syntax error is raised.
+#
+CREATE TABLE t1 (a TINYBLOB COMPRESSED DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a TINYBLOB COMPRESSED NULL COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements run without warnings.
+#
+CREATE TABLE t1 (a BLOB COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements run without warnings.
+# They have extra column attributes (or GENERATED) after COMPRESSED.
+#
+CREATE TABLE t1 (a BLOB COMPRESSED DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB COMPRESSED NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB COMPRESSED GENERATED ALWAYS AS (REPEAT('a',10)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob /*!100301 COMPRESSED*/ GENERATED ALWAYS AS (repeat('a',10)) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements return deprecated syntax warnings
+#
+CREATE TABLE t1 (a BLOB DEFAULT '' COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB NULL COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements fail by the grammar,
+# because COMPRESSED immediately follows  'field_type'.
+#
+CREATE TABLE t1 (a BLOB COMPRESSED COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements are not prohibited by the *.yy grammar,
+# because the sequence `field_type attribute COMPRESSED` is allowed
+# (notice there is at least one attribute after `field_type`).
+# The first COMPRESSED is parsed inside `field_type`.
+# The second COMPRESSED passes through the parser but then is caught
+# inside Column_definition::set_compressed_deprecated_with_type_check()
+# and a syntax error is raised.
+#
+CREATE TABLE t1 (a BLOB COMPRESSED DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a BLOB COMPRESSED NULL COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements run without warnings.
+#
+CREATE TABLE t1 (a MEDIUMBLOB COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements run without warnings.
+# They have extra column attributes (or GENERATED) after COMPRESSED.
+#
+CREATE TABLE t1 (a MEDIUMBLOB COMPRESSED DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumblob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMBLOB COMPRESSED NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMBLOB COMPRESSED GENERATED ALWAYS AS (REPEAT('a',10)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumblob /*!100301 COMPRESSED*/ GENERATED ALWAYS AS (repeat('a',10)) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements return deprecated syntax warnings
+#
+CREATE TABLE t1 (a MEDIUMBLOB DEFAULT '' COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumblob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMBLOB NULL COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements fail by the grammar,
+# because COMPRESSED immediately follows  'field_type'.
+#
+CREATE TABLE t1 (a MEDIUMBLOB COMPRESSED COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements are not prohibited by the *.yy grammar,
+# because the sequence `field_type attribute COMPRESSED` is allowed
+# (notice there is at least one attribute after `field_type`).
+# The first COMPRESSED is parsed inside `field_type`.
+# The second COMPRESSED passes through the parser but then is caught
+# inside Column_definition::set_compressed_deprecated_with_type_check()
+# and a syntax error is raised.
+#
+CREATE TABLE t1 (a MEDIUMBLOB COMPRESSED DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a MEDIUMBLOB COMPRESSED NULL COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements run without warnings.
+#
+CREATE TABLE t1 (a LONGBLOB COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements run without warnings.
+# They have extra column attributes (or GENERATED) after COMPRESSED.
+#
+CREATE TABLE t1 (a LONGBLOB COMPRESSED DEFAULT '');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longblob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGBLOB COMPRESSED NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGBLOB COMPRESSED GENERATED ALWAYS AS (REPEAT('a',10)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longblob /*!100301 COMPRESSED*/ GENERATED ALWAYS AS (repeat('a',10)) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements return deprecated syntax warnings
+#
+CREATE TABLE t1 (a LONGBLOB DEFAULT '' COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longblob /*!100301 COMPRESSED*/ DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGBLOB NULL COMPRESSED);
+Warnings:
+Warning	1287	'<data type> <character set clause> ... COMPRESSED...' is deprecated and will be removed in a future release. Please use '<data type> COMPRESSED... <character set clause> ...' instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longblob /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# The following statements fail by the grammar,
+# because COMPRESSED immediately follows  'field_type'.
+#
+CREATE TABLE t1 (a LONGBLOB COMPRESSED COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# The following statements are not prohibited by the *.yy grammar,
+# because the sequence `field_type attribute COMPRESSED` is allowed
+# (notice there is at least one attribute after `field_type`).
+# The first COMPRESSED is parsed inside `field_type`.
+# The second COMPRESSED passes through the parser but then is caught
+# inside Column_definition::set_compressed_deprecated_with_type_check()
+# and a syntax error is raised.
+#
+CREATE TABLE t1 (a LONGBLOB COMPRESSED DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a LONGBLOB COMPRESSED NULL COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# NVARCHAR
+#
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) /*!100301 COMPRESSED*/ CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED BINARY COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED DEFAULT '' COMPRESSED);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COMPRESSED)' at line 1
+#
+# MDEV-21348 - Memory leak in Storage-Engine Independent Column
+#              Compression
+#
+CREATE TABLE t1(a BLOB COMPRESSED);
+SET column_compression_threshold=0;
+INSERT INTO t1 VALUES('aa');
+SET column_compression_threshold=DEFAULT;
 DROP TABLE t1;

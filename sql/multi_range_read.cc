@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include "sql_parse.h"
@@ -19,6 +19,7 @@
 #include "sql_select.h"
 #include "key.h"
 #include "sql_statistics.h"
+#include "rowid_filter.h"
 
 /****************************************************************************
  * Default MRR implementation (MRR to non-MRR converter)
@@ -62,14 +63,22 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
 {
   KEY_MULTI_RANGE range;
   range_seq_t seq_it;
-  ha_rows rows, total_rows= 0;
+  ha_rows total_rows= 0;
   uint n_ranges=0;
+  uint n_eq_ranges= 0;
+  ulonglong total_touched_blocks= 0;
+  ha_rows max_rows= stats.records;
   THD *thd= table->in_use;
   uint limit= thd->variables.eq_range_index_dive_limit;
-  
   bool use_statistics_for_eq_range= eq_ranges_exceeds_limit(seq,
                                                             seq_init_param,
                                                             limit);
+  uint len= table->key_info[keyno].key_length + table->file->ref_length;
+  if (keyno == table->s->primary_key && table->file->primary_key_is_clustered())
+    len= table->s->stored_rec_length;
+  /* Assume block is 75 % full */
+  uint avg_block_records= ((uint) (table->file->stats.block_size*3/4))/len + 1;
+  DBUG_ENTER("multi_range_read_info_const");
 
   /* Default MRR implementation doesn't need buffer */
   *bufsz= 0;
@@ -77,10 +86,14 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   seq_it= seq->init(seq_init_param, n_ranges, *flags);
   while (!seq->next(seq_it, &range))
   {
+    ha_rows rows;
+
     if (unlikely(thd->killed != 0))
-      return HA_POS_ERROR;
+      DBUG_RETURN(HA_POS_ERROR);
     
     n_ranges++;
+    if (range.range_flag & EQ_RANGE)
+      n_eq_ranges++;
     key_range *min_endp, *max_endp;
     if (range.range_flag & GEOM_FLAG)
     {
@@ -95,17 +108,22 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
       max_endp= range.end_key.length? &range.end_key : NULL;
     }
     int keyparts_used= my_count_bits(range.start_key.keypart_map);
-    if ((range.range_flag & UNIQUE_RANGE) && !(range.range_flag & NULL_RANGE))
-      rows= 1; /* there can be at most one row */
-    else if (use_statistics_for_eq_range &&
-             !(range.range_flag & NULL_RANGE) &&
-             (range.range_flag & EQ_RANGE) &&
-             table->key_info[keyno].actual_rec_per_key(keyparts_used - 1) > 0.5)
-      rows=
-        (ha_rows) table->key_info[keyno].actual_rec_per_key(keyparts_used - 1);
+    if (use_statistics_for_eq_range &&
+        !(range.range_flag & NULL_RANGE) &&
+        (range.range_flag & EQ_RANGE) &&
+        table->key_info[keyno].actual_rec_per_key(keyparts_used - 1) > 0.5)
+    {
+      if ((range.range_flag & UNIQUE_RANGE) && !(range.range_flag & NULL_RANGE))
+        rows= 1; /* there can be at most one row */
+      else
+        rows=
+          (ha_rows) table->key_info[keyno].actual_rec_per_key(keyparts_used-1);
+    }
     else
     {
-      if (HA_POS_ERROR == (rows= this->records_in_range(keyno, min_endp, 
+      if ((range.range_flag & UNIQUE_RANGE) && !(range.range_flag & NULL_RANGE))
+        rows= 1; /* there can be at most one row */
+      else if (HA_POS_ERROR == (rows= this->records_in_range(keyno, min_endp,
                                                         max_endp)))
       {
         /* Can't scan one range => can't do MRR scan at all */
@@ -114,21 +132,45 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
       }
     }
     total_rows += rows;
+    total_touched_blocks+= (rows / avg_block_records +1);
   }
   
   if (total_rows != HA_POS_ERROR)
   {
+    set_if_smaller(total_rows, max_rows);
     /* The following calculation is the same as in multi_range_read_info(): */
     *flags |= HA_MRR_USE_DEFAULT_IMPL;
     cost->reset();
     cost->avg_io_cost= 1; /* assume random seeks */
-    if ((*flags & HA_MRR_INDEX_ONLY) && total_rows > 2)
-      cost->io_count= keyread_time(keyno, n_ranges, (uint)total_rows);
+    cost->idx_avg_io_cost= 1;
+    if (!((keyno == table->s->primary_key && primary_key_is_clustered()) ||
+	   is_clustering_key(keyno)))
+    {
+      cost->idx_io_count= total_touched_blocks +
+	                  keyread_time(keyno, 0, total_rows);
+      cost->cpu_cost= cost->idx_cpu_cost=
+        (double) total_rows / TIME_FOR_COMPARE_IDX +
+        (2 * n_ranges - n_eq_ranges) * IDX_LOOKUP_COST;
+      if (!(*flags & HA_MRR_INDEX_ONLY))
+      {
+        cost->io_count= read_time(keyno, 0, total_rows);
+        cost->cpu_cost+= (double) total_rows / TIME_FOR_COMPARE;
+      }
+    }
     else
-      cost->io_count= read_time(keyno, n_ranges, total_rows);
-    cost->cpu_cost= (double) total_rows / TIME_FOR_COMPARE + 0.01;
+    {
+      cost->io_count= read_time(keyno, n_ranges, (uint) total_rows);
+      cost->cpu_cost= (double) total_rows / TIME_FOR_COMPARE + 0.01;
+    }
   }
-  return total_rows;
+  DBUG_PRINT("statistics",
+             ("key: %s  rows: %llu  total_cost: %.3f  io_blocks: %llu  "
+              "idx_io_count: %.3f  cpu_cost: %.3f  io_count: %.3f",
+              table->s->keynames.type_names[keyno],
+              (ulonglong) total_rows, cost->total_cost(),
+              (ulonglong) total_touched_blocks,
+              cost->idx_io_count, cost->cpu_cost, cost->io_count));
+  DBUG_RETURN(total_rows);
 }
 
 
@@ -183,10 +225,22 @@ ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
   cost->avg_io_cost= 1; /* assume random seeks */
 
   /* Produce the same cost as non-MRR code does */
-  if (*flags & HA_MRR_INDEX_ONLY)
-    cost->io_count= keyread_time(keyno, n_ranges, n_rows);
+  if (!(keyno == table->s->primary_key && primary_key_is_clustered()))
+  {
+    cost->idx_io_count=  n_ranges + keyread_time(keyno, 0, n_rows);
+    cost->cpu_cost= cost->idx_cpu_cost=
+      (double) n_rows / TIME_FOR_COMPARE_IDX + n_ranges * IDX_LOOKUP_COST;
+    if (!(*flags & HA_MRR_INDEX_ONLY))
+    {
+      cost->io_count= read_time(keyno, 0, n_rows);
+      cost->cpu_cost+= (double) n_rows / TIME_FOR_COMPARE;
+    }
+  }
   else
-    cost->io_count= read_time(keyno, n_ranges, n_rows);
+  {
+    cost->io_count= read_time(keyno, n_ranges, (uint)n_rows);
+    cost->cpu_cost= (double) n_rows / TIME_FOR_COMPARE + 0.01;
+  }
   return 0;
 }
 
@@ -587,7 +641,8 @@ static int rowid_cmp_reverse(void *file, uchar *a, uchar *b)
 int Mrr_ordered_rndpos_reader::init(handler *h_arg, 
                                     Mrr_index_reader *index_reader_arg,
                                     uint mode,
-                                    Lifo_buffer *buf)
+                                    Lifo_buffer *buf,
+                                    Rowid_filter *filter)
 {
   file= h_arg;
   index_reader= index_reader_arg;
@@ -595,6 +650,8 @@ int Mrr_ordered_rndpos_reader::init(handler *h_arg,
   is_mrr_assoc= !MY_TEST(mode & HA_MRR_NO_ASSOCIATION);
   index_reader_exhausted= FALSE;
   index_reader_needs_refill= TRUE;
+  rowid_filter= filter;
+
   return 0;
 }
 
@@ -686,6 +743,13 @@ int Mrr_ordered_rndpos_reader::refill_from_index_reader()
     }
 
     index_reader->position();
+
+    /*
+      If the built rowid filter cannot be used at the engine level, use it here.
+    */
+    if (rowid_filter && !file->pushed_rowid_filter &&
+        !rowid_filter->check((char *)index_rowid))
+      continue;
 
     /* Put rowid, or {rowid, range_id} pair into the buffer */
     rowid_buffer->write_ptr1= index_rowid;
@@ -822,7 +886,8 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
                            void *seq_init_param, uint n_ranges, uint mode,
                            HANDLER_BUFFER *buf)
 {
-  THD *thd= h_arg->get_table()->in_use;
+  TABLE *table= h_arg->get_table();
+  THD *thd= table->in_use;
   int res;
   Key_parameters keypar;
   uint UNINIT_VAR(key_buff_elem_size); /* set/used when do_sort_keys==TRUE */
@@ -877,6 +942,21 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   if (!(keyno == table->s->primary_key && h_idx->primary_key_is_clustered()))
   {
     strategy= disk_strategy= &reader_factory.ordered_rndpos_reader;
+    if (h_arg->pushed_rowid_filter)
+    {
+      /*
+        Currently usage of a rowid filter within InnoDB engine is not supported
+        if the table is accessed by the primary key.
+        With optimizer switches ''mrr' and 'mrr_sort_keys' are both enabled
+        any access by a secondary index is converted to the rndpos access. In
+        InnoDB the rndpos access is always uses the primary key.
+        Do not use pushed rowid filter if the table is accessed actually by the
+        primary key. Use the rowid filter outside the engine code (see
+        Mrr_ordered_rndpos_reader::refill_from_index_reader).
+      */
+      rowid_filter= h_arg->pushed_rowid_filter;
+      h_arg->cancel_pushed_rowid_filter();
+    }
   }
 
   full_buf= buf->buffer;
@@ -956,14 +1036,18 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
         goto use_default_impl;
     }
 
+    // setup_two_handlers() will call dsmrr_close() will clears the filter.
+    // Save its value and restore afterwards.
+    Rowid_filter *tmp = rowid_filter;
     if ((res= setup_two_handlers()))
       goto error;
+    rowid_filter= tmp;
 
     if ((res= index_strategy->init(secondary_file, seq_funcs, seq_init_param,
                                    n_ranges, mode, &keypar, key_buffer, 
                                    &buf_manager)) || 
         (res= disk_strategy->init(primary_file, index_strategy, mode, 
-                                  &rowid_buffer)))
+                                  &rowid_buffer, rowid_filter)))
     {
       goto error;
     }
@@ -1145,6 +1229,7 @@ void DsMrr_impl::close_second_handler()
 void DsMrr_impl::dsmrr_close()
 {
   DBUG_ENTER("DsMrr_impl::dsmrr_close");
+  rowid_filter= NULL;
   close_second_handler();
   strategy= NULL;
   DBUG_VOID_RETURN;
@@ -1589,11 +1674,10 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
   }
 
   uint add_len= share->key_info[keyno].key_length + primary_file->ref_length; 
-  *bufsz -= add_len;
-  if (get_disk_sweep_mrr_cost(keyno, rows, *flags, bufsz, &dsmrr_cost))
+  if (get_disk_sweep_mrr_cost(keyno, rows, *flags, bufsz, add_len,
+                              &dsmrr_cost))
     return TRUE;
-  *bufsz += add_len;
-  
+
   bool force_dsmrr;
   /* 
     If mrr_cost_based flag is not set, then set cost of DS-MRR to be minimum of
@@ -1682,6 +1766,11 @@ static void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, Cost_estimate *
   @param rows               E(Number of rows to be scanned)
   @param flags              Scan parameters (HA_MRR_* flags)
   @param buffer_size INOUT  Buffer size
+                            IN: Buffer of size 0 means the function
+                            will determine the best size and return it.
+  @param extra_mem_overhead Extra memory overhead of the MRR implementation
+                            (the function assumes this many bytes of buffer
+                             space will not be usable by DS-MRR)
   @param cost        OUT    The cost
 
   @retval FALSE  OK
@@ -1690,7 +1779,9 @@ static void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, Cost_estimate *
 */
 
 bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
-                                         uint *buffer_size, Cost_estimate *cost)
+                                         uint *buffer_size,
+                                         uint extra_mem_overhead,
+                                         Cost_estimate *cost)
 {
   ulong max_buff_entries, elem_size;
   ha_rows rows_in_full_step;
@@ -1700,10 +1791,23 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
 
   elem_size= primary_file->ref_length + 
              sizeof(void*) * (!MY_TEST(flags & HA_MRR_NO_ASSOCIATION));
-  max_buff_entries = *buffer_size / elem_size;
 
-  if (!max_buff_entries)
+  if (!*buffer_size)
+  {
+    /*
+      We are requested to determine how much memory we need.
+      Request memory to finish the scan in one pass but do not request
+      more than @@mrr_buff_size.
+    */
+    *buffer_size= (uint) MY_MIN(extra_mem_overhead + elem_size*(ulong)rows,
+                                MY_MAX(table->in_use->variables.mrr_buff_size,
+                                       extra_mem_overhead));
+  }
+
+  if (elem_size + extra_mem_overhead > *buffer_size)
     return TRUE; /* Buffer has not enough space for even 1 rowid */
+
+  max_buff_entries = (*buffer_size - extra_mem_overhead) / elem_size;
 
   /* Number of iterations we'll make with full buffer */
   n_full_steps= (uint)floor(rows2double(rows) / max_buff_entries);

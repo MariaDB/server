@@ -96,7 +96,7 @@ buffer_LRU_batch_flush_avg_time_thread	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	
 buffer_flush_adaptive_avg_time_est	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Estimated time (ms) spent for adaptive flushing recently.
 buffer_LRU_batch_flush_avg_time_est	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Estimated time (ms) spent for LRU batch flushing recently.
 buffer_flush_avg_time	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Avg time (ms) spent for flushing recently.
-buffer_flush_adaptive_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Numner of adaptive flushes passed during the recent Avg period.
+buffer_flush_adaptive_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of adaptive flushes passed during the recent Avg period.
 buffer_LRU_batch_flush_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of LRU batch flushes passed during the recent Avg period.
 buffer_flush_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of flushes passed during the recent Avg period.
 buffer_LRU_get_free_loops	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Total loops in LRU get free.
@@ -202,9 +202,9 @@ log_lsn_checkpoint_age	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL
 log_lsn_buf_pool_oldest	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	value	The oldest modified block LSN in the buffer pool
 log_max_modified_age_async	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	value	Maximum LSN difference; when exceeded, start asynchronous preflush
 log_max_modified_age_sync	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	value	Maximum LSN difference; when exceeded, start synchronous preflush
-log_pending_log_flushes	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Pending log flushes
-log_pending_checkpoint_writes	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Pending checkpoints
-log_num_log_io	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of log I/Os
+log_pending_log_flushes	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	value	Pending log flushes
+log_pending_checkpoint_writes	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	value	Pending checkpoints
+log_num_log_io	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	value	Number of log I/Os
 log_waits	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of log waits due to small log buffer (innodb_log_waits)
 log_write_requests	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of log write requests (innodb_log_write_requests)
 log_writes	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of log writes (innodb_log_writes)
@@ -326,14 +326,24 @@ the
 www
 select * from information_schema.innodb_ft_deleted;
 DOC_ID
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_ft_deleted but the InnoDB storage engine is not installed
 select * from information_schema.innodb_ft_being_deleted;
 DOC_ID
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_ft_being_deleted but the InnoDB storage engine is not installed
 select * from information_schema.innodb_ft_index_cache;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_ft_index_cache but the InnoDB storage engine is not installed
 select * from information_schema.innodb_ft_index_table;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_ft_index_table but the InnoDB storage engine is not installed
 select * from information_schema.innodb_ft_config;
 KEY	VALUE
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_ft_config but the InnoDB storage engine is not installed
 select * from information_schema.innodb_buffer_page;
 POOL_ID	BLOCK_ID	SPACE	PAGE_NUMBER	PAGE_TYPE	FLUSH_TYPE	FIX_COUNT	IS_HASHED	NEWEST_MODIFICATION	OLDEST_MODIFICATION	ACCESS_TIME	TABLE_NAME	INDEX_NAME	NUMBER_RECORDS	DATA_SIZE	COMPRESSED_SIZE	PAGE_STATE	IO_FIX	IS_OLD	FREE_PAGE_CLOCK
 Warnings:
@@ -385,7 +395,7 @@ SPACE	NAME	ENCRYPTION_SCHEME	KEYSERVER_REQUESTS	MIN_KEY_VERSION	CURRENT_KEY_VERS
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_tablespaces_encryption but the InnoDB storage engine is not installed
 select * from information_schema.innodb_tablespaces_scrubbing;
-SPACE	NAME	COMPRESSED	LAST_SCRUB_COMPLETED	CURRENT_SCRUB_STARTED	CURRENT_SCRUB_ACTIVE_THREADS	CURRENT_SCRUB_PAGE_NUMBER	CURRENT_SCRUB_MAX_PAGE_NUMBER	ROTATING_OR_FLUSHING
+SPACE	NAME	COMPRESSED	LAST_SCRUB_COMPLETED	CURRENT_SCRUB_STARTED	CURRENT_SCRUB_ACTIVE_THREADS	CURRENT_SCRUB_PAGE_NUMBER	CURRENT_SCRUB_MAX_PAGE_NUMBER	ON_SSD
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_tablespaces_scrubbing but the InnoDB storage engine is not installed
 select * from information_schema.innodb_mutexes;

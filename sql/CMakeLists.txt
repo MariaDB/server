@@ -12,27 +12,34 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 
 IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
-  SET(WSREP_INCLUDES ${CMAKE_SOURCE_DIR}/wsrep)
   SET(WSREP_SOURCES
+    wsrep_client_service.cc
+    wsrep_high_priority_service.cc
+    wsrep_server_service.cc
+    wsrep_storage_service.cc
+    wsrep_server_state.cc
+    wsrep_utils.cc
+    wsrep_xid.cc
     wsrep_check_opts.cc
-    wsrep_hton.cc
-    wsrep_mysqld.cc 
+    wsrep_mysqld.cc
     wsrep_notify.cc
     wsrep_sst.cc
-    wsrep_utils.cc
     wsrep_var.cc
     wsrep_binlog.cc
     wsrep_applier.cc
     wsrep_thd.cc
-    wsrep_xid.cc
+    wsrep_schema.cc
+    wsrep_plugin.cc
+    service_wsrep.cc
   )
-  SET(WSREP_LIB wsrep)
+  MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY NOT_EMBEDDED EXPORT_SYMBOLS LINK_LIBRARIES wsrep-lib wsrep_api_v26)
 ELSE()
-  SET(WSREP_SOURCES wsrep_dummy.cc)
+  ADD_LIBRARY(wsrep STATIC wsrep_dummy.cc)
+  ADD_DEPENDENCIES(wsrep GenError)
 ENDIF()
 
 INCLUDE_DIRECTORIES(
@@ -42,7 +49,6 @@ ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
-${WSREP_INCLUDES}
 )
 
 
@@ -96,7 +102,7 @@ SET (SQL_SOURCE
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc 
                debug_sync.cc
                sql_repl.cc sql_select.cc sql_show.cc sql_state.c
-               group_by_handler.cc
+               group_by_handler.cc derived_handler.cc select_handler.cc
                sql_statistics.cc sql_string.cc lex_string.h
                sql_table.cc sql_test.cc sql_trigger.cc sql_udf.cc sql_union.cc
                sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc 
@@ -121,41 +127,47 @@ SET (SQL_SOURCE
                opt_index_cond_pushdown.cc opt_subselect.cc
                opt_table_elimination.cc sql_expression_cache.cc
                gcalc_slicescan.cc gcalc_tools.cc
-               threadpool_common.cc ../sql-common/mysql_async.c
+               ../sql-common/mysql_async.c
                my_apc.cc mf_iocache_encr.cc item_jsonfunc.cc
                my_json_writer.cc
                rpl_gtid.cc rpl_parallel.cc
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
-               sql_type.cc
+               sql_schema.cc
+               sql_type.cc sql_mode.cc sql_type_json.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
                item_vers.cc
                sql_sequence.cc sql_sequence.h ha_sequence.h
                sql_tvc.cc sql_tvc.h
                opt_split.cc
-	       ${WSREP_SOURCES}
+               rowid_filter.cc rowid_filter.h
+               opt_trace.cc
                table_cache.cc encryption.cc temporary_tables.cc
-               proxy_protocol.cc
-               ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
+               proxy_protocol.cc backup.cc xa.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
+               ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 )
   
-IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR
-    CMAKE_SYSTEM_NAME MATCHES "Windows" OR
-    CMAKE_SYSTEM_NAME MATCHES "SunOS" OR
-    HAVE_KQUEUE)
+IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
+     CMAKE_SYSTEM_NAME MATCHES "SunOS" OR
+     WIN32 OR
+     HAVE_KQUEUE)
+    AND (NOT DISABLE_THREADPOOL))
  ADD_DEFINITIONS(-DHAVE_POOL_OF_THREADS)
  IF(WIN32)
    SET(SQL_SOURCE ${SQL_SOURCE} threadpool_win.cc)
-   SET(SQL_SOURCE ${SQL_SOURCE} handle_connections_win.cc)
  ENDIF()
  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_generic.cc)
+ SET(SQL_SOURCE ${SQL_SOURCE} threadpool_common.cc)
+ENDIF()
 
+IF(WIN32)
+  SET(SQL_SOURCE ${SQL_SOURCE} handle_connections_win.cc)
 ENDIF()
 
 MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
@@ -165,12 +177,18 @@ RECOMPILE_FOR_EMBEDDED)
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 DTRACE_INSTRUMENT(sql)
-TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
+TARGET_LINK_LIBRARIES(sql
   mysys mysys_ssl dbug strings vio pcre
-  ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
-  ${WSREP_LIB}
+  ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})
+
+FOREACH(se aria partition perfschema sql_sequence wsrep)
+  # These engines are used directly in sql sources.
+  IF(TARGET ${se})
+    TARGET_LINK_LIBRARIES(sql ${se})
+  ENDIF()
+ENDFOREACH()
 
 IF(WIN32)
   SET(MYSQLD_SOURCE main.cc nt_servc.cc message.rc)
@@ -199,9 +217,9 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   # without necessity.E.g source modifications, that do not
   # change list of exported symbols, will not result in a relink for plugins.
 
-  SET(MYSQLD_DEF ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.def)
-  SET(MYSQLD_EXP ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.exp)
-  SET(MYSQLD_LIB ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.lib)
+  SET(MYSQLD_DEF ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.def)
+  SET(MYSQLD_EXP ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.exp)
+  SET(MYSQLD_LIB ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.lib)
   SET(MYSQLD_CORELIBS sql mysys dbug strings)
   FOREACH (CORELIB ${MYSQLD_CORELIBS})
     SET (LIB_LOCATIONS ${LIB_LOCATIONS} $<TARGET_FILE:${CORELIB}>)
@@ -214,12 +232,12 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   # Create a cmake script to generate import and export libs
   # from a .def file
   SET(CMAKE_CONFIGURABLE_FILE_CONTENT "
-    IF ((mysqld_lib.def IS_NEWER_THAN mysqld_lib.lib) OR
-        (mysqld_lib.def IS_NEWER_THAN mysqld_lib.exp))
-      FILE(REMOVE mysqld_lib.lib mysqld_lib.exp)
+    IF ((mysqld_lib\${CFG}.def IS_NEWER_THAN mysqld_lib\${CFG}.lib) OR
+        (mysqld_lib\${CFG}.def IS_NEWER_THAN mysqld_lib\${CFG}.exp))
+      FILE(REMOVE mysqld_lib\${CFG}.lib mysqld_lib\${CFG}.exp)
       SET(ENV{VS_UNICODE_OUTPUT})
       EXECUTE_PROCESS (
-        COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${MYSQLD_DEF}\" /MACHINE:${_PLATFORM}
+        COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib\${CFG}.def\" /MACHINE:${_PLATFORM}
         RESULT_VARIABLE ret)
       IF(NOT ret EQUAL 0)
         MESSAGE(FATAL_ERROR \"process failed ret=\${ret}\")
@@ -229,41 +247,22 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
 
   CONFIGURE_FILE(
     ${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in
-    make_mysqld_lib.cmake)
+    make_mysqld_lib.cmake
+    @ONLY)
 
   IF(CMAKE_VERSION VERSION_GREATER "3.2.0")
     SET(MYSQLD_LIB_BYPRODUCTS  BYPRODUCTS ${MYSQLD_DEF} ${MYSQLD_LIB} ${MYSQLD_EXP})
   ENDIF()
 
-  # Create a cmake script to generate import and export libs
-  # from a .def file
-  SET(CMAKE_CONFIGURABLE_FILE_CONTENT "
-    IF ((mysqld_lib.def IS_NEWER_THAN mysqld_lib.lib) OR
-        (mysqld_lib.def IS_NEWER_THAN mysqld_lib.exp))
-      FILE(REMOVE mysqld_lib.lib mysqld_lib.exp)
-      SET(ENV{VS_UNICODE_OUTPUT})
-      EXECUTE_PROCESS (
-        COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${MYSQLD_DEF}\" /MACHINE:${_PLATFORM}
-        RESULT_VARIABLE ret)
-      IF(NOT ret EQUAL 0)
-        MESSAGE(FATAL_ERROR \"process failed ret=\${ret}\")
-      ENDIF()
-    ENDIF()
-  ")
-
-  CONFIGURE_FILE(
-    ${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in
-    make_mysqld_lib.cmake)
-
   ADD_CUSTOM_COMMAND(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.stamp
     ${MYSQLD_LIB_BYPRODUCTS}
-    COMMENT "Generating mysqld_lib.def, mysqld_lib.lib, mysqld_lib.exp"
+    COMMENT "Generating ${MYSQLD_DEF}, ${MYSQLD_LIB}, ${MYSQLD_EXP}"
     COMMAND cscript //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
-            ${_PLATFORM} /forLib ${LIB_LOCATIONS} > mysqld_lib.def.tmp
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different mysqld_lib.def.tmp mysqld_lib.def
-    COMMAND ${CMAKE_COMMAND} -E remove mysqld_lib.def.tmp
-    COMMAND ${CMAKE_COMMAND} -P make_mysqld_lib.cmake
+            ${_PLATFORM} /forLib ${LIB_LOCATIONS} > ${MYSQLD_DEF}.tmp
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLD_DEF}.tmp ${MYSQLD_DEF}
+    COMMAND ${CMAKE_COMMAND} -E remove ${MYSQLD_DEF}.tmp
+    COMMAND ${CMAKE_COMMAND}  "-DCFG=${CMAKE_CFG_INTDIR}" -P make_mysqld_lib.cmake
     COMMAND ${CMAKE_COMMAND} -E touch mysqld_lib.stamp
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     DEPENDS ${MYSQLD_CORELIBS}
@@ -273,6 +272,9 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   ADD_LIBRARY(mysqld_import_lib UNKNOWN IMPORTED GLOBAL)
   SET_TARGET_PROPERTIES(mysqld_import_lib PROPERTIES IMPORTED_LOCATION ${MYSQLD_LIB})
 ENDIF()
+
+ADD_LIBRARY( sql_builtins  ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc)
+TARGET_LINK_LIBRARIES(sql_builtins ${MYSQLD_STATIC_PLUGIN_LIBS})
 
 MYSQL_ADD_EXECUTABLE(mysqld ${MYSQLD_SOURCE} DESTINATION ${INSTALL_SBINDIR} COMPONENT Server)
 
@@ -301,7 +303,8 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
   ENDIF()
 ENDIF(NOT WITHOUT_DYNAMIC_PLUGINS)
 
-TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE sql)
+TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE sql sql_builtins)
+
 
 # Provide plugins with minimal set of libraries
 SET(INTERFACE_LIBS ${LIBRT})
@@ -325,7 +328,6 @@ IF(WITH_MYSQLD_LDFLAGS)
   SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS 
      "${MYSQLD_LINK_FLAGS} ${WITH_MYSQLD_LDFLAGS}")
 ENDIF()
-
 
 FIND_PACKAGE(BISON 2.0)
 
@@ -414,10 +416,6 @@ ADD_CUSTOM_TARGET(distclean
 
 IF(INSTALL_LAYOUT STREQUAL "STANDALONE")
 
-# Copy db.opt into data/test/
-SET(DBOPT_FILE ${CMAKE_SOURCE_DIR}/support-files/db.opt ) 
-INSTALL(FILES ${DBOPT_FILE} DESTINATION data/test COMPONENT DataFiles)
-
 # Install initial database on windows
 IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
 
@@ -426,26 +424,23 @@ IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
   ENDIF()
   MAKE_DIRECTORY(${CMAKE_CURRENT_BINARY_DIR}/data)
   ADD_CUSTOM_COMMAND(
-     OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
-     COMMAND ${CMAKE_COMMAND} ${CONFIG_PARAM}
-       -DTOP_SRCDIR="${CMAKE_SOURCE_DIR}"
-       -DBINDIR="${CMAKE_CURRENT_BINARY_DIR}"
-       -DMYSQLD_EXECUTABLE="$<TARGET_FILE:mysqld>"
-       -DCMAKE_CFG_INTDIR="${CMAKE_CFG_INTDIR}"
-       -P ${CMAKE_SOURCE_DIR}/cmake/create_initial_db.cmake
+     OUTPUT initdb.dep
+     COMMAND ${CMAKE_COMMAND} -E remove_directory data
+     COMMAND ${CMAKE_COMMAND} -E make_directory data
+     COMMAND ${CMAKE_COMMAND} -E chdir data ${CMAKE_COMMAND}
+     ${CONFIG_PARAM}
+     -DTOP_SRCDIR="${CMAKE_SOURCE_DIR}"
+     -DBINDIR="${CMAKE_CURRENT_BINARY_DIR}"
+     -DMYSQLD_EXECUTABLE="$<TARGET_FILE:mysqld>"
+     -DCMAKE_CFG_INTDIR="${CMAKE_CFG_INTDIR}"
+     -P ${CMAKE_SOURCE_DIR}/cmake/create_initial_db.cmake
      COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
-     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
+     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/
      DEPENDS mysqld
   )
   ADD_CUSTOM_TARGET(initial_database  
     ALL
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
-  )
-  INSTALL(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data DESTINATION . 
-  COMPONENT DataFiles 
-  PATTERN "initdb.dep" EXCLUDE  
-  PATTERN "bootstrap.sql" EXCLUDE
-  PATTERN "aria*" EXCLUDE
   )
 ELSE()
   # Not windows or cross compiling, just install an empty directory

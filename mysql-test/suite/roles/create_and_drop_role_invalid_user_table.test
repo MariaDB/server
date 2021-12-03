@@ -3,6 +3,7 @@
 # that don't have 'default_role' column
 #
 source include/not_embedded.inc;
+source include/switch_to_mysql_user.inc;
 
 connect (mysql, localhost, root,,);
 use mysql;
@@ -29,8 +30,8 @@ after password_expired;
 create role test_role;
 create user test_user@localhost;
 grant test_role to test_user@localhost;
---replace_regex /10\d\d\d\d/MYSQL_VERSION_ID/
---error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
+#--replace_regex /10\d\d\d\d/MYSQL_VERSION_ID/
+#--error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
 set default role test_role for root@localhost;
 drop role test_role;
 drop user test_user@localhost;
@@ -46,3 +47,5 @@ update user set is_role='N';
 flush privileges;
 create role test_role;
 drop role test_role;
+
+source include/switch_to_mysql_global_priv.inc;

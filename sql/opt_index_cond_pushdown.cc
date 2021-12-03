@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include "sql_select.h"
@@ -264,6 +264,10 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
 static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
                                  bool other_tbls_ok, bool exclude_index)
 {
+  if (exclude_index && 
+      uses_index_fields_only(cond, table, keyno, other_tbls_ok))
+    return 0;
+
   if (cond->type() == Item::COND_ITEM)
   {
     table_map tbl_map= 0;
@@ -272,7 +276,7 @@ static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
       /* Create new top level AND item */
       Item_cond_and *new_cond= new (thd->mem_root) Item_cond_and(thd);
       if (!new_cond)
-	return (COND*) 0;
+        return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
       Item *item;
       while ((item=li++))
@@ -318,14 +322,7 @@ static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
       return new_cond;
     }
   }
-  else
-  {
-    if (exclude_index && 
-        uses_index_fields_only(cond, table, keyno, other_tbls_ok))
-      return 0;
-    else
-      return cond;
-  }
+  return cond;
 }
 
 
@@ -393,7 +390,22 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
            ~(tab->table->map | tab->join->const_table_map)))
         tab->cache_idx_cond= idx_cond;
       else
+      {
         idx_remainder_cond= tab->table->file->idx_cond_push(keyno, idx_cond);
+
+        /*
+          If (1) there is an index condition that we couldn't push using ICP,
+             (2) we are using Join Buffering
+             (3) and we are using BKA
+          then use BKA's Index Condition Pushdown mechanism to check it.
+        */
+        if (idx_remainder_cond && tab->use_join_cache &&   // (1) && (2)
+            tab->icp_other_tables_ok)                      // (3)
+        {
+          tab->cache_idx_cond= idx_remainder_cond;
+          idx_remainder_cond= NULL;
+        }
+      }
 
       /*
         Disable eq_ref's "lookup cache" if we've pushed down an index

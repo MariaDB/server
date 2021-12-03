@@ -211,7 +211,7 @@ public:
     {
       my_socket socket_id= slave->sock_fd();
       m_max_fd= (socket_id > m_max_fd ? socket_id : m_max_fd);
-#ifndef WINDOWS
+#ifndef _WIN32
       if (socket_id > FD_SETSIZE)
       {
         sql_print_error("Semisync slave socket fd is %u. "
@@ -219,7 +219,7 @@ public:
                         "greater than %u (FD_SETSIZE).", socket_id, FD_SETSIZE);
         return 0;
       }
-#endif //WINDOWS
+#endif //_WIN32
       FD_SET(socket_id, &m_init_fds);
       fds_index++;
     }

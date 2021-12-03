@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Pack MARIA file */
 
@@ -20,6 +20,8 @@
 #endif
 
 #include "maria_def.h"
+#include "trnman_public.h"
+#include "trnman.h"
 #include <queues.h>
 #include <my_tree.h>
 #include "mysys_err.h"
@@ -30,12 +32,15 @@
 #define __GNU_LIBRARY__			/* Skip warnings in getopt.h */
 #endif
 #include <my_getopt.h>
-#include <assert.h>
+#include <my_handler_errors.h>
 
 #if SIZEOF_LONG_LONG > 4
 #define BITS_SAVED 64
 #else
 #define BITS_SAVED 32
+#endif
+#ifndef MAX_INTERNAL_TRID
+#define MAX_INTERNAL_TRID  0xffffffffffffLL
 #endif
 
 #define IS_OFFSET ((uint) 32768)	/* Bit if offset or char in tree */
@@ -178,11 +183,6 @@ static void fakebigcodes(HUFF_COUNTS *huff_counts, HUFF_COUNTS *end_count);
 static int fakecmp(my_off_t **count1, my_off_t **count2);
 #endif
 
-
-static int error_on_write=0,test_only=0,verbose=0,silent=0,
-	   write_loop=0,force_pack=0, isamchk_neaded=0;
-static int tmpfile_createflag=O_RDWR | O_TRUNC | O_EXCL;
-static my_bool backup, opt_wait;
 /*
   tree_buff_length is somewhat arbitrary. The bigger it is the better
   the chance to win in terms of compression factor. On the other hand,
@@ -190,6 +190,12 @@ static my_bool backup, opt_wait;
   is coded with 16 bits in the header. Hence the limit is 2**16 - 1.
 */
 static uint tree_buff_length= 65536 - MALLOC_OVERHEAD;
+
+static int error_on_write=0,test_only=0,verbose=0,silent=0,
+	   write_loop=0,force_pack=0, isamchk_neaded=0;
+static int tmpfile_createflag=O_RDWR | O_TRUNC | O_EXCL;
+static my_bool backup, opt_wait;
+static my_bool opt_ignore_control_file, opt_require_control_file;
 static char tmp_dir[FN_REFLEN]={0},*join_table;
 static my_off_t intervall_length;
 static ha_checksum glob_crc;
@@ -199,19 +205,52 @@ static HUFF_COUNTS *global_count;
 static char zero_string[]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 static const char *load_default_groups[]= { "ariapack",0 };
 
-	/* The main program */
+/*
+  Register handler error messages for usage with my_error()
+
+  NOTES
+    This is safe to call multiple times as my_error_register()
+    will ignore calls to register already registered error numbers.
+*/
+
+static const char **get_handler_error_messages(int e __attribute__((unused)))
+{
+  return handler_error_messages;
+}
+
+
+/* The main program */
 
 int main(int argc, char **argv)
 {
   int error,ok;
   PACK_MRG_INFO merge;
   char **default_argv;
+  my_bool no_control_file= 0;
   MY_INIT(argv[0]);
 
+  maria_data_root= (char *)".";
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;
   get_options(&argc,&argv);
+  my_error_register(get_handler_error_messages, HA_ERR_FIRST,
+                    HA_ERR_FIRST+ array_elements(handler_error_messages)-1);
+
+  if (!opt_ignore_control_file &&
+      (no_control_file= ma_control_file_open(FALSE,
+                                             (opt_require_control_file ||
+                                              !silent))) &&
+       opt_require_control_file)
+  {
+    error= 1;
+    goto end;
+  }
   maria_init();
+  if (no_control_file || force_pack)
+  {
+    /* Assume that all rows exists */
+    trnman_init(MAX_INTERNAL_TRID-16);
+  }
 
   error=ok=isamchk_neaded=0;
   if (join_table)
@@ -239,9 +278,13 @@ int main(int argc, char **argv)
   }
   if (ok && isamchk_neaded && !silent)
     puts("Remember to run aria_chk -rq on compressed tables");
+
+end:
   fflush(stdout);
   fflush(stderr);
   free_defaults(default_argv);
+  my_error_unregister(HA_ERR_FIRST,
+                      HA_ERR_FIRST+ array_elements(handler_error_messages)-1);
   maria_end();
   my_end(verbose ? MY_CHECK_ERROR | MY_GIVE_INFO : MY_CHECK_ERROR);
   exit(error ? 2 : 0);
@@ -263,17 +306,29 @@ static struct my_option my_long_options[] =
   {"character-sets-dir", OPT_CHARSETS_DIR_MP,
    "Directory where character sets are.", (char**) &charsets_dir,
    (char**) &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"datadir", 'h',
+   "Path for control file (and logs if --logdir not used).",
+   &maria_data_root, 0, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0},
   {"debug", '#', "Output debug log. Often this is 'd:t:o,filename'.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"force", 'f',
    "Force packing of table even if it gets bigger or if tempfile exists.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+  { "ignore-control-file", 0,
+    "Ignore the control file",
+    (uchar**)&opt_ignore_control_file, 0, 0, GET_BOOL, NO_ARG,
+    0, 0, 0, 0, 0, 0},
   {"join", 'j',
    "Join all given tables into 'new_table_name'. All tables MUST have identical layouts.",
    &join_table, &join_table, 0, GET_STR, REQUIRED_ARG, 0, 0, 0,
    0, 0, 0},
   {"help", '?', "Display this help and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+  { "require-control-file", 0,
+    "Abort if cannot find control file",
+    (uchar**)&opt_require_control_file, 0, 0, GET_BOOL, NO_ARG,
+    0, 0, 0, 0, 0, 0},
   {"silent", 's', "Be more silent.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"tmpdir", 'T', "Use temporary directory to store temporary table.",
@@ -396,6 +451,47 @@ static void get_options(int *argc,char ***argv)
 }
 
 
+static void print_error(int error, const char *filename)
+{
+  switch (error) {
+  case HA_ERR_CRASHED:
+    fprintf(stderr, "'%s' doesn't have a correct index definition. You need to recreate it before you can do a repair",filename);
+    break;
+  case HA_ERR_NOT_A_TABLE:
+    fprintf(stderr, "'%s' is not a Aria table",filename);
+    break;
+  case HA_ERR_CRASHED_ON_USAGE:
+    fprintf(stderr, "'%s' is marked as crashed",filename);
+    break;
+  case HA_ERR_CRASHED_ON_REPAIR:
+    fprintf(stderr, "'%s' is marked as crashed after last repair",filename);
+    break;
+  case HA_ERR_OLD_FILE:
+    fprintf(stderr, "'%s' has transactions newer than registered in control file. If this is ok, please re-run with --ignore-control-file", filename);
+    break;
+  case HA_ERR_NEW_FILE:
+    fprintf(stderr, "'%s' uses new features not supported by this version of the Aria library", filename);
+    break;
+  case HA_ERR_END_OF_FILE:
+    fprintf(stderr, "Couldn't read complete header from '%s'", filename);
+    break;
+  case EAGAIN:
+    fprintf(stderr, "'%s' is locked. Use -w to wait until unlocked",filename);
+    break;
+  case ENOENT:
+    fprintf(stderr, "File '%s' doesn't exist",filename);
+    break;
+  case EACCES:
+    fprintf(stderr, "You don't have permission to use '%s'", filename);
+    break;
+  default:
+    fprintf(stderr, "%d when opening Aria table '%s'", error, filename);
+    break;
+  }
+  fputc('\n',stderr);
+}
+
+
 static MARIA_HA *open_maria_file(char *name,int mode)
 {
   MARIA_HA *isam_file;
@@ -403,10 +499,10 @@ static MARIA_HA *open_maria_file(char *name,int mode)
   DBUG_ENTER("open_maria_file");
 
   if (!(isam_file=maria_open(name, mode, HA_OPEN_IGNORE_MOVED_STATE |
-			  (opt_wait ? HA_OPEN_WAIT_IF_LOCKED :
-			   HA_OPEN_ABORT_IF_LOCKED))))
+                             (opt_wait ? HA_OPEN_WAIT_IF_LOCKED :
+                              HA_OPEN_ABORT_IF_LOCKED))))
   {
-    fprintf(stderr, "%s gave error %d on open\n", name, my_errno);
+    print_error(my_errno, name);
     DBUG_RETURN(0);
   }
   share=isam_file->s;
@@ -782,27 +878,29 @@ static HUFF_COUNTS *init_huff_count(MARIA_HA *info,my_off_t records)
     for (i=0 ; i < info->s->base.fields ; i++)
     {
       enum en_fieldtype type;
-      count[i].field_length=info->s->columndef[i].length;
-      type= count[i].field_type= (enum en_fieldtype) info->s->columndef[i].type;
+      uint col_nr = info->s->columndef[i].column_nr;
+      count[col_nr].field_length=info->s->columndef[i].length;
+      type= count[col_nr].field_type=
+        (enum en_fieldtype) info->s->columndef[i].type;
       if (type == FIELD_INTERVALL ||
 	  type == FIELD_CONSTANT ||
 	  type == FIELD_ZERO)
 	type = FIELD_NORMAL;
-      if (count[i].field_length <= 8 &&
+      if (count[col_nr].field_length <= 8 &&
 	  (type == FIELD_NORMAL ||
 	   type == FIELD_SKIP_ZERO))
-	count[i].max_zero_fill= count[i].field_length;
+	count[col_nr].max_zero_fill= count[col_nr].field_length;
       /*
         For every column initialize a tree, which is used to detect distinct
         column values. 'int_tree' works together with 'tree_buff' and
         'tree_pos'. It's keys are implemented by pointers into 'tree_buff'.
         This is accomplished by '-1' as the element size.
       */
-      init_tree(&count[i].int_tree,0,0,-1,(qsort_cmp2) compare_tree, NULL,
+      init_tree(&count[col_nr].int_tree,0,0,-1,(qsort_cmp2) compare_tree, NULL,
 		NULL, MYF(0));
       if (records && type != FIELD_BLOB && type != FIELD_VARCHAR)
-	count[i].tree_pos=count[i].tree_buff =
-	  my_malloc(count[i].field_length > 1 ? tree_buff_length : 2,
+	count[col_nr].tree_pos=count[col_nr].tree_buff =
+	  my_malloc(count[col_nr].field_length > 1 ? tree_buff_length : 2,
 		    MYF(MY_WME));
     }
   }

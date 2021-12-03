@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #include "mariadb.h"
@@ -1184,14 +1184,14 @@ int Gcalc_operation_reducer::connect_threads(
     {
       rp0->outer_poly= prev_range->thread_start;
       tb->thread_start= prev_range->thread_start;
-      /* Chack if needed */
+      /* Check if needed */
       ta->thread_start= prev_range->thread_start;
     }
     else
     {
       rp0->outer_poly= 0;
       ta->thread_start= rp0;
-      /* Chack if needed */
+      /* Check if needed */
       tb->thread_start= rp0;
     }
     GCALC_DBUG_RETURN(0);

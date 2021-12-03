@@ -54,7 +54,6 @@ grantee	table_catalog	privilege_type
 # Testcases 3.2.16.2+3.2.16.3+3.2.16.4: INFORMATION_SCHEMA.USER_PRIVILEGES
 #           accessible information
 ##########################################################################
-DROP DATABASE IF EXISTS db_datadict;
 CREATE DATABASE db_datadict;
 DROP   USER 'testuser1'@'localhost';
 CREATE USER 'testuser1'@'localhost';
@@ -63,7 +62,7 @@ CREATE USER 'testuser2'@'localhost';
 DROP   USER 'testuser3'@'localhost';
 CREATE USER 'testuser3'@'localhost';
 GRANT SELECT ON db_datadict.* TO 'testuser1'@'localhost';
-GRANT SELECT ON mysql.user TO 'testuser1'@'localhost';
+GRANT SELECT ON mysql.global_priv TO 'testuser1'@'localhost';
 GRANT INSERT ON *.* TO 'testuser2'@'localhost';
 GRANT UPDATE ON *.* TO 'testuser2'@'localhost';
 SELECT * FROM information_schema.user_privileges
@@ -85,149 +84,32 @@ GRANTEE	'testuser3'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-Host	localhost
-User	testuser1
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser2
-Password	
-Select_priv	N
-Insert_priv	Y
-Update_priv	Y
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser3
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
+host	localhost
+user	testuser1
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser2
+json_detailed(priv)	{
+    "access": 6,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser3
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
 #
 # Add GRANT OPTION db_datadict.* to testuser1;
 GRANT UPDATE ON db_datadict.* TO 'testuser1'@'localhost' WITH GRANT OPTION;
@@ -250,149 +132,32 @@ GRANTEE	'testuser3'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-Host	localhost
-User	testuser1
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser2
-Password	
-Select_priv	N
-Insert_priv	Y
-Update_priv	Y
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser3
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
+host	localhost
+user	testuser1
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser2
+json_detailed(priv)	{
+    "access": 6,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser3
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
 connect  testuser1, localhost, testuser1, , db_datadict;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -401,154 +166,37 @@ GRANTEE	'testuser1'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-Host	localhost
-User	testuser1
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser2
-Password	
-Select_priv	N
-Insert_priv	Y
-Update_priv	Y
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser3
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
+host	localhost
+user	testuser1
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser2
+json_detailed(priv)	{
+    "access": 6,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser3
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
-GRANT SELECT, UPDATE ON `db_datadict`.* TO 'testuser1'@'localhost' WITH GRANT OPTION
-GRANT SELECT ON `mysql`.`user` TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
+GRANT SELECT, UPDATE ON `db_datadict`.* TO `testuser1`@`localhost` WITH GRANT OPTION
+GRANT SELECT ON `mysql`.`global_priv` TO `testuser1`@`localhost`
 
 # Now add SELECT on *.* to testuser1;
 connection default;
@@ -574,149 +222,32 @@ GRANTEE	'testuser3'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-Host	localhost
-User	testuser1
-Password	
-Select_priv	Y
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser2
-Password	
-Select_priv	N
-Insert_priv	Y
-Update_priv	Y
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser3
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
+host	localhost
+user	testuser1
+json_detailed(priv)	{
+    "access": 1,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser2
+json_detailed(priv)	{
+    "access": 6,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser3
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
 GRANT SELECT ON *.* TO 'testuser1'@'localhost' WITH GRANT OPTION;
 #
 # Here <SELECT YES> is shown correctly for testuser1;
@@ -739,149 +270,32 @@ GRANTEE	'testuser3'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-Host	localhost
-User	testuser1
-Password	
-Select_priv	Y
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	Y
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser2
-Password	
-Select_priv	N
-Insert_priv	Y
-Update_priv	Y
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser3
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
+host	localhost
+user	testuser1
+json_detailed(priv)	{
+    "access": 1025,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser2
+json_detailed(priv)	{
+    "access": 6,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser3
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
 connection testuser1;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -890,154 +304,37 @@ GRANTEE	'testuser1'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	SELECT
 IS_GRANTABLE	YES
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-Host	localhost
-User	testuser1
-Password	
-Select_priv	Y
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	Y
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser2
-Password	
-Select_priv	N
-Insert_priv	Y
-Update_priv	Y
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser3
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
+host	localhost
+user	testuser1
+json_detailed(priv)	{
+    "access": 1025,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser2
+json_detailed(priv)	{
+    "access": 6,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser3
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT SELECT ON *.* TO 'testuser1'@'localhost' WITH GRANT OPTION
-GRANT SELECT, UPDATE ON `db_datadict`.* TO 'testuser1'@'localhost' WITH GRANT OPTION
-GRANT SELECT ON `mysql`.`user` TO 'testuser1'@'localhost'
+GRANT SELECT ON *.* TO `testuser1`@`localhost` WITH GRANT OPTION
+GRANT SELECT, UPDATE ON `db_datadict`.* TO `testuser1`@`localhost` WITH GRANT OPTION
+GRANT SELECT ON `mysql`.`global_priv` TO `testuser1`@`localhost`
 connect  testuser2, localhost, testuser2, , db_datadict;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1050,12 +347,12 @@ GRANTEE	'testuser2'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	UPDATE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table 'global_priv'
 SHOW GRANTS;
 Grants for testuser2@localhost
-GRANT INSERT, UPDATE ON *.* TO 'testuser2'@'localhost'
+GRANT INSERT, UPDATE ON *.* TO `testuser2`@`localhost`
 connect  testuser3, localhost, testuser3, , test;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1064,12 +361,12 @@ GRANTEE	'testuser3'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-ERROR 42000: SELECT command denied to user 'testuser3'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'testuser3'@'localhost' for table 'global_priv'
 SHOW GRANTS;
 Grants for testuser3@localhost
-GRANT USAGE ON *.* TO 'testuser3'@'localhost'
+GRANT USAGE ON *.* TO `testuser3`@`localhost`
 
 # Revoke privileges from testuser1;
 connection default;
@@ -1093,149 +390,32 @@ GRANTEE	'testuser3'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-Host	localhost
-User	testuser1
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser2
-Password	
-Select_priv	N
-Insert_priv	Y
-Update_priv	Y
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser3
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
+host	localhost
+user	testuser1
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser2
+json_detailed(priv)	{
+    "access": 6,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser3
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
 connection testuser1;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1244,12 +424,12 @@ GRANTEE	'testuser1'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'global_priv'
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
 CREATE TABLE db_datadict.tb_55 ( c1 TEXT );
 ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table 'tb_55'
 SELECT * FROM information_schema.user_privileges
@@ -1259,19 +439,19 @@ GRANTEE	'testuser1'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'global_priv'
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
 CREATE TABLE db_datadict.tb_66 ( c1 TEXT );
 ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table 'tb_66'
 
-# Add ALL on db_datadict.* (and select on mysql.user) to testuser1;
+# Add ALL on db_datadict.* (and select on mysql.global_priv) to testuser1;
 connection default;
 GRANT ALL ON db_datadict.* TO 'testuser1'@'localhost' WITH GRANT OPTION;
-GRANT SELECT ON mysql.user TO 'testuser1'@'localhost';
+GRANT SELECT ON mysql.global_priv TO 'testuser1'@'localhost';
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;
@@ -1291,149 +471,32 @@ GRANTEE	'testuser3'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-Host	localhost
-User	testuser1
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser2
-Password	
-Select_priv	N
-Insert_priv	Y
-Update_priv	Y
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser3
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
+host	localhost
+user	testuser1
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser2
+json_detailed(priv)	{
+    "access": 6,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser3
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
 connection testuser1;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1442,154 +505,37 @@ GRANTEE	'testuser1'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-Host	localhost
-User	testuser1
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser2
-Password	
-Select_priv	N
-Insert_priv	Y
-Update_priv	Y
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser3
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
+host	localhost
+user	testuser1
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser2
+json_detailed(priv)	{
+    "access": 6,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser3
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
-GRANT ALL PRIVILEGES ON `db_datadict`.* TO 'testuser1'@'localhost' WITH GRANT OPTION
-GRANT SELECT ON `mysql`.`user` TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
+GRANT ALL PRIVILEGES ON `db_datadict`.* TO `testuser1`@`localhost` WITH GRANT OPTION
+GRANT SELECT ON `mysql`.`global_priv` TO `testuser1`@`localhost`
 CREATE TABLE db_datadict.tb_56 ( c1 TEXT );
 ERROR 42000: CREATE command denied to user 'testuser1'@'localhost' for table 'tb_56'
 USE db_datadict;
@@ -1600,154 +546,37 @@ GRANTEE	'testuser1'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-Host	localhost
-User	testuser1
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser2
-Password	
-Select_priv	N
-Insert_priv	Y
-Update_priv	Y
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser3
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
+host	localhost
+user	testuser1
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser2
+json_detailed(priv)	{
+    "access": 6,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser3
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
-GRANT ALL PRIVILEGES ON `db_datadict`.* TO 'testuser1'@'localhost' WITH GRANT OPTION
-GRANT SELECT ON `mysql`.`user` TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
+GRANT ALL PRIVILEGES ON `db_datadict`.* TO `testuser1`@`localhost` WITH GRANT OPTION
+GRANT SELECT ON `mysql`.`global_priv` TO `testuser1`@`localhost`
 CREATE TABLE tb_57 ( c1 TEXT )
 ENGINE = <other_engine_type>;
 
@@ -1773,149 +602,32 @@ GRANTEE	'testuser3'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-Host	localhost
-User	testuser1
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser2
-Password	
-Select_priv	N
-Insert_priv	Y
-Update_priv	Y
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
-Host	localhost
-User	testuser3
-Password	
-Select_priv	N
-Insert_priv	N
-Update_priv	N
-Delete_priv	N
-Create_priv	N
-Drop_priv	N
-Reload_priv	N
-Shutdown_priv	N
-Process_priv	N
-File_priv	N
-Grant_priv	N
-References_priv	N
-Index_priv	N
-Alter_priv	N
-Show_db_priv	N
-Super_priv	N
-Create_tmp_table_priv	N
-Lock_tables_priv	N
-Execute_priv	N
-Repl_slave_priv	N
-Repl_client_priv	N
-Create_view_priv	N
-Show_view_priv	N
-Create_routine_priv	N
-Alter_routine_priv	N
-Create_user_priv	N
-Event_priv	N
-Trigger_priv	N
-Create_tablespace_priv	N
-Delete_history_priv	N
-ssl_type	
-ssl_cipher	
-x509_issuer	
-x509_subject	
-max_questions	0
-max_updates	0
-max_connections	0
-max_user_connections	0
-plugin	mysql_native_password
-authentication_string	
-password_expired	N
-is_role	N
-default_role	
-max_statement_time	0.000000
+host	localhost
+user	testuser1
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser2
+json_detailed(priv)	{
+    "access": 6,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
+host	localhost
+user	testuser3
+json_detailed(priv)	{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "",
+    "password_last_changed": #
+}
 connection testuser1;
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1924,12 +636,12 @@ GRANTEE	'testuser1'@'localhost'
 TABLE_CATALOG	def
 PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
-SELECT * FROM mysql.user
+SELECT host,user,json_detailed(priv) FROM mysql.global_priv
 WHERE user LIKE 'testuser%' ORDER BY host, user;
-ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'user'
+ERROR 42000: SELECT command denied to user 'testuser1'@'localhost' for table 'global_priv'
 SHOW GRANTS;
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
 CREATE TABLE db_datadict.tb_58 ( c1 TEXT )
 ENGINE = <other_engine_type>;
 USE db_datadict;
@@ -1961,7 +673,7 @@ PRIVILEGE_TYPE	USAGE
 IS_GRANTABLE	NO
 SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
-GRANT USAGE ON *.* TO 'testuser1'@'localhost'
+GRANT USAGE ON *.* TO `testuser1`@`localhost`
 GRANT SELECT, FILE ON *.* TO 'testuser1'@'localhost';
 SELECT * FROM information_schema.user_privileges
 WHERE grantee = '''testuser1''@''localhost''';
@@ -1975,7 +687,7 @@ PRIVILEGE_TYPE	FILE
 IS_GRANTABLE	NO
 SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
-GRANT SELECT, FILE ON *.* TO 'testuser1'@'localhost'
+GRANT SELECT, FILE ON *.* TO `testuser1`@`localhost`
 DROP USER   'testuser1'@'localhost';
 SELECT * FROM information_schema.user_privileges
 WHERE grantee = '''testuser1''@''localhost''';

@@ -1,17 +1,19 @@
 #
 # only global
 #
---replace_result 196608 262144
+--source include/not_asan.inc
+--source include/not_ubsan.inc
+--replace_result 392192 299008
 select @@global.thread_stack;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 select @@session.thread_stack;
---replace_result 196608 262144
+--replace_result 392192 299008
 show global variables like 'thread_stack';
---replace_result 196608 262144
+--replace_result 392192 299008
 show session variables like 'thread_stack';
---replace_result 196608 262144
+--replace_result 392192 299008
 select * from information_schema.global_variables where variable_name='thread_stack';
---replace_result 196608 262144
+--replace_result 392192 299008
 select * from information_schema.session_variables where variable_name='thread_stack';
 
 #

@@ -1,3 +1,5 @@
+--source include/default_optimizer_switch.inc
+
 create table t1 (a int, b varchar(32));
 insert into t1 values
 (4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');
@@ -1200,6 +1202,40 @@ select * from my_ancestors;
 
 drop table my_ancestors;
 
+#
+# MDEV-17967 Add a solution of the 8 queens problem to the regression test for CTE
+#
+# adapted to MariaDB from https://rosettacode.org/wiki/N-queens_problem#SQL
+#
+let $N=4; # 8 takes too long for a test
+eval WITH RECURSIVE
+  positions(i) AS (
+    VALUES(0)
+    UNION SELECT ALL
+    i+1 FROM positions WHERE i < $N*$N-1
+    ),
+  solutions(board, n_queens) AS (
+    SELECT REPEAT('-', $N*$N), 0
+      FROM positions
+    UNION
+    SELECT
+      concat(substr(board, 1, i),'*',substr(board, i+2)),n_queens + 1 AS n_queens
+      FROM positions AS ps, solutions
+    WHERE n_queens < $N
+      AND substr(board,1,i) != '*'
+      AND NOT EXISTS (
+        SELECT 1 FROM positions WHERE
+          substr(board,i+1,1) = '*' AND
+            (
+                i % $N = ps.i % $N OR
+                i div $N = ps.i div $N OR
+                i div $N + (i % $N) = ps.i div $N + (ps.i % $N) OR
+                i div $N - (i % $N) = ps.i div $N - (ps.i % $N)
+            )
+        )
+  )
+SELECT regexp_replace(board,concat('(',REPEAT('.', $N),')'),'\\\\1\\n') n_queens FROM solutions WHERE n_queens = $N;
+
 --echo #
 --echo # MDEV-10883: execution of prepared statement from SELECT
 --echo #             with recursive CTE that renames columns
@@ -2388,6 +2424,30 @@ select * from cte1, cte2 where cte1.c1 = 3;
 
 eval $q3;
 
+let $q4=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte2, cte1;
+
+eval $q4;
+eval explain extended $q4;
+eval prepare stmt from "$q4";
+execute stmt;
+execute stmt;
+
+drop procedure p;
+drop table t2;
+
+create table t2 (c1 int, c2 int);
+eval create procedure p() insert into t2 $q4;
+call p();
+select * from t2;
+
 drop procedure p;
 drop table t1,t2;
 
@@ -2496,7 +2556,386 @@ SELECT GROUP_CONCAT(
 GROUP BY Iy
 ORDER BY Iy;
 
+--echo #
+--echo # MDEV-17871: EXPLAIN for query with not used recursive cte
+--echo #
+
+create table t1 (a int);
+insert into t1 values (2), (1), (4), (3);
+
+let $rec_cte =
+with recursive cte as
+  (select * from t1 where a=1 union select a+1 from cte where a<3);
+
+eval
+explain extended
+$rec_cte
+select * from cte as t;
+
+eval
+$rec_cte
+select * from cte as t;
+
+eval
+explain extended
+$rec_cte
+select * from t1 as t;
+
+eval
+$rec_cte
+select * from t1 as t;
+
+create table t2 ( i1 int, i2 int);
+insert into t2 values (1,1),(2,2);
+
+explain
+with recursive cte as
+ ( select * from t2 union select s1.* from t2 as s1, cte where s1.i1 = cte.i2 )
+select * from t2 as t;
+
+drop table t1,t2;
+
+
+--echo #
+--echo # MDEV-22042: ANALYZE of query using stored function and recursive CTE
+--echo #
+
+create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam;
+insert into t1 values (1,1),(2,2),(3,3);
+
+create table t2 (
+a2 varchar(20) primary key, b1 varchar(20), key (b1)
+) engine=myisam;
+insert into t2 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7);
+insert into t2 values (11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17);
+
+delimiter $$;
+create  function f1(id varchar(20)) returns varchar(50)
+begin
+  declare res  varchar (50);
+  select a2 into res from t2 where a2=id and b1=1 limit 1;
+  return res;
+end$$
+delimiter ;$$
+
+let q=
+select fv
+from (select t1.a1, f1(t1.a2) fv from t1) dt
+where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
+   union select tt2.a2 from t2 tt2 join cte on tt2.b1=cte.a2)
+select a2 from cte);
+
+eval $q;
+eval explain $q;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+
+drop function f1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-22748: two materialized CTEs using the same recursive CTE
+--echo # (see also test case for MDEV-17024)
+--echo #
+
+CREATE TABLE t1 (YEAR int(4), d1 date , d2 date) ;
+INSERT INTO t1 VALUES (2018,'2018-01-01','2018-09-20');
+CREATE TABLE t2 (id int, tm date);
+INSERT INTO t2 VALUES (1,'2018-08-30'),(2,'2018-08-30'),(3,'2018-08-30');
+CREATE TABLE t3 (id int, tm date);
+INSERT INTO t3 VALUES (1,'2018-08-30'),(2,'2018-08-30');
+
+let $q=
+WITH RECURSIVE
+cte AS
+  (SELECT  YEAR(t1.d1) AS YEAR, t1.d1 AS st, t1.d1 + INTERVAL 1 MONTH AS fn
+     FROM t1
+   UNION ALL
+   SELECT YEAR(cte.st + INTERVAL 1 MONTH),
+          cte.st + INTERVAL 1 MONTH,  t1.d2 + INTERVAL 1 DAY
+     FROM cte JOIN t1
+   WHERE cte.st + INTERVAL 1 MONTH < t1.d2 ),
+cte2 AS (SELECT YEAR, COUNT(*)
+        FROM cte JOIN t2 ON t2.tm BETWEEN cte.st AND cte.fn),
+cte3 AS (SELECT YEAR, COUNT(*)
+        FROM cte JOIN t3 ON t3.tm BETWEEN cte.st AND cte.fn)
+SELECT t1.* FROM t1 JOIN cte2 USING (YEAR) JOIN cte3 USING (YEAR);
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+eval PREPARE stmt FROM "$q";
+EXECUTE stmt;
+EXECUTE stmt;
+
+CREATE TABLE t4 (YEAR int(4), d1 date , d2 date);
+eval CREATE PROCEDURE p() INSERT INTO t4 $q;
+CALL p();
+SELECT * FROM t4;
+
+DROP PROCEDURE p;
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-23619: recursive CTE used only in the second operand of UNION
+--echo #
+
+create table t1 (
+  a bigint(10) not null auto_increment,
+  b int(5) not null,
+  c bigint(10) default null,
+  primary key (a)
+) engine myisam;
+insert into t1 values
+  (1,3,12), (2,7,15), (3,1,3), (4,3,1);
+
+let $q=
+with recursive r_cte as
+( select * from t1 as s
+  union
+  select t1.* from t1, r_cte as r where t1.c = r.a )
+select 0 as b FROM dual union all select b FROM r_cte as t;
+
+eval explain $q;
+eval $q;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo #checking hanging cte that uses a recursive cte
+let $q1=
+with h_cte as
+( with recursive r_cte as
+  ( select * from t1 as s
+    union
+    select t1.* from t1, r_cte as r where t1.c = r.a )
+  select 0 as b FROM dual union all select b FROM r_cte as t)
+select * from t1 as tt;
+
+eval explain $q1;
+eval $q1;
+--source include/analyze-format.inc
+eval analyze format=json $q1;
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-24019: query with recursive CTE when no default database is set
+--echo #
+
+drop database test;
+
+let $q=
+with recursive a as
+   (select 1 from dual union select * from a as r)
+select * from a;
+
+eval $q;
+
+create database db1;
+create table db1.t1 (a int);
+insert into db1.t1 values (3), (7), (1);
+
+let $q=
+with recursive cte as
+  (select * from db1.t1 union select * from (select * from cte) as t)
+select * from cte;
+
+eval $q;
+eval explain $q;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop database db1;
+
+create database test;
+use test;
+
+--echo #
+--echo # MDEV-23406: query with mutually recursive CTEs when big_tables=1
+--echo #
+
+set @save_big_tables=@@big_tables;
+set big_tables=1;
+
+create table  folks(id int, name char(32), dob date, father int, mother int);
+
+insert into folks values
+(100, 'Me', '2000-01-01', 20, 30),
+(20, 'Dad', '1970-02-02', 10, 9),
+(30, 'Mom', '1975-03-03', 8, 7),
+(10, 'Grandpa Bill', '1940-04-05', null, null),
+(9, 'Grandma Ann', '1941-10-15', null, null),
+(25, 'Uncle Jim', '1968-11-18', 8, 7),
+(98, 'Sister Amy', '2001-06-20', 20, 30),
+(7, 'Grandma Sally', '1943-08-23', null, 6),
+(8, 'Grandpa Ben', '1940-10-21', null, null),
+(6, 'Grandgrandma Martha', '1923-05-17', null, null),
+(67, 'Cousin Eddie', '1992-02-28', 25, 27),
+(27, 'Auntie Melinda', '1971-03-29', null, null);
+
+let q=
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+                 w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+  select h.*, w.*
+    from folks h, folks w,  coupled_ancestors a
+      where a.father = h.id AND a.mother = w.id
+  union
+  select h.*, w.*
+    from folks v, folks h, folks w
+      where v.name = 'Me' and
+            (v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select h_id, h_name, h_dob, h_father, h_mother
+    from ancestor_couples
+  union
+  select w_id, w_name, w_dob, w_father, w_mother
+    from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+  from ancestor_couples;
+
+eval $q;
+eval explain $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q=
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+                 w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+  select h.*, w.*
+    from folks h, folks w,  coupled_ancestors a
+      where a.father = h.id AND a.mother = w.id
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select *
+    from folks
+      where name = 'Me'
+  union all
+  select h_id, h_name, h_dob, h_father, h_mother
+    from ancestor_couples
+  union all
+  select w_id, w_name, w_dob, w_father, w_mother
+    from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+  from ancestor_couples;
+
+eval $q;
+eval explain $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table folks;
+
+set big_tables=@save_big_tables;
+
+--echo #
+--echo # MDEV-26135: execution of PS for query with hanging recursive CTE
+--echo #
+
+create table t1 (a int);
+insert into t1 values (5), (7);
+create table t2 (b int);
+insert into t2 values (3), (7), (1);
+
+let $q=
+with recursive r as (select a from t1 union select a+1 from r where a < 10)
+select * from t2;
+
+eval $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-26189: Unknown column reference within hanging recursive CTE
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+let $q1=
+with recursive
+  r as (select * from t1 union select s1.* from t1 as s1, r where s1.a = r.b)
+select * from t1 as t;
+
+--ERROR ER_BAD_FIELD_ERROR
+eval $q1;
+--ERROR ER_BAD_FIELD_ERROR
+eval explain $q1;
+
+eval create procedure sp1() $q1;
+--ERROR ER_BAD_FIELD_ERROR
+call sp1();
+--ERROR ER_BAD_FIELD_ERROR
+call sp1();
+
+let $q2=
+with recursive
+  r as (select * from t1 union select s1.* from t1 as s1, r where s1.b = r.a)
+select * from t1 as t;
+
+--ERROR ER_BAD_FIELD_ERROR
+eval $q2;
+--ERROR ER_BAD_FIELD_ERROR
+eval explain $q2;
+
+eval create procedure sp2() $q2;
+--ERROR ER_BAD_FIELD_ERROR
+call sp2();
+--ERROR ER_BAD_FIELD_ERROR
+call sp2();
+
+drop procedure sp1;
+drop procedure sp2;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-26202: Recursive CTE used indirectly twice
+--echo # (fixed by the patch forMDEV-26025)
+--echo #
+
+with recursive
+  rcte as ( SELECT 1 AS a
+            UNION ALL
+            SELECT cast(a + 1 as unsigned int) FROM rcte WHERE a < 3),
+  cte1 AS (SELECT a FROM rcte),
+  cte2 AS (SELECT a FROM cte1),
+  cte3 AS ( SELECT a FROM  cte2)
+SELECT * FROM cte2, cte3;
+
+--echo #
 --echo # End of 10.2 tests
+--echo #
 
 --echo #
 --echo # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field
@@ -2727,3 +3166,20 @@ SELECT * FROM cte;
 DROP TABLE t1;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-26108: Recursive CTE embedded into another CTE which is used twice
+--echo #
+
+create table t1 (a int);
+insert into t1 values (5), (7);
+
+with cte_e as (
+  with recursive cte_r as (
+    select a from t1 union select a+1 as a from cte_r r where a < 10
+  ) select * from cte_r
+) select * from cte_e s1, cte_e s2 where s1.a=s2.a;
+
+drop table t1;
+
+--echo # End of 10.4 tests

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /*
@@ -206,7 +206,7 @@ int main(int argc, const char** argv )
     } else {
       if (strcmp(arg, "--verbose") == 0)
         verbose++;
-      else if (strncmp(arg, "--parent-pid", 10) == 0)
+      else if (strncmp(arg, "--parent-pid", 12) == 0)
       {
             /* Override parent_pid with a value provided by user */
         const char* start;

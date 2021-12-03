@@ -11,7 +11,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/dbug
@@ -29,7 +29,7 @@ IF(NOT CMAKE_CROSSCOMPILING)
   TARGET_LINK_LIBRARIES(factorial dbug)
 ENDIF()
 
-IF(NOT WIN32 AND NOT CMAKE_GENERATOR MATCHES Xcode)
+IF(NOT WIN32 AND NOT CMAKE_GENERATOR MATCHES Xcode AND NOT RPM AND NOT DEB)
   FIND_PROGRAM(GROFF groff)
   FIND_PROGRAM(NROFF nroff)
   MARK_AS_ADVANCED(GROFF)

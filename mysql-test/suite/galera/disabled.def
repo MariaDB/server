@@ -10,42 +10,32 @@
 #
 ##############################################################################
 
-galera_flush :  MariaDB does not have global.thread_statistics
-galera_account_management : MariaDB 10.0 does not support ALTER USER
-galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_log_events
-galera_migrate : MariaDB does not support START SLAVE USER
-galera_as_master_gtid : Requires MySQL GTID
-galera_as_master_gtid_change_master : Requires MySQL GTID
-galera_as_slave_preordered : wsrep-preordered feature not merged to MariaDB
-GAL-419 : MDEV-13549 Galera test failures
-galera_var_notify_cmd : MDEV-13549 Galera test failures
-galera_as_slave_replication_bundle : MDEV-13549 Galera test failures
-galera_gcache_recover : MDEV-13549 Galera test failures
-galera_gcache_recover_full_gcache : MDEV-13549 Galera test failures
-galera_gcache_recover_manytrx : MDEV-13549 Galera test failures
-galera_ssl_upgrade : MDEV-13549 Galera test failures
-MW-329 : wsrep_local_replays not stable
-MW-416 : MDEV-13549 Galera test failures
-MW-388 : MDEV-13549 Galera test failures
-MW-44 : MDEV-15809 Test failure on galera.MW-44
-galera_pc_ignore_sb : MDEV-15811 Test failure on galera_pc_ignore_sb
-galera_kill_applier : race condition at the start of the test
-galera_ist_progress: MDEV-15236 galera_ist_progress fails when trying to read transfer status
-pxc-421: Lock timeout exceeded
-galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
-galera_sst_xtrabackup-v2-options : Failed to read uuid:seqno and wsrep_gtid_domain_id from joiner script
-MW-328C : Timeouts
-galera_gcs_fc_limit : Timeouts
-pool_of_threads: WSREP has not yet prepared node for application use
-galera_var_innodb_disallow_writes : Timeout
-MW-336 : nondeterministic wsrep_thread_count
-galera_binlog_stmt_autoinc : MDEV-17106 Test failure on galera.galera_binlog_stmt_autoinc
-galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl
-galera_var_node_address : MDEV-17151 Galera test failure on galera.galera_var_node_address
-galera_binlog_stmt_autoinc: MDEV-17106 Test failure on galera.galera_binlog_stmt_autoinc
-galera_gc_fc_limit : MDEV-17061 Test failure on galera.galera_gc_fc_limit
-partition : MDEV-13881 galera.partition failed in buildbot with wrong result
-galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replication_bundle caused debug assertion
-galera_wan : MDEV-17259: Test failure on galera.galera_wan
-galera_pc_ignore_sb : MDEV-17357 Test failure on galera.galera_pc_ignore_sb
-galera_drop_database : test
+GCF-1081 : MDEV-18283 Galera test failure on galera.GCF-1081
+GCF-939 : MDEV-21520 galera.GCF-939
+MDEV-20225 : MDEV-20886 galera.MDEV-20225
+MW-328A : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600 seconds" and do not release port 16002
+MW-328B : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600 seconds" and do not release port 16002
+MW-329 : MDEV-19962 Galera test failure on MW-329
+galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
+galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit
+galera_bf_lock_wait : MDEV-21597 wsrep::transaction::start_transaction(): Assertion `active() == false' failed
+galera_encrypt_tmp_files : Get error failed to enable encryption of temporary files
+galera_ftwrl : MDEV-21525 galera.galera_ftwrl
+galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
+galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galera_kill_largechanges
+galera_many_tables_nopk : MDEV-18182 Galera test failure on galera.galera_many_tables_nopk
+galera_mdl_race : MDEV-21524 galera.galera_mdl_race
+galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails
+galera_pc_ignore_sb : MDEV-20888 galera.galera_pc_ignore_sb
+galera_pc_recovery : MDEV-25199 cluster fails to start up
+galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
+galera_var_ignore_apply_errors : MDEV-26770 galera_var_ignore_apply_errors fails Server did not transition to READY state
+galera_var_node_address : MDEV-20485 Galera test failure
+galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
+galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
+mysql-wsrep#198 : MDEV-24446: galera.mysql-wsrep#198 MTR failed: query 'reap' failed: 2000: Unknown MySQL error
+partition : MDEV-19958 Galera test failure on galera.partition
+query_cache: MDEV-15805 Test failure on galera.query_cache
+versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
+galera_ssl_mode_server : Certificate CA mismatch
+galera_bf_abort_at_after_statement : Unstable

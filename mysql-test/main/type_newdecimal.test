@@ -837,6 +837,7 @@ UPDATE Sow6_2f SET col1 = col1 / 0 WHERE col1 > 0;
 #-- should return SQLSTATE 22012 division by zero
 SELECT MOD(col1,0) FROM Sow6_2f;
 #-- should return SQLSTATE 22012 division by zero
+--replace_result sow Sow
 -- error 1366
 INSERT INTO Sow6_2f VALUES ('a59b');
 #-- should return SQLSTATE 22018 invalid character value for cast
@@ -1627,6 +1628,49 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-20495 Assertion `precision > 0' failed in decimal_bin_size upon CREATE .. SELECT with zerofilled decimal
+--echo #
+
+CREATE TABLE t1 (d DECIMAL(1,0) ZEROFILL);
+CREATE TABLE t2 AS SELECT 0 MOD d AS f FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (d DECIMAL(1,0) UNSIGNED);
+CREATE TABLE t2 AS SELECT 0 MOD d AS f FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE IF EXISTS t1,t2;
+
+CREATE TABLE t1 (d DECIMAL(1,0) ZEROFILL);
+CREATE TABLE t2 AS SELECT CAST(0 AS UNSIGNED) MOD d AS f FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (d DECIMAL(1,0) UNSIGNED);
+CREATE TABLE t2 AS SELECT CAST(0 AS UNSIGNED) MOD d AS f FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-20560 Assertion `precision > 0' failed in decimal_bin_size upon SELECT with MOD short unsigned decimal
+--echo #
+
+CREATE TABLE t1 (a DECIMAL(1,0) UNSIGNED);
+INSERT INTO t1 VALUES (1.0),(2.0);
+SELECT DISTINCT 1 MOD a FROM t1;
+CREATE TABLE t2 AS SELECT DISTINCT 1 MOD a AS f FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (a DECIMAL(1,0) UNSIGNED);
+INSERT INTO t1 VALUES (1.0),(2.0);
+SELECT DISTINCT 1 MOD a FROM t1;
+CREATE TABLE t2 AS SELECT DISTINCT CAST(1 AS UNSIGNED) MOD a AS f FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
@@ -1781,6 +1825,32 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-23105 Cast number string with many leading zeros to decimal gives unexpected result
+--echo #
+
+SELECT CAST(0000000000000000000000000000000000000000000000000000000000000000000000000000000020.01 AS DECIMAL(15,2)) as val;
+
+SET sql_mode='';
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES (CONCAT(REPEAT('0',100),1));
+INSERT INTO t1 VALUES (CONCAT(REPEAT('0',100),1,'.0'));
+INSERT INTO t1 VALUES (CONCAT(REPEAT('0',100),1,'.9'));
+INSERT INTO t1 VALUES (CONCAT(REPEAT('0',100),1,'.99'));
+INSERT INTO t1 VALUES (CONCAT(REPEAT('0',100),1,'.994'));
+INSERT INTO t1 VALUES (CONCAT(REPEAT('0',100),1,'.995'));
+INSERT INTO t1 VALUES (CONCAT(REPEAT('0',100),1,'.999'));
+CREATE TABLE t2 (a TEXT, d DECIMAL(15,2));
+INSERT IGNORE INTO t2 (a,d) SELECT a, a FROM t1;
+INSERT IGNORE INTO t2 (a,d) SELECT CONCAT('-',a), CONCAT('-',a) FROM t1;
+SELECT d, a FROM t2 ORDER BY d,a;
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
 --echo # Bug#18408499 UNSIGNED BIGINT HIGH VALUES 
 --echo #              WRONG NUMERICAL COMPARISON RESULTS
 --echo #
@@ -1826,4 +1896,71 @@ drop table t1;
 
 --echo #
 --echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-23032 FLOOR()/CEIL() incorrectly calculate the precision of a DECIMAL(M,D) column.
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(prec INT, scale INT, suffix VARCHAR(32))
+BEGIN
+  EXECUTE IMMEDIATE CONCAT('CREATE TABLE t1 (a decimal(',prec,',',scale,')',suffix,')');
+  INSERT IGNORE INTO t1 VALUES (-1e100), (+1e100);
+  CREATE TABLE t2 AS SELECT
+    a,
+    FLOOR(a) AS fa,
+    CEILING(a) AS ca,
+    LENGTH(FLOOR(a)),
+    LENGTH(CEILING(a))
+  FROM t1 ORDER BY a;
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t2, t1;
+END;
+$$
+DELIMITER ;$$
+
+--vertical_results
+CALL p1(38,10,'');
+CALL p1(28,10,'');
+CALL p1(27,10,'');
+CALL p1(20,10,'');
+CALL p1(19,10,'');
+CALL p1(18,10,'');
+CALL p1(10,10,'');
+
+CALL p1(38,10,'  UNSIGNED');
+CALL p1(28,10,'  UNSIGNED');
+CALL p1(27,10,'  UNSIGNED');
+CALL p1(20,10,'  UNSIGNED');
+CALL p1(19,10,'  UNSIGNED');
+CALL p1(18,10,'  UNSIGNED');
+CALL p1(10,10,'  UNSIGNED');
+
+--horizontal_results
+
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-23118 FORMAT(d1,dec) where dec=0/38 and d1 is DECIMAL(38,38) gives incorrect results
+--echo #
+
+--vertical_results
+CREATE OR REPLACE TABLE t1 (a DECIMAL(38,38));
+INSERT INTO t1 VALUES (-0.9999999999999999999999999999999999999), (0.9999999999999999999999999999999999999);
+SELECT a, FORMAT(a,0), FORMAT(a,38) FROM t1;
+CREATE OR REPLACE TABLE t2 AS SELECT a, FORMAT(a,0), FORMAT(a,38) FROM t1;
+SELECT * FROM t2;
+SHOW CREATE TABLE t2;
+DROP TABLE t2,t1;
+--horizontal_results
+
+--echo #
+--echo # End of 10.4 tests
 --echo #

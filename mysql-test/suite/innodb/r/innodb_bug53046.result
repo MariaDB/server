@@ -16,6 +16,7 @@ FROM bug53046_1;
 INSERT INTO bug53046_2 VALUES (1), (2);
 ANALYZE TABLE bug53046_1;
 Table	Op	Msg_type	Msg_text
+test.bug53046_1	analyze	status	Engine-independent statistics collected
 test.bug53046_1	analyze	status	OK
 SHOW TABLE STATUS LIKE 'bug53046_1';
 UPDATE bug53046_1 SET c1 = c1 - 1;

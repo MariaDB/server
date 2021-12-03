@@ -117,8 +117,8 @@ select * from foo where a<3 order by a desc;
 #HA_READ_KEY_OR_NEXT
 # ignore rows column
 --replace_column 9 NULL;
-explain select * from foo where a>=4;
-select * from foo where a>=4;
+explain select * from foo where a>=5;
+select * from foo where a>=5;
 
 #HA_READ_KEY_OR_PREV not used anymore
 

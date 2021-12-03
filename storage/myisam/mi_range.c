@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Gives a approximated number of how many records there is between two keys.
@@ -22,9 +23,10 @@
 #include "myisamdef.h"
 #include "rt_index.h"
 
-static ha_rows _mi_record_pos(MI_INFO *, const uchar *, key_part_map,
-                              enum ha_rkey_function);
-static double _mi_search_pos(MI_INFO *,MI_KEYDEF *,uchar *, uint,uint,my_off_t);
+static double _mi_record_pos(MI_INFO *, const uchar *, key_part_map,
+                             enum ha_rkey_function);
+static double _mi_search_pos(MI_INFO *,MI_KEYDEF *,uchar *, uint,uint,
+                             my_off_t,my_bool);
 static uint _mi_keynr(MI_INFO *info,MI_KEYDEF *,uchar *, uchar *,uint *);
 
 /*
@@ -48,7 +50,8 @@ static uint _mi_keynr(MI_INFO *info,MI_KEYDEF *,uchar *, uchar *,uint *);
 ha_rows mi_records_in_range(MI_INFO *info, int inx,
                             key_range *min_key, key_range *max_key)
 {
-  ha_rows start_pos,end_pos,res;
+  ha_rows res;
+  double start_pos,end_pos,diff;
   DBUG_ENTER("mi_records_in_range");
 
   if ((inx = _mi_check_index(info,inx)) < 0)
@@ -94,16 +97,27 @@ ha_rows mi_records_in_range(MI_INFO *info, int inx,
 #endif
   case HA_KEY_ALG_BTREE:
   default:
-    start_pos= (min_key ?  _mi_record_pos(info, min_key->key,
-                                          min_key->keypart_map, min_key->flag)
-                        : (ha_rows) 0);
+    start_pos= (min_key ?_mi_record_pos(info, min_key->key,
+                                        min_key->keypart_map, min_key->flag)
+                        : (double) 0);
     end_pos=   (max_key ?  _mi_record_pos(info, max_key->key,
                                           max_key->keypart_map, max_key->flag)
-                        : info->state->records + (ha_rows) 1);
+		        : (double) info->state->records);
     res= (end_pos < start_pos ? (ha_rows) 0 :
-          (end_pos == start_pos ? (ha_rows) 1 : end_pos-start_pos));
-    if (start_pos == HA_POS_ERROR || end_pos == HA_POS_ERROR)
+          (end_pos == start_pos ? (ha_rows) 1 : (ha_rows) (end_pos-start_pos)));
+    if (start_pos == (double) HA_POS_ERROR || end_pos == (double) HA_POS_ERROR)
       res=HA_POS_ERROR;
+    else
+    {
+      diff= end_pos - start_pos;
+      if (diff >= 0)
+      {
+        if (!(res= (ha_rows) (diff + 0.5)))
+	  res= 1;
+      }
+      else
+        res= 0;
+    }
   }
 
   if (info->s->concurrent_insert)
@@ -115,11 +129,25 @@ ha_rows mi_records_in_range(MI_INFO *info, int inx,
 }
 
 
-	/* Find relative position (in records) for key in index-tree */
+/*
+  To find an approximate relative position of a key tuple among all index
+  key tuples would not be hard if we considered B-trees where all key
+  tuples were contained only in leaf nodes. If we consider a B-tree where
+  key tuples are stored also in non-leaf nodes we have to convert such
+  tree into the tree of the first type. The transformation procedure is
+  simple: the key tuple k goes alter the last key tuple in the most right
+  sub-tree pointer to which is coupled with k. As a result of this
+  transformation each leaf node except the most right one in the tree will
+  contain one extra key tuple following those originally belonging to
+  the leaf.
+*/
 
-static ha_rows _mi_record_pos(MI_INFO *info, const uchar *key,
-                              key_part_map keypart_map,
-			      enum ha_rkey_function search_flag)
+
+/* Find relative position (in records) for key in index-tree */
+
+static double _mi_record_pos(MI_INFO *info, const uchar *key,
+                             key_part_map keypart_map,
+                             enum ha_rkey_function search_flag)
 {
   uint inx=(uint) info->lastinx, nextflag, key_len;
   MI_KEYDEF *keyinfo=info->s->keyinfo+inx;
@@ -175,13 +203,13 @@ static ha_rows _mi_record_pos(MI_INFO *info, const uchar *key,
   */
   pos=_mi_search_pos(info,keyinfo,key_buff,key_len,
 		     nextflag | SEARCH_SAVE_BUFF | SEARCH_UPDATE,
-		     info->s->state.key_root[inx]);
+		     info->s->state.key_root[inx], TRUE);
   if (pos >= 0.0)
   {
-    DBUG_PRINT("exit",("pos: %ld",(ulong) (pos*info->state->records)));
-    DBUG_RETURN((ulong) (pos*info->state->records+0.5));
+    DBUG_PRINT("exit",("pos: %g",(pos*info->state->records)));
+    DBUG_RETURN(pos*info->state->records);
   }
-  DBUG_RETURN(HA_POS_ERROR);
+  DBUG_RETURN((double) (HA_POS_ERROR));
 }
 
 
@@ -191,7 +219,7 @@ static ha_rows _mi_record_pos(MI_INFO *info, const uchar *key,
 static double _mi_search_pos(register MI_INFO *info,
 			     register MI_KEYDEF *keyinfo,
 			     uchar *key, uint key_len, uint nextflag,
-			     register my_off_t pos)
+			     register my_off_t pos, my_bool last_in_level)
 {
   int flag;
   uint nod_flag,keynr,UNINIT_VAR(max_keynr);
@@ -222,7 +250,8 @@ static double _mi_search_pos(register MI_INFO *info,
     if (flag > 0 && ! nod_flag)
       offset= 1.0;
     else if ((offset=_mi_search_pos(info,keyinfo,key,key_len,nextflag,
-				    _mi_kpos(nod_flag,keypos))) < 0)
+				    _mi_kpos(nod_flag,keypos),
+                                    last_in_level && after_key)) < 0)
       DBUG_RETURN(offset);
   }
   else
@@ -241,13 +270,15 @@ static double _mi_search_pos(register MI_INFO *info,
         Matches keynr + [0-1]
       */
       if ((offset=_mi_search_pos(info,keyinfo,key,key_len,SEARCH_FIND,
-				 _mi_kpos(nod_flag,keypos))) < 0)
+				 _mi_kpos(nod_flag,keypos),
+                                 last_in_level && after_key)) < 0)
 	DBUG_RETURN(offset);			/* Read error */
     }
   }
   DBUG_PRINT("info",("keynr: %d  offset: %g  max_keynr: %d  nod: %d  flag: %d",
 		     keynr,offset,max_keynr,nod_flag,flag));
-  DBUG_RETURN((keynr+offset)/(max_keynr+1));
+  DBUG_RETURN((keynr+offset-MY_TEST(!nod_flag))/
+              (max_keynr+MY_TEST(nod_flag || !last_in_level)));
 err:
   DBUG_PRINT("exit",("Error: %d",my_errno));
   DBUG_RETURN (-1.0);

@@ -26,6 +26,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include "hatoku_hton.h"
 #include "PerconaFT/src/ydb.h"
+#include <mutex>
 
 #define TOKU_METADB_NAME "tokudb_meta"
 
@@ -239,6 +240,7 @@ tokudb::thread::rwlock_t tokudb_hton_initialized_lock;
 static SHOW_VAR *toku_global_status_variables = NULL;
 static uint64_t toku_global_status_max_rows;
 static TOKU_ENGINE_STATUS_ROW_S* toku_global_status_rows = NULL;
+static std::mutex toku_global_status_rows_mutex;
 
 static void handle_ydb_error(int error) {
     switch (error) {
@@ -571,10 +573,10 @@ static int tokudb_init_func(void *p) {
 
     db_env->set_update(db_env, tokudb_update_fun);
 
-    db_env_set_direct_io(tokudb::sysvars::directio == TRUE);
+    db_env_set_direct_io(tokudb::sysvars::directio);
 
     db_env_set_compress_buffers_before_eviction(
-        tokudb::sysvars::compress_buffers_before_eviction == TRUE);
+        tokudb::sysvars::compress_buffers_before_eviction);
 
     db_env->change_fsync_log_period(db_env, tokudb::sysvars::fsync_log_period);
 
@@ -1902,6 +1904,7 @@ static int show_tokudb_vars(TOKUDB_UNUSED(THD* thd),
     const int panic_string_len = 1024;
     char panic_string[panic_string_len] = {'\0'};
     fs_redzone_state redzone_state;
+    const std::lock_guard<std::mutex> lock(toku_global_status_rows_mutex);
 
     uint64_t num_rows;
     error = db_env->get_engine_status(

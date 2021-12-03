@@ -17,21 +17,21 @@
 /*  Include relevant MariaDB header file.                  */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <errno.h>
 #else   // !UNIX
 #include <io.h>
 #endif
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -89,11 +89,11 @@ int GZFAM::Zerror(PGLOBAL g)
   strcpy(g->Message, gzerror(Zfile, &errnum));
 
   if (errnum == Z_ERRNO)
-#if defined(__WIN__)
+#if defined(_WIN32)
     sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(NULL));
-#else   // !__WIN__
+#else   // !_WIN32
     sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
-#endif  // !__WIN__
+#endif  // !_WIN32
 
     return (errnum == Z_STREAM_END) ? RC_EF : RC_FX;
   } // end of Zerror
@@ -647,7 +647,7 @@ int ZBKFAM::WriteBuffer(PGLOBAL g)
 int ZBKFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   if (irc == RC_EF) {
-    LPCSTR  name = Tdbp->GetName();
+    LPCSTR  name __attribute__((unused)) = Tdbp->GetName();
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
 
     defp->SetBlock(0);
@@ -673,7 +673,7 @@ void ZBKFAM::CloseTableFile(PGLOBAL g, bool)
   int rc = RC_OK;
 
   if (Tdbp->GetMode() == MODE_INSERT) {
-    LPCSTR  name = Tdbp->GetName();
+    LPCSTR  name __attribute__((unused))= Tdbp->GetName();
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
 
     if (CurNum && !Closing) {
@@ -764,9 +764,9 @@ bool GZXFAM::AllocateBuffer(PGLOBAL g)
     if (Tdbp->GetFtype() < 2)
       // if not binary, the file is physically a text file
       for (int len = Lrecl; len <= Buflen; len += Lrecl) {
-#if defined(__WIN__)
+#if defined(_WIN32)
         To_Buf[len - 2] = '\r';
-#endif   // __WIN__
+#endif   // _WIN32
         To_Buf[len - 1] = '\n';
         } // endfor len
 
@@ -1021,6 +1021,7 @@ bool ZLBFAM::AllocateBuffer(PGLOBAL g)
 #else
         sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
 #endif
+        /* falls through */
       case RC_NF:
         return TRUE;
       } // endswitch
@@ -1355,7 +1356,7 @@ void ZLBFAM::CloseTableFile(PGLOBAL g, bool)
   int rc = RC_OK;
 
   if (Tdbp->GetMode() == MODE_INSERT) {
-    LPCSTR  name = Tdbp->GetName();
+    LPCSTR  name __attribute__((unused))= Tdbp->GetName();
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
 
     // Closing is True if last Write was in error

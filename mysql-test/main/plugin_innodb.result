@@ -3,6 +3,7 @@ create table t1(a int) engine=example;
 drop table t1;
 alter table mysql.plugin engine=innodb;
 restart
+# restart
 create table t1(a int) engine=example;
 select * from t1;
 a

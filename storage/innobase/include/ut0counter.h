@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,10 +28,8 @@ Created 2012/04/12 by Sunny Bains
 #ifndef ut0counter_h
 #define ut0counter_h
 
-#include <my_rdtsc.h>
-#include "univ.i"
 #include "os0thread.h"
-#include <atomic>
+#include "my_rdtsc.h"
 
 /** CPU cache line size */
 #ifdef CPU_LEVEL1_DCACHE_LINESIZE
@@ -107,10 +105,16 @@ struct ib_counter_t {
 	}
 
 private:
-	/** Atomic which occupies whole CPU cache line */
-	union ib_counter_element_t {
-		std::atomic<Type> value;
-		byte padding[CACHE_LINE_SIZE];
+	/** Atomic which occupies whole CPU cache line.
+	Note: We rely on the default constructor of std::atomic and
+	do not explicitly initialize the contents. This works for us,
+	because ib_counter_t is only intended for usage with global
+	memory that is allocated from the .bss and thus guaranteed to
+	be zero-initialized by the run-time environment.
+	@see srv_stats
+	@see rw_lock_stats */
+	struct ib_counter_element_t {
+		MY_ALIGNED(CACHE_LINE_SIZE) std::atomic<Type> value;
 	};
 	static_assert(sizeof(ib_counter_element_t) == CACHE_LINE_SIZE, "");
 

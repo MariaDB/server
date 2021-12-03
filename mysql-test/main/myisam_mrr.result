@@ -1,6 +1,7 @@
 drop table if exists t0, t1, t2, t3;
 set @myisam_mrr_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+set optimizer_switch='optimize_join_buffer_size=on';
 set @mrr_buffer_size_save= @@mrr_buffer_size;
 set mrr_buffer_size=79;
 Warnings:
@@ -188,7 +189,7 @@ explain
 select * from t4 where a IS NULL and b IS NULL and (c IS NULL or c='no-such-row1'
                                                       or c='no-such-row2');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	range	idx1	idx1	29	NULL	10	Using index condition; Using where; Rowid-ordered scan
+1	SIMPLE	t4	range	idx1	idx1	29	NULL	10	Using index condition; Rowid-ordered scan
 select * from t4 where a IS NULL and b IS NULL and (c IS NULL or c='no-such-row1'
                                                     or c='no-such-row2');
 a	b	c	filler
@@ -210,7 +211,7 @@ NULL	NULL	NULL	NULL-1
 explain 
 select * from t4 where (a ='b-1' or a='bb-1') and b IS NULL and (c='c-1' or c='cc-2');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	range	idx1	idx1	29	NULL	21	Using index condition; Using where; Rowid-ordered scan
+1	SIMPLE	t4	range	idx1	idx1	29	NULL	20	Using index condition; Rowid-ordered scan
 select * from t4 where (a ='b-1' or a='bb-1') and b IS NULL and (c='c-1' or c='cc-2');
 a	b	c	filler
 b-1	NULL	c-1	NULL-15
@@ -575,7 +576,7 @@ insert into t1
 select A.a+10*B.a+100*C.a+1000*D.a, 123,'filler' from t0 A, t0 B, t0 C, t0 D;
 explain select sum(b) from t1 where a < 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	8	Using index condition; Rowid-ordered scan
+1	SIMPLE	t1	range	a	a	5	NULL	9	Using index condition; Rowid-ordered scan
 # This should show one MRR scan and no re-fills:
 flush status;
 select sum(b) from t1 where a < 10;
@@ -617,8 +618,8 @@ sum(t1.b)
 show status like 'handler_mrr%';
 Variable_name	Value
 Handler_mrr_init	1
-Handler_mrr_key_refills	0
-Handler_mrr_rowid_refills	0
+Handler_mrr_key_refills	1
+Handler_mrr_rowid_refills	1
 set join_buffer_size=10;
 explain select sum(t1.b) from t0,t1 where t0.a=t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

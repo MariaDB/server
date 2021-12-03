@@ -44,3 +44,5 @@ let $master_host= query_get_value(SHOW SLAVE STATUS, Master_Host, 1);
 
 # clean up
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root';
+--connection slave
+reset slave all;

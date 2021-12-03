@@ -8,6 +8,8 @@
 --source include/have_debug.inc
 --source include/big_test.inc
 --source include/not_valgrind.inc
+--source include/have_64bit.inc
+
 # Create table with R-tree index.
 create table t1 (c1 int, c2 geometry not null, spatial index (c2))engine=innodb;
 

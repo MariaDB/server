@@ -11,7 +11,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 IF(NOT WIN32)
   RETURN()
@@ -20,8 +20,6 @@ ENDIF()
 IF(MSVC_VERSION LESS 1600)
  RETURN()
 ENDIF()
-
-
 
 SET(MANUFACTURER "MariaDB Corporation Ab")
 SET(WIX_BIN_PATHS)
@@ -191,7 +189,7 @@ IF(MSVC_CRT_TYPE MATCHES "/MD")
         "$ENV{${ProgramFilesX86}}/Common Files/Merge Modules"
         "$ENV{ProgramFiles}/Common Files/Merge Modules"
     )
-  ELSEIF(MSVC_VERSION LESS 2000)
+  ELSEIF(MSVC_VERSION LESS 1920)
     # VS2017
     SET(VCREDIST_MSM_FILENAME Microsoft_VC141_CRT_${WIX_ARCH_SUFFIX}.msm)
     FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/2017/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
@@ -200,9 +198,13 @@ IF(MSVC_CRT_TYPE MATCHES "/MD")
       LIST(GET MSM_LIST 0 VCRedist_MSM)
     ENDIF()
   ELSE()
-    # Post-VS2017. Needs to be ported when new VS is out
-    MESSAGE(WARNING
-     "Name of redistributable merge module not known for this version of MSVC")
+    # VS2019
+    SET(VCREDIST_MSM_FILENAME Microsoft_VC142_CRT_${WIX_ARCH_SUFFIX}.msm)
+    FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/2019/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
+    LIST(LENGTH MSM_LIST LEN)
+    IF(LEN GREATER 0)
+      LIST(GET MSM_LIST 0 VCRedist_MSM)
+    ENDIF()
   ENDIF()
   IF (NOT VCRedist_MSM)
     MESSAGE(WARNING "Can't find merge module ${VCREDIST_MSM_FILENAME}")
@@ -258,10 +260,28 @@ IF(SIGNCODE)
 ENDIF()
 
 ADD_CUSTOM_TARGET(
-  win_package
+  win_package_zip
   ${SIGN_COMMAND}
-  COMMAND cpack ${CPACK_CONFIG_PARAM} --config ${CMAKE_CURRENT_SOURCE_DIR}/CPackZipConfig.cmake
-  COMMAND cpack ${CPACK_CONFIG_PARAM} --config ${CMAKE_CURRENT_SOURCE_DIR}/CPackZipDebugInfoConfig.cmake
+  COMMAND ${CMAKE_CPACK_COMMAND} ${CPACK_CONFIG_PARAM} --config ${CMAKE_CURRENT_SOURCE_DIR}/CPackZipConfig.cmake
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
+ADD_CUSTOM_TARGET(
+  win_package_debuginfo
+  COMMAND ${CMAKE_CPACK_COMMAND} ${CPACK_CONFIG_PARAM} --config ${CMAKE_CURRENT_SOURCE_DIR}/CPackZipDebugInfoConfig.cmake
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+ADD_CUSTOM_TARGET(
+  win_package_test
+  COMMAND ${CMAKE_CPACK_COMMAND} ${CPACK_CONFIG_PARAM} --config ${CMAKE_CURRENT_SOURCE_DIR}/CPackZipTestConfig.cmake
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+ADD_CUSTOM_TARGET(win_package DEPENDS win_package_zip win_package_debuginfo)
+SET_TARGET_PROPERTIES(
+  win_package win_package_zip win_package_debuginfo
+  PROPERTIES
+  EXCLUDE_FROM_ALL TRUE
+  EXCLUDE_FROM_DEFAULT_BUILD TRUE
+)

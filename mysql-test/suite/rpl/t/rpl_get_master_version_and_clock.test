@@ -8,6 +8,7 @@
 # Finish the following tests by calling its common test script:  
 # include/rpl_get_master_version_and_clock.test. 
 
+source include/not_valgrind.inc;
 source include/have_debug.inc;
 source include/have_debug_sync.inc;
 source include/master-slave.inc;
@@ -26,7 +27,7 @@ call mtr.add_suppression("Fatal error: The slave I/O thread stops because master
 call mtr.add_suppression("Slave I/O thread .* register on master");
 
 #Test case 1: Try to get the value of the UNIX_TIMESTAMP from master under network disconnection
-let $debug_saved= `select @@global.debug`;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 
 # set up two parameters to pass into include/rpl_get_master_version_and_clock
 let $dbug_sync_point= 'debug_lock.before_get_UNIX_TIMESTAMP';
@@ -40,11 +41,9 @@ let $dbug_sync_point= 'debug_lock.before_get_SERVER_ID';
 let $debug_sync_action= 'now SIGNAL signal.get_server_id';
 source include/rpl_get_master_version_and_clock.test;
 
-eval set global debug_dbug= '$debug_saved';
-
 
 # cleanup
-
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 # is not really necessary but avoids mtr post-run env check warnings
 SET DEBUG_SYNC= 'RESET';
 

@@ -10,7 +10,7 @@ SET NAMES utf8;
 
 # All tables in all schemas (filtered with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables;
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
@@ -20,7 +20,7 @@ NULL	MTR	V1	VIEW	NULL
 DROP TABLE t1;
 # All tables in all schemas (filtered with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables TABNAME='%.%';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
@@ -30,7 +30,7 @@ NULL	MTR	V1	VIEW	NULL
 DROP TABLE t1;
 # All tables "T1" in all schemas (filtered with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables TABNAME='%.T1';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
@@ -38,7 +38,7 @@ NULL	MTR	T1	TABLE	NULL
 DROP TABLE t1;
 # All tables "T1" in all schemas (filtered with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables TABNAME='T1';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
@@ -46,7 +46,7 @@ NULL	MTR	T1	TABLE	NULL
 DROP TABLE t1;
 # Table "T1" in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables TABNAME='MTR.T1';
 SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
@@ -54,7 +54,7 @@ NULL	MTR	T1	TABLE	NULL
 DROP TABLE t1;
 # All tables in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Tables TABNAME='MTR.%';
 SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
@@ -68,7 +68,7 @@ DROP TABLE t1;
 
 # All columns in all schemas (limited with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Columns;
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
@@ -80,7 +80,7 @@ Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Bu
 DROP TABLE t1;
 # All columns in all schemas (limited with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Columns TABNAME='%.%';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
@@ -91,7 +91,7 @@ Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Bu
 	MTR	V1	B	6	NUMBER	38	40	NULL	NULL	1	
 DROP TABLE t1;
 # All tables "T1" in all schemas (limited with WHERE)
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='%.T1';
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew' CATFUNC=Columns TABNAME='%.T1';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
 	MTR	T1	A	3	DECIMAL	38	40	0	10	1	
@@ -99,7 +99,7 @@ Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Bu
 DROP TABLE t1;
 # Table "T1" in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Columns TABNAME='MTR.T1';
 SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
@@ -108,7 +108,7 @@ Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Bu
 DROP TABLE t1;
 # All tables "T1" in all schemas (filtered with WHERE)
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 CATFUNC=Columns TABNAME='%.T1';
 SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
@@ -121,14 +121,14 @@ DROP TABLE t1;
 
 # Table "T1" in the default schema ("MTR")
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 TABNAME='T1';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `A` decimal(40,0) DEFAULT NULL,
   `B` double DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='T1'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew' `TABLE_TYPE`='ODBC' `TABNAME`='T1'
 SELECT * FROM t1 ORDER BY A;
 A	B
 10	1000000000
@@ -157,14 +157,14 @@ DROP VIEW v1;
 DROP TABLE t1;
 # Table "T1" in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 TABNAME='MTR.T1';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `A` decimal(40,0) DEFAULT NULL,
   `B` double DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='MTR.T1'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew' `TABLE_TYPE`='ODBC' `TABNAME`='MTR.T1'
 SELECT * FROM t1;
 A	B
 10	1000000000
@@ -173,14 +173,14 @@ A	B
 DROP TABLE t1;
 # View "V1" in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 TABNAME='MTR.V1';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `A` decimal(40,0) DEFAULT NULL,
   `B` double DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='MTR.V1'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew' `TABLE_TYPE`='ODBC' `TABNAME`='MTR.V1'
 SELECT * FROM t1;
 A	B
 10	1000000000
@@ -209,13 +209,13 @@ DROP VIEW v1;
 DROP TABLE t1;
 # Table "T2" in the schema "MTR"
 CREATE TABLE t1 ENGINE=CONNECT
-TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr'
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew'
 TABNAME='MTR.T2';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `A` varchar(64) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtr' `TABLE_TYPE`='ODBC' `TABNAME`='MTR.T2'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=mtrnew' `TABLE_TYPE`='ODBC' `TABNAME`='MTR.T2'
 SELECT * FROM t1;
 A
 test

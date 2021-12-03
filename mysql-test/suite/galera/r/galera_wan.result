@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CALL mtr.add_suppression("WSREP: Stray state UUID msg:.*");
 CALL mtr.add_suppression("WSREP: Sending JOIN failed:.*");
 CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");

@@ -252,6 +252,15 @@ select plugin_name from information_schema.plugins where plugin_library like 'ha
 uninstall soname 'ha_example';
 select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
 
+#
+#
+#
+set names utf8;
+select convert('admin𝌆' using utf8);
+--error ER_UDF_NO_PATHS
+install plugin foo soname 'admin𝌆';
+
+--echo # End of 5.5 test
 
 --echo #
 --echo # MDEV-5309 - RENAME TABLE does not check for existence of the table's
@@ -266,42 +275,43 @@ UNINSTALL PLUGIN example;
 RENAME TABLE t1 TO t2;
 DROP TABLE t1;
 
+--echo # End of 10.1 test
+
 --echo #
---echo # INSTALL IF NOT EXISTS PLUGIN name SONAME library /
---echo # UNINSTALL IF EXISTS PLUGIN|SONAME name
+--echo # MDEV-21258: Can't uninstall plugin if the library file doesn't exist
 --echo #
 
-select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
-INSTALL PLUGIN IF NOT EXISTS example SONAME 'ha_example';
-select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
+insert into  mysql.plugin values ("unexisting_plugin", "soname");
 
---replace_regex /\.dll/.so/
+# check that we have the plugin installed
+select * from mysql.plugin WHERE name='unexisting_plugin';
+
+# make attempt to uninstall the plugin
+UNINSTALL PLUGIN unexisting_plugin;
+
+# check that we have the plugin uninstalled
+select * from mysql.plugin WHERE name='unexisting_plugin';
+
+--error ER_SP_DOES_NOT_EXIST
+UNINSTALL PLUGIN unexisting_plugin;
+
+--echo # End of 10.2 tests
+
+--source include/install_plugin_if_exists.inc
+
+--echo #
+--echo # Make sure temporary tables maintain plugin references properly
+--echo #
+INSTALL PLUGIN example SONAME 'ha_example';
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=example;
+UNINSTALL PLUGIN example;
 --error ER_PLUGIN_INSTALLED
 INSTALL PLUGIN example SONAME 'ha_example';
+DROP TABLE t1;
 
-INSTALL PLUGIN IF NOT EXISTS example SONAME 'ha_example';
-SHOW WARNINGS;
-
-UNINSTALL PLUGIN IF EXISTS example;
-select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
-
-UNINSTALL PLUGIN IF EXISTS example;
-SHOW WARNINGS;
-
---error 1305
+INSTALL PLUGIN example SONAME 'ha_example';
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=example;
+DROP TABLE t1;
 UNINSTALL PLUGIN example;
 
-INSTALL SONAME 'ha_example';
-select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
-
-UNINSTALL SONAME IF EXISTS 'ha_example';
-
---replace_regex /\.dll/.so/
-UNINSTALL SONAME IF EXISTS 'ha_example';
---replace_regex /\.dll/.so/
-SHOW WARNINGS;
-select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
-
---replace_regex /\.dll/.so/
---error 1305
-UNINSTALL SONAME 'ha_example';
+--echo # End of 10.4 tests

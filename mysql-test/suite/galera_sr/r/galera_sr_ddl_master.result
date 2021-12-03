@@ -1,0 +1,65 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+connection node_2;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SELECT COUNT(*) as expect_5 FROM mysql.wsrep_streaming_log;
+expect_5
+5
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;
+connection node_1;
+INSERT INTO t1 VALUES (6);
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT COUNT(*) as expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+ROLLBACK;
+START TRANSACTION;
+INSERT INTO t1 (f1) VALUES (1);
+INSERT INTO t1 (f1) VALUES (2);
+INSERT INTO t1 (f1) VALUES (3);
+INSERT INTO t1 (f1) VALUES (4);
+INSERT INTO t1 (f1) VALUES (5);
+INSERT INTO t1 (f1) VALUES (6);
+COMMIT;
+SELECT COUNT(*) as expect_6 FROM t1;
+expect_6
+6
+SELECT * FROM t1;
+f1	f2
+1	NULL
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+6	NULL
+SELECT COUNT(*) as expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+connection node_2;
+SELECT COUNT(*) as expect_6 FROM t1;
+expect_6
+6
+SELECT * FROM t1;
+f1	f2
+1	NULL
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+6	NULL
+SELECT COUNT(*) as expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+DROP TABLE t1;

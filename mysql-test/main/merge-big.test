@@ -42,7 +42,7 @@ LOCK TABLE t1 WRITE;
 #SELECT NOW();
     connect (con1,localhost,root,,);
     let $con1_id= `SELECT CONNECTION_ID()`;
-    SET @orig_debug=@@debug;
+    SET @orig_debug=@@global.debug_dbug;
     SET GLOBAL debug_dbug="+d,sleep_open_and_lock_after_open";
     send INSERT INTO t1 VALUES (1);
 connection default;

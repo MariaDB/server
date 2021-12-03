@@ -354,7 +354,6 @@ drop table t1, t2;
 #
 
 connect (root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
-connection root;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int, primary key (a));
 create table mysqltest.t2 (a int, b int, primary key (a));
@@ -363,7 +362,6 @@ create user mysqltest_1@localhost;
 grant select on mysqltest.* to mysqltest_1@localhost;
 grant update on mysqltest.t1 to mysqltest_1@localhost;
 connect (user1,localhost,mysqltest_1,,mysqltest,$MASTER_MYPORT,$MASTER_MYSOCK);
-connection user1;
 update t1, t2 set t1.b=1 where t1.a=t2.a;
 update t1, t2 set t1.b=(select t3.b from t3 where t1.a=t3.a) where t1.a=t2.a;
 connection root;
@@ -419,15 +417,12 @@ insert into t2 values (10), (20), (30);
 create view v1 as select a as b, a/10 as a from t2;
 
 connect (locker,localhost,root,,test);
-connection locker;
 lock table t1 write;
 
 connect (changer,localhost,root,,test);
-connection changer;
 send alter table t1 add column c int default 100 after a;
 
 connect (updater,localhost,root,,test);
-connection updater;
 # Wait till "alter table t1 ..." of session changer is in work.
 # = There is one session waiting.
 let $wait_condition= select count(*)= 1 from information_schema.processlist
@@ -899,7 +894,122 @@ deallocate prepare stmt1;
 
 drop view v3,v2,v1;
 drop table t1,t2,t3;
---echo end of 5.5 tests
+
+#
+# MDEV-18507 can't update temporary table when joined with table with triggers on read-only
+#
+create table t1 (id int not null, v1 varchar(10) not null);
+insert into t1 values (1,1),(2,2);
+create table t2 (log varchar(10) not null);
+create trigger t1_after_update after update on t1
+	for each row insert into t2 values ('triggered');
+
+create user foo;
+grant select, insert, update, delete, create, drop, reload, index, alter, show databases, create temporary tables, lock tables, execute, create view, show view, create routine, alter routine, trigger on *.* to 'foo'@'%';
+
+set global read_only=1;
+connect a, localhost, foo;
+
+create temporary table temp_t1 (id int not null, update_me varchar(10));
+insert into temp_t1 values (1,1),(2,2),(3,3);
+update temp_t1 left join t1 on temp_t1.id = t1.id set temp_t1.update_me = 'hello';
+
+connection default;
+set global read_only = 0;
+
+create table t3 (id int not null);
+insert t3 values (2);
+update t1 left join t3 on t1.id = t3.id set t1.v1 = 'hello';
+select * from t2;
+
+drop table t1,t2, t3;
+drop user foo;
+
+#
+# Another test on not-opening tables unnecessary
+#
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+insert t1 values (1,2),(3,4);
+insert t2 values (5,6),(7,8);
+create table t0 (x int);
+insert t0 values (11), (22);
+create trigger tr1 before update on t2 for each row insert t0 values (new.c);
+connect con1, localhost, root;
+lock table t0 write;
+connection default;
+update t1 join t2 on (a=c+4) set b=d;
+disconnect con1;
+drop table t1, t2, t0;
+
+#
+# MDEV-19521 Update Table Fails with Trigger and Stored Function
+#
+create table t1 (a int, b varchar(50), c varchar(50));
+insert t1 (a,b) values (1,'1'), (2,'2'), (3,'3');
+create function f1() returns varchar(50) return 'result';
+create trigger tr before update on t1 for each row set new.c = (select f1());
+create table t2 select a, b from t1;
+update t1 join t2 using (a) set t1.b = t2.b;
+drop table t1, t2;
+drop function f1;
+
+--echo #
+--echo # end of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-24823: Invalid multi-table update of view within SP
+--echo #
+
+create table t1 (id int) engine=myisam;
+insert into t1 values (1),(2),(1);
+create table t2 (pk int, c0 int) engine=myisam;
+insert into t2 values (1,1), (2,3);
+create view v2 as select * from t2;
+create view v3 as select * from t2 where c0 < 3;
+
+create  procedure sp0() update t1, v2 set v2.pk = 1 where v2.c0 = t1.c1;
+--error ER_BAD_FIELD_ERROR
+call sp0();
+--error ER_BAD_FIELD_ERROR
+call sp0();
+
+create  procedure sp1() update (t1 join v2 on v2.c0 = t1.c1) set v2.pk = 1;
+--error ER_BAD_FIELD_ERROR
+call sp1();
+--error ER_BAD_FIELD_ERROR
+call sp1();
+
+create  procedure sp2() update (t1 join v3 on v3.c0 = t1.c1) set v3.pk = 1;
+--error ER_BAD_FIELD_ERROR
+call sp2();
+--error ER_BAD_FIELD_ERROR
+call sp2();
+
+create  procedure sp3()
+update (t1 join v2 on v2.c0 = t1.id) set v2.c0 = v2.c0+1;
+select * from t2;
+call sp3();
+select * from t2;
+call sp3();
+select * from t2;
+
+create  procedure sp4() delete t1 from t1 join v2 on v2.c0 = t1.c1;
+--error ER_BAD_FIELD_ERROR
+call sp4();
+--error ER_BAD_FIELD_ERROR
+call sp4();
+
+drop procedure sp0;
+drop procedure sp1;
+drop procedure sp2;
+drop procedure sp3;
+drop procedure sp4;
+drop view v2,v3;
+drop table t1,t2;
+
+--echo # End of 10.2 tests
 
 #
 # MDEV-13911 Support ORDER BY and LIMIT in multi-table update
@@ -918,6 +1028,8 @@ drop table t1, t2;
 #
 # MDEV-14551 Can't find record in table on multi-table update with ORDER BY
 #
+
+--source include/default_optimizer_switch.inc
 
 # simple test with multi-update and Using temporary:
 create table t1 (i int) engine=memory;
@@ -960,3 +1072,29 @@ update v1,t0 set c=1 where b<3 and x=c order by x,b limit 1;
 select * from v1;
 drop view v1;
 drop table t0, t1,t2;
+
+--echo #
+--echo # MDEV-20515 multi-update tries to position updated table by null reference
+--echo #
+create or replace table t1 (a int);
+insert into t1 values (0), (2);
+
+create or replace table t2 (b int);
+insert into t2 values (1), (2);
+
+select * from t1 left join t2 on a = b order by b;
+update t1 left join t2 on a = b set b= 3 order by b;
+select * from t2;
+
+drop tables t1, t2;
+
+--echo #
+--echo # MDEV-22464 Server crash on UPDATE with nested subquery
+--echo #
+create table t1 (a int) ;
+insert into t1 (a) values (1),(2),(3) ;
+--error ER_SUBQUERY_NO_1_ROW
+select a from t1 where a= (select 2 from t1 having (a = 3));
+--error ER_SUBQUERY_NO_1_ROW
+update t1 set a= (select 2 from t1 having (a = 3));
+drop tables t1;

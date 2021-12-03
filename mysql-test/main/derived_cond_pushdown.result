@@ -1,3 +1,4 @@
+set @@join_buffer_size=256*1024;
 create table t1 (a int, b int, c int);
 create table t2 (a int, b int, c int, d decimal);
 insert into t1 values
@@ -136,7 +137,7 @@ EXPLAIN
         "attached_condition": "v1.max_c > 214"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "t2.a > v1.a",
       "materialized": {
@@ -291,7 +292,7 @@ EXPLAIN
         "attached_condition": "v1.max_c > 400 or v1.max_c < 135"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.max_c > 400 and t2.a > v1.a or v1.max_c < 135 and t2.a < v1.a",
       "materialized": {
@@ -359,7 +360,7 @@ EXPLAIN
         "attached_condition": "v1.max_c > 300 or v1.max_c < 135"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.b = t2.b and v1.max_c > 300 and v1.avg_c > t2.d or v1.a = t2.a and v1.max_c < 135 and v1.max_c < t2.c",
       "materialized": {
@@ -416,7 +417,7 @@ EXPLAIN
         "attached_condition": "v1.a > 6"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "t2.b > v1.b",
       "materialized": {
@@ -483,7 +484,7 @@ EXPLAIN
         "attached_condition": "v2.b > 25"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "t2.a < v2.a",
       "materialized": {
@@ -571,7 +572,7 @@ EXPLAIN
         "attached_condition": "v1.a > 7 or v1.a < 2"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a > 7 and t2.c < v1.max_c or v1.a < 2 and t2.b < v1.b",
       "materialized": {
@@ -652,7 +653,7 @@ EXPLAIN
         "attached_condition": "v2.a > 7 or v2.a > 5"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v2.a > 7 and t2.c < v2.max_c or v2.a > 5 and t2.b < v2.b",
       "materialized": {
@@ -719,7 +720,7 @@ EXPLAIN
         "attached_condition": "v1.a > 4 or v1.a < 2"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a > 4 and v1.b > t2.b and v1.max_c = t2.d or v1.a < 2 and v1.max_c < t2.c and v1.max_c = t2.d",
       "materialized": {
@@ -779,7 +780,7 @@ EXPLAIN
         "attached_condition": "v1.a < 2 and v1.max_c > 400"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "t2.b > v1.b",
       "materialized": {
@@ -991,7 +992,7 @@ EXPLAIN
         "attached_condition": "v1.a > 7 and v1.max_c > 300 or v1.a < 4 and v1.max_c < 500"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a > 7 and v1.max_c > 300 and t2.c < v1.max_c or v1.a < 4 and v1.max_c < 500 and t2.b < v1.b",
       "materialized": {
@@ -1080,7 +1081,7 @@ EXPLAIN
         "attached_condition": "v1.a < 2 and v1.max_c > 120 or v1.a > 7"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a < 2 and v1.max_c > 120 or v1.a > 7",
       "materialized": {
@@ -1158,7 +1159,7 @@ EXPLAIN
         "attached_condition": "v1.a < 2 and v1.max_c > 120 or v1.a > 7"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.b = t2.b and v1.a < 2 and v1.max_c > 120 or v1.a > 7",
       "materialized": {
@@ -1225,7 +1226,7 @@ EXPLAIN
         "attached_condition": "v1.a < 2 and v1.max_c < 200 or v1.a > 4"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a < 2 and v1.max_c < 200 and t2.c > v1.max_c and v1.max_c = t2.d or v1.max_c = t2.c and v1.a > 4 and t2.c < 500 and t2.b < v1.b",
       "materialized": {
@@ -1302,7 +1303,7 @@ EXPLAIN
         "attached_condition": "v1.max_c > 400 or v1.max_c < 135"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.max_c > 400 and t2.a > v1.a or v1.max_c < 135 and t2.a < v1.a",
       "materialized": {
@@ -1345,7 +1346,7 @@ EXPLAIN
         "attached_condition": "v1.max_c > 400 or v1.max_c < 135"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.max_c > 400 and t2.a > v1.a or v1.max_c < 135 and t2.a < v1.a",
       "materialized": {
@@ -1684,7 +1685,7 @@ EXPLAIN
         "attached_condition": "v1.a = 3 and v1.b = 3"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -1734,7 +1735,7 @@ EXPLAIN
         "attached_condition": "v1.a = 1 and v1.b = 21"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -1807,7 +1808,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "220",
       "join_type": "BNL",
       "attached_condition": "t.b = v.b or v.max_c > 20"
     }
@@ -1931,7 +1932,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a = t2.a and t2.a < 4 or v1.max_c = t2.c and t2.c > 150",
       "materialized": {
@@ -2061,7 +2062,7 @@ EXPLAIN
         "attached_condition": "v1.a = 8 and v1.max_c = 404"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -2359,7 +2360,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "162",
       "join_type": "BNL"
     }
   }
@@ -2471,7 +2472,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -2598,7 +2599,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a = t2.a or v1.b = t2.b and (v1.a = 1 or v1.a = 6)",
       "materialized": {
@@ -2693,7 +2694,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a = 1 or v1.b = 21 or t2.a = 2",
       "materialized": {
@@ -2761,7 +2762,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a < t2.a or t2.a < 11",
       "materialized": {
@@ -2943,7 +2944,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.b is not null",
       "materialized": {
@@ -3038,7 +3039,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a = t2.a or t2.c < 115",
       "materialized": {
@@ -3067,7 +3068,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "incremental",
-      "buffer_size": "256Kb",
+      "buffer_size": "4Kb",
       "join_type": "BNL",
       "attached_condition": "v1.a = t2.a and v2.a = t2.a or v2.b > 13 and t2.c < 115",
       "materialized": {
@@ -3138,7 +3139,7 @@ EXPLAIN
         "attached_condition": "v1.max_c < 300"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -3167,7 +3168,7 @@ EXPLAIN
         "attached_condition": "v2.b < 50 or v2.b = 19"
       },
       "buffer_type": "incremental",
-      "buffer_size": "256Kb",
+      "buffer_size": "4Kb",
       "join_type": "BNL",
       "attached_condition": "(v2.a = v1.a or v1.a = t2.a) and (v2.b < 50 or v2.b = 19)",
       "materialized": {
@@ -3317,7 +3318,7 @@ EXPLAIN
         "attached_condition": "v1.a = 1 and v1.b > 10"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.b is not null",
       "materialized": {
@@ -3435,7 +3436,7 @@ EXPLAIN
         "attached_condition": "t.a = 'b'"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "220",
       "join_type": "BNL"
     }
   }
@@ -3544,7 +3545,7 @@ EXPLAIN
         "attached_condition": "v2.max_c > 300"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "715",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -3574,7 +3575,7 @@ EXPLAIN
         "attached_condition": "v1.max_c < 500"
       },
       "buffer_type": "incremental",
-      "buffer_size": "256Kb",
+      "buffer_size": "9Kb",
       "join_type": "BNL",
       "attached_condition": "v1.a = v2.a or v1.a = t2.a",
       "materialized": {
@@ -3790,7 +3791,7 @@ EXPLAIN
         "attached_condition": "v1.avg_c < 400 or v1.a > 1"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "(v1.avg_c < 400 or v1.a > 1) and v1.a is not null and v1.b is not null",
       "materialized": {
@@ -3935,7 +3936,7 @@ EXPLAIN
         "attached_condition": "(v1.a = 1 or v1.max_c < 300) and v1.b > 25"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v1.a = 1 or v1.max_c < 300",
       "materialized": {
@@ -4128,7 +4129,7 @@ EXPLAIN
                 "attached_condition": "v1.max_c > 100 and v1.a > 7"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "materialized": {
                 "query_block": {
@@ -4229,7 +4230,7 @@ EXPLAIN
                 "attached_condition": "v1.b = 19 and v1.a < 5"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "materialized": {
                 "query_block": {
@@ -4271,7 +4272,7 @@ EXPLAIN
                 "attached_condition": "v1.max_c > 400 or v1.avg_c > 270"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "attached_condition": "(v1.max_c > 400 or v1.avg_c > 270) and v1.a < t2.a",
               "materialized": {
@@ -4383,7 +4384,7 @@ EXPLAIN
                 "attached_condition": "v1.a = 1 or v1.a = 6"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "attached_condition": "(v1.a = t2.a or v1.b = t2.b) and (v1.a = 1 or v1.a = 6)",
               "materialized": {
@@ -4426,7 +4427,7 @@ EXPLAIN
                 "attached_condition": "v1.a > 3 and v1.b > 27 or v1.max_c > 550"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "attached_condition": "v1.a > 3 and v1.b > 27 or v1.max_c > 550",
               "materialized": {
@@ -4540,7 +4541,7 @@ EXPLAIN
                 "attached_condition": "v1.a = 1 and (v1.max_c < 500 or v1.avg_c > 500)"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "attached_condition": "v1.max_c < 500 or v1.avg_c > 500",
               "materialized": {
@@ -4584,7 +4585,7 @@ EXPLAIN
                 "attached_condition": "v2.b > 10"
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "238",
               "join_type": "BNL",
               "attached_condition": "v2.a < t2.b or v2.max_c > 200",
               "materialized": {
@@ -4706,7 +4707,7 @@ EXPLAIN
         "attached_condition": "v_union.a < 3 and v_union.c > 100"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -4814,7 +4815,7 @@ EXPLAIN
         "attached_condition": "(v_union.a < 2 or v_union.c > 800) and v_union.b > 12"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "v_union.a < 2 or v_union.c > 800",
       "materialized": {
@@ -4911,7 +4912,7 @@ EXPLAIN
         "attached_condition": "v_union.a = 1 and v_union.c < 200"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -5078,7 +5079,7 @@ EXPLAIN
         "attached_condition": "v1.a = 1"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -5108,7 +5109,7 @@ EXPLAIN
         "attached_condition": "v_union.a = 1"
       },
       "buffer_type": "incremental",
-      "buffer_size": "256Kb",
+      "buffer_size": "4Kb",
       "join_type": "BNL",
       "attached_condition": "v_union.c > 800 or v1.max_c > 200",
       "materialized": {
@@ -5923,7 +5924,7 @@ EXPLAIN
         "attached_condition": "v1.a > 5 and v1.b > 12"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "333",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -6306,7 +6307,7 @@ EXPLAIN
         "attached_condition": "v4.b > 10 and v4.a > 1 or v4.b < 20"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "238",
       "join_type": "BNL",
       "attached_condition": "(v4.b > 10 and v4.a > 1 or v4.b < 20) and v4.a is not null",
       "materialized": {
@@ -6451,7 +6452,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "333",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -6971,7 +6972,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "715",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -7766,7 +7767,7 @@ EXPLAIN
         "attached_condition": "v2.pk > 2"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "119",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -7778,7 +7779,7 @@ EXPLAIN
             "key": "PRIMARY",
             "key_length": "4",
             "used_key_parts": ["pk"],
-            "rows": 2,
+            "rows": 1,
             "filtered": 100,
             "index_condition": "t.pk > 2"
           }
@@ -7884,7 +7885,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "sq.i = 2.7100000381469727",
+      "attached_condition": "sq.i = 2.71",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -8218,12 +8219,10 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "<subquery2>",
-      "access_type": "system",
-      "rows": 1,
-      "filtered": 100,
-      "materialized": {
-        "unique": 1,
+      "message": "Impossible WHERE"
+    },
+    "subqueries": [
+      {
         "query_block": {
           "select_id": 2,
           "table": {
@@ -8231,26 +8230,7 @@ EXPLAIN
           }
         }
       }
-    },
-    "table": {
-      "table_name": "<derived3>",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "v1.c = NULL",
-      "materialized": {
-        "query_block": {
-          "select_id": 3,
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 2,
-            "filtered": 100,
-            "attached_condition": "t1.c = NULL"
-          }
-        }
-      }
-    }
+    ]
   }
 }
 DROP VIEW v1;
@@ -8763,7 +8743,7 @@ EXPLAIN
         "attached_condition": "v2.i2 = 1"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "65",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -8879,7 +8859,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "163",
       "join_type": "BNL",
       "attached_condition": "t1.id2 = vc.id2"
     }
@@ -8952,18 +8932,18 @@ EXPLAIN
         "attached_condition": "v1.a = 1 and v1.b = 1 and v1.max_c > 30"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "having_condition": "max_c > 37 and max_c > 30 and t1.b = 1",
+          "having_condition": "max_c > 37 and max_c > 30",
           "table": {
             "table_name": "t1",
             "access_type": "ALL",
             "rows": 3,
             "filtered": 100,
-            "attached_condition": "t1.a = 1"
+            "attached_condition": "t1.a = 1 and t1.b = 1"
           }
         }
       }
@@ -9027,18 +9007,18 @@ EXPLAIN
         "attached_condition": "v1.a = 1 and v1.b = 1 and v1.d = 1 and v1.max_c > 30"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "having_condition": "max_c > 37 and max_c > 30 and t1.b = 1",
+          "having_condition": "max_c > 37 and max_c > 30",
           "table": {
             "table_name": "t1",
             "access_type": "ALL",
             "rows": 3,
             "filtered": 100,
-            "attached_condition": "t1.a = 1 and t1.d = 1"
+            "attached_condition": "t1.a = 1 and t1.b = 1 and t1.d = 1"
           }
         }
       }
@@ -9573,7 +9553,7 @@ EXPLAIN
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "having_condition": "t1.a < 3 and a > 1",
+          "having_condition": "a > 1",
           "filesort": {
             "sort_key": "t1.a",
             "temporary_table": {
@@ -9581,7 +9561,8 @@ EXPLAIN
                 "table_name": "t1",
                 "access_type": "ALL",
                 "rows": 3,
-                "filtered": 100
+                "filtered": 100,
+                "attached_condition": "t1.a < 3"
               }
             }
           }
@@ -9758,7 +9739,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "65",
       "join_type": "BNL",
       "attached_condition": "t1.a = dt1.a"
     }
@@ -9817,7 +9798,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "119",
       "join_type": "BNL",
       "attached_condition": "t1.a = dt.a"
     }
@@ -10067,11 +10048,11 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "case when (tab2.max_a = 1 or tab2.max_a = 2) then 1 else 0 end = 1",
+      "attached_condition": "case when tab2.max_a = 1 or tab2.max_a = 2 then 1 else 0 end = 1",
       "materialized": {
         "query_block": {
           "select_id": 3,
-          "having_condition": "case when (max_a = 1 or max_a = 2) then 1 else 0 end = 1",
+          "having_condition": "case when max_a = 1 or max_a = 2 then 1 else 0 end = 1",
           "filesort": {
             "sort_key": "t1.b",
             "temporary_table": {
@@ -10116,11 +10097,11 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "case when (tab2.max_a = 1 or tab2.max_a > 2 and tab2.max_a < 4) then 1 else 0 end = 1",
+      "attached_condition": "case when tab2.max_a = 1 or tab2.max_a > 2 and tab2.max_a < 4 then 1 else 0 end = 1",
       "materialized": {
         "query_block": {
           "select_id": 3,
-          "having_condition": "case when (max_a = 1 or max_a > 2 and max_a < 4) then 1 else 0 end = 1",
+          "having_condition": "case when max_a = 1 or max_a > 2 and max_a < 4 then 1 else 0 end = 1",
           "filesort": {
             "sort_key": "t1.b",
             "temporary_table": {
@@ -10165,11 +10146,11 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "case when (tab2.max_a > 1 and (tab2.max_a = 2 or tab2.max_a > 2)) then 1 else 0 end = 1",
+      "attached_condition": "case when tab2.max_a > 1 and (tab2.max_a = 2 or tab2.max_a > 2) then 1 else 0 end = 1",
       "materialized": {
         "query_block": {
           "select_id": 3,
-          "having_condition": "case when (max_a > 1 and (max_a = 2 or max_a > 2)) then 1 else 0 end = 1",
+          "having_condition": "case when max_a > 1 and (max_a = 2 or max_a > 2) then 1 else 0 end = 1",
           "filesort": {
             "sort_key": "t1.b",
             "temporary_table": {
@@ -10214,7 +10195,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "case when (tab2.b = 2 or tab2.b = 4) then 1 else 0 end = 1",
+      "attached_condition": "case when tab2.b = 2 or tab2.b = 4 then 1 else 0 end = 1",
       "materialized": {
         "query_block": {
           "select_id": 3,
@@ -10226,7 +10207,7 @@ EXPLAIN
                 "access_type": "ALL",
                 "rows": 3,
                 "filtered": 100,
-                "attached_condition": "case when (t1.b = 2 or t1.b = 4) then 1 else 0 end = 1"
+                "attached_condition": "case when t1.b = 2 or t1.b = 4 then 1 else 0 end = 1"
               }
             }
           }
@@ -10313,7 +10294,7 @@ EXPLAIN
               "attached_condition": "t1.f is not null"
             },
             "buffer_type": "flat",
-            "buffer_size": "256Kb",
+            "buffer_size": "64",
             "join_type": "BNL"
           }
         }
@@ -10488,7 +10469,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "65",
       "join_type": "BNL",
       "attached_condition": "t1.f2 = t.f2"
     }
@@ -10496,6 +10477,401 @@ EXPLAIN
 }
 DROP VIEW v1,v2;
 DROP TABLE t1;
+#
+# MDEV-18383: pushdown condition with the IF structure
+#             defined with Item_cond item
+#
+CREATE TABLE t1(a INT, b INT);
+CREATE TABLE t2(c INT, d INT);
+INSERT INTO t1 VALUES (1,2),(3,4),(5,6);
+INSERT INTO t2 VALUES (1,3),(3,7),(5,1);
+SELECT *
+FROM t1,
+(
+SELECT MAX(d) AS max_d,c
+FROM t2
+GROUP BY c
+) AS tab
+WHERE t1.a=tab.c AND
+IF(2,t1.a=1 OR t1.b>5,1=1);
+a	b	max_d	c
+1	2	3	1
+5	6	1	5
+DROP TABLE t1,t2;
+#
+# MDEV-19139: pushdown condition with Item_func_set_user_var
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE VIEW v1 AS SELECT a, MAX(b) FROM t1 GROUP BY a;
+SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
+1
+EXPLAIN FORMAT=JSON
+SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "message": "no matching row in const table"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "message": "no matching row in const table"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1;
+DROP VIEW v1;
+#
+# MDEV-21388 Wrong result of DAYNAME()=xxx in combination with condition_pushdown_for_derived=on
+#
+CREATE TABLE t1 (a INT, b DATE, c INT);
+INSERT INTO t1 VALUES
+(1,'2001-01-21',345),
+(6,'2001-01-20',315),
+(6,'2001-01-20',214);
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (2,19), (7,20);
+CREATE VIEW v1 AS SELECT a, b, max(c) AS max_c FROM t1
+GROUP BY a,b HAVING max_c < 707;
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a);
+a	b	max_c	a	b	dayname(v1.b)
+1	2001-01-21	345	2	19	Sunday
+1	2001-01-21	345	7	20	Sunday
+6	2001-01-20	315	7	20	Saturday
+SET optimizer_switch='condition_pushdown_for_derived=off';
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a) AND dayname(v1.b)='Sunday';
+a	b	max_c	a	b	dayname(v1.b)
+1	2001-01-21	345	2	19	Sunday
+1	2001-01-21	345	7	20	Sunday
+SET optimizer_switch='condition_pushdown_for_derived=on';
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a) AND dayname(v1.b)='Sunday';
+a	b	max_c	a	b	dayname(v1.b)
+1	2001-01-21	345	2	19	Sunday
+1	2001-01-21	345	7	20	Sunday
+DROP VIEW v1;
+DROP TABLE t1, t2;
+SET optimizer_switch=DEFAULT;
+#
+# MDEV-17177: an attempt to push down IN predicate when one of
+#             the arguments is too complex to be cloned
+#
+CREATE TABLE t1 (a VARCHAR(8));
+INSERT INTO t1 VALUES ('abc'),('def');
+CREATE VIEW v1 AS SELECT * FROM t1 GROUP BY a;
+SELECT * FROM v1 WHERE IF( a REGEXP 'def', 'foo', a ) IN ('abc', 'foobar');
+a
+abc
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-19179: pushdown into UNION of aggregation selects whose
+#             corresponding columns have different names
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+select *
+from (select min(a) as x from t1 union all select max(a) as y from t1) t
+where x>0;
+x
+1
+7
+explain extended select *
+from (select min(a) as x from t1 union all select max(a) as y from t1) t
+where x>0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `t`.`x` AS `x` from (/* select#2 */ select min(`test`.`t1`.`a`) AS `x` from `test`.`t1` having `x` > 0 union all /* select#3 */ select max(`test`.`t1`.`a`) AS `x` from `test`.`t1` having `x` > 0) `t` where `t`.`x` > 0
+prepare stmt from "select *
+from (select min(a) as x from t1 union all select max(a) as y from t1) t
+where x>0";
+execute stmt;
+x
+1
+7
+execute stmt;
+x
+1
+7
+deallocate prepare stmt;
+create view v1(m) as
+select min(a) as x from t1 union all select max(a) as y from t1;
+select * from v1 where m > 0;
+m
+1
+7
+drop view v1;
+drop table t1;
+#
+# MDEV-25635: pushdown into grouping view using aggregate functions
+#             with constant arguments via a mergeable derived table
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (3), (7), (7), (3);
+create view v1 as select a, sum(1) as f, sum(1) as g from t1 group by a;
+select * from v1;
+a	f	g
+1	1	1
+3	3	3
+7	3	3
+select * from (select * from v1) as dt where a=f and a=g;
+a	f	g
+1	1	1
+3	3	3
+explain extended select * from (select * from v1) as dt where a=f and a=g;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using temporary; Using filesort
+Warnings:
+Note	1003	/* select#1 */ select `v1`.`a` AS `a`,`v1`.`f` AS `f`,`v1`.`g` AS `g` from `test`.`v1` where `v1`.`a` = `v1`.`f` and `v1`.`a` = `v1`.`g`
+create view v2 as select a, min(1) as f, min(1) as g from t1 group by a;
+select * from v2;
+a	f	g
+1	1	1
+3	1	1
+7	1	1
+select * from (select * from v2) as dt where a=f and a=g;
+a	f	g
+1	1	1
+explain extended select * from (select * from v2) as dt where a=f and a=g;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using temporary; Using filesort
+Warnings:
+Note	1003	/* select#1 */ select `v2`.`a` AS `a`,`v2`.`f` AS `f`,`v2`.`g` AS `g` from `test`.`v2` where `v2`.`a` = `v2`.`f` and `v2`.`a` = `v2`.`g`
+drop view v1,v2;
+drop table t1;
+#
+# MDEV-25969: Condition pushdown into derived table doesn't work if select list uses SP
+#
+create function f1(a int) returns int DETERMINISTIC return (a+1);
+create table t1 (
+pk int primary key,
+a int,
+b int,
+key(a)
+);
+create table t2(a int);
+insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t3(a int);
+insert into t3 select A.a + B.a* 10 + C.a * 100 from t2 A, t2 B, t2 C;
+insert into t1 select a,a,a from t3;
+create view v1 as
+select
+t1.a as col1,
+f1(t1.b) as col2
+from
+t1;
+create view v2 as
+select
+t1.a as col1,
+f1(t1.b) as col2
+from
+t1;
+create view v3 as
+select col2, col1 from v1
+union all
+select col2, col1 from v2;
+explain select * from v3 where col1=123;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DERIVED	t1	ref	a	a	5	const	1	
+3	UNION	t1	ref	a	a	5	const	1	
+# This must use ref accesses for reading table t1, not full scans:
+explain format=json
+select * from v3 where col1=123 and col2=321;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v3.col1 = 123 and v3.col2 = 321",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ref",
+                    "possible_keys": ["a"],
+                    "key": "a",
+                    "key_length": "5",
+                    "used_key_parts": ["a"],
+                    "ref": ["const"],
+                    "rows": 1,
+                    "filtered": 100
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ref",
+                    "possible_keys": ["a"],
+                    "key": "a",
+                    "key_length": "5",
+                    "used_key_parts": ["a"],
+                    "ref": ["const"],
+                    "rows": 1,
+                    "filtered": 100
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop function f1;
+drop view v1,v2,v3;
+drop table t1, t2,t3;
+#
+# Another testcase, with pushdown through GROUP BY
+#
+create table t1 (a int, b  int);
+insert into t1 values (1,1),(2,2),(3,3);
+create function f1(a int) returns int DETERMINISTIC return (a+1);
+create view v2(a, a2, s) as 
+select a, f1(a), sum(b) from t1 group by a, f1(a);
+# Here, 
+#   "(s+1) > 10" will be pushed into HAVING
+#   "a > 1" will be pushed all the way to the table scan on t1
+#   "a2>123" will be pushed into HAVING (as it refers to an SP call which
+#                                       prevents pushing it to the WHERE)
+explain format=json
+select * from v2 where (s+1) > 10 AND a > 1 and a2>123;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "v2.s + 1 > 10 and v2.a > 1 and v2.a2 > 123",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "s + 1 > 10 and a2 > 123",
+          "filesort": {
+            "sort_key": "t1.a, f1(t1.a)",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 3,
+                "filtered": 100,
+                "attached_condition": "t1.a > 1"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# Extra test for 10.4+: Check that this works for pushdown into IN
+# subqueries:
+create table t4 (a int, b int, c decimal);
+insert into t4 select a,a,a from t1;
+# The subquery must be materialized and must have
+#  "attached_condition": "t1.a + 1 > 10",
+#  "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
+explain format=json
+select *
+from t4
+where
+(a,b,c) in (select a, f1(a), sum(b) from t1 group by a, f1(a))
+and
+(a+1) > 10 AND b > 1 and c>123;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t4",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "t4.a + 1 > 10 and t4.b > 1 and t4.c > 123 and t4.a is not null and t4.b is not null and t4.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "23",
+      "used_key_parts": ["a", "f1(a)", "sum(b)"],
+      "ref": ["test.t4.a", "test.t4.b", "test.t4.c"],
+      "rows": 1,
+      "filtered": 100,
+      "attached_condition": "t4.c = `<subquery2>`.`sum(b)`",
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
+          "temporary_table": {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100,
+              "attached_condition": "t1.a + 1 > 10"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+drop view v2;
+drop function f1;
+drop table t1, t4;
 # End of 10.2 tests
 #
 # MDEV-14579: pushdown conditions into materialized views/derived tables
@@ -10647,7 +11023,7 @@ EXPLAIN
         "attached_condition": "v1.a = 8"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -10735,7 +11111,7 @@ EXPLAIN
         "attached_condition": "v1.a = 8"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -11225,7 +11601,7 @@ EXPLAIN
         "attached_condition": "v1.a > 3 or v1.a = 1 and v1.c < 110"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "attached_condition": "v1.c = t2.c and v1.a > 3 and t2.c > 110 or v1.a = 1 and v1.c < 110",
       "materialized": {
@@ -11237,7 +11613,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 2,
-                  "having_condition": "c < 300 and (t1.a > 3 and c > 110 or c < 110 and t1.a = 1)",
+                  "having_condition": "c < 300 and (t1.a > 3 and c > 110 or t1.a = 1 and c < 110)",
                   "filesort": {
                     "sort_key": "t1.a, t1.b",
                     "temporary_table": {
@@ -11256,7 +11632,7 @@ EXPLAIN
                 "query_block": {
                   "select_id": 3,
                   "operation": "INTERSECT",
-                  "having_condition": "c > 100 and (t1.a > 3 and c > 110 or c < 110 and t1.a = 1)",
+                  "having_condition": "c > 100 and (t1.a > 3 and c > 110 or t1.a = 1 and c < 110)",
                   "filesort": {
                     "sort_key": "t1.a, t1.b",
                     "temporary_table": {
@@ -11566,7 +11942,7 @@ EXPLAIN
         "attached_condition": "v1.a = 6"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -11656,7 +12032,7 @@ EXPLAIN
         "attached_condition": "v1.a = 6"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "materialized": {
         "query_block": {
@@ -12150,7 +12526,7 @@ EXPLAIN
         "attached_condition": "v1.a > 1 or v1.a = 1 and v1.c > 500"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "attached_condition": "v1.c = t2.c and v1.a > 1 and t2.c < 500 or v1.a = 1 and v1.c > 500",
       "materialized": {
@@ -12162,7 +12538,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 2,
-                  "having_condition": "c > 200 and (t1.a > 1 and c < 500 or c > 500 and t1.a = 1)",
+                  "having_condition": "c > 200 and (t1.a > 1 and c < 500 or t1.a = 1 and c > 500)",
                   "filesort": {
                     "sort_key": "t1.a, t1.b",
                     "temporary_table": {
@@ -12181,7 +12557,7 @@ EXPLAIN
                 "query_block": {
                   "select_id": 3,
                   "operation": "EXCEPT",
-                  "having_condition": "c < 300 and (t1.a > 1 and c < 500 or c > 500 and t1.a = 1)",
+                  "having_condition": "c < 300 and (t1.a > 1 and c < 500 or t1.a = 1 and c > 500)",
                   "filesort": {
                     "sort_key": "t1.a, t1.b",
                     "temporary_table": {
@@ -13963,16 +14339,16 @@ a	b	max_c	a	b	c
 1	21	345	3	21	231
 select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 a	b	max_c	a	b	c
-1	21	345	3	21	231
 2	33	7	5	33	207
-2	33	7	8	33	117
-3	21	500	3	21	231
 4	33	123	5	33	207
+2	33	7	8	33	117
 4	33	123	8	33	117
+1	21	345	3	21	231
+3	21	500	3	21	231
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t3	range	i1	i1	5	NULL	5	Using index condition
 explain format=json select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 EXPLAIN
@@ -13980,23 +14356,11 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t2",
+      "table_name": "<derived2>",
       "access_type": "ALL",
-      "rows": 9,
-      "filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "<derived2>",
-        "access_type": "ALL",
-        "rows": 5,
-        "filtered": 80,
-        "attached_condition": "v1.a < 5"
-      },
-      "buffer_type": "flat",
-      "buffer_size": "256Kb",
-      "join_type": "BNL",
-      "attached_condition": "v1.b = t2.b",
+      "rows": 5,
+      "filtered": 100,
+      "attached_condition": "v1.a < 5",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -14013,6 +14377,18 @@ EXPLAIN
           }
         }
       }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 9,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "173",
+      "join_type": "BNL",
+      "attached_condition": "t2.b = v1.b"
     }
   }
 }
@@ -14106,7 +14482,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "173",
       "join_type": "BNL",
       "attached_condition": "t2.b = v1.b"
     }
@@ -14936,7 +15312,9 @@ insert into t2 values
 insert into t2 select a+10, b+10, concat(c,'f') from t2;
 analyze table t1,t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 set statement optimizer_switch='split_materialized=off' for select t1.a,t.s,t.m
 from t1 join
@@ -14966,7 +15344,7 @@ where t1.b < 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	range	idx_b	idx_b	5	NULL	4	100.00	Using index condition; Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	100.00	
-2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	2	100.00	
+2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`s` AS `s`,`t`.`m` AS `m` from `test`.`t1` join (/* select#2 */ select `test`.`t2`.`a` AS `a`,sum(`test`.`t2`.`b`) AS `s`,min(`test`.`t2`.`c`) AS `m` from `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` group by `test`.`t2`.`a`) `t` where `t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` < 3
 explain format=json select t1.a,t.s,t.m
@@ -15001,6 +15379,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "outer_ref_condition": "t1.a is not null",
@@ -15012,7 +15391,7 @@ EXPLAIN
             "key_length": "5",
             "used_key_parts": ["a"],
             "ref": ["test.t1.a"],
-            "rows": 2,
+            "rows": 1,
             "filtered": 100
           }
         }
@@ -15074,11 +15453,11 @@ from t1 join
 on t1.a=t.a
 where t1.b <= 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	idx_b	NULL	NULL	NULL	12	75.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	9	100.00	
-2	DERIVED	t2	ALL	idx_a	NULL	NULL	NULL	90	100.00	Using temporary; Using filesort
+1	PRIMARY	t1	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	100.00	
+2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	100.00	
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`s` AS `s`,`t`.`m` AS `m` from `test`.`t1` join (/* select#2 */ select `test`.`t2`.`a` AS `a`,sum(`test`.`t2`.`b`) AS `s`,min(`test`.`t2`.`b`) AS `m` from `test`.`t2` group by `test`.`t2`.`a`) `t` where `t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` <= 5
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`s` AS `s`,`t`.`m` AS `m` from `test`.`t1` join (/* select#2 */ select `test`.`t2`.`a` AS `a`,sum(`test`.`t2`.`b`) AS `s`,min(`test`.`t2`.`b`) AS `m` from `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` group by `test`.`t2`.`a`) `t` where `t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` <= 5
 explain format=json select t1.a,t.s,t.m
 from t1 join
 (select a, sum(t2.b) as s, min(t2.b) as m from t2 group by t2.a) t
@@ -15093,7 +15472,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 75,
+      "filtered": 83.333,
       "attached_condition": "t1.b <= 5 and t1.a is not null"
     },
     "table": {
@@ -15104,22 +15483,23 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t1.a"],
-      "rows": 9,
+      "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
-          "filesort": {
-            "sort_key": "t2.a",
-            "temporary_table": {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "possible_keys": ["idx_a"],
-                "rows": 90,
-                "filtered": 100
-              }
-            }
+          "outer_ref_condition": "t1.a is not null",
+          "table": {
+            "table_name": "t2",
+            "access_type": "ref",
+            "possible_keys": ["idx_a"],
+            "key": "idx_a",
+            "key_length": "5",
+            "used_key_parts": ["a"],
+            "ref": ["test.t1.a"],
+            "rows": 1,
+            "filtered": 100
           }
         }
       }
@@ -15178,11 +15558,11 @@ from t1 left join
 (select a, max(t2.b) max, min(t2.b) min from t2 group by t2.a) t
 on t1.a=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	100.00	Using where
-2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	9	100.00	Using where
+2	DERIVED	t2	ALL	idx_a	NULL	NULL	NULL	90	100.00	Using temporary; Using filesort
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t1` left join (/* select#2 */ select `test`.`t2`.`a` AS `a`,max(`test`.`t2`.`b`) AS `max`,min(`test`.`t2`.`b`) AS `min` from `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` group by `test`.`t2`.`a`) `t` on(`t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` is not null) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t1` left join (/* select#2 */ select `test`.`t2`.`a` AS `a`,max(`test`.`t2`.`b`) AS `max`,min(`test`.`t2`.`b`) AS `min` from `test`.`t2` group by `test`.`t2`.`a`) `t` on(`t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` is not null) where 1
 explain format=json select t1.a,t.max,t.min
 from t1 left join
 (select a, max(t2.b) max, min(t2.b) min from t2 group by t2.a) t
@@ -15195,7 +15575,7 @@ EXPLAIN
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
-      "rows": 4,
+      "rows": 12,
       "filtered": 100
     },
     "table": {
@@ -15206,23 +15586,23 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t1.a"],
-      "rows": 2,
+      "rows": 9,
       "filtered": 100,
       "attached_condition": "trigcond(trigcond(t1.a is not null))",
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "outer_ref_condition": "t1.a is not null",
-          "table": {
-            "table_name": "t2",
-            "access_type": "ref",
-            "possible_keys": ["idx_a"],
-            "key": "idx_a",
-            "key_length": "5",
-            "used_key_parts": ["a"],
-            "ref": ["test.t1.a"],
-            "rows": 2,
-            "filtered": 100
+          "filesort": {
+            "sort_key": "t2.a",
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "possible_keys": ["idx_a"],
+                "rows": 90,
+                "filtered": 100
+              }
+            }
           }
         }
       }
@@ -15243,7 +15623,9 @@ insert into t4 values
 insert into t4 select a+10, b+10, concat(c,'f') from t4;
 analyze table t3,t4;
 Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
 set statement optimizer_switch='split_materialized=off' for select t3.a,t3.c,t.max,t.min
 from t3 join
@@ -15267,7 +15649,7 @@ from t3 join
 on t3.a=t.a and t3.c=t.c
 where t3.b > 15;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	3	100.00	Using index condition; Using where
+1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	2	100.00	Using index condition; Using where
 1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	2	100.00	
 2	LATERAL DERIVED	t4	ref	idx	idx	133	test.t3.a,test.t3.c	1	100.00	
 Warnings:
@@ -15288,7 +15670,7 @@ EXPLAIN
       "key": "idx_b",
       "key_length": "5",
       "used_key_parts": ["b"],
-      "rows": 3,
+      "rows": 2,
       "filtered": 100,
       "index_condition": "t3.b > 15",
       "attached_condition": "t3.a is not null and t3.c is not null"
@@ -15304,6 +15686,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "outer_ref_condition": "t3.a is not null and t3.c is not null",
@@ -15345,7 +15728,7 @@ from t3 join
 on t3.a=t.a and t3.c=t.c
 where t3.b <= 15;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	idx_b	NULL	NULL	NULL	12	75.00	Using where
+1	PRIMARY	t3	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	4	100.00	
 2	DERIVED	t4	ALL	idx	NULL	NULL	NULL	40	100.00	Using temporary; Using filesort
 Warnings:
@@ -15364,7 +15747,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 75,
+      "filtered": 83.333,
       "attached_condition": "t3.b <= 15 and t3.a is not null and t3.c is not null"
     },
     "table": {
@@ -15419,7 +15802,7 @@ from t3 join
 on t3.a=t.a and t3.c=t.c
 where t3.b > 15;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	3	100.00	Using index condition; Using where
+1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	2	100.00	Using index condition; Using where
 1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	2	100.00	
 2	LATERAL DERIVED	t4	ref	idx	idx	133	test.t3.a,test.t3.c	1	100.00	
 Warnings:
@@ -15440,7 +15823,7 @@ EXPLAIN
       "key": "idx_b",
       "key_length": "5",
       "used_key_parts": ["b"],
-      "rows": 3,
+      "rows": 2,
       "filtered": 100,
       "index_condition": "t3.b > 15",
       "attached_condition": "t3.a is not null and t3.c is not null"
@@ -15456,6 +15839,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "outer_ref_condition": "t3.a is not null and t3.c is not null",
@@ -15497,7 +15881,7 @@ from t3 join
 on t3.a=t.a and t3.c=t.c
 where t3.b <= 15;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	idx_b	NULL	NULL	NULL	12	75.00	Using where
+1	PRIMARY	t3	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	4	100.00	
 2	DERIVED	t4	ALL	idx	NULL	NULL	NULL	40	100.00	Using temporary; Using filesort
 Warnings:
@@ -15516,7 +15900,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 75,
+      "filtered": 83.333,
       "attached_condition": "t3.b <= 15 and t3.a is not null and t3.c is not null"
     },
     "table": {
@@ -15559,8 +15943,11 @@ insert into t4 select a+100, b+100, concat(c,'g') from t4;
 insert into t4 select a+1000, b+1000, concat(c,'h') from t4;
 analyze table t2,t3,t4;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
 set statement optimizer_switch='split_materialized=off' for select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
 from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
@@ -15581,9 +15968,9 @@ from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
 where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	range	idx	idx	133	NULL	2	100.00	Using index condition; Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	2	100.00	Using where
+1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	2	100.00	
-2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	3	100.00	
+2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	2	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`t`.`c` AS `t_c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` where `test`.`t4`.`c` = `test`.`t3`.`c` group by `test`.`t4`.`c`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` between 80 and 85 and `test`.`t2`.`c` in ('y','z')
 explain format=json select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
@@ -15613,7 +16000,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t2.a"],
-      "rows": 2,
+      "rows": 1,
       "filtered": 100,
       "attached_condition": "t3.c is not null"
     },
@@ -15628,6 +16015,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "outer_ref_condition": "t3.c is not null",
@@ -15639,7 +16027,7 @@ EXPLAIN
             "key_length": "128",
             "used_key_parts": ["c"],
             "ref": ["test.t3.c"],
-            "rows": 3,
+            "rows": 2,
             "filtered": 100
           }
         }
@@ -15727,8 +16115,8 @@ explain extended select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
 from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
 where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	100.00	Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	2	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	63.28	Using where
+1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	10	100.00	
 2	DERIVED	t4	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary; Using filesort
 Warnings:
@@ -15744,7 +16132,7 @@ EXPLAIN
       "table_name": "t2",
       "access_type": "ALL",
       "rows": 90,
-      "filtered": 100,
+      "filtered": 63.281,
       "attached_condition": "t2.b < 40 and t2.a is not null"
     },
     "table": {
@@ -15755,7 +16143,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t2.a"],
-      "rows": 2,
+      "rows": 1,
       "filtered": 100,
       "attached_condition": "t3.c is not null"
     },
@@ -15828,9 +16216,9 @@ from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
 where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	range	idx	idx	133	NULL	2	100.00	Using index condition; Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	2	100.00	Using where
+1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	2	100.00	
-2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	3	100.00	Using temporary
+2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	2	100.00	Using temporary
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b`,`test`.`t3`.`c` AS `c`,`t`.`c` AS `c`,`t`.`b` AS `b`,`t`.`sum(b) over (partition by c)` AS `sum(b) over (partition by c)` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,`test`.`t4`.`b` AS `b`,sum(`test`.`t4`.`b`) over ( partition by `test`.`t4`.`c`) AS `sum(b) over (partition by c)` from `test`.`t4` where `test`.`t4`.`c` = `test`.`t3`.`c`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` between 80 and 85 and `test`.`t2`.`c` in ('y','z')
 explain format=json select *
@@ -15860,7 +16248,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t2.a"],
-      "rows": 2,
+      "rows": 1,
       "filtered": 100,
       "attached_condition": "t3.c is not null"
     },
@@ -15875,6 +16263,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "outer_ref_condition": "t3.c is not null",
@@ -15893,7 +16282,7 @@ EXPLAIN
                 "key_length": "128",
                 "used_key_parts": ["c"],
                 "ref": ["test.t3.c"],
-                "rows": 3,
+                "rows": 2,
                 "filtered": 100
               }
             }
@@ -16223,8 +16612,8 @@ explain extended select *
 from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
 where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	100.00	Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	2	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	63.28	Using where
+1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	10	100.00	
 2	DERIVED	t4	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary
 Warnings:
@@ -16240,7 +16629,7 @@ EXPLAIN
       "table_name": "t2",
       "access_type": "ALL",
       "rows": 90,
-      "filtered": 100,
+      "filtered": 63.281,
       "attached_condition": "t2.b < 40 and t2.a is not null"
     },
     "table": {
@@ -16251,7 +16640,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a"],
       "ref": ["test.t2.a"],
-      "rows": 2,
+      "rows": 1,
       "filtered": 100,
       "attached_condition": "t3.c is not null"
     },
@@ -16307,9 +16696,13 @@ INSERT INTO t4 VALUES
 (5,'zzz'),(9,'xyz'),(2,'yxz'),(5,'zxy'),(7,'zyx') ;
 ANALYZE TABLE t1,t2,t3,t4;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
 CREATE VIEW v1 AS
 SELECT c FROM t3
@@ -16359,6 +16752,7 @@ EXPLAIN
       "filtered": 100,
       "first_match": "t4",
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 3,
           "const_condition": "1",
@@ -16402,7 +16796,7 @@ EXPLAIN
                     "filtered": 100
                   },
                   "buffer_type": "flat",
-                  "buffer_size": "256Kb",
+                  "buffer_size": "65",
                   "join_type": "BNL",
                   "attached_condition": "t2.i = t1.i and t2.i = t1.i"
                 }
@@ -16505,6 +16899,7 @@ EXPLAIN
       "rows": 2,
       "filtered": 100,
       "materialized": {
+        "lateral": 1,
         "query_block": {
           "select_id": 2,
           "table": {
@@ -16549,7 +16944,7 @@ EXPLAIN EXTENDED
 SELECT * FROM v1 JOIN v2 ON v1.f = v2.f;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-3	LATERAL DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
 Note	1003	/* select#1 */ select NULL AS `f`,`v2`.`f` AS `f` from `test`.`t1` `a` straight_join `test`.`t1` `b` join `test`.`v2` where 0
 DROP VIEW v1,v2;
@@ -16651,8 +17046,11 @@ INSERT INTO t3 VALUES
 (3), (4), (1), (8), (3);
 ANALYZE tables t1,t2,t3;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 SELECT *
 FROM t3,
@@ -16682,7 +17080,7 @@ WHERE t3.d = dt.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.d	2	100.00	
-2	LATERAL DERIVED	t1	ref	idx_b	idx_b	5	test.t3.d	2	100.00	Using index; Using temporary; Using filesort
+2	LATERAL DERIVED	t1	ref	idx_b	idx_b	5	test.t3.d	1	100.00	Using index; Using temporary; Using filesort
 2	LATERAL DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`d` AS `d`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from `test`.`t3` join (/* select#2 */ select `test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`b` = `test`.`t3`.`d` group by `test`.`t1`.`b`,`test`.`t2`.`c`) `dt` where `dt`.`b` = `test`.`t3`.`d`
@@ -16727,4 +17125,484 @@ id	username	id	userid	logindate
 2	user2	3	2	2017-06-19 12:17:02
 set join_cache_level=default;
 DROP TABLE t1,t2;
+#
+# MDEV-21614: potentially splittable materialized derived/view
+#             within materialized semi-join
+#
+create table t1 (
+id int not null auto_increment primary key,
+a int not null
+) engine=myisam;
+create table t2 (
+id int not null auto_increment primary key,
+ro_id int not null,
+flag int not null, key (ro_id)
+) engine=myisam;
+insert into t1(a) select seq+100 from seq_1_to_20;
+insert into t2(ro_id,flag) select seq, 1 from seq_1_to_20;
+insert into t2(ro_id,flag) select seq, 0 from seq_1_to_20;
+create view v1 as
+select t1.* from t1 left join t2 on (t1.id = t2.ro_id AND t2.flag = 1)
+group by t1.id;
+select id, a from t1 where  id in (select id from v1);
+id	a
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+10	110
+11	111
+12	112
+13	113
+14	114
+15	115
+16	116
+17	117
+18	118
+19	119
+20	120
+explain extended select id, a from t1 where  id in (select id from v1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	<derived3>	ref	key0	key0	4	test.t1.id	2	100.00	FirstMatch(t1)
+3	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	4	test.t1.id	1	100.00	
+3	LATERAL DERIVED	t2	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`v1`) where `v1`.`id` = `test`.`t1`.`id`
+select id, a from t1
+where id in (select id
+from (select t1.* from t1 left join t2
+on (t1.id = t2.ro_id AND t2.flag = 1)
+group by t1.id) dt);
+id	a
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+10	110
+11	111
+12	112
+13	113
+14	114
+15	115
+16	116
+17	117
+18	118
+19	119
+20	120
+explain extended select id, a from t1
+where id in (select id
+from (select t1.* from t1 left join t2
+on (t1.id = t2.ro_id AND t2.flag = 1)
+group by t1.id) dt);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	<derived3>	ref	key0	key0	4	test.t1.id	2	100.00	FirstMatch(t1)
+3	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	4	test.t1.id	1	100.00	
+3	LATERAL DERIVED	t2	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` semi join ((/* select#3 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`ro_id` = `test`.`t1`.`id` and `test`.`t2`.`flag` = 1) where `test`.`t1`.`id` = `test`.`t1`.`id` group by `test`.`t1`.`id`) `dt`) where `dt`.`id` = `test`.`t1`.`id`
+drop view v1;
+drop table t1,t2;
+#
+# MDEV-21883: potentially splittable materialized derived
+#             that uses a join of 32 tables
+#
+CREATE TABLE t (id INT NOT NULL PRIMARY KEY);
+INSERT INTO t values (1),(2),(3);
+set statement optimizer_switch='split_materialized=off' for SELECT t.id FROM t
+LEFT JOIN (
+SELECT t0.id FROM t AS t0
+LEFT JOIN t AS t1 ON 0=1
+LEFT JOIN t AS t2 ON 0=1
+LEFT JOIN t AS t3 ON 0=1
+LEFT JOIN t AS t4 ON 0=1
+LEFT JOIN t AS t5 ON 0=1
+LEFT JOIN t AS t6 ON 0=1
+LEFT JOIN t AS t7 ON 0=1
+LEFT JOIN t AS t8 ON 0=1
+LEFT JOIN t AS t9 ON 0=1
+LEFT JOIN t AS t10 ON 0=1
+LEFT JOIN t AS t11 ON 0=1
+LEFT JOIN t AS t12 ON 0=1
+LEFT JOIN t AS t13 ON 0=1
+LEFT JOIN t AS t14 ON 0=1
+LEFT JOIN t AS t15 ON 0=1
+LEFT JOIN t AS t16 ON 0=1
+LEFT JOIN t AS t17 ON 0=1
+LEFT JOIN t AS t18 ON 0=1
+LEFT JOIN t AS t19 ON 0=1
+LEFT JOIN t AS t20 ON 0=1
+LEFT JOIN t AS t21 ON 0=1
+LEFT JOIN t AS t22 ON 0=1
+LEFT JOIN t AS t23 ON 0=1
+LEFT JOIN t AS t24 ON 0=1
+LEFT JOIN t AS t25 ON 0=1
+LEFT JOIN t AS t26 ON 0=1
+LEFT JOIN t AS t27 ON 0=1
+LEFT JOIN t AS t28 ON 0=1
+LEFT JOIN t AS t29 ON 0=1
+LEFT JOIN t AS t30 ON 0=1
+LEFT JOIN t AS t31 ON 0=1
+GROUP BY t0.id) AS dt ON dt.id = t.id;
+id
+1
+2
+3
+set statement optimizer_switch='split_materialized=on' for SELECT t.id FROM t
+LEFT JOIN (
+SELECT t0.id FROM t AS t0
+LEFT JOIN t AS t1 ON 0=1
+LEFT JOIN t AS t2 ON 0=1
+LEFT JOIN t AS t3 ON 0=1
+LEFT JOIN t AS t4 ON 0=1
+LEFT JOIN t AS t5 ON 0=1
+LEFT JOIN t AS t6 ON 0=1
+LEFT JOIN t AS t7 ON 0=1
+LEFT JOIN t AS t8 ON 0=1
+LEFT JOIN t AS t9 ON 0=1
+LEFT JOIN t AS t10 ON 0=1
+LEFT JOIN t AS t11 ON 0=1
+LEFT JOIN t AS t12 ON 0=1
+LEFT JOIN t AS t13 ON 0=1
+LEFT JOIN t AS t14 ON 0=1
+LEFT JOIN t AS t15 ON 0=1
+LEFT JOIN t AS t16 ON 0=1
+LEFT JOIN t AS t17 ON 0=1
+LEFT JOIN t AS t18 ON 0=1
+LEFT JOIN t AS t19 ON 0=1
+LEFT JOIN t AS t20 ON 0=1
+LEFT JOIN t AS t21 ON 0=1
+LEFT JOIN t AS t22 ON 0=1
+LEFT JOIN t AS t23 ON 0=1
+LEFT JOIN t AS t24 ON 0=1
+LEFT JOIN t AS t25 ON 0=1
+LEFT JOIN t AS t26 ON 0=1
+LEFT JOIN t AS t27 ON 0=1
+LEFT JOIN t AS t28 ON 0=1
+LEFT JOIN t AS t29 ON 0=1
+LEFT JOIN t AS t30 ON 0=1
+LEFT JOIN t AS t31 ON 0=1
+GROUP BY t0.id) AS dt ON dt.id = t.id;
+id
+1
+2
+3
+DROP TABLE t;
+#
+# MDEV-23804: Server crashes in st_select_lex::collect_grouping_fields_for_derived
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(4);
+CREATE VIEW v1 AS SELECT a FROM t1 UNION VALUES (3),(4);
+ANALYZE FORMAT=JSON SELECT * from v1 WHERE a=3;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 4,
+      "r_rows": 2,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 50,
+      "attached_condition": "v1.a = 3",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "r_loops": 1,
+            "r_rows": 2,
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "r_loops": 1,
+                  "r_total_time_ms": "REPLACED",
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "r_loops": 1,
+                    "rows": 2,
+                    "r_rows": 2,
+                    "r_total_time_ms": "REPLACED",
+                    "filtered": 100,
+                    "r_filtered": 50,
+                    "attached_condition": "t1.a = 3"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "message": "No tables used"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+SELECT * from v1 WHERE a=3;
+a
+3
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-25128: Split optimization for join with materialized semi-join
+#
+create table t1 (id int, a int, index (a), index (id, a)) engine=myisam;
+insert into t1 values
+(17,1),(17,3010),(17,3013),(17,3053),(21,2446),(21,2467),(21,2);
+create table t2 (a int) engine=myisam;
+insert into t2 values (1),(2),(3);
+create  table t3 (id int) engine=myisam;
+insert into t3 values (1),(2);
+analyze table t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+set optimizer_switch="split_materialized=off";
+select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+id	a	a	id
+17	1	1	1
+21	2	2	2
+explain select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ref	a	a	5	test.t3.id	1	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	2	
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	cp2	index	NULL	a	5	NULL	7	Using index
+explain format=json select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t3.`id` is not null and t3.`id` is not null"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t3.id"],
+      "rows": 1,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "4",
+      "used_key_parts": ["a"],
+      "ref": ["func"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t3.id"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "cp2",
+            "access_type": "index",
+            "key": "a",
+            "key_length": "5",
+            "used_key_parts": ["a"],
+            "rows": 7,
+            "filtered": 100,
+            "using_index": true
+          }
+        }
+      }
+    }
+  }
+}
+set optimizer_switch="split_materialized=default";
+select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+id	a	a	id
+17	1	1	1
+21	2	2	2
+explain select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ref	a	a	5	test.t3.id	1	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	2	
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
+2	LATERAL DERIVED	cp2	ref	a	a	5	test.t1.a	1	Using index
+explain format=json select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t3.`id` is not null and t3.`id` is not null"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t3.id"],
+      "rows": 1,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "4",
+      "used_key_parts": ["a"],
+      "ref": ["func"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t3.id"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "lateral": 1,
+        "query_block": {
+          "select_id": 2,
+          "outer_ref_condition": "t1.a is not null",
+          "table": {
+            "table_name": "cp2",
+            "access_type": "ref",
+            "possible_keys": ["a"],
+            "key": "a",
+            "key_length": "5",
+            "used_key_parts": ["a"],
+            "ref": ["test.t1.a"],
+            "rows": 1,
+            "filtered": 100,
+            "using_index": true
+          }
+        }
+      }
+    }
+  }
+}
+prepare stmt from "select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2)";
+execute stmt;
+id	a	a	id
+17	1	1	1
+21	2	2	2
+execute stmt;
+id	a	a	id
+17	1	1	1
+21	2	2	2
+deallocate prepare stmt;
+drop table t1,t2,t3;
 # End of 10.3 tests
+#
+# MDEV-18679: materialized view with SELECT S containing materialized
+#             derived when impossible WHERE has been detected for S
+#
+create table t1 (pk int, f varchar(1));
+insert into t1 values
+(3,'y'), (1,'x'), (7,'z');
+create view v1 as
+select t1.f
+from t1, (select distinct * from t1) t
+where t.f = t1.f and 1 = 0
+group by t1.f;
+select * from v1;
+f
+explain select * from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using temporary
+drop view v1;
+drop table t1;
+# End of 10.4 tests

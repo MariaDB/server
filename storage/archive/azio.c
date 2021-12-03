@@ -866,7 +866,10 @@ int azclose (azio_stream *s)
   if (s->mode == 'w') 
   {
     if (do_flush(s, Z_FINISH) != Z_OK)
-      return destroy(s);
+    {
+      destroy(s);
+      return Z_ERRNO;
+    }
 
     putLong(s->file, s->crc);
     putLong(s->file, (uLong)(s->in & 0xffffffff));

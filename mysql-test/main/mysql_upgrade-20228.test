@@ -1,0 +1,55 @@
+-- source include/mysql_upgrade_preparation.inc
+-- source include/have_working_dns.inc
+-- source include/have_innodb.inc
+-- source include/have_partition.inc
+
+if (!`SELECT count(*) FROM INFORMATION_SCHEMA.VIEWS
+  WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user'
+  AND CHARACTER_SET_CLIENT='latin1'
+  AND COLLATION_CONNECTION='latin1_swedish_ci'`)
+{
+  Skip Needs character_set_client=latin1 and collation_connection=latin1_swedish_ci in mysql.views;
+}
+
+
+--echo #
+--echo # MDEV-20228 `mysql_upgrade` fails on every version upgrade: "ERROR 1267 (HY000) at line 7: Illegal mix of collations (utf8mb4_unicode_ci,COERCIBLE) and (utf8mb4_general_ci,COERCIBLE) for operation 'like'"
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+SET sql_mode="";
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+--echo #
+--echo # Changing character_set_client and collation_connection
+--echo # for the VIEW mysql.user to utf8mb4/utf8mb4_unicode_ci,
+--echo # to emulate that mysql.user was created by 'mysqld --bootstrap'
+--echo # using mysqld compiled with
+--echo # -DDEFAULT_CHARSET=utf8mb4 -DDEFAULT_COLLATION=utf8mb4_unicode_ci
+--echo #
+
+--disable_query_log
+let $def= `SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user'`;
+--eval ALTER VIEW mysql.user AS $def;
+--enable_query_log
+
+SELECT CHARACTER_SET_CLIENT, COLLATION_CONNECTION
+FROM INFORMATION_SCHEMA.VIEWS
+WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
+
+--echo # Running mysql_upgrade
+--exec $MYSQL_UPGRADE --default-character-set=utf8mb4 --force 2>&1
+--file_exists $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--echo #
+--echo # Restoring character_set_client and collation_connection back
+--echo # so post-check returns the expected check-mysqld_1.result
+--echo #
+
+SET NAMES latin1;
+--disable_query_log
+let $def= `SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user'`;
+--eval ALTER VIEW mysql.user AS $def;
+--enable_query_log

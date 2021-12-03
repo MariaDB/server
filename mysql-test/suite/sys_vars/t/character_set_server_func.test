@@ -45,9 +45,11 @@ connection default;
 #character set and collation are not specified in CREATE DATABASE statements.
 
 #==============================================================================
---echo '---global character_set_server should not effects current connection---'
+--echo '--global character_set_server should not effects current connection--'
 #==============================================================================
 
+--source include/default_charset.inc
+select @@character_set_database=@@character_set_connection;
 SET @@global.character_set_server = utf8;
 CREATE DATABASE db1;
 USE db1;

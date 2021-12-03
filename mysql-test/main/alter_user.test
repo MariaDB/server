@@ -1,5 +1,7 @@
 --source include/not_embedded.inc
 
+select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
+
 select * from mysql.user where user = 'root' and host = 'localhost';
 --echo # Test syntax
 --echo #
@@ -41,7 +43,7 @@ SET GLOBAL read_only = @start_read_only;
 --error ER_CANNOT_USER
 alter user boo;
 --echo #--warning ER_CANNOT_USER
-alter if exists user boo;
+alter user if exists boo;
 
 --echo # Test password related altering.
 alter user foo identified by 'something';
@@ -51,6 +53,9 @@ alter user foo identified by 'something2';
 select * from mysql.user where user = 'foo';
 
 alter user foo identified by password '*88C89BE093D4ECF72D039F62EBB7477EA1FD4D63';
+select * from mysql.user where user = 'foo';
+
+alter user foo identified by password 'invalid';
 select * from mysql.user where user = 'foo';
 
 --error ER_CANNOT_USER
@@ -82,4 +87,4 @@ alter user foo with MAX_QUERIES_PER_HOUR 10
 select * from mysql.user where user = 'foo';
 drop user foo;
 
-update mysql.user set plugin='';
+update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

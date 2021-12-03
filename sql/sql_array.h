@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <my_sys.h>
 
@@ -123,8 +123,7 @@ public:
 
   void init(uint prealloc=16, uint increment=16)
   {
-    my_init_dynamic_array(&array, sizeof(Elem), prealloc, increment,
-                          MYF(0));
+    init_dynamic_array2(&array, sizeof(Elem), 0, prealloc, increment, MYF(0));
   }
 
   /**
@@ -165,6 +164,19 @@ public:
   {
     return ((const Elem*)array.buffer) + array.elements - 1;
   }
+
+  /// @returns pointer to n-th element
+  Elem *get_pos(size_t idx)
+  {
+    return ((Elem*)array.buffer) + idx;
+  }
+
+  /// @returns pointer to n-th element
+  const Elem *get_pos(size_t idx) const
+  {
+    return ((const Elem*)array.buffer) + idx;
+  }
+
 
   /**
      @retval false ok
@@ -218,6 +230,11 @@ public:
     set_dynamic(&array, &el, idx);
   }
 
+  void freeze()
+  {
+    freeze_size(&array);
+  }
+
   bool resize(size_t new_size, Elem default_val)
   {
     size_t old_size= elements();
@@ -252,7 +269,7 @@ public:
     my_qsort(array.buffer, array.elements, sizeof(Elem), (qsort_cmp)cmp_func);
   }
 
-  typedef int (*CMP_FUNC2)(const Elem *el1, const Elem *el2, void *);
+  typedef int (*CMP_FUNC2)(void *, const Elem *el1, const Elem *el2);
   void sort(CMP_FUNC2 cmp_func, void *data)
   {
     my_qsort2(array.buffer, array.elements, sizeof(Elem), (qsort2_cmp)cmp_func, data);

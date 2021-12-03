@@ -11,22 +11,24 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA 
 
 SET(CPACK_SOURCE_IGNORE_FILES
 \\\\.git/
-\\\\.gitignore
-CMakeCache\\\\.txt
-cmake_dist\\\\.cmake
-CPackSourceConfig\\\\.cmake
-CPackConfig.cmake
-/cmake_install\\\\.cmake
-/CTestTestfile\\\\.cmake
+\\\\.git$
+\\\\.gitignore$
+\\\\.gitattributes$
+CMakeCache\\\\.txt$
+cmake_dist\\\\.cmake$
+CPackSourceConfig\\\\.cmake$
+CPackConfig.cmake$
+/cmake_install\\\\.cmake$
+/CTestTestfile\\\\.cmake$
 /CMakeFiles/
 /version_resources/
 /_CPack_Packages/
-$\\\\.gz
-$\\\\.zip
+\\\\.gz$
+\\\\.zip$
 /CMakeFiles/
 /version_resources/
 /_CPack_Packages/
@@ -49,5 +51,6 @@ include/config\\\\.h$
 include/my_config\\\\.h$
 /autom4te\\\\.cache/
 errmsg\\\\.sys$
+\\\\.rpm$
 #
 )

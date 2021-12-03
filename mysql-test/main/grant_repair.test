@@ -1,0 +1,21 @@
+#
+# MDEV-20257 Server crashes in Grant_table_base::init_read_record upon crash-upgrade
+#
+source include/not_embedded.inc;
+
+call mtr.add_suppression("mysql.user");
+source include/switch_to_mysql_user.inc;
+
+let mysql_datadir=`select @@datadir`;
+flush tables;
+perl;
+  $f=$ENV{mysql_datadir} . '/mysql/user.MAI';
+  sysopen F, $f, 2  or die "sysopen $f: $!";
+  # set the open_count to 1, "table was not closed properly"
+  sysseek F, 24, O_RDWR or die "sysseek: $!";
+  syswrite F, 1, 1 or die "syswrite: $!";
+EOF
+replace_result \\ /;
+flush privileges;
+
+source include/switch_to_mysql_global_priv.inc;

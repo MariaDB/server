@@ -47,7 +47,7 @@ EXECUTE stmt USING @a, @b;
 #
 PREPARE stmt FROM 'SELECT :1 FROM DUAL';
 EXECUTE stmt USING (SELECT 1);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)' at line 1
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
 DEALLOCATE PREPARE stmt;
 CREATE FUNCTION f1() RETURN VARCHAR
 AS
@@ -155,7 +155,7 @@ DROP TABLE t1;
 # Testing disallowed expressions in USING
 #
 EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING (SELECT 1);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)' at line 1
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
 CREATE FUNCTION f1() RETURN VARCHAR
 AS
 BEGIN
@@ -163,7 +163,7 @@ RETURN 'test';
 END;
 $$
 EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING f1();
-ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
 DROP FUNCTION f1;
 #
 # Testing simple expressions
@@ -182,9 +182,9 @@ ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2
 PREPARE stmt FROM _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
 ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat_operator_oracle'
 EXECUTE IMMEDIATE (SELECT 'SELECT 1');
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 'SELECT 1')' at line 1
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
 PREPARE stmt FROM (SELECT 'SELECT 1');
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 'SELECT 1')' at line 1
+ERROR 42000: PREPARE..FROM does not support subqueries or stored functions
 EXECUTE IMMEDIATE a;
 ERROR 42S22: Unknown column 'a' in 'field list'
 PREPARE stmt FROM a;

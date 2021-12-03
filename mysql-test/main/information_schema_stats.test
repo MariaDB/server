@@ -1,6 +1,7 @@
 #
 # MDEV-8633: information_schema.index_statistics doesn't delete item when drop table indexes or drop table;
 #
+set @save_userstat=@@global.userstat;
 set global userstat=1;
 create table just_a_test(id int,first_name varchar(10),last_name varchar(10),address varchar(100),phone bigint,email varchar(30), state varchar(30));
 insert into just_a_test values(1,'fa','la','china_a',11111111,'fa_la@163.com','California'),
@@ -43,4 +44,4 @@ select * from information_schema.table_statistics where table_schema='test' and 
 drop table just_a_test;
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
-set global userstat=0;
+set global userstat=@save_userstat;

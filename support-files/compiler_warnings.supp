@@ -99,17 +99,6 @@
 .*/oqgraph/graphcore\.cc : may be used uninitialized in this function
 
 #
-# Yassl
-#
-.*/include/runtime.hpp: .*pure_error.*
-.*/extra/yassl/.*taocrypt/.*: comparison with string literal
-.*/extra/yassl/taocrypt/src/blowfish\.cpp: array subscript is above array bounds
-.*/extra/yassl/taocrypt/src/file\.cpp: ignoring return value
-.*/extra/yassl/taocrypt/src/integer\.cpp: control reaches end of non-void function
-.*/mySTL/algorithm\.hpp: is used uninitialized in this function
-.*/include/pwdbased\.hpp: comparison of unsigned expression
-
-#
 # OpenSSL
 #
 # The following comes because of different prototype between yassl and openssl.
@@ -204,7 +193,6 @@
 .*/ctype-simple\.c : .*unary minus operator applied to unsigned type, result still unsigned.*
 .*/sql/sys_vars\.cc : invalid access to non-static data member
 .*/string3\.h : memset used with constant zero length parameter
-.*/sql/wsrep_hton\.cc : NULL used in arithmetic : 500-600
 .* : missing-declarations.*is valid
 
 #

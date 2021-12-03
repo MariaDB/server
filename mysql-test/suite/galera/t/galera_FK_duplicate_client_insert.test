@@ -1,0 +1,161 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_cluster.inc
+#
+# This test will reproduce regressions of bugs
+#   https://github.com/codership/mysql-wsrep/issues/335
+#   https://github.com/codership/mysql-wsrep/issues/336
+#
+# The test will issue duplicate inserts into a table, which has foreign key
+# constraint for a parent table.
+# The inserts happen in separate nodes, and the
+# The test outline is as follows:
+# 1. in node 1, an update is done for the FK parent row, in a transaction,
+#    which is left open. The purpose of this is just to establish a X lock on
+#    the parent row.
+# 2. in node 1, an insert for the child table is sent. The insert will have to wait
+#    for the parent row X lock, because it needs S lock on the same row.
+#    However, we have set an DBUG sync point just before the insert will call for
+#    innodb suspend
+# 3. in node 2, a similar insert is issued. This will replicate to node 1 and try to
+#    abort the conflicting update and blocked insert
+# 4. the inserts dbug sync point is relased, and insert should continue and abort
+#    gracefully
+# 5. update is continued to commit, and it should also observe the deadlock
+#
+# This test is run in 3 phases:
+#
+# 1. with plain SQL statement
+# 2. as SQL prepared statements
+# 3. as SQl stored procedures
+#
+# The test phase 3 is for reproducing the issue in bug #336 specifically
+#
+
+#
+# create the test tables and foreign key constraint between them
+#
+CREATE TABLE user(id int primary key, j int) ENGINE=InnoDB;
+CREATE TABLE user_session(id int primary key, fk1 int, fk2 int) ENGINE=InnoDB;
+alter table user_session add foreign key (fk1) references user(id);
+
+# populate a few initial rows
+INSERT INTO user values (1,0), (2,0), (3,0), (4,0);
+INSERT INTO user_session values (1,1,1);
+
+#
+# prepare test connections, for:
+#   update of parent row in node1
+#   insert of child row in node1
+#   insert of child row in node2
+
+--connect node_1_u, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1_i, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2_i, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+
+#
+# test phase 1: plain SQL statements
+#
+--echo "Phase 1: plain SQL statements"
+
+
+--connection node_1
+let $counter=10;
+let $sleep_period=1;
+
+while($counter > 0)
+{
+	--connection node_1_u
+	begin;
+	update user set j = j + 1 WHERE id > 0;
+
+	--connection node_1_i
+	set debug_sync='lock_wait_suspend_thread_enter SIGNAL ins_waiting WAIT_FOR cont_ins';
+	send insert into user_session(id,fk1,fk2) values (2, 2, 2);
+
+	--connection node_1
+	set debug_sync='now WAIT_FOR ins_waiting';
+
+	--connection node_2_i
+	insert into user_session(id,fk1,fk2) values (2, 2, 3);
+
+	--connection node_1
+	set debug_sync='now SIGNAL cont_ins';
+
+	--connection node_1_i
+	--error 0,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
+	reap;
+
+	--connection node_1_u
+	--error 0,ER_LOCK_DEADLOCK
+	commit;
+
+	--connection node_1
+	--error 0,ER_LOCK_DEADLOCK
+	truncate user_session;
+	set debug_sync = reset;
+
+	dec $counter;
+}
+
+#
+# test phase 2: prepared statements
+#
+--echo "Phase 2: prepared statements"
+
+--connection node_1_u
+prepare upd  from 'update user set j = j + 1 WHERE id > 0';
+
+--connection node_1_i
+prepare ins1 from 'insert into user_session(id,fk1,fk2) values (2, 2, 2)';
+
+--connection node_2_i
+prepare ins2 from 'insert into user_session(id,fk1,fk2) values (2, 2, 3)';
+
+--connection node_1
+let $counter=10;
+let $sleep_period=1;
+
+while($counter > 0)
+{
+	--connection node_1_u
+	begin;
+	execute upd;
+	#update user set j = j + 1 WHERE id > 0;
+
+	--connection node_1_i
+	set debug_sync='lock_wait_suspend_thread_enter SIGNAL ins_waiting WAIT_FOR cont_ins';
+	send execute ins1;
+
+	--connection node_1
+	set debug_sync='now WAIT_FOR ins_waiting';
+
+	--connection node_2_i
+	execute ins2;
+
+	--connection node_1
+	set debug_sync='now SIGNAL cont_ins';
+
+	--connection node_1_i
+	--error 0,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
+	reap;
+
+	--connection node_1_u
+	--error 0,ER_LOCK_DEADLOCK
+	commit;
+
+	--connection node_1
+
+	--error 0,ER_LOCK_DEADLOCK
+	truncate user_session;
+	set debug_sync = reset;
+
+	dec $counter;
+}
+
+
+--connection node_1
+
+drop table user_session,user;

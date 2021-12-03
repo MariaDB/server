@@ -256,10 +256,10 @@ t1	CREATE TABLE `t1` (
 insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
 explain select * from t1 where a like 'abc%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	23	NULL	1	Using where; Using index
+1	SIMPLE	t1	range	a	a	23	NULL	2	Using where; Using index
 explain select * from t1 where a like concat('abc','%');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	23	NULL	1	Using where; Using index
+1	SIMPLE	t1	range	a	a	23	NULL	2	Using where; Using index
 select * from t1 where a like "abc%";
 a
 abc
@@ -844,6 +844,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+ucs2_general_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 "BEGIN ctype_german.inc"
 drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
@@ -1093,6 +1099,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+ucs2_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
@@ -1557,7 +1569,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	23	NULL	1	Using where; Using index
 EXPLAIN SELECT * FROM t1 WHERE a LIKE 'c%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	23	NULL	30	Using where; Using index
+1	SIMPLE	t1	index	a	a	23	NULL	31	Using where; Using index
 SELECT * FROM t1 WHERE a LIKE 'c%';
 a
 ca
@@ -1573,7 +1585,7 @@ ch
 ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci;
 EXPLAIN SELECT * FROM t1 WHERE a LIKE 'd%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	23	NULL	30	Using where; Using index
+1	SIMPLE	t1	index	a	a	23	NULL	31	Using where; Using index
 SELECT hex(concat('d',_ucs2 0x017E,'%'));
 hex(concat('d',_ucs2 0x017E,'%'))
 0064017E0025
@@ -1692,7 +1704,7 @@ create table t1 as select concat(1 % 2) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(-1));
@@ -1938,21 +1950,23 @@ drop table t1;
 select hex(concat(ceiling(0.5)));
 hex(concat(ceiling(0.5)))
 0031
-create table t1 as select concat(ceiling(0.5)) as c1;
+create table t1 as select ceiling(0.5) as c0, concat(ceiling(0.5)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(4) CHARACTER SET ucs2 DEFAULT NULL
+  `c0` int(3) NOT NULL,
+  `c1` varchar(3) CHARACTER SET ucs2 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(floor(0.5)));
 hex(concat(floor(0.5)))
 0030
-create table t1 as select concat(floor(0.5)) as c1;
+create table t1 as select floor(0.5) as c0, concat(floor(0.5)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(4) CHARACTER SET ucs2 DEFAULT NULL
+  `c0` int(3) NOT NULL,
+  `c1` varchar(3) CHARACTER SET ucs2 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(round(0.5)));
@@ -4356,11 +4370,11 @@ KEY(date_column));
 INSERT INTO t1 VALUES (1,'2010-09-01'),(2,'2010-10-01');
 EXPLAIN SELECT * FROM t1 WHERE date_column BETWEEN '2010-09-01' AND '2010-10-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	date_column	date_column	4	NULL	1	Using index condition
+1	SIMPLE	t1	range	date_column	date_column	4	NULL	2	Using index condition
 ALTER TABLE t1 MODIFY date_column DATETIME DEFAULT NULL;
 EXPLAIN SELECT * FROM t1 WHERE date_column BETWEEN '2010-09-01' AND '2010-10-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	date_column	date_column	6	NULL	1	Using index condition
+1	SIMPLE	t1	range	date_column	date_column	6	NULL	2	Using index condition
 DROP TABLE t1;
 #
 # Bug #31384 	DATE_ADD() and DATE_SUB() return binary data
@@ -5409,7 +5423,7 @@ ERROR 22003: Out of range value for column 'a' at row 1
 SET sql_mode=DEFAULT;
 INSERT IGNORE INTO t1 VALUES (CONVERT('aaa' USING ucs2));
 Warnings:
-Warning	1366	Incorrect decimal value: 'aaa' for column 'a' at row 1
+Warning	1366	Incorrect decimal value: 'aaa' for column `test`.`t1`.`a` at row 1
 DROP TABLE t1;
 #
 # End of 5.6 tests
@@ -6382,4 +6396,40 @@ HEX('aä')
 DEALLOCATE PREPARE stmt;
 #
 # End of 10.2 tests
+#
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-17995 INET6_NTOA(ucs2_input) erroneously returns NULL
+#
+SELECT HEX(INET6_ATON('1::1')), HEX(INET6_ATON(CONVERT('1::1' USING ucs2)));
+HEX(INET6_ATON('1::1'))	HEX(INET6_ATON(CONVERT('1::1' USING ucs2)))
+00010000000000000000000000000001	00010000000000000000000000000001
+#
+# MDEV-19184 Crash in IS_IPV6(_ucs2 0x0031)
+#
+SET NAMES utf8;
+SELECT IS_IPV6(_ucs2 0x0031);
+IS_IPV6(_ucs2 0x0031)
+0
+SELECT IS_IPV4(_ucs2 0x0031);
+IS_IPV4(_ucs2 0x0031)
+0
+SELECT IS_IPV6(_ucs2 0x003A003A);
+IS_IPV6(_ucs2 0x003A003A)
+1
+SELECT IS_IPV4(_ucs2 0x00310030002E0030002E0030002E0031);
+IS_IPV4(_ucs2 0x00310030002E0030002E0030002E0031)
+1
+SET NAMES utf8, collation_connection=ucs2_bin;
+SELECT IS_IPV6('::');
+IS_IPV6('::')
+1
+SELECT IS_IPV4('10.0.0.1');
+IS_IPV4('10.0.0.1')
+1
+SET NAMES utf8;
+#
+# End of 10.4 tests
 #

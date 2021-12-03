@@ -13,6 +13,8 @@
 # before calling mi_state_info_write
 #
 
+--source include/default_optimizer_switch.inc
+
 create table t1 (a bigint);
 lock tables t1 write;
 insert into t1 values(0);

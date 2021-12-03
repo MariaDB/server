@@ -46,6 +46,7 @@ SET GLOBAL innodb_flush_log_at_trx_commit=1;
 CREATE TABLE foo(a INT PRIMARY KEY) ENGINE=InnoDB;
 # Kill the server
 disconnect to_be_killed;
+# restart
 SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 DROP TABLE foo;

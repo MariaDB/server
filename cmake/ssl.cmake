@@ -12,10 +12,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # We support different versions of SSL:
-# - "bundled" uses source code in <source dir>/extra/yassl
+# - "bundled" uses source code in <source dir>/extra/wolfssl
 # - "system"  (typically) uses headers/libraries in /usr/lib and /usr/lib64
 # - a custom installation of openssl can be used like this
 #     - cmake -DCMAKE_PREFIX_PATH=</path/to/custom/openssl> -DWITH_SSL="system"
@@ -35,7 +35,7 @@
 #   'set path=</path/to/custom/openssl>\bin;%PATH%
 # in order to find the .dll files at runtime.
 
-SET(WITH_SSL_DOC "bundled (use yassl)")
+SET(WITH_SSL_DOC "bundled (use wolfssl)")
 SET(WITH_SSL_DOC
   "${WITH_SSL_DOC}, yes (prefer os library if present, otherwise use bundled)")
 SET(WITH_SSL_DOC
@@ -48,29 +48,20 @@ MACRO (CHANGE_SSL_SETTINGS string)
 ENDMACRO()
 
 MACRO (MYSQL_USE_BUNDLED_SSL)
-  SET(INC_DIRS 
-    ${CMAKE_SOURCE_DIR}/extra/yassl/include
-    ${CMAKE_SOURCE_DIR}/extra/yassl/taocrypt/include
+  SET(INC_DIRS
+    ${CMAKE_BINARY_DIR}/extra/wolfssl
+    ${CMAKE_SOURCE_DIR}/extra/wolfssl/wolfssl
+    ${CMAKE_SOURCE_DIR}/extra/wolfssl/wolfssl/wolfssl
   )
-  SET(SSL_LIBRARIES  yassl taocrypt)
+  SET(SSL_LIBRARIES  wolfssl wolfcrypt)
   SET(SSL_INCLUDE_DIRS ${INC_DIRS})
-  SET(SSL_INTERNAL_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/extra/yassl/taocrypt/mySTL)
-  SET(SSL_DEFINES "-DHAVE_YASSL -DYASSL_PREFIX -DHAVE_OPENSSL -DMULTI_THREADED")
-  SET(HAVE_ERR_remove_thread_state OFF CACHE INTERNAL "yassl doesn't have ERR_remove_thread_state")
-  SET(HAVE_EncryptAes128Ctr OFF CACHE INTERNAL "yassl doesn't support AES-CTR")
-  SET(HAVE_EncryptAes128Gcm OFF CACHE INTERNAL "yassl doesn't support AES-GCM")
+  SET(SSL_DEFINES "-DHAVE_OPENSSL -DHAVE_WOLFSSL  -DWOLFSSL_USER_SETTINGS")
+  SET(HAVE_ERR_remove_thread_state ON CACHE INTERNAL "wolfssl doesn't have ERR_remove_thread_state")
+  SET(HAVE_EncryptAes128Ctr OFF CACHE INTERNAL "wolfssl does support AES-CTR, but differently from openssl")
+  SET(HAVE_EncryptAes128Gcm OFF CACHE INTERNAL "wolfssl does not support AES-GCM")
+  SET(HAVE_X509_check_host ON CACHE INTERNAL  "wolfssl does support X509_check_host")
   CHANGE_SSL_SETTINGS("bundled")
-  ADD_SUBDIRECTORY(extra/yassl)
-  ADD_SUBDIRECTORY(extra/yassl/taocrypt)
-  GET_TARGET_PROPERTY(src yassl SOURCES)
-  FOREACH(file ${src})
-    SET(SSL_SOURCES ${SSL_SOURCES} ${CMAKE_SOURCE_DIR}/extra/yassl/${file})
-  ENDFOREACH()
-  GET_TARGET_PROPERTY(src taocrypt SOURCES)
-  FOREACH(file ${src})
-    SET(SSL_SOURCES ${SSL_SOURCES}
-      ${CMAKE_SOURCE_DIR}/extra/yassl/taocrypt/${file})
-  ENDFOREACH()
+  ADD_SUBDIRECTORY(extra/wolfssl)
   MESSAGE_ONCE(SSL_LIBRARIES "SSL_LIBRARIES = ${SSL_LIBRARIES}")
 ENDMACRO()
 
@@ -126,6 +117,7 @@ MACRO (MYSQL_CHECK_SSL)
       ENDIF()
     ENDIF()
     FIND_PACKAGE(OpenSSL)
+    SET_PACKAGE_PROPERTIES(OpenSSL PROPERTIES TYPE RECOMMENDED)
     IF(OPENSSL_FOUND)
       SET(OPENSSL_LIBRARY ${OPENSSL_SSL_LIBRARY})
       INCLUDE(CheckSymbolExists)
@@ -135,7 +127,7 @@ MACRO (MYSQL_CHECK_SSL)
         SET(SSL_LIBRARIES ${SSL_LIBRARIES} ${LIBSOCKET})
       ENDIF()
       IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
-        SET(SSL_LIBRARIES ${SSL_LIBRARIES} ${LIBDL})
+        SET(SSL_LIBRARIES ${SSL_LIBRARIES} ${CMAKE_DL_LIBS})
       ENDIF()
 
       MESSAGE_ONCE(OPENSSL_INCLUDE_DIR "OPENSSL_INCLUDE_DIR = ${OPENSSL_INCLUDE_DIR}")
@@ -149,12 +141,15 @@ MACRO (MYSQL_CHECK_SSL)
 
       SET(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
       SET(CMAKE_REQUIRED_LIBRARIES ${SSL_LIBRARIES})
+      SET(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
       CHECK_SYMBOL_EXISTS(ERR_remove_thread_state "openssl/err.h"
                           HAVE_ERR_remove_thread_state)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_ctr "openssl/evp.h"
                           HAVE_EncryptAes128Ctr)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_gcm "openssl/evp.h"
                           HAVE_EncryptAes128Gcm)
+      CHECK_SYMBOL_EXISTS(X509_check_host "openssl/x509v3.h"
+                          HAVE_X509_check_host)
       SET(CMAKE_REQUIRED_INCLUDES)
       SET(CMAKE_REQUIRED_LIBRARIES)
     ELSE()

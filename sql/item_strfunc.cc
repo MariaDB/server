@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /**
@@ -57,6 +57,27 @@ C_MODE_END
 #include "sql_statistics.h"
 
 size_t username_char_length= 80;
+
+
+class Repeat_count
+{
+  ulonglong m_count;
+public:
+  Repeat_count(Item *item)
+   :m_count(0)
+  {
+    Longlong_hybrid nr= item->to_longlong_hybrid();
+    if (!item->null_value && !nr.neg())
+    {
+      // Assume that the maximum length of a String is < INT_MAX32
+      m_count= (ulonglong) nr.value();
+      if (m_count > (ulonglong) INT_MAX32)
+        m_count= (ulonglong) INT_MAX32;
+    }
+  }
+  ulonglong count() const { return m_count; }
+};
+
 
 /*
   For the Items which have only val_str_ascii() method
@@ -338,6 +359,8 @@ String *Item_aes_crypt::val_str(String *str2)
                  rkey, AES_KEY_LENGTH / 8, 0, 0))
       {
         str2->length((uint) aes_length);
+        DBUG_ASSERT(collation.collation == &my_charset_bin);
+        str2->set_charset(&my_charset_bin);
         return str2;
       }
     }
@@ -479,7 +502,7 @@ err:
 
 const char *histogram_types[] =
            {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
-static TYPELIB hystorgam_types_typelib=
+static TYPELIB histogram_types_typelib=
   { array_elements(histogram_types),
     "histogram_types",
     histogram_types, NULL};
@@ -495,7 +518,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   tmp.length(0);
   if (!(res= args[0]->val_str(&tmp)) ||
       (type= find_type(res->c_ptr_safe(),
-                       &hystorgam_types_typelib, MYF(0))) <= 0)
+                       &histogram_types_typelib, MYF(0))) <= 0)
   {
     null_value= 1;
     return 0;
@@ -580,7 +603,7 @@ bool Item_func_concat::realloc_result(String *str, uint length) const
     as str was initially set by args[0]->val_str(str).
     So multiplication by 2 can overflow, if args[0] for some reasons
     did not limit the result to max_alloced_packet. But it's not harmful,
-    "str" will be realloced exactly to "length" bytes in case of overflow.
+    "str" will be reallocated exactly to "length" bytes in case of overflow.
   */
   uint new_length= MY_MAX(str->alloced_length() * 2, length);
   return str->realloc(new_length);
@@ -625,7 +648,7 @@ String *Item_func_concat_operator_oracle::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   THD *thd= current_thd;
-  String *res;
+  String *res= NULL;
   uint i;
 
   null_value=0;
@@ -635,7 +658,7 @@ String *Item_func_concat_operator_oracle::val_str(String *str)
     if ((res= args[i]->val_str(str)))
       break;
   }
-  if (i == arg_count)
+  if (!res)
     goto null;
 
   if (res != str)
@@ -968,7 +991,7 @@ String *Item_func_concat_ws::val_str(String *str)
 	goto null; // Must be a blob
     }
     else if (res2 == &tmp_value)
-    {						// This can happend only 1 time
+    {						// This can happen only 1 time
       if (tmp_value.replace(0,0,*sep_str) || tmp_value.replace(0,0,*res))
 	goto null;
       res= &tmp_value;
@@ -1118,7 +1141,7 @@ bool Item_func_reverse::fix_length_and_dec()
 }
 
 /**
-  Replace all occurences of string2 in string1 with string3.
+  Replace all occurrences of string2 in string1 with string3.
 
   Don't reallocate val_str() if not needed.
 
@@ -1493,20 +1516,21 @@ String *Item_func_insert::val_str(String *str)
   null_value=0;
   res=args[0]->val_str(str);
   res2=args[3]->val_str(&tmp_value);
-  start= args[1]->val_int() - 1;
+  start= args[1]->val_int();
   length= args[2]->val_int();
 
   if (args[0]->null_value || args[1]->null_value || args[2]->null_value ||
       args[3]->null_value)
     goto null; /* purecov: inspected */
 
-  if ((start < 0) || (start > res->length()))
+  if ((start <= 0) || (start > res->length()))
     return res;                                 // Wrong param; skip insert
   if ((length < 0) || (length > res->length()))
     length= res->length();
+  start--;
 
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -1633,13 +1657,10 @@ String *Item_func_left::val_str(String *str)
 void Item_str_func::left_right_max_length()
 {
   uint32 char_length= args[0]->max_char_length();
-  if (args[1]->const_item())
+  if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    int length= (int) args[1]->val_int();
-    if (args[1]->null_value || length <= 0)
-      char_length=0;
-    else
-      set_if_smaller(char_length, (uint) length);
+    Repeat_count tmp(args[1]);
+    set_if_smaller(char_length, (uint) tmp.count());
   }
   fix_char_length(char_length);
 }
@@ -2154,6 +2175,41 @@ void Item_func_trim::print(String *str, enum_query_type query_type)
 }
 
 
+/*
+  RTRIM(expr)
+  TRIM(TRAILING ' ' FROM expr)
+  remove argument's soft dependency on PAD_CHAR_TO_FULL_LENGTH:
+*/
+Sql_mode_dependency Item_func_trim::value_depends_on_sql_mode() const
+{
+  DBUG_ASSERT(fixed);
+  if (arg_count == 1) // RTRIM(expr)
+    return (args[0]->value_depends_on_sql_mode() &
+            Sql_mode_dependency(~0, ~MODE_PAD_CHAR_TO_FULL_LENGTH)).
+           soft_to_hard();
+  // TRIM(... FROM expr)
+  DBUG_ASSERT(arg_count == 2);
+  if (!args[1]->value_depends_on_sql_mode_const_item())
+    return Item_func::value_depends_on_sql_mode();
+  StringBuffer<64> trimstrbuf;
+  String *trimstr= args[1]->val_str(&trimstrbuf);
+  if (!trimstr)
+    return Sql_mode_dependency();                  // will return NULL
+  if (trimstr->length() == 0)
+    return Item_func::value_depends_on_sql_mode(); // will trim nothing
+  if (trimstr->lengthsp() != 0)
+    return Item_func::value_depends_on_sql_mode(); // will trim not only spaces
+  if (trimstr->length() > trimstr->charset()->mbminlen ||
+      trimstr->numchars() > 1)
+    return Item_func::value_depends_on_sql_mode(); // more than one space
+  // TRIM(TRAILING ' ' FROM expr)
+  return ((args[0]->value_depends_on_sql_mode() |
+           args[1]->value_depends_on_sql_mode()) &
+          Sql_mode_dependency(~0, ~MODE_PAD_CHAR_TO_FULL_LENGTH)).
+         soft_to_hard();
+}
+
+
 /* Item_func_password */
 
 bool Item_func_password::fix_fields(THD *thd, Item **ref)
@@ -2349,7 +2405,7 @@ String *Item_func_sqlerrm::val_str(String *str)
               system_charset_info);
     return str;
   }
-  str->copy(STRING_WITH_LEN("normal, successful completition"),
+  str->copy(STRING_WITH_LEN("normal, successful completion"),
             system_charset_info);
   return str;
 }
@@ -2608,15 +2664,45 @@ String *Item_func_soundex::val_str(String *str)
   This should be 'internationalized' sometimes.
 */
 
-const int FORMAT_MAX_DECIMALS= 30;
+/*
+  The maximum supported decimal scale:
+  38 - starting from 10.2.1
+  30 - before 10.2.1
+*/
+const int FORMAT_MAX_DECIMALS= 38;
 
 
 bool Item_func_format::fix_length_and_dec()
 {
-  uint32 char_length= args[0]->max_char_length();
-  uint32 max_sep_count= (char_length / 3) + (decimals ? 1 : 0) + /*sign*/1;
+  uint32 char_length= args[0]->type_handler()->Item_decimal_notation_int_digits(args[0]);
+  uint dec= FORMAT_MAX_DECIMALS;
+  /*
+    Format can require one more integer digit if rounding happens:
+      FORMAT(9.9,0) -> '10'
+    Set need_extra_digit_for_rounding to true by default
+    if args[0] has some decimals: if args[1] is not
+    a constant, then format can potentially reduce
+    the number of decimals and round to the next integer.
+  */
+  bool need_extra_digit_for_rounding= args[0]->decimals > 0;
+  if (args[1]->const_item() && !args[1]->is_expensive())
+  {
+    Longlong_hybrid tmp= args[1]->to_longlong_hybrid();
+    if (!args[1]->null_value)
+    {
+      dec= tmp.to_uint(FORMAT_MAX_DECIMALS);
+      need_extra_digit_for_rounding= (dec < args[0]->decimals);
+    }
+  }
+  /*
+    In case of a data type with zero integer digits, e.g. DECIMAL(4,4),
+    we'll print at least one integer digit.
+  */
+  if (need_extra_digit_for_rounding || !char_length)
+    char_length++;
+  uint32 max_sep_count= (char_length / 3) + (dec ? 1 : 0) + /*sign*/1;
   collation.set(default_charset());
-  fix_char_length(char_length + max_sep_count + decimals);
+  fix_char_length(char_length + max_sep_count + dec);
   if (arg_count == 3)
     locale= args[2]->basic_const_item() ? args[2]->locale_from_val_str() : NULL;
   else
@@ -2669,7 +2755,7 @@ String *Item_func_format::val_str_ascii(String *str)
     if ((null_value=args[0]->null_value))
       return 0; /* purecov: inspected */
     nr= my_double_round(nr, (longlong) dec, FALSE, FALSE);
-    str->set_real(nr, dec, &my_charset_numeric);
+    str->set_fcvt(nr, dec);
     if (!std::isfinite(nr))
       return str;
     str_length=str->length();
@@ -2963,27 +3049,16 @@ bool Item_func_repeat::fix_length_and_dec()
   if (agg_arg_charsets_for_string_result(collation, args, 1))
     return TRUE;
   DBUG_ASSERT(collation.collation != NULL);
-  if (args[1]->const_item())
+  if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    /* must be longlong to avoid truncation */
-    longlong count= args[1]->val_int();
-
-    /* Assumes that the maximum length of a String is < INT_MAX32. */
-    /* Set here so that rest of code sees out-of-bound value as such. */
-    if (args[1]->null_value)
-      count= 0;
-    else if (count > INT_MAX32)
-      count= INT_MAX32;
-
-    ulonglong char_length= (ulonglong) args[0]->max_char_length() * count;
+    Repeat_count tmp(args[1]);
+    ulonglong char_length= (ulonglong) args[0]->max_char_length() * tmp.count();
     fix_char_length_ulonglong(char_length);
+    return false;
   }
-  else
-  {
-    max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
-  }
-  return FALSE;
+  max_length= MAX_BLOB_WIDTH;
+  maybe_null= true;
+  return false;
 }
 
 /**
@@ -3048,26 +3123,14 @@ err:
 bool Item_func_space::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-  if (args[0]->const_item())
+  if (args[0]->const_item() && !args[0]->is_expensive())
   {
-    /* must be longlong to avoid truncation */
-    longlong count= args[0]->val_int();
-    if (args[0]->null_value)
-      goto end;
-    /*
-     Assumes that the maximum length of a String is < INT_MAX32.
-     Set here so that rest of code sees out-of-bound value as such.
-    */
-    if (count > INT_MAX32)
-      count= INT_MAX32;
-    fix_char_length_ulonglong(count);
-    return FALSE;
+    fix_char_length_ulonglong(Repeat_count(args[0]).count());
+    return false;
   }
-
-end:
   max_length= MAX_BLOB_WIDTH;
-  maybe_null= 1;
-  return FALSE;
+  maybe_null= true;
+  return false;
 }
 
 
@@ -3158,10 +3221,21 @@ err:
 }
 
 
+static String *default_pad_str(String *pad_str, CHARSET_INFO *collation)
+{
+  pad_str->set_charset(collation);
+  pad_str->length(0);
+  pad_str->append(" ", 1);
+  return pad_str;
+}
+
 bool Item_func_pad::fix_length_and_dec()
 {
   if (arg_count == 3)
   {
+    String *str;
+    if (!args[2]->basic_const_item() || !(str= args[2]->val_str(&pad_str)) || !str->length())
+      maybe_null= true;
     // Handle character set for args[0] and args[2].
     if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
       return TRUE;
@@ -3170,30 +3244,52 @@ bool Item_func_pad::fix_length_and_dec()
   {
     if (agg_arg_charsets_for_string_result(collation, &args[0], 1, 1))
       return TRUE;
-    pad_str.set_charset(collation.collation);
-    pad_str.length(0);
-    pad_str.append(" ", 1);
+    default_pad_str(&pad_str, collation.collation);
   }
 
-  if (args[1]->const_item())
+  DBUG_ASSERT(collation.collation->mbmaxlen > 0);
+  if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    ulonglong char_length= (ulonglong) args[1]->val_int();
-    DBUG_ASSERT(collation.collation->mbmaxlen > 0);
-    /* Assumes that the maximum length of a String is < INT_MAX32. */
-    /* Set here so that rest of code sees out-of-bound value as such. */
-    if (args[1]->null_value)
-      char_length= 0;
-    else if (char_length > INT_MAX32)
-      char_length= INT_MAX32;
-    fix_char_length_ulonglong(char_length);
+    fix_char_length_ulonglong(Repeat_count(args[1]).count());
+    return false;
   }
-  else
-  {
-    max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
-  }
-  return FALSE;
+  max_length= MAX_BLOB_WIDTH;
+  maybe_null= true;
+  return false;
 }
+
+
+/*
+  PAD(expr,length,' ')
+  removes argument's soft dependency on PAD_CHAR_TO_FULL_LENGTH if the result
+  is longer than the argument's maximim possible length.
+*/
+Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
+{
+  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(arg_count >= 2);
+  if (!args[1]->value_depends_on_sql_mode_const_item() ||
+          (arg_count == 3 && !args[2]->value_depends_on_sql_mode_const_item()))
+    return Item_func::value_depends_on_sql_mode();
+  Longlong_hybrid len= args[1]->to_longlong_hybrid();
+  if (args[1]->null_value || len.neg())
+    return Sql_mode_dependency();                  // will return NULL
+  if (len.abs() > 0 && len.abs() < args[0]->max_char_length())
+    return Item_func::value_depends_on_sql_mode();
+  StringBuffer<64> padstrbuf;
+  String *padstr= arg_count == 3 ? args[2]->val_str(&padstrbuf) :
+                               default_pad_str(&padstrbuf, collation.collation);
+  if (!padstr || !padstr->length())
+    return Sql_mode_dependency();                  // will return NULL
+  if (padstr->lengthsp() != 0)
+    return Item_func::value_depends_on_sql_mode(); // will pad not only spaces
+  // RPAD(expr, length, ' ')  -- with a long enough length
+  return ((args[0]->value_depends_on_sql_mode() |
+           args[1]->value_depends_on_sql_mode()) &
+          Sql_mode_dependency(~0, ~MODE_PAD_CHAR_TO_FULL_LENGTH)).
+         soft_to_hard();
+}
+
 
 
 String *Item_func_rpad::val_str(String *str)
@@ -3222,7 +3318,7 @@ String *Item_func_rpad::val_str(String *str)
   if ((ulonglong) count > INT_MAX32)
     count= INT_MAX32;
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -3315,7 +3411,7 @@ String *Item_func_lpad::val_str(String *str)
     count= INT_MAX32;
 
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -3709,13 +3805,12 @@ String *Item_func_unhex::val_str(String *str)
   }
   for (end=res->ptr()+res->length(); from < end ; from+=2, to++)
   {
-    int hex_char;
-    *to= (hex_char= hexchar_to_int(from[0])) << 4;
-    if ((null_value= (hex_char == -1)))
+    int hex_char1, hex_char2;
+    hex_char1= hexchar_to_int(from[0]);
+    hex_char2= hexchar_to_int(from[1]);
+    if ((null_value= (hex_char1 == -1 || hex_char2 == -1)))
       return 0;
-    *to|= hex_char= hexchar_to_int(from[1]);
-    if ((null_value= (hex_char == -1)))
-      return 0;
+    *to= (char) ((hex_char1 << 4) | hex_char2);
   }
   return str;
 }
@@ -3937,7 +4032,7 @@ bool Item_func_export_set::fix_length_and_dec()
   using in a SQL statement.
 
   Adds a \\ before all characters that needs to be escaped in a SQL string.
-  We also escape '^Z' (END-OF-FILE in windows) to avoid probelms when
+  We also escape '^Z' (END-OF-FILE in windows) to avoid problems when
   running commands from a file in windows.
 
   This function is very useful when you want to generate SQL statements.
@@ -4124,7 +4219,7 @@ longlong Item_func_uncompressed_length::val_int()
     5 bytes long.
     res->c_ptr() is not used because:
       - we do not need \0 terminated string to get first 4 bytes
-      - c_ptr() tests simbol after string end (uninitialiozed memory) which
+      - c_ptr() tests simbol after string end (uninitialized memory) which
         confuse valgrind
   */
   return uint4korr(res->ptr()) & 0x3FFFFFFF;
@@ -4544,7 +4639,7 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
     case DYN_COL_DATETIME:
     case DYN_COL_DATE:
       args[valpos]->get_date(thd, &vals[i].x.time_value,
-                             sql_mode_for_dates(thd));
+                             Datetime::Options(thd));
       break;
     case DYN_COL_TIME:
       args[valpos]->get_time(thd, &vals[i].x.time_value);
@@ -5135,7 +5230,7 @@ bool Item_dyncol_get::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydat
     {
       longlong llval = (longlong)val.x.ulong_value;
       if (int_to_datetime_with_warn(thd, Longlong_hybrid(llval, !signed_value),
-                                    ltime, fuzzydate, 0 /* TODO */))
+                                    ltime, fuzzydate, 0, 0 /* TODO */))
         goto null;
       return 0;
     }
@@ -5144,12 +5239,12 @@ bool Item_dyncol_get::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydat
     /* fall through */
   case DYN_COL_DOUBLE:
     if (double_to_datetime_with_warn(thd, val.x.double_value, ltime, fuzzydate,
-                                     0 /* TODO */))
+                                     0, 0 /* TODO */))
       goto null;
     return 0;
   case DYN_COL_DECIMAL:
     if (decimal_to_datetime_with_warn(thd, (my_decimal*)&val.x.decimal.value,
-                                      ltime, fuzzydate, 0 /* TODO */))
+                                      ltime, fuzzydate, 0, 0 /* TODO */))
       goto null;
     return 0;
   case DYN_COL_STRING:
@@ -5264,3 +5359,106 @@ String *Item_temptable_rowid::val_str(String *str)
   str_value.set((char*)(table->file->ref), max_length, &my_charset_bin);
   return &str_value;
 }
+#ifdef WITH_WSREP
+
+#include "wsrep_mysqld.h"
+
+String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
+{
+  wsrep::gtid gtid= current_thd->wsrep_cs().last_written_gtid();
+  if (gtid_str.alloc(wsrep::gtid_c_str_len()))
+  {
+    my_error(ER_OUTOFMEMORY, wsrep::gtid_c_str_len());
+    null_value= true;
+    return NULL;
+  }
+
+  ssize_t gtid_len= gtid_print_to_c_str(gtid, (char*) gtid_str.ptr(),
+                                        wsrep::gtid_c_str_len());
+  if (gtid_len < 0)
+  {
+    my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), func_name(),
+             "wsrep_gtid_print failed");
+    null_value= true;
+    return NULL;
+  }
+  gtid_str.length(gtid_len);
+  return &gtid_str;
+}
+
+String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
+{
+  wsrep::gtid gtid= wsrep::gtid::undefined();
+  if (Wsrep_server_state::instance().is_provider_loaded())
+  {
+    /* TODO: Should call Wsrep_server_state.instance().last_committed_gtid()
+       instead. */
+    gtid= Wsrep_server_state::instance().provider().last_committed_gtid();
+  }
+  if (gtid_str.alloc(wsrep::gtid_c_str_len()))
+  {
+    my_error(ER_OUTOFMEMORY, wsrep::gtid_c_str_len());
+    null_value= true;
+    return NULL;
+  }
+  ssize_t gtid_len= wsrep::gtid_print_to_c_str(gtid, (char*) gtid_str.ptr(),
+                                               wsrep::gtid_c_str_len());
+  if (gtid_len < 0)
+  {
+    my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), func_name(),
+             "wsrep_gtid_print failed");
+    null_value= true;
+    return NULL;
+  }
+  gtid_str.length(gtid_len);
+  return &gtid_str;
+}
+
+longlong Item_func_wsrep_sync_wait_upto::val_int()
+{
+  int timeout= -1;
+  String* gtid_str= args[0]->val_str(&value);
+  if (gtid_str == NULL)
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
+    return 0LL;
+  }
+
+  if (arg_count == 2)
+  {
+    timeout= args[1]->val_int();
+  }
+
+  wsrep_gtid_t gtid;
+  int gtid_len= wsrep_gtid_scan(gtid_str->ptr(), gtid_str->length(), &gtid);
+  if (gtid_len < 0)
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
+    return 0LL;
+  }
+
+  if (gtid.seqno == WSREP_SEQNO_UNDEFINED &&
+      wsrep_uuid_compare(&gtid.uuid, &WSREP_UUID_UNDEFINED) == 0)
+  {
+    return 1LL;
+  }
+
+  enum wsrep::provider::status status=
+      wsrep_sync_wait_upto(current_thd, &gtid, timeout);
+
+  if (status)
+  {
+    int err;
+    switch (status) {
+    case wsrep::provider::error_transaction_missing:
+      err= ER_WRONG_ARGUMENTS;
+      break;
+    default:
+      err= ER_LOCK_WAIT_TIMEOUT;
+    }
+    my_error(err, MYF(0), func_name());
+    return 0LL;
+  }
+  return 1LL;
+}
+#endif /* WITH_WSREP */

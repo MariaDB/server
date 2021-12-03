@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "strings_def.h"
 #include <m_ctype.h>
@@ -237,7 +237,7 @@ size_t my_casedn_str_8bit(CHARSET_INFO * cs,char *str)
 
 
 size_t my_caseup_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
-                      char *dst, size_t dstlen)
+                      char *dst, size_t dstlen __attribute__((unused)))
 {
   const char *end= src + srclen;
   register const uchar *map= cs->to_upper;
@@ -249,7 +249,7 @@ size_t my_caseup_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
 
 
 size_t my_casedn_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
-                      char *dst, size_t dstlen)
+                      char *dst, size_t dstlen __attribute__((unused)))
 {
   const char *end= src + srclen;
   register const uchar *map=cs->to_lower;
@@ -1598,7 +1598,8 @@ my_strntoull10rnd_8bit(CHARSET_INFO *cs __attribute__((unused)),
   int shift= 0, digits= 0, negative, addon;
 
   /* Skip leading spaces and tabs */
-  for ( ; str < end && (*str == ' ' || *str == '\t') ; str++);
+  for ( ; str < end && my_isspace(&my_charset_latin1, *str) ; )
+    str++;
 
   if (str >= end)
     goto ret_edom;
@@ -1726,10 +1727,20 @@ exp:    /* [ E [ <sign> ] <unsigned integer> ] */
           goto ret_sign;
         }
       }
-      for (exponent= 0 ;
-           str < end && (ch= (uchar) (*str - '0')) < 10;
-           str++)
+      if (shift > 0 && !negative_exp)
+        goto ret_too_big;
+      for (exponent= 0 ; str < end && (ch= (uchar) (*str - '0')) < 10; str++)
       {
+        if (negative_exp)
+        {
+          if (exponent - shift > DIGITS_IN_ULONGLONG)
+            goto ret_zero;
+        }
+        else
+        {
+          if (exponent + shift > DIGITS_IN_ULONGLONG)
+            goto ret_too_big;
+        }
         exponent= exponent * 10 + ch;
       }
       shift+= negative_exp ? -exponent : exponent;
@@ -1784,9 +1795,10 @@ ret_sign:
   {
     if (negative)
     {
-      if (ull > (ulonglong) LONGLONG_MIN)
+      if (ull >= (ulonglong) LONGLONG_MIN)
       {
-        *error= MY_ERRNO_ERANGE;
+        if (ull != (ulonglong) LONGLONG_MIN)
+          *error= MY_ERRNO_ERANGE;
         return (ulonglong) LONGLONG_MIN;
       }
       *error= 0;

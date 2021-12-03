@@ -30,6 +30,7 @@ test.tt_2	preload_keys	note	The storage engine for the table doesn't support pre
 INSERT INTO tt_1(ddl_case) VALUES (39);
 ANALYZE TABLE nt_1;
 Table	Op	Msg_type	Msg_text
+test.nt_1	analyze	status	Engine-independent statistics collected
 test.nt_1	analyze	status	Table is already up to date
 INSERT INTO tt_1(ddl_case) VALUES (38);
 CHECK TABLE nt_1;
@@ -61,6 +62,8 @@ INSERT INTO tt_1(ddl_case) VALUES (28);
 DROP USER 'user_new'@'localhost';
 INSERT INTO tt_1(ddl_case) VALUES (27);
 CREATE EVENT evt ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO SELECT * FROM tt_1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 INSERT INTO tt_1(ddl_case) VALUES (26);
 ALTER EVENT evt COMMENT 'evt';
 INSERT INTO tt_1(ddl_case) VALUES (25);

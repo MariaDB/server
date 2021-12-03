@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,6 +24,7 @@ The transaction lock system global types
 Created 5/7/1996 Heikki Tuuri
 *******************************************************/
 
+#include "dict0types.h"
 #include "ut0lst.h"
 
 #ifndef lock0types_h
@@ -189,10 +190,14 @@ struct ib_lock_t
 					lock. The link node in a singly linked
 					list, used during hashing. */
 
-	/* Statistics for how long lock has been held and time
-	how long this lock had to be waited before it was granted */
-	time_t		requested_time; /*!< Lock request time */
-	ulint		wait_time;	/*!< Time waited this lock or 0 */
+	/** time(NULL) of the lock request creation.
+	Used for computing wait_time and diagnostics only.
+	Note: bogus durations may be reported
+	when the system time is adjusted! */
+	time_t		requested_time;
+	/** Cumulated wait time in seconds.
+	Note: may be bogus when the system time is adjusted! */
+	ulint		wait_time;
 
 	union {
 		lock_table_t	tab_lock;/*!< table lock */

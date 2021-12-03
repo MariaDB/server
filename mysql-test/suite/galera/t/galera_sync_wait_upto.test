@@ -1,0 +1,115 @@
+#
+# Tests the wsrep_sync_wait_upto variable.
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+
+# Test with invalid values
+
+--error ER_WRONG_ARGUMENTS
+SELECT WSREP_SYNC_WAIT_UPTO_GTID(NULL);
+
+--error ER_WRONG_ARGUMENTS
+SELECT WSREP_SYNC_WAIT_UPTO_GTID('a');
+
+--error ER_WRONG_ARGUMENTS
+SELECT WSREP_SYNC_WAIT_UPTO_GTID(2);
+
+
+# If set to low value, expect no waiting
+
+--disable_query_log
+--let $seqno = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--let $state = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_uuid'`
+--enable_query_log
+
+--disable_query_log
+--eval SELECT WSREP_SYNC_WAIT_UPTO_GTID('00000000-0000-0000-0000-000000000000:-1') AS WSREP_SYNC_WAIT_UPTO;
+--enable_query_log
+
+--disable_query_log
+--eval SELECT WSREP_SYNC_WAIT_UPTO_GTID('$state:0') AS WSREP_SYNC_WAIT_UPTO;
+--enable_query_log
+
+
+# If set to current last_committed value
+
+--disable_query_log
+--eval SELECT WSREP_SYNC_WAIT_UPTO_GTID('$state:$seqno') AS WSREP_SYNC_WAIT_UPTO;
+--enable_query_log
+
+
+# If set to very high value, will wait
+
+--disable_query_log
+--error ER_LOCK_WAIT_TIMEOUT
+--eval SELECT WSREP_SYNC_WAIT_UPTO_GTID('$state:9223372036854775807', 1) AS WSREP_SYNC_WAIT_UPTO;
+--enable_query_log
+
+
+# If applier is blocked, will wait
+
+--connection node_2
+SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
+
+
+--connection node_1
+# Perform two inserts and record the IDs of each
+INSERT INTO t1 VALUES (2);
+--let $gtid_first = `SELECT WSREP_LAST_WRITTEN_GTID()`
+
+INSERT INTO t1 VALUES (3);
+--let $gtid_second = `SELECT WSREP_LAST_WRITTEN_GTID()`
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+
+--disable_query_log
+--error ER_LOCK_WAIT_TIMEOUT
+--eval SELECT WSREP_SYNC_WAIT_UPTO_GTID('$gtid_first', 1) AS WSREP_SYNC_WAIT_UPTO;
+--enable_query_log
+
+--disable_query_log
+--send_eval SELECT WSREP_SYNC_WAIT_UPTO_GTID('$gtid_first') AS WSREP_SYNC_WAIT_UPTO;
+--enable_query_log
+
+# Unblock applier
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE 'SELECT WSREP_SYNC_WAIT%';
+--source include/wait_condition.inc
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+
+--connection node_2
+--reap
+
+# Confirm that we were allowed to proceed when the applier reached $seqno_first
+--let $gtid_current = `SELECT WSREP_LAST_SEEN_GTID()`
+--disable_query_log
+--eval SELECT '$gtid_current' = '$gtid_first' AS `gtid_current = gtid_first`
+--enable_query_log
+
+SET GLOBAL DEBUG_DBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+
+# Move forward some more, to $seqno_second;
+
+--disable_query_log
+--eval SELECT WSREP_SYNC_WAIT_UPTO_GTID('$gtid_second') AS WSREP_SYNC_WAIT_UPTO;
+--enable_query_log
+
+--let $gtid_current = `SELECT WSREP_LAST_SEEN_GTID()`
+--disable_query_log
+--eval SELECT '$gtid_current' = '$gtid_second' AS `seqno_current = seqno_second`
+--enable_query_log
+
+SET DEBUG_SYNC = "RESET";
+
+--connection node_1
+DROP TABLE t1;

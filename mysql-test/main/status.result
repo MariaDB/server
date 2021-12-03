@@ -324,7 +324,7 @@ Handler_mrr_key_refills	0
 Handler_mrr_rowid_refills	0
 Handler_prepare	0
 Handler_read_first	0
-Handler_read_key	4
+Handler_read_key	9
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -403,9 +403,9 @@ Table_open_cache_overflows	0
 SHOW STATUS LIKE 'Table_open_cache%';
 Variable_name	Value
 Table_open_cache_active_instances	1
-Table_open_cache_hits	30
-Table_open_cache_misses	15
-Table_open_cache_overflows	5
+Table_open_cache_hits	72
+Table_open_cache_misses	18
+Table_open_cache_overflows	8
 FLUSH TABLES;
 FLUSH STATUS;
 SET @@global.table_open_cache= @old_table_open_cache;

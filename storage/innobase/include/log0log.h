@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,12 +34,15 @@ Created 12/9/1995 Heikki Tuuri
 #ifndef log0log_h
 #define log0log_h
 
-#include "univ.i"
 #include "dyn0buf.h"
 #include "sync0rw.h"
 #include "log0types.h"
 #include "os0event.h"
 #include "os0file.h"
+
+#ifndef UINT32_MAX
+#define UINT32_MAX             (4294967295U)
+#endif
 
 /** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
 #define SRV_N_LOG_FILES_MAX 100
@@ -52,12 +55,6 @@ step which modifies the database, is started */
 
 #define LOG_CHECKPOINT_FREE_PER_THREAD	(4U << srv_page_size_shift)
 #define LOG_CHECKPOINT_EXTRA_FREE	(8U << srv_page_size_shift)
-
-typedef ulint (*log_checksum_func_t)(const byte* log_block);
-
-/** Pointer to the log checksum calculation function. Protected with
-log_sys.mutex. */
-extern log_checksum_func_t log_checksum_algorithm_ptr;
 
 /** Append a string to the log.
 @param[in]	str		string
@@ -174,9 +171,15 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key = false);
 /** write to the log file up to the last log entry.
 @param[in]	sync	whether we want the written log
 also to be flushed to disk. */
-void
-log_buffer_flush_to_disk(
-	bool sync = true);
+void log_buffer_flush_to_disk(bool sync= true);
+
+
+/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
+#define log_write_and_flush_prepare() log_write_mutex_enter()
+
+/** Durably write the log up to log_sys.lsn and release log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush();
+
 /****************************************************************//**
 This functions writes the log buffer to the log file and if 'flush'
 is set it forces a flush of the log file as well. This is meant to be
@@ -189,25 +192,13 @@ log_buffer_sync_in_background(
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
-log files. Use log_make_checkpoint_at() to flush also the pool.
+log files. Use log_make_checkpoint() to flush also the pool.
 @param[in]	sync		whether to wait for the write to complete
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint
 @return true if success, false if a checkpoint write was already running */
-bool
-log_checkpoint(
-	bool	sync,
-	bool	write_always);
+bool log_checkpoint(bool sync);
 
-/** Make a checkpoint at or after a specified LSN.
-@param[in]	lsn		the log sequence number, or LSN_MAX
-for the latest LSN
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint */
-void
-log_make_checkpoint_at(
-	lsn_t			lsn,
-	bool			write_always);
+/** Make a checkpoint */
+void log_make_checkpoint();
 
 /****************************************************************//**
 Makes a checkpoint at the latest lsn and writes it to first page of each
@@ -272,14 +263,6 @@ log_block_set_data_len(
 /*===================*/
 	byte*	log_block,	/*!< in/out: log block */
 	ulint	len);		/*!< in: data length */
-/************************************************************//**
-Calculates the checksum for a log block.
-@return checksum */
-UNIV_INLINE
-ulint
-log_block_calc_checksum(
-/*====================*/
-	const byte*	block);	/*!< in: log block */
 
 /** Calculates the checksum for a log block using the CRC32 algorithm.
 @param[in]	block	log block
@@ -288,12 +271,6 @@ UNIV_INLINE
 ulint
 log_block_calc_checksum_crc32(
 	const byte*	block);
-
-/** Calculates the checksum for a log block using the "no-op" algorithm.
-@return		the calculated checksum value */
-UNIV_INLINE
-ulint
-log_block_calc_checksum_none(const byte*);
 
 /************************************************************//**
 Gets a log block checksum field value.
@@ -371,7 +348,7 @@ void
 log_refresh_stats(void);
 /*===================*/
 
-/** Whether to generate and require checksums on the redo log pages */
+/** Whether to require checksums on the redo log pages */
 extern my_bool	innodb_log_checksums;
 
 /* Values used as flags */
@@ -414,7 +391,7 @@ extern my_bool	innodb_log_checksums;
 
 #define	LOG_BLOCK_KEY		4	/* encryption key version
 					before LOG_BLOCK_CHECKSUM;
-					in LOG_HEADER_FORMAT_ENC_10_4 only */
+					in log_t::FORMAT_ENC_10_4 only */
 #define	LOG_BLOCK_CHECKSUM	4	/* 4 byte checksum of the log block
 					contents; in InnoDB versions
 					< 3.23.52 this did not contain the
@@ -470,23 +447,6 @@ or the MySQL version that created the redo log file. */
 	IB_TO_STR(MYSQL_VERSION_MINOR) "."	\
 	IB_TO_STR(MYSQL_VERSION_PATCH)
 
-/** The original (not version-tagged) InnoDB redo log format */
-#define LOG_HEADER_FORMAT_3_23		0
-/** The MySQL 5.7.9/MariaDB 10.2.2 log format */
-#define LOG_HEADER_FORMAT_10_2		1
-/** The MariaDB 10.3.2 log format.
-To prevent crash-downgrade to earlier 10.2 due to the inability to
-roll back a retroactively introduced TRX_UNDO_RENAME_TABLE undo log record,
-MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
-1 instead of 0. MariaDB 10.3 will use subformat 0 (5.7-style TRUNCATE) or 2
-(MDEV-13564 backup-friendly TRUNCATE). */
-#define LOG_HEADER_FORMAT_10_3		103
-#define LOG_HEADER_FORMAT_10_4		104
-/** The MariaDB 10.4.0 log format (only with innodb_encrypt_log=ON) */
-#define LOG_HEADER_FORMAT_ENC_10_4	(104U | 1U << 31)
-/** Encrypted MariaDB redo log */
-#define LOG_HEADER_FORMAT_ENCRYPTED	(1U<<31)
-
 /* @} */
 
 #define LOG_CHECKPOINT_1	OS_FILE_LOG_BLOCK_SIZE
@@ -500,11 +460,35 @@ MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
 					header */
 #define LOG_FILE_HDR_SIZE	(4 * OS_FILE_LOG_BLOCK_SIZE)
 
+/* As long as fil_io() is used to handle log io, log group max size is limited
+by (maximum page number) * (minimum page size). Page number type is uint32_t.
+Remove this limitation if page number is no longer used for log file io. */
+static const ulonglong log_group_max_size =
+	((ulonglong(UINT32_MAX) + 1) * UNIV_PAGE_SIZE_MIN - 1);
+
 typedef ib_mutex_t	LogSysMutex;
 typedef ib_mutex_t	FlushOrderMutex;
 
 /** Redo log buffer */
 struct log_t{
+  /** The original (not version-tagged) InnoDB redo log format */
+  static constexpr uint32_t FORMAT_3_23 = 0;
+  /** The MySQL 5.7.9/MariaDB 10.2.2 log format */
+  static constexpr uint32_t FORMAT_10_2 = 1;
+  /** The MariaDB 10.3.2 log format.
+  To prevent crash-downgrade to earlier 10.2 due to the inability to
+  roll back a retroactively introduced TRX_UNDO_RENAME_TABLE undo log record,
+  MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
+  1 instead of 0. MariaDB 10.3 will use subformat 0 (5.7-style TRUNCATE) or 2
+  (MDEV-13564 backup-friendly TRUNCATE). */
+  static constexpr uint32_t FORMAT_10_3 = 103;
+  /** The MariaDB 10.4.0 log format. */
+  static constexpr uint32_t FORMAT_10_4 = 104;
+  /** Encrypted MariaDB redo log */
+  static constexpr uint32_t FORMAT_ENCRYPTED = 1U << 31;
+  /** The MariaDB 10.4.0 log format (only with innodb_encrypt_log=ON) */
+  static constexpr uint32_t FORMAT_ENC_10_4 = FORMAT_10_4 | FORMAT_ENCRYPTED;
+
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	lsn_t		lsn;		/*!< log sequence number */
 	ulong		buf_free;	/*!< first free offset within the log
@@ -523,19 +507,11 @@ struct log_t{
 					mtr_commit and still ensure that
 					insertions in the flush_list happen
 					in the LSN order. */
-	byte*		buf;		/*!< Memory of double the
-					srv_log_buffer_size is
-					allocated here. This pointer will change
-					however to either the first half or the
-					second half in turns, so that log
-					write/flush to disk don't block
-					concurrent mtrs which will write
-					log to this buffer. Care to switch back
-					to the first half before freeing/resizing
-					must be undertaken. */
-	bool		first_in_use;	/*!< true if buf points to the first
-					half of the aligned(buf_ptr), false
-					if the second half */
+	/** log_buffer, append data here */
+	byte*		buf;
+	/** log_buffer, writing data to file from this buffer.
+	Before flushing write_buf is swapped with flush_buf */
+	byte*		flush_buf;
 	ulong		max_buf_free;	/*!< recommended maximum value of
 					buf_free for the buffer in use, after
 					which the buffer is flushed */
@@ -553,29 +529,25 @@ struct log_t{
   struct files {
     /** number of files */
     ulint				n_files;
-    /** format of the redo log: e.g., LOG_HEADER_FORMAT_10_4 */
+    /** format of the redo log: e.g., FORMAT_10_4 */
     uint32_t				format;
     /** redo log subformat: 0 with separately logged TRUNCATE,
     2 with fully redo-logged TRUNCATE (1 in MariaDB 10.2) */
     uint32_t				subformat;
     /** individual log file size in bytes, including the header */
     lsn_t				file_size;
+  private:
     /** lsn used to fix coordinates within the log group */
     lsn_t				lsn;
     /** the byte offset of the above lsn */
     lsn_t				lsn_offset;
-
-    /** unaligned buffers */
-    byte*				file_header_bufs_ptr;
-    /** buffers for each file header in the group */
-    byte*				file_header_bufs[SRV_N_LOG_FILES_MAX];
-
+  public:
     /** used only in recovery: recovery scan succeeded up to this
     lsn in this log group */
     lsn_t				scanned_lsn;
 
     /** @return whether the redo log is encrypted */
-    bool is_encrypted() const { return format & LOG_HEADER_FORMAT_ENCRYPTED; }
+    bool is_encrypted() const { return format & FORMAT_ENCRYPTED; }
     /** @return capacity in bytes */
     lsn_t capacity() const{ return (file_size - LOG_FILE_HDR_SIZE) * n_files; }
     /** Calculate the offset of a log sequence number.
@@ -586,8 +558,9 @@ struct log_t{
     /** Set the field values to correspond to a given lsn. */
     void set_fields(lsn_t lsn)
     {
-      lsn_offset = calc_lsn_offset(lsn);
-      this->lsn = lsn;
+      lsn_t c_lsn_offset = calc_lsn_offset(lsn);
+      set_lsn(lsn);
+      set_lsn_offset(c_lsn_offset);
     }
 
     /** Read a log segment to log_sys.buf.
@@ -604,11 +577,12 @@ struct log_t{
     /** Close the redo log buffer. */
     void close()
     {
-      ut_free(file_header_bufs_ptr);
       n_files = 0;
-      file_header_bufs_ptr = NULL;
-      memset(file_header_bufs, 0, sizeof file_header_bufs);
     }
+    void set_lsn(lsn_t a_lsn);
+    lsn_t get_lsn() const { return lsn; }
+    void set_lsn_offset(lsn_t a_lsn);
+    lsn_t get_lsn_offset() const { return lsn_offset; }
   } log;
 
 	/** The fields involved in the log buffer flush @{ */
@@ -620,8 +594,6 @@ struct log_t{
 					later; this is advanced when a flush
 					operation is completed to all the log
 					groups */
-	volatile bool	is_extending;	/*!< this is set to true during extend
-					the log buffer size */
 	lsn_t		write_lsn;	/*!< last written lsn */
 	lsn_t		current_flush_lsn;/*!< end lsn for the current running
 					write + flush operation */
@@ -718,14 +690,14 @@ public:
   /** @return the log block header + trailer size */
   unsigned framing_size() const
   {
-    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+    return log.format == FORMAT_ENC_10_4
       ? LOG_BLOCK_HDR_SIZE + LOG_BLOCK_KEY + LOG_BLOCK_CHECKSUM
       : LOG_BLOCK_HDR_SIZE + LOG_BLOCK_CHECKSUM;
   }
   /** @return the log block payload size */
   unsigned payload_size() const
   {
-    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+    return log.format == FORMAT_ENC_10_4
       ? OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE - LOG_BLOCK_CHECKSUM -
       LOG_BLOCK_KEY
       : OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE - LOG_BLOCK_CHECKSUM;
@@ -733,7 +705,7 @@ public:
   /** @return the log block trailer offset */
   unsigned trailer_offset() const
   {
-    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+    return log.format == FORMAT_ENC_10_4
       ? OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM - LOG_BLOCK_KEY
       : OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM;
   }
@@ -767,6 +739,17 @@ inline lsn_t log_t::files::calc_lsn_offset(lsn_t lsn) const
   l+= lsn_offset - LOG_FILE_HDR_SIZE * (1 + lsn_offset / file_size);
   l%= group_size;
   return l + LOG_FILE_HDR_SIZE * (1 + l / (file_size - LOG_FILE_HDR_SIZE));
+}
+
+inline void log_t::files::set_lsn(lsn_t a_lsn) {
+      ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+      lsn = a_lsn;
+}
+
+inline void log_t::files::set_lsn_offset(lsn_t a_lsn) {
+      ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+      ut_ad((lsn % OS_FILE_LOG_BLOCK_SIZE) == (a_lsn % OS_FILE_LOG_BLOCK_SIZE));
+      lsn_offset = a_lsn;
 }
 
 /** Test if flush order mutex is owned. */

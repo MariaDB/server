@@ -12,6 +12,7 @@ INSERT INTO t1 VALUES (1,REPEAT('a',100)),(2,REPEAT('v',200)),(3,REPEAT('r',300)
 INSERT INTO t1 VALUES (5,REPEAT('k',500)),(6,'April'),(7,7),(8,""),(9,"M"),(10,DEFAULT);
 ALTER TABLE t1 ANALYZE PARTITION p1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 ALTER TABLE t1 CHECK PARTITION p2;
 Table	Op	Msg_type	Msg_text

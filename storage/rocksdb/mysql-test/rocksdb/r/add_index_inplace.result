@@ -391,33 +391,46 @@ set global rocksdb_force_flush_memtable_now=1;
 ALTER TABLE t1 ADD INDEX kj(j), ALGORITHM=INPLACE;
 larger
 1
+# restart
 larger
 1
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 larger
 1
+# restart
 larger
 1
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select 1300 < 1300 * 1.5 as "same";
 same
@@ -469,6 +482,8 @@ DROP TABLE t1;
 SET @prior_rocksdb_table_stats_sampling_pct = @@rocksdb_table_stats_sampling_pct;
 set global rocksdb_table_stats_sampling_pct = 100;
 CREATE TABLE t1 (a INT, b INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+Warnings:
+Warning	1280	Name 'ka' ignored for PRIMARY key.
 INSERT INTO t1 (a, b) VALUES (1, 10);
 INSERT INTO t1 (a, b) VALUES (2, 10);
 INSERT INTO t1 (a, b) VALUES (3, 20);
@@ -476,6 +491,7 @@ INSERT INTO t1 (a, b) VALUES (4, 20);
 set global rocksdb_force_flush_memtable_now=1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SHOW INDEX in t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment

@@ -4,6 +4,7 @@
 --source include/have_debug.inc
 --source include/have_innodb.inc
 
+SET @saved_dbug = @@SESSION.debug_dbug;
 set session debug_dbug="+d,optimizer_innodb_icp";
 
 CREATE TABLE t1(c1 TIME NOT NULL, c2 TIME NULL, c3 DATE, PRIMARY
@@ -15,3 +16,4 @@ SELECT * FROM t1 WHERE c2 <=> NULL ORDER BY c2 LIMIT 2;
 SELECT * FROM t1 WHERE c2 <=> NULL ORDER BY c2 LIMIT 2;
 
 drop table `t1`;
+SET debug_dbug= @saved_dbug;

@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Library General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 $LOAD_PATH.unshift(File.dirname(__FILE__))
 require "parser"
@@ -64,7 +64,7 @@ puts(<<-HEADER)
   You should have received a copy of the GNU Library General Public
   License along with this library; if not, write to the Free
   Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-  MA 02110-1301, USA
+  MA 02110-1335  USA
 
   This file uses normalization table defined in
   #{normalized_ctype_utf8_c_path}.
@@ -85,7 +85,7 @@ puts(<<-HEADER)
     You should have received a copy of the GNU Library General Public
     License along with this library; if not, write to the Free
     Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-    MA 02110-1301, USA
+    MA 02110-1335  USA
 
     UTF8 according RFC 2279
     Written by Alexander Barkov <bar@udm.net>

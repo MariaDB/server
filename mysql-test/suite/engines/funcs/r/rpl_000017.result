@@ -1,0 +1,19 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+connection master;
+grant replication slave on *.* to replicate@localhost identified by 'aaaaaaaaaaaaaaab';
+grant replication slave on *.* to replicate@127.0.0.1 identified by 'aaaaaaaaaaaaaaab';
+connection slave;
+include/start_slave.inc
+connection master;
+create table t1(n int);
+insert into t1 values(24);
+connection slave;
+select * from t1;
+n
+24
+connection master;
+drop table t1;
+delete from mysql.user where user="replicate";
+include/rpl_end.inc

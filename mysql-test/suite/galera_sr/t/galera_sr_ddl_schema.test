@@ -1,0 +1,43 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test the effect of DROP SCHEMA DDL on a concurrent SR transaction
+# Most other DDL tests work on a table level, so this test exercises a 
+# different granularity.
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t1 VALUES (2, 2);
+INSERT INTO t1 VALUES (3, 3);
+INSERT INTO t1 VALUES (4, 4);
+INSERT INTO t1 VALUES (5, 5);
+
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) > 0 FROM t1;
+--source include/wait_condition.inc
+
+DROP SCHEMA test;
+
+--error ER_NO_SUCH_TABLE
+SELECT COUNT(*) = 0 FROM test.t1;
+
+--connection node_1
+
+# Transaction can not continue due to DDL
+--error ER_LOCK_DEADLOCK
+INSERT INTO test.t1 VALUES (6, 6);
+
+# DDL is now in effect
+--error ER_NO_SUCH_TABLE
+INSERT INTO test.t1 VALUES (6, 6);
+
+CREATE SCHEMA test;

@@ -434,7 +434,7 @@ drop table t1;
 #
 create table t1 (a int);
 create or replace table t1 (a int default b, b int default a);
-ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 show create table t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 #
@@ -451,16 +451,16 @@ create or replace table t1 (a varchar(128) default @@version);
 create or replace table t1 (a int not null, b int as (a));
 create or replace table t1 (a int not null, b int default (a+1));
 create or replace table t1 (a int default a);
-ERROR 01000: Expression for field `a` is refering to uninitialized field `a`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `a`
 create or replace table t1 (a int default b, b int default (1+1));
 create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
-ERROR 01000: Expression for field `b` is refering to uninitialized field `c`
+ERROR 01000: Expression for field `b` is referring to uninitialized field `c`
 CREATE TABLE t1 (a INT DEFAULT (DEFAULT(a)));
-ERROR 01000: Expression for field `a` is refering to uninitialized field `a`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `a`
 CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT(DEFAULT(a)));
-ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)) NOT NULL, b INT DEFAULT(DEFAULT(a)) NOT NULL);
-ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 #
 # Allow defaults to refer to not default fields
 #
@@ -519,7 +519,7 @@ Got one of the listed errors
 CREATE TABLE t1 (a INT DEFAULT(?));
 Got one of the listed errors
 CREATE TABLE t1 (a INT DEFAULT (b), b INT DEFAULT(a));
-ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 CREATE TABLE t1 (a INT DEFAULT(NAME_CONST('xxx', 'yyy'));
 ERROR HY000: Function or expression 'name_const()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT COUNT(*));
@@ -3355,21 +3355,29 @@ a	b
 drop table t1;
 set sql_mode=default;
 create table t1 (a int default b, b int default 4, t text);
-insert into t1 (b, t) values (5, '1 column is omitted');
-insert into t1 values (default, 5, '2 column gets DEFAULT, keyword');
-insert into t1 values (default(a), 5, '3 column gets DEFAULT(a), expression');
-insert into t1 values (default(a)+0, 5, '4 also expression DEFAULT(0)+0');
-insert into t1 values (b, 5, '5 the value of the DEFAULT(a), that is b');
+insert t1 (b, t) values (5, '1 column is omitted');
+insert t1 values (default, 5, '2 column gets DEFAULT, keyword');
+insert t1 values (default(a), 5, '3 column gets DEFAULT(a), expression');
+insert t1 values (default(a)+0, 5, '4 also expression DEFAULT(0)+0');
+insert t1 values (b, 5, '5 the value of the DEFAULT(a), that is b');
+insert t1 (t,b,a) values ('6 reversed, column gets DEFAULT, keyword', 5, default);
+insert t1 (t,b,a) values ('7 reversed, column gets DEFAULT(a), expression', 5, default(a));
+insert t1 (t,b,a) values ('8 reversed, also expression DEFAULT(0)+0', 5, default(a)+0);
+insert t1 (t,b,a) values ('9 reversed, the value of the DEFAULT(a), that is b', 5, b);
 select * from t1 order by t;
 a	b	t
 5	5	1 column is omitted
-5	5	2 column gets DEFAULT, keyword
+4	5	2 column gets DEFAULT, keyword
 4	5	3 column gets DEFAULT(a), expression
 4	5	4 also expression DEFAULT(0)+0
 4	5	5 the value of the DEFAULT(a), that is b
+5	5	6 reversed, column gets DEFAULT, keyword
+5	5	7 reversed, column gets DEFAULT(a), expression
+5	5	8 reversed, also expression DEFAULT(0)+0
+5	5	9 reversed, the value of the DEFAULT(a), that is b
 drop table t1;
 create table t1 (col1 int default(-(default(col1))));
-ERROR 01000: Expression for field `col1` is refering to uninitialized field `col1`
+ERROR 01000: Expression for field `col1` is referring to uninitialized field `col1`
 create table t1 (col int default (yearweek((exp(710)))));
 ERROR 22003: DOUBLE value is out of range in 'exp(710)'
 #
@@ -3379,4 +3387,28 @@ CREATE OR REPLACE TABLE t1(i int);
 ALTER TABLE t1 ADD b CHAR(255) DEFAULT `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`;
 ERROR 42S22: Unknown column 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' in 'DEFAULT'
 DROP TABLE t1;
+#
+# MDEV-18278 Misleading error message in error log upon failed table creation
+#
+create table t1 (a int as (a));
+ERROR 01000: Expression for field `a` is referring to uninitialized field `a`
+show warnings;
+Level	Code	Message
+Error	4029	Expression for field `a` is referring to uninitialized field `a`
 # end of 10.2 test
+#
+# MDEV-22703 DEFAULT() on a BLOB column can overwrite the default
+# record, which can cause crashes when accessing already released
+# memory.
+#
+CREATE TEMPORARY TABLE t1 (h POINT DEFAULT ST_GEOMFROMTEXT('Point(1 1)')) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES (),();
+ALTER TABLE t1 FORCE;
+SELECT DEFAULT(h) FROM t1;
+SELECT length(DEFAULT(h)) FROM t1;
+length(DEFAULT(h))
+25
+25
+INSERT INTO t1 () VALUES ();
+drop table t1;
+# end of 10.3 test

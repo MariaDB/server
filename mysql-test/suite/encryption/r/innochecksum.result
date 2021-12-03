@@ -20,17 +20,19 @@ CREATE TABLE t6 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 # Run innochecksum on t3
 # no encryption corrupting the field should not have effect
 # Run innochecksum on t6
-# no encryption corrupting the field should not have effect
+# In new checksum format, checksum calculated for whole page.
+# So It should affected.
 # Restore the original tables
 # Corrupt FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+4 (post encryption checksum)
 # Run innochecksum on t2
 # Run innochecksum on t3
 # Run innochecksum on t6
-# no encryption corrupting the field should not have effect
+# Space ID mismatch
 # Restore the original tables
 # Corrupt FIL_DATA+10 (data)
 # Run innochecksum on t2
 # Run innochecksum on t3
 # Run innochecksum on t6
 # Restore the original tables
+# restart
 DROP TABLE t1, t2, t3, t4, t5, t6;

@@ -1,0 +1,25 @@
+connection node_2;
+connection node_1;
+connection node_2;
+SET GLOBAL wsrep_ignore_apply_errors = 2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_on = OFF;
+INSERT INTO t1 VALUES (1);
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_trx_fragment_size = 1;
+DELETE FROM t1 WHERE f1 = 1;
+SET SESSION wsrep_trx_fragment_size = 0;
+INSERT INTO t1 VALUES (1);
+SELECT COUNT(*) = 1;
+COUNT(*) = 1
+1
+connection node_2;
+SELECT COUNT(*) = 1;
+COUNT(*) = 1
+1
+CALL mtr.add_suppression("Could not execute Delete_rows event on table");
+CALL mtr.add_suppression("Can't find record in 't1'");
+SET GLOBAL wsrep_ignore_apply_errors = 7;
+connection node_1;
+DROP TABLE t1;

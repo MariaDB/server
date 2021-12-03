@@ -1,0 +1,218 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+#
+# MDEV-26545 Spider does not correctly handle UDF and stored function in where conds
+#
+
+##### enable general_log #####
+connection child2_1;
+SET @general_log_backup = @@global.general_log;
+SET @log_output_backup = @@global.log_output;
+SET @@global.general_log = 1;
+SET @@global.log_output = "TABLE";
+TRUNCATE TABLE mysql.general_log;
+
+##### create databases #####
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+##### create tables #####
+connection child2_1;
+CHILD_CREATE_TABLE
+connection master_1;
+MASTER_CREATE_TABLE
+CREATE TABLE ta_l (
+id INT NOT NULL,
+a INT,
+PRIMARY KEY(id)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+INSERT INTO ta_l VALUES
+(1, 11),
+(2, 22),
+(3, 33),
+(4, 44),
+(5, 55);
+
+##### create functions #####
+connection master_1;
+CREATE FUNCTION `plusone`( param INT ) RETURNS INT
+BEGIN
+RETURN param + 1;
+END //
+connection child2_1;
+CREATE FUNCTION `plusone`( param INT ) RETURNS INT
+BEGIN
+RETURN param + 1;
+END //
+
+########## spider_use_pushdown_udf=0 ##########
+connection master_1;
+SET @@spider_use_pushdown_udf = 0;
+
+##### test SELECTs #####
+connection master_1;
+SELECT * FROM ta_l WHERE id = plusone(1);
+id	a
+2	22
+SELECT * FROM ta_l WHERE id IN (plusone(1), plusone(2)) AND a = plusone(32);
+id	a
+3	33
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE "%select%" AND argument NOT LIKE "%argument%";
+argument
+select `id`,`a` from `auto_test_remote`.`ta_r`
+select `id`,`a` from `auto_test_remote`.`ta_r`
+
+##### test UPDATEs #####
+connection master_1;
+UPDATE ta_l SET a = plusone(221) WHERE id = plusone(1);
+SELECT * FROM ta_l;
+id	a
+1	11
+2	222
+3	33
+4	44
+5	55
+UPDATE ta_l SET a = plusone(332) WHERE id IN (plusone(1), plusone(2)) AND a = plusone(32);
+SELECT * FROM ta_l;
+id	a
+1	11
+2	222
+3	333
+4	44
+5	55
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE "%update%" AND argument NOT LIKE "%argument%";
+argument
+select `id`,`a` from `auto_test_remote`.`ta_r` for update
+update `auto_test_remote`.`ta_r` set `a` = 222 where `id` = 2 limit 1
+select `id`,`a` from `auto_test_remote`.`ta_r` for update
+update `auto_test_remote`.`ta_r` set `a` = 333 where `id` = 3 and `a` = 33 limit 1
+
+##### test DELETEs #####
+connection master_1;
+DELETE FROM ta_l WHERE id = plusone(1);
+SELECT * FROM ta_l;
+id	a
+1	11
+3	333
+4	44
+5	55
+DELETE FROM ta_l WHERE id IN (plusone(1), plusone(2), plusone(3)) AND a = plusone(43);
+SELECT * FROM ta_l;
+id	a
+1	11
+3	333
+5	55
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE (argument LIKE "%delete%" OR argument LIKE "%update%") AND argument NOT LIKE "%argument%";
+argument
+select `id` from `auto_test_remote`.`ta_r` for update
+delete from `auto_test_remote`.`ta_r` where `id` = 2 limit 1
+select `id`,`a` from `auto_test_remote`.`ta_r` for update
+delete from `auto_test_remote`.`ta_r` where `id` = 4 and `a` = 44 limit 1
+
+##### reset records #####
+connection master_1;
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l VALUES
+(1, 11),
+(2, 22),
+(3, 33),
+(4, 44),
+(5, 55);
+
+########## spider_use_pushdown_udf=1 ##########
+connection master_1;
+SET @@spider_use_pushdown_udf = 1;
+
+##### test SELECTs #####
+connection master_1;
+SELECT * FROM ta_l WHERE id = plusone(1);
+id	a
+2	22
+SELECT * FROM ta_l WHERE id IN (plusone(1), plusone(2)) AND a = plusone(32);
+id	a
+3	33
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE "%select%" AND argument NOT LIKE "%argument%";
+argument
+select t0.`id` `id`,t0.`a` `a` from `auto_test_remote`.`ta_r` t0 where (t0.`id` = (`plusone`(1)))
+select t0.`id` `id`,t0.`a` `a` from `auto_test_remote`.`ta_r` t0 where ((t0.`id` in( (`plusone`(1)) , (`plusone`(2)))) and (t0.`a` = (`plusone`(32))))
+
+##### test UPDATEs #####
+connection master_1;
+UPDATE ta_l SET a = plusone(221) WHERE id = plusone(1);
+SELECT * FROM ta_l;
+id	a
+1	11
+2	222
+3	33
+4	44
+5	55
+UPDATE ta_l SET a = plusone(332) WHERE id IN (plusone(1), plusone(2)) AND a = plusone(32);
+SELECT * FROM ta_l;
+id	a
+1	11
+2	222
+3	333
+4	44
+5	55
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE "%update%" AND argument NOT LIKE "%argument%";
+argument
+update `auto_test_remote`.`ta_r` set `a` = (`plusone`(221)) where (`id` = (`plusone`(1)))
+update `auto_test_remote`.`ta_r` set `a` = (`plusone`(332)) where ((`id` in( (`plusone`(1)) , (`plusone`(2)))) and (`a` = (`plusone`(32))))
+
+##### test DELETEs #####
+connection master_1;
+DELETE FROM ta_l WHERE id = plusone(1);
+SELECT * FROM ta_l;
+id	a
+1	11
+3	333
+4	44
+5	55
+DELETE FROM ta_l WHERE id IN (plusone(1), plusone(2), plusone(3)) AND a = plusone(43);
+SELECT * FROM ta_l;
+id	a
+1	11
+3	333
+5	55
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE (argument LIKE "%delete%" OR argument LIKE "%update%") AND argument NOT LIKE "%argument%";
+argument
+delete from `auto_test_remote`.`ta_r` where (`id` = (`plusone`(1)))
+delete from `auto_test_remote`.`ta_r` where ((`id` in( (`plusone`(1)) , (`plusone`(2)) , (`plusone`(3)))) and (`a` = (`plusone`(43))))
+
+deinit
+connection master_1;
+DROP FUNCTION `plusone`;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+SET @@global.general_log = @general_log_backup;
+SET @@global.log_output = @log_output_backup;
+DROP FUNCTION `plusone`;
+DROP DATABASE IF EXISTS auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -22,7 +22,7 @@ Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 ***********************************************************************/
 
@@ -36,7 +36,7 @@ Created 10/21/1995 Heikki Tuuri
 #ifndef os0file_h
 #define os0file_h
 
-#include "page0size.h"
+#include "fsp0types.h"
 #include "os0api.h"
 
 #ifndef _WIN32
@@ -44,6 +44,8 @@ Created 10/21/1995 Heikki Tuuri
 #include <sys/stat.h>
 #include <time.h>
 #endif /* !_WIN32 */
+
+#include "my_counter.h"
 
 /** File node of a tablespace or the log data space */
 struct fil_node_t;
@@ -55,8 +57,6 @@ extern bool	os_has_said_disk_full;
 typedef ib_uint64_t os_offset_t;
 
 #ifdef _WIN32
-
-typedef HANDLE	os_file_dir_t;	/*!< directory stream */
 
 /** We define always WIN_ASYNC_IO, and check at run-time whether
 the OS actually supports it: Win 95 does not, NT does. */
@@ -70,8 +70,6 @@ typedef HANDLE os_file_t;
 
 
 #else /* _WIN32 */
-
-typedef DIR*	os_file_dir_t;	/*!< directory stream */
 
 /** File handle */
 typedef int	os_file_t;
@@ -150,7 +148,7 @@ static const ulint OS_FILE_NORMAL = 62;
 /** Types for file create @{ */
 static const ulint OS_DATA_FILE = 100;
 static const ulint OS_LOG_FILE = 101;
-static const ulint OS_DATA_TEMP_FILE = 102;
+static const ulint OS_DATA_FILE_NO_O_DIRECT = 103;
 /* @} */
 
 /** Error codes from os_file_get_last_error @{ */
@@ -360,17 +358,8 @@ public:
 
 	/** Set the pointer to file node for IO
 	@param[in] node			File node */
-	void set_fil_node(fil_node_t* node)
-	{
-		if (node && !fil_node_should_punch_hole(node)) {
-			clear_punch_hole();
-		}
+	inline void set_fil_node(fil_node_t* node);
 
-		m_fil_node = node;
-	}
-
-	/** Compare two requests
-	@reutrn true if the are equal */
 	bool operator==(const IORequest& rhs) const
 	{
 		return(m_type == rhs.m_type);
@@ -414,17 +403,7 @@ public:
 			: 0);
 	}
 
-	bool should_punch_hole() const {
-		return (m_fil_node ?
-			fil_node_should_punch_hole(m_fil_node)
-			: false);
-	}
-
-	void space_no_punch_hole() const {
-		if (m_fil_node) {
-			fil_space_set_punch_hole(m_fil_node, false);
-		}
-	}
+	inline bool should_punch_hole() const;
 
 	/** Free storage space associated with a section of the file.
 	@param[in]	fh		Open file handle
@@ -478,7 +457,7 @@ or write, causing a bottleneck for parallelism. */
 static const ulint OS_AIO_SYNC = 24;
 /* @} */
 
-extern ulint	os_n_file_reads;
+extern Atomic_counter<ulint> os_n_file_reads;
 extern ulint	os_n_file_writes;
 extern ulint	os_n_fsyncs;
 
@@ -531,43 +510,6 @@ parameter (--tmpdir).
 @return temporary file handle, or NULL on error */
 FILE*
 os_file_create_tmpfile();
-
-/** The os_file_opendir() function opens a directory stream corresponding to the
-directory named by the dirname argument. The directory stream is positioned
-at the first entry. In both Unix and Windows we automatically skip the '.'
-and '..' items at the start of the directory listing.
-
-@param[in]	dirname		directory name; it must not contain a trailing
-				'\' or '/'
-@param[in]	is_fatal	true if we should treat an error as a fatal
-				error; if we try to open symlinks then we do
-				not wish a fatal error if it happens not to be
-				a directory
-@return directory stream, NULL if error */
-os_file_dir_t
-os_file_opendir(
-	const char*	dirname,
-	bool		is_fatal);
-
-/**
-Closes a directory stream.
-@param[in] dir	directory stream
-@return 0 if success, -1 if failure */
-int
-os_file_closedir(
-	os_file_dir_t	dir);
-
-/** This function returns information of the next file in the directory. We jump
-over the '.' and '..' entries in the directory.
-@param[in]	dirname		directory name or path
-@param[in]	dir		directory stream
-@param[out]	info		buffer where the info is returned
-@return 0 if ok, -1 if error, 1 if at the end of the directory */
-int
-os_file_readdir_next_file(
-	const char*	dirname,
-	os_file_dir_t	dir,
-	os_file_stat_t*	info);
 
 /**
 This function attempts to create a directory named pathname. The new directory
@@ -796,9 +738,7 @@ os_file_rename
 os_aio
 os_file_read
 os_file_read_no_error_handling
-os_file_read_no_error_handling_int_fd
 os_file_write
-os_file_write_int_fd
 
 The wrapper functions have the prefix of "innodb_". */
 
@@ -1174,13 +1114,9 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_read_no_error_handling(type, file, buf, offset, n, o)	\
 	os_file_read_no_error_handling_func(type, file, buf, offset, n, o)
-# define os_file_read_no_error_handling_int_fd(type, file, buf, offset, n) \
-	os_file_read_no_error_handling_func(type, OS_FILE_FROM_FD(file), buf, offset, n, NULL)
 
 # define os_file_write(type, name, file, buf, offset, n)	\
 	os_file_write_func(type, name, file, buf, offset, n)
-# define os_file_write_int_fd(type, name, file, buf, offset, n)	\
-	os_file_write_func(type, name, OS_FILE_FROM_FD(file), buf, offset, n)
 
 # define os_file_flush(file)	os_file_flush_func(file)
 
@@ -1591,19 +1527,6 @@ os_file_change_size_win32(
 
 #endif /*_WIN32 */
 
-/** Check if the file system supports sparse files.
-
-Warning: On POSIX systems we try and punch a hole from offset 0 to
-the system configured page size. This should only be called on an empty
-file.
-
-@param[in]	fh		File handle for the file - if opened
-@return true if the file system supports sparse files */
-bool
-os_is_sparse_file_supported(
-	os_file_t	fh)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Free storage space associated with a section of the file.
 @param[in]	fh		Open file handle
 @param[in]	off		Starting offset (SEEK_SET)
@@ -1642,16 +1565,6 @@ is_absolute_path(
 
 	return(false);
 }
-
-/***********************************************************************//**
-Try to get number of bytes per sector from file system.
-@return	file block size */
-UNIV_INTERN
-ulint
-os_file_get_block_size(
-/*===================*/
-	os_file_t	file,	/*!< in: handle to a file */
-	const char*	name);	/*!< in: file name */
 
 #include "os0file.ic"
 

@@ -1,17 +1,24 @@
 /* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file storage/perfschema/pfs_instr.cc
@@ -136,7 +143,7 @@ PFS_thread *thread_array= NULL;
   File instrumentation instances array.
   @sa file_max
   @sa file_lost
-  @sa filename_hash
+  @sa pfs_filename_hash
 */
 PFS_file *file_array= NULL;
 
@@ -182,8 +189,8 @@ static unsigned char *history_stmts_digest_token_array= NULL;
 static char *thread_session_connect_attrs_array= NULL;
 
 /** Hash table for instrumented files. */
-LF_HASH filename_hash;
-/** True if filename_hash is initialized. */
+LF_HASH pfs_filename_hash;
+/** True if pfs_filename_hash is initialized. */
 static bool filename_hash_inited= false;
 
 /**
@@ -579,7 +586,7 @@ int init_file_hash(void)
 {
   if ((! filename_hash_inited) && (file_max > 0))
   {
-    lf_hash_init(&filename_hash, sizeof(PFS_file*), LF_HASH_UNIQUE,
+    lf_hash_init(&pfs_filename_hash, sizeof(PFS_file*), LF_HASH_UNIQUE,
                  0, 0, filename_hash_get_key, &my_charset_bin);
     /* filename_hash.size= file_max; */
     filename_hash_inited= true;
@@ -592,7 +599,7 @@ void cleanup_file_hash(void)
 {
   if (filename_hash_inited)
   {
-    lf_hash_destroy(&filename_hash);
+    lf_hash_destroy(&pfs_filename_hash);
     filename_hash_inited= false;
   }
 }
@@ -1179,7 +1186,7 @@ void destroy_thread(PFS_thread *pfs)
 }
 
 /**
-  Get the hash pins for @filename_hash.
+  Get the hash pins for @pfs_filename_hash.
   @param thread The running thread.
   @returns The LF_HASH pins for the thread.
 */
@@ -1189,7 +1196,7 @@ LF_PINS* get_filename_hash_pins(PFS_thread *thread)
   {
     if (! filename_hash_inited)
       return NULL;
-    thread->m_filename_hash_pins= lf_hash_get_pins(&filename_hash);
+    thread->m_filename_hash_pins= lf_hash_get_pins(&pfs_filename_hash);
   }
   return thread->m_filename_hash_pins;
 }
@@ -1265,7 +1272,6 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
   char dirbuffer[FN_REFLEN];
   size_t dirlen;
   const char *normalized_filename;
-  int normalized_length;
 
   dirlen= dirname_length(safe_filename);
   if (dirlen == 0)
@@ -1296,7 +1302,7 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
   *buf_end= '\0';
 
   normalized_filename= buffer;
-  normalized_length= (int)strlen(normalized_filename);
+  uint normalized_length= static_cast<uint>(strlen(normalized_filename));
 
   PFS_file **entry;
   uint retry_count= 0;
@@ -1308,7 +1314,7 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
 search:
 
   entry= reinterpret_cast<PFS_file**>
-    (lf_hash_search(&filename_hash, pins,
+    (lf_hash_search(&pfs_filename_hash, pins,
                     normalized_filename, normalized_length));
   if (entry && (entry != MY_ERRPTR))
   {
@@ -1345,7 +1351,7 @@ search:
         pfs->m_class= klass;
         pfs->m_enabled= klass->m_enabled && flag_global_instrumentation;
         pfs->m_timed= klass->m_timed;
-        strncpy(pfs->m_filename, normalized_filename, normalized_length);
+        strncpy(pfs->m_filename, normalized_filename, normalized_length + 1);
         pfs->m_filename[normalized_length]= '\0';
         pfs->m_filename_length= normalized_length;
         pfs->m_file_stat.m_open_count= 1;
@@ -1353,7 +1359,7 @@ search:
         pfs->m_identity= (const void *)pfs;
 
         int res;
-        res= lf_hash_insert(&filename_hash, thread->m_filename_hash_pins,
+        res= lf_hash_insert(&pfs_filename_hash, thread->m_filename_hash_pins,
                             &pfs);
         if (likely(res == 0))
         {
@@ -1420,7 +1426,7 @@ void destroy_file(PFS_thread *thread, PFS_file *pfs)
   LF_PINS *pins= get_filename_hash_pins(thread);
   DBUG_ASSERT(pins != NULL);
 
-  lf_hash_delete(&filename_hash, pins,
+  lf_hash_delete(&pfs_filename_hash, pins,
                  pfs->m_filename, pfs->m_filename_length);
   if (klass->is_singleton())
     klass->m_singleton= NULL;

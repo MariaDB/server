@@ -1,0 +1,25 @@
+
+-----------------------------------------------------------------------
+- Locking issues case 3:
+-   After creating a snapshot, other clients updating rows
+-   using READ COMMITTED transaction isolation level
+-----------------------------------------------------------------------
+DROP TABLE IF EXISTS t0;
+CREATE TABLE t0(id INT AUTO_INCREMENT PRIMARY KEY, value INT);
+Inserting 200,000 rows
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SELECT * FROM t0 WHERE value > 0 FOR UPDATE;
+connection con2;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+UPDATE t0 SET VALUE=VALUE+1 WHERE id=190000;
+connection con1;
+id	value
+190000	1
+ERROR: 0
+connection default;
+disconnect con1;
+disconnect con2;
+DROP TABLE t0;

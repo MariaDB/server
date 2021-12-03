@@ -6,6 +6,8 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+call mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg\\(\\).*");
+
 CREATE TABLE t1 (f1 INTEGER);
 
 # Force all nodes to become non-primary
@@ -13,13 +15,19 @@ CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 
 --connection node_2
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
-SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
 
---sleep 10
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 
 # Node #2 should be non-primary
 SET SESSION wsrep_sync_wait = 0;
@@ -44,7 +52,7 @@ INSERT INTO t1 VALUES (1);
 # Reconnect all nodes 
 --connection node_2
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
---sleep 10
+
 --source include/wait_until_connected_again.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc
@@ -67,7 +75,7 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 
 --connection node_3
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
---sleep 10
+
 --source include/wait_until_connected_again.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc

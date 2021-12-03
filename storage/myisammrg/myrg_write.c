@@ -12,13 +12,13 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* Write a row to a MyISAM MERGE table */
 
 #include "myrg_def.h"
 
-int myrg_write(register MYRG_INFO *info, uchar *rec)
+int myrg_write(register MYRG_INFO *info, const uchar *rec)
 {
   /* [phi] MERGE_WRITE_DISABLED is handled by the else case */
   if (info->merge_insert_method == MERGE_INSERT_TO_FIRST)

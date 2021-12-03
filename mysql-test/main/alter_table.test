@@ -6,6 +6,7 @@
 drop table if exists t1,t2;
 drop database if exists mysqltest;
 --enable_warnings
+set @save_max_allowed_packet=@@global.max_allowed_packet;
 
 create table t1 (
 col1 int not null auto_increment primary key,
@@ -1340,7 +1341,7 @@ SELECT LENGTH(my_t3_fld1) FROM t3;
 DROP TABLE t1, t2, t3;
 
 SET SQL_MODE=default;
-SET GLOBAL max_allowed_packet=default;
+SET GLOBAL max_allowed_packet=@save_max_allowed_packet;
 
 #
 # Test of ALTER TABLE IF [NOT] EXISTS
@@ -2019,5 +2020,170 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-17599 ALTER TABLE DROP CONSTRAINT does not work for foreign keys.
+--echo #
+
+CREATE TABLE t1(id INT PRIMARY KEY, c1 INT) ENGINE= INNODB;
+CREATE TABLE t2(id INT PRIMARY KEY, c1 INT, c2 INT NOT NULL,
+    CONSTRAINT sid FOREIGN KEY (`c1`) REFERENCES t1 (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+    CONSTRAINT UNIQUE `ui`(c2)) ENGINE= INNODB;
+SHOW CREATE TABLE t2;
+ALTER TABLE t2 DROP CONSTRAINT sid;
+SHOW CREATE TABLE t2;
+ALTER TABLE t2 DROP CONSTRAINT ui;
+SHOW CREATE TABLE t2;
+ALTER TABLE t2 DROP CONSTRAINT PRIMARY KEY;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
+
+--echo #
+--echo # MDEV-18163: Assertion `table_share->tmp_table != NO_TMP_TABLE ||
+--echo # m_lock_type != 2' failed in handler::ha_rnd_next(); / Assertion
+--echo # `table_list->table' failed in find_field_in_table_ref / ERROR 1901
+--echo # (on optimized builds)
+--echo #
+
+
+CREATE TABLE t1 (k1 varchar(10) DEFAULT 5);
+CREATE TABLE t2 (i1 int);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+ALTER TABLE t1 ALTER COLUMN k1 SET DEFAULT (SELECT 1 FROM t2 limit 1);
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-25403 ALTER TABLE wrongly checks for field's default value if AFTER is used
+--echo #
+create table t1(t int, d date not null);
+insert into t1 values (1,'2001-1-1');
+set sql_mode = "no_zero_date";
+alter table t1 change d d date not null after t, add i int;
+show create table t1;
+--error ER_TRUNCATED_WRONG_VALUE
+alter table t1 add x date not null;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-17778: Alter table leads to a truncation warning with ANALYZE command
+--echo #
+
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity=4;
+set @@use_stat_tables=PREFERABLY;
+
+create table t1 (a int)engine=InnoDB;
+insert into t1 values (1),(1),(2),(3);
+
+analyze table t1;
+alter table t1 change a b int;
+analyze table t1;
+set @@use_stat_tables= @save_use_stat_tables;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1;
+
+--echo #
+--echo # MDEV-18154 Deadlock and assertion upon no-op ALTER under LOCK TABLES
+--echo #
+create or replace table t1 (pk int, i int, primary key (pk)) engine myisam;
+create or replace view v1 as select * from t1;
+lock table v1 read, t1 write;
+--error ER_BAD_FIELD_ERROR
+alter table t1 change f1 f2 int;
+set max_statement_time= 1;
+alter table t1 add column if not exists i int after pk;
+set max_statement_time= 0;
+drop table t1;
+drop view v1;
+
+--echo #
+--echo # MDEV-25803 Inplace ALTER breaks MyISAM/Aria tables when order of keys is changed
+--echo #
+set @save_default_engine= @@default_storage_engine;
+--disable_query_log
+if ($MTR_COMBINATION_INNODB)
+{
+  set default_storage_engine= innodb;
+}
+if ($MTR_COMBINATION_ARIA)
+{
+  set default_storage_engine= aria;
+}
+--enable_query_log
+
+if (!$MTR_COMBINATION_INNODB)
+{
+  --disable_query_log
+  --disable_result_log
+  # There is no inplace ADD INDEX for MyISAM/Aria:
+  create or replace table t1 (x int);
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
+  alter table t1 add unique (x), algorithm=inplace;
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
+  alter table t1 add primary key(x), algorithm=inplace;
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
+  alter table t1 add index(x), algorithm=inplace;
+  --enable_query_log
+  --enable_result_log
+}
+
+create or replace table t1 (x int, y int, unique (y), unique (x), primary key(x)) engine myisam;
+alter table t1 change x xx int, algorithm=inplace;
+check table t1;
+create or replace table t1 (x int, y int, unique (y), unique (x), primary key(x));
+alter table t1 change x xx int, algorithm=inplace;
+check table t1;
+# cleanup
+drop table t1;
+set @@default_storage_engine= @save_default_engine;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-22563 Segfault on duplicate free of Item_func_in::array
+--echo #
+create or replace table person_principal (
+  person_id bigint not null,
+  insurant_id varchar(10) not null,
+  principal_id bigint not null,
+  principal_officer_id bigint not null,
+  nursing_degree tinyint null,
+  nursing_degree_valid_from date not null default cast(current_timestamp(6) as date),
+  carma_user_id bigint not null,
+  current_date_time timestamp(6) not null default current_timestamp(6) on update current_timestamp(6),
+  constraint pk_person_principal primary key (person_id asc),
+  constraint ck_person_principal_nursing_degree check (nursing_degree in (1,2,3,4,5)));
+
+create or replace table person_principal_hist (
+  person_id bigint not null,
+  insurant_id varchar(10) not null,
+  principal_id bigint not null,
+  principal_officer_id bigint not null,
+  nursing_degree tinyint null,
+  nursing_degree_valid_from date not null default cast(now() as date),
+  carma_user_id bigint not null,
+  orig_date_time datetime(6) not null,
+  constraint pk_person_principal_hist primary key (person_id asc, orig_date_time asc),
+  constraint ck_person_principal_hist_nursing_degree check (nursing_degree in (1,2,3,4,5)));
+
+insert into person_principal (person_id, insurant_id, principal_id, principal_officer_id, nursing_degree, nursing_degree_valid_from, carma_user_id)
+values (1, 'A123456789', 5, 1, 1, '2018-05-06', 1);
+alter table person_principal add column if not exists date_mask tinyint null;
+update person_principal set date_mask = 0;
+alter table person_principal modify column date_mask tinyint not null;
+drop tables person_principal_hist, person_principal;
+
+#
+# The following ALTER TABLE caused crash in 10.4.13 (Reported on freenode)
+#
+
+CREATE OR REPLACE TABLE `t1` (   `id` varchar(64) NOT NULL,   `name` varchar(255) NOT NULL,   `extra` text DEFAULT NULL,   `password` varchar(128) DEFAULT NULL,   `enabled` tinyint(1) DEFAULT NULL,   `domain_id` varchar(64) NOT NULL,   `default_project_id` varchar(64) DEFAULT NULL,   PRIMARY KEY (`id`),  CONSTRAINT `CONSTRAINT_1` CHECK (`enabled` in (0,1)) ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+insert into t1 (id,name,enabled,domain_id) values (1,"Monty",1,"domain_id");
+insert into t1 (id,name,enabled,domain_id) values (2,"Monty2",1,"domain_id2");
+ALTER TABLE t1 ADD CONSTRAINT ixu_user2_name_domain_id UNIQUE (domain_id, name);
+DROP TABLE t1;

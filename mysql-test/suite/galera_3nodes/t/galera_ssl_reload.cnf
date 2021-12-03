@@ -1,0 +1,10 @@
+!include ../galera_3nodes.cnf
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;socket.ssl=yes;socket.ssl_ca=@ENV.MYSQL_TEST_DIR/std_data/galera_certs/galera.root.crt;socket.ssl_cert=@ENV.MYSQL_TEST_DIR/std_data/galera_certs/galera.1.crt;socket.ssl_key=@ENV.MYSQL_TEST_DIR/std_data/galera_certs/galera.1.key'
+
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;socket.ssl=yes;socket.ssl_ca=@ENV.MYSQL_TEST_DIR/std_data/galera_certs/galera.root.crt;socket.ssl_cert=@ENV.MYSQL_TEST_DIR/std_data/galera_certs/galera.1.crt;socket.ssl_key=@ENV.MYSQL_TEST_DIR/std_data/galera_certs/galera.1.key'
+
+[mysqld.3]
+wsrep_provider_options='base_port=@mysqld.3.#galera_port;socket.ssl=yes;socket.ssl_ca=@ENV.MYSQL_TEST_DIR/std_data/galera_certs/galera.root.crt;socket.ssl_cert=@ENV.MYSQL_TEST_DIR/std_data/galera_certs/galera.1.crt;socket.ssl_key=@ENV.MYSQL_TEST_DIR/std_data/galera_certs/galera.1.key'

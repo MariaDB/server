@@ -1,16 +1,12 @@
-set @save_optimizer_switch_jcl6=@@optimizer_switch;
 set @@optimizer_switch='optimize_join_buffer_size=on';
 set @@optimizer_switch='semijoin_with_cache=on';
 set @@optimizer_switch='outer_join_with_cache=on';
-set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
-set join_cache_level=6;
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	6
+set @@optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+set @@join_cache_level=6;
 set @optimizer_switch_for_join_outer_test=@@optimizer_switch;
 set @join_cache_level_for_join_outer_test=@@join_cache_level;
 drop table if exists t0,t1,t2,t3,t4,t5;
-SET @save_optimizer_switch=@@optimizer_switch;
+SET @org_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch=ifnull(@optimizer_switch_for_join_outer_test,'outer_join_with_cache=off');
 set join_cache_level=@join_cache_level_for_join_outer_test;
 CREATE TABLE t1 (
@@ -1751,7 +1747,7 @@ from t1,t2
 where t2.pk=t1.pk+1000 and t1.pk>1000
 group by t2.pk;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	PRIMARY	PRIMARY	4	NULL	2	100.00	Using where; Using index; Using temporary; Using filesort
+1	PRIMARY	t1	index	PRIMARY	PRIMARY	4	NULL	2	50.00	Using where; Using index; Using temporary; Using filesort
 1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	func	1	100.00	Using where; Using index
 2	DEPENDENT SUBQUERY	t3	eq_ref	PRIMARY	PRIMARY	4	func	1	100.00	Using where; Using index
 2	DEPENDENT SUBQUERY	t4	eq_ref	PRIMARY	PRIMARY	4	test.t3.pk	1	100.00	Using index
@@ -1801,8 +1797,11 @@ insert into t3 values (11, 100), (33, 301), (44, 402), (11, 102), (11, 101);
 insert into t3 values (22, 100), (53, 301), (64, 402), (22, 102), (22, 101);
 analyze table t1,t2,t3;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 flush status;
 select sum(t3.b) from t1 left join t3 on t3.a=t1.a and t1.a is not null;
@@ -1811,7 +1810,7 @@ sum(t3.b)
 show status like "handler_read%";
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	4
+Handler_read_key	13
 Handler_read_last	0
 Handler_read_next	5
 Handler_read_prev	0
@@ -1826,7 +1825,7 @@ sum(t3.b)
 show status like "handler_read%";
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	4
+Handler_read_key	7
 Handler_read_last	0
 Handler_read_next	5
 Handler_read_prev	0
@@ -2011,6 +2010,7 @@ INSERT INTO t2 VALUES
 CREATE TABLE t3 ( a int, b int NOT NULL , PRIMARY KEY (b)) ;
 INSERT INTO t3 VALUES 
 (0,6),(0,7),(0,8),(2,9),(0,10),(2,21),(0,22),(2,23),(2,24),(2,25);
+set @save_join_cache_level= @@join_cache_level;
 SET SESSION join_cache_level=4;
 EXPLAIN EXTENDED
 SELECT * FROM (t2 LEFT JOIN t1 ON t1.b = t2.b) JOIN t3 ON t1.b = t3.b;
@@ -2029,7 +2029,7 @@ EXECUTE stmt;
 b	b	a	b
 10	10	0	10
 DEALLOCATE PREPARE stmt;
-SET SESSION join_cache_level=default;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3;
 #
 # LP bug #943543: LEFT JOIN converted to JOIN with 
@@ -2086,7 +2086,7 @@ WHERE t1.pk BETWEEN 5 AND 6 AND t1.b IS NULL OR t1.b = 5
 ORDER BY t1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ref	idx	idx	4	const	2	100.00	Using where
-1	SIMPLE	t2	ref	c	c	5	test.t1.a	2	100.00	
+1	SIMPLE	t2	ref	c	c	5	test.t1.a	2	100.00	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 Warnings:
 Note	1003	select `test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` join `test`.`t1` where `test`.`t2`.`c` = `test`.`t1`.`a` and `test`.`t1`.`b` = 5 order by `test`.`t1`.`b`
 SELECT t1.b, t2.c, t2.d FROM t2 JOIN t1 ON t2.c = t1.a
@@ -2094,8 +2094,8 @@ WHERE t1.pk BETWEEN 5 AND 6 AND t1.b IS NULL OR t1.b = 5
 ORDER BY t1.b;
 b	c	d
 5	8	88
-5	8	81
 5	8	88
+5	8	81
 5	8	81
 EXPLAIN EXTENDED
 SELECT t1.b, t2.c, t2.d FROM t2 LEFT JOIN t1 ON t2.c = t1.a
@@ -2103,7 +2103,7 @@ WHERE t1.pk BETWEEN 5 AND 6 AND t1.b IS NULL OR t1.b = 5
 ORDER BY t1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ref	PRIMARY,idx	idx	4	const	2	100.00	Using where
-1	SIMPLE	t2	ref	c	c	5	test.t1.a	2	100.00	
+1	SIMPLE	t2	ref	c	c	5	test.t1.a	2	100.00	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 Warnings:
 Note	1003	select `test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` join `test`.`t1` where `test`.`t2`.`c` = `test`.`t1`.`a` and `test`.`t1`.`b` = 5 order by `test`.`t1`.`b`
 SELECT t1.b, t2.c, t2.d FROM t2 LEFT JOIN t1 ON t2.c = t1.a
@@ -2111,8 +2111,8 @@ WHERE t1.pk BETWEEN 5 AND 6 AND t1.b IS NULL OR t1.b = 5
 ORDER BY t1.b;
 b	c	d
 5	8	88
-5	8	81
 5	8	88
+5	8	81
 5	8	81
 DROP TABLE t1,t2;
 #
@@ -2229,10 +2229,10 @@ SELECT * FROM t1 LEFT JOIN t2 LEFT JOIN t3 ON i2 = i3 ON i1 = i3
 WHERE d3 IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t1.i1	2	100.00	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.i1	2	100.00	Using where; Using join buffer (incremental, BNLH join)
 Warnings:
-Note	1003	select `test`.`t1`.`i1` AS `i1`,`test`.`t2`.`i2` AS `i2`,`test`.`t3`.`i3` AS `i3`,`test`.`t3`.`d3` AS `d3` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`i2` = `test`.`t1`.`i1` and `test`.`t3`.`i3` = `test`.`t1`.`i1`) where `test`.`t3`.`d3` = 0 or `test`.`t3`.`d3` is null
+Note	1003	select `test`.`t1`.`i1` AS `i1`,`test`.`t2`.`i2` AS `i2`,`test`.`t3`.`i3` AS `i3`,`test`.`t3`.`d3` AS `d3` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`i2` = `test`.`t1`.`i1` and `test`.`t3`.`i3` = `test`.`t1`.`i1` and `test`.`t1`.`i1` is not null and `test`.`t1`.`i1` is not null) where `test`.`t3`.`d3` = 0 or `test`.`t3`.`d3` is null
 DROP TABLE t1,t2,t3;
 #
 # Bug mdev-6705: wrong on expression after constant row substitution 
@@ -2250,9 +2250,9 @@ WHERE b IN (1,2,3) OR b = d;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	const	2	100.00	Using where; Using join buffer (flat, BNLH join)
 Warnings:
-Note	1003	select 10 AS `a`,8 AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t3`.`d` AS `d` from `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`d` = 10) where `test`.`t2`.`c` = 8 and `test`.`t3`.`d` = 8
+Note	1003	select 10 AS `a`,8 AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t3`.`d` AS `d` from `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`d` = 10 and 10 is not null) where `test`.`t2`.`c` = 8 and `test`.`t3`.`d` = 8
 SELECT * FROM t1 INNER JOIN t2 ON c = b LEFT JOIN t3 ON d = a
 WHERE b IN (1,2,3) OR b = d;
 a	b	c	d
@@ -2279,11 +2279,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain select * from t1 left join t2 on t2.b is null;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	
-1	SIMPLE	t2	ref	b	b	5	const	780	Using where
+1	SIMPLE	t2	ref	b	b	5	const	780	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 explain select * from t1 left join t2 on t2.c is null;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	
-1	SIMPLE	t2	ref	c	c	5	const	393	Using where
+1	SIMPLE	t2	ref	c	c	5	const	393	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 drop table t1,t2;
 #
 # MDEV-10006: optimizer doesn't convert outer join to inner on views with WHERE clause
@@ -2325,8 +2325,8 @@ LEFT JOIN t3 on t2.i2 = t3.i3
 WHERE v3 = 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ref	PRIMARY,v3	v3	5	const	1	100.00	
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 Warnings:
 Note	1003	select `test`.`t1`.`i1` AS `i1`,`test`.`t1`.`v1` AS `v1`,`test`.`t2`.`i2` AS `i2`,`test`.`t2`.`v2` AS `v2`,`test`.`t3`.`i3` AS `i3`,`test`.`t3`.`v3` AS `v3` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`v3` = 4 and `test`.`t1`.`i1` = `test`.`t3`.`i3` and `test`.`t2`.`i2` = `test`.`t3`.`i3`
 # This should have the same join order like the query above:
@@ -2343,8 +2343,8 @@ AND 1 = 1
 WHERE v3 = 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ref	PRIMARY,v3	v3	5	const	1	100.00	
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 Warnings:
 Note	1003	select `test`.`t1`.`i1` AS `i1`,`test`.`t1`.`v1` AS `v1`,`test`.`t2`.`i2` AS `i2`,`test`.`t2`.`v2` AS `v2`,`test`.`t3`.`i3` AS `i3`,`test`.`t3`.`v3` AS `v3` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`v3` = 4 and `test`.`t1`.`i1` = `test`.`t3`.`i3` and `test`.`t2`.`i2` = `test`.`t3`.`i3`
 drop table t1,t2,t3;
@@ -2367,9 +2367,9 @@ ON t1.x = t2.x
 WHERE IFNULL(t2.x,0)=0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t1.x	2	100.00	Using where; Using join buffer (flat, BNLH join)
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `x`,`test`.`t2`.`x` AS `x`,ifnull(`test`.`t2`.`x`,0) AS `IFNULL(t2.x,0)`,`f`(`test`.`t2`.`x`,0) AS `f(t2.x,0)` from `test`.`t` `t1` left join `test`.`t` `t2` on(`test`.`t2`.`x` = `test`.`t1`.`x`) where ifnull(`test`.`t2`.`x`,0) = 0
+Note	1003	select `test`.`t1`.`x` AS `x`,`test`.`t2`.`x` AS `x`,ifnull(`test`.`t2`.`x`,0) AS `IFNULL(t2.x,0)`,`f`(`test`.`t2`.`x`,0) AS `f(t2.x,0)` from `test`.`t` `t1` left join `test`.`t` `t2` on(`test`.`t2`.`x` = `test`.`t1`.`x` and `test`.`t1`.`x` is not null) where ifnull(`test`.`t2`.`x`,0) = 0
 SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
 FROM t t1 LEFT JOIN t t2
 ON t1.x = t2.x
@@ -2383,9 +2383,9 @@ ON t1.x = t2.x
 WHERE f(t2.x,0)=0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t1.x	2	100.00	Using where; Using join buffer (flat, BNLH join)
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `x`,`test`.`t2`.`x` AS `x`,ifnull(`test`.`t2`.`x`,0) AS `IFNULL(t2.x,0)`,`f`(`test`.`t2`.`x`,0) AS `f(t2.x,0)` from `test`.`t` `t1` left join `test`.`t` `t2` on(`test`.`t2`.`x` = `test`.`t1`.`x`) where `f`(`test`.`t2`.`x`,0) = 0
+Note	1003	select `test`.`t1`.`x` AS `x`,`test`.`t2`.`x` AS `x`,ifnull(`test`.`t2`.`x`,0) AS `IFNULL(t2.x,0)`,`f`(`test`.`t2`.`x`,0) AS `f(t2.x,0)` from `test`.`t` `t1` left join `test`.`t` `t2` on(`test`.`t2`.`x` = `test`.`t1`.`x` and `test`.`t1`.`x` is not null) where `f`(`test`.`t2`.`x`,0) = 0
 drop function f;
 drop table t;
 CREATE TABLE t1 (
@@ -2423,9 +2423,9 @@ FROM t1 LEFT OUTER JOIN t2 ON t1.col1 = t2.col2
 WHERE IFNULL(t2.col3,0) = 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	17	test.t1.col1	2	100.00	Using where; Using join buffer (flat, BNLH join)
 Warnings:
-Note	1003	select `test`.`t1`.`col1` AS `col1`,`test`.`t2`.`col1` AS `col1`,`test`.`t2`.`col3` AS `col3` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`col2` = `test`.`t1`.`col1`) where ifnull(`test`.`t2`.`col3`,0) = 0
+Note	1003	select `test`.`t1`.`col1` AS `col1`,`test`.`t2`.`col1` AS `col1`,`test`.`t2`.`col3` AS `col3` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`col2` = `test`.`t1`.`col1` and `test`.`t1`.`col1` is not null) where ifnull(`test`.`t2`.`col3`,0) = 0
 SELECT t1.col1, t2.col1, t2.col3
 FROM t1 LEFT OUTER JOIN t2 ON t1.col1 = t2.col2
 WHERE f1(t2.col3,0) = 0;
@@ -2437,9 +2437,9 @@ FROM t1 LEFT OUTER JOIN t2 ON t1.col1 = t2.col2
 WHERE f1(t2.col3,0) = 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	17	test.t1.col1	2	100.00	Using where; Using join buffer (flat, BNLH join)
 Warnings:
-Note	1003	select `test`.`t1`.`col1` AS `col1`,`test`.`t2`.`col1` AS `col1`,`test`.`t2`.`col3` AS `col3` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`col2` = `test`.`t1`.`col1`) where `f1`(`test`.`t2`.`col3`,0) = 0
+Note	1003	select `test`.`t1`.`col1` AS `col1`,`test`.`t2`.`col1` AS `col1`,`test`.`t2`.`col3` AS `col3` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`col2` = `test`.`t1`.`col1` and `test`.`t1`.`col1` is not null) where `f1`(`test`.`t2`.`col3`,0) = 0
 DROP FUNCTION f1;
 DROP TABLE t1,t2;
 #
@@ -2456,7 +2456,7 @@ t1.b1+'0'	t2.b2 + '0'
 0	0
 1	1
 DROP TABLE t1, t2;
-set @join_cache_level= @save_join_cache_level;
+set @@join_cache_level= @save_join_cache_level;
 #
 # MDEV-14779: using left join causes incorrect results with materialization and derived tables
 #
@@ -2521,7 +2521,249 @@ WHERE tb1.pk = 40
 ORDER BY tb1.i1;
 v2
 DROP TABLE t1,t2;
+#
+# MDEV-19790 : IS NOT TRUE / IS NOT FALSE predicates over
+#              inner tables of outer joins
+#
+create table t1 (a int);
+create table t2 (b int);
+insert into t1 values (3), (7), (1);
+insert into t2 values (7), (4), (3);
+select * from t1 left join t2 on a=b;
+a	b
+7	7
+3	3
+1	NULL
+select * from t1 left join t2 on a=b where (b > 3) is not true;
+a	b
+3	3
+1	NULL
+explain extended select * from t1 left join t2 on a=b where (b > 3) is not true;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t1.a	3	100.00	Using where; Using join buffer (flat, BNLH join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`b` = `test`.`t1`.`a` and `test`.`t1`.`a` is not null) where `test`.`t2`.`b` > 3 is not true
+select * from t1 left join t2 on a=b where (b > 3) is not false;
+a	b
+7	7
+1	NULL
+explain extended select * from t1 left join t2 on a=b where (b > 3) is not false;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t1.a	3	100.00	Using where; Using join buffer (flat, BNLH join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`b` = `test`.`t1`.`a` and `test`.`t1`.`a` is not null) where `test`.`t2`.`b` > 3 is not false
+drop table t1,t2;
 # end of 5.5 tests
+#
+# MDEV-19258: chained right joins all converted to inner joins
+#
+CREATE TABLE t1 (
+id int NOT NULL AUTO_INCREMENT,
+timestamp bigint NOT NULL,
+modifiedBy varchar(255) DEFAULT NULL,
+PRIMARY KEY (id)
+);
+CREATE TABLE t2 (
+id int NOT NULL,
+REV int NOT NULL,
+REVTYPE tinyint DEFAULT NULL,
+profile_id int DEFAULT NULL,
+PRIMARY KEY (id,REV)
+);
+CREATE TABLE t3 (
+id int NOT NULL,
+REV int NOT NULL,
+person_id int DEFAULT NULL,
+PRIMARY KEY (id,REV)
+);
+CREATE TABLE t4 (
+id int NOT NULL,
+REV int NOT NULL,
+PRIMARY KEY (id,REV)
+);
+INSERT INTO t1 VALUES
+(1,1294391193890,'Cxqy$*9.kKeE'),(2,1294643906883,'rE4wqGV0gif@'),
+(3,1294643927456,'L?3yt(%dY$Br'),(4,1294644343525,'WH&ObiZ$#2S4'),
+(5,1294644616416,'YXnCbt?olUZ0'),(6,1294644954537,'8Npe4!(#lU@k'),
+(7,1294645046659,'knc0GhXB1#ib'),(8,1294645183829,'w*oPpVfuS8^m'),
+(9,1294645386701,'hwXR@3qVzrbU'),(10,1294645525982,'BeLW*Y9ndP0l'),
+(11,1294645627723,'nTegib^)qZ$I'),(12,1294650860266,'u62C^Kzx3wH8'),
+(13,1294657613745,'4&BkFjGa!qLg'),(14,1294660627161,')anpt312SCoh'),
+(15,1294661023336,'LtJ2PX?*kTmx'),(16,1294662838066,'POGRr@?#ofpl'),
+(17,1294663020989,'o.)1EOT2jnF7'),(18,1294663308065,'&TZ0F0LHE6.h'),
+(19,1294664900039,'j)kSC%^In$9d'),(20,1294668904556,'97glN50)cAo.'),
+(21,1294728056853,'lrKZxmw?I.Ek'),(22,1294728157174,'@P*SRg!pT.q?'),
+(23,1294728327099,'W9gPrptF.)8n'),(24,1294728418481,'$q*c^sM&URd#'),
+(25,1294728729620,'9*f4&bTPRtHo'),(26,1294728906014,')4VtTEnS7$oI'),
+(27,1294732190003,'8dkNSPq2u3AQ'),(28,1294733205065,'SV2N6IoEf438'),
+(29,1294741984927,'rBKj.0S^Ey%*'),(30,1294751748352,'j$2DvlBqk)Fw'),
+(31,1294753902212,'C$N6OrEw8elz'),(32,1294758120598,'DCSVZw!rnxXq'),
+(33,1294761769556,'OTS@QU8a6s5c'),(34,1294816845305,'IUE2stG0D3L5'),
+(35,1294816966909,'Xd16yka.9nHe'),(36,1294817116302,'lOQHZpm%!8qb'),
+(37,1294817374775,'^&pE3IhNf7ey'),(38,1294817538907,'oEn4#7C0Vhfp'),
+(39,1294818482950,'bx54J*O0Va&?'),(40,1294819047024,'J%@a&1.qgdb?'),
+(41,1294821826077,'C9kojr$L3Phz'),(42,1294825454458,'gG#BOnM80ZPi'),
+(43,1294904129918,'F^!TrjM#zdvc'),(44,1294904254166,'Va&Tb)k0RvlM'),
+(45,1294904414964,'dJjq0M6HvhR#'),(46,1294904505784,'nJmxg)ELqY(b'),
+(47,1294904602835,'dhF#or$Vge!7'),(48,1294904684728,'?bIh5E3l!0em'),
+(49,1294904877898,'Y*WflOdcxnk.'),(50,1294905002390,'*?H!lUgez5A.'),
+(51,1294905096043,'wlEIY3n9uz!p'),(52,1294905404621,'T?qv3H6&hlQD'),
+(53,1294905603922,'S@Bhys^Ti7bt'),(54,1294905788416,'KR?a5NVukz#l'),
+(55,1294905993190,'A*&q4kWhED!o'),(56,1294906205254,'fT0%7z0DF6h*'),
+(57,1294906319680,'LhzdW4?ivjR0'),(58,1294906424296,'h0KDlns%U*6T'),
+(59,1294906623844,'b$CfB1noI6Ax'),(60,1294911258896,'#T1*LP!3$Oys');
+INSERT INTO t2 VALUES
+(1,1,0,10209),(1,42480,1,10209),(1,61612,1,10209),(1,257545,1,10209),
+(1,385332,1,10209),(1,1687999,1,10209),(3,1,0,10210),(3,617411,2,10210),
+(4,11,0,14),(4,95149,1,10211),(4,607890,2,10211),(5,1,0,10212),
+(6,1,0,10213),(6,93344,1,10213),(6,295578,1,10213),(6,295579,1,10213),
+(6,295644,1,10213),(7,1,0,10214),(7,12,1,7),(7,688796,1,10214),
+(7,1140433,1,10214),(7,1715227,1,10214),(8,1,0,10215),(8,74253,1,10215),
+(8,93345,1,10215),(8,12,2,2),(9,1,0,10216),(9,93342,1,10216),
+(9,122354,1,10216),(9,301499,2,10216),(10,11,0,5),(10,93343,1,10217),
+(10,122355,1,10217),(10,123050,1,10217),(10,301500,2,10217),(11,1,0,10218),
+(11,87852,1,10218),(11,605499,2,10218),(12,1,0,10219),(12,88024,1,10219),
+(12,605892,2,10219),(13,1,0,10220);
+INSERT INTO t3 VALUES
+(1,1,300003),(1,117548,NULL),(2,1,300003),(2,117548,300006),
+(3,1,300153),(3,117548,NULL),(4,1,300153),(4,117548,NULL),
+(5,1,300153),(5,117548,NULL),(6,1,300182),(6,117548,NULL),
+(7,1,300205),(7,117548,NULL),(8,1,300217),(8,117548,NULL),
+(9,1,300290),(9,117548,NULL),(10,1,300290),(10,117548,NULL),
+(11,1,300405),(11,117548,NULL),(12,1,300670),(12,117548,NULL),
+(13,1,300670),(13,117548,NULL),(14,1,300006),(14,117548,NULL),
+(15,1,300671),(15,117548,NULL),(16,1,300732),(16,117548,NULL);
+INSERT INTO t4 VALUES
+(300000,1),(300001,1),(300003,1),(300004,1),
+(300005,1),(300005,688796),(300006,1),(300006,97697),
+(300009,1),(300010,1),(300011,1),(300012,1),(300013,1),
+(300014,1),(300015,1),(300016,1),(300017,1),(300018,1),
+(300019,1),(300020,1),(300021,1),(300022,1),(300023,1),
+(300024,1),(300025,1),(300026,1),(300027,1),(300028,1);
+# This should have join order of t2,t3,t4,t1
+EXPLAIN EXTENDED SELECT *
+FROM t1 INNER JOIN t2 ON t2.REV=t1.id
+INNER JOIN t3 ON t3.id=t2.profile_id
+INNER JOIN t4 ON t4.id=t3.person_id
+WHERE t1.timestamp < 1294664900039 AND t1.timestamp > 1294644616416  AND
+t2.REVTYPE=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	42	100.00	Using where
+1	SIMPLE	t3	ref	PRIMARY	PRIMARY	4	test.t2.profile_id	1	100.00	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t4	ref	PRIMARY	PRIMARY	4	test.t3.person_id	1	100.00	Using index
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.REV	1	100.00	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`timestamp` AS `timestamp`,`test`.`t1`.`modifiedBy` AS `modifiedBy`,`test`.`t2`.`id` AS `id`,`test`.`t2`.`REV` AS `REV`,`test`.`t2`.`REVTYPE` AS `REVTYPE`,`test`.`t2`.`profile_id` AS `profile_id`,`test`.`t3`.`id` AS `id`,`test`.`t3`.`REV` AS `REV`,`test`.`t3`.`person_id` AS `person_id`,`test`.`t4`.`id` AS `id`,`test`.`t4`.`REV` AS `REV` from `test`.`t1` join `test`.`t2` join `test`.`t3` join `test`.`t4` where `test`.`t2`.`REVTYPE` = 2 and `test`.`t4`.`id` = `test`.`t3`.`person_id` and `test`.`t3`.`id` = `test`.`t2`.`profile_id` and `test`.`t1`.`id` = `test`.`t2`.`REV` and `test`.`t1`.`timestamp` < 1294664900039 and `test`.`t1`.`timestamp` > 1294644616416
+SELECT *
+FROM t1 INNER JOIN t2 ON t2.REV=t1.id
+INNER JOIN t3 ON t3.id=t2.profile_id
+INNER JOIN t4 ON t4.id=t3.person_id
+WHERE t1.timestamp < 1294664900039 AND t1.timestamp > 1294644616416  AND
+t2.REVTYPE=2;
+id	timestamp	modifiedBy	id	REV	REVTYPE	profile_id	id	REV	person_id	id	REV
+12	1294650860266	u62C^Kzx3wH8	8	12	2	2	2	1	300003	300003	1
+12	1294650860266	u62C^Kzx3wH8	8	12	2	2	2	117548	300006	300006	1
+12	1294650860266	u62C^Kzx3wH8	8	12	2	2	2	117548	300006	300006	97697
+# This should have join order of t2,t3,t4,t1 with the same plan as above
+# because all RIGHT JOIN operations are converted into INNER JOIN
+EXPLAIN EXTENDED SELECT *
+FROM t1 RIGHT JOIN t2 ON t2.REV=t1.id
+RIGHT JOIN t3 ON t3.id=t2.profile_id
+RIGHT JOIN t4 ON t4.id=t3.person_id
+WHERE t1.timestamp < 1294664900039 AND t1.timestamp > 1294644616416
+AND t2.REVTYPE=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	42	100.00	Using where
+1	SIMPLE	t3	ref	PRIMARY	PRIMARY	4	test.t2.profile_id	1	100.00	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t4	ref	PRIMARY	PRIMARY	4	test.t3.person_id	1	100.00	Using index
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.REV	1	100.00	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`timestamp` AS `timestamp`,`test`.`t1`.`modifiedBy` AS `modifiedBy`,`test`.`t2`.`id` AS `id`,`test`.`t2`.`REV` AS `REV`,`test`.`t2`.`REVTYPE` AS `REVTYPE`,`test`.`t2`.`profile_id` AS `profile_id`,`test`.`t3`.`id` AS `id`,`test`.`t3`.`REV` AS `REV`,`test`.`t3`.`person_id` AS `person_id`,`test`.`t4`.`id` AS `id`,`test`.`t4`.`REV` AS `REV` from `test`.`t4` join `test`.`t3` join `test`.`t2` join `test`.`t1` where `test`.`t2`.`REVTYPE` = 2 and `test`.`t1`.`id` = `test`.`t2`.`REV` and `test`.`t3`.`id` = `test`.`t2`.`profile_id` and `test`.`t4`.`id` = `test`.`t3`.`person_id` and `test`.`t1`.`timestamp` < 1294664900039 and `test`.`t1`.`timestamp` > 1294644616416
+SELECT *
+FROM t1 RIGHT JOIN t2 ON t2.REV=t1.id
+RIGHT JOIN t3 ON t3.id=t2.profile_id
+RIGHT JOIN t4 ON t4.id=t3.person_id
+WHERE t1.timestamp < 1294664900039 AND t1.timestamp > 1294644616416
+AND t2.REVTYPE=2;
+id	timestamp	modifiedBy	id	REV	REVTYPE	profile_id	id	REV	person_id	id	REV
+12	1294650860266	u62C^Kzx3wH8	8	12	2	2	2	1	300003	300003	1
+12	1294650860266	u62C^Kzx3wH8	8	12	2	2	2	117548	300006	300006	1
+12	1294650860266	u62C^Kzx3wH8	8	12	2	2	2	117548	300006	300006	97697
+DROP TABLE t1,t2,t3,t4;
+# end of 10.1 tests
+#
+# MDEV-25362: name resolution for subqueries in ON expressions
+#
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+create table t3 (e int, f int);
+create table t4 (g int, h int);
+explain
+select *
+from
+t1 left join
+(t2
+join
+t3 on
+(t3.f=t1.a)
+) on (t2.c=t1.a );
+ERROR 42S22: Unknown column 't1.a' in 'on clause'
+explain
+select *
+from
+t1 left join
+(t2
+join
+t3 on
+(t3.f=(select max(g) from t4 where t4.h=t1.a))
+) on (t2.c=t1.a );
+ERROR 42S22: Unknown column 't1.a' in 'where clause'
+drop table t1,t2,t3,t4;
+create table t1 (a int);
+insert into t1 values (1),(2);
+create table t2 (b int);
+insert into t2 values (1),(2);
+create table t3 (c int);
+insert into t3 values (1),(2);
+select * from ( select * from t1 left join t2
+on b in (select x from t3 as sq1)
+) as sq2;
+ERROR 42S22: Unknown column 'x' in 'field list'
+drop table t1,t2,t3;
+# end of 10.2 tests
+#
+# MDEV-22866: Crash in join optimizer with constant outer join nest
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t3 (c INT, KEY(c)) ENGINE=MyISAM;
+CREATE TABLE t4 (d INT, KEY(d)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (5),(6);
+CREATE TABLE t5 (e INT) ENGINE=MyISAM;
+INSERT INTO t5 VALUES (7),(8);
+CREATE TABLE t6 (f INT) ENGINE=MyISAM;
+INSERT INTO t6 VALUES (9),(10);
+SELECT *
+FROM
+t1
+LEFT JOIN (
+t2 LEFT JOIN (
+t3 JOIN
+t4 ON t3.c = t4.d and t3.c >2 and t3.c<0
+) ON t2.b >= t4.d
+) ON t1.a <= t2.b
+LEFT JOIN t5 ON t2.b = t5.e
+LEFT JOIN t6 ON t3.c = t6.f;
+a	b	c	d	e	f
+1	3	NULL	NULL	NULL	NULL
+2	3	NULL	NULL	NULL	NULL
+1	4	NULL	NULL	NULL	NULL
+2	4	NULL	NULL	NULL	NULL
+drop table t1,t2,t3,t4,t5,t6;
 #
 # MDEV-17518: Range optimization doesn't use ON expressions from nested outer joins
 #
@@ -2535,13 +2777,13 @@ insert into t3 select A.a + B.a* 10 + C.a * 100, 12345 from t1 A, t1 B, t1 C;
 explain select * from t1 left join t3 on t1.a=t3.b and t3.a<5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t3	range	a	a	5	NULL	5	Using where; Rowid-ordered scan; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	hash_range	a	#hash#$hj:a	5:5	test.t1.a	5	Using where; Rowid-ordered scan; Using join buffer (flat, BNLH join)
 # This must use range for table t3, too:
 explain select * from t1 left join (t3 join t2) on t1.a=t3.b and t3.a<5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	range	a	a	5	NULL	5	Using where; Rowid-ordered scan; Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	hash_range	a	#hash#$hj:a	5:5	test.t1.a	5	Using where; Rowid-ordered scan; Using join buffer (incremental, BNLH join)
 #
 # .. part 2: make sure condition selectivity can use the condition too.
 #
@@ -2560,15 +2802,15 @@ test.t3	analyze	status	OK
 explain extended select * from t1 left join t3 on t1.a=t3.b and t3.a<5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
-1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.a	1000	0.99	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.a	1000	1.96	Using where; Using join buffer (flat, BNLH join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5 and `test`.`t1`.`a` is not null) where 1
 # t3.filtered must less than 100%, too:
 explain extended select * from t1 left join (t3 join t2) on t1.a=t3.b and t3.a<5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	0.99	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	hash_ALL	NULL	#hash#$hj	5	test.t1.a	1000	1.96	Using where; Using join buffer (incremental, BNLH join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b`,`test`.`t2`.`a` AS `a` from `test`.`t1` left join (`test`.`t3` join `test`.`t2`) on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5 and `test`.`t1`.`a` is not null) where 1
 drop table t1,t2,t3;
@@ -2590,11 +2832,5 @@ WHERE t3.pk IN (2);
 1
 drop view v4;
 drop table t1,t2,t3,t4;
-SET optimizer_switch=@save_optimizer_switch;
-set join_cache_level=default;
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	2
-set @@optimizer_switch=@save_optimizer_switch_jcl6;
-set @optimizer_switch_for_join_outer_test=NULL;
-set @join_cache_level_for_join_outer_test=NULL;
+# end of 10.3 tests
+SET optimizer_switch=@org_optimizer_switch;

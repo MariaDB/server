@@ -369,8 +369,6 @@ HELLO MY	1
 a	1
 hello	1
 drop table t1;
-create table t1 (a text, unique (a(2100)));
-ERROR 42000: Specified key was too long; max key length is 1000 bytes
 create table t1 (a text, key (a(2100)));
 Warnings:
 Note	1071	Specified key was too long; max key length is 1000 bytes
@@ -618,7 +616,8 @@ id	txt
 3	Ford
 drop table t1;
 create table t1 (id integer primary key auto_increment, txt text, index txt_index (txt (20)));
-insert into t1 (txt) values ('Chevy'), ('Chevy '), (NULL);
+insert into t1 (txt) values
+('Chevy'), ('Chevy '), (NULL), ('Honda'), ('Subaru'), ('Honda');
 select * from t1 where txt='Chevy' or txt is NULL;
 id	txt
 1	Chevy
@@ -626,7 +625,10 @@ id	txt
 3	NULL
 explain select * from t1 where txt='Chevy' or txt is NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref_or_null	txt_index	txt_index	23	const	2	Using where
+1	SIMPLE	t1	ALL	txt_index	NULL	NULL	NULL	6	Using where
+explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref_or_null	txt_index	txt_index	23	const	3	Using where
 select * from t1 where txt='Chevy ';
 id	txt
 1	Chevy
@@ -648,7 +650,7 @@ select * from t1 where txt='Chevy' or txt='Chevy ' or txt='Ford';
 id	txt
 1	Chevy
 2	Chevy 
-4	Ford
+7	Ford
 select * from t1 where txt='Chevy' or txt='Chevy ';
 id	txt
 1	Chevy
@@ -688,12 +690,18 @@ id	txt
 2	Chevy 
 select * from t1 where txt > 'Chevy';
 id	txt
-4	Ford
+4	Honda
+5	Subaru
+6	Honda
+7	Ford
 select * from t1 where txt >= 'Chevy';
 id	txt
 1	Chevy
 2	Chevy 
-4	Ford
+4	Honda
+5	Subaru
+6	Honda
+7	Ford
 alter table t1 modify column txt blob;
 explain select * from t1 where txt='Chevy' or txt is NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1076,6 +1084,61 @@ t1	CREATE TABLE `t1` (
   `a` longtext CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+create table t1 (a int);
+alter table t1 add column b blob, alter column b set default "foo";
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` blob DEFAULT 'foo'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
 #
 # End of 10.2 test
+#
+#
+# Start of 10.4 test
+#
+#
+# MDEV-19317 TEXT column accepts too long literals as a default value
+#
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT ?)' USING REPEAT('a', 255);
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+LENGTH(a)	LENGTH(DEFAULT(a))
+255	255
+DROP TABLE t1;
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT ?)' USING REPEAT('a', 256);
+ERROR 42000: Invalid default value for 'a'
+CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+ERROR 42000: Invalid default value for 'a'
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TEXT DEFAULT ?)' USING REPEAT('a', 256);
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+LENGTH(a)	LENGTH(DEFAULT(a))
+256	256
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a TEXT DEFAULT 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+LENGTH(a)	LENGTH(DEFAULT(a))
+256	256
+DROP TABLE t1;
+#
+# ASAN heap-use-after-free in my_hash_sort_bin or ER_KEY_NOT_FOUND
+# upon INSERT into table with long unique blob
+#
+SET @save_sql_mode=@@sql_mode;
+SET SQL_MODE='STRICT_ALL_TABLES';
+CREATE TABLE t1 (a INT, b BLOB) ENGINE=innodb;
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+CREATE TABLE t2 (c BIT, d BLOB, UNIQUE(d)) ENGINE=innodb;
+INSERT INTO t2 SELECT * FROM t1;
+ERROR 22001: Data too long for column 'c' at row 2
+select * from t2;
+c	d
+DROP TABLE t1, t2;
+SET @@sql_mode=@save_sql_mode;
+#
+# End of 10.4 test
 #

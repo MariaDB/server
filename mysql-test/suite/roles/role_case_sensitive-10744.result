@@ -11,7 +11,7 @@ create role test_role;
 # Test if mysql.user has the roles created.
 #
 select user, host from mysql.user where is_role='y' and user like 'test%';
-user	host
+User	Host
 test_ROLE	
 test_role	
 create database secret_db;
@@ -21,8 +21,8 @@ grant select on secret_db.* to test_role;
 grant test_role to test_user;
 show grants for test_user;
 Grants for test_user@%
-GRANT test_role TO 'test_user'@'%'
-GRANT USAGE ON *.* TO 'test_user'@'%'
+GRANT `test_role` TO `test_user`@`%`
+GRANT USAGE ON *.* TO `test_user`@`%`
 #
 # Now test the UPPER case role.
 #
@@ -30,9 +30,9 @@ grant test_ROLE to test_user;
 grant insert on secret_db.t1 to test_ROLE;
 show grants for test_user;
 Grants for test_user@%
-GRANT test_role TO 'test_user'@'%'
-GRANT test_ROLE TO 'test_user'@'%'
-GRANT USAGE ON *.* TO 'test_user'@'%'
+GRANT `test_role` TO `test_user`@`%`
+GRANT `test_ROLE` TO `test_user`@`%`
+GRANT USAGE ON *.* TO `test_user`@`%`
 connect  test_user,localhost,test_user;
 #
 # Test users privileges when interacting with those roles;

@@ -12,8 +12,8 @@ LOCK TABLE t1 WRITE;
 
 --connect (con1,localhost,root,,test)
 SET lock_wait_timeout= 2;
---send
-  FLUSH TABLES;
+FLUSH TABLES;
+--send FLUSH TABLES t1
 --connection default
 --error ER_SP_DOES_NOT_EXIST
 CALL non_existing_sp;

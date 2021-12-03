@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+let $datadir=`select @@datadir`;
 --echo #
 --echo # TRUNCATE TABLE
 --echo #
@@ -73,3 +74,21 @@ SELECT AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES WHERE table_name = 't1';
 INSERT INTO t1 () VALUES (), ();
 SELECT a FROM t1 ORDER BY a;
 DROP TABLE t1;
+
+#
+# MDEV-18923 Assertion `!lex_string_cmp(system_charset_info, fk_info->referenced_table, &table->s->table_name)' failed in fk_truncate_illegal_if_parent
+#
+call mtr.add_suppression('InnoDB: in RENAME TABLE table `test`.`t3`');
+SET FOREIGN_KEY_CHECKS= OFF;
+CREATE TABLE t1 (f2 INT, f4 INT, KEY(f2), FOREIGN KEY (f4) REFERENCES t3 (f4)) ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS= ON;
+CREATE TABLE t2 (f2 INT, FOREIGN KEY(f2) REFERENCES t1 (f2)) ENGINE=InnoDB;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t3 (a INT) ENGINE=InnoDB;
+--replace_result $datadir ./
+--error ER_ERROR_ON_RENAME
+ALTER TABLE t1 RENAME TO t3;
+ALTER TABLE t1 FORCE;
+--error ER_TRUNCATE_ILLEGAL_FK
+TRUNCATE TABLE t1;
+DROP TABLE t2, t1;

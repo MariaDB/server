@@ -1019,7 +1019,7 @@ LOOP
 EXIT WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
+ERROR 42000: Undeclared variable: unknown_ident
 CREATE PROCEDURE p1
 AS
 BEGIN
@@ -1028,7 +1028,7 @@ LOOP
 EXIT label WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
+ERROR 42000: Undeclared variable: unknown_ident
 CREATE PROCEDURE p1
 AS
 BEGIN
@@ -1036,7 +1036,7 @@ LOOP
 CONTINUE WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
+ERROR 42000: Undeclared variable: unknown_ident
 CREATE PROCEDURE p1
 AS
 BEGIN
@@ -1045,7 +1045,7 @@ LOOP
 CONTINUE label WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
+ERROR 42000: Undeclared variable: unknown_ident
 #
 # MDEV-10583 sql_mode=ORACLE: SQL%ROWCOUNT
 #
@@ -2064,7 +2064,7 @@ t1	CREATE TABLE "t1" (
   "tables_table_name" varchar(64) CHARACTER SET utf8 DEFAULT NULL,
   "tables_table_rows" bigint(21) unsigned DEFAULT NULL,
   "processlist_info" longtext CHARACTER SET utf8 DEFAULT NULL,
-  "processlist_info_binary" blob DEFAULT NULL
+  "processlist_info_binary" blob(65535) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -2552,3 +2552,19 @@ idx
 idx
 1
 DROP PROCEDURE p1;
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-19637 Crash on an SP variable assignment to a wrong subselect
+#
+DECLARE
+a INT;
+BEGIN
+SET a=(SELECT 1 FROM DUAL UNION SELECT HIGH_PRIORITY 2 FROM DUAL);
+END;
+$$
+ERROR 42000: Incorrect usage/placement of 'HIGH_PRIORITY'
+#
+# End of 10.4 tests
+#

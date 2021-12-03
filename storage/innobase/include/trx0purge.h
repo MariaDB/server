@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -61,7 +61,12 @@ trx_purge(
 /*======*/
 	ulint	n_purge_threads,	/*!< in: number of purge tasks to
 					submit to task queue. */
-	bool	truncate);		/*!< in: truncate history if true */
+	bool	truncate		/*!< in: truncate history if true */
+#ifdef UNIV_DEBUG
+	, srv_slot_t *slot		/*!< in/out: purge coordinator
+					thread slot */
+#endif
+);
 
 /** Rollback segements from a given transaction with trx-no
 scheduled for purge. */
@@ -73,20 +78,17 @@ public:
 	typedef trx_rsegs_t::iterator iterator;
 	typedef trx_rsegs_t::const_iterator const_iterator;
 
-	/** Default constructor */
 	TrxUndoRsegs() {}
+
 	/** Constructor */
 	TrxUndoRsegs(trx_rseg_t& rseg)
-		: m_commit(rseg.last_commit), m_rsegs(1, &rseg) {}
+		: trx_no(rseg.last_trx_no()), m_rsegs(1, &rseg) {}
 	/** Constructor */
 	TrxUndoRsegs(trx_id_t trx_no, trx_rseg_t& rseg)
-		: m_commit(trx_no << 1), m_rsegs(1, &rseg) {}
-
-	/** @return the transaction commit identifier */
-	trx_id_t trx_no() const { return m_commit >> 1; }
+		: trx_no(trx_no), m_rsegs(1, &rseg) {}
 
 	bool operator!=(const TrxUndoRsegs& other) const
-	{ return m_commit != other.m_commit; }
+	{ return trx_no != other.trx_no; }
 	bool empty() const { return m_rsegs.empty(); }
 	void erase(iterator& it) { m_rsegs.erase(it); }
 	iterator begin() { return(m_rsegs.begin()); }
@@ -100,14 +102,14 @@ public:
 	@return true if elem1 > elem2 else false.*/
 	bool operator()(const TrxUndoRsegs& lhs, const TrxUndoRsegs& rhs)
 	{
-		return(lhs.m_commit > rhs.m_commit);
+		return(lhs.trx_no > rhs.trx_no);
 	}
 
+	/** Copy of trx_rseg_t::last_trx_no() */
+	trx_id_t trx_no= 0;
 private:
-	/** Copy trx_rseg_t::last_commit */
-	trx_id_t		m_commit;
 	/** Rollback segments of a transaction, scheduled for purge. */
-	trx_rsegs_t		m_rsegs;
+	trx_rsegs_t m_rsegs{};
 };
 
 typedef std::priority_queue<
@@ -147,39 +149,32 @@ public:
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	rw_lock_t	latch;
 private:
-	/** whether purge is enabled; protected by latch and my_atomic */
-	int32_t		m_enabled;
+	/** whether purge is enabled; protected by latch and std::atomic */
+	std::atomic<bool>		m_enabled;
 	/** number of pending stop() calls without resume() */
-	int32_t		m_paused;
+	Atomic_counter<int32_t>		m_paused;
 public:
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	ReadView	view;		/*!< The purge will not remove undo logs
 					which are >= this view (purge view) */
-	/** Total number of tasks submitted by srv_purge_coordinator_thread.
-	Not accessed by other threads. */
-	ulint	n_submitted;
-	/** Number of completed tasks. Accessed by srv_purge_coordinator
-	and srv_worker_thread by my_atomic. */
-	ulint	n_completed;
+	/** Number of not completed tasks. Accessed by srv_purge_coordinator
+	and srv_worker_thread by std::atomic. */
+	std::atomic<ulint>	n_tasks;
 
 	/** Iterator to the undo log records of committed transactions */
 	struct iterator
 	{
 		bool operator<=(const iterator& other) const
 		{
-			if (commit < other.commit) return true;
-			if (commit > other.commit) return false;
+			if (trx_no < other.trx_no) return true;
+			if (trx_no > other.trx_no) return false;
 			return undo_no <= other.undo_no;
 		}
 
-		/** @return the commit number of the transaction */
-		trx_id_t trx_no() const { return commit >> 1; }
-		void reset_trx_no(trx_id_t trx_no) { commit = trx_no << 1; }
-
-		/** 2 * trx_t::no + old_insert of the committed transaction */
-		trx_id_t	commit;
+		/** trx_t::no of the committed transaction */
+		trx_id_t	trx_no;
 		/** The record number within the committed transaction's undo
 		log, increasing, purged from from 0 onwards */
 		undo_no_t	undo_no;
@@ -232,7 +227,7 @@ public:
     uninitialised. Real initialisation happens in create().
   */
 
-  purge_sys_t() : event(NULL), m_enabled(false) {}
+  purge_sys_t() : event(NULL), m_enabled(false), n_tasks(0) {}
 
 
   /** Create the instance */
@@ -242,39 +237,24 @@ public:
   void close();
 
   /** @return whether purge is enabled */
-  bool enabled()
-  {
-    return my_atomic_load32_explicit(&m_enabled, MY_MEMORY_ORDER_RELAXED);
-  }
-  /** @return whether purge is enabled */
-  bool enabled_latched()
-  {
-    ut_ad(rw_lock_own_flagged(&latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
-    return bool(m_enabled);
-  }
+  bool enabled() { return m_enabled.load(std::memory_order_relaxed); }
   /** @return whether the purge coordinator is paused */
   bool paused()
-  { return my_atomic_load32_explicit(&m_paused, MY_MEMORY_ORDER_RELAXED); }
-  /** @return whether the purge coordinator is paused */
-  bool paused_latched()
-  {
-    ut_ad(rw_lock_own_flagged(&latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
-    return m_paused != 0;
-  }
+  { return m_paused != 0; }
 
   /** Enable purge at startup. Not protected by latch; the main thread
   will wait for purge_sys.enabled() in srv_start() */
   void coordinator_startup()
   {
     ut_ad(!enabled());
-    my_atomic_store32_explicit(&m_enabled, true, MY_MEMORY_ORDER_RELAXED);
+    m_enabled.store(true, std::memory_order_relaxed);
   }
 
   /** Disable purge at shutdown */
   void coordinator_shutdown()
   {
     ut_ad(enabled());
-    my_atomic_store32_explicit(&m_enabled, false, MY_MEMORY_ORDER_RELAXED);
+    m_enabled.store(false, std::memory_order_relaxed);
   }
 
   /** @return whether the purge coordinator thread is active */

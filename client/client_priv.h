@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /* Common defines for all clients */
@@ -46,7 +46,7 @@ enum options_client
   OPT_MAX_ALLOWED_PACKET, OPT_NET_BUFFER_LENGTH,
   OPT_SELECT_LIMIT, OPT_MAX_JOIN_SIZE, OPT_SSL_SSL,
   OPT_SSL_KEY, OPT_SSL_CERT, OPT_SSL_CA, OPT_SSL_CAPATH,
-  OPT_SSL_CIPHER, OPT_SHUTDOWN_TIMEOUT, OPT_LOCAL_INFILE,
+  OPT_SSL_CIPHER, OPT_TLS_VERSION, OPT_SHUTDOWN_TIMEOUT, OPT_LOCAL_INFILE,
   OPT_DELETE_MASTER_LOGS, OPT_COMPACT,
   OPT_PROMPT, OPT_IGN_LINES,OPT_TRANSACTION,OPT_MYSQL_PROTOCOL,
   OPT_FRM, OPT_SKIP_OPTIMIZATION,
@@ -99,7 +99,9 @@ enum options_client
   OPT_REPORT_PROGRESS,
   OPT_SKIP_ANNOTATE_ROWS_EVENTS,
   OPT_SSL_CRL, OPT_SSL_CRLPATH,
+  OPT_IGNORE_DATA,
   OPT_PRINT_ROW_COUNT, OPT_PRINT_ROW_EVENT_POSITIONS,
+  OPT_SHUTDOWN_WAIT_FOR_SLAVES,
   OPT_MAX_CLIENT_OPTION /* should be always the last */
 };
 

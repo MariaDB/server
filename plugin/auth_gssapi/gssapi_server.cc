@@ -30,7 +30,7 @@ static void log_error( OM_uint32 major, OM_uint32 minor, const char *msg)
   Generate default principal service name formatted as principal name "mariadb/server.fqdn@REALM"
 */
 #include <krb5.h>
-#ifndef HAVE_KRB5_FREE_UNPARSED_NAME
+#ifdef HAVE_KRB5_XFREE
 #define krb5_free_unparsed_name(a,b) krb5_xfree(b)
 #endif
 static char* get_default_principal_name()
@@ -145,7 +145,7 @@ int plugin_deinit()
 }
 
 
-int auth_server(MYSQL_PLUGIN_VIO *vio,const char *user, size_t userlen, int use_full_name)
+int auth_server(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
 {
 
   int rc= CR_ERROR; /* return code */
@@ -157,6 +157,9 @@ int auth_server(MYSQL_PLUGIN_VIO *vio,const char *user, size_t userlen, int use_
   gss_name_t client_name;
   gss_buffer_desc client_name_buf, input, output;
   char *client_name_str;
+  const char *user= 0;
+  size_t userlen;
+  int use_full_name;
 
   /* server acquires credential */
   major= gss_acquire_cred(&minor, service_name, GSS_C_INDEFINITE,
@@ -179,6 +182,21 @@ int auth_server(MYSQL_PLUGIN_VIO *vio,const char *user, size_t userlen, int use_
     {
       log_error(0, 0, "fail to read token from client");
       goto cleanup;
+    }
+    if (!user)
+    {
+      if (auth_info->auth_string_length > 0)
+      {
+        use_full_name= 1;
+        user= auth_info->auth_string;
+        userlen= auth_info->auth_string_length;
+      }
+      else
+      {
+        use_full_name= 0;
+        user= auth_info->user_name;
+        userlen= auth_info->user_name_length;
+      }
     }
 
     input.length= len;

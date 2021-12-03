@@ -19,13 +19,13 @@ THE BASIC LIBRARY FUNCTIONS
 ---------------------------
 
 Written by:       Philip Hazel
-Email local part: ph10
-Email domain:     cam.ac.uk
+Email local part: Philip.Hazel
+Email domain:     gmail.com
 
 University of Cambridge Computing Service,
 Cambridge, England.
 
-Copyright (c) 1997-2018 University of Cambridge
+Copyright (c) 1997-2021 University of Cambridge
 All rights reserved.
 
 
@@ -34,9 +34,9 @@ PCRE JUST-IN-TIME COMPILATION SUPPORT
 
 Written by:       Zoltan Herczeg
 Email local part: hzmester
-Emain domain:     freemail.hu
+Email domain:     freemail.hu
 
-Copyright(c) 2010-2018 Zoltan Herczeg
+Copyright(c) 2010-2021 Zoltan Herczeg
 All rights reserved.
 
 
@@ -45,9 +45,9 @@ STACK-LESS JUST-IN-TIME COMPILER
 
 Written by:       Zoltan Herczeg
 Email local part: hzmester
-Emain domain:     freemail.hu
+Email domain:     freemail.hu
 
-Copyright(c) 2009-2018 Zoltan Herczeg
+Copyright(c) 2009-2021 Zoltan Herczeg
 All rights reserved.
 
 

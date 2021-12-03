@@ -3,7 +3,7 @@
 create table t1 (a int);
 show create table t1;
 
---error ER_VERS_TEMPORARY
+--error ER_VERS_NOT_SUPPORTED
 create temporary table tt1 (a int) with system versioning;
 
 set @old_dbug=@@global.debug_dbug;

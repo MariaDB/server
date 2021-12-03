@@ -283,6 +283,23 @@ flush privileges;
 drop database mysqltest_db1;
 set global read_only= @start_read_only;
 
+--echo #
+--echo # MDEV-16987 - ALTER DATABASE possible in read-only mode
+--echo #
+CREATE USER user1@localhost;
+GRANT ALTER ON test1.* TO user1@localhost;
+CREATE DATABASE test1;
+SET GLOBAL read_only=1;
+change_user user1;
+--error ER_OPTION_PREVENTS_STATEMENT
+ALTER DATABASE test1 CHARACTER SET utf8;
+change_user root;
+SET GLOBAL read_only=0;
+DROP DATABASE test1;
+DROP USER user1@localhost;
+USE test;
+
+--echo # End of 5.5 tests
 
 --echo #
 --echo # WL#5968 Implement START TRANSACTION READ (WRITE|ONLY);
@@ -290,10 +307,6 @@ set global read_only= @start_read_only;
 
 --echo #
 --echo # Test interaction with read_only system variable.
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1), (2);
@@ -344,3 +357,5 @@ DROP TABLE t1;
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
+
+--echo # End of 10.0 tests

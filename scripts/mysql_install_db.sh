@@ -13,7 +13,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # This scripts creates the MariaDB Server system tables
 #
@@ -37,26 +37,29 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
-auth_root_authentication_method=normal
-auth_root_socket_user='root'
+auth_root_authentication_method=socket
+auth_root_socket_user=""
 skip_test_db=0
+
+dirname0=`dirname $0 2>/dev/null`
+dirname0=`dirname $dirname0 2>/dev/null`
 
 usage()
 {
   cat <<EOF
 Usage: $0 [OPTIONS]
   --auth-root-authentication-method=normal|socket
-                       Chooses the authentication method for the created initial
-                       root user. The default is 'normal' to creates a root user
-                       that can login without password, which can be insecure.
-                       The alternative 'socket' allows only the system root user
-                       to login as MariaDB root; this requires the unix socket
-                       authentication plugin.
+                       Chooses the authentication method for the created
+                       initial root user. The historical behavior is 'normal'
+                       to creates a root user that can login without password,
+                       which can be insecure. The default behavior 'socket'
+                       sets an invalid root password but allows the system root
+                       user to login as MariaDB root without a password.
   --auth-root-socket-user=user
                        Used with --auth-root-authentication-method=socket. It
-                       specifies the name of the MariaDB root account, as well
-                       as of the system account allowed to access it. Defaults
-                       to 'root'.
+                       specifies the name of the second MariaDB root account,
+                       as well as of the system account allowed to access it.
+                       Defaults to the value of --user.
   --basedir=path       The path to the MariaDB installation directory.
   --builddir=path      If using --srcdir with out-of-directory builds, you
                        will need to set this to the location of the build
@@ -64,6 +67,7 @@ Usage: $0 [OPTIONS]
   --cross-bootstrap    For internal use.  Used when building the MariaDB system
                        tables on a different host than the target.
   --datadir=path       The path to the MariaDB data directory.
+  --no-defaults        Don't read default options from any option file.
   --defaults-extra-file=name
                        Read this file after the global files are read.
   --defaults-file=name Only read default options from the given file name.
@@ -76,8 +80,6 @@ Usage: $0 [OPTIONS]
   --help               Display this help and exit.                     
   --ldata=path         The path to the MariaDB data directory. Same as
                        --datadir.
-  --no-defaults        Don't read default options from any option file.
-  --defaults-file=path Read only this configuration file.
   --rpm                For internal use.  This option is used by RPM files
                        during the MariaDB installation process.
   --skip-name-resolve  Use IP addresses rather than hostnames when creating
@@ -237,15 +239,10 @@ cannot_find_file()
   fi
 
   echo
-  echo "If you compiledx from source, you need to either run 'make install' to"
-  echo "copy the software into the correct location ready for operation."
-  echo "If you don't want to do a full install, you can use the --srcdir"
-  echo "option to only install the mysql database and privilege tables"
-  echo
   echo "If you compiled from source, you need to either run 'make install' to"
   echo "copy the software into the correct location ready for operation."
   echo "If you don't want to do a full install, you can use the --srcdir"
-  echo "option to only install the mysql database and privilege tables"
+  echo "option to only install the mysql database and privilege tables."
   echo
   echo "If you are using a binary release, you must either be at the top"
   echo "level of the extracted archive, or pass the --basedir option"
@@ -274,9 +271,16 @@ then
 fi
 if test -n "$srcdir"
 then
+  # In an out-of-source build, builddir is not srcdir. Try to guess where
+  # builddir is by looking for my_print_defaults.
   if test -z "$builddir"
   then
-    builddir="$srcdir"
+    if test -x "$dirname0/extra/my_print_defaults"
+    then
+      builddir="$dirname0"
+    else
+      builddir="$srcdir"
+    fi
   fi
   print_defaults="$builddir/extra/my_print_defaults"
 elif test -n "$basedir"
@@ -287,6 +291,14 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
+elif test -n "$dirname0" -a -x "$dirname0/@bindir@/my_print_defaults"
+then
+  print_defaults="$dirname0/@bindir@/my_print_defaults"
+elif test -x "./extra/my_print_defaults"
+then
+  srcdir="."
+  builddir="."
+  print_defaults="./extra/my_print_defaults"
 else
   print_defaults="@bindir@/my_print_defaults"
 fi
@@ -299,8 +311,11 @@ fi
 
 # Now we can get arguments from the groups [mysqld] and [mysql_install_db]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db`
+parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db mariadb-install-db`
+
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
+
+rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mysqld"
 
 # Configure paths to support files
 if test -n "$srcdir"
@@ -342,7 +357,18 @@ then
     cannot_find_file fill_help_tables.sql @pkgdata_locations@
     exit 1
   fi
-  plugindir=`find_in_dirs --dir auth_socket.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin`
+  plugindir=`find_in_dirs --dir auth_pam.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin $basedir/lib/*/mariadb19/plugin`
+  pamtooldir=$plugindir
+# relative from where the script was run for a relocatable install
+elif test -n "$dirname0" -a -x "$rel_mysqld" -a ! "$rel_mysqld" -ef "@sbindir@/mysqld"
+then
+  basedir="$dirname0"
+  bindir="$basedir/@INSTALL_BINDIR@"
+  resolveip="$bindir/resolveip"
+  mysqld="$rel_mysqld"
+  srcpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
+  buildpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
+  plugindir="$basedir/@INSTALL_PLUGINDIR@"
   pamtooldir=$plugindir
 else
   basedir="@prefix@"
@@ -427,7 +453,7 @@ then
 fi
 
 # Create database directories
-for dir in "$ldata" "$ldata/mysql"
+for dir in "$ldata"
 do
   if test ! -d "$dir"
   then
@@ -453,24 +479,33 @@ done
 
 if test -n "$user"
 then
-  chown $user "$pamtooldir/auth_pam_tool_dir"
-  if test $? -ne 0
+  if test -z "$srcdir" -a "$in_rpm" -eq 0
   then
-      echo "Cannot change ownership of the '$pamtooldir/auth_pam_tool_dir' directory"
-      echo " to the '$user' user. Check that you have the necessary permissions and try again."
-      exit 1
-  fi
-  if test -z "$srcdir"
-  then
-    chown 0 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool"
+    chown 0 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool" && \
+    chmod 04755 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool"
     if test $? -ne 0
     then
         echo "Couldn't set an owner to '$pamtooldir/auth_pam_tool_dir/auth_pam_tool'."
-        echo " It must be root, the PAM authentication plugin doesn't work otherwise.."
+        echo "It must be root, the PAM authentication plugin doesn't work otherwise.."
+        echo
+    fi
+    chown $user "$pamtooldir/auth_pam_tool_dir" && \
+    chmod 0700 "$pamtooldir/auth_pam_tool_dir"
+    if test $? -ne 0
+    then
+        echo "Cannot change ownership of the '$pamtooldir/auth_pam_tool_dir' directory"
+        echo "to the '$user' user. Check that you have the necessary permissions and try again."
         echo
     fi
   fi
   args="$args --user=$user"
+fi
+
+if test -f "$ldata/mysql/user.frm"
+then
+    echo "mysql.user table already exists!"
+    echo "Run mysql_upgrade, not mysql_install_db"
+    exit 0
 fi
 
 # When doing a "cross bootstrap" install, no reference to the current
@@ -494,17 +529,21 @@ mysqld_install_cmd_line()
   --net_buffer_length=16K
 }
 
+# Use $auth_root_socket_user if explicitly specified.
+# Otherwise use the owner of datadir - ${user:-$USER}
+# Use 'root' as a fallback
+auth_root_socket_user=${auth_root_socket_user:-${user:-${USER:-root}}}
+
 cat_sql()
 {
+  echo "create database if not exists mysql;"
   echo "use mysql;"
 
   case "$auth_root_authentication_method" in
     normal)
-      echo "SET @skip_auth_root_nopasswd=NULL;"
       echo "SET @auth_root_socket=NULL;"
       ;;
     socket)
-      echo "SET @skip_auth_root_nopasswd=1;"
       echo "SET @auth_root_socket='$auth_root_socket_user';"
       ;;
   esac
@@ -572,22 +611,27 @@ then
     echo
     echo
     echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
-    echo "To do so, start the server, then issue the following commands:"
+    echo "To do so, start the server, then issue the following command:"
     echo
-    echo "'$bindir/mysqladmin' -u root password 'new-password'"
-    echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
-    echo
-    echo "Alternatively you can run:"
     echo "'$bindir/mysql_secure_installation'"
     echo
     echo "which will also give you the option of removing the test"
     echo "databases and anonymous user created by default.  This is"
     echo "strongly recommended for production servers."
+  else
+    echo
+    echo
+    echo "Two all-privilege accounts were created."
+    echo "One is root@localhost, it has no password, but you need to"
+    echo "be system 'root' user to connect. Use, for example, sudo mysql"
+    echo "The second is $auth_root_socket_user@localhost, it has no password either, but"
+    echo "you need to be the system '$auth_root_socket_user' user to connect."
+    echo "After connecting you can set the password, if you would need to be"
+    echo "able to connect as any of these users with a password and without sudo"
   fi
 
   echo
-  echo "See the MariaDB Knowledgebase at http://mariadb.com/kb or the"
-  echo "MySQL manual for more instructions."
+  echo "See the MariaDB Knowledgebase at http://mariadb.com/kb"
 
   if test "$in_rpm" -eq 0
   then
@@ -603,8 +647,7 @@ then
   echo "Please report any problems at http://mariadb.org/jira"
   echo
   echo "The latest information about MariaDB is available at http://mariadb.org/."
-  echo "You can find additional information about the MySQL part at:"
-  echo "http://dev.mysql.com"
+  echo
   echo "Consider joining MariaDB's strong and vibrant community:"
   echo "https://mariadb.org/get-involved/"
   echo

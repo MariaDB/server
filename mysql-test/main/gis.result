@@ -816,11 +816,15 @@ POINT(1 1)
 drop function fn3;
 create table t1(pt POINT);
 alter table t1 add primary key pti(pt);
+Warnings:
+Warning	1280	Name 'pti' ignored for PRIMARY key.
 drop table t1;
 create table t1(pt GEOMETRY);
 alter table t1 add primary key pti(pt);
 ERROR 42000: BLOB/TEXT column 'pt' used in key specification without a key length
 alter table t1 add primary key pti(pt(20));
+Warnings:
+Warning	1280	Name 'pti' ignored for PRIMARY key.
 drop table t1;
 create table t1 select GeomFromText('point(1 1)');
 desc t1;
@@ -964,29 +968,29 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT COUNT(*) FROM t2 WHERE p=POINTFROMTEXT('POINT(1 2)');
 COUNT(*)
 1
-INSERT INTO t1 VALUES (POINTFROMTEXT('POINT(1 2)'));
-INSERT INTO t2 VALUES (POINTFROMTEXT('POINT(1 2)'));
+INSERT INTO t1 VALUES (POINTFROMTEXT('POINT(3 4)'));
+INSERT INTO t2 VALUES (POINTFROMTEXT('POINT(3 4)'));
 EXPLAIN 
 SELECT COUNT(*) FROM t1 WHERE p=POINTFROMTEXT('POINT(1 2)');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT COUNT(*) FROM t1 WHERE p=POINTFROMTEXT('POINT(1 2)');
 COUNT(*)
-2
+1
 EXPLAIN 
 SELECT COUNT(*) FROM t2 WHERE p=POINTFROMTEXT('POINT(1 2)');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ref	p	p	28	const	#	Using where
 SELECT COUNT(*) FROM t2 WHERE p=POINTFROMTEXT('POINT(1 2)');
 COUNT(*)
-2
+1
 EXPLAIN 
 SELECT COUNT(*) FROM t2 IGNORE INDEX(p) WHERE p=POINTFROMTEXT('POINT(1 2)');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT COUNT(*) FROM t2 IGNORE INDEX(p) WHERE p=POINTFROMTEXT('POINT(1 2)');
 COUNT(*)
-2
+1
 DROP TABLE t1, t2;
 End of 5.0 tests
 #
@@ -1679,7 +1683,7 @@ NULL
 #
 create table t1 (pt point);
 insert into t1 values(Geomfromtext('POLYGON((1 1, 2 2, 2 1, 1 1))'));
-ERROR 22007: Incorrect POINT value: 'POLYGON' for column 'pt' at row 1
+ERROR 22007: Incorrect POINT value: 'POLYGON((1 1,2 2,2 1,1 1))' for column `test`.`t1`.`pt` at row 1
 drop table t1;
 SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100));
 st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100))
@@ -1865,6 +1869,20 @@ t2	CREATE TABLE `t2` (
   `w2` int(1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1,t2;
+CREATE TABLE t1 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+point_data POINT NOT NULL,
+PRIMARY KEY (id),
+KEY idx_point_data(point_data)
+) ENGINE=MyISAM;
+INSERT t1 (point_data) VALUES
+(GeomFromText('Point(37.0248492 23.8512726)')),
+(GeomFromText('Point(38.0248492 23.8512726)'));
+SELECT id FROM t1
+WHERE ST_Contains(point_data, GeomFromText('Point(38.0248492 23.8512726)'));
+id
+2
+DROP TABLE t1;
 #
 # Start of 10.2 tests
 #
@@ -2234,8 +2252,27 @@ SELECT c FROM t1;
 c
 1
 DROP TABLE t1;
+create table t1 (p point default "qwer");
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+create table t1 (p point default 0);
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+create table t1 (p point not null default st_geometryfromtext('point 0)'));
+ERROR 42000: Invalid default value for 'p'
+create table t1 (p point not null default st_geometryfromtext('point(0 0)'));
+insert into t1 values(default);
+select st_astext(p) from t1;
+st_astext(p)
+POINT(0 0)
+drop table t1;
 #
-# Start of 10.3 tests
+# MDEV-21056 Memory leak after query with DEFAULT on a geometry field
+#
+CREATE TABLE t1 (f POINT DEFAULT ST_GEOMFROMTEXT('Point(0 0)'));
+SELECT ST_GEOMFROMTEXT('Point(1 1)') IN ( DEFAULT( `f` ), ST_GEOMFROMTEXT('Point(2 2)') ) AS x FROM t1;
+x
+DROP TABLE t1;
+#
+# End of 10.2 tests
 #
 #
 # MDEV-11478 Result data type aggregation for pluggable data types
@@ -4012,6 +4049,8 @@ SELECT CAST(POINT(1,1) AS SIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_signed'
 SELECT CAST(POINT(1,1) AS UNSIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_unsigned'
+SELECT CAST(POINT(1,1) AS FLOAT) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'float_typecast'
 SELECT CAST(POINT(1,1) AS DOUBLE) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'double_typecast'
 SELECT CAST(POINT(1,1) AS DECIMAL(10,1)) FROM t1;
@@ -4028,6 +4067,8 @@ SELECT CAST(a AS SIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_signed'
 SELECT CAST(a AS UNSIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_unsigned'
+SELECT CAST(a AS FLOAT) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'float_typecast'
 SELECT CAST(a AS DOUBLE) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'double_typecast'
 SELECT CAST(a AS DECIMAL(10,1)) FROM t1;
@@ -4044,6 +4085,8 @@ SELECT CAST(COALESCE(a) AS SIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_signed'
 SELECT CAST(COALESCE(a) AS UNSIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_unsigned'
+SELECT CAST(COALESCE(a) AS FLOAT) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'float_typecast'
 SELECT CAST(COALESCE(a) AS DOUBLE) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'double_typecast'
 SELECT CAST(COALESCE(a) AS DECIMAL(10,1)) FROM t1;
@@ -4986,6 +5029,22 @@ SELECT (1,0) IN ((POINT(1,1),0),(0,0));
 ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
 SELECT (1,(0,0)) IN ((1,(POINT(1,1),0)),(0,(0,0)));
 ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
+#
+# MDEV-19819 ALTER from POINT to LINESTRING erroneously preserves POINT values
+#
+CREATE TABLE t1 (a POINT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (Point(0,0));
+ALTER TABLE t1 MODIFY a LINESTRING;
+ERROR 22007: Incorrect LINESTRING value: 'POINT(0 0)' for column `test`.`t1`.`a` at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a LINESTRING);
+CREATE TABLE t2 (a POINT);
+INSERT INTO t2 VALUES (POINT(0,0));
+INSERT INTO t1 SELECT * FROM t2;
+ERROR 22007: Incorrect LINESTRING value: 'POINT(0 0)' for column `test`.`t1`.`a` at row 1
+SELECT AsText(a) FROM t1;
+AsText(a)
+DROP TABLE t1, t2;
 #
 # End of 10.4 tests
 #

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015, MariaDB
+   Copyright (c) 2015, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*************************************************************************
   Limitation of encrypted IO_CACHEs
@@ -71,11 +71,20 @@ static int my_b_encr_read(IO_CACHE *info, uchar *Buffer, size_t Count)
       DBUG_RETURN(1);
     }
     info->seek_not_done= 0;
+    if (info->next_file_user)
+    {
+      IO_CACHE *c;
+      for (c= info->next_file_user;
+           c!= info;
+           c= c->next_file_user)
+      {
+        c->seek_not_done= 1;
+      }
+    }
   }
 
   do
   {
-    size_t copied;
     uint elength, wlength, length;
     uchar iv[MY_AES_BLOCK_SIZE]= {0};
 
@@ -106,11 +115,13 @@ static int my_b_encr_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
     DBUG_ASSERT(length <= info->buffer_length);
 
-    copied= MY_MIN(Count, (size_t)(length - pos_offset));
-
-    memcpy(Buffer, info->buffer + pos_offset, copied);
-    Count-= copied;
-    Buffer+= copied;
+    size_t copied= MY_MIN(Count, (size_t)(length - pos_offset));
+    if (copied)
+    {
+      memcpy(Buffer, info->buffer + pos_offset, copied);
+      Count-= copied;
+      Buffer+= copied;
+    }
 
     info->read_pos= info->buffer + pos_offset + copied;
     info->read_end= info->buffer + length;

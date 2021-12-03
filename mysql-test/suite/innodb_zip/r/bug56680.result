@@ -116,6 +116,7 @@ DF
 CHECK TABLE bug56680_2;
 Table	Op	Msg_type	Msg_text
 test.bug56680_2	check	status	OK
+# restart
 CHECK TABLE bug56680_2;
 Table	Op	Msg_type	Msg_text
 test.bug56680_2	check	status	OK

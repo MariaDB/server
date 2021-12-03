@@ -1,7 +1,7 @@
 /**************** Value H Declares Source Code File (.H) ***************/
-/*  Name: VALUE.H    Version 2.3                                       */
+/*  Name: VALUE.H    Version 2.4                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2019    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes declares.         */
 /***********************************************************************/
@@ -65,7 +65,8 @@ DllExport BYTE OpBmp(PGLOBAL g, OPVAL opc);
 /***********************************************************************/
 class DllExport VALUE : public BLOCK {
   friend class CONSTANT; // The only object allowed to use SetConstFormat
- public:
+	friend class SWAP;     // The only class allowed to access protected
+public:
   // Constructors
 
   // Implementation
@@ -115,9 +116,9 @@ class DllExport VALUE : public BLOCK {
   virtual void   SetValue(ulonglong) {assert(false);}
   virtual void   SetValue(double) {assert(false);}
   virtual void   SetValue_pvblk(PVBLK blk, int n) = 0;
-  virtual void   SetBinValue(void *p) = 0;
-  virtual bool   GetBinValue(void *buf, int buflen, bool go) = 0;
-  virtual char  *ShowValue(char *buf, int len = 0) = 0;
+	virtual void   SetBinValue(void* p) = 0;
+	virtual bool   GetBinValue(void *buf, int buflen, bool go) = 0;
+  virtual int    ShowValue(char *buf, int len) = 0;
   virtual char  *GetCharString(char *p) = 0;
   virtual bool   IsEqual(PVAL vp, bool chktype) = 0;
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
@@ -229,7 +230,7 @@ class DllExport TYPVAL : public VALUE {
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual char  *ShowValue(char *buf, int);
+  virtual int    ShowValue(char *buf, int len);
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
@@ -260,7 +261,8 @@ class DllExport TYPVAL : public VALUE {
 /***********************************************************************/
 template <>
 class DllExport TYPVAL<PSZ>: public VALUE {
- public:
+	friend class SWAP;     // The only class allowed to offsets Strg
+public:
   // Constructors
   TYPVAL(PSZ s, short c = 0);
   TYPVAL(PGLOBAL g, PSZ s, int n, int c);
@@ -302,7 +304,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual void   SetBinValue(void *p);
   virtual int    CompareValue(PVAL vp);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual char  *ShowValue(char *buf, int);
+  virtual int    ShowValue(char *buf, int len);
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
@@ -334,7 +336,7 @@ class DllExport DECVAL: public TYPVAL<PSZ> {
 
   // Methods
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual char  *ShowValue(char *buf, int);
+  virtual int    ShowValue(char *buf, int len);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual int    CompareValue(PVAL vp);
 
@@ -346,7 +348,8 @@ class DllExport DECVAL: public TYPVAL<PSZ> {
 /*  Specific BINARY class.                                             */
 /***********************************************************************/
 class DllExport BINVAL: public VALUE {
- public:
+	friend class SWAP;     // The only class allowed to offsets pointers
+public:
   // Constructors
 //BINVAL(void *p);
   BINVAL(PGLOBAL g, void *p, int cl, int n);
@@ -385,9 +388,10 @@ class DllExport BINVAL: public VALUE {
   virtual void   SetValue(ulonglong n);
   virtual void   SetValue(double f);
   virtual void   SetBinValue(void *p);
-  virtual bool   GetBinValue(void *buf, int buflen, bool go);
+	virtual void   SetBinValue(void* p, ulong len);
+	virtual bool   GetBinValue(void *buf, int buflen, bool go);
   virtual int    CompareValue(PVAL) {assert(false); return 0;}
-  virtual char  *ShowValue(char *buf, int);
+  virtual int    ShowValue(char *buf, int len);
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   FormatValue(PVAL vp, PCSZ fmt);
@@ -408,14 +412,17 @@ class DllExport DTVAL : public TYPVAL<int> {
   // Constructors
   DTVAL(PGLOBAL g, int n, int p, PCSZ fmt);
   DTVAL(int n);
+  using TYPVAL<int>::SetValue;
 
   // Implementation
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
   virtual bool   SetValue_char(const char *p, int n);
   virtual void   SetValue_psz(PCSZ s);
   virtual void   SetValue_pvblk(PVBLK blk, int n);
-  virtual char  *GetCharString(char *p);
-  virtual char  *ShowValue(char *buf, int);
+  virtual void   SetValue(int n);
+  virtual PSZ    GetCharValue(void) { return Sdate; }
+	virtual char  *GetCharString(char *p);
+  virtual int    ShowValue(char *buf, int len);
   virtual bool   FormatValue(PVAL vp, PCSZ fmt);
           bool   SetFormat(PGLOBAL g, PCSZ fmt, int len, int year = 0);
           bool   SetFormat(PGLOBAL g, PVAL valp);

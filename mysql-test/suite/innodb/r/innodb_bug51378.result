@@ -28,6 +28,8 @@ bug51378	CREATE TABLE `bug51378` (
   UNIQUE KEY `idx2` (`col1`,`col2`(31))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 alter table bug51378 add primary key idx3(col1, col2(31));
+Warnings:
+Warning	1280	Name 'idx3' ignored for PRIMARY key.
 SHOW CREATE TABLE bug51378;
 Table	Create Table
 bug51378	CREATE TABLE `bug51378` (

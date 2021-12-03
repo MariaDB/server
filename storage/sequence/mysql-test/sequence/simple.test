@@ -52,7 +52,7 @@ show open tables from test;
 show tables;
 # row estimates
 explain select * from seq_1_to_15_step_2;
-explain select * from seq_1_to_15_step_2 where seq > 4;
+explain select * from seq_1_to_15_step_2 where seq > 10;
 explain select * from seq_1_to_15_step_2 where seq between  4 and  9;
 explain select * from seq_1_to_15_step_2 where seq between 20 and 30;
 explain select * from seq_1_to_15_step_2 where seq between  4 and  6;

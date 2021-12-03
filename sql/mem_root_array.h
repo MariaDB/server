@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 #ifndef MEM_ROOT_ARRAY_INCLUDED
@@ -87,9 +87,11 @@ public:
 
   // Returns a pointer to the first element in the array.
   Element_type *begin() { return &m_array[0]; }
+  const Element_type *begin() const { return &m_array[0]; }
 
   // Returns a pointer to the past-the-end element in the array.
   Element_type *end() { return &m_array[size()]; }
+  const Element_type *end() const { return &m_array[size()]; }
 
   // Erases all of the elements. 
   void clear()
@@ -226,6 +228,7 @@ public:
   size_t element_size() const { return sizeof(Element_type); }
   bool   empty()        const { return size() == 0; }
   size_t size()         const { return m_size; }
+  const MEM_ROOT *mem_root() const { return m_root; }
 
 private:
   MEM_ROOT *const m_root;

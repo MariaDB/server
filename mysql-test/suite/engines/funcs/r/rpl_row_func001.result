@@ -1,9 +1,6 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
+include/master-slave.inc
+[connection master]
+connection master;
 DROP FUNCTION test.f1;
 DROP TABLE IF EXISTS test.t1;
 create table test.t1 (a int, PRIMARY KEY(a));
@@ -22,9 +19,14 @@ select * from test.t1;
 a
 1
 2
+connection slave;
+connection slave;
 select * from test.t1;
 a
 1
 2
+connection master;
 DROP FUNCTION test.f1;
 DROP TABLE test.t1;
+connection slave;
+include/rpl_end.inc

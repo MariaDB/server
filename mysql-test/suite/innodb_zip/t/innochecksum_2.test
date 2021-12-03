@@ -18,6 +18,7 @@ call mtr.add_suppression("\\[Warning\\] InnoDB: Difficult to find free blocks in
 let MYSQLD_BASEDIR= `SELECT @@basedir`;
 let MYSQLD_DATADIR= `SELECT @@datadir`;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
+let $restart_noprint=2;
 
 SET GLOBAL innodb_compression_level=0;
 SELECT @@innodb_compression_level;

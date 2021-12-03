@@ -90,6 +90,8 @@ def	mysql	PRIMARY	def	mysql	db	User
 def	mysql	PRIMARY	def	mysql	event	db
 def	mysql	PRIMARY	def	mysql	event	name
 def	mysql	PRIMARY	def	mysql	func	name
+def	mysql	PRIMARY	def	mysql	global_priv	Host
+def	mysql	PRIMARY	def	mysql	global_priv	User
 def	mysql	PRIMARY	def	mysql	gtid_slave_pos	domain_id
 def	mysql	PRIMARY	def	mysql	gtid_slave_pos	sub_id
 def	mysql	PRIMARY	def	mysql	help_category	help_category_id
@@ -142,8 +144,6 @@ def	mysql	PRIMARY	def	mysql	time_zone_transition_type	Time_zone_id
 def	mysql	PRIMARY	def	mysql	time_zone_transition_type	Transition_type_id
 def	mysql	commit_id	def	mysql	transaction_registry	commit_id
 def	mysql	PRIMARY	def	mysql	transaction_registry	transaction_id
-def	mysql	PRIMARY	def	mysql	user	Host
-def	mysql	PRIMARY	def	mysql	user	User
 ########################################################################################
 # Testcase 3.2.7.2 + 3.2.7.3: INFORMATION_SCHEMA.KEY_COLUMN_USAGE accessible information
 ########################################################################################

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /****************************************************************************
  Add all options from files named "group".cnf from the default_directories
@@ -1035,6 +1035,11 @@ void my_print_default_files(const char *conf_file)
   char name[FN_REFLEN], **ext;
 
   puts("\nDefault options are read from the following files in the given order:");
+  if (my_defaults_file)
+  {
+    puts(my_defaults_file);
+    return;
+  }
 
   if (dirname_length(conf_file))
     fputs(conf_file,stdout);
@@ -1059,7 +1064,12 @@ void my_print_default_files(const char *conf_file)
           if (**dirs)
             pos= *dirs;
           else if (my_defaults_extra_file)
+          {
             pos= my_defaults_extra_file;
+            fputs(pos, stdout);
+            fputs(" ", stdout);
+            continue;
+          }
           else
             continue;
           end= convert_dirname(name, pos, NullS);

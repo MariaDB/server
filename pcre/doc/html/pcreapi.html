@@ -1246,7 +1246,7 @@ the following negative numbers:
   PCRE_ERROR_BADOPTION      the value of <i>what</i> was invalid
   PCRE_ERROR_UNSET          the requested field is not set
 </pre>
-The "magic number" is placed at the start of each compiled pattern as an simple
+The "magic number" is placed at the start of each compiled pattern as a simple
 check against passing an arbitrary memory pointer. The endianness error can
 occur if a compiled pattern is saved and reloaded on a different host. Here is
 a typical call of <b>pcre_fullinfo()</b>, to obtain the length of the compiled
@@ -1318,7 +1318,7 @@ returned. For anchored patterns, -2 is returned.
 </pre>
 Return the value of the first data unit (non-UTF character) of any matched
 string in the situation where PCRE_INFO_FIRSTCHARACTERFLAGS returns 1;
-otherwise return 0. The fourth argument should point to an <b>uint_t</b>
+otherwise return 0. The fourth argument should point to a <b>uint_t</b>
 variable.
 </P>
 <P>
@@ -1577,7 +1577,7 @@ returned value 1 (with "z" returned from PCRE_INFO_REQUIREDCHAR), but for
 </pre>
 Return the value of the rightmost literal data unit that must exist in any
 matched string, other than at its start, if such a value has been recorded. The
-fourth argument should point to an <b>uint32_t</b> variable. If there is no such
+fourth argument should point to a <b>uint32_t</b> variable. If there is no such
 value, 0 is returned.
 </P>
 <br><a name="SEC16" href="#TOC1">REFERENCE COUNTS</a><br>
@@ -1718,7 +1718,7 @@ very long time, and so the <i>match_limit</i> value is also used in this case
 <P>
 The default value for the limit can be set when PCRE is built; the default
 default is 10 million, which handles all but the most extreme cases. You can
-override the default by suppling <b>pcre_exec()</b> with a <b>pcre_extra</b>
+override the default by supplying <b>pcre_exec()</b> with a <b>pcre_extra</b>
 block in which <i>match_limit</i> is set, and PCRE_EXTRA_MATCH_LIMIT is set in
 the <i>flags</i> field. If the limit is exceeded, <b>pcre_exec()</b> returns
 PCRE_ERROR_MATCHLIMIT.
@@ -1749,7 +1749,7 @@ and is ignored, when matching is done using JIT compiled code.
 <P>
 The default value for <i>match_limit_recursion</i> can be set when PCRE is
 built; the default default is the same value as the default for
-<i>match_limit</i>. You can override the default by suppling <b>pcre_exec()</b>
+<i>match_limit</i>. You can override the default by supplying <b>pcre_exec()</b>
 with a <b>pcre_extra</b> block in which <i>match_limit_recursion</i> is set, and
 PCRE_EXTRA_MATCH_LIMIT_RECURSION is set in the <i>flags</i> field. If the limit
 is exceeded, <b>pcre_exec()</b> returns PCRE_ERROR_RECURSIONLIMIT.
@@ -2063,10 +2063,10 @@ lookbehind. For example, consider the pattern
 </pre>
 which finds occurrences of "iss" in the middle of words. (\B matches only if
 the current position in the subject is not a word boundary.) When applied to
-the string "Mississipi" the first call to <b>pcre_exec()</b> finds the first
+the string "Mississippi" the first call to <b>pcre_exec()</b> finds the first
 occurrence. If <b>pcre_exec()</b> is called again with just the remainder of the
-subject, namely "issipi", it does not match, because \B is always false at the
-start of the subject, which is deemed to be a word boundary. However, if
+subject, namely "issippi", it does not match, because \B is always false at
+the start of the subject, which is deemed to be a word boundary. However, if
 <b>pcre_exec()</b> is passed the entire string again, but with <i>startoffset</i>
 set to 4, it finds the second occurrence of "iss" because it is able to look
 behind the starting point to discover that it is preceded by a letter.

@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,18 +12,19 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
-
-#include "tztime.h"
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define SPIDER_LOCK_MODE_NO_LOCK             0
 #define SPIDER_LOCK_MODE_SHARED              1
 #define SPIDER_LOCK_MODE_EXCLUSIVE           2
 
-#define SPIDER_BG_SIMPLE_NO_ACTION           0
-#define SPIDER_BG_SIMPLE_CONNECT             1
-#define SPIDER_BG_SIMPLE_DISCONNECT          2
-#define SPIDER_BG_SIMPLE_RECORDS             3
+#define SPIDER_SIMPLE_NO_ACTION           0
+#define SPIDER_SIMPLE_CONNECT             1
+#define SPIDER_SIMPLE_DISCONNECT          2
+#define SPIDER_SIMPLE_RECORDS             3
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+#define SPIDER_SIMPLE_CHECKSUM_TABLE      4
+#endif
 
 uchar *spider_conn_get_key(
   SPIDER_CONN *conn,
@@ -132,6 +134,16 @@ void spider_conn_queue_autocommit(
 void spider_conn_queue_sql_log_off(
   SPIDER_CONN *conn,
   bool sql_log_off
+);
+
+void spider_conn_queue_wait_timeout(
+  SPIDER_CONN *conn,
+  int wait_timeout
+);
+
+void spider_conn_queue_sql_mode(
+  SPIDER_CONN *conn,
+  sql_mode_t sql_mode
 );
 
 void spider_conn_queue_time_zone(

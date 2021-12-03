@@ -1,0 +1,72 @@
+#
+# MDEV-24971 InnoDB access freed virtual column
+#	after rollback of secondary index
+#
+CREATE TABLE t1(f1 INT, f2 INT AS (f1 + 2) VIRTUAL)ENGINE=InnoDB;
+INSERT INTO t1(f1) VALUES(1), (1);
+ALTER TABLE t1 ADD UNIQUE INDEX(f2), ALGORITHM=INPLACE, LOCK=EXCLUSIVE;
+ERROR 23000: Duplicate entry '3' for key 'f2'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL,
+  `f2` int(11) GENERATED ALWAYS AS (`f1` + 2) VIRTUAL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1(f1 INT, f2 INT AS (f1 + 2) VIRTUAL)ENGINE=InnoDB;
+INSERT INTO t1(f1) VALUES(1), (1);
+ALTER TABLE t1 ADD UNIQUE INDEX(f2), ALGORITHM=INPLACE, LOCK=SHARED;
+ERROR 23000: Duplicate entry '3' for key 'f2'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL,
+  `f2` int(11) GENERATED ALWAYS AS (`f1` + 2) VIRTUAL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1(f1 INT, f2 INT AS (f1) VIRTUAL)ENGINE=InnoDB;
+INSERT INTO t1(f1) VALUES(1);
+SET DEBUG_DBUG="+d,create_index_fail";
+SET DEBUG_SYNC="innodb_inplace_alter_table_enter SIGNAL con1_go WAIT_FOR alter_signal";
+ALTER TABLE t1 ADD COLUMN f3 INT AS (f1) VIRTUAL, ADD INDEX(f2, f3);
+connect con1,localhost,root,,,;
+SET DEBUG_SYNC="now WAIT_FOR con1_go";
+BEGIN;
+SELECT * FROM t1;
+f1	f2
+1	1
+SET DEBUG_SYNC="now SIGNAL alter_signal";
+connection default;
+ERROR 23000: Duplicate entry '' for key '*UNKNOWN*'
+connection con1;
+rollback;
+connection default;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL,
+  `f2` int(11) GENERATED ALWAYS AS (`f1`) VIRTUAL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1(f1 INT, f2 INT AS (f1) VIRTUAL)ENGINE=InnoDB;
+INSERT INTO t1(f1) VALUES(1);
+SET DEBUG_DBUG="+d,create_index_fail";
+SET DEBUG_SYNC="innodb_inplace_alter_table_enter SIGNAL con1_go WAIT_FOR alter_signal";
+ALTER TABLE t1 ADD INDEX(f2);
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR con1_go";
+BEGIN;
+INSERT INTO t1(f1) VALUES(1);
+SET DEBUG_SYNC="now SIGNAL alter_signal";
+connection default;
+ERROR 23000: Duplicate entry '' for key '*UNKNOWN*'
+connection con1;
+rollback;
+connection default;
+disconnect con1;
+DROP TABLE t1;
+CREATE TABLE t1(f1 CHAR(100), f2 CHAR(100) as (f1) VIRTUAL)ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN f3 CHAR(100) AS (f2) VIRTUAL, ADD INDEX(f3(10), f1, f3(12));
+ERROR 42S21: Duplicate column name 'f3'
+DROP TABLE t1;
+SET DEBUG_SYNC=RESET;

@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #include "grn.h"
@@ -310,13 +310,13 @@ grn_alloc_info_free(grn_ctx *ctx)
 }
 #endif /* USE_MEMORY_DEBUG */
 
-#define GRN_CTX_SEGMENT_SIZE    (1<<22)
+#define GRN_CTX_SEGMENT_SIZE    (1U <<22)
 #define GRN_CTX_SEGMENT_MASK    (GRN_CTX_SEGMENT_SIZE - 1)
 
-#define GRN_CTX_SEGMENT_WORD    (1<<31)
-#define GRN_CTX_SEGMENT_VLEN    (1<<30)
-#define GRN_CTX_SEGMENT_LIFO    (1<<29)
-#define GRN_CTX_SEGMENT_DIRTY   (1<<28)
+#define GRN_CTX_SEGMENT_WORD    (1U <<31)
+#define GRN_CTX_SEGMENT_VLEN    (1U <<30)
+#define GRN_CTX_SEGMENT_LIFO    (1U <<29)
+#define GRN_CTX_SEGMENT_DIRTY   (1U <<28)
 
 void
 grn_alloc_init_ctx_impl(grn_ctx *ctx)
@@ -400,8 +400,8 @@ grn_ctx_alloc(grn_ctx *ctx, size_t size, int flags,
       header[0] = i;
       header[1] = (int32_t) size;
     } else {
-      i = ctx->impl->currseg;
-      mi = &ctx->impl->segs[i];
+      if ((i = ctx->impl->currseg) >= 0)
+        mi = &ctx->impl->segs[i];
       if (i < 0 || size + mi->nref > GRN_CTX_SEGMENT_SIZE) {
         for (i = 0, mi = ctx->impl->segs;; i++, mi++) {
           if (i >= GRN_CTX_N_SEGMENTS) {

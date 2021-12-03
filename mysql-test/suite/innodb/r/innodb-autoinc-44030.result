@@ -9,6 +9,7 @@ SELECT * FROM t1;
 d1
 1
 2
+# restart
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

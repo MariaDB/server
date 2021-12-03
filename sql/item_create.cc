@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+   Copyright (c) 2008, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -109,7 +109,6 @@ public:
     @return An item representing the function call
   */
   virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) = 0;
-
 protected:
   /** Constructor. */
   Create_func_arg2() {}
@@ -136,7 +135,6 @@ public:
     @return An item representing the function call
   */
   virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) = 0;
-
 protected:
   /** Constructor. */
   Create_func_arg3() {}
@@ -908,6 +906,19 @@ class Create_func_distance : public Create_func_arg2
     Create_func_distance() {}
     virtual ~Create_func_distance() {}
 };
+
+
+class Create_func_distance_sphere: public Create_native_func
+{
+  public:
+    Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+    static Create_func_distance_sphere s_singleton;
+
+  protected:
+    Create_func_distance_sphere() {}
+    virtual ~Create_func_distance_sphere() {}
+};
+
 #endif
 
 
@@ -1979,6 +1990,19 @@ public:
 protected:
   Create_func_json_merge() {}
   virtual ~Create_func_json_merge() {}
+};
+
+
+class Create_func_json_merge_patch : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+
+  static Create_func_json_merge_patch s_singleton;
+
+protected:
+  Create_func_json_merge_patch() {}
+  virtual ~Create_func_json_merge_patch() {}
 };
 
 
@@ -3193,6 +3217,45 @@ protected:
 };
 #endif
 
+#ifdef WITH_WSREP
+class Create_func_wsrep_last_written_gtid : public Create_func_arg0
+{
+public:
+  virtual Item *create_builder(THD *thd);
+
+  static Create_func_wsrep_last_written_gtid s_singleton;
+
+protected:
+  Create_func_wsrep_last_written_gtid() {}
+  virtual ~Create_func_wsrep_last_written_gtid() {}
+};
+
+
+class Create_func_wsrep_last_seen_gtid : public Create_func_arg0
+{
+public:
+  virtual Item *create_builder(THD *thd);
+
+  static Create_func_wsrep_last_seen_gtid s_singleton;
+
+protected:
+  Create_func_wsrep_last_seen_gtid() {}
+  virtual ~Create_func_wsrep_last_seen_gtid() {}
+};
+
+
+class Create_func_wsrep_sync_wait_upto : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+
+  static Create_func_wsrep_sync_wait_upto s_singleton;
+
+protected:
+  Create_func_wsrep_sync_wait_upto() {}
+  virtual ~Create_func_wsrep_sync_wait_upto() {}
+};
+#endif /* WITH_WSREP */
 
 #ifdef HAVE_SPATIAL
 class Create_func_x : public Create_func_arg1
@@ -4826,6 +4889,26 @@ Create_func_glength::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_glength(thd, arg1);
 }
+
+
+Create_func_distance_sphere Create_func_distance_sphere::s_singleton;
+
+Item*
+Create_func_distance_sphere::create_native(THD *thd, LEX_CSTRING *name,
+                                           List<Item> *item_list)
+{
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  if (arg_count < 2)
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return NULL;
+  }
+  return new (thd->mem_root) Item_func_sphere_distance(thd, *item_list);
+}
 #endif
 
 
@@ -5509,6 +5592,30 @@ Create_func_json_merge::create_native(THD *thd, LEX_CSTRING *name,
   }
 
   status_var_increment(current_thd->status_var.feature_json);
+  return func;
+}
+
+
+Create_func_json_merge_patch Create_func_json_merge_patch::s_singleton;
+
+Item*
+Create_func_json_merge_patch::create_native(THD *thd, LEX_CSTRING *name,
+                                           List<Item> *item_list)
+{
+  Item *func;
+  int arg_count;
+
+  if (item_list == NULL ||
+      (arg_count= item_list->elements) < 2) // json, json
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    func= NULL;
+  }
+  else
+  {
+    func= new (thd->mem_root) Item_func_json_merge_patch(thd, *item_list);
+  }
+
   return func;
 }
 
@@ -6905,6 +7012,63 @@ Create_func_within::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 }
 #endif
 
+#ifdef WITH_WSREP
+Create_func_wsrep_last_written_gtid
+Create_func_wsrep_last_written_gtid::s_singleton;
+
+Item*
+Create_func_wsrep_last_written_gtid::create_builder(THD *thd)
+{
+  thd->lex->safe_to_cache_query= 0;
+  return new (thd->mem_root) Item_func_wsrep_last_written_gtid(thd);
+}
+
+
+Create_func_wsrep_last_seen_gtid
+Create_func_wsrep_last_seen_gtid::s_singleton;
+
+Item*
+Create_func_wsrep_last_seen_gtid::create_builder(THD *thd)
+{
+  thd->lex->safe_to_cache_query= 0;
+  return new (thd->mem_root) Item_func_wsrep_last_seen_gtid(thd);
+}
+
+
+Create_func_wsrep_sync_wait_upto
+Create_func_wsrep_sync_wait_upto::s_singleton;
+
+Item*
+Create_func_wsrep_sync_wait_upto::create_native(THD *thd,
+                                         LEX_CSTRING *name,
+                                         List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+  Item *param_1, *param_2;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count)
+  {
+  case 1:
+    param_1= item_list->pop();
+    func= new (thd->mem_root) Item_func_wsrep_sync_wait_upto(thd, param_1);
+    break;
+  case 2:
+    param_1= item_list->pop();
+    param_2= item_list->pop();
+    func= new (thd->mem_root) Item_func_wsrep_sync_wait_upto(thd, param_1, param_2);
+    break;
+  default:
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+  thd->lex->safe_to_cache_query= 0;
+  return func;
+}
+#endif /* WITH_WSREP */
 
 #ifdef HAVE_SPATIAL
 Create_func_x Create_func_x::s_singleton;
@@ -6983,7 +7147,6 @@ Create_func_year_week::create_native(THD *thd, LEX_CSTRING *name,
   return func;
 }
 
-
 #define BUILDER(F) & F::s_singleton
 
 #ifdef HAVE_SPATIAL
@@ -7003,7 +7166,7 @@ Create_func_year_week::create_native(THD *thd, LEX_CSTRING *name,
   - keep 1 line per entry, it makes grep | sort easier
 */
 
-static Native_func_registry func_array[] =
+Native_func_registry func_array[] =
 {
   { { STRING_WITH_LEN("ABS") }, BUILDER(Create_func_abs)},
   { { STRING_WITH_LEN("ACOS") }, BUILDER(Create_func_acos)},
@@ -7126,6 +7289,8 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_LENGTH") }, BUILDER(Create_func_json_length)},
   { { STRING_WITH_LEN("JSON_LOOSE") }, BUILDER(Create_func_json_loose)},
   { { STRING_WITH_LEN("JSON_MERGE") }, BUILDER(Create_func_json_merge)},
+  { { STRING_WITH_LEN("JSON_MERGE_PATCH") }, BUILDER(Create_func_json_merge_patch)},
+  { { STRING_WITH_LEN("JSON_MERGE_PRESERVE") }, BUILDER(Create_func_json_merge)},
   { { STRING_WITH_LEN("JSON_QUERY") }, BUILDER(Create_func_json_query)},
   { { STRING_WITH_LEN("JSON_QUOTE") }, BUILDER(Create_func_json_quote)},
   { { STRING_WITH_LEN("JSON_OBJECT") }, BUILDER(Create_func_json_object)},
@@ -7322,6 +7487,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("ST_WITHIN") }, GEOM_BUILDER(Create_func_within)},
   { { STRING_WITH_LEN("ST_X") }, GEOM_BUILDER(Create_func_x)},
   { { STRING_WITH_LEN("ST_Y") }, GEOM_BUILDER(Create_func_y)},
+  { { C_STRING_WITH_LEN("ST_DISTANCE_SPHERE") }, GEOM_BUILDER(Create_func_distance_sphere)},
   { { STRING_WITH_LEN("SUBSTR_ORACLE") },
       BUILDER(Create_func_substr_oracle)},
   { { STRING_WITH_LEN("SUBSTRING_INDEX") }, BUILDER(Create_func_substr_index)},
@@ -7347,12 +7513,19 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("WEEKDAY") }, BUILDER(Create_func_weekday)},
   { { STRING_WITH_LEN("WEEKOFYEAR") }, BUILDER(Create_func_weekofyear)},
   { { STRING_WITH_LEN("WITHIN") }, GEOM_BUILDER(Create_func_within)},
+#ifdef WITH_WSREP
+  { { STRING_WITH_LEN("WSREP_LAST_WRITTEN_GTID") }, BUILDER(Create_func_wsrep_last_written_gtid)},
+  { { STRING_WITH_LEN("WSREP_LAST_SEEN_GTID") }, BUILDER(Create_func_wsrep_last_seen_gtid)},
+  { { STRING_WITH_LEN("WSREP_SYNC_WAIT_UPTO_GTID") }, BUILDER(Create_func_wsrep_sync_wait_upto)},
+#endif /* WITH_WSREP */
   { { STRING_WITH_LEN("X") }, GEOM_BUILDER(Create_func_x)},
   { { STRING_WITH_LEN("Y") }, GEOM_BUILDER(Create_func_y)},
   { { STRING_WITH_LEN("YEARWEEK") }, BUILDER(Create_func_year_week)},
 
   { {0, 0}, NULL}
 };
+
+size_t func_array_length= sizeof(func_array) / sizeof(Native_func_registry) - 1;
 
 static HASH native_functions_hash;
 
@@ -7408,6 +7581,21 @@ int item_create_append(Native_func_registry array[])
                         func->name.str, (uint) func->name.length));
   }
 #endif
+
+  DBUG_RETURN(0);
+}
+
+int item_create_remove(Native_func_registry array[])
+{
+  Native_func_registry *func;
+
+  DBUG_ENTER("item_create_remove");
+
+  for (func= array; func->builder != NULL; func++)
+  {
+    if (my_hash_delete(& native_functions_hash, (uchar*) func))
+      DBUG_RETURN(1);
+  }
 
   DBUG_RETURN(0);
 }

@@ -51,6 +51,7 @@ reset slave;
 connection slave;
 
 # Set debug flags on slave to force errors to occur
+set @saved_dbug = @@global.debug_dbug;
 SET GLOBAL debug_dbug= "d,simulate_io_slave_error_on_init,simulate_sql_slave_error_on_init";
 
 start slave;
@@ -66,7 +67,7 @@ start slave;
 
 call mtr.add_suppression("Failed during slave.* thread initialization");
 
-SET GLOBAL debug_dbug= "";
+set @@global.debug_dbug = @saved_dbug;
 
 ######################################################################
 #             Injecting faults in the init_slave option

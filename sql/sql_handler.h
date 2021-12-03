@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
@@ -73,6 +73,7 @@ bool mysql_ha_read(THD *, TABLE_LIST *,enum enum_ha_read_modes, const char *,
 void mysql_ha_flush(THD *thd);
 void mysql_ha_flush_tables(THD *thd, TABLE_LIST *all_tables);
 void mysql_ha_rm_tables(THD *thd, TABLE_LIST *tables);
+void mysql_ha_cleanup_no_free(THD *thd);
 void mysql_ha_cleanup(THD *thd);
 void mysql_ha_set_explicit_lock_duration(THD *thd);
 void mysql_ha_rm_temporary_tables(THD *thd);

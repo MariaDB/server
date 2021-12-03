@@ -1,0 +1,207 @@
+source suite/period/engines.inc;
+source include/have_log_bin.inc;
+
+create table t (id int, s date, e date, period for apptime(s,e));
+
+insert into t values(1, '1999-01-01', '2018-12-12');
+insert into t values(1, '1999-01-01', '2017-01-01');
+insert into t values(1, '2017-01-01', '2019-01-01');
+insert into t values(2, '1998-01-01', '2018-12-12');
+insert into t values(3, '1997-01-01', '2015-01-01');
+insert into t values(4, '2016-01-01', '2020-01-01');
+insert into t values(5, '2010-01-01', '2015-01-01');
+
+create or replace table t1 (id int, s date, e date, period for apptime(s,e));
+insert t1 select * from t;
+create or replace table t2 (id int, s date, e date, period for apptime(s,e));
+insert t2 select * from t;
+
+update t for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id=id + 6;
+--sorted_result
+select * from t;
+
+--echo # Check triggers
+--let $trig_cols=id, s, e
+--let $trig_table=t1
+--source suite/period/create_triggers.inc
+
+update t1 for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id=id + 6;
+--sorted_result
+select * from t1;
+select * from log_tbl order by id;
+
+--echo # INSERT trigger only also works
+--let $trig_cols=id, s, e
+--let $trig_table=t2
+--source suite/period/create_triggers.inc
+drop trigger tr1upd_t2;
+drop trigger tr2upd_t2;
+update t2 for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id=id + 6;
+--sorted_result
+select * from t2;
+select * from log_tbl order by id;
+
+--error ER_PARSE_ERROR
+select * from t for portion of apptime from 0 to 1 for system_time all;
+--error ER_PARSE_ERROR
+update t for portion of apptime from 0 to 1 for system_time all set id=1;
+
+--echo # Modifying period start/end fields is forbidden.
+--echo # SQL16: 14.14 <update statement: searched>, Syntax Rules, 7)a)ii)
+--echo # Neither BSTARTCOL nor BENDCOL shall be an explicit <object column>
+--echo # contained in the <set clause list>.
+--error ER_PERIOD_COLUMNS_UPDATED
+update t for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id= id + 6, s=subdate(s, 5), e=adddate(e, 5);
+
+--echo # Precision timestamps
+create or replace table t (id int, s timestamp(5), e timestamp(5),
+                           period for apptime(s,e));
+insert into t values(1, '1999-01-01', '2018-12-12');
+insert into t values(1, '1999-01-01', '2017-01-01');
+update t for portion of apptime from '2000-01-01 00:00:00.00015'
+                                to '2018-01-01 12:34:56.31415'
+         set id= id + 5;
+--sorted_result
+select * from t;
+
+-- echo # Strings
+create or replace table t (id int, str text, s date, e date,
+                           period for apptime(s,e));
+
+insert into t values(1, 'data', '1999-01-01', '2018-12-12');
+insert into t values(1, 'other data', '1999-01-01', '2018-12-12');
+update t for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id= id + 5;
+--sorted_result
+select * from t;
+
+--echo # multi-table UPDATE is impossible
+create or replace table t1(x int);
+--error ER_PARSE_ERROR
+update t for portion of apptime from '2000-01-01' to '2018-01-01', t1
+       set t.id= t.id + 5;
+
+--error ER_PARSE_ERROR
+update t1 set x= (select id from t for portion of apptime from '2000-01-01' to '2018-01-01');
+
+--echo # single-table views
+create or replace view v1 as select * from t where id<10;
+--error ER_IT_IS_A_VIEW
+update v1 for portion of apptime from '2000-01-01' to '2018-01-01' set id= id + 5;
+
+--echo # multi-table views
+create or replace view v1 as select * from t, t1 where x=id;
+--error ER_IT_IS_A_VIEW
+update v1 for portion of apptime from '2000-01-01' to '2018-01-01' set id= id + 5;
+
+--echo # SQL16: 14.14 <update statement: searched>, Syntax Rules, 7)a) iii-iv)
+--echo # Let FROMVAL be <point in time 1>. FROMVAL shall not generally contain a
+--echo # reference to a column of T or a <routine invocation>
+--echo # whose subject routine is an SQL-invoked routine that
+--echo # is possibly non-deterministic or that possibly modifies SQL-data.
+--echo # ...Same for <point in time 2> (TOVAL)
+--error ER_NOT_CONSTANT_EXPRESSION
+update t for portion of apptime from 5*(5+s) to 1 set t.id= t.id + 5;
+--error ER_NOT_CONSTANT_EXPRESSION
+update t for portion of apptime from 1 to e set t.id= t.id + 5;
+
+set @s= '2000-01-01';
+set @e= '2018-01-01';
+
+create or replace function f() returns date return @e;
+create or replace function g() returns date not deterministic return @e;
+create or replace function h() returns date deterministic return @e;
+
+--error ER_NOT_CONSTANT_EXPRESSION
+update t for portion of apptime from @s to f() set t.id= t.id + 5;
+--error ER_NOT_CONSTANT_EXPRESSION
+update t for portion of apptime from @s to g() set t.id= t.id + 5;
+
+--echo # success
+update t for portion of apptime from @s to h() set t.id= t.id + 5;
+--echo # select value is cached
+update t for portion of apptime from (select s from t2 limit 1) to h() set t.id= t.id + 5;
+
+--echo # auto_inrement field is updated
+create or replace table t (id int primary key auto_increment, x int,
+                           s date, e date, period for apptime(s, e));
+insert into t values (default, 1, '1999-01-01', '2018-12-12');
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
+--sorted_result
+select * from t;
+
+truncate t;
+insert into t values (default, 1, '1999-01-01', '2018-12-12');
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= 1;
+--sorted_result
+select * from t;
+
+--echo # generated columns are updated
+create or replace table t (x int, s date, e date,
+                           xs date as (s) stored, xe date as (e) stored,
+                           period for apptime(s, e));
+insert into t values(1, '1999-01-01', '2018-12-12', default, default);
+--sorted_result
+select * from t;
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
+--sorted_result
+select *, xs=s and xe=e from t;
+
+--echo # MDEV-18921 Server crashes in bitmap_bits_set or bitmap_is_set upon
+--echo # UPDATE IGNORE .. FOR PORTION with binary logging
+create or replace table t1 (f int, s date, e date, period for app(s,e));
+insert into t1 values (1,'2016-09-21','2019-06-14');
+update ignore t1 for portion of app from '2019-03-13' to '2019-03-14' set f = 1;
+
+drop table t,t1,t2,log_tbl;
+drop view v1;
+drop function f;
+drop function g;
+drop function h;
+drop procedure log;
+
+--echo #
+--echo # MDEV-21471 ER_CRASHED_ON_USAGE upon UPDATE FOR PORTION on Aria table
+--echo #
+create table t1 (s date, e date, period for app(s,e), f varchar(8)) engine=aria row_format=fixed;
+insert into t1 values ('2024-05-13','2026-03-25','foo');
+update t1 for portion of app from '2024-04-02' to '2026-03-15' set f = 'bar';
+
+# cleanup
+drop table t1;
+
+--echo # MDEV-19130 Assertion
+--echo # `next_insert_id >= auto_inc_interval_for_cur_row.minimum()'
+--echo # failed in handler::update_auto_increment after error 167
+create table t1 (id int auto_increment, f int, s datetime, e datetime, period for p(s,e), primary key(id));
+insert into t1 (s,e) values ('1994-01-06','2004-11-30'),('1994-06-21','1997-06-20');
+update ignore t1 set id = 2429681664;
+update ignore t1 for portion of p from '1995-07-06' to '2009-01-12' set f = 1;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-22805 SIGSEGV in check_fields on UPDATE (optimized builds) | Assertion `thd->lex->sql_command == SQLCOM_UPDATE' failed.
+--echo #
+CREATE TABLE t1 (a INT, b DATE, c DATE, PERIOD FOR APPTIME(b, c));
+
+INSERT INTO t1 VALUES(1, '1999-01-01', '2018-12-12');
+
+# Without a patch the following statement crashs a server built in debug mode
+let $stmt= UPDATE t1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100;
+--error ER_NOT_SUPPORTED_YET
+eval $stmt;
+eval set @tmp= "$stmt";
+--error ER_NOT_SUPPORTED_YET
+execute immediate @tmp;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+--error ER_IT_IS_A_VIEW
+UPDATE v1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100;
+
+DROP VIEW v1;
+DROP TABLE t1;

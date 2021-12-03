@@ -2,6 +2,8 @@
 --source include/have_query_cache.inc
 --source include/not_embedded.inc
 
+set @save_query_cache_size=@@query_cache_size;
+
 --echo #
 --echo # MDEV-12485: foreign key on delete cascade stale entries with
 --echo # query cache enabled
@@ -81,5 +83,5 @@ call mtr.add_suppression("\\[ERROR\\] Invalid \\(old\\?\\) table or database nam
 --source include/search_pattern_in_file.inc
 
 set global query_cache_type=DEFAULT;
-set global query_cache_size=DEFAULT;
+set global query_cache_size=@save_query_cache_size;
 --echo End of 10.2 tests

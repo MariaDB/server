@@ -546,7 +546,7 @@ pk	key1	col1
 explain
 select key1 from t30;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	index	NULL	key1	20	NULL	#	Using index
+1	SIMPLE	t30	index	NULL	key1	18	NULL	#	Using index
 select key1 from t30;
 key1
 row1-key
@@ -618,7 +618,7 @@ row3	row3-key	row3-data
 explain 
 select * from t30 order by key1 limit 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	index	NULL	key1	20	NULL	#	
+1	SIMPLE	t30	index	NULL	key1	18	NULL	#	
 select * from t30 order by key1 limit 3;
 pk	key1	col1
 row1	row1-key	row1-data
@@ -627,7 +627,7 @@ row3	row3-key	row3-data
 explain 
 select * from t30 order by key1 desc limit 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	index	NULL	key1	20	NULL	#	
+1	SIMPLE	t30	index	NULL	key1	18	NULL	#	
 select * from t30 order by key1 desc limit 3;
 pk	key1	col1
 row5	row5-key	row5-data
@@ -884,11 +884,14 @@ rocksdb_bulk_load_allow_sk	OFF
 rocksdb_bulk_load_allow_unsorted	OFF
 rocksdb_bulk_load_size	1000
 rocksdb_bytes_per_sync	0
+rocksdb_cache_dump	ON
+rocksdb_cache_high_pri_pool_ratio	0.000000
 rocksdb_cache_index_and_filter_blocks	ON
+rocksdb_cache_index_and_filter_with_high_priority	ON
 rocksdb_checksums_pct	100
 rocksdb_collect_sst_properties	ON
 rocksdb_commit_in_the_middle	OFF
-rocksdb_commit_time_batch_for_recovery	OFF
+rocksdb_commit_time_batch_for_recovery	ON
 rocksdb_compact_cf	
 rocksdb_compaction_readahead_size	0
 rocksdb_compaction_sequential_deletes	0
@@ -910,9 +913,11 @@ rocksdb_debug_ttl_rec_ts	0
 rocksdb_debug_ttl_snapshot_ts	0
 rocksdb_default_cf_options	
 rocksdb_delayed_write_rate	0
+rocksdb_delete_cf	
 rocksdb_delete_obsolete_files_period_micros	21600000000
 rocksdb_enable_2pc	ON
 rocksdb_enable_bulk_load_api	ON
+rocksdb_enable_insert_with_update_caching	ON
 rocksdb_enable_thread_tracking	ON
 rocksdb_enable_ttl	ON
 rocksdb_enable_ttl_read_filtering	ON
@@ -963,10 +968,10 @@ rocksdb_persistent_cache_size_mb	0
 rocksdb_pin_l0_filter_and_index_blocks_in_cache	ON
 rocksdb_print_snapshot_conflict_queries	OFF
 rocksdb_rate_limiter_bytes_per_sec	0
-rocksdb_read_free_rpl_tables	
 rocksdb_records_in_range	50
 rocksdb_remove_mariabackup_checkpoint	OFF
 rocksdb_reset_stats	OFF
+rocksdb_rollback_on_timeout	OFF
 rocksdb_seconds_between_stat_computes	3600
 rocksdb_signal_drop_index_thread	OFF
 rocksdb_sim_cache_size	0
@@ -975,6 +980,7 @@ rocksdb_skip_fill_cache	OFF
 rocksdb_skip_unique_check_tables	.*
 rocksdb_sst_mgr_rate_bytes_per_sec	0
 rocksdb_stats_dump_period_sec	600
+rocksdb_stats_level	0
 rocksdb_stats_recalc_rate	0
 rocksdb_store_row_debug_checksums	OFF
 rocksdb_strict_collation_check	OFF
@@ -1359,7 +1365,7 @@ insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables
 set @tmp1= @@rocksdb_max_row_locks;
 set rocksdb_max_row_locks= 20;
 update t1 set a=a+10;
-ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to max_num_locks limit' from ROCKSDB
+ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to rocksdb_max_row_locks limit' from ROCKSDB
 DROP TABLE t1;
 # 
 # Test AUTO_INCREMENT behavior problem,
@@ -1399,6 +1405,7 @@ create table t1 (i int primary key auto_increment) engine=RocksDB;
 insert into t1 values (null);
 insert into t1 values (null);
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;
+# restart
 SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
 insert into t1 values (null);
@@ -1415,7 +1422,7 @@ create table t1 (i int primary key auto_increment) engine=RocksDB;
 insert into t1 values (null),(null);
 show table status like 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	ROCKSDB	10	Fixed	1000	0	#	0	0	0	3	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
+t1	ROCKSDB	10	Fixed	1000	0	#	0	0	0	3	#	#	NULL	latin1_swedish_ci	NULL			0	N
 drop table t1;
 #
 # Fix Issue #4: Crash when using pseudo-unique keys
@@ -1462,8 +1469,9 @@ set autocommit=1;
 drop table t0, t1;
 #
 # Check status variables
+# NOTE: We exclude rocksdb_num_get_for_update_calls because it's a debug only status var
 #
-show status like 'rocksdb%';
+show status where variable_name like 'rocksdb%' and variable_name not like '%num_get_for_update%';
 Variable_name	Value
 Rocksdb_rows_deleted	#
 Rocksdb_rows_inserted	#
@@ -1574,7 +1582,7 @@ Rocksdb_write_other	#
 Rocksdb_write_self	#
 Rocksdb_write_timedout	#
 Rocksdb_write_wal	#
-select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%';
+select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%' and VARIABLE_NAME NOT LIKE '%num_get_for_update%';
 VARIABLE_NAME
 ROCKSDB_ROWS_DELETED
 ROCKSDB_ROWS_INSERTED
@@ -1687,7 +1695,7 @@ ROCKSDB_WRITE_TIMEDOUT
 ROCKSDB_WRITE_WAL
 # RocksDB-SE's status variables are global internally 
 #  but they are shown as both session and global, like InnoDB's status vars.
-select VARIABLE_NAME from INFORMATION_SCHEMA.session_status where VARIABLE_NAME LIKE 'rocksdb%';
+select VARIABLE_NAME from INFORMATION_SCHEMA.session_status where VARIABLE_NAME LIKE 'rocksdb%' and VARIABLE_NAME NOT LIKE '%num_get_for_update%';
 VARIABLE_NAME
 ROCKSDB_ROWS_DELETED
 ROCKSDB_ROWS_INSERTED
@@ -2451,9 +2459,9 @@ DROP TABLE t1;
 CREATE TABLE t2(id INT NOT NULL PRIMARY KEY, data INT) Engine=MEMORY;
 INSERT INTO t2 VALUES (100,NULL),(150,"long varchar"),(200,"varchar"),(250,"long long long varchar");
 Warnings:
-Warning	1366	Incorrect integer value: 'long varchar' for column 'data' at row 2
-Warning	1366	Incorrect integer value: 'varchar' for column 'data' at row 3
-Warning	1366	Incorrect integer value: 'long long long varchar' for column 'data' at row 4
+Warning	1366	Incorrect integer value: 'long varchar' for column `test`.`t2`.`data` at row 2
+Warning	1366	Incorrect integer value: 'varchar' for column `test`.`t2`.`data` at row 3
+Warning	1366	Incorrect integer value: 'long long long varchar' for column `test`.`t2`.`data` at row 4
 create TABLE t1 (a int not null, b int not null, primary key(a,b));
 INSERT INTO t1  VALUES (1,1);
 SELECT a FROM t1, t2 WHERE a=b AND (b NOT IN (SELECT a FROM t1 WHERE a > 4));
@@ -2542,10 +2550,10 @@ a
 truncate t1;
 INSERT INTO t1 VALUES(X'042000200020',X'042000200020'),(X'200400200020',X'200400200020');
 Warnings:
-Warning	1366	Incorrect integer value: '\x04 \x00 \x00 ' for column 'a' at row 1
-Warning	1366	Incorrect integer value: '\x04 \x00 \x00 ' for column 'b' at row 1
-Warning	1366	Incorrect integer value: ' \x04\x00 \x00 ' for column 'a' at row 2
-Warning	1366	Incorrect integer value: ' \x04\x00 \x00 ' for column 'b' at row 2
+Warning	1366	Incorrect integer value: '\x04 \x00 \x00 ' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect integer value: '\x04 \x00 \x00 ' for column `test`.`t1`.`b` at row 1
+Warning	1366	Incorrect integer value: ' \x04\x00 \x00 ' for column `test`.`t1`.`a` at row 2
+Warning	1366	Incorrect integer value: ' \x04\x00 \x00 ' for column `test`.`t1`.`b` at row 2
 UNLOCK TABLES;
 DROP TABLE t1;
 #
@@ -2587,7 +2595,7 @@ CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
 INSERT INTO t1 VALUES(0),(-1),(0);
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	ROCKSDB	10	Fixed	1000	0	0	0	0	0	3	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
+t1	ROCKSDB	10	Fixed	1000	0	0	0	0	0	3	#	#	NULL	latin1_swedish_ci	NULL			0	N
 SELECT * FROM t1;
 a
 -1
@@ -2598,7 +2606,7 @@ CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
 INSERT INTO t1 VALUES(0),(10),(0);
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	ROCKSDB	10	Fixed	1000	0	0	0	0	0	12	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
+t1	ROCKSDB	10	Fixed	1000	0	0	0	0	0	12	#	#	NULL	latin1_swedish_ci	NULL			0	N
 SELECT * FROM t1;
 a
 1

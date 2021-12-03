@@ -195,13 +195,13 @@ static void test_multiple_cachefiles(bool use_same_hash) {
 
         char fname1[strlen(TOKU_TEST_FILENAME) + sizeof("_1")];    
         strcpy(fname1, TOKU_TEST_FILENAME);
-        strncat(fname1, "_1", sizeof("_1"));
+        strcat(fname1, "_1");
         char fname2[strlen(TOKU_TEST_FILENAME) + sizeof("_2")];    
         strcpy(fname2, TOKU_TEST_FILENAME);
-        strncat(fname2, "_2", sizeof("_2"));
+        strcat(fname2, "_2");
         char fname3[strlen(TOKU_TEST_FILENAME) + sizeof("_3")];    
         strcpy(fname3, TOKU_TEST_FILENAME);
-        strncat(fname3, "_3", sizeof("_3"));
+        strcat(fname3, "_3");
 
         unlink(fname1);
         unlink(fname2);
@@ -280,10 +280,10 @@ static void test_evictor(void) {
 
     char fname1[strlen(TOKU_TEST_FILENAME) + sizeof("_1")];    
     strcpy(fname1, TOKU_TEST_FILENAME);
-    strncat(fname1, "_1", sizeof("_1"));
+    strcat(fname1, "_1");
     char fname2[strlen(TOKU_TEST_FILENAME) + sizeof("_2")];    
     strcpy(fname2, TOKU_TEST_FILENAME);
-    strncat(fname2, "_2", sizeof("_2"));
+    strcat(fname2, "_2");
 
     unlink(fname1);
     unlink(fname2);

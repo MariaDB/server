@@ -1,13 +1,14 @@
 # bool global
 
 SET @start_global_value = @@global.userstat;
-
 #
 # exists as global only
 #
-select @@global.userstat;
+select @@global.userstat = 0 or @@global.userstat = 1;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 select @@session.userstat;
+
+SET @@global.userstat=0;
 show global variables like 'userstat';
 show session variables like 'userstat';
 select * from information_schema.global_variables where variable_name='userstat';

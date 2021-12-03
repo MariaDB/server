@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define ER_SPIDER_INVALID_CONNECT_INFO_NUM 12501
 #define ER_SPIDER_INVALID_CONNECT_INFO_STR "The connect info '%-.64s' is invalid"
@@ -124,6 +124,9 @@
 #define ER_SPIDER_CON_COUNT_ERROR_STR "Too many connections between spider and remote"
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_NUM 12714
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_STR "Table %s.%s open timeout"
+#define ER_SPIDER_SAME_SERVER_LINK_NUM 12720
+#define ER_SPIDER_SAME_SERVER_LINK_STR1 "Host:%s and Socket:%s aim self server. Please change spider_same_server_link parameter if this link is required."
+#define ER_SPIDER_SAME_SERVER_LINK_STR2 "Host:%s and Port:%ld aim self server. Please change spider_same_server_link parameter if this link is required."
 #define ER_SPIDER_COND_SKIP_NUM 12801
 
 #define ER_SPIDER_UNKNOWN_NUM 12500

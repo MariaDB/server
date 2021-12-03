@@ -1,0 +1,12 @@
+#
+# MDEV-22443: terminate called after throwing an instance of
+# 'wsrep::runtime_error' in std::terminate on START TRANSACTION
+#
+
+--source include/have_innodb.inc
+--source include/have_wsrep.inc
+--source include/have_binlog_format_row.inc
+
+SET SESSION wsrep_sync_wait=15;
+SET SESSION wsrep_on=1;
+START TRANSACTION READ WRITE;

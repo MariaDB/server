@@ -199,11 +199,13 @@ let $cleanup_stmt1= alter event e1 comment '';
 --echo #
 --echo # 2) ANALYZE TABLE statement is compatible with FTWRL.
 --echo # See Bug#43336 ANALYZE and OPTIMIZE do not honour
---echo #  --read-only for a discussion why.
+--echo #  --read-only as they update status tables.
 --echo #
+let $skip_3rd_check= 1;
 let $statement= analyze table t1_base;
 let $cleanup_stmt= ;
---source include/check_ftwrl_compatible.inc
+--source include/check_ftwrl_incompatible.inc
+let $skip_3rd_check= ;
 
 --echo #
 --echo # 3) BEGIN, ROLLBACK and COMMIT statements.
@@ -259,7 +261,7 @@ connection $con_aux1;
 --echo # Wait until COMMIT is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "commit";
 --source include/wait_condition.inc
 unlock tables;
@@ -281,7 +283,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
@@ -565,7 +567,7 @@ connection $con_aux1;
 --echo # Check that EXECUTE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "insert into t1_base values (1)";
 --source include/wait_condition.inc
 unlock tables;
@@ -582,7 +584,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
@@ -800,6 +802,8 @@ connection default;
 --echo # 14.2) FLUSH TABLES <list> WITH READ LOCK is not blocked by
 --echo #       active FTWRL. But since the latter keeps tables open
 --echo #       FTWRL is blocked by FLUSH TABLES <list> WITH READ LOCK.
+--echo #       Fixed by MDEV-5336
+
 flush tables with read lock;
 --echo # FT <list> WRL is allowed under FTWRL at the moment.
 --echo # It does not make much sense though.
@@ -815,19 +819,10 @@ unlock tables;
 connection default;
 flush tables t1_base, t2_base with read lock;
 connection $con_aux1;
---send flush tables with read lock
-connection $con_aux2;
---echo # Wait until FTWRL is blocked.
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush" and
-        info = "flush tables with read lock";
---source include/wait_condition.inc
+flush tables with read lock;
 connection default;
 unlock tables;
 connection $con_aux1;
---echo # Reap FTWRL.
---reap
 unlock tables;
 connection default;
 
@@ -1018,7 +1013,7 @@ connection $con_aux1;
 --echo # Check that LOCK TABLES WRITE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "lock tables t1_base write";
 --source include/wait_condition.inc
 unlock tables;
@@ -1062,7 +1057,7 @@ connection $con_aux1;
 --echo # Check that OPTIMIZE TABLE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "optimize table t1_base";
 --source include/wait_condition.inc
 unlock tables;
@@ -1228,7 +1223,7 @@ connection $con_aux1;
 --echo # Check that REPAIR TABLE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "repair table t1_base";
 --source include/wait_condition.inc
 unlock tables;
@@ -1427,7 +1422,7 @@ connection $con_aux1;
 --echo # Wait until SET AUTOCOMMIT=1 is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "set autocommit= 1";
 --source include/wait_condition.inc
 unlock tables;
@@ -1449,7 +1444,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
@@ -1628,7 +1623,7 @@ connection $con_aux1;
 --echo # Wait until XA COMMIT is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "xa commit 'test1'";
 --source include/wait_condition.inc
 unlock tables;
@@ -1652,7 +1647,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 set debug_sync='now SIGNAL go';
@@ -1719,7 +1714,7 @@ set autocommit= 1;
 --echo # 39.1.a) ANALYZE TABLE for transactional table is incompatible with
 --echo #         FTWRL.
 flush tables with read lock;
---echo # Implicit commits are allowed under FTWRL.
+--error ER_CANT_UPDATE_WITH_READLOCK
 analyze table t3_trans;
 unlock tables;
 --echo #
@@ -1731,7 +1726,7 @@ connection $con_aux1;
 --echo # Check that ANALYZE TABLE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "analyze table t3_trans";
 --source include/wait_condition.inc
 unlock tables;
@@ -1806,7 +1801,7 @@ connection $con_aux1;
 --echo # Check that CHECK TABLE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "check table t1_base";
 --source include/wait_condition.inc
 unlock tables;
@@ -1824,7 +1819,7 @@ connection $con_aux1;
 --echo # Check that ALTER TABLE is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for commit lock" and
+  where state = "Waiting for backup lock" and
         info = "alter table t1_temp add column c1 int";
 --source include/wait_condition.inc
 unlock tables;
@@ -1877,7 +1872,7 @@ connection $con_aux2;
 --echo # Wait until FTWRL is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "flush tables with read lock";
 --source include/wait_condition.inc
 --echo # Try to run another INSERT and see that it is blocked.
@@ -1886,7 +1881,7 @@ connection con3;
 --echo # Wait until new INSERT is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for global read lock" and
+  where state = "Waiting for backup lock" and
         info = "insert into t2_base values (1)";
 --echo # Unblock INSERT in the first connection.
 set debug_sync='now SIGNAL go';
@@ -2022,3 +2017,125 @@ set global sql_mode=default;
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
+
+
+--echo #
+--echo # Deadlock between FTWRL under open handler and DDL/LOCK TABLES
+--echo #
+CREATE TABLE t1(a INT);
+
+--echo #
+connect (con3,localhost,root,,);
+HANDLER t1 OPEN;
+
+--echo #
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+--send LOCK TABLE t1 WRITE
+
+--echo #
+--echo # we need to do it in a separate connection,
+--echo # because SET DEBUG_SYNC call open_tables()/mysql_ha_flush() :(
+connect (con2,localhost,root,,);
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+disconnect con2;
+
+--echo #
+connection default;
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+
+--echo #
+connection con3;
+HANDLER t1 CLOSE;
+disconnect con3;
+
+--echo #
+connection con1;
+reap;
+UNLOCK TABLES;
+disconnect con1;
+
+--echo #
+connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+
+
+--echo #
+--echo # Make sure pending LOCK TABLES doesn't block FTWRL
+--echo #
+CREATE TABLE t1(a INT);
+LOCK TABLE t1 READ;
+
+--echo #
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+--send LOCK TABLE t1 WRITE
+
+--echo #
+connect (con2,localhost,root,,);
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+disconnect con2;
+
+--echo #
+connection default;
+UNLOCK TABLES;
+
+--echo #
+connection con1;
+reap;
+UNLOCK TABLES;
+disconnect con1;
+
+--echo #
+connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+
+--echo #
+--echo # MDEV-19384 Deadlock between FTWRL under open HANDLER, LOCK TABLE
+--echo # and DROP DATABASE
+--echo #
+
+SET DEBUG_SYNC= 'ftwrl_before_lock SIGNAL ready WAIT_FOR go';
+CREATE DATABASE mysqltest;
+CREATE TABLE mysqltest.t1(a INT);
+HANDLER mysqltest.t1 OPEN as t1;
+
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready1';
+--send LOCK TABLE mysqltest.t1 WRITE
+
+connect (con2,localhost,root,,);
+SET DEBUG_SYNC= 'now WAIT_FOR ready1';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready2';
+--send DROP DATABASE mysqltest
+
+connect (con3,localhost,root,,);
+SET DEBUG_SYNC= 'now WAIT_FOR ready2';
+
+connection default;
+send FLUSH TABLES WITH READ LOCK;
+
+connection con3;
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+disconnect con3;
+
+connection con1;
+--error 0,ER_NO_SUCH_TABLE
+reap;
+SET DEBUG_SYNC= 'now SIGNAL go';
+disconnect con1;
+
+connection default;
+reap;
+UNLOCK TABLES;
+HANDLER t1 CLOSE;
+connection con2;
+reap;
+disconnect con2;
+connection default;
+SET DEBUG_SYNC= 'RESET';

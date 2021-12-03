@@ -3,6 +3,7 @@
 --source include/have_maria.inc
 # can't restart server in embedded
 --source include/not_embedded.inc
+--source include/default_charset.inc
 
 set global aria_log_file_size=4294959104;
 
@@ -47,6 +48,7 @@ insert into t1 values('a');
 insert into t1 select * from t2;
 --replace_regex /; .+aria_log/aria_log/
 show engine aria logs;
+select count(*) from t1;
 
 # optimization because table is empty
 -- source include/maria_empty_logs.inc
@@ -54,6 +56,7 @@ truncate table t1;
 insert into t1 select * from t2;
 --replace_regex /; .+aria_log/aria_log/
 show engine aria logs;
+select count(*) from t1;
 
 drop table t1;
 

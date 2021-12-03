@@ -1,0 +1,98 @@
+#
+# Check that wsrep position is updated in innodb after
+# a local certification failure.
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+#
+# Cause a certification failure. The INSERT on node_2 will fail certification,
+# and it is going to be the last event before shutting down node_2.
+#
+--connection node_2
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(255)) Engine=InnoDB;
+SET GLOBAL wsrep_slave_threads = 2;
+SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
+
+--let $expected_cert_failures = `SELECT VARIABLE_VALUE + 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
+
+--connection node_1
+--send INSERT INTO t1 VALUES (1, 'node_1');
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_retry_autocommit = 0;
+
+--send INSERT INTO t1 VALUES (1, 'node_2');
+
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition.inc
+
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_1
+--reap
+
+--connection node_2a
+SET GLOBAL DEBUG_DBUG = "";
+SET DEBUG_SYNC = "RESET";
+
+#
+# Keep track of the current position in variable $expected_position
+#
+--let $expected_position_uuid = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_state_uuid'`
+--let $expected_position_seqno = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--let $expected_position = $expected_position_uuid:$expected_position_seqno
+--disconnect node_2a
+
+#
+# Shutdown node 2
+#
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+#
+# Check that start position matches the position we recorded
+# before shutdown in $expected_position
+#
+--let $galera_wsrep_recover_server_id = 2
+--source suite/galera/include/galera_wsrep_recover.inc
+
+if ($galera_wsrep_start_position != $expected_position)
+{
+  --exec echo "expected position $expected_position"
+  --exec echo "recover position $galera_wsrep_start_position"
+  die("Expected position and recover position did not match");
+}
+
+#
+# Restart node 2 and cleanup
+#
+--connection node_2
+--source include/start_mysqld.inc
+
+--connection node_1
+DROP TABLE t1;
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+--source include/auto_increment_offset_restore.inc

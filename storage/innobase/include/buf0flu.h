@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,7 +27,6 @@ Created 11/5/1995 Heikki Tuuri
 #ifndef buf0flu_h
 #define buf0flu_h
 
-#include "univ.i"
 #include "ut0byte.h"
 #include "log0log.h"
 #include "buf0types.h"
@@ -74,17 +73,24 @@ buf_flush_relocate_on_flush_list(
 @param[in,out]	bpage	flushed page
 @param[in]	dblwr	whether the doublewrite buffer was used */
 void buf_flush_write_complete(buf_page_t* bpage, bool dblwr);
+
+/** Assign the full crc32 checksum for non-compressed page.
+@param[in,out]	page	page to be updated */
+void buf_flush_assign_full_crc32_checksum(byte* page);
+
 /** Initialize a page for writing to the tablespace.
-@param[in]	block		buffer block; NULL if bypassing the buffer pool
-@param[in,out]	page		page frame
-@param[in,out]	page_zip_	compressed page, or NULL if uncompressed
-@param[in]	newest_lsn	newest modification LSN to the page */
+@param[in]	block			buffer block; NULL if bypassing the buffer pool
+@param[in,out]	page			page frame
+@param[in,out]	page_zip_		compressed page, or NULL if uncompressed
+@param[in]	newest_lsn		newest modification LSN to the page
+@param[in]	use_full_checksum	whether tablespace uses full checksum */
 void
 buf_flush_init_for_writing(
 	const buf_block_t*	block,
 	byte*			page,
 	void*			page_zip_,
-	lsn_t			newest_lsn);
+	lsn_t			newest_lsn,
+	bool			use_full_checksum);
 
 # if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 /********************************************************************//**
@@ -168,16 +174,6 @@ void
 buf_flush_wait_flushed(
 	lsn_t		new_oldest);
 
-/******************************************************************//**
-Waits until a flush batch of the given type ends. This is called by
-a thread that only wants to wait for a flush to end but doesn't do
-any flushing itself. */
-void
-buf_flush_wait_batch_end_wait_only(
-/*===============================*/
-	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	buf_flush_t	type);		/*!< in: BUF_FLUSH_LRU
-					or BUF_FLUSH_LIST */
 /********************************************************************//**
 This function should be called at a mini-transaction commit, if a page was
 modified in it. Puts the block to the list of modified blocks, if it not
@@ -192,18 +188,6 @@ buf_flush_note_modification(
 	lsn_t		end_lsn,	/*!< in: end lsn of the last mtr in the
 					set of mtr's */
 	FlushObserver*	observer);	/*!< in: flush observer */
-
-/********************************************************************//**
-This function should be called when recovery has modified a buffer page. */
-UNIV_INLINE
-void
-buf_flush_recv_note_modification(
-/*=============================*/
-	buf_block_t*	block,		/*!< in: block which is modified */
-	lsn_t		start_lsn,	/*!< in: start lsn of the first mtr in a
-					set of mtr's */
-	lsn_t		end_lsn);	/*!< in: end lsn of the last mtr in the
-					set of mtr's */
 /********************************************************************//**
 Returns TRUE if the file page block is immediately suitable for replacement,
 i.e., transition FILE_PAGE => NOT_USED allowed.

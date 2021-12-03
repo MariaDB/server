@@ -5,7 +5,7 @@ create table t1(a int not null primary key) engine=myisam;
 insert delayed into t1 values (1);
 insert delayed into t1 values (2);
 insert delayed into t1 values (3);
-flush tables;
+flush tables t1;
 SELECT * FROM t1 ORDER BY a;
 a
 1

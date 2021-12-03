@@ -13,13 +13,13 @@
 //#include "sql_class.h"
 //#include "sql_time.h"
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 
 /***********************************************************************/
@@ -1220,15 +1220,19 @@ bool FILTER::Eval(PGLOBAL g)
   int     i; // n = 0;
 //PSUBQ   subp = NULL;
   PARRAY  ap = NULL;
-  PDBUSER dup = PlgGetUser(g);
+  PDBUSER dup __attribute__((unused)) = PlgGetUser(g);
 
   if (Opc <= OP_XX)
+  {
     for (i = 0; i < 2; i++)
+    {
       // Evaluate the object and eventually convert it.
       if (Arg(i)->Eval(g))
         return TRUE;
       else if (Test[i].Conv)
         Val(i)->SetValue_pval(Arg(i)->GetValue());
+    }
+  }
 
   if (trace(1))
     htrc(" Filter: op=%d type=%d %d B_T=%d %d val=%p %p\n",

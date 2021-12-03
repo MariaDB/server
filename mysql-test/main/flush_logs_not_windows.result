@@ -1,0 +1,3 @@
+flush logs;
+ERROR HY000: Can't create file 'MYSQLTEST_VARDIR/log/mysqld.1.err' (errno: 13 "Permission denied")
+flush logs;

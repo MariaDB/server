@@ -1,4 +1,5 @@
 Table	Op	Msg_type	Msg_text
+test.innodb_stats_drop_locked	analyze	status	Engine-independent statistics collected
 test.innodb_stats_drop_locked	analyze	status	OK
 SET autocommit=0;
 SELECT table_name FROM mysql.innodb_table_stats
@@ -47,3 +48,5 @@ innodb_stats_drop_locked
 innodb_stats_drop_locked
 innodb_stats_drop_locked
 innodb_stats_drop_locked
+DELETE FROM mysql.innodb_index_stats WHERE database_name='test' AND table_name='innodb_stats_drop_locked';
+DELETE FROM mysql.innodb_table_stats WHERE database_name='test' AND table_name='innodb_stats_drop_locked';

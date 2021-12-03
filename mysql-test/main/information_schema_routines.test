@@ -56,6 +56,8 @@
 ################################################################################
 set sql_mode="";
 set sql_mode="";
+--source include/default_charset.inc
+
 -- echo # ========== routines.1 ==========
 USE INFORMATION_SCHEMA;
 --replace_result ENGINE=MyISAM "" ENGINE=MARIA "" ENGINE=Aria "" " PAGE_CHECKSUM=1" "" " PAGE_CHECKSUM=0" ""

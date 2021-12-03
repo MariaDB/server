@@ -244,6 +244,7 @@ Expect 100000000000
 100000000000
 CREATE TABLE t13(a INT AUTO_INCREMENT PRIMARY KEY) ENGINE = InnoDB,
 AUTO_INCREMENT = 1234;
+# restart
 SHOW CREATE TABLE t13;
 Table	Create Table
 t13	CREATE TABLE `t13` (
@@ -394,6 +395,7 @@ INSERT INTO t9 VALUES(0);
 SELECT MAX(a) AS `Expect 100000000109` FROM t9;
 Expect 100000000109
 100000000109
+# restart
 INSERT INTO t1 VALUES(0), (0);
 SELECT a AS `Expect 110, 111` FROM t1 ORDER BY a DESC LIMIT 2;
 Expect 110, 111
@@ -432,6 +434,7 @@ DELETE FROM t7 WHERE a = 100000200;
 set global innodb_flush_log_at_trx_commit=1;
 INSERT INTO t9 VALUES(100000000200);
 DELETE FROM t9 WHERE a = 100000000200;
+# restart
 INSERT INTO t1 VALUES(0);
 SELECT a AS `Expect 126` FROM t1 ORDER BY a DESC LIMIT 1;
 Expect 126
@@ -497,6 +500,7 @@ SELECT * FROM t19;
 a
 1
 2
+# restart
 INSERT INTO t1 VALUES(0), (0);
 SELECT * FROM t1;
 a
@@ -637,6 +641,7 @@ BEGIN;
 # Without the fix in page_create_empty() the counter value would be lost
 # when ROLLBACK deletes the last row.
 ROLLBACK;
+# restart
 INSERT INTO t3 VALUES(0);
 SELECT MAX(a) AS `Expect 120` FROM t3;
 Expect 120
@@ -738,6 +743,7 @@ test.t_inplace	optimize	status	OK
 DELETE FROM t_inplace WHERE a >= 123;
 CREATE TABLE it_inplace(a INT AUTO_INCREMENT, INDEX(a)) AUTO_INCREMENT=125 ENGINE=InnoDB;
 CREATE UNIQUE INDEX idx_aa ON it_inplace(a);
+# restart
 INSERT INTO t_inplace VALUES(0), (0);
 INSERT INTO it_inplace VALUES(0), (0);
 SELECT MAX(a) AS `Expect 126` FROM t_inplace;
@@ -825,6 +831,7 @@ test.t_copy	optimize	status	OK
 DELETE FROM t_copy WHERE a >= 123;
 CREATE TABLE it_copy(a INT AUTO_INCREMENT, INDEX(a)) AUTO_INCREMENT=125 ENGINE=InnoDB;
 CREATE UNIQUE INDEX idx_aa ON it_copy(a);
+# restart
 INSERT INTO t_copy VALUES(0), (0);
 INSERT INTO it_copy VALUES(0), (0);
 SELECT MAX(a) AS `Expect 126` FROM t_copy;
@@ -910,6 +917,7 @@ UPDATE t33 SET a = 10 WHERE a = 1;
 INSERT INTO t33 VALUES(2, NULL);
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 COMMIT;
+# restart
 # This will not insert 0
 INSERT INTO t31(a) VALUES(6), (0);
 SELECT * FROM t31;

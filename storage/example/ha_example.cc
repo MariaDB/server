@@ -12,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file ha_example.cc
@@ -225,9 +225,9 @@ static void init_example_psi_keys()
   used by the default rename_table and delete_table method in
   handler.cc and by the default discover_many method.
 
-  For engines that have two file name extentions (separate meta/index file
+  For engines that have two file name extensions (separate meta/index file
   and data file), the order of elements is relevant. First element of engine
-  file name extentions array should be meta/index file extention. Second
+  file name extensions array should be meta/index file extention. Second
   element - data file extention. This order is assumed by
   prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
 
@@ -398,7 +398,7 @@ int ha_example::close(void)
   sql_insert.cc, sql_select.cc, sql_table.cc, sql_udf.cc and sql_update.cc
 */
 
-int ha_example::write_row(uchar *buf)
+int ha_example::write_row(const uchar *buf)
 {
   DBUG_ENTER("ha_example::write_row");
   /*

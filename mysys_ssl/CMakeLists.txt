@@ -11,7 +11,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/mysys_ssl
@@ -36,7 +36,6 @@ SET(MYSYS_SSL_SOURCES
     my_crypt.cc
    )
 
-# We do RESTRICT_SYMBOL_EXPORTS(yassl) elsewhere.
 # In order to get correct symbol visibility, these files
 # must be compiled with "-fvisibility=hidden"
 IF(WITH_SSL STREQUAL "bundled" AND HAVE_VISIBILITY_HIDDEN)

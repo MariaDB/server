@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2016, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2014, 2017, MariaDB Corporation.
+   Copyright (c) 2014, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -42,42 +42,17 @@
 /* Only parts of these files are included from the InnoDB codebase.
 The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 
-typedef void fil_space_t;
-
-#include "univ.i"                /*  include all of this */
-#include "page0size.h"
-
-#define FLST_BASE_NODE_SIZE (4 + 2 * FIL_ADDR_SIZE)
-#define FLST_NODE_SIZE (2 * FIL_ADDR_SIZE)
-#define FSEG_PAGE_DATA FIL_PAGE_DATA
-#define FSEG_HEADER_SIZE	10
-#define UT_BITS_IN_BYTES(b) (((b) + 7) / 8)
-
-#include "ut0ut.h"
-#include "ut0byte.h"
-#include "mtr0types.h"
 #include "mach0data.h"
-#include "fsp0types.h"
-#include "rem0rec.h"
+#include "page0page.h"
 #include "buf0checksum.h"        /* buf_calc_page_*() */
 #include "buf0buf.h"             /* buf_page_is_corrupted */
-#include "fil0fil.h"             /* FIL_* */
-#include "page0page.h"           /* PAGE_* */
 #include "page0zip.h"            /* page_zip_*() */
 #include "trx0undo.h"            /* TRX_* */
-#include "fsp0fsp.h"             /* fsp_flags_get_page_size() &
-                                    fsp_flags_get_zip_size() */
 #include "ut0crc32.h"            /* ut_crc32_init() */
 #include "fsp0pagecompress.h"    /* fil_get_compression_alg_name */
 #include "fil0crypt.h"           /* fil_space_verify_crypt_checksum */
 
 #include <string.h>
-
-#ifdef UNIV_NONINL
-# include "fsp0fsp.ic"
-# include "mach0data.ic"
-# include "ut0rnd.ic"
-#endif
 
 #ifndef PRIuMAX
 #define PRIuMAX   "llu"
@@ -86,9 +61,9 @@ typedef void fil_space_t;
 /* Global variables */
 static bool			verbose;
 static bool			just_count;
-static unsigned long long	start_page;
-static unsigned long long	end_page;
-static unsigned long long	do_page;
+static uint32_t			start_page;
+static uint32_t			end_page;
+static uint32_t			do_page;
 static bool			use_end_page;
 static bool			do_one_page;
 static my_bool do_leaf;
@@ -96,12 +71,12 @@ static my_bool per_page_details;
 static ulint n_merge;
 extern ulong			srv_checksum_algorithm;
 static ulint physical_page_size;  /* Page size in bytes on disk. */
-static ulint logical_page_size;   /* Page size when uncompressed. */
 ulong srv_page_size;
 ulong srv_page_size_shift;
-page_size_t			univ_page_size(0, 0, false);
 /* Current page number (0 based). */
-unsigned long long		cur_page_num;
+uint32_t		cur_page_num;
+/* Current space. */
+uint32_t		cur_space;
 /* Skip the checksum verification. */
 static bool			no_check;
 /* Enabled for strict checksum verification. */
@@ -137,13 +112,10 @@ static ulong			write_check;
 struct innodb_page_type {
 	int n_undo_state_active;
 	int n_undo_state_cached;
-	int n_undo_state_to_free;
 	int n_undo_state_to_purge;
 	int n_undo_state_prepared;
 	int n_undo_state_other;
-	int n_undo_insert;
-	int n_undo_update;
-	int n_undo_other;
+	int n_undo;
 	int n_fil_page_index;
 	int n_fil_page_undo_log;
 	int n_fil_page_inode;
@@ -301,16 +273,20 @@ void print_leaf_stats(
 	}
 }
 
-/** Get the page size of the filespace from the filespace header.
-@param[in]	buf	buffer used to read the page.
-@return page size */
-static
-const page_size_t
-get_page_size(
-	byte*	buf)
+/** Init the page size for the tablespace.
+@param[in]	buf	buffer used to read the page */
+static void init_page_size(const byte* buf)
 {
 	const unsigned	flags = mach_read_from_4(buf + FIL_PAGE_DATA
 						 + FSP_SPACE_FLAGS);
+
+	if (fil_space_t::full_crc32(flags)) {
+		const ulong ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
+		srv_page_size_shift = UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize;
+		srv_page_size = 512U << ssize;
+		physical_page_size = srv_page_size;
+		return;
+	}
 
 	const ulong	ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
 
@@ -318,12 +294,8 @@ get_page_size(
 		? UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize
 		: UNIV_PAGE_SIZE_SHIFT_ORIG;
 
-	srv_page_size = 1U << srv_page_size_shift;
-
-	univ_page_size.copy_from(
-		page_size_t(srv_page_size, srv_page_size, false));
-
-	return(page_size_t(flags));
+	srv_page_size = fil_space_t::logical_size(flags);
+	physical_page_size = fil_space_t::physical_size(flags);
 }
 
 #ifdef _WIN32
@@ -348,7 +320,7 @@ error_message(
 
 /***********************************************//*
  @param>>_______[in] name>_____name of file.
- @retval file pointer; file pointer is NULL when error occured.
+ @retval file pointer; file pointer is NULL when error occurred.
 */
 
 FILE*
@@ -453,32 +425,73 @@ ulint read_file(
 	return bytes;
 }
 
+/** Check whether the page contains all zeroes.
+@param[in]	buf	page
+@param[in]	size	physical size of the page
+@return true if the page is all zeroes; else false */
+static bool is_page_all_zeroes(
+	byte*	buf,
+	ulint	size)
+{
+	/* On pages that are not all zero, the page number
+	must match. */
+	const ulint* p = reinterpret_cast<const ulint*>(buf);
+	const ulint* const end = reinterpret_cast<const ulint*>(buf + size);
+	do {
+		if (*p++) {
+			return false;
+		}
+	} while (p != end);
+
+	return true;
+}
+
 /** Check if page is corrupted or not.
 @param[in]	buf		page frame
-@param[in]	page_size	page size
 @param[in]	is_encrypted	true if page0 contained cryp_data
 				with crypt_scheme encrypted
-@param[in]	is_compressed	true if page0 fsp_flags contained
-				page compression flag
+@param[in]	flags		tablespace flags
 @retval true if page is corrupted otherwise false. */
 static
 bool
 is_page_corrupted(
 	byte*		buf,
-	const page_size_t&	page_size,
 	bool		is_encrypted,
-	bool		is_compressed)
+	ulint		flags)
 {
 
 	/* enable if page is corrupted. */
 	bool is_corrupted;
 	/* use to store LSN values. */
-	ulint logseq;
-	ulint logseqfield;
+	uint32_t logseq;
+	uint32_t logseqfield;
 	ulint page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
-	uint key_version = mach_read_from_4(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-	ulint space_id = mach_read_from_4(
+	uint32_t key_version = buf_page_get_key_version(buf, flags);
+	uint32_t space_id = mach_read_from_4(
 		buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	ulint zip_size = fil_space_t::zip_size(flags);
+	ulint is_compressed = fil_space_t::is_compressed(flags);
+	const bool use_full_crc32 = fil_space_t::full_crc32(flags);
+
+	if (mach_read_from_4(buf + FIL_PAGE_OFFSET) != cur_page_num
+	    || (space_id != cur_space
+		&& (!use_full_crc32 || (!is_encrypted && !is_compressed)))) {
+		/* On pages that are not all zero, the page number
+		must match. */
+		if (is_page_all_zeroes(buf,
+				       fil_space_t::physical_size(flags))) {
+			return false;
+		}
+
+		if (is_log_enabled) {
+			fprintf(log_file,
+				"page id mismatch space::" UINT32PF
+				" page::" UINT32PF " \n",
+				space_id, cur_page_num);
+		}
+
+		return true;
+	}
 
 	/* We can't trust only a page type, thus we take account
 	also fsp_flags or crypt_data on page 0 */
@@ -490,23 +503,26 @@ is_page_corrupted(
 		return (false);
 	}
 
-	if (page_size.is_compressed()) {
+	if (!zip_size && (!is_compressed || !use_full_crc32)) {
 		/* check the stored log sequence numbers
 		for uncompressed tablespace. */
 		logseq = mach_read_from_4(buf + FIL_PAGE_LSN + 4);
-		logseqfield = mach_read_from_4(
-				buf + page_size.logical() -
-				FIL_PAGE_END_LSN_OLD_CHKSUM + 4);
+		logseqfield = use_full_crc32
+			? mach_read_from_4(buf + srv_page_size
+					   - FIL_PAGE_FCRC32_END_LSN)
+			: mach_read_from_4(buf + srv_page_size
+					   - FIL_PAGE_END_LSN_OLD_CHKSUM + 4);
 
 		if (is_log_enabled) {
 			fprintf(log_file,
-				"space::" ULINTPF " page::%llu"
-				"; log sequence number:first = " ULINTPF
-				"; second = " ULINTPF "\n",
+				"space::" UINT32PF " page::" UINT32PF
+				"; log sequence number:first = " UINT32PF
+				"; second = " UINT32PF "\n",
 				space_id, cur_page_num, logseq, logseqfield);
 			if (logseq != logseqfield) {
 				fprintf(log_file,
-					"Fail; space::" ULINTPF " page::%llu"
+					"Fail; space::" UINT32PF
+					" page::" UINT32PF
 					" invalid (fails log "
 					"sequence number check)\n",
 					space_id, cur_page_num);
@@ -524,15 +540,23 @@ is_page_corrupted(
 	so if crypt checksum does not match we verify checksum using
 	normal method. */
 	if (is_encrypted && key_version != 0) {
-		is_corrupted = !fil_space_verify_crypt_checksum(buf,
-			page_size, space_id, (ulint)cur_page_num);
+		is_corrupted = use_full_crc32
+			? buf_page_is_corrupted(true, buf, flags)
+			: !fil_space_verify_crypt_checksum(buf, zip_size);
+
+		if (is_corrupted && log_file) {
+			fprintf(log_file,
+				"[page id: space=" UINT32PF
+				", page_number=" UINT32PF "] may be corrupted;"
+				" key_version=" UINT32PF "\n",
+				space_id, cur_page_num, key_version);
+		}
 	} else {
 		is_corrupted = true;
 	}
 
 	if (is_corrupted) {
-		is_corrupted = buf_page_is_corrupted(
-			true, buf, page_size, NULL);
+		is_corrupted = buf_page_is_corrupted(true, buf, flags);
 	}
 
 	return(is_corrupted);
@@ -584,19 +608,13 @@ is_page_empty(
 /********************************************************************//**
 Rewrite the checksum for the page.
 @param	[in/out] page			page buffer
-@param	[in] physical_page_size		page size in bytes on disk.
-@param	[in] iscompressed		Is compressed/Uncompressed Page.
+@param	[in] flags			tablespace flags
 
 @retval true  : do rewrite
 @retval false : skip the rewrite as checksum stored match with
 		calculated or page is doublwrite buffer.
 */
-
-bool
-update_checksum(
-	byte*	page,
-	ulong	physical_page_size,
-	bool	iscompressed)
+static bool update_checksum(byte* page, ulint flags)
 {
 	ib_uint32_t	checksum = 0;
 	byte		stored1[4];	/* get FIL_PAGE_SPACE_OR_CHKSUM field checksum */
@@ -607,6 +625,9 @@ update_checksum(
 	if (skip_page) {
 		return (false);
 	}
+
+	const bool use_full_crc32 = fil_space_t::full_crc32(flags);
+	const bool iscompressed = fil_space_t::zip_size(flags);
 
 	memcpy(stored1, page + FIL_PAGE_SPACE_OR_CHKSUM, 4);
 	memcpy(stored2, page + physical_page_size -
@@ -631,16 +652,30 @@ update_checksum(
 
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 		if (is_log_enabled) {
-			fprintf(log_file, "page::%llu; Updated checksum ="
-				" %u\n", cur_page_num, checksum);
+			fprintf(log_file, "page::" UINT32PF "; Updated checksum ="
+				" " UINT32PF "\n", cur_page_num, checksum);
 		}
 
+	} else if (use_full_crc32) {
+		ulint payload = buf_page_full_crc32_size(page, NULL, NULL)
+			- FIL_PAGE_FCRC32_CHECKSUM;
+		checksum = ut_crc32(page, payload);
+		byte* c = page + payload;
+		if (mach_read_from_4(c) == checksum) return false;
+		mach_write_to_4(c, checksum);
+		if (is_log_enabled) {
+			fprintf(log_file, "page::" UINT32PF "; Updated checksum"
+				" = %u\n", cur_page_num, checksum);
+		}
+		return true;
 	} else {
 		/* page is uncompressed. */
 
 		/* Store the new formula checksum */
 		switch ((srv_checksum_algorithm_t) write_check) {
 
+		case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+		case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
 		case SRV_CHECKSUM_ALGORITHM_CRC32:
 		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 			checksum = buf_calc_page_crc32(page);
@@ -656,14 +691,15 @@ update_checksum(
 		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 			checksum = BUF_NO_CHECKSUM_MAGIC;
 			break;
+
 		/* no default so the compiler will emit a warning if new
 		enum is added and not handled here */
 		}
 
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 		if (is_log_enabled) {
-			fprintf(log_file, "page::%llu; Updated checksum field1"
-				" = %u\n", cur_page_num, checksum);
+			fprintf(log_file, "page::" UINT32PF "; Updated checksum field1"
+				" = " UINT32PF "\n", cur_page_num, checksum);
 		}
 
 		if (write_check == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB
@@ -676,8 +712,8 @@ update_checksum(
 				FIL_PAGE_END_LSN_OLD_CHKSUM,checksum);
 
 		if (is_log_enabled) {
-			fprintf(log_file, "page::%llu; Updated checksum "
-				"field2 = %u\n", cur_page_num, checksum);
+			fprintf(log_file, "page::" UINT32PF "; Updated checksum "
+				"field2 = " UINT32PF "\n", cur_page_num, checksum);
 		}
 
 	}
@@ -709,10 +745,8 @@ func_exit:
 @param[in,out]		file		file pointer where content
 					have to be written
 @param[in]		buf		file buffer read
-@param[in]		compressed	Enabled if tablespace is
-					compressed.
+@param[in]		flags		tablespace flags
 @param[in,out]		pos		current file position.
-@param[in]		page_size	page size in bytes on disk.
 
 @retval true	if successfully written
 @retval false	if a non-recoverable error occurred
@@ -723,13 +757,12 @@ write_file(
 	const char*	filename,
 	FILE*		file,
 	byte*		buf,
-	bool		compressed,
-	fpos_t*		pos,
-	ulong		page_size)
+	ulint		flags,
+	fpos_t*		pos)
 {
 	bool	do_update;
 
-	do_update = update_checksum(buf, page_size, compressed);
+	do_update = update_checksum(buf, flags);
 
 	if (file != stdin) {
 		if (do_update) {
@@ -749,9 +782,11 @@ write_file(
 		}
 	}
 
-	if (page_size
-		!= fwrite(buf, 1, page_size, file == stdin ? stdout : file)) {
-		fprintf(stderr, "Failed to write page::%llu to %s: %s\n",
+	if (physical_page_size
+	    != fwrite(buf, 1, physical_page_size,
+		      file == stdin ? stdout : file)) {
+		fprintf(stderr,
+			"Failed to write page::" UINT32PF " to %s: %s\n",
 			cur_page_num, filename, strerror(errno));
 
 		return(false);
@@ -768,12 +803,21 @@ write_file(
 	return(true);
 }
 
+// checks using current xdes page whether the page is free
+static inline bool is_page_free(const byte *xdes, ulint physical_page_size,
+                                uint32_t page_no)
+{
+  const byte *des=
+      xdes + XDES_ARR_OFFSET +
+      XDES_SIZE * ((page_no & (physical_page_size - 1)) / FSP_EXTENT_SIZE);
+  return xdes_get_bit(des, XDES_FREE_BIT, page_no % FSP_EXTENT_SIZE);
+}
+
 /*
 Parse the page and collect/dump the information about page type
 @param [in] page	buffer page
 @param [out] xdes	extend descriptor page
 @param [in] file	file for diagnosis.
-@param [in] page_size	page_size
 @param [in] is_encrypted  tablespace is encrypted
 */
 void
@@ -781,16 +825,13 @@ parse_page(
 	const byte*	page,
 	byte*		xdes,
 	FILE*		file,
-	const page_size_t& page_size,
 	bool is_encrypted)
 {
 	unsigned long long id;
-	ulint undo_page_type;
+	uint16_t undo_page_type;
 	char str[20]={'\0'};
 	ulint n_recs;
-	ulint page_no;
-	ulint left_page_no;
-	ulint right_page_no;
+	uint32_t page_no, left_page_no, right_page_no;
 	ulint data_bytes;
 	bool is_leaf;
 	ulint size_range_id;
@@ -805,7 +846,7 @@ parse_page(
 	switch (mach_read_from_2(page + FIL_PAGE_TYPE)) {
 
 	case FIL_PAGE_INDEX: {
-		uint key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+		uint32_t key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 		page_type.n_fil_page_index++;
 
 		/* If page is encrypted we can't read index header */
@@ -829,7 +870,7 @@ parse_page(
 			is_leaf = (!*(const uint16*) (page + (PAGE_HEADER + PAGE_LEVEL)));
 
 			if (page_type_dump) {
-				fprintf(file, "#::%llu\t\t|\t\tIndex page\t\t\t|"
+				fprintf(file, "#::" UINT32PF "\t\t|\t\tIndex page\t\t\t|"
 					"\tindex id=%llu,", cur_page_num, id);
 
 				fprintf(file,
@@ -840,30 +881,21 @@ parse_page(
 			}
 
 			size_range_id = (data_bytes * SIZE_RANGES_FOR_PAGE
-				+ page_size.logical() - 1) /
-				page_size.logical();
+				+ srv_page_size - 1) / srv_page_size;
 
 			if (size_range_id > SIZE_RANGES_FOR_PAGE + 1) {
 				/* data_bytes is bigger than logical_page_size */
 				size_range_id = SIZE_RANGES_FOR_PAGE + 1;
 			}
 			if (per_page_details) {
-				printf("index id=%llu page " ULINTPF " leaf %d n_recs " ULINTPF " data_bytes " ULINTPF
+				printf("index id=%llu page " UINT32PF " leaf %d n_recs " ULINTPF " data_bytes " ULINTPF
 					"\n", id, page_no, is_leaf, n_recs, data_bytes);
 			}
 			/* update per-index statistics */
 			{
-				if (index_ids.count(id) == 0) {
-					index_ids[id] = per_index_stats();
-				}
-				std::map<unsigned long long, per_index_stats>::iterator it;
-				it = index_ids.find(id);
-				per_index_stats &index = (it->second);
-				const byte* des = xdes + XDES_ARR_OFFSET
-					+ XDES_SIZE * ((page_no & (page_size.physical() - 1))
-						/ FSP_EXTENT_SIZE);
-				if (xdes_get_bit(des, XDES_FREE_BIT,
-						page_no % FSP_EXTENT_SIZE)) {
+				per_index_stats &index = index_ids[id];
+				if (is_page_free(xdes, physical_page_size,
+						 page_no)) {
 					index.free_pages++;
 					return;
 				}
@@ -891,8 +923,8 @@ parse_page(
 				index.pages_in_size_range[size_range_id] ++;
 			}
 		} else {
-			fprintf(file, "#::%llu\t\t|\t\tEncrypted Index page\t\t\t|"
-				"\tkey_version %u,%s\n", cur_page_num, key_version, str);
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tEncrypted Index page\t\t\t|"
+				"\tkey_version " UINT32PF ",%s\n", cur_page_num, key_version, str);
 		}
 
 		break;
@@ -902,24 +934,10 @@ parse_page(
 		undo_page_type = mach_read_from_2(page +
 				     TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE);
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tUndo log page\t\t\t|",
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tUndo log page\t\t\t|",
 				cur_page_num);
 		}
-		if (undo_page_type == TRX_UNDO_INSERT) {
-			page_type.n_undo_insert++;
-			if (page_type_dump) {
-				fprintf(file, "\t%s",
-					"Insert Undo log page");
-			}
-
-		} else if (undo_page_type == TRX_UNDO_UPDATE) {
-			page_type.n_undo_update++;
-			if (page_type_dump) {
-				fprintf(file, "\t%s",
-					"Update undo log page");
-			}
-		}
-
+		page_type.n_undo++;
 		undo_page_type = mach_read_from_2(page + TRX_UNDO_SEG_HDR +
 						  TRX_UNDO_STATE);
 		switch (undo_page_type) {
@@ -936,14 +954,6 @@ parse_page(
 				if (page_type_dump) {
 					fprintf(file, ", %s", "Page is "
 						"cached for quick reuse");
-				}
-				break;
-
-			case TRX_UNDO_TO_FREE:
-				page_type.n_undo_state_to_free++;
-				if (page_type_dump) {
-					fprintf(file, ", %s", "Insert undo "
-						"segment that can be freed");
 				}
 				break;
 
@@ -976,7 +986,7 @@ parse_page(
 	case FIL_PAGE_INODE:
 		page_type.n_fil_page_inode++;
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tInode page\t\t\t|"
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tInode page\t\t\t|"
 				"\t%s\n",cur_page_num, str);
 		}
 		break;
@@ -984,7 +994,7 @@ parse_page(
 	case FIL_PAGE_IBUF_FREE_LIST:
 		page_type.n_fil_page_ibuf_free_list++;
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tInsert buffer free list"
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tInsert buffer free list"
 				" page\t|\t%s\n", cur_page_num, str);
 		}
 		break;
@@ -992,7 +1002,7 @@ parse_page(
 	case FIL_PAGE_TYPE_ALLOCATED:
 		page_type.n_fil_page_type_allocated++;
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tFreshly allocated "
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tFreshly allocated "
 				"page\t\t|\t%s\n", cur_page_num, str);
 		}
 		break;
@@ -1000,7 +1010,7 @@ parse_page(
 	case FIL_PAGE_IBUF_BITMAP:
 		page_type.n_fil_page_ibuf_bitmap++;
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tInsert Buffer "
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tInsert Buffer "
 				"Bitmap\t\t|\t%s\n", cur_page_num, str);
 		}
 		break;
@@ -1008,33 +1018,31 @@ parse_page(
 	case FIL_PAGE_TYPE_SYS:
 		page_type.n_fil_page_type_sys++;
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tSystem page\t\t\t|"
-				"\t%s\n",cur_page_num, str);
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tSystem page\t\t\t|"
+				"\t%s\n", cur_page_num, str);
 		}
 		break;
 
 	case FIL_PAGE_TYPE_TRX_SYS:
 		page_type.n_fil_page_type_trx_sys++;
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tTransaction system "
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tTransaction system "
 				"page\t\t|\t%s\n", cur_page_num, str);
 		}
 		break;
 
 	case FIL_PAGE_TYPE_FSP_HDR:
 		page_type.n_fil_page_type_fsp_hdr++;
-		memcpy(xdes, page, page_size.physical());
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tFile Space "
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tFile Space "
 				"Header\t\t|\t%s\n", cur_page_num, str);
 		}
 		break;
 
 	case FIL_PAGE_TYPE_XDES:
 		page_type.n_fil_page_type_xdes++;
-		memcpy(xdes, page, page_size.physical());
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tExtent descriptor "
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tExtent descriptor "
 				"page\t\t|\t%s\n", cur_page_num, str);
 		}
 		break;
@@ -1042,7 +1050,7 @@ parse_page(
 	case FIL_PAGE_TYPE_BLOB:
 		page_type.n_fil_page_type_blob++;
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tBLOB page\t\t\t|\t%s\n",
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tBLOB page\t\t\t|\t%s\n",
 				cur_page_num, str);
 		}
 		break;
@@ -1050,7 +1058,7 @@ parse_page(
 	case FIL_PAGE_TYPE_ZBLOB:
 		page_type.n_fil_page_type_zblob++;
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tCompressed BLOB "
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tCompressed BLOB "
 				"page\t\t|\t%s\n", cur_page_num, str);
 		}
 		break;
@@ -1058,7 +1066,7 @@ parse_page(
 	case FIL_PAGE_TYPE_ZBLOB2:
 		page_type.n_fil_page_type_zblob2++;
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tSubsequent Compressed "
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tSubsequent Compressed "
 				"BLOB page\t|\t%s\n", cur_page_num, str);
 		}
 			break;
@@ -1066,7 +1074,7 @@ parse_page(
 	case FIL_PAGE_PAGE_COMPRESSED:
 		page_type.n_fil_page_type_page_compressed++;
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tPage compressed "
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tPage compressed "
 				"page\t|\t%s\n", cur_page_num, str);
 		}
 		break;
@@ -1074,7 +1082,7 @@ parse_page(
 	case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
 		page_type.n_fil_page_type_page_compressed_encrypted++;
 		if (page_type_dump) {
-			fprintf(file, "#::%llu\t\t|\t\tPage compressed encrypted "
+			fprintf(file, "#::" UINT32PF "\t\t|\t\tPage compressed encrypted "
 				"page\t|\t%s\n", cur_page_num, str);
 		}
 		break;
@@ -1086,7 +1094,7 @@ parse_page(
 /**
 @param [in/out] file_name	name of the filename
 
-@retval FILE pointer if successfully created else NULL when error occured.
+@retval FILE pointer if successfully created else NULL when error occurred.
 */
 FILE*
 create_file(
@@ -1170,15 +1178,11 @@ print_summary(
 
 	fprintf(fil_out, "\n===============================================\n");
 	fprintf(fil_out, "Additional information:\n");
-	fprintf(fil_out, "Undo page type: %d insert, %d update, %d other\n",
-		page_type.n_undo_insert,
-		page_type.n_undo_update,
-		page_type.n_undo_other);
-	fprintf(fil_out, "Undo page state: %d active, %d cached, %d to_free, %d"
+	fprintf(fil_out, "Undo page type: %d\n", page_type.n_undo);
+	fprintf(fil_out, "Undo page state: %d active, %d cached, %d"
 		" to_purge, %d prepared, %d other\n",
 		page_type.n_undo_state_active,
 		page_type.n_undo_state_cached,
-		page_type.n_undo_state_to_free,
 		page_type.n_undo_state_to_purge,
 		page_type.n_undo_state_prepared,
 		page_type.n_undo_state_other);
@@ -1224,20 +1228,20 @@ static struct my_option innochecksum_options[] = {
   {"verbose", 'v', "Verbose (prints progress every 5 seconds).",
     &verbose, &verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DBUG_OFF
-  {"debug", '#', "Output debug log. See " REFMAN "dbug-package.html",
+  {"debug", '#', "Output debug log. See https://mariadb.com/kb/en/library/creating-a-trace-file/",
     &dbug_setting, &dbug_setting, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* !DBUG_OFF */
   {"count", 'c', "Print the count of pages in the file and exits.",
     &just_count, &just_count, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"start_page", 's', "Start on this page number (0 based).",
-    &start_page, &start_page, 0, GET_ULL, REQUIRED_ARG,
-    0, 0, ULLONG_MAX, 0, 1, 0},
+    &start_page, &start_page, 0, GET_UINT, REQUIRED_ARG,
+    0, 0, FIL_NULL, 0, 1, 0},
   {"end_page", 'e', "End at this page number (0 based).",
-    &end_page, &end_page, 0, GET_ULL, REQUIRED_ARG,
-    0, 0, ULLONG_MAX, 0, 1, 0},
+    &end_page, &end_page, 0, GET_UINT, REQUIRED_ARG,
+    0, 0, FIL_NULL, 0, 1, 0},
   {"page", 'p', "Check only this page (0 based).",
-    &do_page, &do_page, 0, GET_ULL, REQUIRED_ARG,
-    0, 0, ULLONG_MAX, 0, 1, 0},
+    &do_page, &do_page, 0, GET_UINT, REQUIRED_ARG,
+    0, 0, FIL_NULL, 0, 1, 0},
   {"strict-check", 'C', "Specify the strict checksum algorithm by the user.",
     &strict_check, &strict_check, &innochecksum_algorithms_typelib,
     GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1291,7 +1295,8 @@ static void usage(void)
 		"[-p <page>] [-i] [-v]  [-a <allow mismatches>] [-n] "
 		"[-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] "
 		"[-l <log>] [-l] [-m <merge pages>] <filename or [-]>\n", my_progname);
-	printf("See " REFMAN "innochecksum.html for usage hints.\n");
+	printf("See https://mariadb.com/kb/en/library/innochecksum/"
+	       " for usage hints.\n");
 	my_print_help(innochecksum_options);
 	my_print_variables(innochecksum_options);
 }
@@ -1346,6 +1351,13 @@ innochecksum_get_one_option(
 			srv_checksum_algorithm =
 				SRV_CHECKSUM_ALGORITHM_STRICT_NONE;
 			break;
+
+		case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+		case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+			srv_checksum_algorithm =
+				SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32;
+			break;
+
 		default:
 			return(true);
 		}
@@ -1400,18 +1412,13 @@ get_options(
 
 /** Check from page 0 if table is encrypted.
 @param[in]	filename	Filename
-@param[in]	page_size	page size
 @param[in]	page		Page 0
 @retval true if tablespace is encrypted, false if not
 */
-static
-bool check_encryption(
-	const char* filename,
-	const page_size_t& page_size,
-	byte * page)
+static bool check_encryption(const char* filename, const byte* page)
 {
-	ulint offset = (FSP_HEADER_OFFSET + (XDES_ARR_OFFSET + XDES_SIZE *
-			(page_size.physical()) / FSP_EXTENT_SIZE));
+	ulint offset = FSP_HEADER_OFFSET + XDES_ARR_OFFSET + XDES_SIZE *
+		physical_page_size / FSP_EXTENT_SIZE;
 
 	if (memcmp(page + offset, CRYPT_MAGIC, MAGIC_SZ) != 0) {
 		return false;
@@ -1430,45 +1437,36 @@ bool check_encryption(
 		return false;
 	}
 
-	uint min_key_version = mach_read_from_4
+	uint32_t min_key_version = mach_read_from_4
 		(page + offset + MAGIC_SZ + 2 + iv_length);
 
-	uint key_id = mach_read_from_4
+	uint32_t key_id = mach_read_from_4
 		(page + offset + MAGIC_SZ + 2 + iv_length + 4);
 
 	if (type == CRYPT_SCHEME_1 && is_log_enabled) {
-		fprintf(log_file,"Tablespace %s encrypted key_version %u key_id %u\n",
+		fprintf(log_file,"Tablespace %s encrypted key_version " UINT32PF " key_id " UINT32PF "\n",
 			filename, min_key_version, key_id);
 	}
 
 	return (type == CRYPT_SCHEME_1);
 }
 
-/**
-Verify page checksum.
+/** Verify page checksum.
 @param[in] buf			page to verify
-@param[in] page_size		page size
+@param[in] zip_size		ROW_FORMAT=COMPRESSED page size, or 0
 @param[in] is_encrypted		true if tablespace is encrypted
-@param[in] is_compressed	true if tablespace is page compressed
 @param[in,out] mismatch_count	Number of pages failed in checksum verify
-@retval 0 if page checksum matches or 1 if it does not match
-*/
-static
-int verify_checksum(
-	byte* buf,
-	const page_size_t& page_size,
-	bool is_encrypted,
-	bool is_compressed,
-	unsigned long long* mismatch_count)
+@param[in]	flags		tablespace flags
+@retval 0 if page checksum matches or 1 if it does not match */
+static int verify_checksum(
+	byte*			buf,
+	bool			is_encrypted,
+	unsigned long long*	mismatch_count,
+	ulint			flags)
 {
 	int exit_status = 0;
-	bool is_corrupted = false;
-
-	is_corrupted = is_page_corrupted(
-		buf, page_size, is_encrypted, is_compressed);
-
-	if (is_corrupted) {
-		fprintf(stderr, "Fail: page::%llu invalid\n",
+	if (is_page_corrupted(buf, is_encrypted, flags)) {
+		fprintf(stderr, "Fail: page::" UINT32PF " invalid\n",
 			cur_page_num);
 
 		(*mismatch_count)++;
@@ -1493,10 +1491,9 @@ int verify_checksum(
 @param[in]	filename	File name
 @param[in]	fil_in		File pointer
 @param[in]	buf		page
-@param[in]	page_size	page size
 @param[in]	pos		File position
 @param[in]	is_encrypted	true if tablespace is encrypted
-@param[in]	is_compressed	true if tablespace is page compressed
+@param[in]	flags		tablespace flags
 @retval 0 if checksum rewrite was successful, 1 if error was detected */
 static
 int
@@ -1504,25 +1501,16 @@ rewrite_checksum(
 	const char*	filename,
 	FILE*		fil_in,
 	byte*		buf,
-	const page_size_t& page_size,
 	fpos_t*		pos,
-	bool is_encrypted,
-	bool is_compressed)
+	bool		is_encrypted,
+	ulint		flags)
 {
-	int exit_status = 0;
+	bool is_compressed = fil_space_t::is_compressed(flags);
+
 	/* Rewrite checksum. Note that for encrypted and
 	page compressed tables this is not currently supported. */
-	if (do_write &&
-		!is_encrypted &&
-		!is_compressed
-		&& !write_file(filename, fil_in, buf,
-			page_size.is_compressed(), pos,
-			static_cast<ulong>(page_size.physical()))) {
-
-		exit_status = 1;
-	}
-
-	return (exit_status);
+	return do_write && !is_encrypted && !is_compressed
+		&& !write_file(filename, fil_in, buf, flags, pos);
 }
 
 int main(
@@ -1540,10 +1528,8 @@ int main(
 	byte*		xdes = NULL;
 	/* bytes read count */
 	ulint		bytes;
-	/* current time */
-	time_t		now;
 	/* last time */
-	time_t		lastt;
+	time_t		lastt = 0;
 	/* stat, to get file size. */
 #ifdef _WIN32
 	struct _stat64	st;
@@ -1556,7 +1542,7 @@ int main(
 	/* size of file (has to be 64 bits) */
 	unsigned long long int	size		= 0;
 	/* number of pages in file */
-	ulint		pages;
+	uint32_t	pages;
 
 	off_t		offset			= 0;
 	/* count the no. of page corrupted. */
@@ -1568,9 +1554,6 @@ int main(
 	FILE*		fil_page_type		= NULL;
 	fpos_t		pos;
 
-	/* Use to check the space id of given file. If space_id is zero,
-	then check whether page is doublewrite buffer.*/
-	ulint		space_id = 0UL;
 	/* enable when space_id of given file is zero. */
 	bool		is_system_tablespace = false;
 
@@ -1692,28 +1675,25 @@ int main(
 		/* enable variable is_system_tablespace when space_id of given
 		file is zero. Use to skip the checksum verification and rewrite
 		for doublewrite pages. */
-		is_system_tablespace = (!memcmp(&space_id, buf +
-					FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 4))
-					? true : false;
+		cur_space = mach_read_from_4(buf + FIL_PAGE_SPACE_ID);
+		cur_page_num = mach_read_from_4(buf + FIL_PAGE_OFFSET);
 
 		/* Determine page size, zip_size and page compression
 		from fsp_flags and encryption metadata from page 0 */
-		const page_size_t&	page_size = get_page_size(buf);
+		init_page_size(buf);
 
 		ulint flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
-		ulint zip_size = page_size.is_compressed() ? page_size.logical() : 0;
-		logical_page_size = page_size.is_compressed() ? zip_size : 0;
-		physical_page_size = page_size.physical();
-		bool is_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
 
-		if (page_size.physical() > UNIV_ZIP_SIZE_MIN) {
+		if (physical_page_size == UNIV_ZIP_SIZE_MIN) {
+			partial_page_read = false;
+		} else {
 			/* Read rest of the page 0 to determine crypt_data */
-			bytes = read_file(buf, partial_page_read, page_size.physical(), fil_in);
-			if (bytes != page_size.physical()) {
+			bytes = read_file(buf, partial_page_read, physical_page_size, fil_in);
+			if (bytes != physical_page_size) {
 				fprintf(stderr, "Error: Was not able to read the "
 					"rest of the page ");
 				fprintf(stderr, "of " ULINTPF " bytes.  Bytes read was " ULINTPF "\n",
-					page_size.physical() - UNIV_ZIP_SIZE_MIN, bytes);
+					physical_page_size - UNIV_ZIP_SIZE_MIN, bytes);
 
 				exit_status = 1;
 				goto my_exit;
@@ -1721,8 +1701,9 @@ int main(
 			partial_page_read = false;
 		}
 
+
 		/* Now that we have full page 0 in buffer, check encryption */
-		bool is_encrypted = check_encryption(filename, page_size, buf);
+		bool is_encrypted = check_encryption(filename, buf);
 
 		/* Verify page 0 contents. Note that we can't allow
 		checksum mismatch on page 0, because that would mean we
@@ -1731,7 +1712,8 @@ int main(
 			unsigned long long tmp_allow_mismatches = allow_mismatches;
 			allow_mismatches = 0;
 
-			exit_status = verify_checksum(buf, page_size, is_encrypted, is_compressed, &mismatch_count);
+			exit_status = verify_checksum(buf, is_encrypted,
+						      &mismatch_count, flags);
 
 			if (exit_status) {
 				fprintf(stderr, "Error: Page 0 checksum mismatch, can't continue. \n");
@@ -1740,8 +1722,9 @@ int main(
 			allow_mismatches = tmp_allow_mismatches;
 		}
 
-		if ((exit_status = rewrite_checksum(filename, fil_in, buf,
-					page_size, &pos, is_encrypted, is_compressed))) {
+		if ((exit_status = rewrite_checksum(
+					filename, fil_in, buf,
+					&pos, is_encrypted, flags))) {
 			goto my_exit;
 		}
 
@@ -1760,38 +1743,70 @@ int main(
 		}
 
 		if (per_page_details) {
-			printf("page %llu ", cur_page_num);
+			printf("page " UINT32PF " ", cur_page_num);
 		}
+
+		memcpy(xdes, buf, physical_page_size);
 
 		if (page_type_summary || page_type_dump) {
-			parse_page(buf, xdes, fil_page_type, page_size, is_encrypted);
+			parse_page(buf, xdes, fil_page_type, is_encrypted);
 		}
 
-		pages = (ulint) (size / page_size.physical());
+		pages = uint32_t(size / physical_page_size);
 
 		if (just_count) {
-			if (read_from_stdin) {
-				fprintf(stderr, "Number of pages:" ULINTPF "\n", pages);
-			} else {
-				printf("Number of pages:" ULINTPF "\n", pages);
-			}
+			fprintf(read_from_stdin ? stderr : stdout,
+				"Number of pages:" UINT32PF "\n", pages);
 			continue;
 		} else if (verbose && !read_from_stdin) {
 			if (is_log_enabled) {
 				fprintf(log_file, "file %s = %llu bytes "
-					"(" ULINTPF " pages)\n", filename, size, pages);
+					"(" UINT32PF " pages)\n",
+					filename, size, pages);
 				if (do_one_page) {
 					fprintf(log_file, "Innochecksum: "
-						"checking page::%llu;\n",
+						"checking page::"
+						UINT32PF ";\n",
 						do_page);
 				}
 			}
 		} else {
 			if (is_log_enabled) {
 				fprintf(log_file, "Innochecksum: checking "
-					"pages in range::%llu to %llu\n",
+					"pages in range::" UINT32PF
+					" to " UINT32PF "\n",
 					start_page, use_end_page ?
 					end_page : (pages - 1));
+			}
+		}
+
+		off_t cur_offset = 0;
+		/* Find the first non all-zero page and fetch the
+		space id from there. */
+		while (is_page_all_zeroes(buf, physical_page_size)) {
+			bytes = ulong(read_file(
+					buf, false, physical_page_size,
+					fil_in));
+
+			if (feof(fil_in)) {
+				fprintf(stderr, "All are "
+					"zero-filled pages.");
+				goto my_exit;
+			}
+
+			cur_offset++;
+		}
+
+		cur_space = mach_read_from_4(buf + FIL_PAGE_SPACE_ID);
+		is_system_tablespace = (cur_space == 0);
+
+		if (cur_offset > 0) {
+			/* Re-read the non-zero page to check the
+			checksum. So move the file pointer to
+			previous position and reset the page number too. */
+			cur_page_num = mach_read_from_4(buf + FIL_PAGE_OFFSET);
+			if (!start_page) {
+				goto first_non_zero;
 			}
 		}
 
@@ -1803,13 +1818,10 @@ int main(
 				the desired page. */
 				partial_page_read = false;
 
-				offset = (off_t) start_page
-					* (off_t) page_size.physical();
-#ifdef _WIN32
-				if (_fseeki64(fil_in, offset, SEEK_SET)) {
-#else
-				if (fseeko(fil_in, offset, SEEK_SET)) {
-#endif /* _WIN32 */
+				offset = off_t(ulonglong(start_page)
+					       * physical_page_size);
+				if (IF_WIN(_fseeki64,fseeko)(fil_in, offset,
+							     SEEK_SET)) {
 					perror("Error: Unable to seek to "
 						"necessary offset");
 
@@ -1841,20 +1853,14 @@ int main(
 					if partial_page_read is enable. */
 					bytes = read_file(buf,
 							  partial_page_read,
-							  static_cast<ulong>(
-								  page_size.physical()),
+							  physical_page_size,
 							  fil_in);
 
 					partial_page_read = false;
 					count++;
 
 					if (!bytes || feof(fil_in)) {
-						fprintf(stderr, "Error: Unable "
-							"to seek to necessary "
-							"offset");
-
-						exit_status = 1;
-						goto my_exit;
+						goto unexpected_eof;
 					}
 				}
 			}
@@ -1863,35 +1869,43 @@ int main(
 		/* main checksumming loop */
 		cur_page_num = start_page ? start_page : cur_page_num + 1;
 
-		lastt = 0;
 		while (!feof(fil_in)) {
 
 			bytes = read_file(buf, partial_page_read,
-					  static_cast<ulong>(
-						  page_size.physical()), fil_in);
+					  physical_page_size, fil_in);
 			partial_page_read = false;
 
 			if (!bytes && feof(fil_in)) {
+				if (cur_page_num == start_page) {
+unexpected_eof:
+					fputs("Error: Unable "
+					      "to seek to necessary offset\n",
+					      stderr);
+
+					exit_status = 1;
+					goto my_exit;
+				}
 				break;
 			}
 
 			if (ferror(fil_in)) {
 				fprintf(stderr, "Error reading " ULINTPF " bytes",
-					page_size.physical());
+					physical_page_size);
 				perror(" ");
 
 				exit_status = 1;
 				goto my_exit;
 			}
 
-			if (bytes != page_size.physical()) {
+			if (bytes != physical_page_size) {
 				fprintf(stderr, "Error: bytes read (" ULINTPF ") "
 					"doesn't match page size (" ULINTPF ")\n",
-					bytes, page_size.physical());
+					bytes, physical_page_size);
 				exit_status = 1;
 				goto my_exit;
 			}
 
+first_non_zero:
 			if (is_system_tablespace) {
 				/* enable when page is double write buffer.*/
 				skip_page = is_page_doublewritebuffer(buf);
@@ -1912,13 +1926,17 @@ int main(
 			checksum verification.*/
 			if (!no_check
 			    && !skip_page
-			    && (exit_status = verify_checksum(buf, page_size,
-					    is_encrypted, is_compressed, &mismatch_count))) {
+			    && !is_page_free(xdes, physical_page_size,
+					     cur_page_num)
+			    && (exit_status = verify_checksum(
+						buf, is_encrypted,
+						&mismatch_count, flags))) {
 				goto my_exit;
 			}
 
-			if ((exit_status = rewrite_checksum(filename, fil_in, buf,
-						page_size, &pos, is_encrypted, is_compressed))) {
+			if ((exit_status = rewrite_checksum(
+						filename, fil_in, buf,
+						&pos, is_encrypted, flags))) {
 				goto my_exit;
 			}
 
@@ -1928,11 +1946,15 @@ int main(
 			}
 
 			if (per_page_details) {
-				printf("page %llu ", cur_page_num);
+				printf("page " UINT32PF " ", cur_page_num);
+			}
+
+			if (page_get_page_no(buf) % physical_page_size == 0) {
+				memcpy(xdes, buf, physical_page_size);
 			}
 
 			if (page_type_summary || page_type_dump) {
-				parse_page(buf, xdes, fil_page_type, page_size, is_encrypted);
+				parse_page(buf, xdes, fil_page_type, is_encrypted);
 			}
 
 			/* do counter increase and progress printing */
@@ -1940,16 +1962,14 @@ int main(
 
 			if (verbose && !read_from_stdin) {
 				if ((cur_page_num % 64) == 0) {
-					now = time(0);
+					time_t now = time(0);
 					if (!lastt) {
 						lastt= now;
-					}
-					if (now - lastt >= 1
-					    && is_log_enabled) {
-						fprintf(log_file, "page::%llu "
+					} else if (now - lastt >= 1 && is_log_enabled) {
+						fprintf(log_file, "page::" UINT32PF " "
 							"okay: %.3f%% done\n",
 							(cur_page_num - 1),
-							(float) cur_page_num / pages * 100);
+							(double) cur_page_num / pages * 100);
 						lastt = now;
 					}
 				}

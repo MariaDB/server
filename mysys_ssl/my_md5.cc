@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 /**
@@ -27,26 +27,23 @@
 #include <my_md5.h>
 #include <stdarg.h>
 
-#if defined(HAVE_YASSL)
-#include "md5.hpp"
+#if defined(HAVE_WOLFSSL)
+#include <wolfssl/wolfcrypt/md5.h>
 #include <ssl_compat.h>
-
-typedef TaoCrypt::MD5 EVP_MD_CTX;
-
+typedef wc_Md5 EVP_MD_CTX;
 static void md5_init(EVP_MD_CTX *context)
 {
-  context= new(context) EVP_MD_CTX;
-  context->Init();
+  wc_InitMd5(context);;
 }
 
 static void md5_input(EVP_MD_CTX *context, const uchar *buf, unsigned len)
 {
-  context->Update((const TaoCrypt::byte *) buf, len);
+  wc_Md5Update(context, buf, len);
 }
 
 static void md5_result(EVP_MD_CTX *context, uchar digest[MD5_HASH_SIZE])
 {
-    context->Final((TaoCrypt::byte *) digest);
+  wc_Md5Final(context,digest);
 }
 
 #elif defined(HAVE_OPENSSL)
@@ -74,7 +71,7 @@ static void md5_result(EVP_MD_CTX *context, uchar digest[MD5_HASH_SIZE])
   EVP_MD_CTX_reset(context);
 }
 
-#endif /* HAVE_YASSL */
+#endif /* HAVE_WOLFSSL */
 
 /**
   Wrapper function to compute MD5 message digest.

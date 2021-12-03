@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 ############################################################################
 #     Stress test for MySQL/InnoDB combined database
 #     (c) 2002 Innobase Oy & MySQL AB

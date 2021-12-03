@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include <m_string.h>
@@ -65,7 +65,7 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
   File file= -1;
 
   DBUG_ENTER("create_temp_file");
-  DBUG_PRINT("enter", ("dir: %s, prefix: %s", dir, prefix));
+  DBUG_PRINT("enter", ("dir: %s, prefix: %s", dir ? dir : "(null)", prefix));
   DBUG_ASSERT((mode & (O_EXCL | O_TRUNC | O_CREAT | O_RDWR)) == 0);
 
   mode|= O_TRUNC | O_CREAT | O_RDWR; /* not O_EXCL, see Windows code below */
@@ -110,6 +110,8 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
     }
   }
 #elif defined(HAVE_MKSTEMP)
+  if (!dir && ! (dir =getenv("TMPDIR")))
+    dir= DEFAULT_TMPDIR;
 #ifdef O_TMPFILE
   {
     static int O_TMPFILE_works= 1;
@@ -119,7 +121,7 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
       /* explictly don't use O_EXCL here has it has a different
          meaning with O_TMPFILE
       */
-      if ((file= open(dir, mode | O_TMPFILE | O_CLOEXEC,
+      if ((file= open(dir, (mode & ~O_CREAT) | O_TMPFILE | O_CLOEXEC,
                       S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)) >= 0)
       {
         my_snprintf(to, FN_REFLEN, "%s/#sql/fd=%d", dir, file);
@@ -146,8 +148,6 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
 				    prefix ? prefix : "tmp.",
 				    sizeof(prefix_buff)-7),"XXXXXX") -
 		     prefix_buff);
-    if (!dir && ! (dir =getenv("TMPDIR")))
-      dir= DEFAULT_TMPDIR;
     if (strlen(dir)+ pfx_len > FN_REFLEN-2)
     {
       errno=my_errno= ENAMETOOLONG;

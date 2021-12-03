@@ -1,3 +1,6 @@
+--source include/default_optimizer_switch.inc
+--source include/default_charset.inc
+
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2,t3,t4;
 DROP DATABASE IF EXISTS world;
@@ -33,6 +36,7 @@ ANALYZE TABLE City;
 --enable_result_log
 --enable_query_log
 
+SET SESSION optimizer_switch='rowid_filter=off';
 SET SESSION optimizer_switch='index_merge_sort_intersection=on';
 
 SELECT COUNT(*) FROM City;
@@ -117,6 +121,7 @@ SELECT COUNT(*) FROM City WHERE Population > 1000000;
 SELECT COUNT(*) FROM City WHERE Population > 500000;
 SELECT COUNT(*) FROM City WHERE Country LIKE 'C%';
 SELECT COUNT(*) FROM City WHERE Country LIKE 'B%';
+SELECT COUNT(*) FROM City WHERE Country LIKE 'J%';
 
 
 # The pattern of the WHERE condition used in the following 3 queries is
@@ -134,7 +139,7 @@ SELECT * FROM City
 --replace_column 9 #
 EXPLAIN
 SELECT * FROM City 
-  WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'B%';
+  WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 
 --replace_column 7 # 9 #
 --replace_result Population,Country,Name Population,Name,Country
@@ -156,11 +161,11 @@ SELECT * FROM City
 
 
 SELECT * FROM City USE INDEX ()
-  WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'B%';
+  WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 
 --sorted_result
 SELECT * FROM City 
-  WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'B%';
+  WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 
 
 SELECT * FROM City USE INDEX ()
@@ -207,7 +212,7 @@ SELECT * FROM City
 --replace_column 9 #
 EXPLAIN
 SELECT * FROM City
-  WHERE ID BETWEEN 1 AND 500 AND Population > 1000000 AND Country LIKE 'A%';
+  WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 
 --replace_column 9 #
 EXPLAIN
@@ -241,10 +246,10 @@ SELECT * FROM City
 
 --sorted_result
 SELECT * FROM City USE INDEX ()
-  WHERE ID BETWEEN 1 AND 500 AND Population > 1000000 AND Country LIKE 'A%';
+  WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 --sorted_result
 SELECT * FROM City
-  WHERE ID BETWEEN 1 AND 500 AND Population > 1000000 AND Country LIKE 'A%';
+  WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 
 
 SELECT * FROM City USE INDEX ()
@@ -293,7 +298,7 @@ SELECT * FROM City WHERE
 --replace_column 9 #
 EXPLAIN
 SELECT * FROM City 
-  WHERE  Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'B%';
+  WHERE  Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 
 --replace_column 9 #
 EXPLAIN
@@ -304,7 +309,7 @@ SELECT * FROM City
 --replace_column 9 #
 EXPLAIN
 SELECT * FROM City
-  WHERE ID BETWEEN 1 AND 500 AND Population > 1000000 AND Country LIKE 'A%';
+  WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 
 --replace_column 9 #
 --replace_result PRIMARY,Country,Population PRIMARY,Population,Country 4,7,4 4,4,7
@@ -326,7 +331,7 @@ SELECT * FROM City WHERE
 
 --sorted_result
 SELECT * FROM City 
-  WHERE  Name BETWEEN 'G' AND 'J' AND Population > 700000 AND Country LIKE 'B%';
+  WHERE  Name BETWEEN 'G' AND 'J' AND Population > 700000 AND Country LIKE 'J%';
 
 --sorted_result
 SELECT * FROM City 
@@ -334,7 +339,7 @@ SELECT * FROM City
 
 
 SELECT * FROM City
-  WHERE ID BETWEEN 1 AND 500 AND Population > 1000000 AND Country LIKE 'A%';
+  WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 --sorted_result
 SELECT * FROM City 
   WHERE ID BETWEEN 3001 AND 4000 AND Population > 600000
@@ -371,12 +376,12 @@ SELECT * FROM City
 --replace_column 9 #
 EXPLAIN
 SELECT * FROM City 
-  WHERE Country='CHN' AND Population > 1500000;
+  WHERE Country='USA' AND Population > 1000000;
 
 --replace_column 9 #
 EXPLAIN
 SELECT * FROM City 
-  WHERE Country='CHN' AND Population > 1500000 AND Name LIKE 'C%';
+  WHERE Country='USA' AND Population > 1500000 AND Name LIKE 'C%';
 
 
 # Check that the previous 3 plans return the right results when executed
@@ -390,18 +395,18 @@ SELECT * FROM City
 
 --sorted_result
 SELECT * FROM City USE INDEX ()
-  WHERE Country='CHN' AND Population > 1500000;
+  WHERE Country='USA' AND Population > 1000000;
 --sorted_result
 SELECT * FROM City 
-  WHERE Country='CHN' AND Population > 1500000;
+  WHERE Country='USA' AND Population > 1000000;
 
 
 SELECT * FROM City USE INDEX ()
-  WHERE Country='CHN' AND Population > 1500000 AND Name LIKE 'C%';
+  WHERE Country='USA' AND Population > 1500000 AND Name LIKE 'C%';
 
 --sorted_result
 SELECT * FROM City 
-  WHERE Country='CHN' AND Population > 1500000 AND Name LIKE 'C%';
+  WHERE Country='USA' AND Population > 1500000 AND Name LIKE 'C%';
 
 
 #
@@ -459,3 +464,4 @@ WHERE (f1 < 535  OR  f1 > 985) AND ( f4='r' OR f4 LIKE 'a%' ) ;
 DROP TABLE t1;
 
 SET SESSION optimizer_switch='index_merge_sort_intersection=on';
+SET SESSION optimizer_switch='rowid_filter=default';

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   File to include when we want to use alarm or a loop_counter to display
@@ -29,6 +29,13 @@ extern ulong my_time_to_wait_for_lock;
 
 #if defined(HAVE_ALARM) && !defined(NO_ALARM_LOOP)
 #include <signal.h>
+#ifdef HAVE_SIGHANDLER_T
+#define sig_return sighandler_t
+#elif defined(SOLARIS) || defined(__sun) || defined(__APPLE__)
+typedef void (*sig_return)(int); /* Returns type from signal */
+#else
+typedef void (*sig_return)(void); /* Returns type from signal */
+#endif
 #define ALARM_VARIABLES uint alarm_old=0; \
 			sig_return alarm_signal=0
 #define ALARM_INIT	my_have_got_alarm=0 ; \

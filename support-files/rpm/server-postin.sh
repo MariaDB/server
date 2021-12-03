@@ -16,10 +16,9 @@ fi
 # Make MySQL start/shutdown automatically when the machine does it.
 if [ $1 = 1 ] ; then
   if [ -x /usr/bin/systemctl ] ; then
-          /usr/bin/systemctl daemon-reload >/dev/null 2>&1
-  fi
-
-  if [ -x /sbin/chkconfig ] ; then
+          /usr/bin/systemctl daemon-reload >/dev/null 2>&1 || :
+          /usr/bin/systemctl preset mariadb.service >/dev/null 2>&1 || :
+  elif [ -x /sbin/chkconfig ] ; then
           /sbin/chkconfig --add mysql
   fi
 
@@ -41,7 +40,7 @@ if [ $1 = 1 ] ; then
   # Create a MySQL user and group. Do not report any problems if it already
   # exists.
   groupadd -r %{mysqld_group} 2> /dev/null || true
-  useradd -M -r --home $datadir --shell /sbin/nologin --comment "MySQL server" --gid %{mysqld_group} %{mysqld_user} 2> /dev/null || true 
+  useradd -M -r --home $datadir --shell /sbin/nologin --comment "MySQL server" --gid %{mysqld_group} %{mysqld_user} 2> /dev/null || true
   # The user may already exist, make sure it has the proper group nevertheless (BUG#12823)
   usermod --gid %{mysqld_group} %{mysqld_user} 2> /dev/null || true
 
@@ -52,11 +51,11 @@ if [ $1 = 1 ] ; then
 
   # Change permissions so that the user that will run the MySQL daemon
   # owns all database files.
-  chown -R %{mysqld_user}:%{mysqld_group} $datadir
+  chown -R -f %{mysqld_user}:%{mysqld_group} $datadir
 
   if [ ! -e $datadir/mysql ]; then
     # Create data directory
-    mkdir -p $datadir/{mysql,test}
+    mkdir -p $datadir
 
     # Initiate databases
     %{_bindir}/mysql_install_db --rpm --user=%{mysqld_user}
@@ -70,6 +69,9 @@ if [ $1 = 1 ] ; then
   chmod -R og-rw $datadir/mysql
 fi
 
+# Set the correct filesystem ownership for the PAM v2 plugin
+chown %{mysqld_user} /usr/lib*/mysql/plugin/auth_pam_tool_dir
+
 # install SELinux files - but don't override existing ones
 SETARGETDIR=/etc/selinux/targeted/src/policy
 SEDOMPROG=$SETARGETDIR/domains/program
@@ -79,7 +81,7 @@ if [ -x /usr/sbin/semodule ] ; then
   /usr/sbin/semodule -i /usr/share/mysql/policy/selinux/mariadb.pp
 fi
 
-if [ -x sbin/restorecon ] ; then
-	sbin/restorecon -R var/lib/mysql
+if [ -x /sbin/restorecon ] ; then
+	/sbin/restorecon -R /var/lib/mysql
 fi
 

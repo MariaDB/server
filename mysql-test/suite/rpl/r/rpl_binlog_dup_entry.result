@@ -1,0 +1,29 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (id mediumint(8) unsigned NOT NULL AUTO_INCREMENT, someLabel varchar(30) NOT NULL, flag tinyint(1) NOT NULL DEFAULT 0, PRIMARY KEY (id)) Engine=MyISAM;
+CREATE TABLE t2 (id mediumint(8) unsigned NOT NULL AUTO_INCREMENT, data varchar(30) NOT NULL, status tinyint(1) NOT NULL,   PRIMARY KEY (id)) Engine=MyISAM;
+CREATE TABLE t3 (id mediumint(8) unsigned NOT NULL AUTO_INCREMENT, t1id mediumint(8) unsigned NOT NULL, flag tinyint(1) NOT NULL DEFAULT 0, status tinyint(1) NOT NULL DEFAULT 0,  PRIMARY KEY (id)) Engine=MyISAM;
+INSERT INTO t1 ( id, someLabel, flag ) VALUES ( 1, 'ABC', 0 );
+CREATE OR REPLACE TRIGGER doNothing
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+IF
+new.someLabel != old.someLabel
+THEN
+UPDATE t3 SET t3.flag = 0;
+END IF;
+END|
+FLUSH LOGS;
+LOCK TABLES   t1 WRITE,  t2 WRITE;
+INSERT INTO t2 (data, status) VALUES ('1', 4);
+UPDATE t1 SET flag = 1 WHERE id = 1;
+INSERT INTO t2 (data, status) VALUES ('2', 4);
+UNLOCK TABLES;
+connection slave;
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+connection master;
+DROP TABLE t1, t2, t3;
+include/rpl_end.inc

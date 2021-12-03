@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 # On node_1
 connection node_1;
 list of GTID variables :
@@ -78,6 +80,15 @@ wsrep_gtid_mode	1
 # On node_1
 connection node_1;
 DROP TABLE t1, t2;
+#cleanup
+connection node_1;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_2;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
 disconnect node_2;
 disconnect node_1;
 # End of test

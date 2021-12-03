@@ -38,9 +38,9 @@ connect  c1, localhost, foo,,mysqltest1;
 connection c1;
 show grants;
 Grants for foo@localhost
-GRANT role4 TO 'foo'@'localhost'
-GRANT USAGE ON *.* TO 'foo'@'localhost'
-GRANT CREATE VIEW ON `mysqltest1`.* TO 'foo'@'localhost'
+GRANT `role4` TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT CREATE VIEW ON `mysqltest1`.* TO `foo`@`localhost`
 select * from test.v1;
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 select * from test.v2;
@@ -622,13 +622,13 @@ prepare stmt1 from 'grant select on *.* to utest';
 execute stmt1;
 show grants for utest;
 Grants for utest@%
-GRANT SELECT ON *.* TO 'utest'@'%'
+GRANT SELECT ON *.* TO `utest`@`%`
 drop user utest;
 create role utest;
 execute stmt1;
 show grants for utest;
 Grants for utest
-GRANT SELECT ON *.* TO 'utest'
+GRANT SELECT ON *.* TO `utest`
 drop role utest;
 #
 # MDEV-13676: Field "create Procedure" is NULL, even if the the user

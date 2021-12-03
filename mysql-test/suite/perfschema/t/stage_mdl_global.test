@@ -9,7 +9,7 @@ flush tables with read lock;
 
 connect (con2, localhost, user2, , );
 
-# Will wait on con1, "Waiting for global read lock"
+# Will wait on con1, "Waiting for backup lock"
 --send
 insert into test.t1 values (1), (2), (3);
 
@@ -26,7 +26,7 @@ let $wait_condition=
 let $wait_condition=
   select count(*) = 1 from performance_schema.threads
   where `TYPE`='FOREGROUND' and PROCESSLIST_USER like 'user2'
-  and PROCESSLIST_STATE = 'Waiting for global read lock';
+  and PROCESSLIST_STATE = 'Waiting for backup lock';
 --source include/wait_condition.inc
 
 call dump_one_thread('user1');

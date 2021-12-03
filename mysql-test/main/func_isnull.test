@@ -1,6 +1,7 @@
 #
 # test of ISNULL()
 #
+--source include/default_optimizer_switch.inc
 
 --disable_warnings
 drop table if exists t1;

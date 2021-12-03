@@ -606,18 +606,18 @@ select min(a1) from t1 where a1 > 'KKK' or a1 < 'XXX';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	PRIMARY	PRIMARY	3	NULL	15	Using where; Using index
 explain 
-select min(a1) from t1 where a1 != 'KKK';
+select min(a1) from t1 where (a1 < 'KKK' or a1 > 'KKK');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	PRIMARY	PRIMARY	3	NULL	15	Using where; Using index
 explain
 select max(a3) from t1 where a2 < 2 and a3 < 'SEA';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	k1	k1	3	NULL	6	Using where; Using index
+1	SIMPLE	t1	range	k1	k1	3	NULL	7	Using where; Using index
 explain
-select max(t1.a3), min(t2.a2) from t1, t2 where t1.a2 = 2 and t1.a3 < 'MIN' and t2.a3 > 'CA';
+select max(t1.a3), min(t2.a2) from t1, t2 where t1.a2 = 2 and t1.a3 < 'DEN' and t2.a3 >= 'LA';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	k1	k1	7	NULL	1	Using where; Using index
-1	SIMPLE	t2	range	k1	k1	3	NULL	4	Using where; Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	range	k1	k1	3	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
 explain
 select min(a4 - 0.01) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -653,7 +653,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain
 select concat(min(t1.a1),min(t2.a4)) from t1, t2 where t2.a4 <> 'AME';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	k2	k2	4	NULL	6	Using where; Using index
+1	SIMPLE	t2	index	k2	k2	4	NULL	7	Using where; Using index
 1	SIMPLE	t1	index	NULL	PRIMARY	3	NULL	15	Using index; Using join buffer (flat, BNL join)
 drop table t1, t2;
 create table t1 (a char(10));
@@ -1333,10 +1333,11 @@ SELECT MIN(a), MIN(b) FROM t1;
 MIN(a)	MIN(b)
 NULL	1
 CREATE TABLE t2( a INT, b INT, c INT, KEY(a, b) );
-INSERT INTO t2 ( a, b, c ) VALUES ( 1, NULL, 2 ), ( 1, 3, 4 ), ( 1, 4, 4 );
+INSERT INTO t2 ( a, b, c ) VALUES
+( 1, NULL, 2 ), ( 1, 3, 4 ), ( 1, 4, 4 ), ( 2, NULL, 2 ), ( 2, 3, 4 ), ( 2, 4, 4 );
 EXPLAIN SELECT MIN(b), MIN(c) FROM t2 WHERE a = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	a	a	5	const	2	
+1	SIMPLE	t2	ref	a	a	5	const	3	
 SELECT MIN(b), MIN(c) FROM t2 WHERE a = 1;
 MIN(b)	MIN(c)
 3	2
@@ -1839,12 +1840,12 @@ End of 5.1 tests
 # Bug #904345: MIN/MAX optimization  with constant FALSE condition
 #
 CREATE TABLE t1 (a int NOT NULL, KEY(a));
-INSERT INTO t1 VALUES (10), (8), (11), (7), (15), (12), (9);
+INSERT INTO t1 VALUES (10), (8), (11), (7), (15), (12), (9), (13), (15), (17);
 CREATE TABLE t2 (a int, b int);
 INSERT INTO t2 VALUES
 (8,2), (6,9), (8,4), (5,3), (9,1);
 EXPLAIN EXTENDED
-SELECT MAX(a) FROM t1 WHERE (1,2) IN (SELECT 3,4) AND a<10;
+SELECT MAX(a) FROM t1 WHERE (1,2) IN (SELECT 3,4) AND a<8;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -1857,7 +1858,7 @@ EXPLAIN EXTENDED
 SELECT MAX(a) FROM t1 WHERE (1,2) IN (SELECT a,b FROM t2 WHERE b<5) and a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	100.00	
-1	PRIMARY	t1	range	a	a	4	NULL	4	100.00	Using where; Using index; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	range	a	a	4	NULL	3	100.00	Using where; Using index; Using join buffer (flat, BNL join)
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	select max(`test`.`t1`.`a`) AS `MAX(a)` from `test`.`t1` semi join (`test`.`t2`) where `test`.`t2`.`a` = 1 and `test`.`t2`.`b` = 2 and `test`.`t1`.`a` < 10
@@ -1867,7 +1868,7 @@ NULL
 EXPLAIN EXTENDED
 SELECT MAX(a) FROM t1 WHERE RAND()*0<>0 AND a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	4	100.00	Using where; Using index
+1	SIMPLE	t1	range	a	a	4	NULL	3	100.00	Using where; Using index
 Warnings:
 Note	1003	select max(`test`.`t1`.`a`) AS `MAX(a)` from `test`.`t1` where rand() * 0 <> 0 and `test`.`t1`.`a` < 10
 SELECT MAX(a) FROM t1 WHERE RAND()*0<>0 AND a<10;
@@ -1979,8 +1980,9 @@ FROM t2);
 MIN(t2.pk)
 NULL
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'j'
-Warning	1292	Truncated incorrect INTEGER value: 'j'
+Warning	1292	Truncated incorrect DOUBLE value: 'j'
+Warning	1292	Truncated incorrect DOUBLE value: 'j'
+Warning	1292	Truncated incorrect DOUBLE value: 'j'
 
 EXPLAIN
 SELECT MIN(t2.pk)
@@ -1993,8 +1995,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'j'
-Warning	1292	Truncated incorrect INTEGER value: 'j'
+Warning	1292	Truncated incorrect DOUBLE value: 'j'
+Warning	1292	Truncated incorrect DOUBLE value: 'j'
+Warning	1292	Truncated incorrect DOUBLE value: 'j'
 
 #
 # 2) Test that subquery materialization is setup for query with
@@ -2108,8 +2111,8 @@ avg(export_set( 3, 'y', sha(i)))	group_concat(d)
 0	2008-10-02
 0	2010-12-12
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'y,y,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428ab,3'
-Warning	1292	Truncated incorrect DOUBLE value: 'y,y,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b0,d'
+Warning	1292	Truncated incorrect DOUBLE value: 'y,y,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428ab,356a192b7913b04c54574d18c28d46e6395428a...'
+Warning	1292	Truncated incorrect DOUBLE value: 'y,y,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b0,da4b9237bacccdf19c0760cab7aec4a8359010b...'
 drop table t1;
 #
 # MDEV-4290: crash in st_select_lex::mark_as_dependent
@@ -2457,7 +2460,38 @@ count(*)+sleep(0)
 2
 drop table t1;
 #
-# Start of 10.3 tests
+# MDEV-25112: MIN/MAX optimization for query containing BETWEEN in WHERE
+#
+create table t1 (a int) engine=myisam;
+insert into t1 values (267), (273),  (287), (303), (308);
+select max(a) from t1 where a < 303 and (a between 267 AND 287);
+max(a)
+287
+explain select max(a) from t1 where a < 303 and (a between 267 AND 287);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+select min(a) from t1 where a > 267 and (a between 273 AND 303);
+min(a)
+273
+explain select min(a) from t1 where a > 267 and (a between 273 AND 303);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+create index idx on t1(a);
+select max(a) from t1 where a < 303 and (a between 267 AND 287);
+max(a)
+287
+explain select max(a) from t1 where a < 303 and (a between 267 AND 287);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(a) from t1 where a > 267 and (a between 273 AND 303);
+min(a)
+273
+explain select min(a) from t1 where a > 267 and (a between 273 AND 303);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+drop table t1;
+#
+# End of 10.2 tests
 #
 #
 # MDEV-9408 CREATE TABLE SELECT MAX(int_column) creates different columns for table vs view
@@ -2489,3 +2523,6 @@ t2	CREATE TABLE `t2` (
 DROP TABLE t2;
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# End of 10.3 tests
+#

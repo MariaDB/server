@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 INSERT INTO t1 (f1) VALUES (DEFAULT);
 connection node_2;
 SELECT f1 = 'ABC', f1017 = 'ABC' FROM t1;
@@ -19,7 +21,7 @@ UPDATE t1 SET f2 = 'CDE' WHERE f1 = 'XYZ' AND f1017 = 'XYZ';
 COMMIT;
 connection node_1;
 COMMIT;
-ERROR 40001: Deadlock: wsrep aborted transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 ROLLBACK;
 connection node_2;
 ROLLBACK;

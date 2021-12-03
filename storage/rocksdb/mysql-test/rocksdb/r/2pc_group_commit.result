@@ -27,6 +27,12 @@ select IF(variable_value - @b3 between 1000 and 1500, 'OK', variable_value - @b3
 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
 Rocksdb_wal_synced
 OK
+set debug_dbug='+d,rocksdb_enable_delay_commits';
+create table dummy10(a int) engine=rocksdb;
+Warnings:
+Warning	1210	enable_delay_commits_mode ON
+drop table dummy10;
+set debug_dbug='-d,rocksdb_enable_delay_commits';
 ## 
 ## 2PC + durability + group commit
 ## 
@@ -45,6 +51,12 @@ select IF(variable_value - @b3 between 1 and 9000, 'OK', variable_value - @b3)
 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
 IF(variable_value - @b3 between 1 and 9000, 'OK', variable_value - @b3)
 OK
+set debug_dbug='+d,rocksdb_disable_delay_commits';
+create table dummy10(a int) engine=rocksdb;
+Warnings:
+Warning	1210	enable_delay_commits_mode OFF
+drop table dummy10;
+set debug_dbug='-d,rocksdb_disable_delay_commits';
 ## 
 # 2PC enabled, MyRocks durability disabled, single thread
 ## 

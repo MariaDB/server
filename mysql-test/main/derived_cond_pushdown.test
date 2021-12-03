@@ -1,4 +1,7 @@
+--source include/have_sequence.inc
+--source include/default_optimizer_switch.inc
 let $no_pushdown= set statement optimizer_switch='condition_pushdown_for_derived=off' for;
+set @@join_buffer_size=256*1024;
 
 create table t1 (a int, b int, c int);
 create table t2 (a int, b int, c int, d decimal);
@@ -2102,6 +2105,226 @@ eval EXPLAIN FORMAT=JSON $q2;
 DROP VIEW v1,v2;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-18383: pushdown condition with the IF structure
+--echo #             defined with Item_cond item
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+CREATE TABLE t2(c INT, d INT);
+INSERT INTO t1 VALUES (1,2),(3,4),(5,6);
+INSERT INTO t2 VALUES (1,3),(3,7),(5,1);
+
+SELECT *
+FROM t1,
+(
+  SELECT MAX(d) AS max_d,c
+  FROM t2
+  GROUP BY c
+) AS tab
+WHERE t1.a=tab.c AND
+      IF(2,t1.a=1 OR t1.b>5,1=1);
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-19139: pushdown condition with Item_func_set_user_var
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE VIEW v1 AS SELECT a, MAX(b) FROM t1 GROUP BY a;
+
+SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
+EXPLAIN FORMAT=JSON
+SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
+
+DROP TABLE t1;
+DROP VIEW v1;
+
+--echo #
+--echo # MDEV-21388 Wrong result of DAYNAME()=xxx in combination with condition_pushdown_for_derived=on
+--echo #
+
+CREATE TABLE t1 (a INT, b DATE, c INT);
+INSERT INTO t1 VALUES
+  (1,'2001-01-21',345),
+  (6,'2001-01-20',315),
+  (6,'2001-01-20',214);
+
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (2,19), (7,20);
+CREATE VIEW v1 AS SELECT a, b, max(c) AS max_c FROM t1
+  GROUP BY a,b HAVING max_c < 707;
+
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a);
+
+SET optimizer_switch='condition_pushdown_for_derived=off';
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a) AND dayname(v1.b)='Sunday';
+
+SET optimizer_switch='condition_pushdown_for_derived=on';
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a) AND dayname(v1.b)='Sunday';
+
+DROP VIEW v1;
+DROP TABLE t1, t2;
+
+SET optimizer_switch=DEFAULT;
+
+
+
+--echo #
+--echo # MDEV-17177: an attempt to push down IN predicate when one of
+--echo #             the arguments is too complex to be cloned
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(8));
+INSERT INTO t1 VALUES ('abc'),('def');
+CREATE VIEW v1 AS SELECT * FROM t1 GROUP BY a;
+
+SELECT * FROM v1 WHERE IF( a REGEXP 'def', 'foo', a ) IN ('abc', 'foobar');
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19179: pushdown into UNION of aggregation selects whose
+--echo #             corresponding columns have different names
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+let $q=
+select *
+from (select min(a) as x from t1 union all select max(a) as y from t1) t
+where x>0;
+
+eval $q;
+eval explain extended $q;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+create view v1(m) as
+select min(a) as x from t1 union all select max(a) as y from t1;
+select * from v1 where m > 0;
+
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-25635: pushdown into grouping view using aggregate functions
+--echo #             with constant arguments via a mergeable derived table
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (3), (7), (7), (3);
+
+create view v1 as select a, sum(1) as f, sum(1) as g from t1 group by a;
+select * from v1;
+let $q1=
+select * from (select * from v1) as dt where a=f and a=g;
+eval $q1;
+eval explain extended $q1;
+
+create view v2 as select a, min(1) as f, min(1) as g from t1 group by a;
+select * from v2;
+let $q2=
+select * from (select * from v2) as dt where a=f and a=g;
+eval $q2;
+eval explain extended $q2;
+
+drop view v1,v2;
+drop table t1;
+
+--echo #
+--echo # MDEV-25969: Condition pushdown into derived table doesn't work if select list uses SP
+--echo #
+create function f1(a int) returns int DETERMINISTIC return (a+1);
+
+create table t1 (
+  pk int primary key,
+  a int,
+  b int,
+  key(a)
+);
+
+create table t2(a int);
+insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t3(a int);
+insert into t3 select A.a + B.a* 10 + C.a * 100 from t2 A, t2 B, t2 C;
+
+insert into t1 select a,a,a from t3;
+
+create view v1 as
+select
+  t1.a as col1,
+  f1(t1.b) as col2
+from
+  t1;
+
+create view v2 as
+select
+  t1.a as col1,
+  f1(t1.b) as col2
+from
+  t1;
+create view v3 as
+select col2, col1 from v1
+union all
+select col2, col1 from v2;
+
+explain select * from v3 where col1=123;
+
+--echo # This must use ref accesses for reading table t1, not full scans:
+explain format=json
+select * from v3 where col1=123 and col2=321;
+
+drop function f1;
+drop view v1,v2,v3;
+drop table t1, t2,t3;
+
+--echo #
+--echo # Another testcase, with pushdown through GROUP BY
+--echo #
+create table t1 (a int, b  int);
+insert into t1 values (1,1),(2,2),(3,3);
+
+create function f1(a int) returns int DETERMINISTIC return (a+1);
+
+create view v2(a, a2, s) as 
+select a, f1(a), sum(b) from t1 group by a, f1(a);
+
+--echo # Here, 
+--echo #   "(s+1) > 10" will be pushed into HAVING
+--echo #   "a > 1" will be pushed all the way to the table scan on t1
+--echo #   "a2>123" will be pushed into HAVING (as it refers to an SP call which
+--echo #                                       prevents pushing it to the WHERE)
+explain format=json
+select * from v2 where (s+1) > 10 AND a > 1 and a2>123;
+
+--echo # Extra test for 10.4+: Check that this works for pushdown into IN
+--echo # subqueries:
+
+create table t4 (a int, b int, c decimal);
+insert into t4 select a,a,a from t1;
+
+--echo # The subquery must be materialized and must have
+--echo #  "attached_condition": "t1.a + 1 > 10",
+--echo #  "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
+explain format=json
+select *
+from t4
+where
+  (a,b,c) in (select a, f1(a), sum(b) from t1 group by a, f1(a))
+  and
+   (a+1) > 10 AND b > 1 and c>123;
+
+drop view v2;
+drop function f1;
+drop table t1, t4;
 --echo # End of 10.2 tests
 
 --echo #
@@ -3262,4 +3485,170 @@ set join_cache_level=default;
 
 DROP TABLE t1,t2;
 
+
+--echo #
+--echo # MDEV-21614: potentially splittable materialized derived/view
+--echo #             within materialized semi-join
+--echo #
+
+create table t1 (
+  id int not null auto_increment primary key,
+  a int not null
+) engine=myisam;
+
+create table t2 (
+  id int not null auto_increment primary key,
+  ro_id int not null,
+  flag int not null, key (ro_id)
+) engine=myisam;
+
+insert into t1(a) select seq+100 from seq_1_to_20;
+insert into t2(ro_id,flag) select seq, 1 from seq_1_to_20;
+insert into t2(ro_id,flag) select seq, 0 from seq_1_to_20;
+
+create view v1 as
+select t1.* from t1 left join t2 on (t1.id = t2.ro_id AND t2.flag = 1)
+  group by t1.id;
+
+let $q1=
+select id, a from t1 where  id in (select id from v1);
+eval $q1;
+eval explain extended $q1;
+
+let $q2=
+select id, a from t1
+  where id in (select id
+               from (select t1.* from t1 left join t2
+                                      on (t1.id = t2.ro_id AND t2.flag = 1)
+                     group by t1.id) dt);
+eval $q2;
+eval explain extended $q2;
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-21883: potentially splittable materialized derived
+--echo #             that uses a join of 32 tables
+--echo #
+
+CREATE TABLE t (id INT NOT NULL PRIMARY KEY);
+INSERT INTO t values (1),(2),(3);
+
+let $q=
+SELECT t.id FROM t
+LEFT JOIN (
+    SELECT t0.id FROM t AS t0
+    LEFT JOIN t AS t1 ON 0=1
+    LEFT JOIN t AS t2 ON 0=1
+    LEFT JOIN t AS t3 ON 0=1
+    LEFT JOIN t AS t4 ON 0=1
+    LEFT JOIN t AS t5 ON 0=1
+    LEFT JOIN t AS t6 ON 0=1
+    LEFT JOIN t AS t7 ON 0=1
+    LEFT JOIN t AS t8 ON 0=1
+    LEFT JOIN t AS t9 ON 0=1
+    LEFT JOIN t AS t10 ON 0=1
+    LEFT JOIN t AS t11 ON 0=1
+    LEFT JOIN t AS t12 ON 0=1
+    LEFT JOIN t AS t13 ON 0=1
+    LEFT JOIN t AS t14 ON 0=1
+    LEFT JOIN t AS t15 ON 0=1
+    LEFT JOIN t AS t16 ON 0=1
+    LEFT JOIN t AS t17 ON 0=1
+    LEFT JOIN t AS t18 ON 0=1
+    LEFT JOIN t AS t19 ON 0=1
+    LEFT JOIN t AS t20 ON 0=1
+    LEFT JOIN t AS t21 ON 0=1
+    LEFT JOIN t AS t22 ON 0=1
+    LEFT JOIN t AS t23 ON 0=1
+    LEFT JOIN t AS t24 ON 0=1
+    LEFT JOIN t AS t25 ON 0=1
+    LEFT JOIN t AS t26 ON 0=1
+    LEFT JOIN t AS t27 ON 0=1
+    LEFT JOIN t AS t28 ON 0=1
+    LEFT JOIN t AS t29 ON 0=1
+    LEFT JOIN t AS t30 ON 0=1
+    LEFT JOIN t AS t31 ON 0=1
+    GROUP BY t0.id) AS dt ON dt.id = t.id;
+
+eval set statement optimizer_switch='split_materialized=off' for $q;
+
+eval set statement optimizer_switch='split_materialized=on' for $q;
+
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-23804: Server crashes in st_select_lex::collect_grouping_fields_for_derived
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(4);
+CREATE VIEW v1 AS SELECT a FROM t1 UNION VALUES (3),(4);
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT * from v1 WHERE a=3;
+SELECT * from v1 WHERE a=3;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25128: Split optimization for join with materialized semi-join
+--echo #
+
+create table t1 (id int, a int, index (a), index (id, a)) engine=myisam;
+insert into t1 values
+(17,1),(17,3010),(17,3013),(17,3053),(21,2446),(21,2467),(21,2);
+
+create table t2 (a int) engine=myisam;
+insert into t2 values (1),(2),(3);
+
+create  table t3 (id int) engine=myisam;
+insert into t3 values (1),(2);
+
+analyze table t1,t2,t3;
+
+let $q=
+select * from t1, (select a from t1 cp2 group by a) dt, t3
+  where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+
+set optimizer_switch="split_materialized=off";
+eval $q;
+eval explain $q;
+eval explain format=json $q;
+
+set optimizer_switch="split_materialized=default";
+eval $q;
+eval explain $q;
+eval explain format=json $q;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table t1,t2,t3;
+
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-18679: materialized view with SELECT S containing materialized
+--echo #             derived when impossible WHERE has been detected for S
+--echo #
+
+create table t1 (pk int, f varchar(1));
+insert into t1 values
+  (3,'y'), (1,'x'), (7,'z');
+
+create view v1 as
+select t1.f
+  from t1, (select distinct * from t1) t
+  where t.f = t1.f and 1 = 0
+group by t1.f;
+
+select * from v1;
+explain select * from v1;
+
+drop view v1;
+drop table t1;
+
+--echo # End of 10.4 tests

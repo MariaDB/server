@@ -181,7 +181,7 @@ static void dump_header(FT ft) {
     printf(" time_of_creation=         %" PRIu64 "    %s\n", ft->h->time_of_creation, timestr);
     format_time(ft->h->time_of_last_modification, timestr);
     printf(" time_of_last_modification=%" PRIu64 "    %s\n", ft->h->time_of_last_modification, timestr);
-    printf(" dirty=%d\n", ft->h->dirty);
+    printf(" dirty=%d\n", ft->h->dirty());
     printf(" checkpoint_count=%" PRId64 "\n", ft->h->checkpoint_count);
     printf(" checkpoint_lsn=%" PRId64 "\n", ft->h->checkpoint_lsn.lsn);
     printf(" nodesize=%u\n", ft->h->nodesize);

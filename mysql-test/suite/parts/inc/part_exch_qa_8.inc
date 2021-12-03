@@ -1,3 +1,5 @@
+--source include/default_charset.inc
+
 CREATE USER test2@localhost;
 
 --source include/not_embedded.inc

@@ -741,21 +741,21 @@ a	b
 explain extended select * from t1
 where a in (values (1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery3>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 3	MATERIALIZED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1)) "tvc_0") where "test"."t1"."a" = "tvc_0"."1"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1)) "tvc_0") where 1
 explain extended select * from t1
 where a in (select * from (values (1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1)) "tvc_0") where "test"."t1"."a" = "tvc_0"."1"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1)) "tvc_0") where 1
 # IN-subquery with VALUES structure(s) : UNION with VALUES on the first place
 select * from t1
 where a in (values (1) union select 2);
@@ -976,21 +976,21 @@ a	b
 explain extended select * from t1 
 where a = any (values (1),(2));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery3>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 3	MATERIALIZED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1),(2)) "tvc_0") where "test"."t1"."a" = "tvc_0"."1"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1),(2)) "tvc_0") where 1
 explain extended select * from t1 
 where a = any (select * from (values (1),(2)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1),(2)) "tvc_0") where "test"."t1"."a" = "tvc_0"."1"
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1),(2)) "tvc_0") where 1
 # ANY-subquery with VALUES structure(s) : UNION with VALUES on the first place
 select * from t1 
 where a = any (values (1) union select 2);
@@ -2183,3 +2183,324 @@ VALUES(1 + 1,2,'abc');
 SELECT * FROM (VALUES(1 + 1,2,'abc')) t;
 1 + 1	2	abc
 2	2	abc
+#
+# MDEV-17894: tvc with ORDER BY ... LIMIT
+#
+values (5), (7), (1), (3), (4) limit 2;
+5
+5
+7
+explain extended values (5), (7), (1), (3), (4) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	values (5),(7),(1),(3),(4) limit 2
+values (5), (7), (1), (3), (4) limit 2 offset 1;
+5
+7
+1
+explain extended values (5), (7), (1), (3), (4) limit 2 offset 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	values (5),(7),(1),(3),(4) limit 1,2
+values (5), (7), (1), (3), (4) order by 1 limit 2;
+5
+1
+3
+explain extended values (5), (7), (1), (3), (4) order by 1 limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
+Warnings:
+Note	1003	values (5),(7),(1),(3),(4) order by 1 limit 2
+values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1;
+5
+3
+4
+explain extended values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
+Warnings:
+Note	1003	values (5),(7),(1),(3),(4) order by 1 limit 1,2
+values (5), (7), (1), (3), (4) order by 1;
+5
+1
+3
+4
+5
+7
+explain extended values (5), (7), (1), (3), (4) order by 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
+Warnings:
+Note	1003	values (5),(7),(1),(3),(4) order by 1
+values (5,90), (7,20), (1,70), (3,50), (4,10) order by 2;
+5	90
+4	10
+7	20
+3	50
+1	70
+5	90
+explain extended values (5,90), (7,20), (1,70), (3,50), (4,10) order by 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
+Warnings:
+Note	1003	values (5,90),(7,20),(1,70),(3,50),(4,10) order by 2
+select 2 union (values (5), (7), (1), (3), (4) limit 2);
+2
+2
+5
+7
+explain extended select 2 union (values (5), (7), (1), (3), (4) limit 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select 2 AS "2" union (values (5),(7),(1),(3),(4) limit 2)
+select 2 union (values (5), (7), (1), (3), (4) limit 2 offset 1);
+2
+2
+7
+1
+explain extended select 2 union (values (5), (7), (1), (3), (4) limit 2 offset 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select 2 AS "2" union (values (5),(7),(1),(3),(4) limit 1,2)
+select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2);
+2
+2
+1
+3
+explain extended select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select 2 AS "2" union (/* select#3 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)
+select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1);
+2
+2
+3
+4
+explain extended select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select 2 AS "2" union (/* select#3 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,2)
+(values (5), (7), (1), (3), (4) limit 2) union select 2;
+5
+5
+7
+2
+explain extended (values (5), (7), (1), (3), (4) limit 2) union select 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(values (5),(7),(1),(3),(4) limit 2) union /* select#2 */ select 2 AS "2"
+(values (5), (7), (1), (3), (4) limit 2 offset 1) union select 2;
+5
+7
+1
+2
+explain extended (values (5), (7), (1), (3), (4) limit 2 offset 1) union select 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(values (5),(7),(1),(3),(4) limit 1,2) union /* select#2 */ select 2 AS "2"
+(values (5), (7), (1), (3), (4) order by 1 limit 2) union select 2;
+5
+1
+3
+2
+explain extended (values (5), (7), (1), (3), (4) order by 1 limit 2) union select 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(/* select#1 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2) union /* select#2 */ select 2 AS "2"
+(values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1) union select 2;
+5
+3
+4
+2
+explain extended (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1) union select 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(/* select#1 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,2) union /* select#2 */ select 2 AS "2"
+select 3 union all (values (5), (7), (1), (3), (4) limit 2 offset 3);
+3
+3
+3
+4
+explain extended select 3 union all (values (5), (7), (1), (3), (4) limit 2 offset 3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select 3 AS "3" union all (values (5),(7),(1),(3),(4) limit 3,2)
+(values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3;
+5
+3
+4
+3
+explain extended (values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	(values (5),(7),(1),(3),(4) limit 3,2) union all /* select#2 */ select 3 AS "3"
+select 3 union all (values (5), (7), (1), (3), (4) order by 1 limit 2);
+3
+3
+1
+3
+explain extended select 3 union all (values (5), (7), (1), (3), (4) order by 1 limit 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select 3 AS "3" union all (/* select#3 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)
+(values (5), (7), (1), (3), (4) order by 1 limit 2) union all select 3;
+5
+1
+3
+3
+explain extended (values (5), (7), (1), (3), (4) order by 1 limit 2) union all select 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(/* select#1 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2) union all /* select#2 */ select 3 AS "3"
+( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+union
+( values (5), (7), (1), (3), (4) order by 1 limit 2 );
+5
+7
+1
+3
+explain extended ( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+union
+( values (5), (7), (1), (3), (4) order by 1 limit 2 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(values (5),(7),(1),(3),(4) limit 1,2) union (/* select#3 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)
+( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+union all
+( values (5), (7), (1), (3), (4) order by 1 limit 2 );
+5
+7
+1
+1
+3
+explain extended ( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+union all
+( values (5), (7), (1), (3), (4) order by 1 limit 2 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(values (5),(7),(1),(3),(4) limit 1,2) union all (/* select#3 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)
+(values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3 order by 1;
+5
+3
+3
+4
+explain extended (values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3 order by 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
+Warnings:
+Note	1003	(values (5),(7),(1),(3),(4) limit 3,2) union all /* select#2 */ select 3 AS "3" order by 1
+(values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3 order by 1;
+5
+3
+3
+4
+5
+explain extended (values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3 order by 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
+Warnings:
+Note	1003	(/* select#1 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,3) union all /* select#2 */ select 3 AS "3" order by 1
+(values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3
+order by 1 limit 2 offset 1;
+5
+3
+4
+explain extended (values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3
+order by 1 limit 2 offset 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
+Warnings:
+Note	1003	(/* select#1 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,3) union all /* select#2 */ select 3 AS "3" order by 1 limit 1,2
+values (5,90), (7,20), (1,70), (3,50), (4,10) order by 3;
+ERROR 42S22: Unknown column '3' in 'order clause'
+create view v1 as values (5), (7), (1), (3), (4) order by 1 limit 2;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS values (5),(7),(1),(3),(4) order by 1 limit 2	latin1	latin1_swedish_ci
+select * from v1;
+5
+1
+3
+drop view v1;
+create view v1 as
+( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+union
+( values (5), (7), (1), (3), (4) order by 1 limit 2 );
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS (values (5),(7),(1),(3),(4) limit 1,2) union (values (5),(7),(1),(3),(4) order by 1 limit 2)	latin1	latin1_swedish_ci
+select * from v1;
+5
+7
+1
+3
+drop view v1;
+create view v1 as values (5,90), (7,20), (1,70), (3,50), (4,10) order by 3;
+ERROR 42S22: Unknown column '3' in 'order clause'
+create view v1 as
+( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+union
+( values (5), (7), (1), (3), (4) order by 2 limit 2 );
+ERROR 42S22: Unknown column '2' in 'order clause'

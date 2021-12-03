@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -672,7 +672,7 @@ Event_db_repository::create_event(THD *thd, Event_parse_data *parse_data,
   DBUG_PRINT("info", ("name: %.*s", (int) parse_data->name.length,
              parse_data->name.str));
 
-  DBUG_PRINT("info", ("check existance of an event with the same name"));
+  DBUG_PRINT("info", ("check existence of an event with the same name"));
   if (!find_named_event(&parse_data->dbname, &parse_data->name, table))
   {
     if (thd->lex->create_info.or_replace())

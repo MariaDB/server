@@ -2677,6 +2677,18 @@ if ($USE_CHILD_GROUP2)
 --connection master_1
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 
+--connection master_1
+create table t2345678911234567892123456789312345678941234567895123234234(id int) ENGINE=SPIDER
+    COMMENT='host "192.168.21.1", user "spider", password "password", database "test32738123123123"';
+drop table t2345678911234567892123456789312345678941234567895123234234;
+
+--echo #
+--echo # MDEV-26139 Spider crashes with segmentation fault (signal 11) on CREATE TABLE when COMMENT does not contain embedded double quotes
+--echo #
+create table mdev_26139 (id int) ENGINE=SPIDER
+    COMMENT="host '192.168.21.1', user 'spider', password 'password', database 'test'";
+drop table mdev_26139;
+
 --echo
 --echo deinit
 --disable_warnings
@@ -2689,6 +2701,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_2
   DROP DATABASE IF EXISTS auto_test_remote2;
 }
+
 --disable_query_log
 --disable_result_log
 --source test_deinit.inc

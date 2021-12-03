@@ -59,6 +59,7 @@ SELECT * FROM t;
 UPDATE t SET a=3 WHERE a=1;
 --let $restart_parameters= --innodb-read-only
 --source include/restart_mysqld.inc
+SET GLOBAL innodb_status_output= @@GLOBAL.innodb_status_output;
 --echo # Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.
 --echo # In earlier versions, this would return the last committed version
 --echo # (only a=3; no record for a=20)!

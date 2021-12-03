@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2011, 2017, MariaDB Corporation
+# Copyright (c) 2011, 2020, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 # Build comp_sql - used for embedding SQL in C or C++ programs
 IF(NOT CMAKE_CROSSCOMPILING)
@@ -31,7 +31,7 @@ ENDIF()
 IF(CAT_EXECUTABLE)
   SET(CAT_COMMAND COMMAND 
     ${CMAKE_COMMAND} -E chdir  ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CAT_EXECUTABLE} mysql_system_tables.sql mysql_system_tables_fix.sql mysql_performance_tables.sql >
+    ${CAT_EXECUTABLE} mysql_system_tables_fix.sql mysql_system_tables.sql mysql_performance_tables.sql >
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_fix_privilege_tables.sql
   )
 ELSEIF(WIN32)
@@ -39,7 +39,7 @@ ELSEIF(WIN32)
    native_outfile )
   SET(CAT_COMMAND
    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR}
-   cmd /c copy /b mysql_system_tables.sql + mysql_system_tables_fix.sql + mysql_performance_tables.sql 
+   cmd /c copy /b mysql_system_tables_fix.sql + mysql_system_tables.sql +  mysql_performance_tables.sql
    ${native_outfile} )
 ELSE()
   MESSAGE(FATAL_ERROR "Cannot concatenate files")
@@ -99,7 +99,6 @@ INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_db.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/fill_help_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_data_timezone.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_to_mariadb.sql
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp.sql
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql
   ${FIX_PRIVILEGES_SQL}
@@ -162,7 +161,7 @@ ELSE()
   SET(CHECK_PID "kill -s SIGCONT $PID  > /dev/null 2> /dev/null")
 ENDIF()
 
-SET(HOSTNAME "hostname")
+SET(HOSTNAME "uname -n")
 SET(MYSQLD_USER "mysql")
 ENDIF(UNIX)
 
@@ -249,7 +248,7 @@ IF(WIN32)
   # The resulting files will have .pl extension (those are perl scripts)
 
   # Input files with pl.in extension
-  SET(PLIN_FILES mysql_config mysql_secure_installation)
+  SET(PLIN_FILES mysql_config)
   # Input files with .sh extension
 
   SET(SH_FILES mysql_convert_table_format mysqld_multi mysqldumpslow
@@ -274,8 +273,6 @@ ELSE()
     SET(WSREP_SCRIPTS
       wsrep_sst_mysqldump
       wsrep_sst_rsync
-      wsrep_sst_xtrabackup
-      wsrep_sst_xtrabackup-v2
       wsrep_sst_mariabackup
     )
     # The following script is sourced from other SST scripts, so it should
@@ -283,6 +280,36 @@ ELSE()
     SET(WSREP_SOURCE
       wsrep_sst_common
     )
+
+    SET (wsrep_sst_rsync_wan ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_rsync_wan)
+    ADD_CUSTOM_COMMAND(
+      OUTPUT ${wsrep_sst_rsync_wan}
+      COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink
+        wsrep_sst_rsync
+        wsrep_sst_rsync_wan
+    )
+    ADD_CUSTOM_TARGET(symlink_wsrep_sst_rsync
+        ALL
+        DEPENDS ${wsrep_sst_rsync_wan}
+    )
+    INSTALL(
+      FILES  ${wsrep_sst_rsync_wan}
+      DESTINATION ${INSTALL_BINDIR}
+      COMPONENT Server
+    )
+
+    FOREACH(file ${WSREP_SOURCE})
+      CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
+        ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
+      IF(NOT ${file}_COMPONENT)
+        SET(${file}_COMPONENT Server)
+      ENDIF()
+      INSTALL(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/${file}
+        DESTINATION ${INSTALL_BINDIR}
+        COMPONENT ${${file}_COMPONENT}
+       )
+    ENDFOREACH()
   ENDIF()
   IF (NOT WITHOUT_SERVER)
     SET(SERVER_SCRIPTS
@@ -330,35 +357,6 @@ ELSE()
     ENDIF()
     INSTALL_SCRIPT(
       ${CMAKE_CURRENT_BINARY_DIR}/${file} 
-      DESTINATION ${INSTALL_BINDIR}
-      COMPONENT ${${file}_COMPONENT}
-     )
-  ENDFOREACH()
-  SET (wsrep_sst_rsync_wan ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_rsync_wan)
-  ADD_CUSTOM_COMMAND(
-    OUTPUT ${wsrep_sst_rsync_wan}
-    COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink
-      wsrep_sst_rsync
-      wsrep_sst_rsync_wan
-  )
-  ADD_CUSTOM_TARGET(symlink_wsrep_sst_rsync
-      ALL
-      DEPENDS ${wsrep_sst_rsync_wan}
-  )
-  INSTALL(
-    FILES  ${wsrep_sst_rsync_wan}
-    DESTINATION ${INSTALL_BINDIR}
-    COMPONENT Server
-  )
-
-  FOREACH(file ${WSREP_SOURCE})
-    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
-      ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
-    IF(NOT ${file}_COMPONENT)
-      SET(${file}_COMPONENT Server)
-    ENDIF()
-    INSTALL(FILES
-      ${CMAKE_CURRENT_BINARY_DIR}/${file}
       DESTINATION ${INSTALL_BINDIR}
       COMPONENT ${${file}_COMPONENT}
      )

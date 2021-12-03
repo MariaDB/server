@@ -320,15 +320,17 @@ static int json_handle_esc(json_string_t *s)
     if (s->c_next != '\\')
       return s->error= JE_SYN;
 
+    s->c_str+= c_len;
     if ((c_len= json_next_char(s)) <= 0)
       return s->error= json_eos(s) ? JE_EOS : JE_BAD_CHR;
     if (s->c_next != 'u')
       return s->error= JE_SYN;
+    s->c_str+= c_len;
 
     if (read_4_hexdigits(s, code+2))
       return 1;
 
-    if ((c_len= my_utf16_uni(0, &s->c_next, code, code+4)) == 2)
+    if ((c_len= my_utf16_uni(0, &s->c_next, code, code+4)) == 4)
       return 0;
   }
   return s->error= JE_BAD_CHR;
@@ -823,6 +825,11 @@ static int skip_colon(json_engine_t *j)
 static int skip_key(json_engine_t *j)
 {
   int t_next, c_len;
+
+  if (json_instr_chr_map[j->s.c_next] == S_BKSL &&
+      json_handle_esc(&j->s))
+    return 1;
+
   while (json_read_keyname_chr(j) == 0) {}
 
   if (j->s.error)
@@ -888,7 +895,7 @@ int json_read_keyname_chr(json_engine_t *j)
     case S_QUOTE:
       for (;;)  /* Skip spaces until ':'. */
       {
-        if ((c_len= json_next_char(&j->s) > 0))
+        if ((c_len= json_next_char(&j->s)) > 0)
         {
           if (j->s.c_next == ':')
           {
@@ -926,6 +933,7 @@ int json_read_value(json_engine_t *j)
 {
   int t_next, c_len, res;
 
+  j->value_type= JSON_VALUE_UNINITALIZED;
   if (j->state == JST_KEY)
   {
     while (json_read_keyname_chr(j) == 0) {}
@@ -1407,7 +1415,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
           if (!json_key_matches(je, &key_name))
             continue;
         }
-        if ((uint) (cur_step - state->paths[p_c].last_step) == state->cur_depth)
+        if (cur_step == state->paths[p_c].last_step + state->cur_depth)
           path_found= TRUE;
         else
         {
@@ -1440,7 +1448,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
             cur_step->n_item == state->array_counters[state->cur_depth])
         {
           /* Array item matches. */
-          if ((uint) (cur_step - state->paths[p_c].last_step) == state->cur_depth)
+          if (cur_step == state->paths[p_c].last_step + state->cur_depth)
             path_found= TRUE;
           else
           {
@@ -1846,3 +1854,263 @@ int json_path_compare(const json_path_t *a, const json_path_t *b,
                                  b->steps+1, b->last_step, vt);
 }
 
+
+static enum json_types smart_read_value(json_engine_t *je,
+                                        const char **value, int *value_len)
+{
+  if (json_read_value(je))
+    goto err_return;
+
+  *value= (char *) je->value;
+
+  if (json_value_scalar(je))
+    *value_len= je->value_len;
+  else
+  {
+    if (json_skip_level(je))
+      goto err_return;
+
+    *value_len= (int) ((char *) je->s.c_str - *value);
+  }
+
+  compile_time_assert((int) JSON_VALUE_OBJECT == (int) JSV_OBJECT);
+  compile_time_assert((int) JSON_VALUE_ARRAY == (int) JSV_ARRAY);
+  compile_time_assert((int) JSON_VALUE_STRING == (int) JSV_STRING);
+  compile_time_assert((int) JSON_VALUE_NUMBER == (int) JSV_NUMBER);
+  compile_time_assert((int) JSON_VALUE_TRUE == (int) JSV_TRUE);
+  compile_time_assert((int) JSON_VALUE_FALSE == (int) JSV_FALSE);
+  compile_time_assert((int) JSON_VALUE_NULL == (int) JSV_NULL);
+
+  return (enum json_types) je->value_type;
+
+err_return:
+  return JSV_BAD_JSON;
+}
+
+
+enum json_types json_type(const char *js, const char *js_end,
+                          const char **value, int *value_len)
+{
+  json_engine_t je;
+
+  json_scan_start(&je, &my_charset_utf8mb4_bin,(const uchar *) js,
+                  (const uchar *) js_end);
+
+  return smart_read_value(&je, value, value_len);
+}
+
+
+enum json_types json_get_array_item(const char *js, const char *js_end,
+                                    int n_item,
+                                    const char **value, int *value_len)
+{
+  json_engine_t je;
+  int c_item= 0;
+
+  json_scan_start(&je, &my_charset_utf8mb4_bin,(const uchar *) js,
+                  (const uchar *) js_end);
+
+  if (json_read_value(&je) ||
+      je.value_type != JSON_VALUE_ARRAY)
+    goto err_return;
+
+  while (!json_scan_next(&je))
+  {
+    switch (je.state)
+    {
+    case JST_VALUE:
+      if (c_item == n_item)
+        return smart_read_value(&je, value, value_len);
+
+      if (json_skip_key(&je))
+        goto err_return;
+
+      c_item++;
+      break;
+
+    case JST_ARRAY_END:
+      *value= (const char *) (je.s.c_str - je.sav_c_len);
+      *value_len= c_item;
+      return JSV_NOTHING;
+    }
+  }
+
+err_return:
+  return JSV_BAD_JSON;
+}
+
+
+/** Simple json lookup for a value by the key.
+
+  Expects JSON object.
+  Only scans the 'first level' of the object, not
+  the nested structures.
+
+  @param js          [in]       json object to search in
+  @param js_end      [in]       end of json string
+  @param key         [in]       key to search for
+  @param key_end     [in]         - " -
+  @param value_start [out]      pointer into js (value or closing })
+  @param value_len   [out]      length of the value found or number of keys
+
+  @retval the type of the key value
+  @retval JSV_BAD_JSON - syntax error found reading JSON.
+                         or not JSON object.
+  @retval JSV_NOTHING - no such key found.
+*/
+enum json_types json_get_object_key(const char *js, const char *js_end,
+                                    const char *key,
+                                    const char **value, int *value_len)
+{
+  const char *key_end= key + strlen(key);
+  json_engine_t je;
+  json_string_t key_name;
+  int n_keys= 0;
+
+  json_string_set_cs(&key_name, &my_charset_utf8mb4_bin);
+
+  json_scan_start(&je, &my_charset_utf8mb4_bin,(const uchar *) js,
+                  (const uchar *) js_end);
+
+  if (json_read_value(&je) ||
+      je.value_type != JSON_VALUE_OBJECT)
+    goto err_return;
+
+  while (!json_scan_next(&je))
+  {
+    switch (je.state)
+    {
+    case JST_KEY:
+      n_keys++;
+      json_string_set_str(&key_name, (const uchar *) key,
+                          (const uchar *) key_end);
+      if (json_key_matches(&je, &key_name))
+        return smart_read_value(&je, value, value_len);
+
+      if (json_skip_key(&je))
+        goto err_return;
+
+      break;
+
+    case JST_OBJ_END:
+      *value= (const char *) (je.s.c_str - je.sav_c_len);
+      *value_len= n_keys;
+      return JSV_NOTHING;
+    }
+  }
+
+err_return:
+  return JSV_BAD_JSON;
+}
+
+
+enum json_types json_get_object_nkey(const char *js __attribute__((unused)),
+                                     const char *js_end __attribute__((unused)),
+                                     int nkey __attribute__((unused)),
+                                     const char **keyname __attribute__((unused)),
+                                     const char **keyname_end __attribute__((unused)),
+                                     const char **value __attribute__((unused)),
+                                     int *value_len __attribute__((unused)))
+{
+  return JSV_NOTHING;
+}
+
+
+/** Check if json is valid (well-formed)
+
+  @retval 0 - success, json is well-formed
+  @retval 1 - error, json is invalid
+*/
+int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs)
+{
+  json_engine_t je;
+  json_scan_start(&je, cs, (const uchar *) js, (const uchar *) js + js_len);
+  while (json_scan_next(&je) == 0) /* no-op */ ;
+  return je.s.error == 0;
+}
+
+
+/*
+  Expects the JSON object as an js argument, and the key name.
+  Looks for this key in the object and returns
+  the location of all the text related to it.
+  The text includes the comma, separating this key.
+
+  comma_pos - the hint where the comma is. It is important
+       if you plan to replace the key rather than just cut.
+    1  - comma is on the left
+    2  - comma is on the right.
+    0  - no comma at all (the object has just this single key)
+ 
+  if no such key found *key_start is set to NULL.
+*/
+int json_locate_key(const char *js, const char *js_end,
+                    const char *kname,
+                    const char **key_start, const char **key_end,
+                    int *comma_pos)
+{
+  const char *kname_end= kname + strlen(kname);
+  json_engine_t je;
+  json_string_t key_name;
+  int t_next, c_len, match_result;
+
+  json_string_set_cs(&key_name, &my_charset_utf8mb4_bin);
+
+  json_scan_start(&je, &my_charset_utf8mb4_bin,(const uchar *) js,
+                  (const uchar *) js_end);
+
+  if (json_read_value(&je) ||
+      je.value_type != JSON_VALUE_OBJECT)
+    goto err_return;
+
+  *key_start= (const char *) je.s.c_str;
+  *comma_pos= 0;
+
+  while (!json_scan_next(&je))
+  {
+    switch (je.state)
+    {
+    case JST_KEY:
+      json_string_set_str(&key_name, (const uchar *) kname,
+                          (const uchar *) kname_end);
+      match_result= json_key_matches(&je, &key_name);
+      if (json_skip_key(&je))
+        goto err_return;
+      get_first_nonspace(&je.s, &t_next, &c_len);
+      je.s.c_str-= c_len;
+
+      if (match_result)
+      {
+        *key_end= (const char *) je.s.c_str;
+
+        if (*comma_pos == 1)
+          return 0;
+
+        DBUG_ASSERT(*comma_pos == 0);
+
+        if (t_next == C_COMMA)
+        {
+          *key_end+= c_len;
+          *comma_pos= 2;
+        }
+        else if (t_next == C_RCURB)
+          *comma_pos= 0;
+        else
+          goto err_return;
+        return 0;
+      }
+
+      *key_start= (const char *) je.s.c_str;
+      *comma_pos= 1;
+      break;
+
+    case JST_OBJ_END:
+      *key_start= NULL;
+      return 0;
+    }
+  }
+
+err_return:
+  return 1;
+
+}

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -119,8 +119,23 @@ void mysql_audit_acquire_plugins(THD *thd, ulong *event_class_mask)
   {
     plugin_foreach(thd, acquire_plugins, MYSQL_AUDIT_PLUGIN, event_class_mask);
     add_audit_mask(thd->audit_class_mask, event_class_mask);
+    thd->audit_plugin_version= global_plugin_version;
   }
   DBUG_VOID_RETURN;
+}
+
+
+/**
+  Check if there were changes in the state of plugins
+  so we need to do the mysql_audit_release asap.
+
+  @param[in] thd
+
+*/
+
+my_bool mysql_audit_release_required(THD *thd)
+{
+  return thd && (thd->audit_plugin_version != global_plugin_version);
 }
 
 
@@ -159,6 +174,7 @@ void mysql_audit_release(THD *thd)
   /* Reset the state of thread values */
   reset_dynamic(&thd->audit_class_plugins);
   bzero(thd->audit_class_mask, sizeof(thd->audit_class_mask));
+  thd->audit_plugin_version= -1;
 }
 
 

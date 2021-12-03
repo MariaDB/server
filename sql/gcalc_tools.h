@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #ifndef GCALC_TOOLS_INCLUDED
@@ -184,7 +184,11 @@ class Gcalc_result_receiver
   double first_x, first_y, prev_x, prev_y;
   double shape_area;
 public:
-  Gcalc_result_receiver() : collection_result(FALSE), n_shapes(0), n_holes(0)
+Gcalc_result_receiver() :
+    n_points(0),
+    common_shapetype(Gcalc_function::shape_point),
+    collection_result(FALSE), n_shapes(0), n_holes(0),
+    cur_shape(Gcalc_function::shape_point), shape_pos(0)
     {}
   int start_shape(Gcalc_function::shape_type shape);
   int add_point(double x, double y);

@@ -11,13 +11,14 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include "mysys_err.h"
 #include <my_sys.h>
 
 #ifdef _WIN32
+#include <direct.h> /* rmdir */
 static int my_win_unlink(const char *name);
 #endif
 
@@ -55,6 +56,7 @@ int my_delete(const char *name, myf MyFlags)
 
 
 #if defined (_WIN32)
+
 /* 
   Delete file.
 
@@ -62,15 +64,14 @@ int my_delete(const char *name, myf MyFlags)
   where another program (or thread in the current program) has the the same file
   open.
 
-  We're using 2 tricks to prevent the errors.
+  We're using several tricks to prevent the errors, such as
 
-  1. A usual Win32's DeleteFile() can with ERROR_SHARED_VIOLATION,
-  because the file is opened in another application (often, antivirus or backup)
-  
-  We avoid the error by using CreateFile() with FILE_FLAG_DELETE_ON_CLOSE, instead
+  - Windows 10 "posix semantics" delete
+
+  - Avoid the error by using CreateFile() with FILE_FLAG_DELETE_ON_CLOSE, instead
   of DeleteFile()
 
-  2. If file which is deleted (delete on close) but has not entirely gone,
+  - If file which is deleted (delete on close) but has not entirely gone,
   because it is still opened by some app, an attempt to trcreate file with the 
   same name would  result in yet another error. The workaround here is renaming 
   a file to unique name.
@@ -111,6 +112,27 @@ static int my_win_unlink(const char *name)
        goto error;
     }
     DBUG_RETURN(0);
+  }
+
+  /*
+    Try Windows 10 method, delete with "posix semantics" (file is not visible, and creating
+    a file with the same name won't fail, even if it the fiile was open)
+  */
+  struct
+  {
+    DWORD _Flags;
+  } disp={0x3};
+  /* 0x3 = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS */
+
+  handle= CreateFile(name, DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                     NULL, OPEN_EXISTING, 0, NULL);
+  if (handle != INVALID_HANDLE_VALUE)
+  {
+    BOOL ok= SetFileInformationByHandle(handle,
+      (FILE_INFO_BY_HANDLE_CLASS) 21, &disp, sizeof(disp));
+    CloseHandle(handle);
+    if (ok)
+      DBUG_RETURN(0);
   }
 
   handle= CreateFile(name, DELETE, 0,  NULL, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, NULL);
@@ -158,3 +180,63 @@ error:
   DBUG_RETURN(-1);
 }
 #endif
+
+/*
+   Remove directory recursively.
+*/
+int my_rmtree(const char *dir, myf MyFlags)
+{
+  char path[FN_REFLEN];
+  char sep[] = { FN_LIBCHAR, 0 };
+  int err = 0;
+  uint i;
+
+  MY_DIR *dir_info = my_dir(dir, MYF(MY_DONT_SORT | MY_WANT_STAT));
+  if (!dir_info)
+    return 1;
+
+  for (i = 0; i < dir_info->number_of_files; i++)
+  {
+    FILEINFO *file = dir_info->dir_entry + i;
+    /* Skip "." and ".." */
+    if (!strcmp(file->name, ".") || !strcmp(file->name, ".."))
+      continue;
+
+    strxnmov(path, sizeof(path), dir, sep, file->name, NULL);
+
+    if (!MY_S_ISDIR(file->mystat->st_mode))
+    {
+      err = my_delete(path, MyFlags);
+#ifdef _WIN32
+      /*
+        On Windows, check and possible reset readonly attribute.
+        my_delete(), or DeleteFile does not remove theses files.
+      */
+      if (err)
+      {
+        DWORD attr = GetFileAttributes(path);
+        if (attr != INVALID_FILE_ATTRIBUTES &&
+          (attr & FILE_ATTRIBUTE_READONLY))
+        {
+          SetFileAttributes(path, attr &~FILE_ATTRIBUTE_READONLY);
+          err = my_delete(path, MyFlags);
+        }
+      }
+#endif
+    }
+    else
+      err = my_rmtree(path, MyFlags);
+
+    if (err)
+      break;
+  }
+
+  my_dirend(dir_info);
+
+  if (!err)
+    err = rmdir(dir);
+
+  return err;
+}
+
+

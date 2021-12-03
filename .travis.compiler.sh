@@ -22,19 +22,23 @@ if [[ "${TRAVIS_OS_NAME}" == 'linux' ]]; then
   exclude_modules;
   if which ccache ; then
     CMAKE_OPT="${CMAKE_OPT} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
-    ccache --max-size=2200M
   fi
   if [[ "${CXX}" == 'clang++' ]]; then
-    export CXX CC=${CXX/++/}
+    if [[ "${CC_VERSION}" == '6' ]]; then
+      export CXX=${CXX}-${CC_VERSION}.0
+    else
+      export CXX=${CXX}-${CC_VERSION}
+    fi
+    export CC=${CXX/++/}
+    # excess warnings about unused include path
+    export CFLAGS='-Wno-unused-command-line-argument'
+    export CXXFLAGS='-Wno-unused-command-line-argument'
   elif [[ "${CXX}" == 'g++' ]]; then
     export CXX=g++-${CC_VERSION}
     export CC=gcc-${CC_VERSION}
   fi
-  if [[ ${CC_VERSION} == 6 ]]; then
-    wget http://mirrors.kernel.org/ubuntu/pool/universe/p/percona-xtradb-cluster-galera-2.x/percona-xtradb-cluster-galera-2.x_165-0ubuntu1_amd64.deb ;
-    ar vx percona-xtradb-cluster-galera-2.x_165-0ubuntu1_amd64.deb
-    tar -xJvf data.tar.xz
-    export WSREP_PROVIDER=$PWD/usr/lib/libgalera_smm.so
+  if [[ ${CC_VERSION} == 7 ]]; then
+    export WSREP_PROVIDER=/usr/lib/galera/libgalera_smm.so
     MYSQL_TEST_SUITES="${MYSQL_TEST_SUITES},wsrep"
   fi
 fi

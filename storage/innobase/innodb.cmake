@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2017, MariaDB Corporation.
+# Copyright (c) 2017, 2019, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@ INCLUDE(lzma.cmake)
 INCLUDE(bzip2.cmake)
 INCLUDE(snappy.cmake)
 INCLUDE(numa)
+INCLUDE(TestBigEndian)
 
 MYSQL_CHECK_LZ4()
 MYSQL_CHECK_LZO()
@@ -80,6 +81,7 @@ MARK_AS_ADVANCED(INNODB_COMPILER_HINTS)
 IF(INNODB_COMPILER_HINTS)
    ADD_DEFINITIONS("-DCOMPILER_HINTS")
 ENDIF()
+ADD_FEATURE_INFO(INNODB_COMPILER_HINTS INNODB_COMPILER_HINTS "InnoDB compiled with compiler hints")
 
 SET(MUTEXTYPE "event" CACHE STRING "Mutex type: event, sys or futex")
 
@@ -94,7 +96,8 @@ IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
 #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wconversion")
 
   IF (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64" OR
-      CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
+      CMAKE_SYSTEM_PROCESSOR MATCHES "i386" AND
+      CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.6)
     INCLUDE(CheckCXXCompilerFlag)
     CHECK_CXX_COMPILER_FLAG("-fno-builtin-memcmp" HAVE_NO_BUILTIN_MEMCMP)
     IF (HAVE_NO_BUILTIN_MEMCMP)
@@ -114,15 +117,21 @@ IF(WITH_INNODB_AHI)
   ADD_DEFINITIONS(-DBTR_CUR_HASH_ADAPT -DBTR_CUR_ADAPT)
   IF(NOT WITH_INNODB_ROOT_GUESS)
     MESSAGE(WARNING "WITH_INNODB_AHI implies WITH_INNODB_ROOT_GUESS")
+    SET(WITH_INNODB_ROOT_GUESS ON)
   ENDIF()
 ELSEIF(WITH_INNODB_ROOT_GUESS)
   ADD_DEFINITIONS(-DBTR_CUR_ADAPT)
 ENDIF()
+ADD_FEATURE_INFO(INNODB_AHI WITH_INNODB_AHI "InnoDB Adaptive Hash Index")
+ADD_FEATURE_INFO(INNODB_ROOT_GUESS WITH_INNODB_ROOT_GUESS
+                 "Cache index root block descriptors in InnoDB")
 
 OPTION(WITH_INNODB_EXTRA_DEBUG "Enable extra InnoDB debug checks" OFF)
 IF(WITH_INNODB_EXTRA_DEBUG)
   ADD_DEFINITIONS(-DUNIV_ZIP_DEBUG)
 ENDIF()
+ADD_FEATURE_INFO(INNODB_EXTRA_DEBUG WITH_INNODB_EXTRA_DEBUG "Extra InnoDB debug checks")
+
 
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
@@ -139,9 +148,10 @@ IF(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)
 ENDIF()
 
 IF(NOT MSVC)
-  CHECK_FUNCTION_EXISTS(posix_memalign HAVE_POSIX_MEMALIGN)
-  IF(HAVE_POSIX_MEMALIGN)
-    ADD_DEFINITIONS(-DHAVE_POSIX_MEMALIGN)
+  # Work around MDEV-18417, MDEV-18656, MDEV-18417
+  IF(WITH_ASAN AND CMAKE_COMPILER_IS_GNUCC AND
+     CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
+    SET_SOURCE_FILES_PROPERTIES(trx/trx0rec.cc PROPERTIES COMPILE_FLAGS -O1)
   ENDIF()
 
 # Only use futexes on Linux if GCC atomics are available
@@ -187,11 +197,6 @@ ENDIF(NOT MSVC)
 
 CHECK_FUNCTION_EXISTS(vasprintf  HAVE_VASPRINTF)
 
-CHECK_CXX_SOURCE_COMPILES("struct t1{ int a; char *b; }; struct t1 c= { .a=1, .b=0 }; main() { }" HAVE_C99_INITIALIZERS)
-IF(HAVE_C99_INITIALIZERS)
-  ADD_DEFINITIONS(-DHAVE_C99_INITIALIZERS)
-ENDIF()
-
 SET(MUTEXTYPE "event" CACHE STRING "Mutex type: event, sys or futex")
 
 IF(MUTEXTYPE MATCHES "event")
@@ -206,6 +211,7 @@ OPTION(WITH_INNODB_DISALLOW_WRITES "InnoDB freeze writes patch from Google" ${WI
 IF (WITH_INNODB_DISALLOW_WRITES)
   ADD_DEFINITIONS(-DWITH_INNODB_DISALLOW_WRITES)
 ENDIF()
+ADD_FEATURE_INFO(INNODB_DISALLOW_WRITES WITH_INNODB_DISALLOW_WRITES "Expose innodb_disallow_writes switch to stop innodb from writing to disk")
 
 
 # Include directories under innobase
@@ -241,8 +247,8 @@ IF(MSVC)
   SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/lexyy.c
           PROPERTIES COMPILE_FLAGS "/wd4003")
 ENDIF()
-      
+
 # Include directories under innobase
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
-		    ${CMAKE_SOURCE_DIR}/storage/innobase/handler
+                    ${CMAKE_SOURCE_DIR}/storage/innobase/handler
                     ${CMAKE_SOURCE_DIR}/libbinlogevents/include )

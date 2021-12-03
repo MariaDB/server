@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -79,19 +79,18 @@ fts_ranking_doc_id_cmp(
 }
 
 /******************************************************************//**
-Compare two fts_update_t doc_ids.
+Compare two doc_ids.
 @return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
 UNIV_INLINE
-int
-fts_update_doc_id_cmp(
+int fts_doc_id_cmp(
 /*==================*/
 	const void*	p1,			/*!< in: id1 */
 	const void*	p2)			/*!< in: id2 */
 {
-	const fts_update_t*	up1 = (const fts_update_t*) p1;
-	const fts_update_t*	up2 = (const fts_update_t*) p2;
+	const doc_id_t*	up1 = static_cast<const doc_id_t*>(p1);
+	const doc_id_t*	up2 = static_cast<const doc_id_t*>(p2);
 
-	return((int)(up1->doc_id - up2->doc_id));
+	return static_cast<int>(*up1 - *up2);
 }
 
 /******************************************************************//**
@@ -108,19 +107,21 @@ innobase_strnxfrm(
 @param[in]	cs	charset
 @retval	true	if the charset is cjk
 @retval	false	if not. */
-UNIV_INLINE
-bool
-fts_is_charset_cjk(
-	const CHARSET_INFO*	cs)
+inline bool fts_is_charset_cjk(const CHARSET_INFO* cs)
 {
-	return cs == &my_charset_gb2312_chinese_ci
-		|| cs == &my_charset_gbk_chinese_ci
-		|| cs == &my_charset_big5_chinese_ci
-		|| cs == &my_charset_ujis_japanese_ci
-		|| cs == &my_charset_sjis_japanese_ci
-		|| cs == &my_charset_cp932_japanese_ci
-		|| cs == &my_charset_eucjpms_japanese_ci
-		|| cs == &my_charset_euckr_korean_ci;
+	switch (cs->number) {
+	case 24: /* my_charset_gb2312_chinese_ci */
+	case 28: /* my_charset_gbk_chinese_ci */
+	case 1: /* my_charset_big5_chinese_ci */
+	case 12: /* my_charset_ujis_japanese_ci */
+	case 13: /* my_charset_sjis_japanese_ci */
+	case 95: /* my_charset_cp932_japanese_ci */
+	case 97: /* my_charset_eucjpms_japanese_ci */
+	case 19: /* my_charset_euckr_korean_ci */
+		return true;
+	default:
+		return false;
+	}
 }
 
 /** Select the FTS auxiliary index for the given character by range.

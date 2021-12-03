@@ -1,5 +1,4 @@
 SET global secure_auth=0;
-drop table if exists t1,t2;
 connect  con1,localhost,root,,mysql;
 show tables;
 Tables_in_mysql
@@ -9,6 +8,7 @@ db
 event
 func
 general_log
+global_priv
 gtid_slave_pos
 help_category
 help_keyword
@@ -56,6 +56,7 @@ db
 event
 func
 general_log
+global_priv
 gtid_slave_pos
 help_category
 help_keyword
@@ -98,8 +99,17 @@ ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 connect(localhost,test,zorro,test,MASTER_PORT,MASTER_SOCKET);
 connect  fail_con,localhost,test,zorro,;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
+# switching from mysql.global_priv to mysql.user
 update mysql.user set plugin="", authentication_string="", password=old_password("gambling2") where user=_binary"test";
 flush privileges;
+show grants for test@localhost;
+Grants for test@localhost
+GRANT ALL PRIVILEGES ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
+update mysql.user set plugin='mysql_old_password' where user='test';
+flush privileges;
+show grants for test@localhost;
+Grants for test@localhost
+GRANT ALL PRIVILEGES ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
 connect  con10,localhost,test,gambling2,;
 connect  con5,localhost,test,gambling2,mysql;
 set password="";
@@ -114,6 +124,7 @@ db
 event
 func
 general_log
+global_priv_bak
 gtid_slave_pos
 help_category
 help_keyword
@@ -138,6 +149,7 @@ time_zone_transition
 time_zone_transition_type
 transaction_registry
 user
+user_bak
 connect  con6,localhost,test,gambling3,test;
 show tables;
 Tables_in_test
@@ -157,8 +169,8 @@ ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 connect(localhost,test,zorro,test,MASTER_PORT,MASTER_SOCKET);
 connect  fail_con,localhost,test,zorro,;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
+# switching back from mysql.user to mysql.global_priv
 delete from mysql.user where user=_binary"test";
-flush privileges;
 connect  con7,localhost,root,,test;
 create table t1 (id integer not null auto_increment primary key);
 create temporary table t2(id integer not null auto_increment primary key);
@@ -240,7 +252,7 @@ mysqltest_u1
 root
 
 # -- Resetting variables...
-SET GLOBAL max_connections = 151;
+SET GLOBAL max_connections = #max_connections#;
 
 # -- Stopping Event Scheduler...
 SET GLOBAL event_scheduler = OFF;
@@ -353,13 +365,14 @@ connect(localhost,mysqltest_nouser,,test,MASTER_PORT,MASTER_SOCKET);
 connect pcon5,localhost,mysqltest_nouser,,,$MASTER_MYPORT,;
 ERROR 28000: Access denied for user 'mysqltest_nouser'@'localhost' (using password: NO)
 connection default;
+# switching from mysql.global_priv to mysql.user
 update mysql.user set plugin='mysql_native_password' where user = 'mysqltest_up1';
 update mysql.user set plugin='mysql_old_password' where user = 'mysqltest_up2';
 select user, password, plugin, authentication_string from mysql.user
 where user like 'mysqltest_up_';
 user	password	plugin	authentication_string
-mysqltest_up1		mysql_native_password	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB
-mysqltest_up2		mysql_old_password	09301740536db389
+mysqltest_up1	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB	mysql_native_password	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB
+mysqltest_up2	09301740536db389	mysql_old_password	09301740536db389
 flush privileges;
 connect pcon6,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,;
 select user(), current_user();
@@ -372,6 +385,7 @@ user()	current_user()
 mysqltest_up2@localhost	mysqltest_up2@%
 disconnect pcon7;
 connection default;
+# switching back from mysql.user to mysql.global_priv
 DROP USER mysqltest_up1@'%';
 DROP USER mysqltest_up2@'%';
 #
@@ -383,7 +397,6 @@ drop table t1;
 create table t1 (col1 int);
 alter table t1 add via int not null;
 drop table t1;
-drop procedure if exists p1;
 create procedure p1(x int)
 foo: loop
 if x = 0 then
@@ -399,3 +412,35 @@ test
 test
 drop procedure p1;
 SET global secure_auth=default;
+#
+# MDEV-19282: Log more specific warning with log_warnings=2 if
+# connection is aborted prior to authentication
+# MDEV-19277: Add status variable that gets incremented if
+# connection is aborted prior to authentication
+#
+flush status;
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+Variable_name	Value
+Aborted_connects	0
+Aborted_connects_preauth	0
+SET GLOBAL log_warnings=2;
+NOT FOUND /This connection closed normally without authentication/ in mysqld.1.err
+# let tcp to detect disconnect
+select sleep(1);
+sleep(1)
+0
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+Variable_name	Value
+Aborted_connects	1
+Aborted_connects_preauth	1
+FOUND 1 /This connection closed normally without authentication/ in mysqld.1.err
+SET @save_connect_timeout= @@connect_timeout;
+SET GLOBAL connect_timeout=2;
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+Variable_name	Value
+Aborted_connects	2
+Aborted_connects_preauth	2
+FOUND 2 /This connection closed normally without authentication/ in mysqld.1.err
+SET GLOBAL log_warnings=default;
+SET GLOBAL connect_timeout= @save_connect_timeout;
+# End of 10.4 tests

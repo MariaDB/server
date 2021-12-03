@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <my_global.h>
 #include <m_string.h>
@@ -61,7 +61,7 @@ static void test_many(const char **res, const char *fmt, ...)
 
 int main(void)
 {
-  plan(39);
+  plan(47);
 
   test1("Constant string",
         "Constant string");
@@ -101,10 +101,32 @@ int main(void)
 
   test1("Precision works for strings <abcde>",
         "Precision works for strings <%.5s>", "abcdef!");
+  test1("Precision works for strings <ab...>",
+        "Precision works for strings <%.5T>", "abcdef!");
 
   test1("Flag '`' (backtick) works: `abcd` `op``q` (mysql extension)",
         "Flag '`' (backtick) works: %`s %`.4s (mysql extension)",
         "abcd", "op`qrst");
+
+  test1("Flag '`' (backtick) works: `abcd` `op``q...` (mysql extension)",
+        "Flag '`' (backtick) works: %`T %`.7T (mysql extension)",
+        "abcd", "op`qrstuuuuuuuuu");
+
+  test1("Flag '`' (backtick) works: `abcd` `.` (mysql extension)",
+        "Flag '`' (backtick) works: %`T %`.1T (mysql extension)",
+        "abcd", "op`qrstuuuuuuuuu");
+
+  test1("Flag '`' (backtick) works: `abcd` `...` (mysql extension)",
+        "Flag '`' (backtick) works: %`T %`.3T (mysql extension)",
+        "abcd", "op`qrstuuuuuuuuu");
+
+  test1("Flag '`' (backtick) works: `abcd` `op...` (mysql extension)",
+        "Flag '`' (backtick) works: %`T %`.5T (mysql extension)",
+        "abcd", "op`qrstuuuuuuuuu");
+
+  test1("Flag '`' (backtick) works: `abcd` `op``...` (mysql extension)",
+        "Flag '`' (backtick) works: %`T %`.6T (mysql extension)",
+        "abcd", "op`qrstuuuuuuuuu");
 
   test1("Length modifiers work: 1 * -1 * 2 * 3",
         "Length modifiers work: %d * %ld * %lld * %zd", 1, -1L, 2LL, (size_t)3);
@@ -128,11 +150,17 @@ int main(void)
   test1("Asterisk '*' as a precision works: <qwerty>",
         "Asterisk '*' as a precision works: <%.*s>", 6, "qwertyuiop");
 
+  test1("Asterisk '*' as a precision works: <qwe...>",
+        "Asterisk '*' as a precision works: <%.*T>", 6, "qwertyuiop");
+
   test1("Positional arguments for a width: <    4>",
         "Positional arguments for a width: <%1$*2$d>", 4, 5);
 
   test1("Positional arguments for a precision: <qwerty>",
         "Positional arguments for a precision: <%1$.*2$s>", "qwertyuiop", 6);
+
+  test1("Positional arguments for a precision: <qwe...>",
+        "Positional arguments for a precision: <%1$.*2$T>", "qwertyuiop", 6);
 
   test1("Positional arguments and a width: <0000ab>",
         "Positional arguments and a width: <%1$06x>", 0xab);
@@ -168,14 +196,14 @@ int main(void)
   test1("M with positional: 0 \"Internal error/check (Not system error)\"",
         "M with positional: %1$M", 0);
 
-  test1("M with width: 0 \"Internal error/ch",
+  test1("M with width: 0 \"Internal error...",
         "M with width: %.20M", 0);
-  test1("M with width positional: 0 \"Internal error/ch",
+  test1("M with width positional: 0 \"Internal error...",
         "M with width positional: %2$.*1$M", 20, 0);
 
-  test_w_len("M small buf: 0 \"In",
+  test_w_len("M small buf: 0 \"..",
          19, "M small buf: %M", 0);
-  test_w_len("M small buf positional: 0 \"In",
+  test_w_len("M small buf positional: 0 \"..",
          30, "M small buf positional: %1$M", 0);
 
   return exit_status();

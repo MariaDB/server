@@ -25,7 +25,7 @@ CREATE TABLE t2 (pk int primary key) ENGINE=ROCKSDB PARTITION BY KEY(pk) PARTITI
 
 # Send shutdown to the connected server and give it 10 seconds to die before
 # zapping it
-shutdown_server 10;
+shutdown_server;
 
 # Write file to make mysql-test-run.pl start up the server again
 --exec echo "restart" >$_expect_file_name
@@ -42,7 +42,7 @@ shutdown_server 10;
 
 # Now shut down again and rename one of the .frm files
 --exec echo "wait" >$_expect_file_name
-shutdown_server 10;
+shutdown_server;
 
 # Rename the file
 --move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm.tmp
@@ -70,7 +70,7 @@ shutdown_server 10;
 
 # Now shut down again and rename one the .frm file back and make a copy of it
 --exec echo "wait" >$_expect_file_name
-shutdown_server 10;
+shutdown_server;
 --remove_file $LOG
 # Rename the file
 --move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm
@@ -92,7 +92,7 @@ shutdown_server 10;
 
 # Shut down an clean up
 --exec echo "wait" >$_expect_file_name
-shutdown_server 10;
+shutdown_server;
 --remove_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t1_dummy.frm
 --exec echo "restart" >$_expect_file_name
 --enable_reconnect

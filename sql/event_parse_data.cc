@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -97,7 +97,7 @@ Event_parse_data::init_name(THD *thd, sp_name *spn)
   ENDS or AT is in the past, we are trying to create an event that
   will never be executed.  If it has ON COMPLETION NOT PRESERVE
   (default), then it would normally be dropped already, so on CREATE
-  EVENT we give a warning, and do not create anyting.  On ALTER EVENT
+  EVENT we give a warning, and do not create anything.  On ALTER EVENT
   we give a error, and do not change the event.
 
   If the event has ON COMPLETION PRESERVE, then we see if the event is
@@ -216,7 +216,13 @@ Event_parse_data::init_execute_at(THD *thd)
                       (starts_null && ends_null)));
   DBUG_ASSERT(starts_null && ends_null);
 
-  if (item_execute_at->get_date(thd, &ltime, TIME_NO_ZERO_DATE))
+  /*
+    The expected data type is DATETIME. No nanoseconds truncation should
+    normally be needed. Using the default rounding mode.
+    See more comments in event_data_object.cc.
+  */
+  if (item_execute_at->get_date(thd, &ltime, TIME_NO_ZERO_DATE |
+                                             thd->temporal_round_mode()))
     goto wrong_value;
 
   ltime_utc= TIME_to_timestamp(thd,&ltime,&not_used);
@@ -356,7 +362,7 @@ wrong_value:
     EVERY 5 MINUTE STARTS "2004-12-12 10:00:00" means that
     the event will be executed every 5 minutes but this will
     start at the date shown above. Expressions are possible :
-    DATE_ADD(NOW(), INTERVAL 1 DAY)  -- start tommorow at
+    DATE_ADD(NOW(), INTERVAL 1 DAY)  -- start tomorrow at
     same time.
 
   RETURN VALUE
@@ -378,7 +384,8 @@ Event_parse_data::init_starts(THD *thd)
   if (item_starts->fix_fields(thd, &item_starts))
     goto wrong_value;
 
-  if (item_starts->get_date(thd, &ltime, TIME_NO_ZERO_DATE))
+  if (item_starts->get_date(thd, &ltime, TIME_NO_ZERO_DATE |
+                                         thd->temporal_round_mode()))
     goto wrong_value;
 
   ltime_utc= TIME_to_timestamp(thd, &ltime, &not_used);
@@ -410,7 +417,7 @@ wrong_value:
     EVERY 5 MINUTE ENDS "2004-12-12 10:00:00" means that
     the event will be executed every 5 minutes but this will
     end at the date shown above. Expressions are possible :
-    DATE_ADD(NOW(), INTERVAL 1 DAY)  -- end tommorow at
+    DATE_ADD(NOW(), INTERVAL 1 DAY)  -- end tomorrow at
     same time.
 
   RETURN VALUE
@@ -433,7 +440,8 @@ Event_parse_data::init_ends(THD *thd)
     goto error_bad_params;
 
   DBUG_PRINT("info", ("convert to TIME"));
-  if (item_ends->get_date(thd, &ltime, TIME_NO_ZERO_DATE))
+  if (item_ends->get_date(thd, &ltime, TIME_NO_ZERO_DATE |
+                                       thd->temporal_round_mode()))
     goto error_bad_params;
 
   ltime_utc= TIME_to_timestamp(thd, &ltime, &not_used);

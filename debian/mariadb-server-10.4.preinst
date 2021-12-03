@@ -13,7 +13,6 @@ if [ -n "$DEBIAN_SCRIPT_DEBUG" ]; then set -v -x; DEBIAN_SCRIPT_TRACE=1; fi
 ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 
 export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
-MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
 mysql_datadir=/var/lib/mysql
 mysql_upgradedir=/var/lib/mysql-upgrade
 
@@ -21,25 +20,18 @@ mysql_upgradedir=/var/lib/mysql-upgrade
 # do it himself. No database directories should be removed while the server
 # is running! Another mysqld in e.g. a different chroot is fine for us.
 stop_server() {
-    if [ ! -x /etc/init.d/mysql ]; then return; fi
-
     # Return immediately if there are no mysql processes running
     # as there is no point in trying to shutdown in that case.
-    if ! pgrep mysqld > /dev/null; then return; fi
+    if ! pgrep -x --ns $$ mysqld > /dev/null; then return; fi
 
     set +e
-    if [ -x /usr/sbin/invoke-rc.d ]; then
-      cmd="invoke-rc.d mysql stop"
-    else
-      cmd="/etc/init.d/mysql stop"
-    fi
-    $cmd
+    systemctl stop mysql
     errno=$?
     set -e
 
     # 0=ok, 100=no init script (fresh install)
     if [ "$errno" != 0 -a "$errno" != 100 ]; then
-      echo "${cmd/ */} returned $errno" 1>&2
+      echo "'systemctl stop mysql' returned $errno" 1>&2
       echo "There is a MySQL server running, but we failed in our attempts to stop it." 1>&2
       echo "Stop it yourself and try again!" 1>&2
       db_stop

@@ -1020,6 +1020,7 @@ a	b
 2001	Second in MAX
 ALTER TABLE t1 ANALYZE PARTITION MAX;
 Table	Op	Msg_type	Msg_text
+MySQL_Test_DB.t1	analyze	status	Engine-independent statistics collected
 MySQL_Test_DB.t1	analyze	note	The storage engine for the table doesn't support analyze
 # Truncate without FLUSH
 ALTER TABLE t1 TRUNCATE PARTITION MAX;

@@ -212,6 +212,7 @@ count(*)
 select count(*) from innodb_page_compressed9 where c1 < 500000;
 count(*)
 5000
+# restart
 update innodb_page_compressed1 set c1 = c1 + 1;
 update innodb_page_compressed2 set c1 = c1 + 1;
 update innodb_page_compressed3 set c1 = c1 + 1;
@@ -298,6 +299,7 @@ count(*)
 select count(*) from innodb_page_compressed9 where c1 < 500000;
 count(*)
 5000
+# restart
 update innodb_page_compressed1 set c1 = c1 + 1;
 update innodb_page_compressed2 set c1 = c1 + 1;
 update innodb_page_compressed3 set c1 = c1 + 1;

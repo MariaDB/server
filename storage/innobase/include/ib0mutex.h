@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,13 +29,12 @@ Created 2013-03-26 Sunny Bains.
 #ifndef ib0mutex_h
 #define ib0mutex_h
 
-#include "ut0ut.h"
-#include "ut0rnd.h"
+#include "my_cpu.h"
 #include "os0event.h"
 #include "sync0arr.h"
 
 /** OS mutex for tracking lock/unlock for debugging */
-template <template <typename> class Policy = NoPolicy>
+template <template <typename> class Policy>
 struct OSTrackMutex {
 
 	typedef Policy<OSTrackMutex> MutexPolicy;
@@ -152,7 +151,7 @@ private:
 #include <sys/syscall.h>
 
 /** Mutex implementation that used the Linux futex. */
-template <template <typename> class Policy = NoPolicy>
+template <template <typename> class Policy>
 struct TTASFutexMutex {
 
 	typedef Policy<TTASFutexMutex> MutexPolicy;
@@ -167,21 +166,24 @@ struct TTASFutexMutex {
 
 	~TTASFutexMutex()
 	{
-		ut_a(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Called when the mutex is "created". Note: Not from the constructor
 	but when the mutex is initialised. */
 	void init(latch_id_t, const char*, uint32_t) UNIV_NOTHROW
 	{
-		ut_a(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Destroy the mutex. */
 	void destroy() UNIV_NOTHROW
 	{
 		/* The destructor can be called at shutdown. */
-		ut_a(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Acquire the mutex.
@@ -202,9 +204,8 @@ struct TTASFutexMutex {
 		}
 
 		for (n_waits= 0;; n_waits++) {
-			if (my_atomic_fas32_explicit(&m_lock_word,
-						     MUTEX_STATE_WAITERS,
-						     MY_MEMORY_ORDER_ACQUIRE)
+			if (m_lock_word.exchange(MUTEX_STATE_WAITERS,
+						 std::memory_order_acquire)
 			    == MUTEX_STATE_UNLOCKED) {
 				break;
 			}
@@ -220,9 +221,8 @@ struct TTASFutexMutex {
 	/** Release the mutex. */
 	void exit() UNIV_NOTHROW
 	{
-		if (my_atomic_fas32_explicit(&m_lock_word,
-					     MUTEX_STATE_UNLOCKED,
-					     MY_MEMORY_ORDER_RELEASE)
+		if (m_lock_word.exchange(MUTEX_STATE_UNLOCKED,
+					 std::memory_order_release)
 		    == MUTEX_STATE_WAITERS) {
 			syscall(SYS_futex, &m_lock_word, FUTEX_WAKE_PRIVATE,
 				1, 0, 0, 0);
@@ -234,10 +234,11 @@ struct TTASFutexMutex {
 	bool try_lock() UNIV_NOTHROW
 	{
 		int32 oldval = MUTEX_STATE_UNLOCKED;
-		return(my_atomic_cas32_strong_explicit(&m_lock_word, &oldval,
-						       MUTEX_STATE_LOCKED,
-						       MY_MEMORY_ORDER_ACQUIRE,
-						       MY_MEMORY_ORDER_RELAXED));
+		return m_lock_word.compare_exchange_strong(
+			oldval,
+			MUTEX_STATE_LOCKED,
+			std::memory_order_acquire,
+			std::memory_order_relaxed);
 	}
 
 	/** @return non-const version of the policy */
@@ -257,12 +258,12 @@ private:
 
 	/** lock_word is the target of the atomic test-and-set instruction
 	when atomic operations are enabled. */
-	int32			m_lock_word;
+	std::atomic<int32>	m_lock_word;
 };
 
 #endif /* HAVE_IB_LINUX_FUTEX */
 
-template <template <typename> class Policy = NoPolicy>
+template <template <typename> class Policy>
 struct TTASMutex {
 
 	typedef Policy<TTASMutex> MutexPolicy;
@@ -277,40 +278,45 @@ struct TTASMutex {
 
 	~TTASMutex()
 	{
-		ut_ad(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Called when the mutex is "created". Note: Not from the constructor
 	but when the mutex is initialised. */
 	void init(latch_id_t) UNIV_NOTHROW
 	{
-		ut_ad(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Destroy the mutex. */
 	void destroy() UNIV_NOTHROW
 	{
 		/* The destructor can be called at shutdown. */
-		ut_ad(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Try and lock the mutex.
 	@return true on success */
 	bool try_lock() UNIV_NOTHROW
 	{
-		int32 oldval = MUTEX_STATE_UNLOCKED;
-		return(my_atomic_cas32_strong_explicit(&m_lock_word, &oldval,
-						       MUTEX_STATE_LOCKED,
-						       MY_MEMORY_ORDER_ACQUIRE,
-						       MY_MEMORY_ORDER_RELAXED));
+		uint32_t oldval = MUTEX_STATE_UNLOCKED;
+		return m_lock_word.compare_exchange_strong(
+			oldval,
+			MUTEX_STATE_LOCKED,
+			std::memory_order_acquire,
+			std::memory_order_relaxed);
 	}
 
 	/** Release the mutex. */
 	void exit() UNIV_NOTHROW
 	{
-		ut_ad(m_lock_word == MUTEX_STATE_LOCKED);
-		my_atomic_store32_explicit(&m_lock_word, MUTEX_STATE_UNLOCKED,
-					   MY_MEMORY_ORDER_RELEASE);
+		ut_ad(m_lock_word.load(std::memory_order_relaxed)
+		      == MUTEX_STATE_LOCKED);
+		m_lock_word.store(MUTEX_STATE_UNLOCKED,
+				  std::memory_order_release);
 	}
 
 	/** Acquire the mutex.
@@ -353,12 +359,11 @@ private:
 	/** Policy data */
 	MutexPolicy		m_policy;
 
-	/** lock_word is the target of the atomic test-and-set instruction
-	when atomic operations are enabled. */
-	int32			m_lock_word;
+	/** mutex state */
+	std::atomic<uint32_t>	m_lock_word;
 };
 
-template <template <typename> class Policy = NoPolicy>
+template <template <typename> class Policy>
 struct TTASEventMutex {
 
 	typedef Policy<TTASEventMutex> MutexPolicy;
@@ -376,7 +381,7 @@ struct TTASEventMutex {
 	~TTASEventMutex()
 		UNIV_NOTHROW
 	{
-		ut_ad(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(state() == MUTEX_STATE_UNLOCKED);
 	}
 
 	/** Called when the mutex is "created". Note: Not from the constructor
@@ -385,7 +390,7 @@ struct TTASEventMutex {
 	void init(latch_id_t id, const char*, uint32_t) UNIV_NOTHROW
 	{
 		ut_a(m_event == 0);
-		ut_a(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(state() == MUTEX_STATE_UNLOCKED);
 
 		m_event = os_event_create(sync_latch_get_name(id));
 	}
@@ -396,7 +401,7 @@ struct TTASEventMutex {
 	void destroy()
 		UNIV_NOTHROW
 	{
-		ut_ad(m_lock_word == MUTEX_STATE_UNLOCKED);
+		ut_ad(state() == MUTEX_STATE_UNLOCKED);
 
 		/* We have to free the event before InnoDB shuts down. */
 		os_event_destroy(m_event);
@@ -408,20 +413,20 @@ struct TTASEventMutex {
 	bool try_lock()
 		UNIV_NOTHROW
 	{
-		int32 oldval = MUTEX_STATE_UNLOCKED;
-		return(my_atomic_cas32_strong_explicit(&m_lock_word, &oldval,
-						       MUTEX_STATE_LOCKED,
-						       MY_MEMORY_ORDER_ACQUIRE,
-						       MY_MEMORY_ORDER_RELAXED));
+		uint32_t oldval = MUTEX_STATE_UNLOCKED;
+		return m_lock_word.compare_exchange_strong(
+			oldval,
+			MUTEX_STATE_LOCKED,
+			std::memory_order_acquire,
+			std::memory_order_relaxed);
 	}
 
 	/** Release the mutex. */
 	void exit()
 		UNIV_NOTHROW
 	{
-		if (my_atomic_fas32_explicit(&m_lock_word,
-					     MUTEX_STATE_UNLOCKED,
-					     MY_MEMORY_ORDER_RELEASE)
+		if (m_lock_word.exchange(MUTEX_STATE_UNLOCKED,
+					 std::memory_order_release)
 		    == MUTEX_STATE_WAITERS) {
 			os_event_set(m_event);
 			sync_array_object_signalled();
@@ -459,11 +464,12 @@ struct TTASEventMutex {
 					: SYNC_MUTEX,
 					filename, line, &cell);
 
-				int32 oldval = MUTEX_STATE_LOCKED;
-				my_atomic_cas32_strong_explicit(&m_lock_word, &oldval,
-								MUTEX_STATE_WAITERS,
-								MY_MEMORY_ORDER_RELAXED,
-								MY_MEMORY_ORDER_RELAXED);
+				uint32_t oldval = MUTEX_STATE_LOCKED;
+				m_lock_word.compare_exchange_strong(
+					oldval,
+					MUTEX_STATE_WAITERS,
+					std::memory_order_relaxed,
+					std::memory_order_relaxed);
 
 				if (oldval == MUTEX_STATE_UNLOCKED) {
 					sync_array_free_cell(sync_arr, cell);
@@ -482,9 +488,7 @@ struct TTASEventMutex {
 	int32 state() const
 		UNIV_NOTHROW
 	{
-		return(my_atomic_load32_explicit(const_cast<int32*>
-						 (&m_lock_word),
-						 MY_MEMORY_ORDER_RELAXED));
+		return m_lock_word.load(std::memory_order_relaxed);
 	}
 
 	/** The event that the mutex will wait in sync0arr.cc
@@ -514,9 +518,8 @@ private:
 	TTASEventMutex(const TTASEventMutex&);
 	TTASEventMutex& operator=(const TTASEventMutex&);
 
-	/** lock_word is the target of the atomic test-and-set instruction
-	when atomic operations are enabled. */
-	int32			m_lock_word;
+	/** mutex state */
+	std::atomic<uint32_t>	m_lock_word;
 
 	/** Used by sync0arr.cc for the wait queue */
 	os_event_t		m_event;
@@ -530,7 +533,6 @@ with the Performance Schema instrumentation. */
 template <typename MutexImpl>
 struct PolicyMutex
 {
-	typedef MutexImpl MutexType;
 	typedef typename MutexImpl::MutexPolicy Policy;
 
 	PolicyMutex() UNIV_NOTHROW : m_impl()
@@ -561,7 +563,7 @@ struct PolicyMutex
 		pfs_exit();
 #endif /* UNIV_PFS_MUTEX */
 
-		policy().release(m_impl);
+		ut_d(policy().context.release(m_impl));
 
 		m_impl.exit();
 	}
@@ -587,11 +589,11 @@ struct PolicyMutex
 		locker = pfs_begin_lock(&state, name, line);
 #endif /* UNIV_PFS_MUTEX */
 
-		policy().enter(m_impl, name, line);
+		ut_d(policy().context.enter(m_impl, name, line));
 
 		m_impl.enter(n_spins, n_delay, name, line);
 
-		policy().locked(m_impl, name, line);
+		ut_d(policy().context.locked(m_impl, name, line));
 #ifdef UNIV_PFS_MUTEX
 		pfs_end(locker, 0);
 #endif /* UNIV_PFS_MUTEX */
@@ -620,9 +622,9 @@ struct PolicyMutex
 
 		if (ret == 0) {
 
-			policy().enter(m_impl, name, line);
+			ut_d(policy().context.enter(m_impl, name, line));
 
-			policy().locked(m_impl, name, line);
+			ut_d(policy().context.locked(m_impl, name, line));
 		}
 
 #ifdef UNIV_PFS_MUTEX
@@ -636,7 +638,7 @@ struct PolicyMutex
 	/** @return true if the thread owns the mutex. */
 	bool is_owned() const UNIV_NOTHROW
 	{
-		return(policy().is_owned());
+		return(policy().context.is_owned());
 	}
 #endif /* UNIV_DEBUG */
 
@@ -658,6 +660,7 @@ struct PolicyMutex
 
 		m_impl.init(id, filename, line);
 		policy().init(m_impl, id, filename, line);
+		ut_d(policy().context.init(id));
 	}
 
 	/** Free resources (if any) */
@@ -668,6 +671,7 @@ struct PolicyMutex
 #endif /* UNIV_PFS_MUTEX */
 		m_impl.destroy();
 		policy().destroy();
+		ut_d(policy().context.destroy());
 	}
 
 	/** Required for os_event_t */

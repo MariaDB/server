@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* This file is included by all internal maria files */
 
@@ -501,6 +501,7 @@ typedef struct st_maria_share
   my_bool have_versioning;
   my_bool key_del_used;                         /* != 0 if key_del is locked */
   my_bool deleting;                     /* we are going to delete this table */
+  my_bool redo_error_given;             /* Used during recovery */
   THR_LOCK lock;
   void (*lock_restore_status)(void *);
   /**
@@ -642,6 +643,7 @@ struct st_maria_handler
   invalidator_by_filename invalidator;	/* query cache invalidator */
   ulonglong last_auto_increment;        /* auto value at start of statement */
   ulonglong row_changes;                /* Incremented for each change */
+  ulonglong start_row_changes;          /* Row changes since start trans */
   ulong this_unique;			/* uniq filenumber or thread */
   ulong last_unique;			/* last unique number */
   ulong this_loop;			/* counter for this open */
@@ -689,6 +691,7 @@ struct st_maria_handler
   uint16 last_used_keyseg;              /* For MARIAMRG */
   uint8 key_del_used;                   /* != 0 if key_del is used */
   my_bool was_locked;			/* Was locked in panic */
+  my_bool intern_lock_locked;           /* locked in ma_extra() */
   my_bool append_insert_at_end;		/* Set if concurrent insert */
   my_bool quick_mode;
   my_bool in_check_table;                /* We are running check tables */
@@ -780,8 +783,8 @@ struct st_maria_handler
   transid_korr((buff) + LSN_STORE_SIZE)
 #define _ma_store_keypage_flag(share,x,flag) x[(share)->keypage_header - KEYPAGE_USED_SIZE - KEYPAGE_FLAG_SIZE]= (flag)
 #define _ma_mark_page_with_transid(share, page) \
-  (page)->flag|= KEYPAGE_FLAG_HAS_TRANSID;                              \
-  (page)->buff[(share)->keypage_header - KEYPAGE_USED_SIZE - KEYPAGE_FLAG_SIZE]= (page)->flag;
+  do { (page)->flag|= KEYPAGE_FLAG_HAS_TRANSID;                        \
+    (page)->buff[(share)->keypage_header - KEYPAGE_USED_SIZE - KEYPAGE_FLAG_SIZE]= (page)->flag; } while (0)
 
 #define KEYPAGE_KEY_VERSION(share, x) ((x) + \
                                        (share)->keypage_header -        \
@@ -1195,7 +1198,7 @@ extern my_bool _ma_read_cache(MARIA_HA *, IO_CACHE *info, uchar *buff,
                               uint re_read_if_possibly);
 extern ulonglong ma_retrieve_auto_increment(const uchar *key, uint8 key_type);
 extern my_bool _ma_alloc_buffer(uchar **old_addr, size_t *old_size,
-                                size_t new_size);
+                                size_t new_size, myf flag);
 extern size_t _ma_rec_unpack(MARIA_HA *info, uchar *to, uchar *from,
                             size_t reclength);
 extern my_bool _ma_rec_check(MARIA_HA *info, const uchar *record,
@@ -1417,6 +1420,9 @@ extern my_bool maria_page_crc_check_bitmap(int, PAGECACHE_IO_HOOK_ARGS *args);
 extern my_bool maria_page_crc_check_data(int, PAGECACHE_IO_HOOK_ARGS *args);
 extern my_bool maria_page_crc_check_index(int, PAGECACHE_IO_HOOK_ARGS *args);
 extern my_bool maria_page_crc_check_none(int, PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_page_crc_check(uchar *page, pgcache_page_no_t page_no,
+                                    MARIA_SHARE *share, uint32 no_crc_val,
+                                    int data_length);
 extern my_bool maria_page_filler_set_bitmap(PAGECACHE_IO_HOOK_ARGS *args);
 extern my_bool maria_page_filler_set_normal(PAGECACHE_IO_HOOK_ARGS *args);
 extern my_bool maria_page_filler_set_none(PAGECACHE_IO_HOOK_ARGS *args);
@@ -1427,9 +1433,17 @@ extern my_bool maria_flush_log_for_page_none(PAGECACHE_IO_HOOK_ARGS *args);
 extern PAGECACHE *maria_log_pagecache;
 extern void ma_set_index_cond_func(MARIA_HA *info, index_cond_func_t func,
                                    void *func_arg);
-ICP_RESULT ma_check_index_cond(MARIA_HA *info, uint keynr, uchar *record);
+check_result_t ma_check_index_cond(MARIA_HA *info, uint keynr, uchar *record);
 
 extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);
 
 extern uint _ma_file_callback_to_id(void *callback_data);
+
+static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
+{
+#ifdef HAVE_MMAP
+  if (info->s->file_map)
+    _ma_unmap_file(info);
+#endif
+}

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Cashing of files with only does (sequential) read or writes of fixed-
@@ -115,12 +115,15 @@ init_functions(IO_CACHE* info)
     DBUG_ASSERT(!(info->myflags & MY_ENCRYPT));
     info->read_function = info->share ? _my_b_cache_read_r : _my_b_cache_read;
     info->write_function = info->share ? _my_b_cache_write_r : _my_b_cache_write;
-    info->myflags&= ~MY_FULL_IO;
     break;
   case TYPE_NOT_SET:
     DBUG_ASSERT(0);
     break;
   }
+  if (type == READ_CACHE || type == WRITE_CACHE || type == SEQ_READ_APPEND)
+    info->myflags|= MY_FULL_IO;
+  else
+    info->myflags&= ~MY_FULL_IO;
 }
 
 
@@ -247,7 +250,7 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
 	  info->write_buffer= info->buffer + cachesize;
         else
           info->write_buffer= info->buffer;
-	info->alloced_buffer= 1;
+	info->alloced_buffer= buffer_block;
 	break;					/* Enough memory found */
       }
       if (cachesize == min_cache)
@@ -297,10 +300,6 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
   }
   info->inited=info->aio_result.pending=0;
 #endif
-  if (type == READ_CACHE || type == WRITE_CACHE || type == SEQ_READ_APPEND)
-    info->myflags|= MY_FULL_IO;
-  else
-    info->myflags&= ~MY_FULL_IO;
   DBUG_RETURN(0);
 }						/* init_io_cache */
 
@@ -325,14 +324,14 @@ int init_slave_io_cache(IO_CACHE *master, IO_CACHE *slave)
   DBUG_ASSERT(!master->share);
   DBUG_ASSERT(master->alloced_buffer);
 
-  if (!(slave_buf= (uchar*)my_malloc(master->buffer_length, MYF(0))))
+  if (!(slave_buf= (uchar*)my_malloc(master->alloced_buffer, MYF(0))))
   {
     return 1;
   }
   memcpy(slave, master, sizeof(IO_CACHE));
   slave->buffer= slave_buf;
 
-  memcpy(slave->buffer, master->buffer, master->buffer_length);
+  memcpy(slave->buffer, master->buffer, master->alloced_buffer);
   slave->read_pos= slave->buffer + (master->read_pos - master->buffer);
   slave->read_end= slave->buffer + (master->read_end - master->buffer);
 
@@ -469,8 +468,6 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
     {
       info->read_end=info->write_pos;
       info->end_of_file=my_b_tell(info);
-      /* Ensure we will read all data */
-      info->myflags|= MY_FULL_IO;
       /*
         Trigger a new seek only if we have a valid
         file handle.
@@ -485,7 +482,6 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
 	info->seek_not_done=1;
       }
       info->end_of_file = ~(my_off_t) 0;
-      info->myflags&= ~MY_FULL_IO;
     }
     pos=info->request_pos+(seek_offset-info->pos_in_file);
     if (type == WRITE_CACHE)
@@ -500,10 +496,20 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
   {
     /*
       If we change from WRITE_CACHE to READ_CACHE, assume that everything
-      after the current positions should be ignored
+      after the current positions should be ignored. In other cases we
+      update end_of_file as it may have changed since last init.
     */
-    if (info->type == WRITE_CACHE && type == READ_CACHE)
-      info->end_of_file=my_b_tell(info);
+    if (type == READ_CACHE)
+    {
+      if (info->type == WRITE_CACHE)
+	info->end_of_file= my_b_tell(info);
+      else
+      {
+        if (!(info->myflags & MY_ENCRYPT))
+          info->end_of_file= mysql_file_seek(info->file, 0L,
+                                             MY_SEEK_END, MYF(0));
+      }
+    }
     /* flush cache if we want to reuse it */
     if (!clear_cache && my_b_flush_io_cache(info,1))
       DBUG_RETURN(1);
@@ -808,7 +814,8 @@ int _my_b_cache_read(IO_CACHE *info, uchar *Buffer, size_t Count)
   info->read_pos=info->buffer+Count;
   info->read_end=info->buffer+length;
   info->pos_in_file=pos_in_file;
-  memcpy(Buffer, info->buffer, Count);
+  if (Count)
+    memcpy(Buffer, info->buffer, Count);
   DBUG_RETURN(0);
 }
 
@@ -1309,7 +1316,8 @@ static int _my_b_cache_read_r(IO_CACHE *cache, uchar *Buffer, size_t Count)
       DBUG_RETURN(1);
     }
     cnt= (len > Count) ? Count : len;
-    memcpy(Buffer, cache->read_pos, cnt);
+    if (cnt)
+      memcpy(Buffer, cache->read_pos, cnt);
     Count -= cnt;
     Buffer+= cnt;
     left_length+= cnt;
@@ -1386,7 +1394,7 @@ static void copy_to_read_buffer(IO_CACHE *write_cache,
 
 static int _my_b_seq_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 {
-  size_t length, diff_length, left_length= 0, save_count, max_length;
+  size_t length, diff_length, save_count, max_length;
   my_off_t pos_in_file;
   save_count=Count;
 
@@ -1437,7 +1445,6 @@ static int _my_b_seq_read(IO_CACHE *info, uchar *Buffer, size_t Count)
       */
       goto read_append_buffer;
     }
-    left_length+=length;
     diff_length=0;
   }
 
@@ -1604,7 +1611,7 @@ int _my_b_async_read(IO_CACHE *info, uchar *Buffer, size_t Count)
     Buffer+=length;
     Count-=length;
     left_length+=length;
-    info->read_end=info->rc_pos+read_length;
+    info->read_end=info->read_pos+read_length;
     info->read_pos+=length;
   }
   else

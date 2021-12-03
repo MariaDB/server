@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -110,6 +110,65 @@ static int check_event_type(int type, Relay_log_info *rli)
 }
 
 /**
+  Copy fragments into the standard placeholder thd->lex->comment.str.
+
+  Compute the size of the (still) encoded total,
+  allocate and then copy fragments one after another.
+  The size can exceed max(max_allowed_packet) which is not a
+  problem as no String instance is created off this char array.
+
+  @param thd  THD handle
+  @return
+     0        at success,
+    -1        otherwise.
+*/
+int binlog_defragment(THD *thd)
+{
+  user_var_entry *entry[2];
+  LEX_CSTRING name[2]= { thd->lex->comment, thd->lex->ident };
+
+  /* compute the total size */
+  thd->lex->comment.str= NULL;
+  thd->lex->comment.length= 0;
+  for (uint k= 0; k < 2; k++)
+  {
+    entry[k]=
+      (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name[k].str,
+                                       name[k].length);
+    if (!entry[k] || entry[k]->type != STRING_RESULT)
+    {
+      my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), name[k].str);
+      return -1;
+    }
+    thd->lex->comment.length += entry[k]->length;
+  }
+
+  thd->lex->comment.str=                            // to be freed by the caller
+    (char *) my_malloc(thd->lex->comment.length, MYF(MY_WME));
+  if (!thd->lex->comment.str)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
+    return -1;
+  }
+
+  /* fragments are merged into allocated buf while the user var:s get reset */
+  size_t gathered_length= 0;
+  for (uint k=0; k < 2; k++)
+  {
+    memcpy(const_cast<char*>(thd->lex->comment.str) + gathered_length, entry[k]->value,
+           entry[k]->length);
+    gathered_length += entry[k]->length;
+  }
+  for (uint k=0; k < 2; k++)
+    update_hash(entry[k], true, NULL, 0, STRING_RESULT, &my_charset_bin, 0);
+
+  DBUG_ASSERT(gathered_length == thd->lex->comment.length);
+
+  return 0;
+}
+
+
+/**
   Execute a BINLOG statement.
 
   To execute the BINLOG command properly the server needs to know
@@ -134,14 +193,6 @@ void mysql_client_binlog_statement(THD* thd)
   if (check_global_access(thd, SUPER_ACL))
     DBUG_VOID_RETURN;
 
-  size_t coded_len= thd->lex->comment.length;
-  if (!coded_len)
-  {
-    my_error(ER_SYNTAX_ERROR, MYF(0));
-    DBUG_VOID_RETURN;
-  }
-  size_t decoded_len= my_base64_needed_decoded_length((int)coded_len);
-
   /*
     option_bits will be changed when applying the event. But we don't expect
     it be changed permanently after BINLOG statement, so backup it first.
@@ -156,6 +207,8 @@ void mysql_client_binlog_statement(THD* thd)
   int err;
   Relay_log_info *rli;
   rpl_group_info *rgi;
+  char *buf= NULL;
+  size_t coded_len= 0, decoded_len= 0;
 
   rli= thd->rli_fake;
   if (!rli && (rli= thd->rli_fake= new Relay_log_info(FALSE)))
@@ -165,19 +218,36 @@ void mysql_client_binlog_statement(THD* thd)
   rgi->thd= thd;
 
   const char *error= 0;
-  char *buf= (char *) my_malloc(decoded_len, MYF(MY_WME));
   Log_event *ev = 0;
+  my_bool is_fragmented= FALSE;
 
   /*
     Out of memory check
   */
-  if (!(rli && buf))
+  if (!(rli))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);  /* needed 1 bytes */
     goto end;
   }
 
   DBUG_ASSERT(rli->belongs_to_client());
+
+  if (unlikely(is_fragmented= thd->lex->comment.str && thd->lex->ident.str))
+    if (binlog_defragment(thd))
+      goto end;
+
+  if (!(coded_len= thd->lex->comment.length))
+  {
+    my_error(ER_SYNTAX_ERROR, MYF(0));
+    goto end;
+  }
+
+  decoded_len= my_base64_needed_decoded_length((int)coded_len);
+  if (!(buf= (char *) my_malloc(decoded_len, MYF(MY_WME))))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
+    goto end;
+  }
 
   for (char const *strptr= thd->lex->comment.str ;
        strptr < thd->lex->comment.str + thd->lex->comment.length ; )
@@ -317,6 +387,8 @@ void mysql_client_binlog_statement(THD* thd)
   my_ok(thd);
 
 end:
+  if (unlikely(is_fragmented))
+    my_free(const_cast<char*>(thd->lex->comment.str));
   thd->variables.option_bits= thd_options;
   rgi->slave_close_thread_tables(thd);
   my_free(buf);

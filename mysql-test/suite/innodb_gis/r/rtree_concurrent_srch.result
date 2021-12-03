@@ -234,7 +234,7 @@ start transaction;
 set @g1 = ST_GeomFromText('Polygon((800 800, 800 1000, 1000 1000, 1000 800, 800 800))');
 select count(*) from t1 where MBRwithin(t1.c2, @g1);
 count(*)
-201
+199
 connection b;
 CALL insert_t1(1001, 2000);
 set session transaction isolation level serializable;

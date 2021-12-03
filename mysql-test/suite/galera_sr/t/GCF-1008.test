@@ -1,0 +1,18 @@
+#
+# GCF-1008 SR trx fails to apply because previous trx is not committed yet on applier
+#
+
+--source include/have_debug_sync.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/galera_have_debug_sync.inc
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--let $galera_sync_point = before_local_commit_monitor_enter
+--source GCF-1008.inc
+
+--let $galera_sync_point = before_certify_apply_monitor_enter
+--source GCF-1008.inc
+

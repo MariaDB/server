@@ -752,6 +752,40 @@ SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selecti
 set @@old_mode= @save_old_mode;
 
 --echo #
+--echo # MDEV-21319 COUNT(*) returns 1, actual SELECT returns no result in 10.3.21, but 1 result in 10.1.41
+--echo #
+
+CREATE OR REPLACE TABLE t1
+(
+  id INT NOT NULL PRIMARY KEY,
+  id2 INT,
+  k TINYINT,
+  j INT,
+  t TIME,
+  KEY k1 (id2,k,j,t)
+);
+INSERT INTO t1 VALUES
+(53,54,1,0,'10:09:59'),
+(54,54,1,0,'16:28:41'),
+(55,54,1,0,'16:29:10'),
+(56,54,1,0,'16:29:43'),
+(57,54,1,0,'16:30:16'),
+(58,54,1,0,'16:30:49'),
+(59,54,1,0,'16:31:23'),
+(60,54,1,0,'16:31:55'),
+(61,54,1,0,'16:32:28'),
+(62,54,1,0,'16:33:01'),
+(63,54,1,0,'16:33:34'),
+(64,54,1,0,'16:34:07'),
+(65,54,1,0,'16:34:40'),
+(66,54,1,0,'16:35:13'),
+(67,54,1,0,'16:35:46'),
+(68,54,1,0,'16:36:19');
+SELECT t FROM t1 GROUP BY t HAVING t=MAX(t);
+SELECT t FROM t1 WHERE id2=54 AND j=0 AND k=1 GROUP BY t HAVING t=MAX(t);
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
 
@@ -784,6 +818,25 @@ CREATE FUNCTION f1() RETURNS DATE RETURN DATE'2001-01-01';
 SELECT CAST(f1() AS TIME);
 DROP FUNCTION  f1;
 
+
+--echo #
+--echo # MDEV-21619 Server crash or assertion failures in my_datetime_to_str
+--echo #
+
+CREATE TABLE t1 (f TIME, KEY(f));
+INSERT INTO t1 VALUES ('10:10:10'),('20:20:20');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '23:59:59';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-27098 Subquery using the ALL keyword on TIME columns produces a wrong result
+--echo #
+
+CREATE TABLE t1 (d TIME);
+INSERT INTO t1 VALUES ('120:00:00'), ('20:00:00'), ('-120:00:00'), ('-220:00:00');
+SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
+SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.2 tests
@@ -1408,6 +1461,104 @@ DROP TABLE IF EXISTS t1;
 
 SELECT TIMESTAMP(0)='z', DATE(0)='z', TIME(0)='z';
 
+
+--echo #
+--echo # MDEV-17319 Assertion `ts_type != MYSQL_TIMESTAMP_TIME' failed upon inserting into TIME field
+--echo #
+
+CREATE TABLE t1 (t TIME);
+SET SESSION SQL_MODE='TRADITIONAL';
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00'),('0000-00-00 00:00:00');
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18070 Assertion `nanoseconds <= 1000000000' failed in Temporal::add_nanoseconds_ssff with TIME_ROUND_FRACTIONAL
+--echo #
+
+CREATE TABLE t1 (t TIME);
+SET SQL_MODE= 'TIME_ROUND_FRACTIONAL';
+INSERT INTO t1 VALUES (3e19);
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-18876 Assertion `is_valid_time_slow()' failed in Time::valid_MYSQL_TIME_to_valid_value
+--echo #
+
+CREATE TABLE t1 (f INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT f FROM t1 ORDER BY 1 && ( '1972-11-06 16:58:58' BETWEEN CONVERT( 0, TIME ) AND '20:31:05' );
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a VARCHAR(32));
+INSERT INTO t1 VALUES ('1972-11-06 16:58:58');
+SELECT * FROM t1 WHERE a < TIME'20:31:05';
+SELECT a < TIME'20:31:05' FROM t1;
+DROP TABLE t1;
+
+SELECT '1972-11-06 16:58:58' < TIME'20:31:05';
+
+--echo #
+--echo # MDEV-23525 Wrong result of MIN(time_expr) and MAX(time_expr) with GROUP BY
+--echo #
+
+SET timestamp=UNIX_TIMESTAMP('2020-08-21 18:19:20');
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  SELECT MIN(t), MAX(t) FROM t1;
+  SELECT i, MIN(t), MAX(t) FROM t1 GROUP BY i;
+  SELECT i, MIN(COALESCE(t)), MAX(COALESCE(t)) FROM t1 GROUP BY i;
+  SELECT i, MIN(t+INTERVAL 1 SECOND), MAX(t+INTERVAL 1 SECOND) FROM t1 GROUP BY i;
+  SELECT i, MIN(TIME'10:20:30'+INTERVAL 1 SECOND) FROM t1 GROUP BY i;
+  SELECT i, MIN(CURRENT_TIME), MAX(CURRENT_TIME) FROM t1 GROUP BY i;
+  SELECT
+    i,
+    MIN((SELECT MAX(CURRENT_TIME) FROM t1)),
+    MAX((SELECT MAX(CURRENT_TIME) FROM t1))
+  FROM t1 GROUP BY i;
+  SELECT
+    i,
+    MIN(NAME_CONST('name',TIME'10:20:30')),
+    MAX(NAME_CONST('name',TIME'10:20:30'))
+  FROM t1 GROUP BY i;
+  EXECUTE IMMEDIATE "SELECT i, MIN(?),MAX(?) FROM t1 GROUP BY i"
+                    USING TIME'10:20:30', TIME'10:20:30';
+END;
+$$
+DELIMITER ;$$
+
+CREATE TABLE t1 (i INT, t TIME);
+INSERT INTO t1 VALUES (1,'10:20:30');
+INSERT INTO t1 VALUES (1,'100:20:20');
+CALL p1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i INT, t TIME(3));
+INSERT INTO t1 VALUES (1,'10:20:30.123');
+INSERT INTO t1 VALUES (1,'100:20:20.123');
+CALL p1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i INT, t TIME(6));
+INSERT INTO t1 VALUES (1,'10:20:30.123456');
+INSERT INTO t1 VALUES (1,'100:20:20.123456');
+CALL p1;
+DROP TABLE t1;
+
+SET @@global.mysql56_temporal_format=false;
+CREATE TABLE t1 (i INT, t TIME(6));
+INSERT INTO t1 VALUES (1,'10:20:30.123456');
+INSERT INTO t1 VALUES (1,'100:20:20.123456');
+CALL p1;
+DROP TABLE t1;
+SET @@global.mysql56_temporal_format=default;
+
+DROP PROCEDURE p1;
+SET timestamp=DEFAULT;
 
 --echo #
 --echo # End of 10.4 tests

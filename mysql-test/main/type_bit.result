@@ -256,7 +256,7 @@ a+0	b+0
 127	403
 explain select a+0, b+0 from t1 where a > 40 and a < 70 order by 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	2	NULL	8	Using where; Using index; Using filesort
+1	SIMPLE	t1	range	a	a	2	NULL	9	Using where; Using index; Using filesort
 select a+0, b+0 from t1 where a > 40 and a < 70 order by 2;
 a+0	b+0
 57	135
@@ -677,9 +677,13 @@ DROP TABLE t2;
 CREATE TABLE t1(a BIT(13), KEY(a));
 INSERT IGNORE INTO t1(a) VALUES
 (65535),(65525),(65535),(65535),(65535),(65535),(65535),(65535),(65535),(65535);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 EXPLAIN SELECT 1 FROM t1 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	3	NULL	6	Using index for group-by
+1	SIMPLE	t1	range	NULL	a	3	NULL	2	Using index for group-by
 SELECT 1 FROM t1 GROUP BY a;
 1
 1
@@ -762,7 +766,7 @@ CREATE TABLE t1 (a BIT(7), b BIT(9), KEY(a, b));
 INSERT INTO t1 VALUES(0, 0), (5, 3), (5, 6), (6, 4), (7, 0);
 EXPLAIN SELECT a+0, b+0 FROM t1 WHERE a > 4 and b < 7 ORDER BY 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	2	NULL	4	Using where; Using index; Using filesort
+1	SIMPLE	t1	index	a	a	5	NULL	5	Using where; Using index; Using filesort
 DROP TABLE t1;
 End of 5.0 tests
 create table t1(a bit(7));
@@ -831,6 +835,13 @@ COALESCE(val, 1)
 0
 DROP TABLE t1;
 #
+# MDEV-18452 ASAN unknown-crash in Field::set_default upon SET bit_column = DEFAULT
+#
+CREATE TABLE t1 (b BIT(20)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0);
+UPDATE t1 SET b = DEFAULT;
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
 #
@@ -864,6 +875,989 @@ EXPLAIN SELECT * FROM t1 WHERE a<=>200;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 DROP TABLE t1;
+#
+# MDEV-23323 Rounding functions return a wrong data type for a BIT, ENUM, SET argument
+#
+BEGIN NOT ATOMIC
+FOR i IN 1..64
+DO
+SELECT '-----', CONCAT('BIT(',i,')') AS Type;
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (a BIT(64))','64', i);
+INSERT IGNORE INTO t1 VALUES (0xFFFFFFFFFFFFFFFF);
+CREATE TABLE t2 AS SELECT
+a,
+FLOOR(a) AS cf,
+CEILING(a) AS cc,
+ROUND(a) AS cr,
+TRUNCATE(a,0) AS ct
+FROM t1;
+SHOW CREATE TABLE t2;
+SELECT CAST(a AS UNSIGNED) AS a, cf, cc, cr, ct FROM t2;
+DROP TABLE t2;
+DROP TABLE t1;
+END FOR;
+END;
+$$
+-----	-----
+Type	BIT(1)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(1) DEFAULT NULL,
+  `cf` int(1) unsigned DEFAULT NULL,
+  `cc` int(1) unsigned DEFAULT NULL,
+  `cr` int(1) unsigned DEFAULT NULL,
+  `ct` int(1) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	1
+cf	1
+cc	1
+cr	1
+ct	1
+-----	-----
+Type	BIT(2)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(2) DEFAULT NULL,
+  `cf` int(1) unsigned DEFAULT NULL,
+  `cc` int(1) unsigned DEFAULT NULL,
+  `cr` int(1) unsigned DEFAULT NULL,
+  `ct` int(1) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	3
+cf	3
+cc	3
+cr	3
+ct	3
+-----	-----
+Type	BIT(3)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(3) DEFAULT NULL,
+  `cf` int(1) unsigned DEFAULT NULL,
+  `cc` int(1) unsigned DEFAULT NULL,
+  `cr` int(1) unsigned DEFAULT NULL,
+  `ct` int(1) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	7
+cf	7
+cc	7
+cr	7
+ct	7
+-----	-----
+Type	BIT(4)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(4) DEFAULT NULL,
+  `cf` int(2) unsigned DEFAULT NULL,
+  `cc` int(2) unsigned DEFAULT NULL,
+  `cr` int(2) unsigned DEFAULT NULL,
+  `ct` int(2) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	15
+cf	15
+cc	15
+cr	15
+ct	15
+-----	-----
+Type	BIT(5)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(5) DEFAULT NULL,
+  `cf` int(2) unsigned DEFAULT NULL,
+  `cc` int(2) unsigned DEFAULT NULL,
+  `cr` int(2) unsigned DEFAULT NULL,
+  `ct` int(2) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	31
+cf	31
+cc	31
+cr	31
+ct	31
+-----	-----
+Type	BIT(6)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(6) DEFAULT NULL,
+  `cf` int(2) unsigned DEFAULT NULL,
+  `cc` int(2) unsigned DEFAULT NULL,
+  `cr` int(2) unsigned DEFAULT NULL,
+  `ct` int(2) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	63
+cf	63
+cc	63
+cr	63
+ct	63
+-----	-----
+Type	BIT(7)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(7) DEFAULT NULL,
+  `cf` int(3) unsigned DEFAULT NULL,
+  `cc` int(3) unsigned DEFAULT NULL,
+  `cr` int(3) unsigned DEFAULT NULL,
+  `ct` int(3) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	127
+cf	127
+cc	127
+cr	127
+ct	127
+-----	-----
+Type	BIT(8)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(8) DEFAULT NULL,
+  `cf` int(3) unsigned DEFAULT NULL,
+  `cc` int(3) unsigned DEFAULT NULL,
+  `cr` int(3) unsigned DEFAULT NULL,
+  `ct` int(3) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	255
+cf	255
+cc	255
+cr	255
+ct	255
+-----	-----
+Type	BIT(9)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(9) DEFAULT NULL,
+  `cf` int(3) unsigned DEFAULT NULL,
+  `cc` int(3) unsigned DEFAULT NULL,
+  `cr` int(3) unsigned DEFAULT NULL,
+  `ct` int(3) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	511
+cf	511
+cc	511
+cr	511
+ct	511
+-----	-----
+Type	BIT(10)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(10) DEFAULT NULL,
+  `cf` int(4) unsigned DEFAULT NULL,
+  `cc` int(4) unsigned DEFAULT NULL,
+  `cr` int(4) unsigned DEFAULT NULL,
+  `ct` int(4) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	1023
+cf	1023
+cc	1023
+cr	1023
+ct	1023
+-----	-----
+Type	BIT(11)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(11) DEFAULT NULL,
+  `cf` int(4) unsigned DEFAULT NULL,
+  `cc` int(4) unsigned DEFAULT NULL,
+  `cr` int(4) unsigned DEFAULT NULL,
+  `ct` int(4) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	2047
+cf	2047
+cc	2047
+cr	2047
+ct	2047
+-----	-----
+Type	BIT(12)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(12) DEFAULT NULL,
+  `cf` int(4) unsigned DEFAULT NULL,
+  `cc` int(4) unsigned DEFAULT NULL,
+  `cr` int(4) unsigned DEFAULT NULL,
+  `ct` int(4) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	4095
+cf	4095
+cc	4095
+cr	4095
+ct	4095
+-----	-----
+Type	BIT(13)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(13) DEFAULT NULL,
+  `cf` int(4) unsigned DEFAULT NULL,
+  `cc` int(4) unsigned DEFAULT NULL,
+  `cr` int(4) unsigned DEFAULT NULL,
+  `ct` int(4) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	8191
+cf	8191
+cc	8191
+cr	8191
+ct	8191
+-----	-----
+Type	BIT(14)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(14) DEFAULT NULL,
+  `cf` int(5) unsigned DEFAULT NULL,
+  `cc` int(5) unsigned DEFAULT NULL,
+  `cr` int(5) unsigned DEFAULT NULL,
+  `ct` int(5) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	16383
+cf	16383
+cc	16383
+cr	16383
+ct	16383
+-----	-----
+Type	BIT(15)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(15) DEFAULT NULL,
+  `cf` int(5) unsigned DEFAULT NULL,
+  `cc` int(5) unsigned DEFAULT NULL,
+  `cr` int(5) unsigned DEFAULT NULL,
+  `ct` int(5) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	32767
+cf	32767
+cc	32767
+cr	32767
+ct	32767
+-----	-----
+Type	BIT(16)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(16) DEFAULT NULL,
+  `cf` int(5) unsigned DEFAULT NULL,
+  `cc` int(5) unsigned DEFAULT NULL,
+  `cr` int(5) unsigned DEFAULT NULL,
+  `ct` int(5) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	65535
+cf	65535
+cc	65535
+cr	65535
+ct	65535
+-----	-----
+Type	BIT(17)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(17) DEFAULT NULL,
+  `cf` int(6) unsigned DEFAULT NULL,
+  `cc` int(6) unsigned DEFAULT NULL,
+  `cr` int(6) unsigned DEFAULT NULL,
+  `ct` int(6) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	131071
+cf	131071
+cc	131071
+cr	131071
+ct	131071
+-----	-----
+Type	BIT(18)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(18) DEFAULT NULL,
+  `cf` int(6) unsigned DEFAULT NULL,
+  `cc` int(6) unsigned DEFAULT NULL,
+  `cr` int(6) unsigned DEFAULT NULL,
+  `ct` int(6) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	262143
+cf	262143
+cc	262143
+cr	262143
+ct	262143
+-----	-----
+Type	BIT(19)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(19) DEFAULT NULL,
+  `cf` int(6) unsigned DEFAULT NULL,
+  `cc` int(6) unsigned DEFAULT NULL,
+  `cr` int(6) unsigned DEFAULT NULL,
+  `ct` int(6) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	524287
+cf	524287
+cc	524287
+cr	524287
+ct	524287
+-----	-----
+Type	BIT(20)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(20) DEFAULT NULL,
+  `cf` int(7) unsigned DEFAULT NULL,
+  `cc` int(7) unsigned DEFAULT NULL,
+  `cr` int(7) unsigned DEFAULT NULL,
+  `ct` int(7) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	1048575
+cf	1048575
+cc	1048575
+cr	1048575
+ct	1048575
+-----	-----
+Type	BIT(21)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(21) DEFAULT NULL,
+  `cf` int(7) unsigned DEFAULT NULL,
+  `cc` int(7) unsigned DEFAULT NULL,
+  `cr` int(7) unsigned DEFAULT NULL,
+  `ct` int(7) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	2097151
+cf	2097151
+cc	2097151
+cr	2097151
+ct	2097151
+-----	-----
+Type	BIT(22)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(22) DEFAULT NULL,
+  `cf` int(7) unsigned DEFAULT NULL,
+  `cc` int(7) unsigned DEFAULT NULL,
+  `cr` int(7) unsigned DEFAULT NULL,
+  `ct` int(7) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	4194303
+cf	4194303
+cc	4194303
+cr	4194303
+ct	4194303
+-----	-----
+Type	BIT(23)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(23) DEFAULT NULL,
+  `cf` int(7) unsigned DEFAULT NULL,
+  `cc` int(7) unsigned DEFAULT NULL,
+  `cr` int(7) unsigned DEFAULT NULL,
+  `ct` int(7) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	8388607
+cf	8388607
+cc	8388607
+cr	8388607
+ct	8388607
+-----	-----
+Type	BIT(24)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(24) DEFAULT NULL,
+  `cf` int(8) unsigned DEFAULT NULL,
+  `cc` int(8) unsigned DEFAULT NULL,
+  `cr` int(8) unsigned DEFAULT NULL,
+  `ct` int(8) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	16777215
+cf	16777215
+cc	16777215
+cr	16777215
+ct	16777215
+-----	-----
+Type	BIT(25)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(25) DEFAULT NULL,
+  `cf` int(8) unsigned DEFAULT NULL,
+  `cc` int(8) unsigned DEFAULT NULL,
+  `cr` int(8) unsigned DEFAULT NULL,
+  `ct` int(8) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	33554431
+cf	33554431
+cc	33554431
+cr	33554431
+ct	33554431
+-----	-----
+Type	BIT(26)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(26) DEFAULT NULL,
+  `cf` int(8) unsigned DEFAULT NULL,
+  `cc` int(8) unsigned DEFAULT NULL,
+  `cr` int(8) unsigned DEFAULT NULL,
+  `ct` int(8) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	67108863
+cf	67108863
+cc	67108863
+cr	67108863
+ct	67108863
+-----	-----
+Type	BIT(27)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(27) DEFAULT NULL,
+  `cf` int(9) unsigned DEFAULT NULL,
+  `cc` int(9) unsigned DEFAULT NULL,
+  `cr` int(9) unsigned DEFAULT NULL,
+  `ct` int(9) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	134217727
+cf	134217727
+cc	134217727
+cr	134217727
+ct	134217727
+-----	-----
+Type	BIT(28)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(28) DEFAULT NULL,
+  `cf` int(9) unsigned DEFAULT NULL,
+  `cc` int(9) unsigned DEFAULT NULL,
+  `cr` int(9) unsigned DEFAULT NULL,
+  `ct` int(9) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	268435455
+cf	268435455
+cc	268435455
+cr	268435455
+ct	268435455
+-----	-----
+Type	BIT(29)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(29) DEFAULT NULL,
+  `cf` int(9) unsigned DEFAULT NULL,
+  `cc` int(9) unsigned DEFAULT NULL,
+  `cr` int(9) unsigned DEFAULT NULL,
+  `ct` int(9) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	536870911
+cf	536870911
+cc	536870911
+cr	536870911
+ct	536870911
+-----	-----
+Type	BIT(30)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(30) DEFAULT NULL,
+  `cf` int(10) unsigned DEFAULT NULL,
+  `cc` int(10) unsigned DEFAULT NULL,
+  `cr` int(10) unsigned DEFAULT NULL,
+  `ct` int(10) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	1073741823
+cf	1073741823
+cc	1073741823
+cr	1073741823
+ct	1073741823
+-----	-----
+Type	BIT(31)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(31) DEFAULT NULL,
+  `cf` int(10) unsigned DEFAULT NULL,
+  `cc` int(10) unsigned DEFAULT NULL,
+  `cr` int(10) unsigned DEFAULT NULL,
+  `ct` int(10) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	2147483647
+cf	2147483647
+cc	2147483647
+cr	2147483647
+ct	2147483647
+-----	-----
+Type	BIT(32)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(32) DEFAULT NULL,
+  `cf` int(10) unsigned DEFAULT NULL,
+  `cc` int(10) unsigned DEFAULT NULL,
+  `cr` int(10) unsigned DEFAULT NULL,
+  `ct` int(10) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	4294967295
+cf	4294967295
+cc	4294967295
+cr	4294967295
+ct	4294967295
+-----	-----
+Type	BIT(33)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(33) DEFAULT NULL,
+  `cf` bigint(10) unsigned DEFAULT NULL,
+  `cc` bigint(10) unsigned DEFAULT NULL,
+  `cr` bigint(10) unsigned DEFAULT NULL,
+  `ct` bigint(10) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	8589934591
+cf	8589934591
+cc	8589934591
+cr	8589934591
+ct	8589934591
+-----	-----
+Type	BIT(34)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(34) DEFAULT NULL,
+  `cf` bigint(11) unsigned DEFAULT NULL,
+  `cc` bigint(11) unsigned DEFAULT NULL,
+  `cr` bigint(11) unsigned DEFAULT NULL,
+  `ct` bigint(11) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	17179869183
+cf	17179869183
+cc	17179869183
+cr	17179869183
+ct	17179869183
+-----	-----
+Type	BIT(35)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(35) DEFAULT NULL,
+  `cf` bigint(11) unsigned DEFAULT NULL,
+  `cc` bigint(11) unsigned DEFAULT NULL,
+  `cr` bigint(11) unsigned DEFAULT NULL,
+  `ct` bigint(11) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	34359738367
+cf	34359738367
+cc	34359738367
+cr	34359738367
+ct	34359738367
+-----	-----
+Type	BIT(36)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(36) DEFAULT NULL,
+  `cf` bigint(11) unsigned DEFAULT NULL,
+  `cc` bigint(11) unsigned DEFAULT NULL,
+  `cr` bigint(11) unsigned DEFAULT NULL,
+  `ct` bigint(11) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	68719476735
+cf	68719476735
+cc	68719476735
+cr	68719476735
+ct	68719476735
+-----	-----
+Type	BIT(37)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(37) DEFAULT NULL,
+  `cf` bigint(12) unsigned DEFAULT NULL,
+  `cc` bigint(12) unsigned DEFAULT NULL,
+  `cr` bigint(12) unsigned DEFAULT NULL,
+  `ct` bigint(12) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	137438953471
+cf	137438953471
+cc	137438953471
+cr	137438953471
+ct	137438953471
+-----	-----
+Type	BIT(38)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(38) DEFAULT NULL,
+  `cf` bigint(12) unsigned DEFAULT NULL,
+  `cc` bigint(12) unsigned DEFAULT NULL,
+  `cr` bigint(12) unsigned DEFAULT NULL,
+  `ct` bigint(12) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	274877906943
+cf	274877906943
+cc	274877906943
+cr	274877906943
+ct	274877906943
+-----	-----
+Type	BIT(39)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(39) DEFAULT NULL,
+  `cf` bigint(12) unsigned DEFAULT NULL,
+  `cc` bigint(12) unsigned DEFAULT NULL,
+  `cr` bigint(12) unsigned DEFAULT NULL,
+  `ct` bigint(12) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	549755813887
+cf	549755813887
+cc	549755813887
+cr	549755813887
+ct	549755813887
+-----	-----
+Type	BIT(40)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(40) DEFAULT NULL,
+  `cf` bigint(13) unsigned DEFAULT NULL,
+  `cc` bigint(13) unsigned DEFAULT NULL,
+  `cr` bigint(13) unsigned DEFAULT NULL,
+  `ct` bigint(13) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	1099511627775
+cf	1099511627775
+cc	1099511627775
+cr	1099511627775
+ct	1099511627775
+-----	-----
+Type	BIT(41)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(41) DEFAULT NULL,
+  `cf` bigint(13) unsigned DEFAULT NULL,
+  `cc` bigint(13) unsigned DEFAULT NULL,
+  `cr` bigint(13) unsigned DEFAULT NULL,
+  `ct` bigint(13) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	2199023255551
+cf	2199023255551
+cc	2199023255551
+cr	2199023255551
+ct	2199023255551
+-----	-----
+Type	BIT(42)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(42) DEFAULT NULL,
+  `cf` bigint(13) unsigned DEFAULT NULL,
+  `cc` bigint(13) unsigned DEFAULT NULL,
+  `cr` bigint(13) unsigned DEFAULT NULL,
+  `ct` bigint(13) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	4398046511103
+cf	4398046511103
+cc	4398046511103
+cr	4398046511103
+ct	4398046511103
+-----	-----
+Type	BIT(43)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(43) DEFAULT NULL,
+  `cf` bigint(13) unsigned DEFAULT NULL,
+  `cc` bigint(13) unsigned DEFAULT NULL,
+  `cr` bigint(13) unsigned DEFAULT NULL,
+  `ct` bigint(13) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	8796093022207
+cf	8796093022207
+cc	8796093022207
+cr	8796093022207
+ct	8796093022207
+-----	-----
+Type	BIT(44)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(44) DEFAULT NULL,
+  `cf` bigint(14) unsigned DEFAULT NULL,
+  `cc` bigint(14) unsigned DEFAULT NULL,
+  `cr` bigint(14) unsigned DEFAULT NULL,
+  `ct` bigint(14) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	17592186044415
+cf	17592186044415
+cc	17592186044415
+cr	17592186044415
+ct	17592186044415
+-----	-----
+Type	BIT(45)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(45) DEFAULT NULL,
+  `cf` bigint(14) unsigned DEFAULT NULL,
+  `cc` bigint(14) unsigned DEFAULT NULL,
+  `cr` bigint(14) unsigned DEFAULT NULL,
+  `ct` bigint(14) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	35184372088831
+cf	35184372088831
+cc	35184372088831
+cr	35184372088831
+ct	35184372088831
+-----	-----
+Type	BIT(46)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(46) DEFAULT NULL,
+  `cf` bigint(14) unsigned DEFAULT NULL,
+  `cc` bigint(14) unsigned DEFAULT NULL,
+  `cr` bigint(14) unsigned DEFAULT NULL,
+  `ct` bigint(14) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	70368744177663
+cf	70368744177663
+cc	70368744177663
+cr	70368744177663
+ct	70368744177663
+-----	-----
+Type	BIT(47)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(47) DEFAULT NULL,
+  `cf` bigint(15) unsigned DEFAULT NULL,
+  `cc` bigint(15) unsigned DEFAULT NULL,
+  `cr` bigint(15) unsigned DEFAULT NULL,
+  `ct` bigint(15) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	140737488355327
+cf	140737488355327
+cc	140737488355327
+cr	140737488355327
+ct	140737488355327
+-----	-----
+Type	BIT(48)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(48) DEFAULT NULL,
+  `cf` bigint(15) unsigned DEFAULT NULL,
+  `cc` bigint(15) unsigned DEFAULT NULL,
+  `cr` bigint(15) unsigned DEFAULT NULL,
+  `ct` bigint(15) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	281474976710655
+cf	281474976710655
+cc	281474976710655
+cr	281474976710655
+ct	281474976710655
+-----	-----
+Type	BIT(49)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(49) DEFAULT NULL,
+  `cf` bigint(15) unsigned DEFAULT NULL,
+  `cc` bigint(15) unsigned DEFAULT NULL,
+  `cr` bigint(15) unsigned DEFAULT NULL,
+  `ct` bigint(15) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	562949953421311
+cf	562949953421311
+cc	562949953421311
+cr	562949953421311
+ct	562949953421311
+-----	-----
+Type	BIT(50)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(50) DEFAULT NULL,
+  `cf` bigint(16) unsigned DEFAULT NULL,
+  `cc` bigint(16) unsigned DEFAULT NULL,
+  `cr` bigint(16) unsigned DEFAULT NULL,
+  `ct` bigint(16) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	1125899906842623
+cf	1125899906842623
+cc	1125899906842623
+cr	1125899906842623
+ct	1125899906842623
+-----	-----
+Type	BIT(51)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(51) DEFAULT NULL,
+  `cf` bigint(16) unsigned DEFAULT NULL,
+  `cc` bigint(16) unsigned DEFAULT NULL,
+  `cr` bigint(16) unsigned DEFAULT NULL,
+  `ct` bigint(16) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	2251799813685247
+cf	2251799813685247
+cc	2251799813685247
+cr	2251799813685247
+ct	2251799813685247
+-----	-----
+Type	BIT(52)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(52) DEFAULT NULL,
+  `cf` bigint(16) unsigned DEFAULT NULL,
+  `cc` bigint(16) unsigned DEFAULT NULL,
+  `cr` bigint(16) unsigned DEFAULT NULL,
+  `ct` bigint(16) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	4503599627370495
+cf	4503599627370495
+cc	4503599627370495
+cr	4503599627370495
+ct	4503599627370495
+-----	-----
+Type	BIT(53)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(53) DEFAULT NULL,
+  `cf` bigint(16) unsigned DEFAULT NULL,
+  `cc` bigint(16) unsigned DEFAULT NULL,
+  `cr` bigint(16) unsigned DEFAULT NULL,
+  `ct` bigint(16) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	9007199254740991
+cf	9007199254740991
+cc	9007199254740991
+cr	9007199254740991
+ct	9007199254740991
+-----	-----
+Type	BIT(54)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(54) DEFAULT NULL,
+  `cf` bigint(17) unsigned DEFAULT NULL,
+  `cc` bigint(17) unsigned DEFAULT NULL,
+  `cr` bigint(17) unsigned DEFAULT NULL,
+  `ct` bigint(17) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	18014398509481983
+cf	18014398509481983
+cc	18014398509481983
+cr	18014398509481983
+ct	18014398509481983
+-----	-----
+Type	BIT(55)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(55) DEFAULT NULL,
+  `cf` bigint(17) unsigned DEFAULT NULL,
+  `cc` bigint(17) unsigned DEFAULT NULL,
+  `cr` bigint(17) unsigned DEFAULT NULL,
+  `ct` bigint(17) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	36028797018963967
+cf	36028797018963967
+cc	36028797018963967
+cr	36028797018963967
+ct	36028797018963967
+-----	-----
+Type	BIT(56)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(56) DEFAULT NULL,
+  `cf` bigint(17) unsigned DEFAULT NULL,
+  `cc` bigint(17) unsigned DEFAULT NULL,
+  `cr` bigint(17) unsigned DEFAULT NULL,
+  `ct` bigint(17) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	72057594037927935
+cf	72057594037927935
+cc	72057594037927935
+cr	72057594037927935
+ct	72057594037927935
+-----	-----
+Type	BIT(57)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(57) DEFAULT NULL,
+  `cf` bigint(18) unsigned DEFAULT NULL,
+  `cc` bigint(18) unsigned DEFAULT NULL,
+  `cr` bigint(18) unsigned DEFAULT NULL,
+  `ct` bigint(18) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	144115188075855871
+cf	144115188075855871
+cc	144115188075855871
+cr	144115188075855871
+ct	144115188075855871
+-----	-----
+Type	BIT(58)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(58) DEFAULT NULL,
+  `cf` bigint(18) unsigned DEFAULT NULL,
+  `cc` bigint(18) unsigned DEFAULT NULL,
+  `cr` bigint(18) unsigned DEFAULT NULL,
+  `ct` bigint(18) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	288230376151711743
+cf	288230376151711743
+cc	288230376151711743
+cr	288230376151711743
+ct	288230376151711743
+-----	-----
+Type	BIT(59)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(59) DEFAULT NULL,
+  `cf` bigint(18) unsigned DEFAULT NULL,
+  `cc` bigint(18) unsigned DEFAULT NULL,
+  `cr` bigint(18) unsigned DEFAULT NULL,
+  `ct` bigint(18) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	576460752303423487
+cf	576460752303423487
+cc	576460752303423487
+cr	576460752303423487
+ct	576460752303423487
+-----	-----
+Type	BIT(60)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(60) DEFAULT NULL,
+  `cf` bigint(19) unsigned DEFAULT NULL,
+  `cc` bigint(19) unsigned DEFAULT NULL,
+  `cr` bigint(19) unsigned DEFAULT NULL,
+  `ct` bigint(19) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	1152921504606846975
+cf	1152921504606846975
+cc	1152921504606846975
+cr	1152921504606846975
+ct	1152921504606846975
+-----	-----
+Type	BIT(61)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(61) DEFAULT NULL,
+  `cf` bigint(19) unsigned DEFAULT NULL,
+  `cc` bigint(19) unsigned DEFAULT NULL,
+  `cr` bigint(19) unsigned DEFAULT NULL,
+  `ct` bigint(19) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	2305843009213693951
+cf	2305843009213693951
+cc	2305843009213693951
+cr	2305843009213693951
+ct	2305843009213693951
+-----	-----
+Type	BIT(62)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(62) DEFAULT NULL,
+  `cf` bigint(19) unsigned DEFAULT NULL,
+  `cc` bigint(19) unsigned DEFAULT NULL,
+  `cr` bigint(19) unsigned DEFAULT NULL,
+  `ct` bigint(19) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	4611686018427387903
+cf	4611686018427387903
+cc	4611686018427387903
+cr	4611686018427387903
+ct	4611686018427387903
+-----	-----
+Type	BIT(63)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(63) DEFAULT NULL,
+  `cf` bigint(19) unsigned DEFAULT NULL,
+  `cc` bigint(19) unsigned DEFAULT NULL,
+  `cr` bigint(19) unsigned DEFAULT NULL,
+  `ct` bigint(19) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	9223372036854775807
+cf	9223372036854775807
+cc	9223372036854775807
+cr	9223372036854775807
+ct	9223372036854775807
+-----	-----
+Type	BIT(64)
+Table	t2
+Create Table	CREATE TABLE `t2` (
+  `a` bit(64) DEFAULT NULL,
+  `cf` bigint(20) unsigned DEFAULT NULL,
+  `cc` bigint(20) unsigned DEFAULT NULL,
+  `cr` bigint(20) unsigned DEFAULT NULL,
+  `ct` bigint(20) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	18446744073709551615
+cf	18446744073709551615
+cc	18446744073709551615
+cr	18446744073709551615
+ct	18446744073709551615
 #
 # End of 10.4 tests
 #

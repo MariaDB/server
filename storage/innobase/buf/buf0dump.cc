@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,12 +25,11 @@ Created April 08, 2011 Vasil Dimov
 *******************************************************/
 
 #include "my_global.h"
+#include "mysqld.h"
 #include "my_sys.h"
 
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
-
-#include "univ.i"
 
 #include "buf0buf.h"
 #include "buf0dump.h"
@@ -187,7 +186,7 @@ get_buf_dump_dir()
 
 	/* The dump file should be created in the default data directory if
 	innodb_data_home_dir is set as an empty string. */
-	if (strcmp(srv_data_home, "") == 0) {
+	if (!*srv_data_home) {
 		dump_dir = fil_path_to_mysql_datadir;
 	} else {
 		dump_dir = srv_data_home;
@@ -199,16 +198,14 @@ get_buf_dump_dir()
 /** Generate the path to the buffer pool dump/load file.
 @param[out]	path		generated path
 @param[in]	path_size	size of 'path', used as in snprintf(3). */
-static
-void
-buf_dump_generate_path(
-	char*	path,
-	size_t	path_size)
+static void buf_dump_generate_path(char *path, size_t path_size)
 {
 	char	buf[FN_REFLEN];
 
+	mysql_mutex_lock(&LOCK_global_system_variables);
 	snprintf(buf, sizeof(buf), "%s%c%s", get_buf_dump_dir(),
 		 OS_PATH_SEPARATOR, srv_buf_dump_filename);
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 
 	os_file_type_t	type;
 	bool		exists = false;
@@ -394,7 +391,7 @@ buf_dump(
 			if (SHUTTING_DOWN() && !(j % 1024)) {
 				service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 					"Dumping buffer pool "
-					ULINTPF "/" ULINTPF ", "
+					ULINTPF "/%lu, "
 					"page " ULINTPF "/" ULINTPF,
 					i + 1, srv_buf_pool_instances,
 					j + 1, n_pages);
@@ -674,7 +671,7 @@ buf_load()
 	so all pages from a given tablespace are consecutive. */
 	ulint		cur_space_id = BUF_DUMP_SPACE(dump[0]);
 	fil_space_t*	space = fil_space_acquire_silent(cur_space_id);
-	page_size_t	page_size(space ? space->flags : 0);
+	ulint		zip_size = space ? space->zip_size() : 0;
 
 	/* JAN: TODO: MySQL 5.7 PSI
 #ifdef HAVE_PSI_STAGE_INTERFACE
@@ -705,9 +702,7 @@ buf_load()
 			space = fil_space_acquire_silent(cur_space_id);
 
 			if (space != NULL) {
-				const page_size_t	cur_page_size(
-					space->flags);
-				page_size.copy_from(cur_page_size);
+				zip_size = space->zip_size();
 			}
 		}
 
@@ -722,7 +717,7 @@ buf_load()
 
 		buf_read_page_background(
 			page_id_t(this_space_id, BUF_DUMP_PAGE(dump[i])),
-			page_size, true);
+			zip_size, true);
 
 		if (i % 64 == 63) {
 			os_aio_simulated_wake_handler_threads();
@@ -824,7 +819,7 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 	if (srv_buffer_pool_load_at_startup) {
 
 #ifdef WITH_WSREP
-		if (!wsrep_recovery) {
+		if (!get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
 			buf_load();
 #ifdef WITH_WSREP
@@ -858,7 +853,7 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 				"Dumping of buffer pool not started"
 				" as load was incomplete");
 #ifdef WITH_WSREP
-		} else if (wsrep_recovery) {
+		} else if (get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
 		} else {
 			buf_dump(FALSE/* do complete dump at shutdown */);

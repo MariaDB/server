@@ -1,24 +1,33 @@
-connection node_1;
-CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
-INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
-CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 connection node_2;
-SET SESSION wsrep_retry_autocommit = 0;
-INSERT INTO t1(f1) SELECT 1 FROM ten as a1, ten AS a2;
-set debug_sync='ha_commit_trans_after_prepare WAIT_FOR go';
-INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;;
+connection node_1;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE TABLE t1 (id int not null primary key auto_increment, f1 INTEGER) ENGINE=InnoDB;
+connection node_2;
+set session wsrep_sync_wait=0;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1b;
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
+connection node_2;
+INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1;
+connection node_1b;
+SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
 connection node_1;
 TRUNCATE TABLE t1;;
+connection node_1b;
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "RESET";
 connection node_1;
 connection node_2;
-ERROR 40001: Deadlock: wsrep aborted transaction
-connection node_2;
-SELECT COUNT(*) = 0 FROM t1;
-COUNT(*) = 0
-1
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+EXPECT_0
+0
 connection node_1;
-SELECT COUNT(*) = 0 FROM t1;
-COUNT(*) = 0
-1
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+EXPECT_0
+0
+disconnect node_1b;
 DROP TABLE t1;
 DROP TABLE ten;

@@ -78,7 +78,7 @@ allow mysqld_t user_tmp_t:file create;
 allow mysqld_t bin_t:lnk_file read;
 allow mysqld_t tmp_t:file { append create read write open getattr unlink setattr };
 
-# Allows too much leeway - the xtrabackup/wsrep rules in fc should fix it, but
+# Allows too much leeway - the mariabackup/wsrep rules in fc should fix it, but
 # keep for the moment.
 allow mysqld_t shell_exec_t:file { execute_no_trans getattr read execute open };
 allow mysqld_t bin_t:file { getattr read execute open execute_no_trans ioctl };
@@ -93,7 +93,7 @@ allow mysqld_t tram_port_t:tcp_socket name_bind;
 # This rule allows port udp/4567 (see README)
 allow mysqld_t mysqld_port_t:udp_socket name_bind;
 
-# Rules related to XtraBackup
+# Rules related to mariabackup
 allow mysqld_t self:netlink_tcpdiag_socket { create nlmsg_read };
 allow mysqld_t sysctl_net_t:file { read getattr open };
 

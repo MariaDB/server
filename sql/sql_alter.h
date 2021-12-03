@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2013, 2018, MariaDB Corporation.
+   Copyright (c) 2013, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef SQL_ALTER_TABLE_H
 #define SQL_ALTER_TABLE_H
@@ -57,7 +57,10 @@ public:
     ALTER_TABLE_ALGORITHM_NOCOPY,
 
     // Instant should allow any operation that changes metadata only.
-    ALTER_TABLE_ALGORITHM_INSTANT
+    ALTER_TABLE_ALGORITHM_INSTANT,
+
+    // When there is no specification of algorithm during alter table.
+    ALTER_TABLE_ALGORITHM_NONE
   };
 
 
@@ -104,8 +107,11 @@ public:
   List<const char>              partition_names;
   // Number of partitions.
   uint                          num_parts;
+private:
   // Type of ALTER TABLE algorithm.
   enum_alter_table_algorithm    requested_algorithm;
+
+public:
   // Type of ALTER TABLE lock.
   enum_alter_table_lock         requested_lock;
 
@@ -114,7 +120,7 @@ public:
   flags(0), partition_flags(0),
     keys_onoff(LEAVE_AS_IS),
     num_parts(0),
-    requested_algorithm(ALTER_TABLE_ALGORITHM_DEFAULT),
+    requested_algorithm(ALTER_TABLE_ALGORITHM_NONE),
     requested_lock(ALTER_TABLE_LOCK_DEFAULT)
   {}
 
@@ -130,7 +136,7 @@ public:
     keys_onoff= LEAVE_AS_IS;
     num_parts= 0;
     partition_names.empty();
-    requested_algorithm= ALTER_TABLE_ALGORITHM_DEFAULT;
+    requested_algorithm= ALTER_TABLE_ALGORITHM_NONE;
     requested_lock= ALTER_TABLE_LOCK_DEFAULT;
   }
 
@@ -178,9 +184,15 @@ public:
   bool set_requested_lock(const LEX_CSTRING *str);
 
   /**
+    Set the requested algorithm to the given algorithm value
+    @param algo_value	algorithm to be set
+   */
+  void set_requested_algorithm(enum_alter_table_algorithm algo_value);
+
+  /**
      Returns the algorithm value in the format "algorithm=value"
   */
-  const char* algorithm() const;
+  const char* algorithm_clause(THD *thd) const;
 
   /**
      Returns the lock value in the format "lock=value"
@@ -192,29 +204,32 @@ public:
      with the specified user alter algorithm.
 
      @param  thd            Thread handle
-     @param  result         Operation supported for inplace alter
      @param  ha_alter_info  Structure describing changes to be done
                             by ALTER TABLE and holding data during
                             in-place alter
      @retval false  Supported operation
      @retval true   Not supported value
   */
-  bool supports_algorithm(THD *thd, enum_alter_inplace_result result,
+  bool supports_algorithm(THD *thd,
                           const Alter_inplace_info *ha_alter_info);
 
   /**
      Check whether the given result can be supported
      with the specified user lock type.
 
-     @param  result         Operation supported for inplace alter
      @param  ha_alter_info  Structure describing changes to be done
                             by ALTER TABLE and holding data during
                             in-place alter
      @retval false  Supported lock type
      @retval true   Not supported value
   */
-  bool supports_lock(THD *thd, enum_alter_inplace_result result,
-                     const Alter_inplace_info *ha_alter_info);
+  bool supports_lock(THD *thd, const Alter_inplace_info *ha_alter_info);
+
+  /**
+    Return user requested algorithm. If user does not specify
+    algorithm then return alter_algorithm variable value.
+   */
+  enum_alter_table_algorithm algorithm(const THD *thd) const;
 
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented
@@ -309,6 +324,7 @@ public:
   const char   *fk_error_id;
   /** Name of table for the above error. */
   const char   *fk_error_table;
+  bool         modified_primary_key;
 
 private:
   char new_filename[FN_REFLEN + 1];
@@ -355,7 +371,8 @@ protected:
   Sql_cmd_alter_table represents the generic ALTER TABLE statement.
   @todo move Alter_info and other ALTER specific structures from Lex here.
 */
-class Sql_cmd_alter_table : public Sql_cmd_common_alter_table
+class Sql_cmd_alter_table : public Sql_cmd_common_alter_table,
+                            public Storage_engine_name
 {
 public:
   /**
@@ -366,6 +383,8 @@ public:
 
   ~Sql_cmd_alter_table()
   {}
+
+  Storage_engine_name *option_storage_engine_name() { return this; }
 
   bool execute(THD *thd);
 };

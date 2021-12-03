@@ -50,4 +50,28 @@ SET @@LOCAL.skip_name_resolve=0;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SET @@GLOBAL.skip_name_resolve=0;
 
---echo End of 5.1 tests
+--echo #
+--echo # End of 5.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-26081 set role crashes when a hostname cannot be resolved
+--echo #
+
+create user u1@`%`;
+create role r1;
+create role r2;
+grant r2 to r1;
+grant r1 to u1@`%`;
+
+connect u1,127.0.0.1,u1,,,$MASTER_MYPORT;
+error ER_INVALID_ROLE;
+set role r2;
+disconnect u1;
+connection default;
+drop user u1@`%`;
+drop role r1, r2;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

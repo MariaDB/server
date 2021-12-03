@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -38,136 +38,9 @@ Created 5/11/1994 Heikki Tuuri
 #include <string>
 #include "log.h"
 #include "my_cpu.h"
-
-#ifdef _WIN32
-typedef VOID(WINAPI *time_fn)(LPFILETIME);
-static time_fn ut_get_system_time_as_file_time = GetSystemTimeAsFileTime;
-
-/*****************************************************************//**
-NOTE: The Windows epoch starts from 1601/01/01 whereas the Unix
-epoch starts from 1970/1/1. For selection of constant see:
-http://support.microsoft.com/kb/167296/ */
-#define WIN_TO_UNIX_DELTA_USEC	11644473600000000LL
-
-
-/*****************************************************************//**
-This is the Windows version of gettimeofday(2).
-@return 0 if all OK else -1 */
-static
-int
-ut_gettimeofday(
-/*============*/
-	struct timeval*	tv,	/*!< out: Values are relative to Unix epoch */
-	void*		tz)	/*!< in: not used */
-{
-	FILETIME	ft;
-	int64_t		tm;
-
-	if (!tv) {
-		errno = EINVAL;
-		return(-1);
-	}
-
-	ut_get_system_time_as_file_time(&ft);
-
-	tm = (int64_t) ft.dwHighDateTime << 32;
-	tm |= ft.dwLowDateTime;
-
-	ut_a(tm >= 0);	/* If tm wraps over to negative, the quotient / 10
-			does not work */
-
-	tm /= 10;	/* Convert from 100 nsec periods to usec */
-
-	/* If we don't convert to the Unix epoch the value for
-	struct timeval::tv_sec will overflow.*/
-	tm -= WIN_TO_UNIX_DELTA_USEC;
-
-	tv->tv_sec  = (long) (tm / 1000000L);
-	tv->tv_usec = (long) (tm % 1000000L);
-
-	return(0);
-}
-#else
-/** An alias for gettimeofday(2).  On Microsoft Windows, we have to
-reimplement this function. */
-#define	ut_gettimeofday		gettimeofday
+#ifndef DBUG_OFF
+#include "rem0rec.h"
 #endif
-
-/**********************************************************//**
-Returns system time. We do not specify the format of the time returned:
-the only way to manipulate it is to use the function ut_difftime.
-@return system time */
-ib_time_t
-ut_time(void)
-/*=========*/
-{
-	return(time(NULL));
-}
-
-
-/**********************************************************//**
-Returns system time.
-Upon successful completion, the value 0 is returned; otherwise the
-value -1 is returned and the global variable errno is set to indicate the
-error.
-@return 0 on success, -1 otherwise */
-int
-ut_usectime(
-/*========*/
-	ulint*	sec,	/*!< out: seconds since the Epoch */
-	ulint*	ms)	/*!< out: microseconds since the Epoch+*sec */
-{
-	struct timeval	tv;
-	int		ret;
-	int		errno_gettimeofday;
-	int		i;
-
-	for (i = 0; i < 10; i++) {
-
-		ret = ut_gettimeofday(&tv, NULL);
-
-		if (ret == -1) {
-			errno_gettimeofday = errno;
-			ib::error() << "gettimeofday(): "
-				<< strerror(errno_gettimeofday);
-			os_thread_sleep(100000);  /* 0.1 sec */
-			errno = errno_gettimeofday;
-		} else {
-			break;
-		}
-	}
-
-	if (ret != -1) {
-		*sec = (ulint) tv.tv_sec;
-		*ms  = (ulint) tv.tv_usec;
-	}
-
-	return(ret);
-}
-
-/**********************************************************//**
-Returns the number of microseconds since epoch. Similar to
-time(3), the return value is also stored in *tloc, provided
-that tloc is non-NULL.
-@return us since epoch */
-uintmax_t
-ut_time_us(
-/*=======*/
-	uintmax_t*	tloc)	/*!< out: us since epoch, if non-NULL */
-{
-	struct timeval	tv;
-	uintmax_t	us;
-
-	ut_gettimeofday(&tv, NULL);
-
-	us = uintmax_t(tv.tv_sec) * 1000000 + uintmax_t(tv.tv_usec);
-
-	if (tloc != NULL) {
-		*tloc = us;
-	}
-
-	return(us);
-}
 
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
@@ -178,25 +51,8 @@ ulint
 ut_time_ms(void)
 /*============*/
 {
-	struct timeval	tv;
-
-	ut_gettimeofday(&tv, NULL);
-
-	return(ulint(tv.tv_sec) * 1000 + ulint(tv.tv_usec / 1000));
+	return static_cast<ulint>(my_interval_timer() / 1000000);
 }
-
-/**********************************************************//**
-Returns the difference of two times in seconds.
-@return time2 - time1 expressed in seconds */
-double
-ut_difftime(
-/*========*/
-	ib_time_t	time2,	/*!< in: time */
-	ib_time_t	time1)	/*!< in: time */
-{
-	return(difftime(time2, time1));
-}
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 /**********************************************************//**
@@ -284,27 +140,6 @@ ut_sprintf_timestamp(
 }
 
 /*************************************************************//**
-Runs an idle loop on CPU. The argument gives the desired delay
-in microseconds on 100 MHz Pentium + Visual C++.
-@return dummy value */
-void
-ut_delay(
-/*=====*/
-	ulint	delay)	/*!< in: delay in microseconds on 100 MHz Pentium */
-{
-	ulint	i;
-
-	HMT_low();
-
-	for (i = 0; i < delay * 50; i++) {
-		MY_RELAX_CPU();
-		UT_COMPILER_BARRIER();
-	}
-
-	HMT_medium();
-}
-
-/*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */
 void
 ut_print_buf(
@@ -315,8 +150,6 @@ ut_print_buf(
 {
 	const byte*	data;
 	ulint		i;
-
-	UNIV_MEM_ASSERT_RW(buf, len);
 
 	fprintf(file, " len " ULINTPF "; hex ", len);
 
@@ -352,8 +185,6 @@ ut_print_buf_hex(
 		'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
 	};
 
-	UNIV_MEM_ASSERT_RW(buf, len);
-
 	o << "(0x";
 
 	for (data = static_cast<const byte*>(buf), i = 0; i < len; i++) {
@@ -375,8 +206,6 @@ ut_print_buf(
 {
 	const byte*	data;
 	ulint		i;
-
-	UNIV_MEM_ASSERT_RW(buf, len);
 
 	for (data = static_cast<const byte*>(buf), i = 0; i < len; i++) {
 		int	c = static_cast<int>(*data++);
@@ -734,6 +563,12 @@ ut_basename_noext(
 
 namespace ib {
 
+ATTRIBUTE_COLD logger& logger::operator<<(dberr_t err)
+{
+  m_oss << ut_strerr(err);
+  return *this;
+}
+
 info::~info()
 {
 	sql_print_information("InnoDB: %s", m_oss.str().c_str());
@@ -744,9 +579,13 @@ warn::~warn()
 	sql_print_warning("InnoDB: %s", m_oss.str().c_str());
 }
 
+/** true if error::~error() was invoked, false otherwise */
+bool error::logged;
+
 error::~error()
 {
 	sql_print_error("InnoDB: %s", m_oss.str().c_str());
+	logged = true;
 }
 
 #ifdef _MSC_VER
@@ -788,5 +627,50 @@ fatal_or_error::~fatal_or_error()
 }
 
 } // namespace ib
+
+#ifndef DBUG_OFF
+static char dbug_print_buf[1024];
+
+const char * dbug_print_rec(const rec_t* rec, const rec_offs* offsets)
+{
+	rec_printer r(rec, offsets);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const rec_t* rec, ulint info, const rec_offs* offsets)
+{
+	rec_printer r(rec, info, offsets);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const dtuple_t* tuple)
+{
+	rec_printer r(tuple);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const dfield_t* field, ulint n)
+{
+	rec_printer r(field, n);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const rec_t* rec, dict_index_t* index)
+{
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
+	rec_offs_init(offsets_);
+	mem_heap_t*	tmp_heap	= NULL;
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
+				  ULINT_UNDEFINED, &tmp_heap);
+	rec_printer r(rec, offsets);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+#endif /* !DBUG_OFF */
 
 #endif /* !UNIV_INNOCHECKSUM */

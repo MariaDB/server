@@ -32,10 +32,12 @@ drop table t1;
 # Test insert of now() and curtime()
 #
 
+SET TIMESTAMP=UNIX_TIMESTAMP('2020-08-11 00:00:01');
 CREATE TABLE t1 (a timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, b date, c time, d datetime);
 insert into t1 (b,c,d) values(now(),curtime(),now());
 select date_format(a,"%Y-%m-%d")=b,right(a+0,6)=c+0,a=d+0 from t1;
 drop table t1;
+SET TIMESTAMP=DEFAULT;
 
 #
 # Test of datetime and not null
@@ -201,6 +203,7 @@ drop table t1;
 #
 # Bug#16377: Wrong DATE/DATETIME comparison in BETWEEN function.
 #
+
 create table t1 (f1 date, f2 datetime, f3 timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
 insert into t1 values('2001-01-01','2001-01-01 01:01:01','2001-01-01 01:01:01');
 insert into t1 values('2001-02-05','2001-02-05 00:00:00','2001-02-05 01:01:01');
@@ -214,7 +217,9 @@ select f1, f2, f3 from t1 where cast(f1 as datetime) between f2 and
 select f2 from t1 where '2001-04-10 12:34:56' between f2 and '01-05-01';
 select f2, f3 from t1 where '01-03-10' between f2 and f3;
 select f2 from t1 where DATE(f2) between "2001-4-15" AND "01-4-15";
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 00:00:01');
 SELECT 1 from dual where NOW() BETWEEN CURRENT_DATE() - INTERVAL 1 DAY AND CURRENT_DATE();
+SET timestamp=DEFAULT;
 drop table t1;
 
 #
@@ -700,6 +705,96 @@ SELECT 1 FROM t1 WHERE 20160101 > SOME (SELECT CAST(a AS DATETIME) FROM t1);
 SELECT * FROM t1 WHERE 20160101 > CAST(a AS DATETIME);
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-17857 Assertion `tmp != ((long long) 0x8000000000000000LL)' failed in TIME_from_longlong_datetime_packed upon SELECT with GROUP BY
+--echo #
+
+CREATE TABLE t1 (i INT, d DATETIME);
+INSERT INTO t1 VALUES (3,NULL),(3,'1976-12-14 13:21:07'),(NULL,'1981-09-24 01:04:47');
+SELECT ExtractValue('foo','bar'), i, MIN(d) FROM t1 GROUP BY i;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19034 ASAN unknown-crash in get_date_time_separator with PAD_CHAR_TO_FULL_LENGTH
+--echo #
+
+SET SQL_MODE=DEFAULT;
+CREATE OR REPLACE TABLE t1 (a CHAR(11));
+CREATE OR REPLACE TABLE t2 (b DATETIME);
+INSERT INTO t1 VALUES ('2010-02-19') ;
+SET SQL_MODE= 'PAD_CHAR_TO_FULL_LENGTH';
+INSERT INTO t2 SELECT * FROM t1;
+DROP TABLE t1, t2;
+SET SQL_MODE=DEFAULT;
+
+
+--echo #
+--echo # MDEV-19699 Server crashes in Item_null_result::field_type upon SELECT with ROLLUP on constant table
+--echo #
+
+CREATE TABLE t1 (d DATETIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('1999-11-04');
+SELECT d FROM t1 GROUP BY d WITH ROLLUP HAVING d > '1990-01-01';
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-20431 GREATEST(int_col,date_col) returns wrong results in a view
+--echo #
+
+CREATE TABLE t1 (pk INT NOT NULL, d DATETIME NOT NULL);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'2018-06-22 00:00:00'),(2,'2018-07-11 00:00:00');
+SELECT GREATEST(pk, d) FROM t1;
+SELECT GREATEST(pk, d) FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-21319 COUNT(*) returns 1, actual SELECT returns no result in 10.3.21, but 1 result in 10.1.41
+--echo #
+
+CREATE TABLE t1
+(
+  id INT NOT NULL PRIMARY KEY,
+  id2 INT,
+  k TINYINT,
+  j INT,
+  t DATETIME,
+  KEY k1 (id2,k,j,t)
+);
+INSERT INTO t1 VALUES
+(53,54,1,0,'2019-12-13 10:09:59'),
+(54,54,1,0,'2019-12-13 16:28:41'),
+(55,54,1,0,'2019-12-13 16:29:10'),
+(56,54,1,0,'2019-12-13 16:29:43'),
+(57,54,1,0,'2019-12-13 16:30:16'),
+(58,54,1,0,'2019-12-13 16:30:49'),
+(59,54,1,0,'2019-12-13 16:31:23'),
+(60,54,1,0,'2019-12-13 16:31:55'),
+(61,54,1,0,'2019-12-13 16:32:28'),
+(62,54,1,0,'2019-12-13 16:33:01'),
+(63,54,1,0,'2019-12-13 16:33:34'),
+(64,54,1,0,'2019-12-13 16:34:07'),
+(65,54,1,0,'2019-12-13 16:34:40'),
+(66,54,1,0,'2019-12-13 16:35:13'),
+(67,54,1,0,'2019-12-13 16:35:46'),
+(68,54,1,0,'2019-12-13 16:36:19');
+SELECT t FROM t1 GROUP BY t HAVING t=max(t);
+SELECT t FROM t1 WHERE id2=54 and j=0 and k=1 GROUP BY t HAVING t=max(t);
+DROP TABLE t1;
+
+CREATE TABLE t1 (pk INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1);
+SELECT pk<DATE'2001-01-01' FROM t1 GROUP BY pk;
+SELECT pk<DATE'2001-01-01' FROM v1 GROUP BY pk;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
 --echo #
 --echo # End of 10.1 tests
 --echo #
@@ -745,6 +840,15 @@ CREATE TABLE t1 (a DECIMAL(4,0));
 INSERT INTO t1 VALUES (1000);
 ALTER TABLE t1 MODIFY a DATETIME;
 SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-21619 Server crash or assertion failures in my_datetime_to_str
+--echo #
+
+CREATE  TABLE t1 (f DATETIME, KEY(f));
+INSERT INTO t1 VALUES ('2020-01-01 00:00:00'),('2020-01-02 00:00:00');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '2012-12-12';
 DROP TABLE t1;
 
 

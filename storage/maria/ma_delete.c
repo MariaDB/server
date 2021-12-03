@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "ma_fulltext.h"
 #include "ma_rt_index.h"
@@ -695,9 +695,7 @@ static int del(MARIA_HA *info, MARIA_KEY *key,
   key_start= keypos;
   if (tmp_key.flag & (SEARCH_USER_KEY_HAS_TRANSID |
                       SEARCH_PAGE_KEY_HAS_TRANSID))
-  {
     _ma_mark_page_with_transid(share, anc_page);
-  }
 
   /* Save pointer to next leaf on parent page */
   if (!(*keyinfo->get_key)(&ret_key, page_flag, share->base.key_reflength,

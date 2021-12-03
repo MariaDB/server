@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @addtogroup Replication
@@ -455,7 +455,7 @@ class String;
 /**
    @def LOG_EVENT_ARTIFICIAL_F
    
-   Artificial events are created arbitarily and not written to binary
+   Artificial events are created arbitrarily and not written to binary
    log
 
    These events should not update the master log position when slave
@@ -568,6 +568,14 @@ class String;
 
 /* Our capability. */
 #define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_GTID
+
+
+/*
+  When the size of 'log_pos' within Heartbeat_log_event exceeds UINT32_MAX it
+  cannot be accommodated in common_header, as 'log_pos' is of 4 bytes size. In
+  such cases, sub_header, of size 8 bytes will hold larger 'log_pos' value.
+*/
+#define HB_SUB_HEADER_LEN 8
 
 
 /**
@@ -866,6 +874,7 @@ typedef struct st_print_event_info
   bool allow_parallel_printed;
   bool found_row_event;
   bool print_row_count;
+  static const uint max_delimiter_size= 16;
   /* Settings on how to print the events */
   bool short_form;
   /*
@@ -888,6 +897,7 @@ typedef struct st_print_event_info
    */
   IO_CACHE head_cache;
   IO_CACHE body_cache;
+  IO_CACHE tail_cache;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   /* Storing the SQL for reviewing */
   IO_CACHE review_sql_cache;
@@ -898,6 +908,7 @@ typedef struct st_print_event_info
   ~st_print_event_info() {
     close_cached_file(&head_cache);
     close_cached_file(&body_cache);
+    close_cached_file(&tail_cache);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
     close_cached_file(&review_sql_cache);
 #endif
@@ -961,13 +972,13 @@ private:
 };
 
 /**
-  the struct aggregates two paramenters that identify an event
+  the struct aggregates two parameters that identify an event
   uniquely in scope of communication of a particular master and slave couple.
   I.e there can not be 2 events from the same staying connected master which
   have the same coordinates.
   @note
   Such identifier is not yet unique generally as the event originating master
-  is resetable. Also the crashed master can be replaced with some other.
+  is resettable. Also the crashed master can be replaced with some other.
 */
 typedef struct event_coordinates
 {
@@ -1264,7 +1275,7 @@ public:
   bool print_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
                     bool is_more);
   bool print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
-                    bool is_more);
+                    bool do_print_encoded);
 #endif /* MYSQL_SERVER */
 
   /* The following code used for Flashback */
@@ -2222,7 +2233,15 @@ public:
  ****************************************************************************/
 struct sql_ex_info
 {
-  sql_ex_info() {}                            /* Remove gcc warning */
+  sql_ex_info():
+    cached_new_format(-1),
+    field_term_len(0),
+    enclosed_len(0),
+    line_term_len(0),
+    line_start_len(0),
+    escaped_len(0),
+    empty_flags(0)
+  {}                            /* Remove gcc warning */
   const char* field_term;
   const char* enclosed;
   const char* line_term;
@@ -2728,6 +2747,38 @@ protected:
 };
 
 
+class Version
+{
+protected:
+  uchar m_ver[3];
+  int cmp(const Version &other) const
+  {
+    return memcmp(m_ver, other.m_ver, 3);
+  }
+public:
+  Version()
+  {
+    m_ver[0]= m_ver[1]= m_ver[2]= '\0';
+  }
+  Version(uchar v0, uchar v1, uchar v2)
+  {
+    m_ver[0]= v0;
+    m_ver[1]= v1;
+    m_ver[2]= v2;
+  }
+  Version(const char *version, const char **endptr);
+  const uchar& operator [] (size_t i) const
+  {
+    DBUG_ASSERT(i < 3);
+    return m_ver[i];
+  }
+  bool operator<(const Version &other) const { return cmp(other) < 0; }
+  bool operator>(const Version &other) const { return cmp(other) > 0; }
+  bool operator<=(const Version &other) const { return cmp(other) <= 0; }
+  bool operator>=(const Version &other) const { return cmp(other) >= 0; }
+};
+
+
 /**
   @class Format_description_log_event
 
@@ -2751,13 +2802,20 @@ public:
   uint8 number_of_event_types;
   /* 
      The list of post-headers' lengths followed 
-     by the checksum alg decription byte
+     by the checksum alg description byte
   */
   uint8 *post_header_len;
-  struct master_version_split {
+  class master_version_split: public Version {
+  public:
     enum {KIND_MYSQL, KIND_MARIADB};
     int kind;
-    uchar ver[3];
+    master_version_split() :kind(KIND_MARIADB) { }
+    master_version_split(const char *version);
+    bool version_is_valid() const
+    {
+      /* It is invalid only when all version numbers are 0 */
+      return !(m_ver[0] == 0 && m_ver[1] == 0 && m_ver[2] == 0);
+    }
   };
   master_version_split server_version_split;
   const uint8 *event_type_permutation;
@@ -2781,17 +2839,9 @@ public:
             (post_header_len != NULL));
   }
 
-  bool version_is_valid() const
-  {
-    /* It is invalid only when all version numbers are 0 */
-    return !(server_version_split.ver[0] == 0 &&
-             server_version_split.ver[1] == 0 &&
-             server_version_split.ver[2] == 0);
-  }
-
   bool is_valid() const
   {
-    return header_is_valid() && version_is_valid();
+    return header_is_valid() && server_version_split.version_is_valid();
   }
 
   int get_data_size()
@@ -3091,7 +3141,7 @@ public:
   */
   bool is_deferred() { return deferred; }
   /*
-    In case of the deffered applying the variable instance is flagged
+    In case of the deferred applying the variable instance is flagged
     and the parsing time query id is stored to be used at applying time.
   */
   void set_deferred(query_id_t qid) { deferred= true; query_id= qid; }
@@ -3589,7 +3639,7 @@ public:
   bool write_data_header();
   bool write_data_body();
   /*
-    Cut out Create_file extentions and
+    Cut out Create_file extensions and
     write it as Load event - used on the slave
   */
   bool write_base();
@@ -4302,7 +4352,7 @@ public:
   int rewrite_db(const char* new_name, size_t new_name_len,
                  const Format_description_log_event*);
 #endif
-  ulong get_table_id() const        { return m_table_id; }
+  ulonglong get_table_id() const        { return m_table_id; }
   const char *get_table_name() const { return m_tblnam; }
   const char *get_db_name() const    { return m_dbnam; }
 
@@ -4346,7 +4396,7 @@ private:
   uchar         *m_coltype;
 
   uchar         *m_memory;
-  ulong          m_table_id;
+  ulonglong      m_table_id;
   flag_set       m_flags;
 
   size_t         m_data_size;
@@ -4475,7 +4525,7 @@ public:
   MY_BITMAP const *get_cols() const { return &m_cols; }
   MY_BITMAP const *get_cols_ai() const { return &m_cols_ai; }
   size_t get_width() const          { return m_width; }
-  ulong get_table_id() const        { return m_table_id; }
+  ulonglong get_table_id() const        { return m_table_id; }
 
 #if defined(MYSQL_SERVER)
   /*
@@ -4576,7 +4626,7 @@ protected:
 #ifdef MYSQL_SERVER
   TABLE *m_table;		/* The table the rows belong to */
 #endif
-  ulong       m_table_id;	/* Table ID */
+  ulonglong       m_table_id;	/* Table ID */
   MY_BITMAP   m_cols;		/* Bitmap denoting columns available */
   ulong       m_width;          /* The width of the columns bitmap */
   /*
@@ -4979,7 +5029,7 @@ private:
 /**
   @class Incident_log_event
 
-   Class representing an incident, an occurance out of the ordinary,
+   Class representing an incident, an occurence out of the ordinary,
    that happened on the master.
 
    The event is used to inform the slave that something out of the
@@ -5023,7 +5073,7 @@ public:
     m_message.str= NULL;                    /* Just as a precaution */
     m_message.length= 0;
     set_direct_logging();
-    /* Replicate the incident irregardless of @@skip_replication. */
+    /* Replicate the incident regardless of @@skip_replication. */
     flags&= ~LOG_EVENT_SKIP_REPLICATION_F;
     DBUG_VOID_RETURN;
   }
@@ -5044,7 +5094,7 @@ public:
     strmake(m_message.str, msg->str, msg->length);
     m_message.length= msg->length;
     set_direct_logging();
-    /* Replicate the incident irregardless of @@skip_replication. */
+    /* Replicate the incident regardless of @@skip_replication. */
     flags&= ~LOG_EVENT_SKIP_REPLICATION_F;
     DBUG_VOID_RETURN;
   }
@@ -5140,6 +5190,19 @@ public:
   virtual int get_data_size() { return IGNORABLE_HEADER_LEN; }
 };
 
+#ifdef MYSQL_CLIENT
+bool copy_cache_to_string_wrapped(IO_CACHE *body,
+                                  LEX_STRING *to,
+                                  bool do_wrap,
+                                  const char *delimiter,
+                                  bool is_verbose);
+bool copy_cache_to_file_wrapped(IO_CACHE *body,
+                                FILE *file,
+                                bool do_wrap,
+                                const char *delimiter,
+                                bool is_verbose);
+#endif
+
 #ifdef MYSQL_SERVER
 /*****************************************************************************
 
@@ -5159,12 +5222,13 @@ public:
 class Heartbeat_log_event: public Log_event
 {
 public:
-  Heartbeat_log_event(const char* buf, uint event_len,
+  uint8 hb_flags;
+  Heartbeat_log_event(const char* buf, ulong event_len,
                       const Format_description_log_event* description_event);
   Log_event_type get_type_code() { return HEARTBEAT_LOG_EVENT; }
   bool is_valid() const
     {
-      return (log_ident != NULL &&
+      return (log_ident != NULL && ident_len <= FN_REFLEN-1 &&
               log_pos >= BIN_LOG_HEADER_SIZE);
     }
   const char * get_log_ident() { return log_ident; }
@@ -5197,6 +5261,9 @@ bool event_that_should_be_ignored(const char *buf);
 bool event_checksum_test(uchar *buf, ulong event_len, enum_binlog_checksum_alg alg);
 enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len);
 extern TYPELIB binlog_checksum_typelib;
+#ifdef WITH_WSREP
+enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size);
+#endif /* WITH_WSREP */
 
 /**
   @} (end of group Replication)

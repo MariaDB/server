@@ -1,10 +1,19 @@
 # 
 # Run subselect_sj2.test with subquery materialization.
 #
+--source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
+
 set optimizer_switch='materialization=on';
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 
 --source subselect_sj2.test
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
 
 set optimizer_switch=default;
 select @@optimizer_switch like '%materialization=on%';
@@ -300,6 +309,8 @@ HAVING f1 != 'foo'
 ORDER BY f1;
 
 eval $q;
+# Number of rows can be 3 or 4
+--replace_result 4 3
 eval explain $q;
 
 DROP TABLE t1,t2;
@@ -328,6 +339,8 @@ insert  into t1(`id`,`local_name`) values
 (11,'Rollover - Internet Payday'),
 (12,'AL Monthly Installment'),
 (13,'AL Semi-Monthly Installment');
+insert into t1 select seq,"ignore" from seq_1000_to_1100;
+ANALYZE TABLE t1;
 
 explain
 SELECT SQL_NO_CACHE t.id
@@ -467,6 +480,10 @@ CREATE TABLE t5 (id_product int) ENGINE=MyISAM;
 INSERT INTO `t5` VALUES 
 (652),(668),(669),(670),(671),(673),(674),(675),(676),
 (677),(679),(680),(681),(682),(683),(684),(685),(686);
+
+ANALYZE TABLE t1,t2,t3,t,t5;
+
+set optimizer_switch='rowid_filter=off';
  
 explain
 SELECT * FROM t3 
@@ -480,4 +497,10 @@ AND t3.id_product IN (SELECT id_product FROM t2 t2_3 WHERE t2_3.id_t2 = 18 OR t2
 AND t3.id_product IN (SELECT id_product FROM t2 t2_4 WHERE t2_4.id_t2 = 34 OR t2_4.id_t2 = 23) 
 AND t3.id_product IN (SELECT id_product FROM t2 t2_5 WHERE t2_5.id_t2 = 29 OR t2_5.id_t2 = 28 OR t2_5.id_t2 = 26);
  
+set optimizer_switch='rowid_filter=default';
+
 drop table t1,t2,t3,t4,t5;
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;

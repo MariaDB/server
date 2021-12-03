@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS t1;
 select variable_value from information_schema.global_status where variable_name="handler_read_key" into @global_read_key;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
@@ -119,7 +118,7 @@ Handler_mrr_key_refills	0
 Handler_mrr_rowid_refills	0
 Handler_prepare	18
 Handler_read_first	0
-Handler_read_key	9
+Handler_read_key	17
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -137,7 +136,7 @@ Handler_update	5
 Handler_write	7
 select variable_value - @global_read_key as "handler_read_key" from information_schema.global_status where variable_name="handler_read_key";
 handler_read_key
-9
+17
 disconnect ssl_con;
 set @@global.userstat=0;
 select * from information_schema.index_statistics;
@@ -148,7 +147,7 @@ show table_statistics;
 Table_schema	Table_name	Rows_read	Rows_changed	Rows_changed_x_#indexes
 show index_statistics;
 Table_schema	Table_name	Index_name	Rows_read
-select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, OTHER_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.client_statistics;;
+select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.client_statistics;;
 TOTAL_CONNECTIONS	2
 TOTAL_SSL_CONNECTIONS	1
 CONCURRENT_CONNECTIONS	0
@@ -159,14 +158,13 @@ ROWS_INSERTED	7
 ROWS_UPDATED	5
 SELECT_COMMANDS	4
 UPDATE_COMMANDS	11
-OTHER_COMMANDS	7
 COMMIT_TRANSACTIONS	19
 ROLLBACK_TRANSACTIONS	2
 DENIED_CONNECTIONS	0
 LOST_CONNECTIONS	0
 ACCESS_DENIED	0
 EMPTY_QUERIES	1
-select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, OTHER_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.user_statistics;;
+select TOTAL_CONNECTIONS, TOTAL_SSL_CONNECTIONS, CONCURRENT_CONNECTIONS, ROWS_READ, ROWS_SENT, ROWS_DELETED, ROWS_INSERTED, ROWS_UPDATED, SELECT_COMMANDS, UPDATE_COMMANDS, COMMIT_TRANSACTIONS, ROLLBACK_TRANSACTIONS, DENIED_CONNECTIONS, LOST_CONNECTIONS, ACCESS_DENIED, EMPTY_QUERIES from information_schema.user_statistics;;
 TOTAL_CONNECTIONS	2
 TOTAL_SSL_CONNECTIONS	1
 CONCURRENT_CONNECTIONS	0
@@ -177,13 +175,18 @@ ROWS_INSERTED	7
 ROWS_UPDATED	5
 SELECT_COMMANDS	4
 UPDATE_COMMANDS	11
-OTHER_COMMANDS	7
 COMMIT_TRANSACTIONS	19
 ROLLBACK_TRANSACTIONS	2
 DENIED_CONNECTIONS	0
 LOST_CONNECTIONS	0
 ACCESS_DENIED	0
 EMPTY_QUERIES	1
+select OTHER_COMMANDS IN (7,8) from information_schema.client_statistics;
+OTHER_COMMANDS IN (7,8)
+1
+select OTHER_COMMANDS IN (7,8) from information_schema.user_statistics;
+OTHER_COMMANDS IN (7,8)
+1
 flush table_statistics;
 flush index_statistics;
 select * from information_schema.index_statistics;
@@ -233,3 +236,17 @@ select @@in_transaction;
 0
 drop table t1;
 set @@global.general_log=@save_general_log;
+#
+# MDEV-25242 Server crashes in check_grant upon invoking function with userstat enabled
+#
+create function f() returns int return (select 1 from performance_schema.threads);
+set global userstat= 1;
+select f() from information_schema.table_statistics;
+ERROR 21000: Subquery returns more than 1 row
+select f() from information_schema.index_statistics;
+ERROR 21000: Subquery returns more than 1 row
+set global userstat= 0;
+drop function f;
+#
+# End of 10.2 tests
+#

@@ -40,6 +40,7 @@ disconnect con1;
 optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
+# restart
 select count(*) from t1;
 count(*)
 7904
@@ -68,6 +69,7 @@ SET @@global.innodb_defragment_n_pages = 3;
 optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
+# restart
 select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
 count(stat_value) < 3
 1
@@ -105,6 +107,7 @@ SET @@global.innodb_defragment_n_pages = 10;
 optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
+# restart
 select count(stat_value) > 1 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
 count(stat_value) > 1
 1

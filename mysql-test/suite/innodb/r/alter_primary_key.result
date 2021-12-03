@@ -1,0 +1,28 @@
+#
+# MDEV-23244 ALTER TABLE…ADD PRIMARY KEY fails to flag
+# duplicate key error from concurrent DML
+#
+CREATE TABLE t0 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1 (c CHAR(2) NOT NULL) ENGINE=InnoDB;
+INSERT INTO  t1 VALUES('cd');
+connect  con1,localhost,root,,;
+BEGIN;
+INSERT INTO t0 VALUES(1);
+connection default;
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL dml WAIT_FOR dml_done';
+ALTER TABLE t1 ADD PRIMARY KEY(c(1));
+connection con1;
+SET DEBUG_SYNC='now WAIT_FOR dml';
+INSERT INTO t1 VALUES ('ab'),('ac');
+COMMIT;
+SET DEBUG_SYNC='now SIGNAL dml_done';
+disconnect con1;
+connection default;
+ERROR 23000: Duplicate entry 'a' for key 'PRIMARY'
+SET DEBUG_SYNC='RESET';
+SELECT * FROM t1;
+c
+cd
+ab
+ac
+DROP TABLE t0,t1;

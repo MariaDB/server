@@ -77,3 +77,12 @@ Note	1976	Can't drop role 'role_1'; it doesn't exist
 DROP ROLE role_1;
 ERROR HY000: Operation DROP ROLE failed for 'role_1'
 DROP USER u1@localhost;
+CREATE ROLE r;
+GRANT SHOW DATABASES ON *.* TO r;
+CREATE USER foo;
+CREATE USER bar;
+GRANT r TO foo;
+CREATE OR REPLACE USER foo IDENTIFIED WITH non_existing_plugin;
+ERROR HY000: Plugin 'non_existing_plugin' is not loaded
+DROP ROLE r;
+DROP USER bar;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,7 +24,8 @@ Data types
 Created 1/16/1996 Heikki Tuuri
 *******************************************************/
 
-#include "data0type.h"
+#include "dict0mem.h"
+#include "my_sys.h"
 
 /** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
 const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN] = {
@@ -60,10 +61,10 @@ dtype_get_at_most_n_mbchars(
 					length is being determined */
 {
 	ut_a(len_is_stored(data_len));
-	ut_ad(!mbmaxlen || !(prefix_len % mbmaxlen));
+	ut_ad(!mbmaxlen || !(prefix_len % mbmaxlen) || !(prefix_len % 4));
 
 	if (mbminlen != mbmaxlen) {
-		ut_a(!(prefix_len % mbmaxlen));
+		ut_a(!(prefix_len % mbmaxlen) || !(prefix_len % 4));
 		return(innobase_get_at_most_n_mbchars(
 			dtype_get_charset_coll(prtype),
 			prefix_len, data_len, str));
@@ -76,67 +77,6 @@ dtype_get_at_most_n_mbchars(
 	}
 
 	return(data_len);
-}
-
-/*********************************************************************//**
-Checks if a data main type is a string type. Also a BLOB is considered a
-string type.
-@return TRUE if string type */
-ibool
-dtype_is_string_type(
-/*=================*/
-	ulint	mtype)	/*!< in: InnoDB main data type code: DATA_CHAR, ... */
-{
-	if (mtype <= DATA_BLOB
-	    || mtype == DATA_MYSQL
-	    || mtype == DATA_VARMYSQL) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
-}
-
-/*********************************************************************//**
-Checks if a type is a binary string type. Note that for tables created with
-< 4.0.14, we do not know if a DATA_BLOB column is a BLOB or a TEXT column. For
-those DATA_BLOB columns this function currently returns FALSE.
-@return TRUE if binary string type */
-ibool
-dtype_is_binary_string_type(
-/*========================*/
-	ulint	mtype,	/*!< in: main data type */
-	ulint	prtype)	/*!< in: precise type */
-{
-	if ((mtype == DATA_FIXBINARY)
-	    || (mtype == DATA_BINARY)
-	    || (mtype == DATA_BLOB && (prtype & DATA_BINARY_TYPE))) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
-}
-
-/*********************************************************************//**
-Checks if a type is a non-binary string type. That is, dtype_is_string_type is
-TRUE and dtype_is_binary_string_type is FALSE. Note that for tables created
-with < 4.0.14, we do not know if a DATA_BLOB column is a BLOB or a TEXT column.
-For those DATA_BLOB columns this function currently returns TRUE.
-@return TRUE if non-binary string type */
-ibool
-dtype_is_non_binary_string_type(
-/*============================*/
-	ulint	mtype,	/*!< in: main data type */
-	ulint	prtype)	/*!< in: precise type */
-{
-	if (dtype_is_string_type(mtype) == TRUE
-	    && dtype_is_binary_string_type(mtype, prtype) == FALSE) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
 }
 
 /*********************************************************************//**

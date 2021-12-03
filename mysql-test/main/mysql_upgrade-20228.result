@@ -1,0 +1,69 @@
+#
+# MDEV-20228 `mysql_upgrade` fails on every version upgrade: "ERROR 1267 (HY000) at line 7: Illegal mix of collations (utf8mb4_unicode_ci,COERCIBLE) and (utf8mb4_general_ci,COERCIBLE) for operation 'like'"
+#
+SET sql_mode="";
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+#
+# Changing character_set_client and collation_connection
+# for the VIEW mysql.user to utf8mb4/utf8mb4_unicode_ci,
+# to emulate that mysql.user was created by 'mysqld --bootstrap'
+# using mysqld compiled with
+# -DDEFAULT_CHARSET=utf8mb4 -DDEFAULT_COLLATION=utf8mb4_unicode_ci
+#
+SELECT CHARACTER_SET_CLIENT, COLLATION_CONNECTION
+FROM INFORMATION_SCHEMA.VIEWS
+WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
+CHARACTER_SET_CLIENT	COLLATION_CONNECTION
+utf8mb4	utf8mb4_unicode_ci
+# Running mysql_upgrade
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+#
+# Restoring character_set_client and collation_connection back
+# so post-check returns the expected check-mysqld_1.result
+#
+SET NAMES latin1;

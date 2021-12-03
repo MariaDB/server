@@ -5,7 +5,15 @@ sys_trx_start bigint(20) unsigned as row start invisible,
 sys_trx_end bigint(20) unsigned as row end invisible,
 period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning;
+# No history inside the transaction
+start transaction;
 insert into t1 (x) values (1);
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+commit;
+select *, sys_trx_start > 1, sys_trx_end from t1 for system_time all;
+x	sys_trx_start > 1	sys_trx_end
+3	1	18446744073709551615
 # ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
 set @@system_versioning_alter_history=keep;
 create or replace table t1 (x int);
@@ -197,9 +205,7 @@ Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be
 select trt_begin_ts(@trx_id) <= @ts1 as BEGIN_TS_GOOD;
 BEGIN_TS_GOOD
 1
-drop database test;
-create database test;
-use test;
+drop table t1;
 #
 # MDEV-16100 FOR SYSTEM_TIME erroneously resolves string user variables as transaction IDs
 #
@@ -215,17 +221,17 @@ EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION @ts;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,@`ts`) and trt_trx_sees_eq(@`ts`,`test`.`t1`.`sys_trx_start`)
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TRANSACTION @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,@`ts`) and trt_trx_sees_eq(@`ts`,`test`.`t1`.`sys_trx_start`)
 EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TIMESTAMP @ts;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
 EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF @ts;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
 DROP TABLE t1;
 #
 # Testing AS OF with expressions of various kinds and data types
@@ -338,7 +344,7 @@ DECLARE var BIT(10);
 SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
 END;
 $$
-ERROR HY000: Transaction system versioning for `t2` is not supported
+ERROR HY000: Transaction-precise system versioning for `t2` is not supported
 #
 # String literals resolve to TIMESTAMP
 #
@@ -350,19 +356,17 @@ x
 #
 # HEX hybrids resolve to TRANSACTION
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0x60);
-x
-1
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0x60);
-ERROR HY000: Transaction system versioning for `t2` is not supported
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
+ERROR HY000: TRX_ID 4294967295 not found in `mysql.transaction_registry`
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
+ERROR HY000: Transaction-precise system versioning for `t2` is not supported
 #
 # BIT literals resolve to TRANSACTION
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'1100000');
-x
-1
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'1100000');
-ERROR HY000: Transaction system versioning for `t2` is not supported
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
+ERROR HY000: TRX_ID 4294967295 not found in `mysql.transaction_registry`
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
+ERROR HY000: Transaction-precise system versioning for `t2` is not supported
 DROP TABLE t1, t2;
 #
 # MDEV-16094 Crash when using AS OF with a stored function
@@ -386,7 +390,7 @@ PERIOD FOR SYSTEM_TIME(start_timestamp, end_timestamp)
 SELECT * FROM tts FOR SYSTEM_TIME AS OF fts();
 x	start_timestamp	end_timestamp
 SELECT * FROM tts FOR SYSTEM_TIME AS OF ftx();
-ERROR HY000: Transaction system versioning for `tts` is not supported
+ERROR HY000: Transaction-precise system versioning for `tts` is not supported
 SELECT * FROM ttx FOR SYSTEM_TIME AS OF fts();
 x	start_timestamp	end_timestamp
 SELECT * FROM ttx FOR SYSTEM_TIME AS OF ftx();
@@ -439,7 +443,9 @@ ALTER TABLE t
 CHANGE a a INT WITH SYSTEM VERSIONING,
 ADD PRIMARY KEY pk(a);
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1280	Name 'pk' ignored for PRIMARY key.
 SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
 INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
 ON c.table_id=t.table_id
@@ -494,3 +500,31 @@ SET @@SYSTEM_VERSIONING_ALTER_HISTORY=ERROR;
 SELECT count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
 count(*)
 0
+# MDEV-18875 Assertion `thd->transaction.stmt.ha_list == __null ||
+# trans == &thd->transaction.stmt' failed or bogus ER_DUP_ENTRY upon
+# ALTER TABLE with versioning
+create or replace table t (x int) engine=innodb;
+set autocommit= 0;
+alter table t
+algorithm=copy,
+add column row_start bigint unsigned as row start,
+add column row_end bigint unsigned as row end,
+add period for system_time(row_start,row_end),
+with system versioning;
+set autocommit= 1;
+# MDEV-18865 Assertion `t->first->versioned_by_id()'
+# failed in innodb_prepare_commit_versioned
+create or replace table t (x int) engine=innodb;
+insert into t values (0);
+alter table t add `row_start` bigint unsigned as row start,
+add `row_end` bigint unsigned as row end,
+add period for system_time(`row_start`,`row_end`),
+modify x int after row_start,
+with system versioning;
+drop table t;
+#
+# MDEV-20842 Crash using versioning plugin functions after plugin was removed from server
+#
+uninstall plugin test_versioning;
+select trt_begin_ts(0);
+ERROR 42000: FUNCTION test.trt_begin_ts does not exist

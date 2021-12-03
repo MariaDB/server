@@ -723,7 +723,7 @@ CREATE TABLE t1 AS SELECT repeat('a',2) as s1 LIMIT 0;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES ('ab'),('AE'),('ab'),('AE');
 SELECT * FROM t1 ORDER BY s1;
-SET max_sort_length=4;
+SET max_sort_length=8;
 SELECT * FROM t1 ORDER BY s1;
 DROP TABLE t1;
 SET max_sort_length=DEFAULT;
@@ -765,8 +765,9 @@ DROP TABLE t1;
 --echo # DATE_ADD/DATE_SUB WITH INTERVAL CRASHES IN GET_INTERVAL_VALUE()
 --echo #
 
+let $max_packet=`select @@max_allowed_packet`;
+--replace_result $max_packet XXX
 SELECT space(date_add(101, INTERVAL CHAR('1' USING utf16) hour_second)); 
-
 
 --echo #
 --echo # Bug#11750518 41090: ORDER BY TRUNCATES GROUP_CONCAT RESULT
@@ -932,4 +933,25 @@ let $coll_pad='utf16_bin';
 
 --echo #
 --echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-22391 Assertion `0' failed in Item_type_holder::val_str on utf16 charset table query
+--echo #
+
+SET NAMES utf8;
+CREATE TABLE t1 (a TEXT CHARACTER SET utf16);
+SELECT * FROM (VALUES (1) UNION SELECT * FROM t1) AS t;
+DROP TABLE t1;
+VALUES (1) UNION SELECT _utf16 0x0020;
+VALUES ('') UNION SELECT _utf16 0x0020 COLLATE utf16_bin;
+VALUES ('') UNION VALUES ( _utf16 0x0020 COLLATE utf16_bin);
+
+
+--echo #
+--echo # End of 10.3 tests
 --echo #

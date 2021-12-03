@@ -26,8 +26,8 @@ ERROR HY000: Cannot grant role 'role10' to: 'role2'
 connect  foo, localhost, foo;
 show grants;
 Grants for foo@localhost
-GRANT USAGE ON *.* TO 'foo'@'localhost'
-GRANT role10 TO 'foo'@'localhost'
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT `role10` TO `foo`@`localhost`
 select * from information_schema.applicable_roles;
 GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
 foo@localhost	role10	NO	NO
@@ -56,27 +56,27 @@ count(*)
 22
 show grants;
 Grants for foo@localhost
-GRANT SELECT ON *.* TO 'role1'
-GRANT USAGE ON *.* TO 'foo'@'localhost'
-GRANT USAGE ON *.* TO 'role10'
-GRANT USAGE ON *.* TO 'role2'
-GRANT USAGE ON *.* TO 'role3'
-GRANT USAGE ON *.* TO 'role4'
-GRANT USAGE ON *.* TO 'role5'
-GRANT USAGE ON *.* TO 'role6'
-GRANT USAGE ON *.* TO 'role7'
-GRANT USAGE ON *.* TO 'role9'
-GRANT role1 TO 'role2'
-GRANT role10 TO 'foo'@'localhost'
-GRANT role2 TO 'role4'
-GRANT role2 TO 'role5'
-GRANT role3 TO 'role5'
-GRANT role4 TO 'role6'
-GRANT role5 TO 'role6'
-GRANT role5 TO 'role7'
-GRANT role6 TO 'role9'
-GRANT role7 TO 'role9'
-GRANT role9 TO 'role10'
+GRANT SELECT ON *.* TO `role1`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role10`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT USAGE ON *.* TO `role5`
+GRANT USAGE ON *.* TO `role6`
+GRANT USAGE ON *.* TO `role7`
+GRANT USAGE ON *.* TO `role9`
+GRANT `role10` TO `foo`@`localhost`
+GRANT `role1` TO `role2`
+GRANT `role2` TO `role4`
+GRANT `role2` TO `role5`
+GRANT `role3` TO `role5`
+GRANT `role4` TO `role6`
+GRANT `role5` TO `role6`
+GRANT `role5` TO `role7`
+GRANT `role6` TO `role9`
+GRANT `role7` TO `role9`
+GRANT `role9` TO `role10`
 select * from information_schema.enabled_roles;
 ROLE_NAME
 role1
@@ -114,28 +114,28 @@ count(*)
 22
 show grants;
 Grants for foo@localhost
-GRANT SELECT ON `mysql`.* TO 'role1'
-GRANT USAGE ON *.* TO 'foo'@'localhost'
-GRANT USAGE ON *.* TO 'role1'
-GRANT USAGE ON *.* TO 'role10'
-GRANT USAGE ON *.* TO 'role2'
-GRANT USAGE ON *.* TO 'role3'
-GRANT USAGE ON *.* TO 'role4'
-GRANT USAGE ON *.* TO 'role5'
-GRANT USAGE ON *.* TO 'role6'
-GRANT USAGE ON *.* TO 'role7'
-GRANT USAGE ON *.* TO 'role9'
-GRANT role1 TO 'role2'
-GRANT role10 TO 'foo'@'localhost'
-GRANT role2 TO 'role4'
-GRANT role2 TO 'role5'
-GRANT role3 TO 'role5'
-GRANT role4 TO 'role6'
-GRANT role5 TO 'role6'
-GRANT role5 TO 'role7'
-GRANT role6 TO 'role9'
-GRANT role7 TO 'role9'
-GRANT role9 TO 'role10'
+GRANT SELECT ON `mysql`.* TO `role1`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role10`
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT USAGE ON *.* TO `role5`
+GRANT USAGE ON *.* TO `role6`
+GRANT USAGE ON *.* TO `role7`
+GRANT USAGE ON *.* TO `role9`
+GRANT `role10` TO `foo`@`localhost`
+GRANT `role1` TO `role2`
+GRANT `role2` TO `role4`
+GRANT `role2` TO `role5`
+GRANT `role3` TO `role5`
+GRANT `role4` TO `role6`
+GRANT `role5` TO `role6`
+GRANT `role5` TO `role7`
+GRANT `role6` TO `role9`
+GRANT `role7` TO `role9`
+GRANT `role9` TO `role10`
 connection default;
 revoke select on mysql.* from role1;
 show status like 'debug%';
@@ -157,28 +157,28 @@ count(*)
 22
 show grants;
 Grants for foo@localhost
-GRANT SELECT ON `mysql`.`roles_mapping` TO 'role1'
-GRANT USAGE ON *.* TO 'foo'@'localhost'
-GRANT USAGE ON *.* TO 'role1'
-GRANT USAGE ON *.* TO 'role10'
-GRANT USAGE ON *.* TO 'role2'
-GRANT USAGE ON *.* TO 'role3'
-GRANT USAGE ON *.* TO 'role4'
-GRANT USAGE ON *.* TO 'role5'
-GRANT USAGE ON *.* TO 'role6'
-GRANT USAGE ON *.* TO 'role7'
-GRANT USAGE ON *.* TO 'role9'
-GRANT role1 TO 'role2'
-GRANT role10 TO 'foo'@'localhost'
-GRANT role2 TO 'role4'
-GRANT role2 TO 'role5'
-GRANT role3 TO 'role5'
-GRANT role4 TO 'role6'
-GRANT role5 TO 'role6'
-GRANT role5 TO 'role7'
-GRANT role6 TO 'role9'
-GRANT role7 TO 'role9'
-GRANT role9 TO 'role10'
+GRANT SELECT ON `mysql`.`roles_mapping` TO `role1`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role10`
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT USAGE ON *.* TO `role5`
+GRANT USAGE ON *.* TO `role6`
+GRANT USAGE ON *.* TO `role7`
+GRANT USAGE ON *.* TO `role9`
+GRANT `role10` TO `foo`@`localhost`
+GRANT `role1` TO `role2`
+GRANT `role2` TO `role4`
+GRANT `role2` TO `role5`
+GRANT `role3` TO `role5`
+GRANT `role4` TO `role6`
+GRANT `role5` TO `role6`
+GRANT `role5` TO `role7`
+GRANT `role6` TO `role9`
+GRANT `role7` TO `role9`
+GRANT `role9` TO `role10`
 connection default;
 revoke select on mysql.roles_mapping from role1;
 show status like 'debug%';
@@ -202,28 +202,28 @@ count(concat(User))
 22
 show grants;
 Grants for foo@localhost
-GRANT SELECT (User) ON `mysql`.`roles_mapping` TO 'role1'
-GRANT USAGE ON *.* TO 'foo'@'localhost'
-GRANT USAGE ON *.* TO 'role1'
-GRANT USAGE ON *.* TO 'role10'
-GRANT USAGE ON *.* TO 'role2'
-GRANT USAGE ON *.* TO 'role3'
-GRANT USAGE ON *.* TO 'role4'
-GRANT USAGE ON *.* TO 'role5'
-GRANT USAGE ON *.* TO 'role6'
-GRANT USAGE ON *.* TO 'role7'
-GRANT USAGE ON *.* TO 'role9'
-GRANT role1 TO 'role2'
-GRANT role10 TO 'foo'@'localhost'
-GRANT role2 TO 'role4'
-GRANT role2 TO 'role5'
-GRANT role3 TO 'role5'
-GRANT role4 TO 'role6'
-GRANT role5 TO 'role6'
-GRANT role5 TO 'role7'
-GRANT role6 TO 'role9'
-GRANT role7 TO 'role9'
-GRANT role9 TO 'role10'
+GRANT SELECT (User) ON `mysql`.`roles_mapping` TO `role1`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role10`
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT USAGE ON *.* TO `role5`
+GRANT USAGE ON *.* TO `role6`
+GRANT USAGE ON *.* TO `role7`
+GRANT USAGE ON *.* TO `role9`
+GRANT `role10` TO `foo`@`localhost`
+GRANT `role1` TO `role2`
+GRANT `role2` TO `role4`
+GRANT `role2` TO `role5`
+GRANT `role3` TO `role5`
+GRANT `role4` TO `role6`
+GRANT `role5` TO `role6`
+GRANT `role5` TO `role7`
+GRANT `role6` TO `role9`
+GRANT `role7` TO `role9`
+GRANT `role9` TO `role10`
 connection default;
 grant select(Host) on mysql.roles_mapping to role3;
 show status like 'debug%';
@@ -236,29 +236,29 @@ count(concat(User,Host))
 22
 show grants;
 Grants for foo@localhost
-GRANT SELECT (Host) ON `mysql`.`roles_mapping` TO 'role3'
-GRANT SELECT (User) ON `mysql`.`roles_mapping` TO 'role1'
-GRANT USAGE ON *.* TO 'foo'@'localhost'
-GRANT USAGE ON *.* TO 'role1'
-GRANT USAGE ON *.* TO 'role10'
-GRANT USAGE ON *.* TO 'role2'
-GRANT USAGE ON *.* TO 'role3'
-GRANT USAGE ON *.* TO 'role4'
-GRANT USAGE ON *.* TO 'role5'
-GRANT USAGE ON *.* TO 'role6'
-GRANT USAGE ON *.* TO 'role7'
-GRANT USAGE ON *.* TO 'role9'
-GRANT role1 TO 'role2'
-GRANT role10 TO 'foo'@'localhost'
-GRANT role2 TO 'role4'
-GRANT role2 TO 'role5'
-GRANT role3 TO 'role5'
-GRANT role4 TO 'role6'
-GRANT role5 TO 'role6'
-GRANT role5 TO 'role7'
-GRANT role6 TO 'role9'
-GRANT role7 TO 'role9'
-GRANT role9 TO 'role10'
+GRANT SELECT (Host) ON `mysql`.`roles_mapping` TO `role3`
+GRANT SELECT (User) ON `mysql`.`roles_mapping` TO `role1`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role10`
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT USAGE ON *.* TO `role5`
+GRANT USAGE ON *.* TO `role6`
+GRANT USAGE ON *.* TO `role7`
+GRANT USAGE ON *.* TO `role9`
+GRANT `role10` TO `foo`@`localhost`
+GRANT `role1` TO `role2`
+GRANT `role2` TO `role4`
+GRANT `role2` TO `role5`
+GRANT `role3` TO `role5`
+GRANT `role4` TO `role6`
+GRANT `role5` TO `role6`
+GRANT `role5` TO `role7`
+GRANT `role6` TO `role9`
+GRANT `role7` TO `role9`
+GRANT `role9` TO `role10`
 connection default;
 revoke select(User) on mysql.roles_mapping from role1;
 show status like 'debug%';

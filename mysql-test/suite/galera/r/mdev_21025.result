@@ -1,0 +1,11 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+START TRANSACTION;
+INSERT INTO t1 (f1) VALUES (1);
+START TRANSACTION;
+INSERT IGNORE INTO t1 (f1) VALUES (1);
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+START TRANSACTION;
+DROP TABLE t1;

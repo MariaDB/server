@@ -12,6 +12,7 @@
 --source include/have_debug.inc
 --source include/check_ipv6.inc
 --source include/have_perfschema.inc
+--source include/have_hostname_cache.inc
 --source include/have_plugin_auth.inc
 
 # Enforce a clean state
@@ -30,6 +31,7 @@ select current_user();
 disconnect con1;
 
 --connection default
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
 uninstall plugin test_plugin_server;
 
@@ -86,6 +88,6 @@ REVOKE PROXY ON 'plug_dest'@'santa.claus.ipv6.example.com'
 DROP USER 'plug'@'santa.claus.ipv6.example.com';
 DROP USER 'plug_dest'@'santa.claus.ipv6.example.com';
 
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 delete from mysql.plugin where name='test_plugin_server';
 

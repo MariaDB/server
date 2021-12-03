@@ -10,6 +10,7 @@ set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 SET @old_log_bin_trust_function_creators= @@global.log_bin_trust_function_creators;
 SET GLOBAL log_bin_trust_function_creators = 1;
+select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
 
 # Cleanup
 --disable_warnings
@@ -131,7 +132,7 @@ select 1;     # To test that the previous command didn't cause problems
 #
 # Bug#4898 User privileges depending on ORDER BY Settings of table db
 #
-insert into mysql.user (host, user) values ('localhost', 'test11');
+insert into mysql.global_priv (host, user) values ('localhost', 'test11');
 insert into mysql.db (host, db, user, select_priv) values
 ('localhost', 'a%', 'test11', 'Y'), ('localhost', 'ab%', 'test11', 'Y');
 alter table mysql.db order by db asc;
@@ -439,12 +440,14 @@ CREATE TABLE mysqltest.dummytable (dummyfield INT);
 CREATE VIEW mysqltest.dummyview AS SELECT dummyfield FROM mysqltest.dummytable;
 GRANT ALL PRIVILEGES ON mysqltest.dummytable TO dummy@localhost;
 GRANT ALL PRIVILEGES ON mysqltest.dummyview TO dummy@localhost;
+--sorted_result
 SHOW GRANTS FOR dummy@localhost;
 use INFORMATION_SCHEMA;
 SELECT TABLE_SCHEMA, TABLE_NAME, GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY
 PRIVILEGE_TYPE SEPARATOR ', ') AS PRIVILEGES FROM TABLE_PRIVILEGES WHERE GRANTEE
 = '\'dummy\'@\'localhost\'' GROUP BY TABLE_SCHEMA, TABLE_NAME;
 FLUSH PRIVILEGES;
+--sorted_result
 SHOW GRANTS FOR dummy@localhost;
 SELECT TABLE_SCHEMA, TABLE_NAME, GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY
 PRIVILEGE_TYPE SEPARATOR ', ') AS PRIVILEGES FROM TABLE_PRIVILEGES WHERE GRANTEE
@@ -461,12 +464,14 @@ CREATE TABLE mysqltest.dummytable (dummyfield INT);
 CREATE VIEW mysqltest.dummyview AS SELECT dummyfield FROM mysqltest.dummytable;
 GRANT CREATE VIEW ON mysqltest.dummytable TO dummy@localhost;
 GRANT CREATE VIEW ON mysqltest.dummyview TO dummy@localhost;
+--sorted_result
 SHOW GRANTS FOR dummy@localhost;
 use INFORMATION_SCHEMA;
 SELECT TABLE_SCHEMA, TABLE_NAME, GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY
 PRIVILEGE_TYPE SEPARATOR ', ') AS PRIVILEGES FROM TABLE_PRIVILEGES WHERE GRANTEE
 = '\'dummy\'@\'localhost\'' GROUP BY TABLE_SCHEMA, TABLE_NAME;
 FLUSH PRIVILEGES;
+--sorted_result
 SHOW GRANTS FOR dummy@localhost;
 SELECT TABLE_SCHEMA, TABLE_NAME, GROUP_CONCAT(PRIVILEGE_TYPE ORDER BY
 PRIVILEGE_TYPE SEPARATOR ', ') AS PRIVILEGES FROM TABLE_PRIVILEGES WHERE GRANTEE
@@ -581,12 +586,6 @@ drop database db27515;
 use test;
 create table t1 (a int);
 
-# Backup anonymous users and remove them. (They get in the way of
-# the one we test with here otherwise.)
-create table t2 as select * from mysql.user where user='';
-delete from mysql.user where user='';
-flush privileges;
-
 # Create some users with different hostnames
 create user mysqltest_8@'';
 create user mysqltest_8@host8;
@@ -700,10 +699,6 @@ drop user mysqltest_8@host8;
 --error ER_NONEXISTING_GRANT
 show grants for mysqltest_8@host8;
 
-# Restore the anonymous users.
-insert into mysql.user select * from t2;
-flush privileges;
-drop table t2;
 drop table t1;
 
 #
@@ -1264,9 +1259,6 @@ drop function test_function;
 SELECT CURRENT_USER();
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("admin");
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("");
-
-#cleanup after MDEV-16238
-update mysql.user set plugin='';
 
 #
 # Bug#57952: privilege change is not taken into account by EXECUTE.
@@ -2233,6 +2225,18 @@ set GLOBAL sql_mode=default;
 --source include/wait_until_count_sessions.inc
 
 --echo #
+--echo # MDEV-22755 CREATE USER leads to indirect SIGABRT in __stack_chk_fail () from fill_schema_user_privileges + *** stack smashing detected *** (on optimized builds)
+--echo #
+
+SET NAMES utf8;
+SET SQL_MODE='';
+CREATE USER 觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻@localhost;
+SELECT * FROM INFORMATION_SCHEMA.user_privileges WHERE GRANTEE LIKE "'abcdefghijklmnopqrstuvwxyz'%";
+SELECT GRANTEE FROM INFORMATION_SCHEMA.user_privileges WHERE GRANTEE LIKE '%觻%';
+DROP USER  觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻@localhost;
+SET SQL_MODE=DEFAULT;
+
+--echo #
 --echo # Start of 10.2 tests
 --echo #
 
@@ -2256,5 +2260,84 @@ DROP TABLE t1;
 DROP USER dummy@localhost;
 
 --echo #
+--echo # MDEV-23082: ER_TABLEACCESS_DENIED_ERROR error message is truncated, and
+--echo # inaccurately
+--echo #
+
+CREATE USER foo;
+CREATE DATABASE db;
+CREATE TABLE db.t (a INT);
+
+--connect (con1,localhost,foo,,)
+
+--error ER_TABLEACCESS_DENIED_ERROR
+GRANT ALL ON db.t TO foo;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, GRANT OPTION, REFERENCES,
+INDEX, ALTER, CREATE VIEW, SHOW VIEW, TRIGGER ON db.t TO foo;
+
+--connection default
+--disconnect con1
+
+DROP USER foo;
+DROP TABLE db.t;
+DROP DATABASE db;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-19948 'show grants' return privileges individually
+--echo #
+
+# Let's cheat server that we are using `10.2` user table
+# which doesn't have `Delete_history_priv` column
+
+source include/switch_to_mysql_user.inc;
+CREATE USER ten2;
+GRANT ALL ON *.* TO ten2;
+
+# Without any patching, this should show a lot of privileges,
+# but without delete history. With patch it is showing `all privileges`
+SHOW GRANTS FOR ten2;
+FLUSH PRIVILEGES;
+
+# Now should show `all privileges` with/without patch
+SHOW GRANTS FOR ten2;
+DROP USER ten2;
+source include/switch_to_mysql_global_priv.inc;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-17932 : Assertion upon double RENAME USER
+--echo #
+CREATE USER foo@localhost;
+CREATE USER bar2@localhost;
+RENAME USER foo@localhost TO bar1@localhost, bar1@localhost TO bar3@localhost;
+DROP USER bar2@localhost;
+DROP USER bar3@localhost;
+
+--echo #
+--echo # MDEV-17946 : Unsorted acl_dbs after RENAME USER
+--echo #
+CREATE USER foo;
+GRANT SELECT ON test.* TO foo;
+RENAME USER '' TO 'name';
+GRANT UPDATE ON test.* TO foo;
+RENAME USER 'name' to '';
+DROP USER foo;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

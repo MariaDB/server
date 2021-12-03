@@ -1,0 +1,68 @@
+#
+# Tests functions WSREP_LAST_WRITTEN_GTID and WSREP_LAST_SEEN_GTID
+#
+
+--source include/galera_cluster.inc
+
+# Returns -1 if no transactions have been run
+
+SELECT WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1';
+
+--disable_query_log
+--let $seqno = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--let $state = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_uuid'`
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$state:$seqno' AS wsrep_last_committed_id_match;
+--enable_query_log
+
+# WSREP_LAST_WRITTEN_GTID() should not be influenced by transactions committed
+# on other connections
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_1
+SELECT WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1';
+
+# WSREP_LAST_SEEN_GTID() should be influenced by transactions committed
+# on other connections
+
+--connection node_1a
+INSERT INTO t1 VALUES (1);
+--disable_query_log
+--let $wsrep_last_committed_id_conn_1a = `SELECT WSREP_LAST_SEEN_GTID()`
+--enable_query_log
+
+--connection node_1
+--disable_query_log
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$wsrep_last_committed_id_conn_1a' AS wsrep_last_committed_id_match;
+--enable_query_log
+
+# Should not advance while a transaction is in progress
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+SELECT WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1';
+
+--disable_query_log
+--let $wsrep_last_committed_id_before = `SELECT WSREP_LAST_SEEN_GTID()`
+--enable_query_log
+INSERT INTO t1 VALUES (1);
+SELECT WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1';
+--disable_query_log
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$wsrep_last_committed_id_before' AS wsrep_last_committed_id_match;
+--enable_query_log
+
+# Should only advance after the transaction has been committed
+
+COMMIT;
+--disable_query_log
+--let $seqno = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--let $state = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_uuid'`
+--eval SELECT WSREP_LAST_WRITTEN_GTID() = '$state:$seqno' AS wsrep_last_committed_id_advanced;
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$state:$seqno' AS wsrep_last_committed_id_advanced;
+--enable_query_log
+SET AUTOCOMMIT=ON;
+
+DROP TABLE t1;

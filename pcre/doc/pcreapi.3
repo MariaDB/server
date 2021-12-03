@@ -1227,7 +1227,7 @@ the following negative numbers:
   PCRE_ERROR_BADOPTION      the value of \fIwhat\fP was invalid
   PCRE_ERROR_UNSET          the requested field is not set
 .sp
-The "magic number" is placed at the start of each compiled pattern as an simple
+The "magic number" is placed at the start of each compiled pattern as a simple
 check against passing an arbitrary memory pointer. The endianness error can
 occur if a compiled pattern is saved and reloaded on a different host. Here is
 a typical call of \fBpcre_fullinfo()\fP, to obtain the length of the compiled
@@ -1294,7 +1294,7 @@ returned. For anchored patterns, -2 is returned.
 .sp
 Return the value of the first data unit (non-UTF character) of any matched
 string in the situation where PCRE_INFO_FIRSTCHARACTERFLAGS returns 1;
-otherwise return 0. The fourth argument should point to an \fBuint_t\fP
+otherwise return 0. The fourth argument should point to a \fBuint_t\fP
 variable.
 .P
 In the 8-bit library, the value is always less than 256. In the 16-bit library
@@ -1560,7 +1560,7 @@ returned value 1 (with "z" returned from PCRE_INFO_REQUIREDCHAR), but for
 .sp
 Return the value of the rightmost literal data unit that must exist in any
 matched string, other than at its start, if such a value has been recorded. The
-fourth argument should point to an \fBuint32_t\fP variable. If there is no such
+fourth argument should point to a \fBuint32_t\fP variable. If there is no such
 value, 0 is returned.
 .
 .
@@ -1699,7 +1699,7 @@ very long time, and so the \fImatch_limit\fP value is also used in this case
 .P
 The default value for the limit can be set when PCRE is built; the default
 default is 10 million, which handles all but the most extreme cases. You can
-override the default by suppling \fBpcre_exec()\fP with a \fBpcre_extra\fP
+override the default by supplying \fBpcre_exec()\fP with a \fBpcre_extra\fP
 block in which \fImatch_limit\fP is set, and PCRE_EXTRA_MATCH_LIMIT is set in
 the \fIflags\fP field. If the limit is exceeded, \fBpcre_exec()\fP returns
 PCRE_ERROR_MATCHLIMIT.
@@ -1726,7 +1726,7 @@ and is ignored, when matching is done using JIT compiled code.
 .P
 The default value for \fImatch_limit_recursion\fP can be set when PCRE is
 built; the default default is the same value as the default for
-\fImatch_limit\fP. You can override the default by suppling \fBpcre_exec()\fP
+\fImatch_limit\fP. You can override the default by supplying \fBpcre_exec()\fP
 with a \fBpcre_extra\fP block in which \fImatch_limit_recursion\fP is set, and
 PCRE_EXTRA_MATCH_LIMIT_RECURSION is set in the \fIflags\fP field. If the limit
 is exceeded, \fBpcre_exec()\fP returns PCRE_ERROR_RECURSIONLIMIT.
@@ -2044,10 +2044,10 @@ lookbehind. For example, consider the pattern
 .sp
 which finds occurrences of "iss" in the middle of words. (\eB matches only if
 the current position in the subject is not a word boundary.) When applied to
-the string "Mississipi" the first call to \fBpcre_exec()\fP finds the first
+the string "Mississippi" the first call to \fBpcre_exec()\fP finds the first
 occurrence. If \fBpcre_exec()\fP is called again with just the remainder of the
-subject, namely "issipi", it does not match, because \eB is always false at the
-start of the subject, which is deemed to be a word boundary. However, if
+subject, namely "issippi", it does not match, because \eB is always false at
+the start of the subject, which is deemed to be a word boundary. However, if
 \fBpcre_exec()\fP is passed the entire string again, but with \fIstartoffset\fP
 set to 4, it finds the second occurrence of "iss" because it is able to look
 behind the starting point to discover that it is preceded by a letter.

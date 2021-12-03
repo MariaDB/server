@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* support for Services */
 #include <service_versions.h>
@@ -142,47 +142,41 @@ static struct thd_error_context_service_st thd_error_context_handler= {
 };
 
 static struct wsrep_service_st wsrep_handler = {
-  get_wsrep,
-  get_wsrep_certify_nonPK,
-  get_wsrep_debug,
-  get_wsrep_drupal_282555_workaround,
   get_wsrep_recovery,
-  get_wsrep_load_data_splitting,
-  get_wsrep_log_conflicts,
-  get_wsrep_protocol_version,
-  wsrep_aborting_thd_contains,
-  wsrep_aborting_thd_enqueue,
   wsrep_consistency_check,
   wsrep_is_wsrep_xid,
   wsrep_xid_seqno,
   wsrep_xid_uuid,
-  wsrep_lock_rollback,
   wsrep_on,
-  wsrep_post_commit,
-  wsrep_prepare_key,
-  wsrep_run_wsrep_commit,
+  wsrep_prepare_key_for_innodb,
   wsrep_thd_LOCK,
   wsrep_thd_UNLOCK,
-  wsrep_thd_awake,
-  wsrep_thd_conflict_state,
-  wsrep_thd_conflict_state_str,
-  wsrep_thd_exec_mode,
-  wsrep_thd_exec_mode_str,
-  wsrep_thd_get_conflict_state,
-  wsrep_thd_is_BF,
-  wsrep_thd_is_wsrep,
   wsrep_thd_query,
-  wsrep_thd_query_state,
-  wsrep_thd_query_state_str,
   wsrep_thd_retry_counter,
-  wsrep_thd_set_conflict_state,
   wsrep_thd_ignore_table,
   wsrep_thd_trx_seqno,
-  wsrep_thd_ws_handle,
-  wsrep_trx_is_aborting,
-  wsrep_trx_order_before,
-  wsrep_unlock_rollback,
-  wsrep_set_data_home_dir
+  wsrep_thd_is_aborting,
+  wsrep_set_data_home_dir,
+  wsrep_thd_is_BF,
+  wsrep_thd_is_local,
+  wsrep_thd_self_abort,
+  wsrep_thd_append_key,
+  wsrep_thd_client_state_str,
+  wsrep_thd_client_mode_str,
+  wsrep_thd_transaction_state_str,
+  wsrep_thd_transaction_id,
+  wsrep_thd_bf_abort,
+  wsrep_thd_order_before,
+  wsrep_handle_SR_rollback,
+  wsrep_thd_skip_locking,
+  wsrep_get_sr_table_name,
+  wsrep_get_debug,
+  wsrep_commit_ordered,
+  wsrep_thd_is_applying,
+  wsrep_thd_set_wsrep_aborter,
+  wsrep_report_bf_lock_wait,
+  wsrep_thd_kill_LOCK,
+  wsrep_thd_kill_UNLOCK
 };
 
 static struct thd_specifics_service_st thd_specifics_handler=
@@ -217,6 +211,16 @@ static struct my_print_error_service_st my_print_error_handler=
   my_printv_error
 };
 
+struct json_service_st json_handler=
+{
+  json_type,
+  json_get_array_item,
+  json_get_object_key,
+  json_get_object_nkey,
+  json_escape_string,
+  json_unescape_json
+};
+
 static struct st_service_ref list_of_services[]=
 {
   { "base64_service",              VERSION_base64,              &base64_handler },
@@ -239,6 +243,6 @@ static struct st_service_ref list_of_services[]=
   { "thd_specifics_service",       VERSION_thd_specifics,       &thd_specifics_handler },
   { "thd_timezone_service",        VERSION_thd_timezone,        &thd_timezone_handler },
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
-  { "wsrep_service",               VERSION_wsrep,               &wsrep_handler }
+  { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
+  { "json_service",                VERSION_json,                &json_handler }
 };
-

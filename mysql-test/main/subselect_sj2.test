@@ -1,6 +1,13 @@
 #
 # DuplicateElimination strategy test
 #
+
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
 --source include/have_innodb.inc
 
 set @subselect_sj2_tmp= @@optimizer_switch;
@@ -56,6 +63,8 @@ create table t3 (
 ) engine=innodb;
 insert into t3 select a,a, a,a,a from t0;
 insert into t3 select a,a, a+100,a+100,a+100 from t0;
+
+analyze table t1,t2,t3;
 
 explain select * from t3 where b in (select a from t1);
 select * from t3 where b in (select a from t1);
@@ -794,9 +803,9 @@ set join_buffer_size=1;
 --enable_warnings
 
 select * from t2 where filler1 in ( select a from t1);
-set join_buffer_size=default;
+set join_buffer_size=@save_join_buffer_size;
 
-drop table t1, t2; 
+drop table t1, t2;
 #
 # BUG#33509: Server crashes with number of recursive subqueries=61
 #  (the query may or may not fail with an error so we're using it with SP 
@@ -985,7 +994,10 @@ INSERT INTO t2 VALUES (6,'y');
 CREATE TABLE t3 (f12 varchar(1) NOT NULL) ENGINE=InnoDB;
 INSERT INTO t3 VALUES ('r'),('s'),('t'),('v'),('w'),('x'),('y');
 
+analyze table t1,t2,t3 persistent for all;
 --echo # The following must use LooseScan but not join buffering
+
+--replace_column 9 #
 explain
 SELECT * FROM t3 
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
@@ -1113,6 +1125,8 @@ INSERT INTO t2 VALUES
 (11,'m',2),(12,'q',3),(13,'m',4),(14,'d',5),
 (15,'g',6),(16,'x',7),(17,'f',8);
 
+analyze table t1,t2;
+
 explain
 SELECT * FROM t1 WHERE b IN (
   SELECT d FROM t2, t1
@@ -1139,6 +1153,8 @@ INSERT INTO t1 VALUES
 ('m','m'),('b','b'),('x','x'),('g','g'),('p','p'),
 ('q','q'),('w','w'),('d','d'),('e','e');
 
+ANALYZE TABLE t1;
+
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 
 --echo # This query returned 6 rows instead of 19
@@ -1155,6 +1171,9 @@ WHERE ( a, a ) IN (
 CREATE TABLE t2 (a VARCHAR(1), b VARCHAR(1) NOT NULL, KEY(a)) ENGINE=InnoDB;
 INSERT INTO t2 SELECT * FROM t1;
 INSERT INTO t2 SELECT * FROM t1;
+
+ANALYZE TABLE t2;
+
 EXPLAIN 
 SELECT * FROM t2 
  WHERE (a, a) IN (SELECT alias2.b, alias2.a FROM t1 AS alias1, t1 AS alias2 
@@ -1207,6 +1226,9 @@ INSERT INTO t2 VALUES
   (13,'b','b'),(14,'x','x'),(15,'g','g'),(16,'p','p'),
   (17,'q','q'),(18,'w','w'),(19,'d','d');
 
+analyze table t1 persistent for all;
+analyze table t2 persistent for all;
+--replace_column 9 #
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (
@@ -1226,6 +1248,7 @@ WHERE alias3.d IN (
 # Do the same EXPLAIN SELECT and SELECT
 # with "alias3.c != alias5.c" instead of "alias5.c != alias3.c"
 
+--replace_column 9 #
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (
@@ -1379,6 +1402,8 @@ INSERT IGNORE INTO t1 VALUES (200001, 'a');
 INSERT IGNORE INTO t2 (t2id, t1idref) VALUES (200011, 200001),(200012, 200001),(200013, 200001);
 INSERT IGNORE INTO t3 VALUES (1, 200011, 1),  (1, 200012, 2), (1, 200013, 3);
 
+ANALYZE TABLE t1,t2,t3;
+
 set @tmp7474= @@optimizer_search_depth;
 SET SESSION optimizer_search_depth = 1;
 
@@ -1465,4 +1490,7 @@ DROP TABLE t1,t2,t3;
 DROP VIEW v3;
 
 --echo # This must be the last in the file:
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;
 set optimizer_switch=@subselect_sj2_tmp;

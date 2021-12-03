@@ -1,0 +1,114 @@
+connection node_2;
+connection node_1;
+
+Test phase 1 to make sure that natral deadlock in trigger SP execution is
+handled correctly
+
+CREATE TABLE t1(a INT);
+CREATE TABLE t2(f1 INT, f2 INT, f3 INT);
+CREATE PROCEDURE proc()
+BEGIN
+INSERT INTO t2 VALUES(100, 200, 300);
+UPDATE t2 SET f3 = f3 + 100;
+END|
+CREATE TRIGGER t1 BEFORE INSERT ON t1 FOR EACH ROW CALL proc();
+INSERT INTO t1 VALUES(2);;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+INSERT INTO t1 VALUES(1);;
+connection node_1;
+connection node_1a;
+connection node_1;
+wsrep__bf_aborts
+0
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE proc;
+
+Test phase 2 to make sure that BF abort for SP execution is
+handled correctly
+
+connection node_1;
+SET SESSION wsrep_retry_autocommit = 0;
+SET SESSION wsrep_sync_wait = 0;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+connection node_1a;
+SET SESSION wsrep_retry_autocommit = 0;
+SET SESSION wsrep_sync_wait = 0;
+CREATE PROCEDURE proc_update()
+BEGIN
+UPDATE t1 SET f2 = 'b';
+END|
+INSERT INTO t1 VALUES(1, 'a');
+connection node_1;
+SET debug_sync='wsrep_before_certification SIGNAL ready WAIT_FOR cont';
+CALL proc_update;
+connection node_1a;
+SET debug_sync='now WAIT_FOR ready';
+connection node_2;
+UPDATE t1 SET f2='c';
+connection node_1a;
+SET debug_sync='now SIGNAL cont';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1a;
+SET debug_sync='RESET';
+DROP PROCEDURE proc_update;
+connection node_1;
+
+Test phase 3 to make sure natural deadlock is not treated as BF abort
+
+TRUNCATE t1;
+INSERT INTO t1 VALUES (1, 'a'), (2, 'a');
+connection node_1a;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+connection node_1;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+connection node_1a;
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+connection node_1;
+UPDATE t1 SET f2 = 'c' WHERE f1 = 1;
+connection node_1a;
+COMMIT;
+wsrep__bf_aborts
+0
+connection node_1;
+ROLLBACK;
+
+Test phase 4 to make sure natural deadlock inside SP execution
+is not treated as BF abort
+
+connection node_1a;
+TRUNCATE t1;
+INSERT INTO t1 VALUES (1, 'a'), (2, 'a');
+CREATE PROCEDURE proc_update_1()
+BEGIN
+START TRANSACTION;
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SELECT SLEEP(5);
+UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+COMMIT;
+END|
+CREATE PROCEDURE proc_update_2()
+BEGIN
+START TRANSACTION;
+UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+SELECT SLEEP(5);
+UPDATE t1 SET f2 = 'c' WHERE f1 = 1;
+COMMIT;
+END|
+connection node_1;
+CALL proc_update_1;
+connection node_1a;
+CALL proc_update_2;
+SLEEP(5)
+0
+wsrep__bf_aborts
+0
+connection node_1;
+SLEEP(5)
+0
+DROP PROCEDURE proc_update_1;
+DROP PROCEDURE proc_update_2;
+DROP TABLE t1;

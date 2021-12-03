@@ -1,0 +1,31 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+SELECT @@wsrep_on;
+@@wsrep_on
+0
+connection node_1;
+START SLAVE;
+connection node_3;
+SHOW VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+CREATE TABLE source (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE target AS SELECT * FROM source;
+connection node_1;
+connection node_2;
+connection node_3;
+DROP TABLE target;
+INSERT INTO source VALUES(1);
+CREATE TABLE target AS SELECT * FROM source;
+connection node_1;
+connection node_2;
+connection node_3;
+DROP TABLE source;
+DROP TABLE target;
+connection node_2;
+connection node_1;
+STOP SLAVE;
+RESET SLAVE ALL;
+connection node_3;
+RESET MASTER;

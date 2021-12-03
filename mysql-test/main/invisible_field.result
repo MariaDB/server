@@ -404,8 +404,8 @@ b	int(11)	YES		NULL
 c	int(11)	YES		NULL	
 explain select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t1	ALL	b,c	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	eq_ref	b,c	b	5	test.t2.c	1	Using where
 select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
 a	a	b	c
 1	1	1	1
@@ -620,4 +620,25 @@ a	b
 2	2
 1	3
 2	4
+drop table t1;
+#
+# MDEV-23467 SIGSEGV in fill_record/fill_record_n_invoke_before_triggers on INSERT DELAYED
+#
+create table t1 (a int, b int invisible);
+insert delayed into t1 values (1);
+drop table t1;
+#
+# MDEV-25891 Computed default for INVISIBLE column is ignored in INSERT
+#
+create table t1(
+a int,
+x int default (a),
+y int default (a) invisible,
+z int default (33) invisible);
+insert into t1 values (1, default);
+insert into t1 (a) values (2);
+select a, x, y, z from t1;
+a	x	y	z
+1	1	1	33
+2	2	2	33
 drop table t1;

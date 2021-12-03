@@ -169,6 +169,7 @@ public:
   String *val_str(String *);
   longlong val_int();
   double val_real();
+  my_decimal *val_decimal(my_decimal *);
   uint get_n_paths() const { return arg_count - 1; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_extract>(thd, this); }
@@ -289,11 +290,21 @@ public:
     Item_func_json_array(thd, list) {}
   String *val_str(String *);
   bool is_json_type() { return true; }
-  const char *func_name() const { return "json_merge"; }
+  const char *func_name() const { return "json_merge_preserve"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_merge>(thd, this); }
 };
 
+class Item_func_json_merge_patch: public Item_func_json_merge
+{
+public:
+  Item_func_json_merge_patch(THD *thd, List<Item> &list):
+    Item_func_json_merge(thd, list) {}
+  const char *func_name() const { return "json_merge_patch"; }
+  String *val_str(String *);
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_merge_patch>(thd, this); }
+};
 
 class Item_func_json_length: public Item_long_func
 {
@@ -364,7 +375,7 @@ public:
   const char *func_name() const
   {
     return mode_insert ?
-             (mode_replace ? "json_set" : "json_insert") : "json_update";
+             (mode_replace ? "json_set" : "json_insert") : "json_replace";
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_insert>(thd, this); }

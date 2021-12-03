@@ -1,3 +1,4 @@
+--source include/default_optimizer_switch.inc
 
 --disable_warnings
 drop table if exists t1,t2,t3;
@@ -329,8 +330,8 @@ drop table t1,t3;
 --echo # String* Field_varstring::val_str(String*, String*)
 --echo #
 
-SET optimizer_switch = REPLACE( @@optimizer_switch, '=on', '=off' );
-SET optimizer_switch='in_to_exists=on,exists_to_in=on';
+SET optimizer_switch = REPLACE(REPLACE(@@optimizer_switch, '=on', '=off'), 'in_to_exists=off', 'in_to_exists=on');
+SET optimizer_switch='exists_to_in=on';
 
 CREATE TABLE t1 ( a VARCHAR(1) );
 INSERT INTO t1 VALUES ('k'),('m');
@@ -465,8 +466,8 @@ explain extended
 SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
 
-SET optimizer_switch = REPLACE( @@optimizer_switch, '=on', '=off' );
-SET optimizer_switch = 'exists_to_in=on,materialization=on,semijoin=off';
+SET optimizer_switch = REPLACE(REPLACE(@@optimizer_switch, '=on', '=off'), 'materialization=off', 'materialization=on');
+SET optimizer_switch = 'exists_to_in=on,semijoin=off';
 SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
 explain extended
@@ -827,6 +828,141 @@ DROP PROCEDURE p1;
 DROP TABLE t1;
 
 --echo # End of 10.0 tests
+
+--echo #
+--echo # MDEV-23221: A subquery causes crash
+--echo #
+create table t1 (
+location_code varchar(10),
+country_id varchar(10)
+);
+insert into t1 values ('HKG', 'HK');
+insert into t1 values ('NYC', 'US');
+insert into t1 values ('LAX', 'US');
+
+create table t2 (
+container_id varchar(10),
+cntr_activity_type varchar(10),
+cntr_dest varchar(10)
+);
+insert into t2 values ('AAAA1111', 'VSL', 'NYC');
+insert into t2 values ('AAAA1111', 'CUV', 'NYC');
+insert into t2 values ('BBBB2222', 'VSL', 'LAX');
+insert into t2 values ('BBBB2222', 'XYZ', 'LAX');
+
+let $query=
+select
+  (select country_id from t1 where location_code = cl1.cntr_dest) as dest_cntry,
+  (select
+     max(container_id)
+   from t2 as cl2
+   where
+    cl2.container_id = cl1.container_id and
+    cl2.cntr_activity_type = 'CUV' and
+    exists (select location_code
+            from t1
+            where
+               location_code = cl2.cntr_dest and
+               country_id = dest_cntry)
+   ) as CUV
+from
+  t2 cl1;
+
+--echo # Must not crash or return an error:
+eval $query;
+
+eval prepare s from "$query";
+execute s;
+execute s;
+
+drop table t1,t2;
+
+--echo # 
+--echo # MDEV-20557: SQL query with duplicate table aliases consistently crashes server
+--echo # (Just a testcase)
+--echo #
+
+create table t1 (id int, id2 int);
+create table t2 (id int, id2 int, a int);
+create table t3 (id int);
+create table t4 (id int);
+
+--error ER_NOT_SUPPORTED_YET
+select (select 1 from t1 where (exists 
+	(select 1 from t2  
+	where t2.a = (select t4.id from t4 where t4.id = t3.id) and t2.id2 = t1.id2))) dt
+from t3;
+ 
+drop table t1,t2,t3,t4;
+
+
+--echo # 
+--echo # MDEV-21649: Crash when using nested EXISTS
+--echo # (Just a testcase)
+--echo # 
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, PRIMARY KEY(id));
+CREATE TABLE t2 (id INT NOT NULL AUTO_INCREMENT, ip_id INT, PRIMARY KEY(id));
+CREATE TABLE t3 (id INT NOT NULL AUTO_INCREMENT, storage_method_id INT, storage_target_id INT, PRIMARY KEY(id));
+ 
+SELECT
+    W0.`id`
+FROM
+    `t1` W0
+WHERE (
+    EXISTS(
+        SELECT
+            V0.`id`
+        FROM
+            `t2` V0
+        WHERE (
+            EXISTS(
+                SELECT
+                    U0.`id`
+                FROM
+                    `t2` U0
+                    INNER JOIN `t3` U4 ON (U0.`id` = U4.`storage_target_id`)
+                WHERE (
+                        U0.`ip_id` = V0.`ip_id`
+                        AND U4.`storage_method_id` = (
+                            SELECT
+                                U5.`storage_method_id`
+                            FROM
+                                `t3` U5
+                            WHERE
+                                U5.`storage_target_id` = V0.`id`
+                            LIMIT
+                                1
+                        )
+                )
+            )
+        )
+    )
+);
+
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-25407: EXISTS subquery with correlation in ON expression crashes
+--echo #
+create table t10(a int primary key);
+insert into t10 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t11(a int primary key);
+insert into t11 select a.a + b.a* 10 + c.a * 100 from t10 a, t10 b, t10 c;
+
+create table t1 (a int, b int);
+insert into t1 select a,a from t10;
+
+create table t2 (a int, b int);
+insert into t2 select a,a from t11;
+
+create table t3 as select * from t2;
+
+
+explain  select *  from t1  where    exists (select t2.a from t2 left join t3 on (t3.b=t1.b) where t2.a=t1.a);
+
+drop table t1, t2, t3, t10, t11;
+
 
 #restore defaults
 set optimizer_switch=default;

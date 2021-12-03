@@ -1,6 +1,6 @@
 /* Copyright (c) 2002-2007 MySQL AB & tommy@valley.ne.jp
    Copyright (c) 2002, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
    
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -15,7 +15,7 @@
    You should have received a copy of the GNU Library General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-   MA 02110-1301, USA */
+   MA 02110-1335  USA */
 
 /* This file is for binary pseudo charset, created by bar@mysql.com */
 
@@ -219,7 +219,7 @@ static size_t my_case_str_bin(CHARSET_INFO *cs __attribute__((unused)),
 
 static size_t my_case_bin(CHARSET_INFO *cs __attribute__((unused)),
                           const char *src, size_t srclen,
-                          char *dst, size_t dstlen)
+                          char *dst, size_t dstlen __attribute__((unused)))
 {
   DBUG_ASSERT(srclen <= dstlen);
   memcpy(dst, src, srclen);
@@ -399,7 +399,7 @@ my_strnxfrm_8bit_bin(CHARSET_INFO *cs,
 {
   set_if_smaller(srclen, dstlen);
   set_if_smaller(srclen, nweights);
-  if (dst != src)
+  if (srclen && dst != src)
     memcpy(dst, src, srclen);
   return my_strxfrm_pad_desc_and_reverse(cs, dst, dst + srclen, dst + dstlen,
                                          (uint)(nweights - srclen), flags, 0);

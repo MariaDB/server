@@ -1,0 +1,21 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+connection node_1;
+SET SESSION wsrep_trx_fragment_size = 128;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, 0);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (2, 0);
+connection node_2;
+ALTER TABLE t1 DROP COLUMN f2;
+connection node_1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1a;
+INSERT INTO t1 VALUES (3, 0);
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1;

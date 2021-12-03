@@ -1,4 +1,6 @@
--- source include/have_innodb.inc
+--source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
+
 set time_zone="+00:00";
 set default_storage_engine=innodb;
 create or replace table dept (

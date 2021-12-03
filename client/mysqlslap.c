@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -177,7 +177,8 @@ static int get_options(int *argc,char ***argv);
 static uint opt_mysql_port= 0;
 
 static const char *load_default_groups[]=
-{ "mysqlslap", "client", "client-server", "client-mariadb", 0 };
+{ "mysqlslap", "mariadb-slap", "client", "client-server", "client-mariadb",
+  0 };
 
 typedef struct statement statement;
 
@@ -623,7 +624,7 @@ static struct my_option my_long_options[] =
   {"host", 'h', "Connect to host.", &host, &host, 0, GET_STR,
     REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"init-command", OPT_INIT_COMMAND,
-   "SQL Command to execute when connecting to MySQL server. Will "
+   "SQL Command to execute when connecting to MariaDB server. Will "
    "automatically be re-executed when reconnecting.",
    &opt_init_command, &opt_init_command, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1175,9 +1176,6 @@ get_options(int *argc,char ***argv)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
     my_end_arg= MY_CHECK_ERROR;
-
-  if (!user)
-    user= (char *)"root";
 
   /*
     If something is created and --no-drop is not specified, we drop the
@@ -2282,7 +2280,7 @@ slap_connect(MYSQL *mysql)
                            opt_mysql_unix_port,
                            connect_flags))
     {
-      /* Connect suceeded */
+      /* Connect succeeded */
       connect_error= 0;
       break;
     }

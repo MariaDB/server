@@ -1,0 +1,45 @@
+#--source include/innodb_page_size.inc
+--source include/have_partition.inc
+
+# import partitioned table from  table from partial backup
+
+CREATE TABLE t1(i INT) ENGINE INNODB
+PARTITION BY RANGE (i)
+(PARTITION p1 VALUES LESS THAN (100),
+ PARTITION p2 VALUES LESS THAN (200),
+ PARTITION p3 VALUES LESS THAN (300),
+ PARTITION p4 VALUES LESS THAN (400));
+
+INSERT INTO t1 VALUES (1), (101), (201), (301);
+
+echo # xtrabackup backup;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables=test.t1" --target-dir=$targetdir;
+--enable_result_log
+INSERT INTO t1 VALUES (1), (101), (201), (301);
+
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group-suffix=.1 --prepare --export --target-dir=$targetdir;
+--enable_result_log
+
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+CREATE TABLE t1_placeholder (i INT) ENGINE INNODB;
+let $i=4;
+while($i)
+{
+  eval ALTER TABLE t1_placeholder DISCARD TABLESPACE;
+  copy_file $targetdir/test/t1#P#p$i.cfg $MYSQLD_DATADIR/test/t1_placeholder.cfg;
+  copy_file $targetdir/test/t1#P#p$i.ibd $MYSQLD_DATADIR/test/t1_placeholder.ibd;
+  eval ALTER TABLE t1_placeholder IMPORT TABLESPACE;
+  eval ALTER TABLE t1 EXCHANGE PARTITION p$i WITH TABLE t1_placeholder;
+  dec $i;
+}
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP TABLE t1_placeholder;
+rmdir $targetdir;

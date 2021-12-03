@@ -14,7 +14,7 @@
    You should have received a copy of the GNU Library General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-   MA 02110-1301, USA */
+   MA 02110-1335  USA */
 
 /* UCS2 support. Written by Alexander Barkov <bar@mysql.com> */
 
@@ -829,7 +829,7 @@ my_strtoll10_mb2(CHARSET_INFO *cs __attribute__((unused)),
                  const char *nptr, char **endptr, int *error)
 {
   const uchar *s, *end, *start, *n_end, *true_end;
-  uchar c;
+  uchar UNINIT_VAR(c);
   unsigned long i, j, k;
   ulonglong li;
   int negative;
@@ -1162,9 +1162,12 @@ static size_t
 my_snprintf_mb2(CHARSET_INFO *cs __attribute__((unused)),
                 char* to, size_t n, const char* fmt, ...)
 {
+  size_t ret;
   va_list args;
   va_start(args,fmt);
-  return my_vsnprintf_mb2(to, n, fmt, args);
+  ret= my_vsnprintf_mb2(to, n, fmt, args);
+  va_end(args);
+  return ret;
 }
 
 
@@ -2391,9 +2394,12 @@ static size_t
 my_snprintf_utf32(CHARSET_INFO *cs __attribute__((unused)),
                   char* to, size_t n, const char* fmt, ...)
 {
+  size_t ret;
   va_list args;
   va_start(args,fmt);
-  return my_vsnprintf_utf32(to, n, fmt, args);
+  ret= my_vsnprintf_utf32(to, n, fmt, args);
+  va_end(args);
+  return ret;
 }
 
 

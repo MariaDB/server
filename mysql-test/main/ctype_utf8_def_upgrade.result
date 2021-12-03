@@ -1,0 +1,99 @@
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-19675 Wrong charset is chosen when opening a pre-4.1 table
+#
+# Test with a saved table from 3.23
+SELECT @@character_set_database;
+@@character_set_database
+latin1
+SET @@character_set_database="latin1";
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
+test.t1	check	error	Corrupt
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
+test.t1	repair	error	Corrupt
+REPAIR TABLE t1 USE_FRM;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `Host` char(60) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL DEFAULT '',
+  `Db` char(64) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL DEFAULT '',
+  `Select_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Insert_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Update_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Delete_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Create_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Drop_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Grant_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `References_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Index_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Alter_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  PRIMARY KEY (`Host`,`Db`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='Host privileges;  Merged with database privileges'
+DROP TABLE t1;
+SET @@character_set_database=DEFAULT;
+# Now do the same, but doing 'ALTER DATABASE' to create the db.opt file,
+# instead of setting variables directly.
+# Emulate a pre-4.1 database without db.opt
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8 */
+USE db1;
+SELECT @@character_set_database, 'taken from defaults' AS comment;
+@@character_set_database	comment
+utf8	taken from defaults
+USE test;
+ALTER DATABASE db1 DEFAULT CHARACTER SET latin1;
+USE db1;
+SELECT @@character_set_database, 'taken from db.opt' AS comment;
+@@character_set_database	comment
+latin1	taken from db.opt
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
+REPAIR TABLE t1 USE_FRM;
+Table	Op	Msg_type	Msg_text
+db1.t1	repair	status	OK
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	check	status	OK
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `Host` char(60) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL DEFAULT '',
+  `Db` char(64) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL DEFAULT '',
+  `Select_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Insert_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Update_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Delete_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Create_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Drop_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Grant_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `References_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Index_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  `Alter_priv` enum('N','Y') NOT NULL DEFAULT 'N',
+  PRIMARY KEY (`Host`,`Db`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='Host privileges;  Merged with database privileges'
+DROP TABLE t1;
+DROP DATABASE db1;
+USE test;
+#
+# End of 10.1 tests
+#

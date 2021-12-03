@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,8 +34,6 @@ Created Nov 12, 2014 Vasil Dimov
 
 #include "mysql/psi/mysql_stage.h" /* mysql_stage_inc_work_completed */
 #include "mysql/psi/psi.h" /* HAVE_PSI_STAGE_INTERFACE, PSI_stage_progress */
-
-#include "univ.i"
 
 #include "dict0mem.h" /* dict_index_t */
 #include "row0log.h" /* row_log_estimate_work() */

@@ -2,17 +2,23 @@
 -- source include/have_file_key_management_plugin.inc
 # embedded does not support restart
 -- source include/not_embedded.inc
+# MDEV-20839 innodb-redo-badkey sporadically fails on buildbot with page dump
+# We only require a debug build to avoid getting page dumps, making use of
+# MDEV-19766: Disable page dump output in debug builds
+-- source include/have_debug.inc
 
 call mtr.add_suppression("Plugin 'file_key_management'");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
-call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[0-9]+\\] in file .*test/t[1-4]\\.ibd cannot be decrypted");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[0-9]+\\] in file '.*test/t[1-4]\\.ibd' cannot be decrypted");
 call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
-call mtr.add_suppression("InnoDB: Unable to decompress .*.test.t1\\.ibd\\[page id: space=[1-9][0-9]*, page number=[0-9]+\\]");
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed file read of tablespace test/t1 page \\[page id: space=[1-9][0-9]*, page number=[0-9]*\\]");
+call mtr.add_suppression("InnoDB: Unable to decompress .*.test.t[12]\\.ibd\\[page id: space=[1-9][0-9]*, page number=[0-9]+\\]");
+call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed file read of tablespace test/t[12] page \\[page id: space=[1-9][0-9]*, page number=[0-9]*\\]");
+call mtr.add_suppression("InnoDB: Failed to read file '.*' at offset .*");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+# for innodb_checksum_algorithm=full_crc32 only
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 
---echo # Restart mysqld --file-key-management-filename=keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
 
@@ -68,7 +74,6 @@ let $cleanup= drop table t1,t2,t3,t4;
 --let CLEANUP_IF_CHECKPOINT= $cleanup;
 --source ../../suite/innodb/include/no_checkpoint_end.inc
 
---echo # restart
 --error 1
 -- source include/start_mysqld.inc
 --source include/kill_mysqld.inc
@@ -77,14 +82,12 @@ let $cleanup= drop table t1,t2,t3,t4;
 # Now test with innodb-force-recovery=1 i.e. ignore corrupt pages
 #
 
---echo # Restart mysqld --innodb-force-recovery=1
 -- let $restart_parameters=--innodb-force-recovery=1
 --error 1
 -- source include/start_mysqld.inc
 
 --source include/kill_mysqld.inc
 
---echo # Restart mysqld --file-key-management-filename=keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/start_mysqld.inc
 

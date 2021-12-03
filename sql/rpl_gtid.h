@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef RPL_GTID_H
 #define RPL_GTID_H
@@ -118,8 +118,9 @@ struct rpl_slave_state
   {
     struct list_element *next;
     uint64 sub_id;
-    uint64 seq_no;
+    uint32 domain_id;
     uint32 server_id;
+    uint64 seq_no;
     /*
       hton of mysql.gtid_slave_pos* table used to record this GTID.
       Can be NULL if the gtid table failed to load (eg. missing
@@ -191,6 +192,8 @@ struct rpl_slave_state
 
   /* Mapping from domain_id to its element. */
   HASH hash;
+  /* GTIDs added since last purge of old mysql.gtid_slave_pos rows. */
+  uint32 pending_gtid_count;
   /* Mutex protecting access to the state. */
   mysql_mutex_t LOCK_slave_state;
   /* Auxiliary buffer to sort gtid list. */
@@ -214,13 +217,10 @@ struct rpl_slave_state
     The list can be read without lock by an SQL driver thread or worker thread
     by reading the gtid_pos_tables pointer atomically with acquire semantics,
     to ensure that it will see the correct next pointer of a new head element.
-
-    The type is struct gtid_pos_table *, but needs to be void * to allow using
-    my_atomic operations without violating C strict aliasing semantics.
   */
-  void * volatile gtid_pos_tables;
+  std::atomic<gtid_pos_table*> gtid_pos_tables;
   /* The default entry in gtid_pos_tables, mysql.gtid_slave_pos. */
-  void * volatile default_gtid_pos_table;
+  std::atomic<gtid_pos_table*> default_gtid_pos_table;
   bool loaded;
 
   rpl_slave_state();
@@ -233,7 +233,10 @@ struct rpl_slave_state
   int truncate_state_table(THD *thd);
   void select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
-                  rpl_group_info *rgi, bool in_statement, void **out_hton);
+                  bool in_transaction, bool in_statement, void **out_hton);
+  list_element *gtid_grab_pending_delete_list();
+  LEX_CSTRING *select_gtid_pos_table(void *hton);
+  void gtid_delete_pending(THD *thd, rpl_slave_state::list_element **list_ptr);
   uint64 next_sub_id(uint32 domain_id);
   int iterate(int (*cb)(rpl_gtid *, void *), void *data,
               rpl_gtid *extra_gtids, uint32 num_extra,
@@ -245,7 +248,7 @@ struct rpl_slave_state
   bool is_empty();
 
   element *get_element(uint32 domain_id);
-  int put_back_list(uint32 domain_id, list_element *list);
+  int put_back_list(list_element *list);
 
   void update_state_hash(uint64 sub_id, rpl_gtid *gtid, void *hton,
                          rpl_group_info *rgi);

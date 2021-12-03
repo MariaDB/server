@@ -168,13 +168,13 @@ int TDBVIR::TestFilter(PFIL filp, bool nop)
           } // endswitch op
 
 			if (!nop) switch (op) {
-		    case OP_LT:	l1--;
+		    case OP_LT:	l1--; /* fall through */
 				case OP_LE: limit = l1;   break;
 				default: ok = false;
 				} // endswitch op
 
 			else switch (op) {
-		    case OP_GE:	l1--;
+		    case OP_GE:	l1--; /* fall through */
 				case OP_GT: limit = l1;   break;
 				default: ok = false;
 				} // endswitch op

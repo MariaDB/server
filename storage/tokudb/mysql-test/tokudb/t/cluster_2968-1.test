@@ -1,4 +1,5 @@
 source include/have_tokudb.inc;
+source include/default_optimizer_switch.inc;
 # test that the query planner picks clustering keys for joins
 
 # create table s

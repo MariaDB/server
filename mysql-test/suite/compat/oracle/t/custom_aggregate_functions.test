@@ -1,0 +1,170 @@
+SET sql_mode=ORACLE;
+
+delimiter |;
+--error ER_INVALID_AGGREGATE_FUNCTION
+create aggregate function f1(x INT) return INT AS
+begin
+  insert into t1(sal) values (x);
+  return x;
+end|
+
+--error ER_NOT_AGGREGATE_FUNCTION
+create function f1(x INT) return INT AS
+begin
+  set x=5;
+  fetch group next row;
+return x+1;
+end |
+
+DELIMITER ;|
+
+
+CREATE TABLE marks(stud_id INT, grade_count INT); 
+INSERT INTO marks VALUES (1,6), (2,4), (3,7), (4,5), (5,8);
+SELECT * FROM marks;
+
+--echo # Using PL/SQL syntax: EXCEPTION WHEN NO_DATA_FOUND
+
+DELIMITER //;
+CREATE AGGREGATE FUNCTION IF NOT EXISTS aggregate_count(x INT) RETURN INT AS
+  count_students INT DEFAULT 0;
+BEGIN  
+  LOOP  
+    FETCH GROUP NEXT ROW;  
+    IF x THEN  
+      count_students:= count_students + 1;
+    END IF;  
+  END LOOP;  
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RETURN count_students;
+END aggregate_count //
+DELIMITER ;//
+SELECT aggregate_count(stud_id) FROM marks;
+DROP FUNCTION IF EXISTS aggregate_count;
+
+
+--echo # Using SQL/PSM systax: CONTINUE HANDLER
+
+DELIMITER //;
+CREATE AGGREGATE FUNCTION IF NOT EXISTS aggregate_count(x INT) RETURN INT AS
+  count_students INT DEFAULT 0;
+  CONTINUE HANDLER FOR NOT FOUND RETURN count_students;
+BEGIN  
+  LOOP  
+    FETCH GROUP NEXT ROW;  
+    IF x THEN  
+      SET count_students= count_students + 1;
+    END IF;  
+  END LOOP;  
+END //
+DELIMITER ;//
+SELECT aggregate_count(stud_id) FROM marks;
+DROP FUNCTION IF EXISTS aggregate_count;
+
+
+DROP TABLE marks;
+
+
+--echo #
+--echo # MDEV-18813 PROCEDURE and anonymous blocks silently ignore FETCH GROUP NEXT ROW
+--echo #
+
+
+DELIMITER $$;
+--error ER_NOT_AGGREGATE_FUNCTION
+CREATE PROCEDURE p1 AS
+BEGIN
+  FETCH GROUP NEXT ROW;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_NOT_AGGREGATE_FUNCTION
+BEGIN NOT ATOMIC
+  FETCH GROUP NEXT ROW;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_NOT_AGGREGATE_FUNCTION
+CREATE DEFINER=root@localhost  FUNCTION f1 RETURN INT AS
+BEGIN
+  FETCH GROUP NEXT ROW;
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+
+
+CREATE TABLE t1 (a INT);
+--error ER_NOT_AGGREGATE_FUNCTION
+CREATE TRIGGER tr1
+  AFTER INSERT ON t1 FOR EACH ROW 
+   FETCH GROUP NEXT ROW;
+DROP TABLE t1;
+
+
+--error ER_NOT_AGGREGATE_FUNCTION
+CREATE EVENT ev1
+  ON SCHEDULE EVERY 1 HOUR
+  STARTS CURRENT_TIMESTAMP + INTERVAL 1 MONTH
+  ENDS CURRENT_TIMESTAMP + INTERVAL 1 MONTH + INTERVAL 1 WEEK
+DO FETCH GROUP NEXT ROW;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+
+--error ER_NOT_AGGREGATE_FUNCTION
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    FETCH GROUP NEXT ROW;  -- In a package procedure
+  END;
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    RETURN 0;
+  END;
+END;
+$$
+
+--error ER_NOT_AGGREGATE_FUNCTION
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    FETCH GROUP NEXT ROW;  -- In a package function
+    RETURN 0;
+  END;
+END;
+$$
+
+--error ER_NOT_AGGREGATE_FUNCTION
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+  FUNCTION f1 RETURN INT AS
+  BEGIN  
+    RETURN 0;
+  END;
+BEGIN
+  FETCH GROUP NEXT ROW;  -- In a package executable section
+END;
+$$
+
+DELIMITER ;$$
+DROP PACKAGE pkg1;

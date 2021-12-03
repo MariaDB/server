@@ -1,0 +1,12 @@
+--innodb
+--innodb-sys-tablespaces
+--innodb-sys-datafiles
+--innodb-sys-tablestats
+--innodb-sys-tables
+--innodb-sys-columns
+--innodb-sys-indexes
+--innodb-sys-fields
+--innodb-sys-foreign
+--innodb-sys-foreign-cols
+--character_set_server="latin1"
+--collation_server="latin1_swedish_ci"

@@ -2,6 +2,8 @@
 # MDEV-9044 : Getting binlog corruption on my Galera cluster (10.1.8)
 # making it impossible to async slave.
 #
+connection node_2;
+connection node_1;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 START SLAVE;
 connection node_1;

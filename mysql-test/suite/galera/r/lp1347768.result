@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE `r8kmb_redirect_links` (
 `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
 `old_url` varchar(255) DEFAULT NULL,

@@ -1,0 +1,14 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+lock_wait_timeout=5
+innodb_lock_wait_timeout=5
+wait_timeout=5
+
+[mysqld.2]
+lock_wait_timeout=5
+innodb_lock_wait_timeout=5
+wait_timeout=5
+
+
+

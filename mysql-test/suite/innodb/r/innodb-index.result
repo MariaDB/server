@@ -77,6 +77,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain select * from t1 force index(c) order by c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -119,6 +120,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain select * from t1 force index(c) order by c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -506,7 +508,7 @@ t4	CREATE TABLE `t4` (
   CONSTRAINT `dc` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 alter table t3 add constraint dc foreign key (a) references t1(a);
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 121 "Duplicate key on write or update")
+ERROR HY000: Can't create table `test`.`t3` (errno: 121 "Duplicate key on write or update")
 SET FOREIGN_KEY_CHECKS=0;
 alter table t3 add constraint dc foreign key (a) references t1(a);
 ERROR HY000: Failed to add the foreign key constraint 'test/dc' to system tables
@@ -810,6 +812,7 @@ a	b
 2	2
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain select * from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -846,6 +849,7 @@ a
 2
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain select * from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -951,13 +955,13 @@ PRIMARY KEY (c1)
 SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c1), ALGORITHM=COPY;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c1);
 ERROR HY000: Failed to add the foreign key constaint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2), ALGORITHM=COPY;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2);
 ERROR HY000: Failed to add the foreign key constaint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
@@ -966,13 +970,13 @@ FOREIGN KEY (c3,c2) REFERENCES t1(c2,c1), ALGORITHM=INPLACE;
 ERROR HY000: Failed to add the foreign key constraint on table 't2'. Incorrect options in FOREIGN KEY constraint 'test/fk_t2_ca'
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c2,c1), ALGORITHM=COPY;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t1 MODIFY COLUMN c2 BIGINT(12) NOT NULL;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2), ALGORITHM=COPY;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2);
 ERROR HY000: Failed to add the foreign key constaint. Missing index for constraint 'fk_t2_ca' in the referenced table 't1'
@@ -1184,6 +1188,60 @@ t2c	CREATE TABLE `t2c` (
   KEY `t2a` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1,t2,t2c,t2i;
+CREATE TABLE t1 (c VARCHAR(1024),
+c1 CHAR(255) NOT NULL,c2 CHAR(255) NOT NULL,c3 CHAR(255) NOT NULL,
+c4 CHAR(255) NOT NULL,c5 CHAR(255) NOT NULL,c6 CHAR(255) NOT NULL,
+c7 CHAR(255) NOT NULL,c8 CHAR(255) NOT NULL,c9 CHAR(255) NOT NULL,
+ca CHAR(255) NOT NULL,cb CHAR(255) NOT NULL,cc CHAR(255) NOT NULL,
+cd CHAR(255) NOT NULL,ce CHAR(255) NOT NULL,cf CHAR(255) NOT NULL,
+d0 CHAR(255) NOT NULL,d1 CHAR(255) NOT NULL,d2 CHAR(255) NOT NULL,
+d3 CHAR(255) NOT NULL,d4 CHAR(255) NOT NULL,d5 CHAR(255) NOT NULL,
+d6 CHAR(255) NOT NULL,d7 CHAR(255) NOT NULL,d8 CHAR(255) NOT NULL,
+d9 CHAR(255) NOT NULL,da CHAR(255) NOT NULL,db CHAR(255) NOT NULL,
+dc CHAR(255) NOT NULL,dd CHAR(255) NOT NULL,de CHAR(255) NOT NULL,
+UNIQUE KEY(c))
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES
+(repeat('a',999),'','','','','','','','','','','','','','','','','','','','','','','','','','','','','',''),
+(CONCAT(repeat('a',999),'b'),'','','','','','','','','','','','','','','','','','','','','','','','','','','','','','');
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT, algorithm=inplace;
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT, algorithm=copy;
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# Bug#19811005 ALTER TABLE ADD INDEX DOES NOT UPDATE INDEX_LENGTH
+# IN I_S TABLES
+#
+CREATE TABLE t1(a INT, b INT) ENGINE=INNODB, STATS_PERSISTENT=1;
+SELECT cast(DATA_LENGTH/@@innodb_page_size as int) D,
+cast(INDEX_LENGTH/@@innodb_page_size as int) I
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+D	I
+1	0
+ALTER TABLE t1 ADD INDEX (a);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT cast(DATA_LENGTH/@@innodb_page_size as int) D,
+cast(INDEX_LENGTH/@@innodb_page_size as int) I
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+D	I
+1	1
+ALTER TABLE t1 ADD INDEX (b);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT cast(DATA_LENGTH/@@innodb_page_size as int) D,
+cast(INDEX_LENGTH/@@innodb_page_size as int) I
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+D	I
+1	2
+DROP TABLE t1;
 #
 # Bug #17657223	EXCESSIVE TEMPORARY FILE USAGE IN ALTER TABLE
 #
@@ -1540,6 +1598,7 @@ create table t1(f1 int not null, f2 int not null,
 primary key (f1), unique key(f1, f2))engine=innodb;
 insert into t1 values(1,3), (2,2);
 alter table t1 drop primary key, lock=none;
+alter table t1 drop index f1, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: Dropping a primary key is not allowed without also adding a new primary key. Try LOCK=SHARED
 drop table t1;
 #
@@ -1848,6 +1907,11 @@ create table t1(o1 int, o2 int, o3 int, primary key(o1,o2,o3)) engine = innodb;
 insert into t1 values(1,1,2),(2,2,1);
 alter table t1 drop primary key, add primary key(o1), lock=none;
 drop table t1;
+create table t1(o1 int, o2 int, primary key(o1,o2)) engine = innodb;
+insert into t1 values(1,1),(2,1);
+alter table t1 drop primary key, add column a int unique auto_increment,
+add primary key(o1,o2,a), algorithm=inplace;
+drop table t1;
 #
 # MDEV-15325 Incomplete validation of missing tablespace during recovery
 #
@@ -1855,13 +1919,31 @@ CREATE TABLE t1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 # Kill the server
 # Wrong space_id in a dirty file and a missing file
+# restart
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 # Restore t1 and t2
+# restart
 SELECT * FROM t1;
 f1
 SELECT * FROM t2;
 f1
 DROP TABLE t1, t2;
+#
+#  MDEV-18186 assertion failure on missing InnoDB index
+#
+CREATE TABLE t (a INT, INDEX i1 (a)) ENGINE=INNODB;
+DROP TABLE t;
+CREATE TABLE t (a INT) ENGINE=INNODB;
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  KEY `i1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+Warnings:
+Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
+Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
+DROP TABLE t;

@@ -1,6 +1,9 @@
 --source include/have_sequence.inc
 --source include/have_innodb.inc
-create table t1(c1 integer not null,c2 integer not null, key (c1)) engine=InnoDb;
+# This test is slow on buildbot.
+--source include/big_test.inc
+create table t1(c1 integer not null,c2 integer not null, key (c1))
+ENGINE=InnoDB STATS_PERSISTENT=1;
 create view v1 as select * from t1 where c1 in (0,1);
 
 insert t1 select 0,seq from seq_1_to_500;
@@ -61,6 +64,7 @@ rollback;
 --echo #
 
 start transaction;
+--replace_column 9 #
 explain delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500;
 --enable_info ONCE
 delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500 ;

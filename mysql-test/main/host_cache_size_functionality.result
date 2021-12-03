@@ -4,12 +4,7 @@ echo '##'
 ####################################################################
 #   Checking default value                                         #
 ####################################################################
-SELECT COUNT(@@GLOBAL.Host_Cache_Size)
-1 Expected
-set @Default_host_cache_size=279;
-select @@global.Host_Cache_Size=@Default_host_cache_size;
-@@global.Host_Cache_Size=@Default_host_cache_size
-1
+select @@global.Host_Cache_Size > 0
 1 Expected
 '#---------------------WL6372_VAR_6_02----------------------#'
 # Restart server with Host_Cache_Size 1

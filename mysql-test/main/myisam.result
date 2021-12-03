@@ -395,7 +395,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	5	Using where
 explain select * from t1 force index (a) where a=0 or a=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition; Using where
+1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
 explain select * from t1 where c=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	c,c_2	c	5	const	1	
@@ -641,7 +641,7 @@ create table t1 ( a tinytext, b char(1), index idx (a(1),b) );
 insert into t1 values (null,''), (null,'');
 explain select count(*) from t1 where a is null;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx	idx	4	const	1	Using where
+1	SIMPLE	t1	ref	idx	idx	4	const	2	Using where
 select count(*) from t1 where a is null;
 count(*)
 2
@@ -676,6 +676,7 @@ insert into t1 values (0),(1),(2),(3),(4);
 insert into t1 select NULL from t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -689,6 +690,8 @@ show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	1	a	1	a	A	10	NULL	NULL	YES	BTREE		
 set myisam_stats_method=nulls_equal;
+set @save_use_stat_tables =  @@use_stat_tables;
+set @@use_stat_tables = COMPLEMENTARY;
 show variables like 'myisam_stats_method';
 Variable_name	Value
 myisam_stats_method	NULLS_EQUAL
@@ -696,6 +699,7 @@ insert into t1 values (11);
 delete from t1 where a=11;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -708,6 +712,7 @@ test.t1	check	status	OK
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	1	a	1	a	A	5	NULL	NULL	YES	BTREE		
+set @@use_stat_tables =  @save_use_stat_tables;
 set myisam_stats_method=DEFAULT;
 show variables like 'myisam_stats_method';
 Variable_name	Value
@@ -716,6 +721,7 @@ insert into t1 values (11);
 delete from t1 where a=11;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -733,6 +739,8 @@ set myisam_stats_method=nulls_ignored;
 show variables like 'myisam_stats_method';
 Variable_name	Value
 myisam_stats_method	NULLS_IGNORED
+set @save_use_stat_tables =  @@use_stat_tables;
+set @@use_stat_tables = COMPLEMENTARY;
 create table t1 (
 a char(3), b char(4), c char(5), d char(6),
 key(a,b,c,d)
@@ -743,6 +751,7 @@ insert into t1 values ('bce','def1', 'yuu', NULL);
 insert into t1 values ('bce','def2', NULL, 'quux');
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -753,6 +762,7 @@ t1	1	a	4	d	A	4	NULL	NULL	YES	BTREE
 delete from t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -762,6 +772,7 @@ t1	1	a	3	c	A	0	NULL	NULL	YES	BTREE
 t1	1	a	4	d	A	0	NULL	NULL	YES	BTREE		
 set myisam_stats_method=DEFAULT;
 drop table t1;
+set @@use_stat_tables =  @save_use_stat_tables;
 create table t1(
 cip INT NOT NULL,
 time TIME NOT NULL,
@@ -1695,7 +1706,7 @@ a	b
 drop table t1;
 create table t1 (v varchar(65530), key(v));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 drop table if exists t1;
 set statement sql_mode = 'NO_ENGINE_SUBSTITUTION' for
 create table t1 (v varchar(65536));
@@ -1801,6 +1812,7 @@ create table t1 (a int, key(a));
 insert into t1 values (1),(2),(3),(4),(NULL),(NULL),(NULL),(NULL);
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -1968,7 +1980,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a varchar(2048), key `a` (a));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1978,7 +1990,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a varchar(2048), key `a` (a) key_block_size=1024);
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1988,7 +2000,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a int not null, b varchar(2048), key (a), key(b)) key_block_size=1024;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2034,7 +2046,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a int not null, b varchar(2048), key (a), key(b)) key_block_size=8192;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2124,7 +2136,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a int not null, b varchar(2048), key (a) key_block_size=1024, key(b)) key_block_size=8192;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2154,7 +2166,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a varchar(2048), key `a` (a) key_block_size=1000000000000000000);
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2400,6 +2412,7 @@ Key Start Len Index   Type
 1   2     30  multip. varchar              
 2   33    30  multip. char NULL            
 DROP TABLE t1;
+set statement sql_mode='' for
 create table t1 (n int not null, c char(1)) transactional=1;
 Warnings:
 Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
@@ -2670,3 +2683,26 @@ myisam_block_size	1024
 select @@global.myisam_block_size;
 @@global.myisam_block_size
 1024
+#
+# MDEV-20704 An index on a double column erroneously uses prefix compression
+#
+CREATE TABLE t1 (
+id INT NOT NULL PRIMARY KEY,
+d  DOUBLE,
+KEY (d)
+) ENGINE=MyISAM;
+
+MyISAM file:         MYSQLD_DATADIR/test/t1
+Record format:       Fixed length
+Character set:       latin1_swedish_ci (8)
+Data records:                    0  Deleted blocks:                 0
+Recordlength:                   13
+
+table description:
+Key Start Len Index   Type
+1   2     4   unique  long                 
+2   6     8   multip. double NULL          
+DROP TABLE t1;
+#
+# End of 5.5 tests
+#

@@ -376,13 +376,13 @@ SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	0.00	100.00	100.00	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
 #------------------------------------------------------------------------
 # I/R/U/D/S on the inner view
@@ -491,14 +491,14 @@ SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 #------------------------------------------------------------------------
 # I/R/U/D/S on the outer view
 # Expectation: Can run everything
@@ -598,14 +598,14 @@ SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	12.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	12.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 
 #========================================================================
 # Test: Grant INSERT on the table
@@ -1591,14 +1591,14 @@ SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 #------------------------------------------------------------------------
 # I/R/U/D/S on the outer view
 # Expectation: Can run everything: SELECT access to the column `a` 
@@ -1708,14 +1708,14 @@ SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 
 #========================================================================
 # Test: Grant SELECT, INSERT, UPDATE, DELETE on the table
@@ -1940,14 +1940,14 @@ SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 #------------------------------------------------------------------------
 # I/R/U/D/S on the outer view
 # Expectation: Can run everything
@@ -2048,14 +2048,14 @@ SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 
 #########################################################################
 # Inner view permission tests
@@ -2697,14 +2697,14 @@ SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	14	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	14	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	14	14.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	14	14.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 #------------------------------------------------------------------------
 # I/R/U/D/S on the outer view
 # Expectation: Can run everything
@@ -2804,14 +2804,14 @@ SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	18	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	18	18.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	18	18.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 
 #========================================================================
 # Test: Grant INSERT on the inner view
@@ -3987,14 +3987,14 @@ SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	35	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	35	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	35	35.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	35	35.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 #------------------------------------------------------------------------
 # I/R/U/D/S on the outer view
 # Expectation: Can run everything
@@ -4094,14 +4094,14 @@ SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	39	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	39	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	39	39.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	39	39.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 
 #########################################################################
 # Outer view permission tests
@@ -4614,14 +4614,14 @@ SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	39	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	39	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	39	39.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	39	39.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 
 #========================================================================
 # Test: Grant INSERT on the outer view
@@ -5221,14 +5221,14 @@ SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	44	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	44	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	3.00	100.00	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	44	44.00	100.00	0.00	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	44	44.00	100.00	0.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	NULL	100.00	NULL	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	
 disconnect con1;
 connection default;
 DROP USER 'privtest'@localhost;

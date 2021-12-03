@@ -470,9 +470,9 @@ WHERE table2.f1 = 2
 GROUP BY table1.f1, table2.f2
 HAVING (table2.f2 = 8 AND table1.f1 >= 6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Note	1003	select `test`.`table1`.`f1` AS `f1`,7 AS `f2` from `test`.`t1` `table1` join `test`.`t1` `table2` where `test`.`table1`.`f3` = 9 group by `test`.`table1`.`f1`,7 having 0
+Note	1003	select 0 AS `f1`,7 AS `f2` from `test`.`t1` `table1` join `test`.`t1` `table2` where 0 group by 0,7 having 1
 EXPLAIN EXTENDED
 SELECT table1.f1, table2.f2
 FROM t1 AS table1
@@ -481,9 +481,9 @@ WHERE table2.f1 = 2
 GROUP BY table1.f1, table2.f2
 HAVING (table2.f2 = 8);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Note	1003	select `test`.`table1`.`f1` AS `f1`,7 AS `f2` from `test`.`t1` `table1` join `test`.`t1` `table2` where `test`.`table1`.`f3` = 9 group by `test`.`table1`.`f1`,7 having 0
+Note	1003	select `test`.`table1`.`f1` AS `f1`,7 AS `f2` from `test`.`t1` `table1` join `test`.`t1` `table2` where 0 group by `test`.`table1`.`f1`,7 having 1
 DROP TABLE t1;
 #
 # Bug#52336 Segfault / crash in 5.1 copy_fields (param=0x9872980) at sql_select.cc:15355
@@ -631,7 +631,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	f10	4	NULL	2	100.00	Using index
 2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select min(`test`.`t1`.`f10`) AS `field1` from `test`.`t1` where <expr_cache><7>(<in_optimizer>(7,<exists>(/* select#2 */ select `test`.`t3`.`f3` from `test`.`t3` where <cache>(7) = `test`.`t3`.`f3`))) having <cache>(`field1`) < 's'
+Note	1003	/* select#1 */ select min(`test`.`t1`.`f10`) AS `field1` from `test`.`t1` where <expr_cache><7>(<in_optimizer>(7,<exists>(/* select#2 */ select `test`.`t3`.`f3` from `test`.`t3` where <cache>(7) = `test`.`t3`.`f3`))) having `field1` < 's'
 set optimizer_switch=@save_optimizer_switch;
 drop table t1,t2,t3;
 End of 5.2 tests
@@ -835,6 +835,7 @@ INSERT INTO t1 VALUES(10, 10), (11, 11), (12, 12), (12, 13),(14, 15), (15, 16),
 (16, 17), (17, 17);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT t, next_seq_value() r FROM t1 FORCE INDEX(t)
 GROUP BY t HAVING r = 1  ORDER BY t1.u;
@@ -846,3 +847,63 @@ t	r
 DROP TABLE t1;
 DROP FUNCTION next_seq_value;
 DROP TABLE series;
+#
+# MDEV-24958 Server crashes in my_strtod /
+# Value_source::Converter_strntod::Converter_strntod with DEFAULT(blob)
+#
+# MDEV-24942 Server crashes in _ma_rec_pack / _ma_write_blob_record with
+# DEFAULT() on BLOB
+#
+CREATE TABLE t1 (id INT, f MEDIUMTEXT NOT NULL DEFAULT 'A');
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+SELECT f FROM t1 GROUP BY id ORDER BY DEFAULT(f);
+f
+foo
+bar
+SELECT DEFAULT(f) AS h FROM t1 HAVING h > 5;
+h
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'A'
+SELECT DEFAULT(f) AS h FROM t1 HAVING h >= 0;
+h
+A
+A
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'A'
+SELECT DEFAULT(f) AS h FROM t1 HAVING h >= 'A';
+h
+A
+A
+alter table t1 add column b int default (rand()+1+3);
+select default(b) AS h FROM t1 HAVING h > "2";
+h
+#
+#
+drop table t1;
+# End of 10.3 tests
+#
+# MDEV-18681: AND formula in HAVING with several occurances
+#             of the same field f in different conjuncts + f=constant
+#
+CREATE TABLE t1 (pk int, f varchar(1));
+INSERT INTO t1 VALUES (2,'x'), (7,'y');
+CREATE TABLE t2 (pk int);
+INSERT INTO t2 VALUES (2), (3);
+SELECT t.f
+FROM (SELECT t1.* FROM (t1 JOIN t2 ON (t2.pk = t1.pk))) t
+HAVING t.f != 112 AND t.f = 'x' AND t.f != 'a';
+f
+x
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+DROP TABLE t1,t2;
+#
+# MDEV-20200: AddressSanitizer: use-after-poison in
+# Item_direct_view_ref::get_null_ref_table
+#
+CREATE TABLE t (f VARCHAR(512));
+INSERT INTO t VALUES ('a'),('b');
+SELECT * FROM t HAVING f = 'foo';
+f
+DROP TABLE t;
+# End of 10.4 tests

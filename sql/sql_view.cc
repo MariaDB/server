@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB Corporation
+   Copyright (c) 2011, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #define MYSQL_LEX 1
@@ -36,6 +36,7 @@
 #include "datadict.h"   // dd_frm_is_view()
 #include "sql_derived.h"
 #include "sql_cte.h"    // check_dependencies_in_with_clauses()
+#include "opt_trace.h"
 
 #define MD5_BUFF_LENGTH 33
 
@@ -215,7 +216,8 @@ fill_defined_view_parts (THD *thd, TABLE_LIST *view)
   LEX *lex= thd->lex;
   TABLE_LIST decoy;
 
-  memcpy (&decoy, view, sizeof (TABLE_LIST));
+  decoy= *view;
+  decoy.mdl_request.key.mdl_key_init(&view->mdl_request.key);
   if (tdc_open_view(thd, &decoy, OPEN_VIEW_NO_PARSE))
     return TRUE;
 
@@ -290,6 +292,8 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
   {
     for (tbl= sl->get_table_list(); tbl; tbl= tbl->next_local)
     {
+      if (!tbl->with && tbl->select_lex)
+        tbl->with= tbl->select_lex->find_table_def_in_with_clauses(tbl);
       /*
         Ensure that we have some privileges on this table, more strict check
         will be done on column level after preparation,
@@ -329,12 +333,11 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     {
       if (!tbl->table_in_first_from_clause)
       {
-        if (check_access(thd, SELECT_ACL, tbl->db.str,
-                         &tbl->grant.privilege,
-                         &tbl->grant.m_internal,
-                         0, 0) ||
-            check_grant(thd, SELECT_ACL, tbl, FALSE, 1, FALSE))
+        if (check_single_table_access(thd, SELECT_ACL, tbl, FALSE))
+        {
+          tbl->hide_view_error(thd);
           goto err;
+        }
       }
     }
   }
@@ -428,12 +431,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
 
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-  {
-    res= TRUE;
-    goto err;
-  }
-
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /*
@@ -441,16 +438,15 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   */
   if (lex->current_select->lock_type != TL_READ_DEFAULT)
   {
-    lex->current_select->set_lock_for_tables(TL_READ_DEFAULT);
+    lex->current_select->set_lock_for_tables(TL_READ_DEFAULT, false);
     view->mdl_request.set_type(MDL_EXCLUSIVE);
   }
 
   if (thd->open_temporary_tables(lex->query_tables) ||
       open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
   {
-    view= lex->unlink_first_table(&link_to_local);
     res= TRUE;
-    goto err;
+    goto err_no_relink;
   }
 
   view= lex->unlink_first_table(&link_to_local);
@@ -697,7 +693,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     thd->reset_unsafe_warnings();
     if (thd->binlog_query(THD::STMT_QUERY_TYPE,
                           buff.ptr(), buff.length(), FALSE, FALSE, FALSE,
-                          errcode))
+                          errcode) > 0)
       res= TRUE;
   }
 
@@ -713,10 +709,12 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 #ifdef WITH_WSREP
 wsrep_error_label:
   res= true;
+  goto err_no_relink;
 #endif
 
 err:
   lex->link_first_table_back(view, link_to_local);
+err_no_relink:
   unit->cleanup();
   DBUG_RETURN(res || thd->is_error());
 }
@@ -839,7 +837,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
        if ((view->md5.str= (char *)thd->alloc(32 + 1)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
-    view->calc_md5(view->md5.str);
+    view->calc_md5(const_cast<char*>(view->md5.str));
     view->md5.length= 32;
   }
   view->mariadb_version= MYSQL_VERSION_ID;
@@ -887,6 +885,13 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   LEX *lex= thd->lex;
 
   /*
+    Ensure character set number != 17 (character set = filename) and mbminlen=1
+    because these character sets are not parser friendly, which can give weird
+    sequence in .frm file of view and later give parsing error.
+  */
+  DBUG_ASSERT(thd->charset()->mbminlen == 1 && thd->charset()->number != 17);
+
+  /*
     View definition query -- a SELECT statement that fully defines view. It
     is generated from the Item-tree built from the original (specified by
     the user) query. The idea is that generated query should eliminates all
@@ -911,15 +916,8 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
 
     View definition query is stored in the client character set.
   */
-  char view_query_buff[4096];
-  String view_query(view_query_buff,
-                    sizeof (view_query_buff),
-                    thd->charset());
-
-  char is_query_buff[4096];
-  String is_query(is_query_buff,
-                  sizeof (is_query_buff),
-                  system_charset_info);
+  StringBuffer<4096> view_query(thd->charset());
+  StringBuffer<4096> is_query(system_charset_info);
 
   char md5[MD5_BUFF_LENGTH];
   bool can_be_merged;
@@ -1206,7 +1204,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       in which case the reinit call wasn't done.
       See MDEV-6668 for details.
     */
-    mysql_derived_reinit(thd, NULL, table);
+    mysql_handle_single_derived(thd->lex, table, DT_REINIT);
 
     DEBUG_SYNC(thd, "after_cached_view_opened");
     DBUG_RETURN(0);
@@ -1416,8 +1414,14 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     TABLE_LIST *tbl;
     Security_context *security_ctx= 0;
 
-    if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-      goto err;
+    /*
+      Check rights to run commands which show underlying tables.
+      In the optimizer trace we would not like to show trace for
+      cases when the current user does not have rights for the
+      underlying tables.
+    */
+    if (!table->prelocking_placeholder)
+      opt_trace_disable_if_no_view_access(thd, table, view_tables);
 
     /*
       Check rights to run commands (ANALYZE SELECT, EXPLAIN SELECT &
@@ -1498,6 +1502,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         privileges of top_view
       */
       tbl->grant.want_privilege= SELECT_ACL;
+
       /*
         After unfolding the view we lose the list of tables referenced in it
         (we will have only a list of underlying tables in case of MERGE
@@ -1548,6 +1553,18 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         views with subqueries in select list.
       */
       view_main_select_tables= lex->first_select_lex()->table_list.first;
+      /*
+        Mergeable view can be used for inserting, so we move the flag down
+      */
+      if (table->for_insert_data)
+      {
+        for (TABLE_LIST *t= view_main_select_tables;
+             t;
+             t= t->next_local)
+        {
+          t->for_insert_data= TRUE;
+        }
+      }
 
       /*
         Let us set proper lock type for tables of the view's main
@@ -1562,6 +1579,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         if (!tbl->sequence)
 	  tbl->lock_type= table->lock_type;
         tbl->mdl_request.set_type(table->mdl_request.type);
+        tbl->updating= table->updating;
       }
       /*
         If the view is mergeable, we might want to
@@ -1722,7 +1740,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     view_select->linkage= DERIVED_TABLE_TYPE;
     table->updatable= 0;
     table->effective_with_check= VIEW_CHECK_NONE;
-    old_lex->subqueries= TRUE;
 
     table->derived= &lex->unit;
   }
@@ -2187,7 +2204,7 @@ mysql_rename_view(THD *thd,
       view definition parsing or use temporary 'view_def'
       object for it.
     */
-    bzero(&view_def, sizeof(view_def));
+    view_def.reset();
     view_def.timestamp.str= view_def.timestamp_buffer;
     view_def.view_suid= TRUE;
 

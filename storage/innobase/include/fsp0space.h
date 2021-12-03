@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -127,7 +127,7 @@ public:
 	@param[in]	fsp_flags	tablespace flags */
 	void set_flags(ulint fsp_flags)
 	{
-		ut_ad(fsp_flags_is_valid(fsp_flags, false));
+		ut_ad(fil_space_t::is_valid_flags(fsp_flags, false));
 		m_flags = fsp_flags;
 	}
 

@@ -29,6 +29,7 @@ i	10
 j	10
 drop table t1;
 reset master;
+set @save_binlog_cache_size=@@global.binlog_cache_size;
 set global binlog_cache_size=8192;
 connect con1, localhost, root;
 create table t1 (a text) engine=innodb;
@@ -52,7 +53,7 @@ disconnect con2;
 connection default;
 flush binary logs;
 drop table t1, t2;
-set global binlog_cache_size=default;
+set @@global.binlog_cache_size=@save_binlog_cache_size;
 select left(a, 10) from t1;
 left(a, 10)
 1111111111

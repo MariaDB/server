@@ -1,0 +1,37 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+connection node_1;
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'Primary'
+1
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+connection node_2;
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'Primary'
+1
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+DROP TABLE t1;
+connection node_1;
+CALL mtr.add_suppression("points to own listening address, blacklisting");
+CALL mtr.add_suppression("non weight changing install in S_PRIM");
+CALL mtr.add_suppression("No re-merged primary component found");
+connection node_2;
+CALL mtr.add_suppression("points to own listening address, blacklisting");
+CALL mtr.add_suppression("non weight changing install in S_PRIM");
+CALL mtr.add_suppression("No re-merged primary component found");

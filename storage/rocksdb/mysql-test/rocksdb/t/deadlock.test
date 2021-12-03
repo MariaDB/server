@@ -3,6 +3,7 @@
 --echo #
 
 --source include/have_rocksdb.inc
+--source include/big_test.inc
 
 --echo # Disable for valgrind because this takes too long
 --source include/not_valgrind.inc

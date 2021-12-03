@@ -1,6 +1,8 @@
 #
-# Confirm that with two nodes, killing one causes the other to stop accepting connections
-# The pc.ignore_sb=true wsrep_provider option is tested in the galera_kill_* tests.
+# Confirm that with two nodes, killing one causes the other to stop accepting
+# connections.
+# The pc.ignore_sb=true wsrep_provider option is tested in the galera_kill_*
+# tests.
 #
 
 --source include/galera_cluster.inc
@@ -20,21 +22,17 @@ call mtr.add_suppression("WSREP: TO isolation failed for: ");
 --source include/kill_galera.inc
 
 --connection node_1
---error ER_LOCK_DEADLOCK
+SET SESSION lock_wait_timeout= 3;
+--error ER_LOCK_WAIT_TIMEOUT
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 
 # Reset the master and restart the slave so that post-test checks can run
-
-
 --connection node_2
 --source include/start_mysqld.inc
---sleep 5
 --source include/wait_until_connected_again.inc
 
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
-
---sleep 10
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --source include/wait_until_connected_again.inc
@@ -44,4 +42,3 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 --source include/auto_increment_offset_restore.inc
 
 --source include/galera_end.inc
-

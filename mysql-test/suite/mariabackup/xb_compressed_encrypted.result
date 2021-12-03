@@ -7,7 +7,7 @@ drop table t1;
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 select sum(c1) from t1;
 sum(c1)
 12497500

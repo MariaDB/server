@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* The hash functions used for saveing keys */
 /* One of key_length or key_length_offset must be given */
@@ -116,17 +116,23 @@ my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
 static inline void my_hash_free_elements(HASH *hash)
 {
   uint records= hash->records;
+  if (records == 0)
+    return;
+
   /*
     Set records to 0 early to guard against anyone looking at the structure
     during the free process
   */
   hash->records= 0;
+
   if (hash->free)
   {
     HASH_LINK *data=dynamic_element(&hash->array,0,HASH_LINK*);
     HASH_LINK *end= data + records;
-    while (data < end)
+    do
+    {
       (*hash->free)((data++)->data);
+    } while (data < end);
   }
 }
 
@@ -786,14 +792,13 @@ void my_hash_replace(HASH *hash, HASH_SEARCH_STATE *current_record,
 my_bool my_hash_iterate(HASH *hash, my_hash_walk_action action, void *argument)
 {
   uint records, i;
-  HASH_LINK *data;
 
   records= hash->records;
-  data= dynamic_element(&hash->array,0,HASH_LINK*);
 
   for (i= 0 ; i < records ; i++)
   {
-    if ((*action)(data[i].data, argument))
+    if ((*action)(dynamic_element(&hash->array, i, HASH_LINK *)->data,
+                  argument))
       return 1;
   }
   return 0;

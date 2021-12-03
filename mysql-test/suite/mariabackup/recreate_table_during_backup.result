@@ -7,7 +7,7 @@ INSERT INTO t3 SELECT UUID() FROM seq_1_to_1000;
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 SELECT COUNT(*) from t1;
 COUNT(*)
 100

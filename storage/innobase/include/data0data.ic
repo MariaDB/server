@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,30 +24,7 @@ SQL data field and tuple
 Created 5/30/1994 Heikki Tuuri
 *************************************************************************/
 
-#include "mem0mem.h"
 #include "ut0rnd.h"
-#include "btr0types.h"
-
-#ifdef UNIV_DEBUG
-/** Dummy variable to catch access to uninitialized fields.  In the
-debug version, dtuple_create() will make all fields of dtuple_t point
-to data_error. */
-extern byte data_error;
-
-/*********************************************************************//**
-Gets pointer to the type struct of SQL data field.
-@return pointer to the type struct */
-UNIV_INLINE
-dtype_t*
-dfield_get_type(
-/*============*/
-	const dfield_t*	field)	/*!< in: SQL data field */
-{
-	ut_ad(field);
-
-	return((dtype_t*) &(field->type));
-}
-#endif /* UNIV_DEBUG */
 
 /*********************************************************************//**
 Sets the type struct of SQL data field. */
@@ -64,41 +41,6 @@ dfield_set_type(
 	field->type = *type;
 }
 
-#ifdef UNIV_DEBUG
-/*********************************************************************//**
-Gets pointer to the data in a field.
-@return pointer to data */
-UNIV_INLINE
-void*
-dfield_get_data(
-/*============*/
-	const dfield_t* field)	/*!< in: field */
-{
-	ut_ad(field);
-	ut_ad((field->len == UNIV_SQL_NULL)
-	      || (field->data != &data_error));
-
-	return((void*) field->data);
-}
-#endif /* UNIV_DEBUG */
-
-/*********************************************************************//**
-Gets length of field data.
-@return length of data; UNIV_SQL_NULL if SQL null data */
-UNIV_INLINE
-ulint
-dfield_get_len(
-/*===========*/
-	const dfield_t*	field)	/*!< in: field */
-{
-	ut_ad(field);
-	ut_ad((field->len == UNIV_SQL_NULL)
-	      || (field->data != &data_error));
-	ut_ad(field->len != UNIV_SQL_DEFAULT);
-
-	return(field->len);
-}
-
 /*********************************************************************//**
 Sets length in a field. */
 UNIV_INLINE
@@ -108,56 +50,9 @@ dfield_set_len(
 	dfield_t*	field,	/*!< in: field */
 	ulint		len)	/*!< in: length or UNIV_SQL_NULL */
 {
-	ut_ad(field);
 	ut_ad(len != UNIV_SQL_DEFAULT);
-#ifdef UNIV_VALGRIND_DEBUG
-	if (len != UNIV_SQL_NULL) UNIV_MEM_ASSERT_RW(field->data, len);
-#endif /* UNIV_VALGRIND_DEBUG */
-
 	field->ext = 0;
 	field->len = static_cast<unsigned int>(len);
-}
-
-/*********************************************************************//**
-Determines if a field is SQL NULL
-@return nonzero if SQL null data */
-UNIV_INLINE
-ulint
-dfield_is_null(
-/*===========*/
-	const dfield_t* field)	/*!< in: field */
-{
-	ut_ad(field);
-
-	return(field->len == UNIV_SQL_NULL);
-}
-
-/*********************************************************************//**
-Determines if a field is externally stored
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-dfield_is_ext(
-/*==========*/
-	const dfield_t* field)	/*!< in: field */
-{
-	ut_ad(field);
-	ut_ad(!field->ext || field->len >= BTR_EXTERN_FIELD_REF_SIZE);
-
-	return(field->ext);
-}
-
-/*********************************************************************//**
-Sets the "external storage" flag */
-UNIV_INLINE
-void
-dfield_set_ext(
-/*===========*/
-	dfield_t*	field)	/*!< in/out: field */
-{
-	ut_ad(field);
-
-	field->ext = 1;
 }
 
 /** Gets spatial status for "external storage"
@@ -198,11 +93,6 @@ dfield_set_data(
 	const void*	data,	/*!< in: data */
 	ulint		len)	/*!< in: length or UNIV_SQL_NULL */
 {
-	ut_ad(field);
-
-#ifdef UNIV_VALGRIND_DEBUG
-	if (len != UNIV_SQL_NULL) UNIV_MEM_ASSERT_RW(data, len);
-#endif /* UNIV_VALGRIND_DEBUG */
 	field->data = (void*) data;
 	field->ext = 0;
 	field->len = static_cast<unsigned int>(len);
@@ -217,11 +107,7 @@ dfield_write_mbr(
 	dfield_t*	field,	/*!< in: field */
 	const double*	mbr)	/*!< in: data */
 {
-	ut_ad(field);
-
-#ifdef UNIV_VALGRIND_DEBUG
-	if (len != UNIV_SQL_NULL) UNIV_MEM_ASSERT_RW(data, len);
-#endif /* UNIV_VALGRIND_DEBUG */
+	MEM_CHECK_DEFINED(mbr, sizeof *mbr);
 	field->ext = 0;
 
 	for (unsigned i = 0; i < SPDIMS * 2; i++) {
@@ -283,7 +169,7 @@ dfield_dup(
 	mem_heap_t*	heap)	/*!< in: memory heap where allocated */
 {
 	if (!dfield_is_null(field)) {
-		UNIV_MEM_ASSERT_RW(field->data, field->len);
+		MEM_CHECK_DEFINED(field->data, field->len);
 		field->data = mem_heap_dup(heap, field->data, field->len);
 	}
 }
@@ -330,7 +216,7 @@ dfield_data_is_binary_equal(
 {
 	ut_ad(len != UNIV_SQL_DEFAULT);
 	return(len == dfield_get_len(field)
-	       && (len == UNIV_SQL_NULL
+	       && (!len || len == UNIV_SQL_NULL
 		   || !memcmp(dfield_get_data(field), data, len)));
 }
 
@@ -343,8 +229,6 @@ dtuple_get_info_bits(
 /*=================*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
 {
-	ut_ad(tuple);
-
 	return(tuple->info_bits);
 }
 
@@ -357,8 +241,6 @@ dtuple_set_info_bits(
 	dtuple_t*	tuple,		/*!< in: tuple */
 	ulint		info_bits)	/*!< in: info bits */
 {
-	ut_ad(tuple);
-
 	tuple->info_bits = info_bits;
 }
 
@@ -371,8 +253,6 @@ dtuple_get_n_fields_cmp(
 /*====================*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
 {
-	ut_ad(tuple);
-
 	return(tuple->n_fields_cmp);
 }
 
@@ -386,70 +266,9 @@ dtuple_set_n_fields_cmp(
 	ulint		n_fields_cmp)	/*!< in: number of fields used in
 					comparisons in rem0cmp.* */
 {
-	ut_ad(tuple);
 	ut_ad(n_fields_cmp <= tuple->n_fields);
-
 	tuple->n_fields_cmp = n_fields_cmp;
 }
-
-/*********************************************************************//**
-Gets number of fields in a data tuple.
-@return number of fields */
-UNIV_INLINE
-ulint
-dtuple_get_n_fields(
-/*================*/
-	const dtuple_t*	tuple)	/*!< in: tuple */
-{
-	ut_ad(tuple);
-
-	return(tuple->n_fields);
-}
-
-/** Gets the number of virtual fields in a data tuple.
-@param[in]	tuple	dtuple to check
-@return number of fields */
-UNIV_INLINE
-ulint
-dtuple_get_n_v_fields(
-	const dtuple_t*	tuple)
-{
-	ut_ad(tuple);
-
-	return(tuple->n_v_fields);
-}
-#ifdef UNIV_DEBUG
-/** Gets nth field of a tuple.
-@param[in]	tuple	tuple
-@param[in]	n	index of field
-@return nth field */
-UNIV_INLINE
-dfield_t*
-dtuple_get_nth_field(
-	const dtuple_t*	tuple,
-	ulint		n)
-{
-	ut_ad(tuple);
-	ut_ad(n < tuple->n_fields);
-
-	return((dfield_t*) tuple->fields + n);
-}
-/** Gets nth virtual field of a tuple.
-@param[in]	tuple	tuple
-@oaran[in]	n	the nth field to get
-@return nth field */
-UNIV_INLINE
-dfield_t*
-dtuple_get_nth_v_field(
-	const dtuple_t*	tuple,
-	ulint		n)
-{
-	ut_ad(tuple);
-	ut_ad(n < tuple->n_v_fields);
-
-	return(static_cast<dfield_t*>(tuple->v_fields + n));
-}
-#endif /* UNIV_DEBUG */
 
 /** Creates a data tuple from an already allocated chunk of memory.
 The size of the chunk must be at least DTUPLE_EST_ALLOC(n_fields).
@@ -508,19 +327,18 @@ dtuple_create_from_mem(
 		}
 	}
 #endif
-	UNIV_MEM_ASSERT_W(tuple->fields, n_t_fields * sizeof *tuple->fields);
-	UNIV_MEM_INVALID(tuple->fields, n_t_fields * sizeof *tuple->fields);
+	MEM_CHECK_ADDRESSABLE(tuple->fields, n_t_fields
+			      * sizeof *tuple->fields);
+	MEM_UNDEFINED(tuple->fields, n_t_fields * sizeof *tuple->fields);
 	return(tuple);
 }
 
 /** Duplicate the virtual field data in a dtuple_t
 @param[in,out]		vrow	dtuple contains the virtual fields
-@param[in]		heap	heap memory to use */
+@param[in,out]		heap	heap memory to use */
 UNIV_INLINE
 void
-dtuple_dup_v_fld(
-	const dtuple_t*	vrow,
-	mem_heap_t*	heap)
+dtuple_dup_v_fld(dtuple_t* vrow, mem_heap_t* heap)
 {
 	for (ulint i = 0; i < vrow->n_v_fields; i++) {
 		dfield_t*       dfield = dtuple_get_nth_v_field(vrow, i);
@@ -532,8 +350,7 @@ dtuple_dup_v_fld(
 @param[in,out]		vrow	dtuple contains the virtual fields */
 UNIV_INLINE
 void
-dtuple_init_v_fld(
-	const dtuple_t*	vrow)
+dtuple_init_v_fld(dtuple_t* vrow)
 {
 	for (ulint i = 0; i < vrow->n_v_fields; i++) {
 		dfield_t*       dfield = dtuple_get_nth_v_field(vrow, i);
@@ -652,7 +469,6 @@ dtuple_get_data_size(
 	ulint		i;
 	ulint		sum	= 0;
 
-	ut_ad(tuple);
 	ut_ad(dtuple_check_typed(tuple));
 	ut_ad(tuple->magic_n == DATA_TUPLE_MAGIC_N);
 
@@ -686,7 +502,6 @@ dtuple_get_n_ext(
 	ulint	n_fields	= tuple->n_fields;
 	ulint	i;
 
-	ut_ad(tuple);
 	ut_ad(dtuple_check_typed(tuple));
 	ut_ad(tuple->magic_n == DATA_TUPLE_MAGIC_N);
 

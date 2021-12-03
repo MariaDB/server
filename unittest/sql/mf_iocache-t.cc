@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -50,6 +50,12 @@ uint encryption_key_get_func(uint, uint, uchar* key, uint* size)
   return 0;
 }
 
+uint encryption_ctx_size_func(unsigned int, unsigned int)
+{
+  return MY_AES_CTX_SIZE;
+}
+
+
 #ifdef HAVE_EncryptAes128Gcm
 enum my_aes_mode aes_mode= MY_AES_GCM;
 #else
@@ -73,7 +79,7 @@ struct encryption_service_st encryption_handler=
 {
   encryption_key_get_latest_version_func,
   encryption_key_get_func,
-  (uint (*)(unsigned int, unsigned int))my_aes_ctx_size,
+  encryption_ctx_size_func,
   encryption_ctx_init_func,
   my_aes_crypt_update,
   my_aes_crypt_finish,
@@ -90,7 +96,7 @@ void sql_print_error(const char *format, ...)
 
 /*** end of encryption tweaks and stubs ****************************/
 
-IO_CACHE info;
+static IO_CACHE info;
 #define CACHE_SIZE 16384
 
 #define INFO_TAIL ", pos_in_file = %llu, pos_in_mem = %lu", \
@@ -352,7 +358,7 @@ void mdev17133()
       // random size 2nd read
       res= my_b_read(&info, buf_i + total + MY_MIN(19, curr_read_size),
                      19 >= curr_read_size ? 0 : curr_read_size - 19);
-      ok(res == 0, "rest of read %lu", curr_read_size - 19);
+      ok(res == 0, "rest of read %zu", curr_read_size - 19);
       // mark read bytes in the used part of the cache buffer
       memset(info.buffer, 0, info.read_pos - info.buffer);
 
@@ -372,10 +378,77 @@ void mdev17133()
 }
 
 
+void mdev10963()
+{
+  int res;
+  uint n_checks= 8;
+  uchar buf[1024 * 512];
+  uint n_frag= sizeof(buf)/(2 * CACHE_SIZE);
+  FILE *file;
+  myf my_flags= MYF(MY_WME);
+  const char *file_name="cache.log";
+
+  memset(buf, FILL, sizeof(buf));
+  diag("MDEV-10963 Fragmented BINLOG query");
+
+  init_io_cache_encryption();
+  srand((uint) time(NULL));
+
+  /* copying source */
+  res= open_cached_file(&info, 0, 0, CACHE_SIZE, 0);
+  ok(res == 0, "open_cached_file" INFO_TAIL);
+  res= my_b_write(&info, buf, sizeof(buf));
+
+  ulonglong total_size= my_b_tell(&info);
+  ok(res == 0 && total_size == sizeof(buf), "cache is written");
+
+  /* destination */
+  file= my_fopen(file_name, O_RDWR | O_TRUNC | O_CREAT, my_flags);
+  ok(my_fileno(file) > 0, "opened file fd = %d", my_fileno(file));
+
+  /*
+    For n_checks times verify a sequence of copying with random fragment
+    size ranging from zero to about the double of the cache read buffer size.
+  */
+  for (; n_checks; n_checks--, rewind(file))
+  {
+    // copied size is an estimate can be incremeneted to greater than total_size
+    ulong copied_size= 0;
+
+    res= reinit_io_cache(&info, READ_CACHE, 0L, FALSE, FALSE);
+    ok(res == 0, "cache turned to read");
+
+    for (ulong i= 0, curr_size= 0; i < n_frag; i++, copied_size += curr_size)
+    {
+      curr_size= rand() % (2 * (total_size - copied_size) / (n_frag - i));
+
+      DBUG_ASSERT(curr_size <= total_size - copied_size || i == n_frag - 1);
+
+      res= my_b_copy_to_file(&info, file, curr_size);
+      ok(res == 0, "%lu of the cache copied to file", curr_size);
+    }
+    /*
+      Regardless of total_size <> copied_size the function succeeds:
+      when total_size < copied_size the huge overflowed value of the last
+      argument is ignored because nothing already left uncopied in the cache.
+    */
+    res= my_b_copy_to_file(&info, file, (size_t) total_size - copied_size);
+    ok(res == 0, "%llu of the cache copied to file", total_size - copied_size);
+    ok(my_ftell(file, my_flags) == sizeof(buf),
+       "file written in %d fragments", n_frag+1);
+
+    res= reinit_io_cache(&info, WRITE_CACHE, total_size, 0, 0);
+    ok(res == 0 && my_b_tell(&info) == sizeof(buf), "cache turned to write");
+  }
+  close_cached_file(&info);
+  my_fclose(file, my_flags);
+  my_delete(file_name, MYF(MY_WME));
+}
+
 int main(int argc __attribute__((unused)),char *argv[])
 {
   MY_INIT(argv[0]);
-  plan(114);
+  plan(277);
 
   /* temp files with and without encryption */
   encrypt_tmp_files= 1;
@@ -393,6 +466,7 @@ int main(int argc __attribute__((unused)),char *argv[])
 
   mdev14014();
   mdev17133();
+  mdev10963();
 
   my_end(0);
   return exit_status();

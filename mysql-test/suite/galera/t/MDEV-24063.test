@@ -1,0 +1,26 @@
+#
+# MDEV-24063
+#
+# my_bool wsrep_thd_is_aborting(const THD*):
+# Assertion `((&(&thd->LOCK_thd_data)->m_mutex)->count > 0 &&
+# pthread_equal(pthread_self(), (&(&thd->LOCK_thd_data)->m_mutex)->thread))' failed.
+#
+
+--source include/galera_cluster.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+--connection node_2
+SET GLOBAL wsrep_on=OFF;
+--source include/shutdown_mysqld.inc
+--source include/start_mysqld.inc
+
+DROP TABLE t1;
+
+--source include/auto_increment_offset_restore.inc

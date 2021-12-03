@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #include "mariadb.h"
@@ -993,6 +993,8 @@ void Gcalc_heap::reset()
 {
   if (m_n_points)
   {
+    if (m_hook)
+      *m_hook= NULL;
     free_list(m_first);
     m_n_points= 0;
   }
@@ -1875,7 +1877,7 @@ int Gcalc_scan_iterator::add_eq_node(Gcalc_heap::Info *node, point *sp)
   if (!en)
     GCALC_DBUG_RETURN(1);
 
-  /* eq_node iserted after teh equal point. */
+  /* eq_node inserted after the equal point. */
   en->next= node->get_next();
   node->next= en;
 

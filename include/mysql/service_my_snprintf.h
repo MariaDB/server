@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -55,7 +55,8 @@
 
   Supported formats are 's' (null pointer is accepted, printed as
   "(null)"), 'b' (extension, see below), 'c', 'd', 'i', 'u', 'x', 'o',
-  'X', 'p' (works as 0x%x), 'f', 'g', 'M' (extension, see below).
+  'X', 'p' (works as 0x%x), 'f', 'g', 'M' (extension, see below),
+  'T' (extension, see below).
 
   Standard syntax for positional arguments $n is supported.
 
@@ -69,6 +70,9 @@
   Format 'M': takes one integer, prints this integer, space, double quote
   error message, double quote. In other words
     printf("%M", n) === printf("%d \"%s\"", n, strerror(n))
+
+  Format 'T': takes string and print it like s but if the strints should be
+  truncated puts "..." at the end.
 */
 
 #ifdef __cplusplus

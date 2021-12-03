@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -319,7 +319,7 @@ unpack_row(rpl_group_info *rgi,
           normal unpack operation.
         */
         uint16 const metadata= tabledef->field_metadata(i);
-        uchar const *const old_pack_ptr= pack_ptr;
+        IF_DBUG(uchar const *const old_pack_ptr= pack_ptr;,)
 
         pack_ptr= f->unpack(f->ptr, pack_ptr, row_end, metadata);
 	DBUG_PRINT("debug", ("field: %s; metadata: 0x%x;"
@@ -329,22 +329,6 @@ unpack_row(rpl_group_info *rgi,
                              (int) (pack_ptr - old_pack_ptr)));
         if (!pack_ptr)
         {
-	  if (WSREP_ON)
-          {
-            /*
-              Debug message to troubleshoot bug:
-              https://mariadb.atlassian.net/browse/MDEV-4404
-              Galera Node throws "Could not read field" error and drops out of cluster
-            */
-            WSREP_WARN("ROW event unpack field: %s  metadata: 0x%x;"
-                       " pack_ptr: %p; conv_table %p conv_field %p table %s"
-                       " row_end: %p",
-                       f->field_name.str, metadata,
-                       old_pack_ptr, conv_table, conv_field,
-                       (table_found) ? "found" : "not found", row_end
-            );
-	  }
-
           rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
                       rgi->gtid_info(),
                       "Could not read field '%s' of table '%s.%s'",

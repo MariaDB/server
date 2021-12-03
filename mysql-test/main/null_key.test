@@ -12,7 +12,7 @@ explain select * from t1 where a is null and b = 2;
 explain select * from t1 where a is null and b = 7;
 explain select * from t1 where a=2 and b = 2;
 explain select * from t1 where a<=>b limit 2;
-explain select * from t1 where (a is null or a > 0 and a < 3) and b < 5 limit 3;
+explain select * from t1 where (a is null or a > 0 and a < 2) and b < 5 limit 3;
 explain select * from t1 where (a is null or a = 7) and b=7;
 explain select * from t1 where (a is null or a = 7) and b=7 order by a;
 explain select * from t1 where (a is null and b>a) or a is null and b=7 limit 2;
@@ -103,8 +103,8 @@ CREATE TABLE t2 (
 ) ENGINE=MyISAM;
 
 INSERT INTO t1 VALUES (1,NULL),(2,NULL),(3,1),(4,2),(5,NULL),(6,NULL),(7,3),(8,4),(9,NULL),(10,NULL);
+INSERT INTO t1 VALUES (11,5),(12,6),(13,7),(14,8),(15,9);
 INSERT INTO t2 VALUES (1,NULL),(2,NULL),(3,1),(4,2),(5,NULL),(6,NULL),(7,3),(8,4),(9,NULL),(10,NULL);
-
 #
 # Check IS NULL optimization
 #

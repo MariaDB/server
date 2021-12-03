@@ -11,14 +11,14 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*************** Mycat CC Program Source Code File (.CC) ***************/
 /* PROGRAM NAME: MYCAT                                                 */
 /* -------------                                                       */
-/*  Version 1.6                                                        */
+/*  Version 1.8                                                        */
 /*                                                                     */
-/*  Author: Olivier Bertrand                       2012 - 2018         */
+/*  Author: Olivier Bertrand                       2012 - 2020         */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -62,10 +62,10 @@
 #include "tabvct.h"
 #endif   // VCT_SUPPORT
 #include "tabsys.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include "tabmac.h"
 #include "tabwmi.h"
-#endif   // __WIN__
+#endif   // _WIN32
 //#include "tabtbl.h"
 #include "tabxcl.h"
 #include "tabtbl.h"
@@ -82,7 +82,11 @@
 #endif   // JAVA_SUPPORT
 #include "tabpivot.h"
 #include "tabvir.h"
+#if defined(BSON_SUPPORT)
+#include "tabbson.h"
+#else
 #include "tabjson.h"
+#endif   // BSON_SUPPORT
 #include "ha_connect.h"
 #if defined(XML_SUPPORT)
 #include "tabxml.h"
@@ -93,16 +97,23 @@
 #if defined(ZIP_SUPPORT)
 #include "tabzip.h"
 #endif   // ZIP_SUPPORT
+#if defined(REST_SUPPORT)
+#include "tabrest.h"
+#endif   // REST_SUPPORT
 #include "mycat.h"
 
 /***********************************************************************/
 /*  Extern static variables.                                           */
 /***********************************************************************/
-#if defined(__WIN__)
+#if defined(_WIN32)
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#endif  // !__WIN__
-
-PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
+#endif  // !_WIN32
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
+bool MongoEnabled(void);
+#endif   // JAVA_SUPPORT || CMGO_SUPPORT
+#if defined(BSON_SUPPORT)
+bool Force_Bson(void);
+#endif   // BSON_SUPPORT
 
 /***********************************************************************/
 /*  Get the plugin directory.                                          */
@@ -113,50 +124,62 @@ char *GetPluginDir(void)
 } // end of GetPluginDir
 
 /***********************************************************************/
+/*  Get the lc_messages_dir, it is where error messages for various    */
+/*  languages are installed, and by default the INSTALL_MYSQLSHAREDIR. */
+/***********************************************************************/
+char *GetMessageDir(void)
+{
+  return lc_messages_dir;
+} // end of GetMessageDir
+
+/***********************************************************************/
 /*  Get a unique enum table type ID.                                   */
 /***********************************************************************/
 TABTYPE GetTypeID(const char *type)
   {
-  return (!type) ? TAB_UNDEF                      
+  return (!type) ? TAB_UNDEF
                  : (!stricmp(type, "DOS"))   ? TAB_DOS
                  : (!stricmp(type, "FIX"))   ? TAB_FIX
                  : (!stricmp(type, "BIN"))   ? TAB_BIN
-	               : (!stricmp(type, "CSV"))   ? TAB_CSV
+                 : (!stricmp(type, "CSV"))   ? TAB_CSV
                  : (!stricmp(type, "FMT"))   ? TAB_FMT
                  : (!stricmp(type, "DBF"))   ? TAB_DBF
 #if defined(XML_SUPPORT)
                  : (!stricmp(type, "XML"))   ? TAB_XML
-#endif
+#endif   // XML_SUPPORT
                  : (!stricmp(type, "INI"))   ? TAB_INI
                  : (!stricmp(type, "VEC"))   ? TAB_VEC
 #if defined(ODBC_SUPPORT)
                  : (!stricmp(type, "ODBC"))  ? TAB_ODBC
-#endif
+#endif   // ODBC_SUPPORT
 #if defined(JAVA_SUPPORT)
-								 : (!stricmp(type, "JDBC"))  ? TAB_JDBC
-#endif
+                 : (!stricmp(type, "JDBC"))  ? TAB_JDBC
+#endif   // JAVA_SUPPORT
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
-		             : (!stricmp(type, "MONGO") && MongoEnabled()) ? TAB_MONGO
-#endif
-								 : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
+                 : (!stricmp(type, "MONGO") && MongoEnabled()) ? TAB_MONGO
+#endif   // JAVA_SUPPORT  ||         CMGO_SUPPORT
+                 : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
                  : (!stricmp(type, "MYPRX")) ? TAB_MYSQL
                  : (!stricmp(type, "DIR"))   ? TAB_DIR
-#if defined(__WIN__)
-	               : (!stricmp(type, "MAC"))   ? TAB_MAC
-	               : (!stricmp(type, "WMI"))   ? TAB_WMI
-#endif
-	               : (!stricmp(type, "TBL"))   ? TAB_TBL
-	               : (!stricmp(type, "XCOL"))  ? TAB_XCL
-	               : (!stricmp(type, "OCCUR")) ? TAB_OCCUR
+#if defined(_WIN32)
+                 : (!stricmp(type, "MAC"))   ? TAB_MAC
+                 : (!stricmp(type, "WMI"))   ? TAB_WMI
+#endif   // _WIN32
+                 : (!stricmp(type, "TBL"))   ? TAB_TBL
+                 : (!stricmp(type, "XCOL"))  ? TAB_XCL
+                 : (!stricmp(type, "OCCUR")) ? TAB_OCCUR
                  : (!stricmp(type, "CATLG")) ? TAB_PRX  // Legacy
                  : (!stricmp(type, "PROXY")) ? TAB_PRX
                  : (!stricmp(type, "PIVOT")) ? TAB_PIVOT
                  : (!stricmp(type, "VIR"))   ? TAB_VIR
                  : (!stricmp(type, "JSON"))  ? TAB_JSON
+#if defined(BSON_SUPPORT)
+                 : (!stricmp(type, "BSON"))  ? TAB_BSON
+#endif   // BSON_SUPPORT
 #if defined(ZIP_SUPPORT)
-								 : (!stricmp(type, "ZIP"))   ? TAB_ZIP
-#endif
-		             : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
+                 : (!stricmp(type, "ZIP"))   ? TAB_ZIP
+#endif   // ZIP_SUPPORT
+                 : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
 /***********************************************************************/
@@ -166,18 +189,22 @@ bool IsFileType(TABTYPE type)
   {
   bool isfile;
 
-  switch (type) {                      
+  switch (type) {
     case TAB_DOS:
     case TAB_FIX:
     case TAB_BIN:
-	  case TAB_CSV:
+    case TAB_CSV:
     case TAB_FMT:
     case TAB_DBF:
     case TAB_XML:
     case TAB_INI:
     case TAB_VEC:
     case TAB_JSON:
-//	case TAB_ZIP:
+#if defined(BSON_SUPPORT)
+    case TAB_BSON:
+#endif   // BSON_SUPPORT
+    case TAB_REST:
+ // case TAB_ZIP:
       isfile= true;
       break;
     default:
@@ -195,7 +222,7 @@ bool IsExactType(TABTYPE type)
   {
   bool exact;
 
-  switch (type) {                      
+  switch (type) {
     case TAB_FIX:
     case TAB_BIN:
     case TAB_DBF:
@@ -220,7 +247,7 @@ bool IsTypeNullable(TABTYPE type)
   {
   bool nullable;
 
-  switch (type) {                      
+  switch (type) {
     case TAB_MAC:
     case TAB_DIR:
       nullable= false;
@@ -240,7 +267,7 @@ bool IsTypeFixed(TABTYPE type)
   {
   bool fix;
 
-  switch (type) {                      
+  switch (type) {
     case TAB_FIX:
     case TAB_BIN:
     case TAB_VEC:
@@ -262,7 +289,7 @@ bool IsTypeIndexable(TABTYPE type)
   {
   bool idx;
 
-  switch (type) {                      
+  switch (type) {
     case TAB_DOS:
     case TAB_CSV:
     case TAB_FMT:
@@ -271,6 +298,9 @@ bool IsTypeIndexable(TABTYPE type)
     case TAB_VEC:
     case TAB_DBF:
     case TAB_JSON:
+#if defined(BSON_SUPPORT)
+    case TAB_BSON:
+#endif   // BSON_SUPPORT
       idx= true;
       break;
     default:
@@ -288,7 +318,7 @@ int GetIndexType(TABTYPE type)
   {
   int xtyp;
 
-  switch (type) {                      
+  switch (type) {
     case TAB_DOS:
     case TAB_CSV:
     case TAB_FMT:
@@ -297,13 +327,16 @@ int GetIndexType(TABTYPE type)
     case TAB_VEC:
     case TAB_DBF:
     case TAB_JSON:
+#if defined(BSON_SUPPORT)
+    case TAB_BSON:
+#endif   // BSON_SUPPORT
       xtyp= 1;
       break;
     case TAB_MYSQL:
     case TAB_ODBC:
-		case TAB_JDBC:
-		case TAB_MONGO:
-			xtyp= 2;
+    case TAB_JDBC:
+    case TAB_MONGO:
+      xtyp= 2;
       break;
     case TAB_VIR:
       xtyp= 3;
@@ -343,100 +376,6 @@ uint GetFuncID(const char *func)
   return fnc;
   } // end of GetFuncID
 
-/***********************************************************************/
-/*  OEMColumn: Get table column info for an OEM table.                 */
-/***********************************************************************/
-PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
-  {
-  typedef PQRYRES (__stdcall *XCOLDEF) (PGLOBAL, void*, char*, char*, bool);
-  const char *module, *subtype;
-  char    c, soname[_MAX_PATH], getname[40] = "Col";
-#if defined(__WIN__)
-  HANDLE  hdll;               /* Handle to the external DLL            */
-#else   // !__WIN__
-  void   *hdll;               /* Handle for the loaded shared library  */
-#endif  // !__WIN__
-  XCOLDEF coldef = NULL;
-  PQRYRES qrp = NULL;
-
-  module = topt->module;
-  subtype = topt->subtype;
-
-  if (!module || !subtype)
-    return NULL;
-
-  /*********************************************************************/
-  /*  Ensure that the .dll doesn't have a path.                        */
-  /*  This is done to ensure that only approved dll from the system    */
-  /*  directories are used (to make this even remotely secure).        */
-  /*********************************************************************/
-  if (check_valid_path(module, strlen(module))) {
-    strcpy(g->Message, "Module cannot contain a path");
-    return NULL;
-  } else
-    PlugSetPath(soname, module, GetPluginDir());
-    
-  // The exported name is always in uppercase
-  for (int i = 0; ; i++) {
-    c = subtype[i];
-    getname[i + 3] = toupper(c);
-    if (!c) break;
-    } // endfor i
-
-#if defined(__WIN__)
-  // Load the Dll implementing the table
-  if (!(hdll = LoadLibrary(soname))) {
-    char  buf[256];
-    DWORD rc = GetLastError();
-
-    sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, soname);
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
-                  (LPTSTR)buf, sizeof(buf), NULL);
-    strcat(strcat(g->Message, ": "), buf);
-    return NULL;
-    } // endif hDll
-
-  // Get the function returning an instance of the external DEF class
-  if (!(coldef = (XCOLDEF)GetProcAddress((HINSTANCE)hdll, getname))) {
-    sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), getname);
-    FreeLibrary((HMODULE)hdll);
-    return NULL;
-    } // endif coldef
-#else   // !__WIN__
-  const char *error = NULL;
-
-  // Load the desired shared library
-  if (!(hdll = dlopen(soname, RTLD_LAZY))) {
-    error = dlerror();
-    sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
-    return NULL;
-    } // endif Hdll
-
-  // Get the function returning an instance of the external DEF class
-  if (!(coldef = (XCOLDEF)dlsym(hdll, getname))) {
-    error = dlerror();
-    sprintf(g->Message, MSG(GET_FUNC_ERR), getname, SVP(error));
-    dlclose(hdll);
-    return NULL;
-    } // endif coldef
-#endif  // !__WIN__
-
-  // Just in case the external Get function does not set error messages
-  sprintf(g->Message, "Error getting column info from %s", subtype);
-
-  // Get the table column definition
-  qrp = coldef(g, topt, tab, db, info);
-
-#if defined(__WIN__)
-  FreeLibrary((HMODULE)hdll);
-#else   // !__WIN__
-  dlclose(hdll);
-#endif  // !__WIN__
-
-  return qrp;
-  } // end of OEMColumns
-
 /* ------------------------- Class CATALOG --------------------------- */
 
 /***********************************************************************/
@@ -444,15 +383,15 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
 /***********************************************************************/
 CATALOG::CATALOG(void)
   {
-#if defined(__WIN__)
+#if defined(_WIN32)
 //DataPath= ".\\";
-#else   // !__WIN__
+#else   // !_WIN32
 //DataPath= "./";
-#endif  // !__WIN__
+#endif  // !_WIN32
   memset(&Ctb, 0, sizeof(CURTAB));
   Cbuf= NULL;
   Cblen= 0;
-	DefHuge= false;
+  DefHuge= false;
   } // end of CATALOG constructor
 
 /* -------------------------- Class MYCAT ---------------------------- */
@@ -462,7 +401,7 @@ CATALOG::CATALOG(void)
 /***********************************************************************/
 MYCAT::MYCAT(PHC hc) : CATALOG()
   {
-	Hc= hc;
+  Hc= hc;
   DefHuge= false;
   } // end of MYCAT constructor
 
@@ -477,38 +416,49 @@ void MYCAT::Reset(void)
 /*  GetTableDesc: retrieve a table descriptor.                         */
 /*  Look for a table descriptor matching the name and type.            */
 /***********************************************************************/
-PRELDEF MYCAT::GetTableDesc(PGLOBAL g, PTABLE tablep,
+PTABDEF MYCAT::GetTableDesc(PGLOBAL g, PTABLE tablep,
                                        LPCSTR type, PRELDEF *)
-  {
-	if (trace(1))
-		printf("GetTableDesc: name=%s am=%s\n", tablep->GetName(), SVP(type));
+{
+  PTABDEF tdp= NULL;
 
- 	// If not specified get the type of this table
-  if (!type)
-    type= Hc->GetStringOption("Type","*");
+  if (trace(1))
+    htrc("GetTableDesc: name=%s am=%s\n", tablep->GetName(), SVP(type));
 
-  return MakeTableDesc(g, tablep, type);
-  } // end of GetTableDesc
+  // If not specified get the type of this table
+  //if (!type)
+  //  type= Hc->GetStringOption("Type","*");
+
+  tdp= MakeTableDesc(g, tablep, type);
+
+  if (trace(1))
+    htrc("GetTableDesc: tdp=%p\n", tdp);
+
+  return tdp;
+} // end of GetTableDesc
 
 /***********************************************************************/
 /*  MakeTableDesc: make a table/view description.                      */
 /*  Note: caller must check if name already exists before calling it.  */
 /***********************************************************************/
-PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
+PTABDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
   {
   TABTYPE tc;
-	LPCSTR  name = (PSZ)PlugDup(g, tablep->GetName());
-	LPCSTR  schema = (PSZ)PlugDup(g, tablep->GetSchema());
-  PRELDEF tdp= NULL;
+  LPCSTR  name= (PSZ)PlugDup(g, tablep->GetName());
+  LPCSTR  schema= (PSZ)PlugDup(g, tablep->GetSchema());
+  PTABDEF tdp= NULL;
 
-	if (trace(1))
-		printf("MakeTableDesc: name=%s schema=%s am=%s\n",
-		                       name, SVP(schema), SVP(am));
+  if (trace(1))
+    htrc("MakeTableDesc: name=%s schema=%s am=%s\n",
+                           name, SVP(schema), SVP(am));
 
   /*********************************************************************/
   /*  Get a unique enum identifier for types.                          */
   /*********************************************************************/
-  tc= GetTypeID(am);
+  if (!am) {
+    tc= Hc->GetRealType();
+    am= Hc->GetStringOption("Type","*");
+  } else
+    tc= GetTypeID(am);
 
   switch (tc) {
     case TAB_FIX:
@@ -523,45 +473,62 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
     case TAB_XML: tdp= new(g) XMLDEF;   break;
 #endif   // XML_SUPPORT
 #if defined(VCT_SUPPORT)
-		case TAB_VEC: tdp = new(g) VCTDEF;  break;
+    case TAB_VEC: tdp= new(g) VCTDEF;  break;
 #endif   // VCT_SUPPORT
 #if defined(ODBC_SUPPORT)
     case TAB_ODBC: tdp= new(g) ODBCDEF; break;
 #endif   // ODBC_SUPPORT
 #if defined(JAVA_SUPPORT)
-		case TAB_JDBC: tdp= new(g) JDBCDEF; break;
+    case TAB_JDBC: tdp= new(g) JDBCDEF; break;
 #endif   // JAVA_SUPPORT
-#if defined(__WIN__)
+#if defined(_WIN32)
     case TAB_MAC: tdp= new(g) MACDEF;   break;
     case TAB_WMI: tdp= new(g) WMIDEF;   break;
-#endif   // __WIN__
+#endif   // _WIN32
     case TAB_OEM: tdp= new(g) OEMDEF;   break;
-	  case TAB_TBL: tdp= new(g) TBLDEF;   break;
-	  case TAB_XCL: tdp= new(g) XCLDEF;   break;
-	  case TAB_PRX: tdp= new(g) PRXDEF;   break;
-		case TAB_OCCUR: tdp= new(g) OCCURDEF;	break;
-		case TAB_MYSQL: tdp= new(g) MYSQLDEF;	break;
+    case TAB_TBL: tdp= new(g) TBLDEF;   break;
+    case TAB_XCL: tdp= new(g) XCLDEF;   break;
+    case TAB_PRX: tdp= new(g) PRXDEF;   break;
+    case TAB_OCCUR: tdp= new(g) OCCURDEF; break;
+    case TAB_MYSQL: tdp= new(g) MYSQLDEF; break;
     case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
     case TAB_VIR: tdp= new(g) VIRDEF;   break;
-    case TAB_JSON: tdp= new(g) JSONDEF; break;
+    case TAB_JSON:
+#if defined(BSON_SUPPORT)
+      if (Force_Bson())
+        tdp= new(g) BSONDEF;
+      else
+#endif   // BSON_SUPPORT
+        tdp= new(g) JSONDEF;
+
+      break;
+#if defined(BSON_SUPPORT)
+    case TAB_BSON: tdp= new(g) BSONDEF; break;
+#endif   // BSON_SUPPORT
 #if defined(ZIP_SUPPORT)
-		case TAB_ZIP: tdp = new(g) ZIPDEF;   break;
+    case TAB_ZIP: tdp= new(g) ZIPDEF;   break;
 #endif   // ZIP_SUPPORT
+#if defined(REST_SUPPORT)
+    case TAB_REST: tdp= new (g) RESTDEF; break;
+#endif   // REST_SUPPORT
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
-		case TAB_MONGO:
-			if (MongoEnabled()) {
-				tdp = new(g) MGODEF;
-				break;
-			}	// endif enabled
-			// fall through
+    case TAB_MONGO:
+      if (MongoEnabled()) {
+        tdp = new(g) MGODEF;
+        break;
+      } // endif enabled
+      // fall through
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT
-		default:
-			sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
+    default:
+      sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
     } // endswitch
 
   // Do make the table/view definition
-  if (tdp && tdp->Define(g, this, name, schema, am))
-    tdp= NULL;
+	if (tdp && tdp->Define(g, this, name, schema, am))
+		tdp = NULL;
+
+  if (trace(1))
+    htrc("Table %s made\n", am);
 
   return tdp;
   } // end of MakeTableDesc
@@ -571,30 +538,33 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
 /***********************************************************************/
 PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
   {
-  PRELDEF tdp;
+  PTABDEF tdp;
   PTDB    tdbp= NULL;
 //  LPCSTR  name= tablep->GetName();
 
-	if (trace(1))
-		printf("GetTableDB: name=%s\n", tablep->GetName());
+  if (trace(1))
+    htrc("GetTableDB: name=%s\n", tablep->GetName());
 
   // Look for the description of the requested table
   tdp= GetTableDesc(g, tablep, type);
 
   if (tdp) {
-		if (trace(1))
-			printf("tdb=%p type=%s\n", tdp, tdp->GetType());
+    if (trace(1))
+      htrc("tdb=%p type=%s\n", tdp, tdp->GetType());
 
-		if (tablep->GetSchema())
-			tdp->Database = SetPath(g, tablep->GetSchema());
-		
+    if (tablep->GetSchema())
+      tdp->Database = SetPath(g, tablep->GetSchema());
+
+    if (trace(2))
+      htrc("Going to get table...\n");
+
     tdbp= tdp->GetTable(g, mode);
-		} // endif tdp
+    } // endif tdp
 
   if (tdbp) {
-		if (trace(1))
-			printf("tdbp=%p name=%s amtype=%d\n", tdbp, tdbp->GetName(),
-																						tdbp->GetAmType());
+    if (trace(1))
+      htrc("tdbp=%p name=%s amtype=%d\n", tdbp, tdbp->GetName(),
+                                          tdbp->GetAmType());
     tablep->SetTo_Tdb(tdbp);
     tdbp->SetTable(tablep);
     tdbp->SetMode(mode);

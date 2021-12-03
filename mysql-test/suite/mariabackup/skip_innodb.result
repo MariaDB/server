@@ -3,7 +3,7 @@ INSERT INTO t VALUES(1);
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 SELECT * from t;
 i
 1

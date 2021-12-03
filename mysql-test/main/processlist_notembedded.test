@@ -1,0 +1,61 @@
+source include/have_debug_sync.inc;
+source include/not_embedded.inc;
+source include/count_sessions.inc;
+
+--echo #
+--echo # MDEV-20466: SHOW PROCESSLIST truncates query text on \0 bytes
+--echo #
+
+connect con1,localhost,root;
+
+connection con1;
+
+let $q= `select CONCAT("SELECT user FROM mysql.user WHERE user ='some", CHAR(0), "sleep'")`;
+
+SET DEBUG_SYNC= 'before_join_optimize SIGNAL in_sync WAIT_FOR go';
+--disable_query_log
+--send_eval $q;
+--enable_query_log
+connection default;
+
+SET DEBUG_SYNC= 'now WAIT_FOR in_sync';
+
+exec $MYSQL test  -e "SHOW PROCESSLIST" > $MYSQLTEST_VARDIR/tmp/MDEV-20466.text;
+
+let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/MDEV-20466.text;
+let SEARCH_PATTERN=sleep;
+source include/search_pattern_in_file.inc;
+remove_file $MYSQLTEST_VARDIR/tmp/MDEV-20466.text;
+
+SET DEBUG_SYNC= 'now SIGNAL go';
+
+connection con1;
+reap;
+disconnect con1;
+connection default;
+
+SET DEBUG_SYNC = 'RESET';
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-23752: SHOW EXPLAIN FOR thd waits for sleep
+--echo #
+
+--connect con1,localhost,root
+--let $con_id = `SELECT CONNECTION_ID()`
+--send select sleep(100000)
+
+--connection default
+let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist where state='User sleep';
+source include/wait_condition.inc;
+evalp SHOW EXPLAIN FOR $con_id;
+evalp KILL QUERY $con_id;
+disconnect con1;
+source include/wait_until_count_sessions.inc;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

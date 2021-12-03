@@ -210,7 +210,7 @@ drop table t1,t3,t4;
 create database mysqltest2;
 
 drop table if exists test.t1,mysqltest2.t2;
-create table test.t1 (i int);
+create table test.t1 (i int) engine=myisam;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 --replace_column 1 #
@@ -249,7 +249,47 @@ create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 select * from information_schema.metadata_lock_info;
 create table t1 (i int);
 drop table t1;
+
+create table test.t1 (i int) engine=innodb;
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+unlock tables;
+drop table test.t1,mysqltest2.t2;
+
+create table test.t1 (i int) engine=aria transactional=1 checksum=1;
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+unlock tables;
+drop table t1;
+
+create table test.t1 (i int);
 drop database mysqltest2;
+drop table test.t1;
+
+
+--echo #
+--echo # MDEV-23391 Server crash in close_thread_table or assertion, upon CREATE OR REPLACE TABLE under lock
+--echo #
+create table t1 (i int);
+lock table t1 write;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+--error ER_DATA_TOO_LONG
+create or replace table t1 (a char(1)) engine=Innodb select 'foo' as a;
+show tables;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+create table t1 (i int);
+drop table t1;
+
 
 --echo #
 --echo # Testing CREATE .. LIKE
@@ -466,3 +506,5 @@ CREATE OR REPLACE TEMPORARY TABLE t2(c INT DEFAULT '');
 SELECT * FROM t3;
 UNLOCK TABLES;
 DROP TABLE t3;
+
+--echo # End of 10.4 tests

@@ -133,6 +133,7 @@ show create table t;
 select count(*) from t for system_time all;
 update t set b=11;
 select count(*) from t for system_time all;
+drop table t;
 
 --echo # Start of 10.4 tests
 
@@ -148,5 +149,50 @@ alter table t drop column s, drop column e;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t drop system versioning, lock=none;
 
-drop database test;
-create database test;
+--echo #
+--echo # MDEV-17697 Broken versioning info after instant drop column
+--echo #
+set @@system_versioning_alter_history= keep;
+create or replace table t1 (a int, b int) with system versioning;
+insert into t1 values (1, 1);
+alter table t1 drop column b, algorithm=instant;
+alter table t1 drop system versioning;
+
+create or replace table t1 (a int, b int) with system versioning;
+insert into t1 values (1, 1);
+
+if ($have_debug) {
+--disable_query_log
+--disable_result_log
+set debug_dbug='+d,ib_commit_inplace_fail_1';
+--error ER_INTERNAL_ERROR
+alter table t1 drop column b, algorithm=instant;
+set debug_dbug= default;
+--enable_query_log
+--enable_result_log
+}
+alter table t1 drop system versioning;
+
+--echo #
+--echo # MDEV-18173 Assertion `o->ind == vers_end' or `o->ind == vers_start' failed in dict_table_t::instant_column
+--echo #
+set @@system_versioning_alter_history= keep;
+create or replace table t1 (pk integer primary key, a int, b int, v int as (a))
+with system versioning;
+
+alter table t1 force;
+alter table t1 drop column b;
+
+--echo #
+--echo # MDEV-18122 Assertion `table->versioned() == m_prebuilt->table->versioned()' failed in ha_innobase::open
+--echo #
+create or replace table t1 (
+  x int,
+  v int as (x) virtual,
+  y int
+) with system versioning;
+alter table t1 drop system versioning;
+
+drop tables t, t1;
+
+--source suite/versioning/common_finish.inc

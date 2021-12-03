@@ -296,7 +296,9 @@ if ($CRC_RET_stmt_sidef) {
   --echo
   --echo Invoking $CRC_RET_desc.
   if ($CRC_create) {
+    --disable_ps_protocol
     --eval $CRC_create
+    --enable_ps_protocol
   }
 
   --echo * binlog_format = STATEMENT: expect $CRC_ARG_expected_number_of_warnings warnings.

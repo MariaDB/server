@@ -137,5 +137,40 @@ CREATE INDEX idx ON t1(a2(10), b, a2(20));
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-17540 Server crashes in row_purge after TRUNCATE TABLE
+--echo #
+
+# Note: this test case is nondeterministic and should depend on
+# MDEV-12288 to trigger the needed purge activity.
+# The test does not seem to repeat the bug on MariaDB 10.2.
+
+CREATE TABLE t1 (a BIT(14)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+    (b'01110110101011'),(b'01100111111000'),(b'00001011110100'),
+    (b'01110110111010'),(b'10001010101011'),(b'01100111001111');
+
+CREATE TABLE t2 (
+    pk INT DEFAULT 1,
+    b YEAR,
+    c BIT(14),
+    d YEAR AS (b),
+    e BIT(14) AS (c),
+    UNIQUE(pk),
+    KEY(e)
+) ENGINE=InnoDB;
+
+# Run a few times in order to improve the chances of triggering the bug.
+--disable_query_log
+let $n=10;
+while ($n) {
+REPLACE INTO t2 (c) SELECT a FROM t1;
+TRUNCATE TABLE t2;
+dec $n;
+}
+--enable_query_log
+
+DROP TABLE t1, t2;
+
 --source include/wait_until_count_sessions.inc
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

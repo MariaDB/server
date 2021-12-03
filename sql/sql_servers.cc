@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /*
@@ -431,7 +431,7 @@ insert_server_record_into_cache(FOREIGN_SERVER *server)
   int error=0;
   DBUG_ENTER("insert_server_record_into_cache");
   /*
-    We succeded in insertion of the server to the table, now insert
+    We succeeded in insertion of the server to the table, now insert
     the server to the cache
   */
   DBUG_PRINT("info", ("inserting server %s at %p, length %zd",
@@ -686,7 +686,7 @@ delete_server_record_in_cache(LEX_SERVER_OPTIONS *server_options)
     goto end;
   }
   /*
-    We succeded in deletion of the server to the table, now delete
+    We succeeded in deletion of the server to the table, now delete
     the server from the cache
   */
   DBUG_PRINT("info",("deleting server %s length %zd",

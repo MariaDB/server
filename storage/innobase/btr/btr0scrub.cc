@@ -1,5 +1,5 @@
 // Copyright (c) 2014, Google Inc.
-// Copyright (c) 2017, MariaDB Corporation.
+// Copyright (c) 2017, 2021, MariaDB Corporation.
 
 /**************************************************//**
 @file btr/btr0scrub.cc
@@ -119,13 +119,13 @@ btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 	time_t last = start;
 
 	/* FIXME: this is not the proper way of doing things. The
-	dict_sys->mutex should not be held by any thread for longer
+	dict_sys.mutex should not be held by any thread for longer
 	than a few microseconds. It must not be held during I/O,
 	for example. So, what is the purpose for this busy-waiting?
 	This function should be rewritten as part of MDEV-8139:
 	Fix scrubbing tests. */
 
-	while (mutex_enter_nowait(&(dict_sys->mutex))) {
+	while (mutex_enter_nowait(&dict_sys.mutex)) {
 		/* if we lock to close a table, we wait forever
 		* if we don't lock to close a table, we check if space
 		* is closing, and then instead give up
@@ -157,7 +157,7 @@ btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 		}
 	}
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	return true;
 }
 
@@ -204,10 +204,10 @@ btr_scrub_table_close_for_thread(
 		/* If tablespace is not marked as stopping perform
 		the actual close. */
 		if (!space->is_stopping()) {
-			mutex_enter(&dict_sys->mutex);
+			mutex_enter(&dict_sys.mutex);
 			/* perform the actual closing */
 			btr_scrub_table_close(scrub_data->current_table);
-			mutex_exit(&dict_sys->mutex);
+			mutex_exit(&dict_sys.mutex);
 		}
 		space->release();
 	}
@@ -431,10 +431,10 @@ btr_pessimistic_scrub(
 	}
 
 	/* read block variables */
-	const ulint page_no =  mach_read_from_4(page + FIL_PAGE_OFFSET);
-	const ulint left_page_no = mach_read_from_4(page + FIL_PAGE_PREV);
-	const ulint right_page_no = mach_read_from_4(page + FIL_PAGE_NEXT);
-	const page_size_t page_size(index->table->space->flags);
+	const uint32_t page_no =  mach_read_from_4(page + FIL_PAGE_OFFSET);
+	const uint32_t left_page_no = btr_page_get_prev(page);
+	const uint32_t right_page_no = btr_page_get_next(page);
+	const ulint zip_size = index->table->space->zip_size();
 
 	/**
 	* When splitting page, we need X-latches on left/right brothers
@@ -449,36 +449,36 @@ btr_pessimistic_scrub(
 		*/
 		mtr->release_block_at_savepoint(scrub_data->savepoint, block);
 
-		buf_block_t* get_block __attribute__((unused)) = btr_block_get(
-			page_id_t(index->table->space->id, left_page_no),
-			page_size, RW_X_LATCH, index, mtr);
+		btr_block_get(
+			page_id_t(index->table->space_id, left_page_no),
+			zip_size, RW_X_LATCH, index, mtr);
 
 		/**
 		* Refetch block and re-initialize page
 		*/
 		block = btr_block_get(
-			page_id_t(index->table->space->id, page_no),
-			page_size, RW_X_LATCH, index, mtr);
+			page_id_t(index->table->space_id, page_no),
+			zip_size, RW_X_LATCH, index, mtr);
 
 		page = buf_block_get_frame(block);
 
 		/**
 		* structure should be unchanged
 		*/
-		ut_a(left_page_no == btr_page_get_prev(page, mtr));
-		ut_a(right_page_no == btr_page_get_next(page, mtr));
+		ut_a(left_page_no == btr_page_get_prev(page));
+		ut_a(right_page_no == btr_page_get_next(page));
 	}
 
 	if (right_page_no != FIL_NULL) {
-		buf_block_t* get_block __attribute__((unused))= btr_block_get(
-			page_id_t(index->table->space->id, right_page_no),
-			page_size, RW_X_LATCH, index, mtr);
+		btr_block_get(
+			page_id_t(index->table->space_id, right_page_no),
+			zip_size, RW_X_LATCH, index, mtr);
 	}
 
 	/* arguments to btr_page_split_and_insert */
 	mem_heap_t* heap = NULL;
 	dtuple_t* entry = NULL;
-	ulint* offsets = NULL;
+	rec_offs* offsets = NULL;
 	ulint n_ext = 0;
 	ulint flags = BTR_MODIFY_TREE;
 
@@ -626,13 +626,8 @@ btr_scrub_get_table_and_index(
 		scrub_data->current_table = NULL;
 	}
 
-	/* argument to dict_table_open_on_index_id */
-	bool dict_locked = true;
-
 	/* open table based on index_id */
-	dict_table_t* table = dict_table_open_on_index_id(
-		index_id,
-		dict_locked);
+	dict_table_t* table = dict_table_open_on_index_id(index_id);
 
 	if (table != NULL) {
 		/* mark table as being scrubbed */
@@ -747,7 +742,7 @@ btr_scrub_recheck_page(
 	}
 
 	mtr_start(mtr);
-	mtr_x_lock(dict_index_get_lock(scrub_data->current_index), mtr);
+	mtr_x_lock_index(scrub_data->current_index, mtr);
 	/** set savepoint for X-latch of block */
 	scrub_data->savepoint = mtr_set_savepoint(mtr);
 	return BTR_SCRUB_PAGE;
@@ -787,7 +782,7 @@ btr_scrub_page(
 	/* check that table/index still match now that they are loaded */
 
 	if (!scrub_data->current_table->space
-	    || scrub_data->current_table->space->id != scrub_data->space) {
+	    || scrub_data->current_table->space_id != scrub_data->space) {
 		/* this is truncate table */
 		mtr_commit(mtr);
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
@@ -835,20 +830,12 @@ btr_scrub_page(
 
 /**************************************************************//**
 Start iterating a space */
-UNIV_INTERN
-bool
-btr_scrub_start_space(
-/*===================*/
-	ulint space,             /*!< in: space */
-	btr_scrub_t* scrub_data) /*!< in/out: scrub data */
+bool btr_scrub_start_space(const fil_space_t &space, btr_scrub_t *scrub_data)
 {
-	bool found;
-	scrub_data->space = space;
+	scrub_data->space = space.id;
 	scrub_data->current_table = NULL;
 	scrub_data->current_index = NULL;
-	const page_size_t page_size = fil_space_get_page_size(space, &found);
-
-	scrub_data->compressed = page_size.is_compressed();
+	scrub_data->compressed = FSP_FLAGS_GET_ZIP_SSIZE(space.flags) != 0;
 	scrub_data->scrubbing = check_scrub_setting(scrub_data);
 	return scrub_data->scrubbing;
 }

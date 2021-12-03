@@ -35,9 +35,8 @@
 #############################################################
 
 SET @start_global_value = @@global.max_heap_table_size;
-SELECT @start_global_value;
 SET @start_session_value = @@session.max_heap_table_size;
-SELECT @start_session_value;
+SELECT @start_session_value = @start_global_value;
 
 
 --echo '#--------------------FN_DYNVARS_077_01-------------------------#'
@@ -47,23 +46,11 @@ SELECT @start_session_value;
 
 SET @@global.max_heap_table_size = 1677721610;
 SET @@global.max_heap_table_size = DEFAULT;
-SELECT @@global.max_heap_table_size;
+SELECT @@global.max_heap_table_size > 0;
 
 SET @@session.max_heap_table_size = 1677721610;
 SET @@session.max_heap_table_size = DEFAULT;
-SELECT @@session.max_heap_table_size;
-
-
---echo '#--------------------FN_DYNVARS_077_02-------------------------#'
-##################################################################
-#     Check the DEFAULT value of max_heap_table_size             #
-##################################################################
-
-SET @@global.max_heap_table_size = DEFAULT;
-SELECT @@global.max_heap_table_size = 16777216;
-
-SET @@session.max_heap_table_size = DEFAULT;
-SELECT @@session.max_heap_table_size = 16777216;
+SELECT @@session.max_heap_table_size > 0;
 
 
 --echo '#--------------------FN_DYNVARS_077_03-------------------------#'
@@ -216,12 +203,8 @@ SELECT max_heap_table_size = @@session.max_heap_table_size;
 ####################################
 
 SET @@global.max_heap_table_size = @start_global_value;
-SELECT @@global.max_heap_table_size;
-SET @@session.max_heap_table_size = @start_session_value;
-SELECT @@session.max_heap_table_size;
 
 
 #######################################################
-#                 END OF max_heap_table_size TESTS     #
+#                END OF max_heap_table_size TESTS     #
 #######################################################
-

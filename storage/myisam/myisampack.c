@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Pack MyISAM file */
 
@@ -110,7 +110,7 @@ typedef struct st_isam_mrg {
   MI_INFO **file,**current,**end;
   uint free_file;
   uint count;
-  uint	min_pack_length;		/* Theese is used by packed data */
+  uint	min_pack_length;		/* These are used by packed data */
   uint	max_pack_length;
   uint	ref_length;
   uint	max_blob_length;
@@ -1237,7 +1237,7 @@ static void check_counts(HUFF_COUNTS *huff_counts, uint trees,
 	huff_counts->counts[0]=0;
 	goto found_pack;
       }
-      /* Remeber the number of significant spaces. */
+      /* Remember the number of significant spaces. */
       old_space_count=huff_counts->counts[' '];
       /* Add all leading and trailing spaces. */
       huff_counts->counts[' ']+= (huff_counts->tot_end_space +
@@ -1952,7 +1952,7 @@ static void make_traverse_code_tree(HUFF_TREE *huff_tree,
   {
     chr=element->a.leaf.element_nr;
     huff_tree->code_len[chr]= (uchar) (8 * sizeof(ulonglong) - size);
-    huff_tree->code[chr]= (code >> size);
+    huff_tree->code[chr]= (size == 8 * sizeof(ulonglong)) ? 0 : (code >> size);
     if (huff_tree->height < 8 * sizeof(ulonglong) - size)
         huff_tree->height= 8 * sizeof(ulonglong) - size;
   }
@@ -2943,12 +2943,15 @@ static void flush_bits(void)
   ulonglong bit_buffer;
 
   bits= file_buffer.bits & ~7;
-  bit_buffer= file_buffer.bitbucket >> bits;
-  bits= BITS_SAVED - bits;
-  while (bits > 0)
+  if (bits != BITS_SAVED)
   {
-    bits-= 8;
-    *file_buffer.pos++= (uchar) (bit_buffer >> bits);
+    bit_buffer= file_buffer.bitbucket >> bits;
+    bits= BITS_SAVED - bits;
+    while (bits > 0)
+    {
+      bits-= 8;
+      *file_buffer.pos++= (uchar) (bit_buffer >> bits);
+    }
   }
   if (file_buffer.pos >= file_buffer.end)
     (void) flush_buffer(~ (ulong) 0);

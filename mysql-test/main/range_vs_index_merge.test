@@ -1,3 +1,7 @@
+--source include/default_optimizer_switch.inc
+--source include/default_charset.inc
+--source include/have_sequence.inc
+
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2,t3,t4;
 DROP DATABASE IF EXISTS world;
@@ -229,13 +233,13 @@ EXPLAIN
 SELECT * FROM City
   WHERE ((ID < 800) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
         OR ((ID BETWEEN 900 AND 1500) AND 
-            (Name LIKE 'Pa%' OR (Population > 103000 AND Population < 104000)));
+            (Name LIKE 'Pa%' OR (Population > 103000 AND Population < 105000)));
 
 EXPLAIN
 SELECT * FROM City
   WHERE ((ID < 200) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
         OR ((ID BETWEEN 100 AND 200) AND 
-            (Name LIKE 'Pa%' OR (Population > 103000 AND Population < 104000)));
+            (Name LIKE 'Pa%' OR (Population > 103200 AND Population < 104000)));
 
 
 # The following 6 queries check that the plans
@@ -384,7 +388,7 @@ SELECT * FROM City
 EXPLAIN
 SELECT * FROM City 
   WHERE ((Population > 101000 AND Population < 103000) OR Name LIKE 'P%')
-        AND Country='FIN';
+        AND Country='EST';
 
 # The following 4 queries check that the plans
 # for the previous 2 plans are valid
@@ -625,7 +629,7 @@ SELECT * FROM City
 
 
 #
-# LP bug #954262: index merge oover long disjunction in WHERE    
+# LP bug #954262: index merge over long disjunction in WHERE    
 #  
 
 set @save_optimizer_switch=@@optimizer_switch;
@@ -664,6 +668,7 @@ let $cond =
 eval
 EXPLAIN SELECT Name, Country, Population FROM City WHERE
 $cond;
+--sorted_result
 eval 
 SELECT Name, Country, Population FROM City WHERE
 $cond;
@@ -673,6 +678,7 @@ set optimizer_switch='index_merge=off';
 eval
 EXPLAIN SELECT Name, Country, Population FROM City WHERE
 $cond;
+--sorted_result
 eval
 SELECT Name, Country, Population FROM City WHERE
 $cond;
@@ -718,6 +724,23 @@ SELECT * FROM City
 ORDER BY Population LIMIT 5;
 SHOW STATUS LIKE 'Handler_read_%';
 
+set @tmp_mdev585=@@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=1;
+--replace_column 9 #
+EXPLAIN 
+SELECT * FROM City
+  WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
+        AND (Population >= 100000 AND Population < 120000)
+ORDER BY Population LIMIT 5;
+
+FLUSH STATUS;
+SELECT * FROM City
+  WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
+        AND (Population >= 100000 AND Population < 120000)
+ORDER BY Population LIMIT 5;
+SHOW STATUS LIKE 'Handler_read_%';
+
+set optimizer_use_condition_selectivity=@tmp_mdev585;
 
 set optimizer_switch='index_merge=off';
 
@@ -1067,7 +1090,11 @@ CREATE TABLE t1 (
   PRIMARY KEY (f1), KEY (f3), KEY (f4)
 );
 
+INSERT INTO t1 VALUES (1,0,0,0), (2,0,0,0), (3,0,0,0);
 INSERT INTO t1 VALUES (9,0,2,6), (9930,0,0,NULL);
+insert into t1 select seq,seq,seq,seq from seq_100_to_400;
+
+analyze table t1;
 
 SET SESSION optimizer_switch='index_merge_intersection=off';
 SET SESSION optimizer_switch='index_merge_sort_union=off';
@@ -1077,22 +1104,22 @@ SET SESSION optimizer_switch='index_merge_union=off';
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SET SESSION optimizer_switch='index_merge_union=on';
 
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 
 INSERT INTO t1 VALUES 
@@ -1101,27 +1128,29 @@ INSERT INTO t1 VALUES
   (97,0,7,6), (9937,0,7,7), (98,0,8,6), (9938,0,8,8),
   (99,0,9,6), (9939,0,9,9);
 
+analyze table t1;
+
 SET SESSION optimizer_switch='index_merge_union=off';
 
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SET SESSION optimizer_switch='index_merge_union=on';
 
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
   WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
-        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 != 1 );
+        OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
 
 SET SESSION optimizer_switch=DEFAULT;
 
@@ -1157,6 +1186,8 @@ CREATE TABLE t1 (
 INSERT INTO t1 VALUES 
  (0,58,7,7),(0,63,2,0),(0,64,186,8),(0,65,1,-2), (0,71,190,-3),
  (0,72,321,-7),(0,73,0,3),(0,74,5,25),(0,75,5,3);
+
+ANALYZE TABLE t1;
 
 SET SESSION optimizer_switch='index_merge_sort_union=off';
 EXPLAIN
@@ -1200,9 +1231,9 @@ INSERT INTO t1 VALUES (167,9999), (168,10000);
 
 EXPLAIN
 SELECT * FROM t1
-  WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR a!=2;
+  WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR (a<2 or a>2);
 SELECT * FROM t1
-  WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR a!=2;
+  WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR (a<2 or a>2);
 
 DROP TABLE t1;
 
@@ -1230,13 +1261,15 @@ INSERT INTO t1 VALUES
   (7,'Pennsylvania','Harrisburg'),
   (8,'Virginia','Richmond')
 ;
+
+ANALYZE TABLE t1;
  
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (state,capital) 
-WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND id != 9 
+WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND (id<9 or id>9) 
    OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';
 SELECT * FROM t1 FORCE KEY (state,capital) 
-WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND id != 9 
+WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND (id<9 or id>9)
    OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';
 
 DROP TABLE t1;

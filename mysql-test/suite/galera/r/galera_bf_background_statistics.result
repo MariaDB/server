@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 SELECT @@innodb_stats_persistent;
 @@innodb_stats_persistent
 1
@@ -27,7 +29,7 @@ SELECT SLEEP(1000);;
 connection node_1;
 ALTER TABLE t1 CHANGE f2 f2 INTEGER NOT NULL DEFAULT 1;
 connection node_2;
-ERROR 40001: Deadlock: wsrep aborted transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 wsrep_local_aborts_increment
 1
 DROP TABLE t1;

@@ -94,7 +94,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(/* select#2 */ select `test`.`t3`.`a` from `test`.`t3` where `test`.`t3`.`b` = `test`.`t1`.`a`)
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(/* select#2 */ select `test`.`t3`.`a` from `test`.`t3` where `test`.`t3`.`b` = `test`.`t1`.`a` limit 1)
 set optimizer_switch=default;
 set optimizer_switch='exists_to_in=on';
 drop table t1,t2,t3;
@@ -142,6 +142,7 @@ create index idx_t1_1 on t1 (a1,a2,b,c);
 create index idx_t1_2 on t1 (a1,a2,b);
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 create table t2 (
 a1 char(64), a2 char(64) not null, b char(16), c char(16), d char(16), dummy char(64) default ' '
@@ -169,6 +170,7 @@ create index idx_t2_1 on t2 (a1,a2,b,c);
 create index idx_t2_2 on t2 (a1,a2,b);
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 create table t3 (
 a1 char(1), a2 char(1), b char(1), c char(4) not null, d char(3), dummy char(1) default ' '
@@ -230,6 +232,7 @@ create index idx_t3_1 on t3 (a1,a2,b,c);
 create index idx_t3_2 on t3 (a1,a2,b);
 analyze table t3;
 Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 explain select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2
@@ -330,7 +333,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
-Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in ( <materialize> (/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` is not null ), <primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in (<primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
 SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
 ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )
 1
@@ -344,7 +347,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
-Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in ( <materialize> (/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` is not null ), <primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in (<primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
 SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
 ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )
 1
@@ -358,7 +361,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
-Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !exists(/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` = 1)) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !exists(/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` = 1 limit 1)) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
 SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
 ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )
 1
@@ -429,7 +432,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`a1` AS `a1` from `test`.`t1` where exists(/* select#2 */ select 1 from `test`.`t3` where `test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`b1` = `test`.`t1`.`a1`)
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`a1` AS `a1` from `test`.`t1` where exists(/* select#2 */ select 1 from `test`.`t3` where `test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`b1` = `test`.`t1`.`a1` limit 1)
 set optimizer_switch=default;
 set optimizer_switch='exists_to_in=on';
 drop table t1,t3;
@@ -437,8 +440,8 @@ drop table t1,t3;
 # MDEV-159 Assertion about not marked for read failed in
 # String* Field_varstring::val_str(String*, String*)
 #
-SET optimizer_switch = REPLACE( @@optimizer_switch, '=on', '=off' );
-SET optimizer_switch='in_to_exists=on,exists_to_in=on';
+SET optimizer_switch = REPLACE(REPLACE(@@optimizer_switch, '=on', '=off'), 'in_to_exists=off', 'in_to_exists=on');
+SET optimizer_switch='exists_to_in=on';
 CREATE TABLE t1 ( a VARCHAR(1) );
 INSERT INTO t1 VALUES ('k'),('m');
 CREATE TABLE t2 ( b INT,
@@ -593,8 +596,8 @@ Warnings:
 Note	1276	Field or reference 'test.alias.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.alias.b' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`alias`.`a` AS `a`,`test`.`alias`.`b` AS `b` from `test`.`t1` `alias` semi join (`test`.`t1`) where `test`.`t1`.`a` = `test`.`alias`.`b` and `test`.`alias`.`b` > `test`.`alias`.`a`
-SET optimizer_switch = REPLACE( @@optimizer_switch, '=on', '=off' );
-SET optimizer_switch = 'exists_to_in=on,materialization=on,semijoin=off';
+SET optimizer_switch = REPLACE(REPLACE(@@optimizer_switch, '=on', '=off'), 'materialization=off', 'materialization=on');
+SET optimizer_switch = 'exists_to_in=on,semijoin=off';
 SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
 a	b
@@ -905,7 +908,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1276	Field or reference 'sq1.pk' of SELECT #3 was resolved in SELECT #1
 Note	1276	Field or reference 'sq1.f1' of SELECT #3 was resolved in SELECT #1
-Note	1003	/* select#1 */ select straight_join `test`.`t1`.`f2` AS `f2` from `test`.`t1` where <expr_cache><`test`.`t1`.`f1`,`test`.`t1`.`pk`>(exists(/* select#3 */ select 1 from `test`.`t1` `sq2` semi join (`test`.`t1`) where `test`.`sq2`.`f1` = `test`.`t1`.`f1` and `test`.`t1`.`pk` = `test`.`t1`.`f1`))
+Note	1003	/* select#1 */ select straight_join `test`.`t1`.`f2` AS `f2` from `test`.`t1` where <expr_cache><`test`.`t1`.`f1`,`test`.`t1`.`pk`>(exists(/* select#3 */ select 1 from `test`.`t1` `sq2` semi join (`test`.`t1`) where `test`.`sq2`.`f1` = `test`.`t1`.`f1` and `test`.`t1`.`pk` = `test`.`t1`.`f1` limit 1))
 SELECT STRAIGHT_JOIN sq1.f2 
 FROM ( SELECT * FROM t1 ) AS sq1
 WHERE EXISTS ( SELECT * FROM t1 AS sq2 
@@ -972,4 +975,149 @@ id
 DROP PROCEDURE p1;
 DROP TABLE t1;
 # End of 10.0 tests
+#
+# MDEV-23221: A subquery causes crash
+#
+create table t1 (
+location_code varchar(10),
+country_id varchar(10)
+);
+insert into t1 values ('HKG', 'HK');
+insert into t1 values ('NYC', 'US');
+insert into t1 values ('LAX', 'US');
+create table t2 (
+container_id varchar(10),
+cntr_activity_type varchar(10),
+cntr_dest varchar(10)
+);
+insert into t2 values ('AAAA1111', 'VSL', 'NYC');
+insert into t2 values ('AAAA1111', 'CUV', 'NYC');
+insert into t2 values ('BBBB2222', 'VSL', 'LAX');
+insert into t2 values ('BBBB2222', 'XYZ', 'LAX');
+# Must not crash or return an error:
+select
+(select country_id from t1 where location_code = cl1.cntr_dest) as dest_cntry,
+(select
+max(container_id)
+from t2 as cl2
+where
+cl2.container_id = cl1.container_id and
+cl2.cntr_activity_type = 'CUV' and
+exists (select location_code
+from t1
+where
+location_code = cl2.cntr_dest and
+country_id = dest_cntry)
+) as CUV
+from
+t2 cl1;
+dest_cntry	CUV
+US	AAAA1111
+US	AAAA1111
+US	NULL
+US	NULL
+prepare s from "select
+(select country_id from t1 where location_code = cl1.cntr_dest) as dest_cntry,
+(select
+max(container_id)
+from t2 as cl2
+where
+cl2.container_id = cl1.container_id and
+cl2.cntr_activity_type = 'CUV' and
+exists (select location_code
+from t1
+where
+location_code = cl2.cntr_dest and
+country_id = dest_cntry)
+) as CUV
+from
+t2 cl1";
+execute s;
+dest_cntry	CUV
+US	AAAA1111
+US	AAAA1111
+US	NULL
+US	NULL
+execute s;
+dest_cntry	CUV
+US	AAAA1111
+US	AAAA1111
+US	NULL
+US	NULL
+drop table t1,t2;
+# 
+# MDEV-20557: SQL query with duplicate table aliases consistently crashes server
+# (Just a testcase)
+#
+create table t1 (id int, id2 int);
+create table t2 (id int, id2 int, a int);
+create table t3 (id int);
+create table t4 (id int);
+select (select 1 from t1 where (exists 
+(select 1 from t2  
+where t2.a = (select t4.id from t4 where t4.id = t3.id) and t2.id2 = t1.id2))) dt
+from t3;
+ERROR 42000: This version of MariaDB doesn't yet support 'SUBQUERY in ROW in left expression of IN/ALL/ANY'
+drop table t1,t2,t3,t4;
+# 
+# MDEV-21649: Crash when using nested EXISTS
+# (Just a testcase)
+# 
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, PRIMARY KEY(id));
+CREATE TABLE t2 (id INT NOT NULL AUTO_INCREMENT, ip_id INT, PRIMARY KEY(id));
+CREATE TABLE t3 (id INT NOT NULL AUTO_INCREMENT, storage_method_id INT, storage_target_id INT, PRIMARY KEY(id));
+SELECT
+W0.`id`
+FROM
+`t1` W0
+WHERE (
+EXISTS(
+SELECT
+V0.`id`
+        FROM
+`t2` V0
+WHERE (
+EXISTS(
+SELECT
+U0.`id`
+                FROM
+`t2` U0
+INNER JOIN `t3` U4 ON (U0.`id` = U4.`storage_target_id`)
+WHERE (
+U0.`ip_id` = V0.`ip_id`
+                        AND U4.`storage_method_id` = (
+SELECT
+U5.`storage_method_id`
+                            FROM
+`t3` U5
+WHERE
+U5.`storage_target_id` = V0.`id`
+                            LIMIT
+1
+)
+)
+)
+)
+)
+);
+id
+drop table t1,t2,t3;
+#
+# MDEV-25407: EXISTS subquery with correlation in ON expression crashes
+#
+create table t10(a int primary key);
+insert into t10 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t11(a int primary key);
+insert into t11 select a.a + b.a* 10 + c.a * 100 from t10 a, t10 b, t10 c;
+create table t1 (a int, b int);
+insert into t1 select a,a from t10;
+create table t2 (a int, b int);
+insert into t2 select a,a from t11;
+create table t3 as select * from t2;
+explain  select *  from t1  where    exists (select t2.a from t2 left join t3 on (t3.b=t1.b) where t2.a=t1.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1000	Using where; Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where; End temporary; Using join buffer (incremental, BNL join)
+drop table t1, t2, t3, t10, t11;
 set optimizer_switch=default;

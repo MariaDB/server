@@ -1,0 +1,70 @@
+#
+# Exercise the crash points which crash the server at various points important to SR
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+--connect node_2_check, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--enable_reconnect
+--connect node_3_check, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+#
+# crash_commit_cb_last_fragment_commit_success
+#
+
+--connection node_3
+SET GLOBAL debug_dbug="d,crash_commit_cb_last_fragment_commit_success";
+--source suite/galera_3nodes/include/galera_expect_node_crash.inc
+--source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes3.inc
+
+--source include/start_mysqld.inc
+--sleep 5
+--source include/galera_wait_ready.inc
+--source suite/galera_3nodes/include/galera_sr_crash_post_check3.inc
+
+#
+# crash_commit_cb_before_last_fragment_commit
+#
+
+--connection node_3
+SET GLOBAL debug_dbug="d,crash_commit_cb_before_last_fragment_commit";
+--source suite/galera_3nodes/include/galera_expect_node_crash.inc
+--source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes3.inc
+
+--source include/start_mysqld.inc
+--sleep 5
+--source include/galera_wait_ready.inc
+--source suite/galera_3nodes/include/galera_sr_crash_post_check3.inc
+
+#
+# crash_apply_cb_after_fragment_removal
+#
+
+--connection node_3
+SET GLOBAL debug_dbug="d,crash_apply_cb_after_fragment_removal";
+--source suite/galera_3nodes/include/galera_expect_node_crash.inc
+--source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes3.inc
+
+--source include/start_mysqld.inc
+--sleep 5
+--source include/galera_wait_ready.inc
+--source suite/galera_3nodes/include/galera_sr_crash_post_check3.inc
+
+#
+# crash_apply_cb_before_fragment_removal
+#
+
+--connection node_3
+SET GLOBAL debug_dbug="d,crash_apply_cb_before_fragment_removal";
+--source suite/galera_3nodes/include/galera_expect_node_crash.inc
+--source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes3.inc
+
+--source include/start_mysqld.inc
+--sleep 5
+--source include/galera_wait_ready.inc
+--source suite/galera_3nodes/include/galera_sr_crash_post_check3.inc
+
+DROP TABLE t1;

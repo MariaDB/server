@@ -2,6 +2,7 @@
 # ICP/MyISAM tests (Index Condition Pushdown)
 #
 
+--source include/default_optimizer_switch.inc
 set @myisam_icp_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 
@@ -281,6 +282,21 @@ set optimizer_switch= @tmp_10000051;
 explain select * from t1 where a=3 and col > 500 order by a desc, col desc;
 
 drop table t0, t1;
+
+--echo #
+--echo # MDEV-13628: ORed condition in pushed index condition is not removed from the WHERE
+--echo #
+
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k(a int);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+create table t1 (key1 int not null, filler char(100));
+insert into t1 select A.a + 1000 *B.a, 'filler-data' from one_k A, ten B;
+alter table t1 add key(key1);
+explain select * from t1 where key1 < 3 or key1 > 99999;
+select * from t1 where key1 < 3 or key1 > 99999;
+drop table ten,one_k,t1;
 
 set optimizer_switch=@myisam_icp_tmp;
 

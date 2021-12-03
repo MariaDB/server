@@ -1,5 +1,6 @@
 analyze table tt;
 Table	Op	Msg_type	Msg_text
+test.tt	analyze	status	Engine-independent statistics collected
 test.tt	analyze	status	OK
 set global tokudb_cardinality_scale_percent = 10;
 show indexes from tt;

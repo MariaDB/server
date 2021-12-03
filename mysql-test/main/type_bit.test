@@ -262,7 +262,7 @@ select hex(a), b from t1;
 drop table t1;
 
 #
-# type was not properly initalized, which caused key_copy to fail
+# type was not properly initialized, which caused key_copy to fail
 #
 
 create table t1(bit_field bit(2), int_field int, key a(bit_field));
@@ -326,6 +326,7 @@ CREATE TABLE t1(a BIT(13), KEY(a));
 --disable_warnings
 INSERT IGNORE INTO t1(a) VALUES
 (65535),(65525),(65535),(65535),(65535),(65535),(65535),(65535),(65535),(65535);
+ANALYZE TABLE t1;
 --enable_warnings
 
 EXPLAIN SELECT 1 FROM t1 GROUP BY a;
@@ -460,6 +461,15 @@ SELECT COALESCE(val, 1) FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-18452 ASAN unknown-crash in Field::set_default upon SET bit_column = DEFAULT
+--echo #
+
+CREATE TABLE t1 (b BIT(20)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0);
+UPDATE t1 SET b = DEFAULT;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
 
@@ -496,6 +506,35 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
 EXPLAIN SELECT * FROM t1 WHERE a=200;
 EXPLAIN SELECT * FROM t1 WHERE a<=>200;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23323 Rounding functions return a wrong data type for a BIT, ENUM, SET argument
+--echo #
+
+--vertical_results
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  FOR i IN 1..64
+  DO
+    SELECT '-----', CONCAT('BIT(',i,')') AS Type;
+    EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (a BIT(64))','64', i);
+    INSERT IGNORE INTO t1 VALUES (0xFFFFFFFFFFFFFFFF);
+     CREATE TABLE t2 AS SELECT
+       a,
+       FLOOR(a) AS cf,
+       CEILING(a) AS cc,
+       ROUND(a) AS cr,
+       TRUNCATE(a,0) AS ct
+     FROM t1;
+    SHOW CREATE TABLE t2;
+    SELECT CAST(a AS UNSIGNED) AS a, cf, cc, cr, ct FROM t2;
+    DROP TABLE t2;
+    DROP TABLE t1;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+--horizontal_results
 
 
 --echo #

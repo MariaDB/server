@@ -12,7 +12,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 IF(WIN32)
   SET(localstatedir "C:\\\\mysql\\\\data\\\\")
@@ -30,7 +30,7 @@ ELSE()
   SET(CXXFLAGS ${CMAKE_CXX_FLAGS})
   SET(MYSQLD_USER "mysql")
   SET(ini_file_extension "cnf")
-  SET(HOSTNAME "hostname")
+  SET(HOSTNAME "uname -n")
 ENDIF()
 
 # XXX: shouldn't we just have variables for all this stuff and centralise
@@ -68,20 +68,30 @@ IF(UNIX)
     IF(CHECKMODULE AND SEMODULE_PACKAGE)
       FOREACH(pol mariadb)
         SET(src ${CMAKE_CURRENT_SOURCE_DIR}/policy/selinux/${pol}.te)
-        SET(tmp ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${pol}-pp.dir/${pol}.mod)
+        SET(tmp ${CMAKE_CURRENT_BINARY_DIR}/${pol}.mod)
         SET(out ${CMAKE_CURRENT_BINARY_DIR}/${pol}.pp)
         ADD_CUSTOM_COMMAND(OUTPUT ${out}
           COMMAND ${CHECKMODULE} -M -m ${src} -o ${tmp}
           COMMAND ${SEMODULE_PACKAGE} -m ${tmp} -o ${out}
+          COMMAND ${CMAKE_COMMAND} -E remove ${tmp}
         DEPENDS ${src})
         ADD_CUSTOM_TARGET(${pol}-pp ALL DEPENDS ${out})
         INSTALL(FILES ${out} DESTINATION ${inst_location}/policy/selinux COMPONENT SupportFiles)
       ENDFOREACH()
+      IF(RPM)
+        EXECUTE_PROCESS(COMMAND rpm -q --qf "%{VERSION}" libsepol
+                        OUTPUT_VARIABLE LIBSEPOL_VERSION RESULT_VARIABLE err)
+        IF (NOT err)
+          SET(CPACK_RPM_server_PACKAGE_REQUIRES
+            "${CPACK_RPM_server_PACKAGE_REQUIRES} libsepol >= ${LIBSEPOL_VERSION}"
+            PARENT_SCOPE)
+        ENDIF()
+      ENDIF()
     ENDIF()
   ENDIF()
 
   CONFIGURE_FILE(mariadb.pc.in ${CMAKE_CURRENT_BINARY_DIR}/mariadb.pc @ONLY)
-  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.pc DESTINATION ${INSTALL_SHAREDIR}/pkgconfig COMPONENT Development)
+  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.pc DESTINATION ${INSTALL_LIBDIR}/pkgconfig COMPONENT Development)
 
   INSTALL(FILES mysql.m4 DESTINATION ${INSTALL_SHAREDIR}/aclocal COMPONENT Development)
   
@@ -90,8 +100,18 @@ IF(UNIX)
   SET(scriptdir ${INSTALL_SCRIPTDIRABS})
   SET(libexecdir ${INSTALL_SBINDIRABS})
   SET(pkgdatadir ${INSTALL_MYSQLSHAREDIRABS})
-  SET(sysconfdir ${INSTALL_SYSCONFDIR})
-  SET(sysconf2dir ${INSTALL_SYSCONF2DIR})
+  IF(INSTALL_SYSCONFDIR)
+    SET(sysconfdir ${INSTALL_SYSCONFDIR})
+  ELSEIF(DEFAULT_SYSCONFDIR)
+    SET(sysconfdir ${DEFAULT_SYSCONFDIR})
+  ELSE()
+    SET(sysconfdir "/etc")
+  ENDIF()
+  IF(INSTALL_SYSCONF2DIR)
+    SET(sysconf2dir ${INSTALL_SYSCONF2DIR})
+  ELSE()
+    SET(sysconf2dir "${sysconfdir}/mysql")
+  ENDIF()
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mysql.server.sh 
                  ${CMAKE_CURRENT_BINARY_DIR}/mysql.server @ONLY)
   INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server
@@ -103,21 +123,6 @@ IF(UNIX)
     INSTALL(FILES use_galera_new_cluster.conf
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
             DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
-
-    IF(INSTALL_SYSTEMD_SYSUSERSDIR)
-      CONFIGURE_FILE(sysusers.conf.in
-              ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf @ONLY)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf
-              DESTINATION ${INSTALL_SYSTEMD_SYSUSERSDIR} COMPONENT Server)
-    ENDIF()
-
-    IF(INSTALL_SYSTEMD_TMPFILESDIR)
-      get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
-      CONFIGURE_FILE(tmpfiles.conf.in
-              ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf @ONLY)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf
-              DESTINATION ${INSTALL_SYSTEMD_TMPFILESDIR} COMPONENT Server)
-    ENDIF()
 
     # @ in directory name broken between CMake version 2.8.12.2 and 3.3
     # http://public.kitware.com/Bug/view.php?id=14782
@@ -145,12 +150,34 @@ IF(UNIX)
     ENDIF()
   ENDIF()
 
+  # Allow installing sysusers and tmpusers without requiring SYSTEMD on the
+  # system. This is useful for distributions running other init systems to
+  # parse these files and create appropriate users & tmpfiles.
+  IF((HAVE_SYSTEMD OR INSTALL_SYSTEMD_SYSUSERS) AND INSTALL_SYSTEMD_SYSUSERSDIR)
+    CONFIGURE_FILE(sysusers.conf.in
+            ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf @ONLY)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf
+            DESTINATION ${INSTALL_SYSTEMD_SYSUSERSDIR}
+            RENAME mariadb.conf COMPONENT Server)
+  ENDIF()
+
+  IF((HAVE_SYSTEMD OR INSTALL_SYSTEMD_TMPUSERS) AND INSTALL_SYSTEMD_TMPFILESDIR)
+    get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+    CONFIGURE_FILE(tmpfiles.conf.in
+            ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf @ONLY)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf
+            DESTINATION ${INSTALL_SYSTEMD_TMPFILESDIR}
+            RENAME mariadb.conf COMPONENT Server)
+  ENDIF()
+
   IF (INSTALL_SYSCONFDIR)
     INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mysql-log-rotate DESTINATION ${INSTALL_SYSCONFDIR}/logrotate.d
             RENAME mysql COMPONENT SupportFiles)
-    INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server
-            DESTINATION  ${INSTALL_SYSCONFDIR}/init.d
-            RENAME mysql COMPONENT SupportFiles)
+    IF(NOT HAVE_SYSTEMD)
+      INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server
+              DESTINATION  ${INSTALL_SYSCONFDIR}/init.d
+              RENAME mysql COMPONENT SupportFiles)
+    ENDIF()
 
     INSTALL(FILES rpm/my.cnf DESTINATION ${INSTALL_SYSCONFDIR}
             COMPONENT Common)

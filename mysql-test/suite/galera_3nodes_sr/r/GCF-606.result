@@ -1,0 +1,38 @@
+connection node_2;
+connection node_1;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+connection node_2;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (21);
+INSERT INTO t1 VALUES (22);
+INSERT INTO t1 VALUES (23);
+INSERT INTO t1 VALUES (24);
+connection node_1;
+connection node_2a;
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+SET WSREP_ON=ON;
+connection node_1;
+connection node_2a;
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+connection node_1;
+connection node_1;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+0
+connection node_2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+f1
+COMMIT;
+connection node_1;
+SELECT * FROM t1;
+f1
+DROP TABLE t1;
+connection node_2;
+CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");

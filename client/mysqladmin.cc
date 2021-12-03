@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* maintaince of mysql databases */
 
@@ -26,6 +26,7 @@
 #include <welcome_copyright_notice.h>
 #include <my_rnd.h>
 #include <password.h>
+#include <my_sys.h>
 
 #define ADMIN_VERSION "9.1"
 #define MAX_MYSQL_VAR 512
@@ -40,7 +41,8 @@ ulonglong last_values[MAX_MYSQL_VAR+100];
 static int interval=0;
 static my_bool option_force=0,interrupted=0,new_line=0,
                opt_compress= 0, opt_local= 0, opt_relative= 0, opt_verbose= 0,
-               opt_vertical= 0, tty_password= 0, opt_nobeep;
+               opt_vertical= 0, tty_password= 0, opt_nobeep,
+               opt_shutdown_wait_for_slaves= 0;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static uint tcp_port = 0, option_wait = 0, option_silent=0, nr_iterations;
 static uint opt_count_iterations= 0, my_end_arg;
@@ -218,6 +220,11 @@ static struct my_option my_long_options[] =
   {"shutdown_timeout", OPT_SHUTDOWN_TIMEOUT, "", &opt_shutdown_timeout,
    &opt_shutdown_timeout, 0, GET_ULONG, REQUIRED_ARG,
    SHUTDOWN_DEF_TIMEOUT, 0, 3600*12, 0, 1, 0},
+  {"wait_for_all_slaves", OPT_SHUTDOWN_WAIT_FOR_SLAVES,
+   "Defers shutdown until after all binlogged events have been sent to "
+   "all connected slaves", &opt_shutdown_wait_for_slaves,
+   &opt_shutdown_wait_for_slaves, 0, GET_BOOL, NO_ARG, 0, 0, 0,
+   0, 0, 0},
   {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
     &opt_plugin_dir, &opt_plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -230,7 +237,8 @@ static struct my_option my_long_options[] =
 
 
 static const char *load_default_groups[]=
-{ "mysqladmin", "client", "client-server", "client-mariadb", 0 };
+{ "mysqladmin", "mariadb-admin", "client", "client-server", "client-mariadb",
+  0 };
 
 my_bool
 get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
@@ -310,7 +318,6 @@ int main(int argc,char *argv[])
   char **commands, **save_argv, **temp_argv;
 
   MY_INIT(argv[0]);
-  mysql_init(&mysql);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   save_argv = argv;				/* Save for free_defaults */
@@ -339,6 +346,7 @@ int main(int argc,char *argv[])
 
   sf_leaking_memory=0; /* from now on we cleanup properly */
 
+  mysql_init(&mysql);
   if (opt_compress)
     mysql_options(&mysql,MYSQL_OPT_COMPRESS,NullS);
   if (opt_connect_timeout)
@@ -353,12 +361,15 @@ int main(int argc,char *argv[])
 		  opt_ssl_capath, opt_ssl_cipher);
     mysql_options(&mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(&mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(&mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
   }
   mysql_options(&mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);
 #endif
   if (opt_protocol)
     mysql_options(&mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
+  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *)my_default_csname();
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
   error_flags= (myf)(opt_nobeep ? 0 : ME_BELL);
 
@@ -573,7 +584,7 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
       if (!info)
       {
 	info=1;
-	fputs("Waiting for MySQL server to answer",stderr);
+	fputs("Waiting for MariaDB server to answer",stderr);
 	(void) fflush(stderr);
       }
       else
@@ -693,7 +704,17 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	  !stat(pidfile, &pidfile_status))
 	last_modified= pidfile_status.st_mtime;
 
-      if (mysql_shutdown(mysql, SHUTDOWN_DEFAULT))
+      if (opt_shutdown_wait_for_slaves)
+      {
+        sprintf(buff, "SHUTDOWN WAIT FOR ALL SLAVES");
+        if (mysql_query(mysql, buff))
+        {
+          my_printf_error(0, "%s failed; error: '%-.200s'",
+                          error_flags, buff, mysql_error(mysql));
+          return -1;
+        }
+      }
+      else if (mysql_shutdown(mysql, SHUTDOWN_DEFAULT))
       {
 	my_printf_error(0, "shutdown failed; error: '%s'", error_flags,
 			mysql_error(mysql));

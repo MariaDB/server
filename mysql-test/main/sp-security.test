@@ -3,7 +3,9 @@
 #
 
 # Can't test with embedded server that doesn't support grants
--- source include/not_embedded.inc
+--source include/not_embedded.inc
+--source include/default_charset.inc
+set @@global.character_set_server=@@session.character_set_server;
 
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
@@ -340,7 +342,7 @@ flush privileges;
 drop table t1;
 
 #
-# Bug#9503 reseting correct parameters of thread after error in SP function
+# Bug#9503 resetting correct parameters of thread after error in SP function
 #
 connect (root,localhost,root,,test);
 connection root;
@@ -1035,15 +1037,18 @@ drop database mysqltest_db;
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
 
+create user u1@localhost;
+grant all privileges on *.* to u1@localhost with grant option;
+connect u1, localhost, u1;
 set password=password('foobar');
 create procedure sp1() select 1;
 show grants;
 grant execute on procedure sp1 to current_user() identified by 'barfoo';
 show grants;
 drop procedure sp1;
-set password='';
-#cleanup after MDEV-16238
-update mysql.user set plugin='';
+disconnect u1;
+connection default;
+drop user u1@localhost;
 
 --echo #
 --echo # MDEV-13396 Unexpected "alter routine comand defined" during CREATE OR REPLACE PROCEDURE
@@ -1071,3 +1076,5 @@ disconnect u1;
 connection default;
 DROP DATABASE u1;
 DROP USER u1@localhost;
+
+set @@global.character_set_server=@save_character_set_server;

@@ -1,0 +1,22 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+for slave1_1
+
+connection slave1_1;
+SHOW VARIABLES LIKE 'slave_transaction_retry_errors';
+Variable_name	Value
+slave_transaction_retry_errors	1158,1159,1160,1161,1205,1213,1429,2013,12701
+connection slave1_1;
+for slave1_1
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

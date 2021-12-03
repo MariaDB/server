@@ -98,18 +98,19 @@ INSERT INTO t1(title) VALUES('database');
 SET debug_dbug = '+d,fts_instrument_sync_debug,fts_write_node_crash';
 INSERT INTO t1(title) VALUES('mysql');
 ERROR HY000: Lost connection to MySQL server during query
+# restart
 After restart
-SELECT * FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
-FTS_DOC_ID	title
-1	database
+SELECT title FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
+title
+database
 SET @old_dbug = @@SESSION.debug_dbug;
 SET debug_dbug = '+d,fts_instrument_sync_debug';
 INSERT INTO t1(title) VALUES('mysql');
 SET debug_dbug = @old_dbug;
-SELECT * FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
-FTS_DOC_ID	title
-1	database
-2	mysql
+SELECT title FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
+title
+database
+mysql
 DROP TABLE t1;
 # Case 4: Test sync commit & rollback in background
 CREATE TABLE t1(
@@ -120,6 +121,7 @@ PRIMARY KEY(id)) ENGINE=InnoDB;
 SET debug_dbug = '+d,fts_instrument_sync';
 INSERT INTO t1(title) VALUES('mysql');
 SET debug_dbug = @old_dbug;
+# restart
 SET @old_global_dbug = @@GLOBAL.debug_dbug;
 SET @old_dbug = @@SESSION.debug_dbug;
 SET GLOBAL debug_dbug='+d,fts_instrument_sync,fts_instrument_sync_interrupted';

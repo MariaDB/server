@@ -19,4 +19,5 @@ COMMIT;
 disconnect purge_control;
 connection default;
 set global innodb_fast_shutdown = 0;
+# restart
 drop table t1;

@@ -77,7 +77,6 @@ fi
 if ! apt-cache madison libzstd-dev | grep 'libzstd-dev' >/dev/null 2>&1
 then
   sed '/libzstd-dev/d' -i debian/control
-  sed '/libzstd1/d' -i debian/control
 fi
 
 # The binaries should be fully hardened by default. However TokuDB compilation seems to fail on
@@ -97,31 +96,28 @@ then
   sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
 fi
 
-# AWS SDK requires c++11 -capable compiler.
-# Minimal supported versions are g++ 4.8 and clang 3.3.
-# AWS SDK also requires the build machine to have network access and git, so
-# it cannot be part of the base version included in Linux distros, but a pure
-# custom built plugin.
-if [[ $GCCVERSION -gt 40800 ]] && [[ ! $TRAVIS ]] && wget --timeout 15 --tries 1 --quiet --output-document /dev/null https://github.com/
+## Skip TokuDB if arch is not amd64
+if [[ ! $(dpkg-architecture -q DEB_BUILD_ARCH) =~ amd64 ]]
 then
-  cat <<EOF >> debian/control
+  sed '/Package: mariadb-plugin-tokudb/,/^$/d' -i debian/control
+fi
 
-Package: mariadb-plugin-aws-key-management
-Architecture: any
-Breaks: mariadb-aws-key-management-10.1,
-        mariadb-aws-key-management-10.2
-Replaces: mariadb-aws-key-management-10.1,
-          mariadb-aws-key-management-10.2
-Depends: mariadb-server-10.4,
-         \${misc:Depends},
-         \${shlibs:Depends}
-Description: Amazon Web Service Key Management Service Plugin for MariaDB
- This encryption key management plugin gives an interface to the Amazon Web
- Services Key Management Service for managing encryption keys used for MariaDB
- data-at-rest encryption.
-EOF
+# Always remove aws plugin, see -DNOT_FOR_DISTRIBUTION in CMakeLists.txt
+sed '/Package: mariadb-plugin-aws-key-management-10.2/,/^$/d' -i debian/control
 
-  sed -i -e "/-DPLUGIN_AWS_KEY_MANAGEMENT=NO/d" debian/rules
+# Don't build cassandra package if thrift is not installed
+if [[ ! -f /usr/local/include/thrift/Thrift.h && ! -f /usr/include/thrift/Thrift.h ]]
+then
+  sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
+fi
+
+# From Debian Stretch/Ubuntu Bionic onwards dh-systemd is just an empty
+# transitional metapackage and the functionality was merged into debhelper.
+# In Ubuntu Hirsute is was completely removed, so it can't be referenced anymore.
+# Keep using it only on Debian Jessie and Ubuntu Xenial.
+if apt-cache madison dh-systemd | grep 'dh-systemd' >/dev/null 2>&1
+then
+  sed 's/debhelper (>= 9.20160709~),/debhelper (>= 9), dh-systemd,/' -i debian/control
 fi
 
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above

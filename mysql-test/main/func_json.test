@@ -265,6 +265,9 @@ SELECT JSON_search( '{"x": "\\""}', "one", '\\"');
 #
 # MDEV-11833 JSON functions don't seem to respect max_allowed_packet.
 #
+set @save_max_allowed_packet=@@max_allowed_packet;
+set @save_net_buffer_length=@@net_buffer_length;
+
 set @@global.net_buffer_length=1024;
 set @@global.max_allowed_packet=2048;
 --connect (newconn, localhost, root,,)
@@ -275,8 +278,8 @@ select json_array(repeat('a',1024),repeat('a',1024));
 select json_object("a", repeat('a',1024),"b", repeat('a',1024));
 --connection default
 
-set @@global.max_allowed_packet = default;
-set @@global.net_buffer_length = default;
+set @@global.max_allowed_packet = @save_max_allowed_packet;
+set @@global.net_buffer_length = @save_net_buffer_length;
 --disconnect newconn
 
 
@@ -485,6 +488,76 @@ SET sql_mode=default;
 select JSON_VALID( '{"a":1]' );
 
 --echo #
+--echo # MDEV-18886 JSON_ARRAY() does not recognise JSON argument.
+--echo #
+SELECT JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket'));
+SELECT CHARSET(JSON_ARRAY());
+SELECT CHARSET(JSON_OBJECT());
+
+--echo #
+--echo # MDEV-13992 Implement JSON_MERGE_PATCH
+--echo #
+
+CREATE TABLE merge_t(
+id INT PRIMARY KEY AUTO_INCREMENT,
+target VARCHAR(100), patch VARCHAR(100)
+);
+INSERT INTO merge_t(target, patch) VALUES
+('{"a":"b"}', '{"a":"c"}'),
+('{"a":"b"}', '{"b":"c"}'),
+('{"a":"b"}', '{"a":null}'),
+('{"a":"b", "b":"c"}', '{"a":null}'),
+('{"a":["b"]}', '{"a":"c"}'),
+('{"a":"c"}', '{"a":["b"]}'),
+('{"a": {"b":"c"}}', '{"a": {"b":"d", "c":null}}'),
+('{"a":[{"b":"c"}]}', '{"a": [1]}'),
+('["a","b"]', '["c","d"]'),
+('{"a":"b"}', '["c"]'),
+('{"a":"foo"}', 'null'),
+('{"a":"foo"}', '"bar"'),
+('{"e":null}', '{"a":1}'),
+('[1,2]', '{"a":"b", "c":null}'),
+('{}', '{"a":{"bb":{"ccc":null}}}'),
+(NULL, '{}'),
+('{}', NULL);
+SELECT id, target, patch,
+       JSON_MERGE_PATCH(target, patch) AS merged,
+       JSON_EXTRACT(JSON_MERGE_PATCH(target, patch), '$.a') AS a
+FROM merge_t ORDER BY id;
+DROP TABLE merge_t;
+
+SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '{"c":"d"}');
+SELECT JSON_MERGE_PATCH(NULL, '[1,2,3]');
+SELECT JSON_MERGE_PATCH(NULL, 'a');
+SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}');
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_MERGE_PATCH();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_MERGE_PATCH('{}');
+SELECT JSON_MERGE_PATCH('{', '[1,2,3]');
+SELECT JSON_MERGE_PATCH('{"a":"b"}', '[1,');
+
+--echo #
+--echo # MDEV-22976 CAST(JSON_EXTRACT() AS DECIMAL) does not handle boolean values
+--echo #
+
+SELECT
+  CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DOUBLE) AS cf,
+  CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DECIMAL) AS cd;
+
+SELECT
+  CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DOUBLE) AS cf,
+  CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
+
+
+--echo #
+--echo # MDEV-24585 Assertion `je->s.cs == nice_js->charset()' failed in json_nice.
+--echo #
+
+SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -507,6 +580,23 @@ SELECT
 
 --enable_ps_protocol
 --disable_metadata
+
+--echo #
+--echo # MDEV-19670 json escaped unicode parse error
+--echo #
+
+SELECT json_valid('{"value":"\\ud83d\\ude0a"}');
+SELECT json_valid('{"test": "\\ud83d\\ude0b"}');
+
+--echo #
+--echo # MDEV-19670 json escaped unicode parse error
+--echo #
+
+SELECT JSON_VALID('{"admin\\"": null}'), '{"admin\\"": null}'
+    UNION
+    SELECT JSON_VALID('{"\\"admin": null}'), '{"\\"admin": null}'
+      UNION
+      SELECT JSON_VALID('{"\\"": null}'), '{"\\"": null}';
 
 --echo #
 --echo # End of 10.3 tests

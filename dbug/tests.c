@@ -4,6 +4,10 @@
 
 char *push1=0;
 
+#ifndef DBUG_TRACE
+#define DBUG_TRACE
+#endif
+
 #include <my_global.h>  /* This includes dbug.h */
 #include <my_sys.h>
 #include <my_pthread.h>
@@ -86,3 +90,11 @@ int main (int argc __attribute__((unused)),
   return 0;
 #endif /* DBUG_OFF */
 }
+
+#ifdef __SANITIZE_ADDRESS__
+/* Disable LeakSanitizer in this executable */
+const char* __asan_default_options()
+{
+  return "detect_leaks=0";
+}
+#endif

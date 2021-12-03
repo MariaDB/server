@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2018, MariaDB Corporation.
+   Copyright (c) 2012, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /**
   @file
@@ -45,6 +45,7 @@
 #include <violite.h>
 #include <signal.h>
 #include "probes_mysql.h"
+#include <debug_sync.h>
 #include "proxy_protocol.h"
 
 #ifdef EMBEDDED_LIBRARY
@@ -489,6 +490,17 @@ net_write_command(NET *net,uchar command,
   DBUG_ENTER("net_write_command");
   DBUG_PRINT("enter",("length: %lu", (ulong) len));
 
+  DBUG_EXECUTE_IF("simulate_error_on_packet_write",
+                  {
+                    if (command == COM_BINLOG_DUMP)
+                    {
+                      net->last_errno = ER_NET_ERROR_ON_WRITE;
+                      DBUG_ASSERT(!debug_sync_set_action(
+                      (THD *)net->thd,
+                      STRING_WITH_LEN("now SIGNAL parked WAIT_FOR continue")));
+                      DBUG_RETURN(true);
+                    }
+                  };);
   MYSQL_NET_WRITE_START(length);
 
   buff[4]=command;				/* For first packet */
@@ -595,7 +607,8 @@ net_write_buff(NET *net, const uchar *packet, size_t len)
       return net_real_write(net, packet, len) ? 1 : 0;
     /* Send out rest of the blocks as full sized blocks */
   }
-  memcpy((char*) net->write_pos,packet,len);
+  if (len)
+    memcpy((char*) net->write_pos,packet,len);
   net->write_pos+= len;
   return 0;
 }

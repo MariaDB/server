@@ -54,7 +54,7 @@ c10 time GENERATED ALWAYS AS(addtime(c7,c8)) VIRTUAL,
 c11 DATE GENERATED ALWAYS AS(addtime(c9,c8)) VIRTUAL,
 c11a time GENERATED ALWAYS AS(addtime(c7,c10)) VIRTUAL,
 c12 CHAR(1),
-c13 CHAR(2)GENERATED ALWAYS AS (concat(c12,c12)) VIRTUAL,
+c13 CHAR(2)GENERATED ALWAYS AS (concat(RTRIM(c12),RTRIM(c12))) VIRTUAL,
 c14 CHAR(4)GENERATED ALWAYS AS (concat(c13,'x')) VIRTUAL,
 PRIMARY KEY(c1),
 KEY c13(c13),
@@ -135,7 +135,7 @@ key (d)
 insert into t(a) values ((select d from s for update));
 insert into s(c) values ('');
 Warnings:
-Warning	1366	Incorrect integer value: '' for column 'c' at row 1
+Warning	1366	Incorrect integer value: '' for column `test`.`s`.`c` at row 1
 SET sql_mode = default;
 drop table if exists t,s;
 #
@@ -239,3 +239,74 @@ KEY (a(1))
 INSERT INTO t1(b) VALUES(REPEAT('b',1000));
 DELETE FROM t1;
 DROP TABLE t1;
+#
+# Bug #22990029 GCOLS: INCORRECT BEHAVIOR
+# AFTER DATA INSERTED WITH IGNORE KEYWORD
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, vb DATE AS(b) VIRTUAL, KEY(vb))
+ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (a,b) VALUES(1,20190132);
+Warnings:
+Warning	1265	Data truncated for column 'vb' at row 1
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t1 (a,b) VALUES(1,20190123);
+ERROR 22007: Incorrect date value: '20190132' for column `test`.`t1`.`vb` at row 1
+SELECT * FROM t1;
+a	b	vb
+ROLLBACK;
+SELECT * FROM t1;
+a	b	vb
+1	20190132	0000-00-00
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# MDEV-25872 InnoDB: Assertion failure in row_merge_read_clustered_index
+#	upon ALTER on table with indexed virtual columns
+#
+CREATE TABLE t1 (
+id BIGINT AUTO_INCREMENT PRIMARY KEY,
+a INT,
+va INT ZEROFILL AS (a) VIRTUAL,
+b TIMESTAMP,
+c CHAR(204),
+vc CHAR(8),
+KEY(vc,c(64),b,va)
+) ENGINE=InnoDB CHARACTER SET utf32;
+INSERT INTO t1 (id) SELECT NULL FROM seq_1_to_75;
+INSERT IGNORE INTO t1 (id, a) VALUES (NULL, -1);
+Warnings:
+Warning	1264	Out of range value for column 'va' at row 1
+ALTER TABLE t1 FORCE;
+ERROR 22003: Out of range value for column 'va' at row 1
+DROP TABLE t1;
+#
+# MDEV-24713 Assertion `dict_table_is_comp(index->table)' failed
+#		in row_merge_buf_add()
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(3),
+b CHAR(8) AS (a) VIRTUAL, KEY(b))
+ROW_FORMAT=REDUNDANT ENGINE=InnoDB
+CHARACTER SET utf8;
+INSERT INTO t1 (id,a) VALUES (1,'foo');
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+DROP TABLE t1;
+#
+# MDEV-20154 Assertion `len <= col->len || ((col->mtype) == 5
+# || (col->mtype) == 14)' failed in row_merge_buf_add
+#
+CREATE TABLE t1 (
+a VARCHAR(2500),
+b VARCHAR(2499) AS (a) VIRTUAL
+) ENGINE=InnoDB;
+INSERT INTO t1 (a) VALUES ('foo');
+ALTER TABLE t1 MODIFY a VARCHAR(2600), ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD KEY (b), ALGORITHM=INPLACE;
+# Cleanup
+DROP TABLE t1;
+# End of 10.2 tests

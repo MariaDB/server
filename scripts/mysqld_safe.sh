@@ -22,6 +22,7 @@ flush_caches=0
 numa_interleave=0
 wsrep_on=0
 dry_run=0
+defaults_group_suffix=
 
 # Initial logging status: error log is not open, and not using syslog
 logging=init
@@ -72,12 +73,14 @@ usage () {
         cat <<EOF
 Usage: $0 [OPTIONS]
   --no-defaults              Don't read the system defaults file
-  --core-file-size=LIMIT     Limit core files to the specified size
   --defaults-file=FILE       Use the specified defaults file
   --defaults-extra-file=FILE Also use defaults from the specified file
+  --defaults-group-suffix=X  Additionally read default groups with X appended
+                             as a suffix
   --ledir=DIRECTORY          Look for mysqld in the specified directory
   --open-files-limit=LIMIT   Limit the number of open files
   --crash-script=FILE        Script to call when mysqld crashes
+  --core-file-size=LIMIT     Limit core files to the specified size
   --timezone=TZ              Set the system timezone
   --malloc-lib=LIB           Preload shared library LIB if available
   --mysqld=FILE              Use the specified file as mysqld
@@ -125,7 +128,7 @@ log_generic () {
   case $logging in
     init) ;;  # Just echo the message, don't save it anywhere
     file)
-      if [ -n "$helper" ]; then
+      if [ "$helper_exist" -eq "0" ]; then
         echo "$msg" | "$helper" "$user" log "$err_log"
       fi
     ;;
@@ -149,7 +152,7 @@ eval_log_error () {
   local cmd="$1"
   case $logging in
     file)
-     if [ -n "$helper" ]; then
+     if [ "$helper_exist" -eq "0" ]; then
         cmd="$cmd 2>&1 | "`shell_quote_string "$helper"`" $user log "`shell_quote_string "$err_log"`
      fi
      ;;
@@ -234,7 +237,9 @@ wsrep_recover_position() {
   fi
 
   if [ -f $wr_logfile ]; then
-    [ "$euid" = "0" ] && chown $user $wr_logfile
+    # NOTE! Do not change ownership of the temporary file, as on newer kernel
+    # versions fs.protected_regular is set to '2' and redirecting output with >
+    # as root to a file not owned by root will fail with "Permission denied"
     chmod 600 $wr_logfile
   else
     log_error "WSREP: mktemp failed"
@@ -248,6 +253,11 @@ wsrep_recover_position() {
   log_notice "WSREP: Running position recovery with $wr_options"
 
   eval "$mysqld_cmd --wsrep_recover $wr_options 2> $wr_logfile"
+
+  if [ ! -s "$wr_logfile" ]; then
+    log_error "Log file $wr_logfile was empty, cannot proceed. Is system running fs.protected_regular?"
+    exit 1
+  fi
 
   local rp="$(grep 'WSREP: Recovered position:' $wr_logfile)"
   if [ -z "$rp" ]; then
@@ -265,7 +275,16 @@ wsrep_recover_position() {
     wsrep_start_position_opt="--wsrep_start_position=$start_pos"
   fi
 
-  [ $ret -eq 0 ] && rm $wr_logfile
+  if [ $ret -eq 0 ] ; then
+    local wr_logfile_permanent="$DATADIR/wsrep_recovery.ok"
+  else
+    local wr_logfile_permanent="$DATADIR/wsrep_recovery.fail"
+  fi
+  touch $wr_logfile_permanent
+  [ "$euid" = "0" ] && chown $user $wr_logfile_permanent
+  chmod 600 $wr_logfile_permanent
+  cat "$wr_logfile" >> $wr_logfile_permanent
+  rm -f "$wr_logfile"
 
   return $ret
 }
@@ -349,6 +368,8 @@ parse_arguments() {
         append_arg_to_args "$arg"
         ;;
 
+      --defaults-group-suffix=*) defaults_group_suffix="$arg" ;;
+
       --help) usage ;;
 
       *)
@@ -418,25 +439,10 @@ mysqld_ld_preload_text() {
   echo "$text"
 }
 
-
-mysql_config=
-get_mysql_config() {
-  if [ -z "$mysql_config" ]; then
-    mysql_config=`echo "$0" | sed 's,/[^/][^/]*$,/mysql_config,'`
-    if [ ! -x "$mysql_config" ]; then
-      log_error "Can not run mysql_config $@ from '$mysql_config'"
-      exit 1
-    fi
-  fi
-
-  "$mysql_config" "$@"
-}
-
-
 # set_malloc_lib LIB
 # - If LIB is empty, do nothing and return
-# - If LIB starts with 'tcmalloc' or 'jemalloc', look for the shared library in
-#   /usr/lib, /usr/lib64 and then pkglibdir.
+# - If LIB starts with 'tcmalloc' or 'jemalloc', look for the shared library
+#   using `ldconfig`.
 #   tcmalloc is part of the Google perftools project.
 # - If LIB is an absolute path, assume it is a malloc shared library
 #
@@ -444,28 +450,29 @@ get_mysql_config() {
 # running mysqld.  See ld.so for details.
 set_malloc_lib() {
   malloc_lib="$1"
-
   if expr "$malloc_lib" : "\(tcmalloc\|jemalloc\)" > /dev/null ; then
-    pkglibdir=`get_mysql_config --variable=pkglibdir`
-    where=''
-    # This list is kept intentionally simple.  Simply set --malloc-lib
-    # to a full path if another location is desired.
-    for libdir in /usr/lib /usr/lib64 "$pkglibdir" "$pkglibdir/mysql"; do
-       tmp=`echo "$libdir/lib$malloc_lib.so".[0-9]`
-       where="$where $libdir"
-       # log_notice "DEBUG: Checking for malloc lib '$tmp'"
-       [ -r "$tmp" ] || continue
-       malloc_lib="$tmp"
-       where=''
-       break
-    done
-
-    if [ -n "$where" ]; then
-      log_error "no shared library for lib$malloc_lib.so.[0-9] found in$where"
+    export PATH=$PATH:/sbin
+    if ! command -v ldconfig > /dev/null 2>&1
+    then
+      log_error "ldconfig command not found, required for ldconfig -p"
       exit 1
     fi
-  fi
+    # format from ldconfig:
+    # "libjemalloc.so.1 (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libjemalloc.so.1"
+    libmalloc_path="$(ldconfig -p | sed -n "/lib${malloc_lib}/p" | cut -d '>' -f2)"
 
+    if [ -z "$libmalloc_path" ]; then
+      log_error "no shared library for lib$malloc_lib.so.[0-9] found."
+      exit 1
+    fi
+
+    for f in $libmalloc_path; do
+      if [ -f "$f" ]; then
+        malloc_lib=$f # get the first path if many
+        break
+      fi
+    done
+  fi
   # Allow --malloc-lib='' to override other settings
   [ -z  "$malloc_lib" ] && return
 
@@ -482,7 +489,6 @@ set_malloc_lib() {
       exit 1
       ;;
   esac
-
   add_mysqld_ld_preload "$malloc_lib"
 }
 
@@ -529,10 +535,9 @@ fi
 
 helper=`find_in_bin mysqld_safe_helper`
 print_defaults=`find_in_bin my_print_defaults`
-
 # Check if helper exists
-$helper --help >/dev/null 2>&1 || helper=""
-
+command -v $helper --help >/dev/null 2>&1
+helper_exist=$?
 #
 # Second, try to find the data directory
 #
@@ -568,8 +573,8 @@ append_arg_to_args () {
 
 args=
 
-# Get first arguments from the my.cnf file, groups [mysqld] and [mysqld_safe]
-# and then merge with the command line arguments
+# Get first arguments from the my.cnf file, groups [mysqld] and [server]
+# (and related) and then merge with the command line arguments
 
 SET_USER=2
 parse_arguments `$print_defaults $defaults --loose-verbose --mysqld`
@@ -581,7 +586,7 @@ fi
 # If arguments come from [mysqld_safe] section of my.cnf
 # we complain about unrecognized options
 unrecognized_handling=complain
-parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe`
+parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe mariadbd-safe`
 
 # We only need to pass arguments through to the server if we don't
 # handle them here.  So, we collect unrecognized options (passed on
@@ -711,9 +716,9 @@ fi
 safe_mysql_unix_port=${mysql_unix_port:-${MYSQL_UNIX_PORT:-@MYSQL_UNIX_ADDR@}}
 # Make sure that directory for $safe_mysql_unix_port exists
 mysql_unix_port_dir=`dirname $safe_mysql_unix_port`
-if [ ! -d $mysql_unix_port_dir ]
+if [ ! -d $mysql_unix_port_dir -a $dry_run -eq 0 ]
 then
-  if ! `mkdir -p $mysql_unix_port_dir`
+  if ! mkdir -p $mysql_unix_port_dir
   then
     log_error "Fatal error Can't create database directory '$mysql_unix_port'"
     exit 1
@@ -923,17 +928,22 @@ then
   exit 1
 fi
 
-for i in  "$ledir/$MYSQLD" "$defaults" "--basedir=$MY_BASEDIR_VERSION" \
+for i in  "$ledir/$MYSQLD" "$defaults_group_suffix" "$defaults" "--basedir=$MY_BASEDIR_VERSION" \
   "--datadir=$DATADIR" "--plugin-dir=$plugin_dir" "$USER_OPTION"
 do
   cmd="$cmd "`shell_quote_string "$i"`
 done
 cmd="$cmd $args"
-[ $dry_run -eq 1 ] && return
+
+if [ $dry_run -eq 1 ]
+then
+  # RETURN or EXIT depending if the script is being sourced or not.
+  (return 2> /dev/null) && return || exit
+fi
+
 
 # Avoid 'nohup: ignoring input' warning
 test -n "$NOHUP_NICENESS" && cmd="$cmd < /dev/null"
-
 log_notice "Starting $MYSQLD daemon with databases from $DATADIR"
 
 # variable to track the current number of "fast" (a.k.a. subsecond) restarts

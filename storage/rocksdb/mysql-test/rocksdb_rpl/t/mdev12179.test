@@ -4,6 +4,12 @@
 
 --connection server_2
 --source include/stop_slave.inc
+
+# Set GTID cleanup limit high enough that cleanup will not run and we
+# can rely on consistent table output in .result.
+--let $old_gtid_cleanup_batch_size=`SELECT @@GLOBAL.gtid_cleanup_batch_size`
+SET GLOBAL gtid_cleanup_batch_size = 999999999;
+
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET sql_log_bin=0;
 CREATE TABLE mysql.gtid_slave_pos_innodb LIKE mysql.gtid_slave_pos;
@@ -89,6 +95,82 @@ DELETE FROM t2 WHERE a >= 100;
 DELETE FROM t3 WHERE a >= 100;
 
 
+# Create a bunch more GTIDs in mysql.gtid_slave_pos* tables to test with.
+--connection server_1
+--disable_query_log
+let $i=10;
+while ($i) {
+  eval INSERT INTO t1 VALUES (300+$i);
+  eval INSERT INTO t2 VALUES (300+$i);
+  eval INSERT INTO t3 VALUES (300+$i);
+  dec $i;
+}
+--enable_query_log
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+# Check that we have many rows in mysql.gtid_slave_pos now (since
+# @@gtid_cleanup_batch_size was set to a huge value). No need to check
+# for an exact number, since that will require changing .result if
+# anything changes prior to this point, and we just need to know that
+# we have still have some data in the tables to make the following
+# test effective.
+SELECT COUNT(*)>=10 FROM mysql.gtid_slave_pos;
+SELECT COUNT(*)>=10 FROM ( SELECT * FROM mysql.gtid_slave_pos_innodb
+      UNION ALL SELECT * FROM mysql.gtid_slave_pos_innodb_redundant) inner_select;
+SELECT COUNT(*)>=10 FROM mysql.gtid_slave_pos_rocksdb;
+
+# Check that old GTID rows will be deleted when batch delete size is
+# set reasonably. Old row deletion is not 100% deterministic (by design), so
+# we must wait for it to occur, but it should occur eventually.
+SET GLOBAL gtid_cleanup_batch_size = 3;
+let $i=40;
+--disable_query_log
+--let $keep_include_silent=1
+while ($i) {
+  let N=`SELECT 1+($i MOD 3)`;
+  --connection server_1
+  eval UPDATE t$N SET a=a+1 WHERE a=(SELECT MAX(a) FROM t$N);
+  --source include/save_master_gtid.inc
+  --connection server_2
+  --source include/sync_with_master_gtid.inc
+  let $j=50;
+  while ($j) {
+    let $is_done=`SELECT SUM(a)=1 FROM (
+	 SELECT COUNT(*) AS a FROM mysql.gtid_slave_pos
+	 UNION ALL
+	 SELECT COUNT(*) AS a FROM ( SELECT * FROM mysql.gtid_slave_pos_innodb
+	       UNION ALL SELECT * FROM mysql.gtid_slave_pos_innodb_redundant) inner_select
+	 UNION ALL
+	 SELECT COUNT(*) AS a FROM mysql.gtid_slave_pos_rocksdb) outer_select`;
+    if ($is_done) {
+      let $j=0;
+    }
+    if (!$is_done) {
+      real_sleep 0.1;
+      dec $j;
+    }
+  }
+  dec $i;
+  if ($is_done) {
+    let $i=0;
+  }
+}
+--enable_query_log
+--let $keep_include_silent=0
+if (!$is_done) {
+  --echo Timed out waiting for mysql.gtid_slave_pos* tables to be cleaned up
+}
+
+--disable_query_log
+DELETE FROM t1 WHERE a >= 100;
+DELETE FROM t2 WHERE a >= 100;
+DELETE FROM t3 WHERE a >= 100;
+--enable_query_log
+
+
 # Test status variables Rpl_transactions_multi_engine and Transactions_gtid_foreign_engine.
 # Have mysql.gtid_slave_pos* for myisam and innodb but not rocksdb.
 --connection server_2
@@ -155,7 +237,7 @@ SHOW STATUS LIKE "%transactions%engine";
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait
 EOF
---shutdown_server 30
+--shutdown_server
 --source include/wait_until_disconnected.inc
 
 # Restart without binary log.
@@ -223,6 +305,9 @@ SHOW STATUS LIKE "%transactions%engine";
 SET sql_log_bin=0;
 DROP TABLE mysql.gtid_slave_pos_innodb;
 SET sql_log_bin=1;
+--disable_query_log
+eval SET GLOBAL gtid_cleanup_batch_size = $old_gtid_cleanup_batch_size;
+--enable_query_log
 
 --connection server_1
 DROP TABLE t1;

@@ -24,7 +24,9 @@ COMMIT;
 USE test;
 SELECT * FROM t1 ORDER BY a;
 FLUSH LOGS;
+--replace_regex /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
 --exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --short-form
+--replace_regex /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
 --exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --short-form --rewrite-db="test->foo" --rewrite-db="test2->bar"
 DROP DATABASE test2;
 DROP TABLE t1;

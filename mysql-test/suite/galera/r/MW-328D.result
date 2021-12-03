@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (i INT) ENGINE = InnoDB;
 INSERT INTO t1 (i) VALUES(1);
 CREATE TABLE t2 (i INT) ENGINE = InnoDB;

@@ -3,13 +3,9 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 --source include/have_perfschema.inc
 
-# Save original auto_increment_offset values.
---let $node_1=node_1
---let $node_2=node_2
---source include/auto_increment_offset_save.inc
+call mtr.add_suppression("WSREP has not yet prepared node for application use");
 
 # Save original auto_increment_offset values.
 --let $node_1=node_1
@@ -32,13 +28,13 @@ SET SESSION wsrep_sync_wait=0;
 # Must return 'OFF'
 SHOW STATUS LIKE 'wsrep_ready';
 
-# Must return 'Non-primary'
+# Must return 'Disconnected'
 SHOW STATUS LIKE 'wsrep_cluster_status';
 
---error ER_UNKNOWN_COM_ERROR
+--error ER_UNKNOWN_COM_ERROR,1047
 SELECT * FROM t1;
 
---error ER_UNKNOWN_COM_ERROR
+--error ER_UNKNOWN_COM_ERROR,1047
 SELECT 1 FROM t1;
 
 SET @@session.wsrep_dirty_reads=ON;
@@ -50,8 +46,9 @@ SELECT i, variable_name, variable_value FROM t1, information_schema.session_vari
 
 SET @@session.wsrep_dirty_reads=OFF;
 
---error ER_UNKNOWN_COM_ERROR
+--error ER_UNKNOWN_COM_ERROR,1047
 SELECT i, variable_name, variable_value FROM t1, information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads" AND i = 1;
+
 
 SELECT 1;
 
@@ -65,6 +62,7 @@ SELECT COUNT(*) >= 10 FROM performance_schema.events_statements_history;
 --eval SET @@global.wsrep_cluster_address = '$wsrep_cluster_address_saved'
 --enable_query_log
 --source include/wait_until_connected_again.inc
+--source include/galera_wait_ready.inc
 
 --connection node_1
 USE test;
@@ -72,8 +70,7 @@ SELECT * FROM t1;
 # Cleanup
 DROP TABLE t1;
 
+# Restore original auto_increment_offset values.
 --source include/auto_increment_offset_restore.inc
 
 --source include/galera_end.inc
---echo # End of test
-

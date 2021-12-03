@@ -1,0 +1,21 @@
+CREATE TABLE t1(a INT);
+SELECT GET_LOCK("l1", 0);
+GET_LOCK("l1", 0)
+1
+connect con1,localhost,root,,;
+LOCK TABLES t1 WRITE;
+connection default;
+set debug_sync='mdl_acquire_lock_wait SIGNAL ftwrl';
+FLUSH TABLES WITH READ LOCK;
+connection con1;
+set debug_sync='now WAIT_FOR ftwrl';
+SELECT GET_LOCK("l1", 1000);
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+disconnect con1;
+connection default;
+SELECT RELEASE_LOCK("l1");
+RELEASE_LOCK("l1")
+1
+UNLOCK TABLES;
+DROP TABLE t1;
+set debug_sync='reset';

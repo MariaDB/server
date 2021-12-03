@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -77,8 +77,7 @@ rw_lock_get_writer(
 /*===============*/
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	int32_t lock_word = my_atomic_load32_explicit(const_cast<int32_t*>(&lock->lock_word),
-						      MY_MEMORY_ORDER_RELAXED);
+	int32_t lock_word = lock->lock_word;
 
 	ut_ad(lock_word <= X_LOCK_DECR);
 	if (lock_word > X_LOCK_HALF_DECR) {
@@ -110,8 +109,7 @@ rw_lock_get_reader_count(
 /*=====================*/
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	int32_t lock_word = my_atomic_load32_explicit(const_cast<int32_t*>(&lock->lock_word),
-						      MY_MEMORY_ORDER_RELAXED);
+	int32_t lock_word = lock->lock_word;
 	ut_ad(lock_word <= X_LOCK_DECR);
 
 	if (lock_word > X_LOCK_HALF_DECR) {
@@ -147,8 +145,7 @@ rw_lock_get_x_lock_count(
 /*=====================*/
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	int32_t lock_copy = my_atomic_load32_explicit(const_cast<int32_t*>(&lock->lock_word),
-						      MY_MEMORY_ORDER_RELAXED);
+	int32_t lock_copy = lock->lock_word;
 	ut_ad(lock_copy <= X_LOCK_DECR);
 
 	if (lock_copy == 0 || lock_copy == -X_LOCK_HALF_DECR) {
@@ -181,8 +178,7 @@ rw_lock_get_sx_lock_count(
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
 #ifdef UNIV_DEBUG
-	int32_t lock_copy = my_atomic_load32_explicit(const_cast<int32_t*>(&lock->lock_word),
-						      MY_MEMORY_ORDER_RELAXED);
+	int32_t lock_copy = lock->lock_word;
 
 	ut_ad(lock_copy <= X_LOCK_DECR);
 
@@ -213,14 +209,15 @@ rw_lock_lock_word_decr(
 	int32_t		amount,		/*!< in: amount to decrement */
 	int32_t		threshold)	/*!< in: threshold of judgement */
 {
-	int32_t lock_copy = my_atomic_load32_explicit(&lock->lock_word,
-						      MY_MEMORY_ORDER_RELAXED);
+	int32_t lock_copy = lock->lock_word;
+
 	while (lock_copy > threshold) {
-		if (my_atomic_cas32_strong_explicit(&lock->lock_word,
-						    &lock_copy,
-						    lock_copy - amount,
-						    MY_MEMORY_ORDER_ACQUIRE,
-						    MY_MEMORY_ORDER_RELAXED)) {
+		if (lock->lock_word.compare_exchange_strong(
+			lock_copy,
+			lock_copy - amount,
+			std::memory_order_acquire,
+			std::memory_order_relaxed)) {
+
 			return(true);
 		}
 	}
@@ -304,9 +301,9 @@ rw_lock_x_lock_func_nowait(
 {
 	int32_t oldval = X_LOCK_DECR;
 
-	if (my_atomic_cas32_strong_explicit(&lock->lock_word, &oldval, 0,
-					    MY_MEMORY_ORDER_ACQUIRE,
-					    MY_MEMORY_ORDER_RELAXED)) {
+	if (lock->lock_word.compare_exchange_strong(oldval, 0,
+						std::memory_order_acquire,
+						std::memory_order_relaxed)) {
 		lock->writer_thread = os_thread_get_curr_id();
 
 	} else if (os_thread_eq(lock->writer_thread, os_thread_get_curr_id())) {
@@ -316,12 +313,12 @@ rw_lock_x_lock_func_nowait(
 		observe consistent values. */
 		if (oldval == 0 || oldval == -X_LOCK_HALF_DECR) {
 			/* There are 1 x-locks */
-			my_atomic_add32_explicit(&lock->lock_word, -X_LOCK_DECR,
-						 MY_MEMORY_ORDER_RELAXED);
+			lock->lock_word.fetch_sub(X_LOCK_DECR,
+						  std::memory_order_relaxed);
 		} else if (oldval <= -X_LOCK_DECR) {
 			/* There are 2 or more x-locks */
-			my_atomic_add32_explicit(&lock->lock_word, -1,
-						 MY_MEMORY_ORDER_RELAXED);
+			lock->lock_word.fetch_sub(1,
+						  std::memory_order_relaxed);
 			/* Watch for too many recursive locks */
 			ut_ad(oldval < 1);
 		} else {
@@ -355,27 +352,21 @@ rw_lock_s_unlock_func(
 #endif /* UNIV_DEBUG */
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-#ifdef UNIV_DEBUG
-	int32_t	dbg_lock_word = my_atomic_load32_explicit(&lock->lock_word,
-							  MY_MEMORY_ORDER_RELAXED);
-	ut_ad(dbg_lock_word > -X_LOCK_DECR);
-	ut_ad(dbg_lock_word != 0);
-	ut_ad(dbg_lock_word < X_LOCK_DECR);
-#endif
-
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_S));
 
 	/* Increment lock_word to indicate 1 less reader */
-	int32_t	lock_word = my_atomic_add32_explicit(&lock->lock_word, 1,
-						     MY_MEMORY_ORDER_RELEASE) + 1;
-	if (lock_word == 0 || lock_word == -X_LOCK_HALF_DECR) {
+	int32_t lock_word = lock->lock_word.fetch_add(
+		1, std::memory_order_release);
 
+	if (lock_word == -1 || lock_word == -X_LOCK_HALF_DECR - 1) {
 		/* wait_ex waiter exists. It may not be asleep, but we signal
 		anyway. We do not wake other waiters, because they can't
 		exist without wait_ex waiter and wait_ex waiter goes first.*/
 		os_event_set(lock->wait_ex_event);
 		sync_array_object_signalled();
-
+	} else {
+		ut_ad(lock_word > -X_LOCK_DECR);
+		ut_ad(lock_word < X_LOCK_DECR);
 	}
 
 	ut_ad(rw_lock_validate(lock));
@@ -393,11 +384,7 @@ rw_lock_x_unlock_func(
 #endif /* UNIV_DEBUG */
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-	int32_t	lock_word = my_atomic_load32_explicit(&lock->lock_word,
-						      MY_MEMORY_ORDER_RELAXED);
-
-	ut_ad(lock_word == 0 || lock_word == -X_LOCK_HALF_DECR
-	      || lock_word <= -X_LOCK_DECR);
+	int32_t lock_word = lock->lock_word;
 
 	if (lock_word == 0) {
 		/* Last caller in a possible recursive chain. */
@@ -411,31 +398,27 @@ rw_lock_x_unlock_func(
 		ACQ_REL due to...
 		RELEASE: we release rw-lock
 		ACQUIRE: we want waiters to be loaded after lock_word is stored */
-		my_atomic_add32_explicit(&lock->lock_word, X_LOCK_DECR,
-					 MY_MEMORY_ORDER_ACQ_REL);
+		lock->lock_word.fetch_add(X_LOCK_DECR,
+					  std::memory_order_acq_rel);
 
 		/* This no longer has an X-lock but it may still have
 		an SX-lock. So it is now free for S-locks by other threads.
 		We need to signal read/write waiters.
 		We do not need to signal wait_ex waiters, since they cannot
 		exist when there is a writer. */
-		if (my_atomic_load32_explicit(&lock->waiters,
-					      MY_MEMORY_ORDER_RELAXED)) {
-			my_atomic_store32_explicit(&lock->waiters, 0,
-						   MY_MEMORY_ORDER_RELAXED);
+		if (lock->waiters) {
+			lock->waiters = 0;
 			os_event_set(lock->event);
 			sync_array_object_signalled();
 		}
 	} else if (lock_word == -X_LOCK_DECR
 		   || lock_word == -(X_LOCK_DECR + X_LOCK_HALF_DECR)) {
 		/* There are 2 x-locks */
-		my_atomic_add32_explicit(&lock->lock_word, X_LOCK_DECR,
-					 MY_MEMORY_ORDER_RELAXED);
+		lock->lock_word.fetch_add(X_LOCK_DECR);
 	} else {
 		/* There are more than 2 x-locks. */
 		ut_ad(lock_word < -X_LOCK_DECR);
-		my_atomic_add32_explicit(&lock->lock_word, 1,
-					 MY_MEMORY_ORDER_RELAXED);
+		lock->lock_word.fetch_add(1);
 	}
 
 	ut_ad(rw_lock_validate(lock));
@@ -461,8 +444,7 @@ rw_lock_sx_unlock_func(
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_SX));
 
 	if (lock->sx_recursive == 0) {
-		int32_t	lock_word = my_atomic_load32_explicit(&lock->lock_word,
-							      MY_MEMORY_ORDER_RELAXED);
+		int32_t lock_word = lock->lock_word;
 		/* Last caller in a possible recursive chain. */
 		if (lock_word > 0) {
 			lock->writer_thread = 0;
@@ -472,17 +454,15 @@ rw_lock_sx_unlock_func(
 			ACQ_REL due to...
 			RELEASE: we release rw-lock
 			ACQUIRE: we want waiters to be loaded after lock_word is stored */
-			my_atomic_add32_explicit(&lock->lock_word, X_LOCK_HALF_DECR,
-						 MY_MEMORY_ORDER_ACQ_REL);
+			lock->lock_word.fetch_add(X_LOCK_HALF_DECR,
+						  std::memory_order_acq_rel);
 
 			/* Lock is now free. May have to signal read/write
 			waiters. We do not need to signal wait_ex waiters,
 			since they cannot exist when there is an sx-lock
 			holder. */
-			if (my_atomic_load32_explicit(&lock->waiters,
-						      MY_MEMORY_ORDER_RELAXED)) {
-				my_atomic_store32_explicit(&lock->waiters, 0,
-							   MY_MEMORY_ORDER_RELAXED);
+			if (lock->waiters) {
+				lock->waiters = 0;
 				os_event_set(lock->event);
 				sync_array_object_signalled();
 			}
@@ -490,8 +470,7 @@ rw_lock_sx_unlock_func(
 			/* still has x-lock */
 			ut_ad(lock_word == -X_LOCK_HALF_DECR ||
 			      lock_word <= -(X_LOCK_DECR + X_LOCK_HALF_DECR));
-			my_atomic_add32_explicit(&lock->lock_word, X_LOCK_HALF_DECR,
-						 MY_MEMORY_ORDER_RELAXED);
+			lock->lock_word.fetch_add(X_LOCK_HALF_DECR);
 		}
 	}
 

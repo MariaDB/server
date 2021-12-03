@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
 
 # vim: tw=160:nowrap:expandtab:tabstop=3:shiftwidth=3:softtabstop=3
 
@@ -17,7 +17,7 @@
 
 # You should have received a copy of the GNU General Public License along with
 # this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
-# Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 use strict;
 use warnings FATAL => 'all';
@@ -1439,7 +1439,7 @@ licenses.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
-Street, Fifth Floor, Boston, MA 02111-1301 USA.
+Street, Fifth Floor, Boston, MA 02110-1335 USA.
 LICENSE
 
 # Configuration information and global setup {{{1
@@ -1607,7 +1607,7 @@ my %exprs = (
 
 my %columns = (
    active_secs                 => { hdr => 'SecsActive',          num => 1, label => 'Seconds transaction has been active', },
-   add_pool_alloc              => { hdr => 'Add\'l Pool',         num => 1, label => 'Additonal pool allocated' },
+   add_pool_alloc              => { hdr => 'Add\'l Pool',         num => 1, label => 'Additional pool allocated' },
    attempted_op                => { hdr => 'Action',              num => 0, label => 'The action that caused the error' },
    awe_mem_alloc               => { hdr => 'AWE Memory',          num => 1, label => '[Windows] AWE memory allocated' },
    binlog_cache_overflow       => { hdr => 'Binlog Cache',        num => 1, label => 'Transactions too big for binlog cache that went to disk' },
@@ -12234,7 +12234,7 @@ licenses.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
-Street, Fifth Floor, Boston, MA 02111-1301 USA.
+Street, Fifth Floor, Boston, MA 02110-1335 USA.
 
 Execute innotop and press '!' to see this information at any time.
 

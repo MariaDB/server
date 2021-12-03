@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -111,8 +111,7 @@ UNIV_INLINE
 page_t*
 trx_undo_page_get(const page_id_t page_id, mtr_t* mtr)
 {
-	buf_block_t*	block = buf_page_get(page_id, univ_page_size,
-					     RW_X_LATCH, mtr);
+	buf_block_t*	block = buf_page_get(page_id, 0, RW_X_LATCH, mtr);
 
 	buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 
@@ -127,8 +126,7 @@ UNIV_INLINE
 page_t*
 trx_undo_page_get_s_latched(const page_id_t page_id, mtr_t* mtr)
 {
-	buf_block_t*	block = buf_page_get(page_id, univ_page_size,
-					     RW_S_LATCH, mtr);
+	buf_block_t*	block = buf_page_get(page_id, 0, RW_S_LATCH, mtr);
 
 	buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 

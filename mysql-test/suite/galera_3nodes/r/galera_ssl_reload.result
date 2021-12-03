@@ -1,0 +1,16 @@
+connection node_2;
+connection node_1;
+# Correct Galera library found
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+connection node_2;
+connection node_2;
+# restart: with restart_parameters
+SET GLOBAL wsrep_provider_options = 'socket.ssl_reload=1';
+connection node_3;
+# restart: with restart_parameters
+connection node_2;
+FLUSH SSL;

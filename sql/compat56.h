@@ -15,14 +15,23 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /** MySQL56 routines and macros **/
+
+/*
+  Buffer size for a native TIMESTAMP representation, for use with NativBuffer.
+  4 bytes for seconds
+  3 bytes for microseconds
+  1 byte for the trailing '\0' (class Native reserves extra 1 byte for '\0')
+*/
+#define STRING_BUFFER_TIMESTAMP_BINARY_SIZE    8 /* 4 + 3 + 1 */
+
 #define MY_PACKED_TIME_GET_INT_PART(x)     ((x) >> 24)
 #define MY_PACKED_TIME_GET_FRAC_PART(x)    ((x) % (1LL << 24))
-#define MY_PACKED_TIME_MAKE(i, f)          ((((longlong) (i)) << 24) + (f))
-#define MY_PACKED_TIME_MAKE_INT(i)         ((((longlong) (i)) << 24))
+#define MY_PACKED_TIME_MAKE(i, f)          ((((ulonglong) (i)) << 24) + (f))
+#define MY_PACKED_TIME_MAKE_INT(i)         ((((ulonglong) (i)) << 24))
 
 longlong TIME_to_longlong_datetime_packed(const MYSQL_TIME *);
 longlong TIME_to_longlong_time_packed(const MYSQL_TIME *);

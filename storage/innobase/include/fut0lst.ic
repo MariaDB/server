@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -61,9 +62,8 @@ flst_read_addr(
 
 	ut_ad(faddr && mtr);
 
-	addr.page = mtr_read_ulint(faddr + FIL_ADDR_PAGE, MLOG_4BYTES, mtr);
-	addr.boffset = mtr_read_ulint(faddr + FIL_ADDR_BYTE, MLOG_2BYTES,
-				      mtr);
+	addr.page = mach_read_from_4(faddr + FIL_ADDR_PAGE);
+	addr.boffset = mach_read_from_2(faddr + FIL_ADDR_BYTE);
 	ut_a(addr.page == FIL_NULL || addr.boffset >= FIL_PAGE_DATA);
 	ut_a(ut_align_offset(faddr, srv_page_size) >= FIL_PAGE_DATA);
 	return(addr);
@@ -82,7 +82,9 @@ flst_init(
 					     MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_SX_FIX));
 
-	mlog_write_ulint(base + FLST_LEN, 0, MLOG_4BYTES, mtr);
+	if (mach_read_from_4(base + FLST_LEN)) {
+		mlog_write_ulint(base + FLST_LEN, 0, MLOG_4BYTES, mtr);
+	}
 	flst_zero_addr(base + FLST_FIRST, mtr);
 	flst_zero_addr(base + FLST_LAST, mtr);
 }
@@ -91,7 +93,7 @@ flst_init(
 @param[in]	base	base node
 @return length */
 UNIV_INLINE
-ulint
+uint32_t
 flst_get_len(
 	const flst_base_node_t*	base)
 {

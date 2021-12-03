@@ -1,0 +1,37 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+###############
+# If Using_Gtid != 'No', backup gtid_slave_pos
+########################
+include/stop_slave.inc
+change master to master_use_gtid=slave_pos;
+include/start_slave.inc
+connection master;
+CREATE TABLE t(i INT);
+connection slave;
+"using_gtid: Slave_Pos"
+FOUND 1 /gtid_slave_pos/ in xtrabackup_slave_info
+NOT FOUND /MASTER_LOG_FILE/ in xtrabackup_slave_info
+###############
+# If Using_Gtid != 'No' and !gtid_slave_pos, backup master position
+########################
+include/stop_slave.inc
+SET GLOBAL gtid_slave_pos="";
+NOT FOUND /gtid_slave_pos/ in xtrabackup_slave_info
+FOUND 1 /MASTER_LOG_FILE/ in xtrabackup_slave_info
+###############
+# If Using_Gtid == 'No', backup Exec_Master_Log_Pos
+########################
+change master to master_use_gtid=no;
+include/start_slave.inc
+connection master;
+INSERT INTO t VALUES(1);
+connection slave;
+"using_gtid: No"
+NOT FOUND /gtid_slave_pos/ in xtrabackup_slave_info
+FOUND 1 /MASTER_LOG_FILE/ in xtrabackup_slave_info
+connection master;
+DROP TABLE t;
+connection slave;
+include/rpl_end.inc

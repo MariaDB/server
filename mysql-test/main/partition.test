@@ -1198,7 +1198,7 @@ end//
 
 call p()//
 drop procedure p//
-drop table t1;
+drop table t1//
 
 create procedure p ()
 begin
@@ -2901,6 +2901,68 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-17032: Estimates are higher for partitions of a table with @@use_stat_tables= PREFERABLY
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+
+
+create table t2 (
+  part_key int,
+  a int,
+  b int
+) partition by list(part_key) (
+  partition p0 values in (0),
+  partition p1 values in (1),
+  partition p2 values in (2),
+  partition p3 values in (3),
+  partition p4 values in (4)
+);
+insert into t2
+select mod(a,5), a/100, mod(a,5) from t1;
+
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+--echo #
+--echo # Tests using stats provided by the storage engine
+--echo #
+explain extended select * from t2 where part_key=1;
+explain partitions select * from t2 where part_key=1;
+explain extended select * from t2 where  part_key in (1,2);
+explain partitions select * from t2 where  part_key in (1,2);
+explain extended select * from t2 where b=5;
+explain partitions select * from t2 where b=5;
+explain extended select * from t2 partition(p0)  where b=1;
+
+
+set @save_histogram_size=@@histogram_size;
+set @@histogram_size=100;
+set @@use_stat_tables= PREFERABLY;
+set @@optimizer_use_condition_selectivity=4;
+analyze table t2;
+--echo #
+--echo # Tests using EITS
+--echo #
+--echo # filtered should be 100
+explain extended select * from t2 where part_key=1;
+explain partitions select * from t2 where part_key=1;
+--echo # filtered should be 100
+explain extended select * from t2 where  part_key in (1,2);
+explain partitions select * from t2 where  part_key in (1,2);
+explain extended select * from t2 where b=5;
+explain partitions select * from t2 where b=5;
+explain extended select * from t2 partition(p0)  where b=1;
+
+set @@use_stat_tables= @save_use_stat_tables;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set @@histogram_size= @save_histogram_size;
+drop table t0,t1,t2;
+
+--echo #
 --echo # End of 10.0 tests
 --echo #
 
@@ -2910,6 +2972,50 @@ DROP TABLE t1;
 CREATE TABLE t1(a BINARY(80)) PARTITION BY KEY(a) PARTITIONS 3;
 SELECT 1 FROM t1 WHERE a XOR 'a';
 DROP TABLE t1;
+
+--echo #
+--echo # Bug #25207522: INCORRECT ORDER-BY BEHAVIOR ON A PARTITIONED TABLE
+--echo # WITH A COMPOSITE PREFIX INDEX
+--echo #
+create table t1(id int unsigned not null,
+  data varchar(2) default null,
+  key data_idx (data(1),id)
+) default charset=utf8
+partition by range (id) (
+  partition p10 values less than (10),
+  partition p20 values less than (20)
+);
+insert t1 values (6, 'ab'), (4, 'ab'), (5, 'ab'), (16, 'ab'), (14, 'ab'), (15, 'ab'), (5, 'ac'), (15, 'aa') ;
+select id from t1 where data = 'ab' order by id;
+drop table t1;
+
+create table t1(id int unsigned not null,
+  data text default null,
+  key data_idx (data(1),id)
+) default charset=utf8
+partition by range (id) (
+  partition p10 values less than (10),
+  partition p20 values less than (20)
+);
+insert t1 values (6, 'ab'), (4, 'ab'), (5, 'ab'), (16, 'ab'), (14, 'ab'), (15, 'ab'), (5, 'ac'), (15, 'aa') ;
+select id from t1 where data = 'ab' order by id;
+drop table t1;
+
+--echo #
+--echo # MDEV-5628: Assertion `! is_set()' or `!is_set() ||
+--echo # (m_status == DA_OK_BULK && is_bulk_op())' fails on UPDATE on a
+--echo # partitioned table with subquery (MySQL:71630)
+--echo #
+
+CREATE TABLE t1 (a INT) PARTITION BY HASH(a) PARTITIONS 2;
+
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1),(2);
+
+--error ER_SUBQUERY_NO_1_ROW
+UPDATE t1 SET a = 7 WHERE a = ( SELECT b FROM t2 ) ORDER BY a LIMIT 6;
+
+DROP TABLE t1,t2;
 
 --echo #
 --echo # End of 10.1 tests

@@ -20,20 +20,19 @@ SET GLOBAL innodb_fast_shutdown = 0;
 --echo # Restart the server with innodb_force_recovery as 4.
 --let $restart_parameters= --innodb-force-recovery=4
 --source include/restart_mysqld.inc
+let $status=`SHOW ENGINE INNODB STATUS`;
 
 select * from t1;
 
 --error ER_READ_ONLY_MODE
 insert into t1 values(2, 3);
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 alter table t1 add f3 int not null, algorithm=copy;
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t1 add f3 int not null, algorithm=inplace;
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 drop index idx on t1;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
@@ -54,26 +53,26 @@ rename table t1 to t3;
 --error ER_OPEN_AS_READONLY
 truncate table t1;
 
+--error ER_OPEN_AS_READONLY
 drop table t1;
 show tables;
 
 --echo # Restart the server with innodb_force_recovery as 5.
 --let $restart_parameters= --innodb-force-recovery=5
 --source include/restart_mysqld.inc
+let $status=`SHOW ENGINE INNODB STATUS`;
 
 select * from t2;
 
 --error ER_READ_ONLY_MODE
 insert into t2 values(2, 3);
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 alter table t2 add f3 int not null, algorithm=copy;
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t2 add f3 int not null, algorithm=inplace;
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 drop index idx on t2;
 
@@ -81,10 +80,10 @@ drop index idx on t2;
 update t2 set f1=3 where f2=2;
 
 --error ER_CANT_CREATE_TABLE
-create table t1(f1 int not null)engine=innodb;
+create table t3(f1 int not null)engine=innodb;
 
 --error ER_BAD_TABLE_ERROR
-drop table t1;
+drop table t3;
 
 --error ER_ERROR_ON_RENAME
 rename table t2 to t3;
@@ -94,11 +93,15 @@ truncate table t2;
 
 --error ER_OPEN_AS_READONLY
 drop table t2;
+
+create schema db;
+drop schema db;
 show tables;
 
 --echo # Restart the server with innodb_force_recovery as 6.
 --let $restart_parameters= --innodb-force-recovery=6
 --source include/restart_mysqld.inc
+let $status=`SHOW ENGINE INNODB STATUS`;
 
 select * from t2;
 
@@ -118,9 +121,9 @@ drop index idx on t2;
 update t2 set f1=3 where f2=2;
 
 --error ER_CANT_CREATE_TABLE
-create table t1(f1 int not null)engine=innodb;
+create table t3(f1 int not null)engine=innodb;
 
---error ER_BAD_TABLE_ERROR
+--error ER_OPEN_AS_READONLY
 drop table t1;
 
 --error ER_ERROR_ON_RENAME
@@ -136,16 +139,16 @@ show tables;
 --echo # Restart the server with innodb_force_recovery=2
 --let $restart_parameters= --innodb-force-recovery=2
 --source include/restart_mysqld.inc
+let $status=`SHOW ENGINE INNODB STATUS`;
 
 select * from t2;
 begin;
 update t2 set f2=3;
 
 connect (con1,localhost,root,,);
-create table t3(a int)engine=innodb;
 --echo # Force a redo log flush of the above uncommitted UPDATE
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-drop table t3;
+drop table t1;
 disconnect con1;
 
 connection default;
@@ -154,6 +157,7 @@ connection default;
 --echo # Restart the server with innodb_force_recovery=3
 --let $restart_parameters= --innodb-force-recovery=3
 --source include/start_mysqld.inc
+let $status=`SHOW ENGINE INNODB STATUS`;
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 select * from t2;

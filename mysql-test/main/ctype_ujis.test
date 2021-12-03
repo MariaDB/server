@@ -1178,6 +1178,8 @@ DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
 set names ujis;
+SET @save_character_set_server= @@character_set_server;
+SET @save_character_set_database= @@character_set_database;
 set character_set_database = ujis;
 set character_set_server = ujis;
 
@@ -1219,8 +1221,8 @@ SELECT CONVERT(REPLACE(EXPORT_SET('a','a','a','','a'),'00','') USING ujis);
 
 
 set names default;
-set character_set_database=default;
-set character_set_server=default;
+set character_set_database=@save_character_set_server;
+set character_set_server=@save_character_set_database;
 
 --echo End of 5.1 tests
 

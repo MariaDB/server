@@ -1,0 +1,9 @@
+--source ../include/slave_transaction_retry_errors_5digit_init.inc
+--echo
+
+--connection slave1_1
+SHOW VARIABLES LIKE 'slave_transaction_retry_errors';
+
+--source ../include/slave_transaction_retry_errors_5digit_deinit.inc
+--echo
+--echo end of test

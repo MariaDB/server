@@ -35,9 +35,9 @@
 #include "my_global.h"
 #include "sql_class.h"
 #include "sql_servers.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 //#include <fnmatch.h>
 //#include <errno.h>
 #include <stdlib.h>
@@ -46,7 +46,7 @@
 #include "osutil.h"
 //#include <io.h>
 //#include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -342,11 +342,13 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
     Delayed = !!GetIntCatInfo("Delayed", 0);
   } else {
     // MYSQL access from a PROXY table 
-    Tabschema = GetStringCatInfo(g, "Database", Tabschema ? Tabschema : PlugDup(g, "*"));
+		TABLE_SHARE* s;
+
+		Tabschema = GetStringCatInfo(g, "Database", Tabschema ? Tabschema : PlugDup(g, "*"));
     Isview = GetBoolCatInfo("View", false);
 
     // We must get other connection parms from the calling table
-    Remove_tshp(Cat);
+    s = Remove_tshp(Cat);
     url = GetStringCatInfo(g, "Connect", NULL);
 
     if (!url || !*url) { 
@@ -365,6 +367,9 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
     } // endif url
 
     Tabname = Name;
+
+		// Needed for column description
+		Restore_tshp(Cat, s);
   } // endif am
 
   if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL))) {
@@ -1259,7 +1264,7 @@ MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
         : COLBLK(NULL, tdbp, i)
   {
-  const char *chset = get_charset_name(fld->charsetnr);
+//const char *chset = get_charset_name(fld->charsetnr);
 //char  v = (!strcmp(chset, "binary")) ? 'B' : 0;
 	char  v = 0;
 
@@ -1400,6 +1405,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
   /*  If physical fetching of the line was deferred, do it now.        */
   /*********************************************************************/
   if (!tdbp->Fetched)
+  {
     if ((rc = tdbp->Myc.Fetch(g, tdbp->N)) != RC_OK) {
       if (rc == RC_EF)
         sprintf(g->Message, MSG(INV_DEF_READ), rc);
@@ -1407,7 +1413,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
 			throw 11;
 		} else
       tdbp->Fetched = true;
-
+  }
   if ((buf = ((PTDBMY)To_Tdb)->Myc.GetCharField(Rank))) {
     if (trace(2))
       htrc("MySQL ReadColumn: name=%s buf=%s\n", Name, buf);

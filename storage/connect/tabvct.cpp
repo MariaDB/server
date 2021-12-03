@@ -35,7 +35,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
@@ -115,11 +115,14 @@ bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 
   Recfm = RECFM_VCT;
 
+	// poff is no more in use; This will have to be revisited
+#if 0
   // For packed files the logical record length is calculated in poff
   if (poff != Lrecl) {
     Lrecl = poff;
     SetIntCatInfo("Lrecl", poff);
     } // endif poff
+#endif // 0
 
   Padded = false;
   Blksize = 0;
@@ -146,7 +149,7 @@ bool VCTDEF::Erase(char *filename)
 
     for (i = 1, cdp = To_Cols; cdp; i++, cdp = cdp->GetNext()) {
       sprintf(filename, fpat, i);
-//#if defined(__WIN__)
+//#if defined(_WIN32)
 //      rc |= !DeleteFile(filename);
 //#else    // UNIX
       rc |= remove(filename);
@@ -175,7 +178,7 @@ bool VCTDEF::Erase(char *filename)
 int VCTDEF::MakeFnPattern(char *fpat)
   {
   char    pat[16];
-#if defined(__WIN__)
+#if defined(_WIN32)
   char    drive[_MAX_DRIVE];
 #else
   char    *drive = NULL;

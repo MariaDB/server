@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+   Copyright (c) 2011, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_TIME_INCLUDED
 #define SQL_TIME_INCLUDED
@@ -44,20 +44,20 @@ bool str_to_datetime_with_warn(THD *thd,
                                date_mode_t flags);
 bool double_to_datetime_with_warn(THD *thd, double value, MYSQL_TIME *ltime,
                                   date_mode_t fuzzydate,
-                                  const char *name);
+                                  const TABLE_SHARE *s, const char *name);
 bool decimal_to_datetime_with_warn(THD *thd,
                                    const my_decimal *value, MYSQL_TIME *ltime,
                                    date_mode_t fuzzydate,
-                                   const char *name);
+                                   const TABLE_SHARE *s, const char *name);
 bool int_to_datetime_with_warn(THD *thd, const Longlong_hybrid &nr,
                                MYSQL_TIME *ltime,
                                date_mode_t fuzzydate,
-                               const char *name);
+                               const TABLE_SHARE *s, const char *name);
 
 bool time_to_datetime(THD *thd, const MYSQL_TIME *tm, MYSQL_TIME *dt);
 bool time_to_datetime_with_warn(THD *thd,
                                 const MYSQL_TIME *tm, MYSQL_TIME *dt,
-                                date_mode_t fuzzydate);
+                                date_conv_mode_t fuzzydate);
 
 inline void datetime_to_date(MYSQL_TIME *ltime)
 {
@@ -78,6 +78,7 @@ void make_truncated_value_warning(THD *thd,
                                   Sql_condition::enum_warning_level level,
                                   const ErrConv *str_val,
                                   timestamp_type time_type,
+                                  const char *db_name, const char *table_name,
                                   const char *field_name);
 
 extern DATE_TIME_FORMAT *date_time_format_make(timestamp_type format_type,
@@ -91,7 +92,7 @@ bool my_TIME_to_str(const MYSQL_TIME *ltime, String *str, uint dec);
 
 /* MYSQL_TIME operations */
 bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
-                       const INTERVAL &interval);
+                       const INTERVAL &interval, bool push_warn= true);
 bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
                     int l_sign, ulonglong *seconds_out, ulong *microseconds_out);
 int append_interval(String *str, interval_type int_type,
@@ -166,13 +167,20 @@ non_zero_date(const MYSQL_TIME *ltime)
           non_zero_hhmmssuu(ltime));
 }
 static inline bool
-check_date(const MYSQL_TIME *ltime, date_mode_t flags, int *was_cut)
+check_date(const MYSQL_TIME *ltime, date_conv_mode_t flags, int *was_cut)
 {
  return check_date(ltime, non_zero_date(ltime),
                    ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE), was_cut);
 }
-bool check_date_with_warn(THD *thd, const MYSQL_TIME *ltime, date_mode_t fuzzy_date,
-                          timestamp_type ts_type);
+bool check_date_with_warn(THD *thd, const MYSQL_TIME *ltime,
+                          date_conv_mode_t fuzzy_date, timestamp_type ts_type);
+static inline bool
+check_date_with_warn(THD *thd, const MYSQL_TIME *ltime,
+                          date_mode_t fuzzydate, timestamp_type ts_type)
+{
+  return check_date_with_warn(thd, ltime, date_conv_mode_t(fuzzydate), ts_type);
+}
+
 bool adjust_time_range_with_warn(THD *thd, MYSQL_TIME *ltime, uint dec);
 
 longlong pack_time(const MYSQL_TIME *my_time);

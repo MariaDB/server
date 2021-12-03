@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   mysql_install_db creates a new database instance (optionally as service)
@@ -39,7 +39,8 @@ struct IUnknown;
 
 extern "C" const char* mysql_bootstrap_sql[];
 
-char default_os_user[]= "NT AUTHORITY\\NetworkService";
+static char default_os_user[]= "NT AUTHORITY\\NetworkService";
+static char default_datadir[MAX_PATH];
 static int create_db_instance();
 static uint opt_silent;
 static char datadir_buffer[FN_REFLEN];
@@ -169,8 +170,27 @@ int main(int argc, char **argv)
     exit(error);
   if (!opt_datadir)
   {
-    my_print_help(my_long_options);
-    die("parameter --datadir=# is mandatory");
+    /*
+      Figure out default data directory. It "data" directory, next to "bin" directory, where
+      mysql_install_db.exe resides.
+    */
+    strcpy(default_datadir, self_name);
+    p = strrchr(default_datadir, FN_LIBCHAR);
+    if (p)
+    {
+      *p= 0;
+      p= strrchr(default_datadir, FN_LIBCHAR);
+      if (p)
+        *p= 0;
+    }
+    if (!p)
+    {
+      die("--datadir option not provided, and default datadir not found");
+      my_print_help(my_long_options);
+    }
+    strcat_s(default_datadir, "\\data");
+    opt_datadir= default_datadir;
+    printf("Default data directory is %s\n",opt_datadir);
   }
 
   /* Print some help on errors */
@@ -198,7 +218,7 @@ int main(int argc, char **argv)
     die("database creation failed");
   }
 
-  printf("Creation of the database was successful");
+  printf("Creation of the database was successful\n");
   return 0;
 }
 
@@ -343,17 +363,20 @@ static int create_myini()
 
 
 static const char update_root_passwd_part1[]=
-  "UPDATE mysql.user SET Password = PASSWORD(";
+  "UPDATE mysql.global_priv SET priv=json_set(priv,"
+  "'$.password_last_changed', UNIX_TIMESTAMP(),"
+  "'$.plugin','mysql_native_password',"
+  "'$.authentication_string',PASSWORD(";
 static const char update_root_passwd_part2[]=
-  ") where User='root';\n";
-static const char remove_default_user_cmd[]= 
+  ")) where User='root';\n";
+static const char remove_default_user_cmd[]=
   "DELETE FROM mysql.user where User='';\n";
 static const char allow_remote_root_access_cmd[]=
-  "CREATE TEMPORARY TABLE tmp_user LIKE user;\n"
-  "INSERT INTO tmp_user SELECT * from user where user='root' "
+  "CREATE TEMPORARY TABLE tmp_user LIKE global_priv;\n"
+  "INSERT INTO tmp_user SELECT * from global_priv where user='root' "
     " AND host='localhost';\n"
   "UPDATE tmp_user SET host='%';\n"
-  "INSERT INTO user SELECT * FROM tmp_user;\n"
+  "INSERT INTO global_priv SELECT * FROM tmp_user;\n"
   "DROP TABLE tmp_user;\n";
 static const char end_of_script[]="-- end.";
 
@@ -403,8 +426,8 @@ static int register_service()
 
 static void clean_directory(const char *dir)
 {
-  char dir2[MAX_PATH+2];
-  *(strmake_buf(dir2, dir)+1)= 0;
+  char dir2[MAX_PATH + 4]= {};
+  snprintf(dir2, MAX_PATH+2, "%s\\*", dir);
 
   SHFILEOPSTRUCT fileop;
   fileop.hwnd= NULL;    /* no status display */
@@ -533,7 +556,7 @@ static int create_db_instance()
   DWORD cwd_len= MAX_PATH;
   char cmdline[3*MAX_PATH];
   FILE *in;
-  bool cleanup_datadir= true;
+  bool created_datadir= false;
   DWORD last_error;
 
   verbose("Running bootstrap");
@@ -542,7 +565,11 @@ static int create_db_instance()
 
   /* Create datadir and datadir/mysql, if they do not already exist. */
 
-  if (!CreateDirectory(opt_datadir, NULL) && (GetLastError() != ERROR_ALREADY_EXISTS))
+  if (CreateDirectory(opt_datadir, NULL))
+  {
+    created_datadir= true;
+  }
+  else if (GetLastError() != ERROR_ALREADY_EXISTS)
   {
     last_error = GetLastError();
     switch(last_error)
@@ -579,9 +606,11 @@ static int create_db_instance()
     }
   }
 
-  if (PathIsDirectoryEmpty(opt_datadir))
+  if (!PathIsDirectoryEmpty(opt_datadir))
   {
-    cleanup_datadir= false;
+    fprintf(stderr,"ERROR : Data directory %s is not empty."
+        " Only new or empty existing directories are accepted for --datadir\n",opt_datadir);
+    exit(1);
   }
 
   if (!CreateDirectory("mysql",NULL))
@@ -709,10 +738,12 @@ static int create_db_instance()
   }
 
 end:
-  if (ret && cleanup_datadir)
+  if (ret)
   {
     SetCurrentDirectory(cwd);
     clean_directory(opt_datadir);
+    if (created_datadir)
+      RemoveDirectory(opt_datadir);
   }
   return ret;
 }

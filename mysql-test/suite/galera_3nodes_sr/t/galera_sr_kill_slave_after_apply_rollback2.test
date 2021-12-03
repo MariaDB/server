@@ -1,0 +1,56 @@
+#
+# This test kills the slave while a Streaming Replication transaction is in progress
+# and after a fragment has already been applied on the slave. It is expected that 
+# after the slave restarts, the cluster will continue to be consistent
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+
+--let $wsrep_trx_fragment_size_orig = `SELECT @@wsrep_trx_fragment_size`
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) > 0 FROM t1;
+--source include/wait_condition.inc
+
+--source include/kill_galera.inc
+--sleep 1
+
+--connection node_1
+INSERT INTO t1 VALUES (6);
+ROLLBACK;
+
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--source include/start_mysqld.inc
+--sleep 1
+
+--source include/wait_until_connected_again.inc
+--source include/galera_wait_ready.inc
+
+--connection node_2
+
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+DROP TABLE t1;

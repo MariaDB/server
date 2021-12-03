@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2016 MariaDB Corporation
+  Copyright (c) 2016, 2021, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -49,23 +49,18 @@ bool THD::has_thd_temporary_tables()
 /**
   Create a temporary table, open it and return the TABLE handle.
 
-  @param hton [IN]                    Handlerton
   @param frm  [IN]                    Binary frm image
   @param path [IN]                    File path (without extension)
   @param db   [IN]                    Schema name
   @param table_name [IN]              Table name
-  @param open_in_engine [IN]          Whether open table in SE
-
 
   @return Success                     A pointer to table object
           Failure                     NULL
 */
-TABLE *THD::create_and_open_tmp_table(handlerton *hton,
-                                      LEX_CUSTRING *frm,
+TABLE *THD::create_and_open_tmp_table(LEX_CUSTRING *frm,
                                       const char *path,
                                       const char *db,
                                       const char *table_name,
-                                      bool open_in_engine,
                                       bool open_internal_tables)
 {
   DBUG_ENTER("THD::create_and_open_tmp_table");
@@ -73,10 +68,10 @@ TABLE *THD::create_and_open_tmp_table(handlerton *hton,
   TMP_TABLE_SHARE *share;
   TABLE *table= NULL;
 
-  if ((share= create_temporary_table(hton, frm, path, db, table_name)))
+  if ((share= create_temporary_table(frm, path, db, table_name)))
   {
     open_options|= HA_OPEN_FOR_CREATE;
-    table= open_temporary_table(share, table_name, open_in_engine);
+    table= open_temporary_table(share, table_name);
     open_options&= ~HA_OPEN_FOR_CREATE;
 
     /*
@@ -96,7 +91,7 @@ TABLE *THD::create_and_open_tmp_table(handlerton *hton,
 
     /* Open any related tables */
     if (open_internal_tables && table->internal_tables &&
-        open_and_lock_internal_tables(table, open_in_engine))
+        open_and_lock_internal_tables(table, true))
     {
       drop_temporary_table(table, NULL, false);
       DBUG_RETURN(0);
@@ -351,6 +346,13 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
     DBUG_RETURN(false);
   }
 
+  if (!tl->db.str)
+  {
+    DBUG_PRINT("info",
+               ("Table reference to a temporary table must have database set"));
+    DBUG_RETURN(false);
+  }
+
   /*
     Temporary tables are not safe for parallel replication. They were
     designed to be visible to one thread only, so have no table locking.
@@ -381,7 +383,23 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
   */
   if (!table && (share= find_tmp_table_share(tl)))
   {
-    table= open_temporary_table(share, tl->get_table_name(), true);
+    table= open_temporary_table(share, tl->get_table_name());
+    /*
+       Temporary tables are not safe for parallel replication. They were
+       designed to be visible to one thread only, so have no table locking.
+       Thus there is no protection against two conflicting transactions
+       committing in parallel and things like that.
+
+       So for now, anything that uses temporary tables will be serialised
+       with anything before it, when using parallel replication.
+    */
+    if (table && rgi_slave &&
+        rgi_slave->is_parallel_exec &&
+        wait_for_prior_commit())
+      DBUG_RETURN(true);
+
+    if (!table && is_error())
+      DBUG_RETURN(true);                        // Error when opening table
   }
 
   if (!table)
@@ -504,6 +522,7 @@ bool THD::close_temporary_tables()
     /* Traverse the table list. */
     while ((table= share->all_tmp_tables.pop_front()))
     {
+      table->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
       free_temporary_table(table);
     }
   }
@@ -588,9 +607,7 @@ bool THD::rename_temporary_table(TABLE *table,
   @return false                       Table was dropped
           true                        Error
 */
-bool THD::drop_temporary_table(TABLE *table,
-                               bool *is_trans,
-                               bool delete_table)
+bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
 {
   DBUG_ENTER("THD::drop_temporary_table");
 
@@ -633,7 +650,8 @@ bool THD::drop_temporary_table(TABLE *table,
       parallel replication
     */
     tab->in_use= this;
-
+    if (delete_table)
+      tab->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
     free_temporary_table(tab);
   }
 
@@ -731,6 +749,8 @@ void THD::mark_tmp_tables_as_free_for_reuse()
     {
       if ((table->query_id == query_id) && !table->open_by_handler)
       {
+        if (table->update_handler)
+          table->delete_update_handler();
         mark_tmp_table_as_free_for_reuse(table);
       }
     }
@@ -855,10 +875,12 @@ void THD::restore_tmp_table_share(TMP_TABLE_SHARE *share)
 inline bool THD::has_temporary_tables()
 {
   DBUG_ENTER("THD::has_temporary_tables");
-  bool result= (rgi_slave
-                ? (rgi_slave->rli->save_temporary_tables &&
-                   !rgi_slave->rli->save_temporary_tables->is_empty())
-                : (has_thd_temporary_tables()));
+  bool result=
+#ifdef HAVE_REPLICATION
+    rgi_slave ? (rgi_slave->rli->save_temporary_tables &&
+                 !rgi_slave->rli->save_temporary_tables->is_empty()) :
+#endif
+    has_thd_temporary_tables();
   DBUG_RETURN(result);
 }
 
@@ -903,7 +925,6 @@ uint THD::create_tmp_table_def_key(char *key, const char *db,
 /**
   Create a temporary table.
 
-  @param hton [IN]                    Handlerton
   @param frm  [IN]                    Binary frm image
   @param path [IN]                    File path (without extension)
   @param db   [IN]                    Schema name
@@ -912,8 +933,7 @@ uint THD::create_tmp_table_def_key(char *key, const char *db,
   @return Success                     A pointer to table share object
           Failure                     NULL
 */
-TMP_TABLE_SHARE *THD::create_temporary_table(handlerton *hton,
-                                             LEX_CUSTRING *frm,
+TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
                                              const char *path,
                                              const char *db,
                                              const char *table_name)
@@ -950,8 +970,6 @@ TMP_TABLE_SHARE *THD::create_temporary_table(handlerton *hton,
 
   init_tmp_table_share(this, share, saved_key_cache, key_length,
                        strend(saved_key_cache) + 1, tmp_path);
-
-  share->db_plugin= ha_lock_engine(this, hton);
 
   /*
     Prefer using frm image over file. The image might not be available in
@@ -1041,39 +1059,28 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
       /* A matching TMP_TABLE_SHARE is found. */
       All_share_tables_list::Iterator tables_it(share->all_tmp_tables);
 
-      while ((table= tables_it++))
+      bool found= false;
+      while (!found && (table= tables_it++))
       {
         switch (state)
         {
-        case TMP_TABLE_IN_USE:
-          if (table->query_id > 0)
-          {
-            result= table;
-            goto done;
-          }
-          break;
-        case TMP_TABLE_NOT_IN_USE:
-          if (table->query_id == 0)
-          {
-            result= table;
-            goto done;
-          }
-          break;
-        case TMP_TABLE_ANY:
-          {
-            result= table;
-            goto done;
-          }
-          break;
-        default:                                /* Invalid */
-          DBUG_ASSERT(0);
-          goto done;
+        case TMP_TABLE_IN_USE:     found= table->query_id > 0;  break;
+        case TMP_TABLE_NOT_IN_USE: found= table->query_id == 0; break;
+        case TMP_TABLE_ANY:        found= true;                 break;
         }
       }
+      if (table && unlikely(table->needs_reopen()))
+      {
+        share->all_tmp_tables.remove(table);
+        free_temporary_table(table);
+        it.rewind();
+        continue;
+      }
+      result= table;
+      break;
     }
   }
 
-done:
   if (locked)
   {
     DBUG_ASSERT(m_tmp_tables_locked);
@@ -1090,14 +1097,12 @@ done:
 
   @param share [IN]                   Table share
   @param alias [IN]                   Table alias
-  @param open_in_engine [IN]          Whether open table in SE
 
   @return Success                     A pointer to table object
           Failure                     NULL
 */
 TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
-                                 const char *alias_arg,
-                                 bool open_in_engine)
+                                 const char *alias_arg)
 {
   TABLE *table;
   LEX_CSTRING alias= {alias_arg, strlen(alias_arg) };
@@ -1110,11 +1115,11 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   }
 
   if (open_table_from_share(this, share, &alias,
-                            open_in_engine ? (uint)HA_OPEN_KEYFILE : 0,
+                            (uint) HA_OPEN_KEYFILE,
                             EXTRA_RECORD,
                             (ha_open_options |
                              (open_options & HA_OPEN_FOR_CREATE)),
-                            table, open_in_engine ? false : true))
+                            table, false))
   {
     my_free(table);
     DBUG_RETURN(NULL);
@@ -1134,9 +1139,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
 
   /* Increment Slave_open_temp_table_definitions status variable count. */
   if (rgi_slave)
-  {
-    thread_safe_increment32(&slave_open_temp_tables);
-  }
+    slave_open_temp_tables++;
 
   DBUG_PRINT("tmptable", ("Opened table: '%s'.'%s  table: %p",
                           table->s->db.str,
@@ -1154,8 +1157,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   @return Success                     false
           Failure                     true
 */
-bool THD::find_and_use_tmp_table(const TABLE_LIST *tl,
-                                 TABLE **out_table)
+bool THD::find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table)
 {
   DBUG_ENTER("THD::find_and_use_tmp_table");
 
@@ -1165,11 +1167,9 @@ bool THD::find_and_use_tmp_table(const TABLE_LIST *tl,
 
   key_length= create_tmp_table_def_key(key, tl->get_db_name(),
                                         tl->get_table_name());
-  result=
-    use_temporary_table(find_temporary_table(key, key_length,
-                                             TMP_TABLE_NOT_IN_USE),
-                        out_table);
-
+  result= use_temporary_table(find_temporary_table(key, key_length,
+                                                   TMP_TABLE_NOT_IN_USE),
+                              out_table);
   DBUG_RETURN(result);
 }
 
@@ -1245,7 +1245,7 @@ void THD::close_temporary_table(TABLE *table)
     /* Natural invariant of temporary_tables */
     DBUG_ASSERT(slave_open_temp_tables || !temporary_tables);
     /* Decrement Slave_open_temp_table_definitions status variable count. */
-    thread_safe_decrement32(&slave_open_temp_tables);
+    slave_open_temp_tables--;
   }
 
   DBUG_VOID_RETURN;
@@ -1346,6 +1346,7 @@ bool THD::log_events_and_free_tmp_shares()
       my_thread_id save_pseudo_thread_id= variables.pseudo_thread_id;
       char db_buf[FN_REFLEN];
       String db(db_buf, sizeof(db_buf), system_charset_info);
+      bool at_least_one_create_logged;
 
       /*
         Set pseudo_thread_id to be that of the processed table.
@@ -1363,7 +1364,7 @@ bool THD::log_events_and_free_tmp_shares()
         within the sublist of common pseudo_thread_id to create single
         DROP query.
       */
-      for (;
+      for (at_least_one_create_logged= false;
            share && IS_USER_TABLE(share) &&
            tmpkeyval(share) == variables.pseudo_thread_id &&
            share->db.length == db.length() &&
@@ -1371,51 +1372,58 @@ bool THD::log_events_and_free_tmp_shares()
            /* Get the next TABLE_SHARE in the list. */
            share= temporary_tables->pop_front())
       {
-        /*
-          We are going to add ` around the table names and possible more
-          due to special characters.
-        */
-        append_identifier(this, &s_query, &share->table_name);
-        s_query.append(',');
+        if (share->table_creation_was_logged)
+        {
+          at_least_one_create_logged= true;
+          /*
+             We are going to add ` around the table names and possible more
+             due to special characters.
+          */
+          append_identifier(this, &s_query, &share->table_name);
+          s_query.append(',');
+        }
         rm_temporary_table(share->db_type(), share->path.str);
         free_table_share(share);
         my_free(share);
       }
 
-      clear_error();
-      CHARSET_INFO *cs_save= variables.character_set_client;
-      variables.character_set_client= system_charset_info;
-      thread_specific_used= true;
-
-      Query_log_event qinfo(this, s_query.ptr(),
-                            s_query.length() - 1 /* to remove trailing ',' */,
-                            false, true, false, 0);
-      qinfo.db= db.ptr();
-      qinfo.db_len= db.length();
-      variables.character_set_client= cs_save;
-
-      get_stmt_da()->set_overwrite_status(true);
-      transaction.stmt.mark_dropped_temp_table();
-      bool error2= mysql_bin_log.write(&qinfo);
-      if (unlikely(error|= error2))
+      if (at_least_one_create_logged)
       {
-        /*
-          If we're here following THD::cleanup, thence the connection
-          has been closed already. So lets print a message to the
-          error log instead of pushing yet another error into the
-          stmt_da.
+        clear_error();
+        CHARSET_INFO *cs_save= variables.character_set_client;
+        variables.character_set_client= system_charset_info;
+        thread_specific_used= true;
 
-          Also, we keep the error flag so that we propagate the error
-          up in the stack. This way, if we're the SQL thread we notice
-          that THD::close_tables failed. (Actually, the SQL
-          thread only calls THD::close_tables while applying
-          old Start_log_event_v3 events.)
-        */
-        sql_print_error("Failed to write the DROP statement for "
-                        "temporary tables to binary log");
+        Query_log_event qinfo(this, s_query.ptr(),
+            s_query.length() - 1 /* to remove trailing ',' */,
+            false, true, false, 0);
+        qinfo.db= db.ptr();
+        qinfo.db_len= db.length();
+        variables.character_set_client= cs_save;
+
+        get_stmt_da()->set_overwrite_status(true);
+        transaction.stmt.mark_dropped_temp_table();
+        bool error2= mysql_bin_log.write(&qinfo);
+        if (unlikely(error|= error2))
+        {
+          /*
+             If we're here following THD::cleanup, thence the connection
+             has been closed already. So lets print a message to the
+             error log instead of pushing yet another error into the
+             stmt_da.
+
+             Also, we keep the error flag so that we propagate the error
+             up in the stack. This way, if we're the SQL thread we notice
+             that THD::close_tables failed. (Actually, the SQL
+             thread only calls THD::close_tables while applying
+             old Start_log_event_v3 events.)
+          */
+          sql_print_error("Failed to write the DROP statement for "
+              "temporary tables to binary log");
+        }
+
+        get_stmt_da()->set_overwrite_status(false);
       }
-
-      get_stmt_da()->set_overwrite_status(false);
       variables.pseudo_thread_id= save_pseudo_thread_id;
       thread_specific_used= save_thread_specific_used;
     }
@@ -1447,8 +1455,7 @@ bool THD::log_events_and_free_tmp_shares()
 
   @return void
 */
-void THD::free_tmp_table_share(TMP_TABLE_SHARE *share,
-                               bool delete_table)
+void THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
 {
   DBUG_ENTER("THD::free_tmp_table_share");
 
@@ -1503,12 +1510,14 @@ bool THD::lock_temporary_tables()
     DBUG_RETURN(false);
   }
 
+#ifdef HAVE_REPLICATION
   if (rgi_slave)
   {
     mysql_mutex_lock(&rgi_slave->rli->data_lock);
     temporary_tables= rgi_slave->rli->save_temporary_tables;
     m_tmp_tables_locked= true;
   }
+#endif
 
   DBUG_RETURN(m_tmp_tables_locked);
 }
@@ -1529,6 +1538,7 @@ void THD::unlock_temporary_tables()
     DBUG_VOID_RETURN;
   }
 
+#ifdef HAVE_REPLICATION
   if (rgi_slave)
   {
     rgi_slave->rli->save_temporary_tables= temporary_tables;
@@ -1536,6 +1546,7 @@ void THD::unlock_temporary_tables()
     mysql_mutex_unlock(&rgi_slave->rli->data_lock);
     m_tmp_tables_locked= false;
   }
+#endif
 
   DBUG_VOID_RETURN;
 }

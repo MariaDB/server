@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,26 +27,13 @@ Created 3/14/1997 Heikki Tuuri
 #ifndef row0purge_h
 #define row0purge_h
 
-#include "univ.i"
-#include "data0data.h"
+#include "que0types.h"
 #include "btr0types.h"
 #include "btr0pcur.h"
-#include "dict0types.h"
 #include "trx0types.h"
-#include "que0types.h"
 #include "row0types.h"
 #include "ut0vec.h"
 #include "row0mysql.h"
-
-/** Create a purge node to a query graph.
-@param[in]	parent	parent node, i.e., a thr node
-@param[in]	heap	memory heap where created
-@return own: purge node */
-purge_node_t*
-row_purge_node_create(
-	que_thr_t*	parent,
-	mem_heap_t*	heap)
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Determines if it is possible to remove a secondary index entry.
 Removal is possible if the secondary index entry does not refer to any
@@ -105,6 +92,13 @@ struct purge_node_t{
 
 	ulint		rec_type;/*!< undo log record type: TRX_UNDO_INSERT_REC,
 				... */
+private:
+	/** latest unavailable table ID (do not bother looking up again) */
+	table_id_t	unavailable_table_id;
+	/** the latest modification of the table definition identified by
+	unavailable_table_id, or TRX_ID_MAX */
+	trx_id_t	def_trx_id;
+public:
 	dict_table_t*	table;	/*!< table where purge is done */
 
 	ulint		cmpl_info;/* compiler analysis info of an update */
@@ -121,18 +115,33 @@ struct purge_node_t{
 	mem_heap_t*	heap;	/*!< memory heap used as auxiliary storage for
 				row; this must be emptied after a successful
 				purge of a row */
-	ibool		found_clust;/* TRUE if the clustered index record
+	ibool		found_clust;/*!< whether the clustered index record
 				determined by ref was found in the clustered
 				index, and we were able to position pcur on
 				it */
 	btr_pcur_t	pcur;	/*!< persistent cursor used in searching the
 				clustered index record */
-	ibool		done;	/* Debug flag */
+#ifdef UNIV_DEBUG
+	/** whether the operation is in progress */
+	bool		in_progress;
+#endif
 	trx_id_t	trx_id;	/*!< trx id for this purging record */
 
 	/** Virtual column information about opening of MariaDB table.
 	It resets after processing each undo log record. */
 	purge_vcol_info_t	vcol_info;
+
+	/** Constructor */
+	explicit purge_node_t(que_thr_t* parent) :
+		common(QUE_NODE_PURGE, parent),
+		undo_recs(NULL),
+		unavailable_table_id(0),
+		heap(mem_heap_create(256)),
+#ifdef UNIV_DEBUG
+		in_progress(false),
+#endif
+		vcol_info()
+	{}
 
 #ifdef UNIV_DEBUG
 	/***********************************************************//**
@@ -149,6 +158,52 @@ struct purge_node_t{
 	computation.
 	@return true if the table failed to open. */
 	bool vcol_op_failed() const { return !vcol_info.validate(); }
+
+	/** Determine if a table should be skipped in purge.
+	@param[in]	table_id	table identifier
+	@return	whether to skip the table lookup and processing */
+	bool is_skipped(table_id_t id) const
+	{
+		return id == unavailable_table_id && trx_id <= def_trx_id;
+	}
+
+	/** Remember that a table should be skipped in purge.
+	@param[in]	id	table identifier
+	@param[in]	limit	last transaction for which to skip */
+	void skip(table_id_t id, trx_id_t limit)
+	{
+		DBUG_ASSERT(limit >= trx_id);
+		unavailable_table_id = id;
+		def_trx_id = limit;
+	}
+
+	/** Start processing an undo log record. */
+	void start()
+	{
+		ut_ad(in_progress);
+		DBUG_ASSERT(common.type == QUE_NODE_PURGE);
+
+		table = NULL;
+		row = NULL;
+		ref = NULL;
+		index = NULL;
+		update = NULL;
+		found_clust = FALSE;
+		rec_type = ULINT_UNDEFINED;
+		cmpl_info = ULINT_UNDEFINED;
+	}
+
+	/** Reset the state at end
+	@return the query graph parent */
+	que_node_t* end()
+	{
+		DBUG_ASSERT(common.type == QUE_NODE_PURGE);
+		undo_recs = NULL;
+		ut_d(in_progress = false);
+		vcol_info.reset();
+		mem_heap_empty(heap);
+		return common.parent;
+	}
 };
 
 #endif

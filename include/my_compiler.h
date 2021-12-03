@@ -2,6 +2,7 @@
 #define MY_COMPILER_INCLUDED
 
 /* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   Header for compiler-dependent features.
@@ -148,6 +149,7 @@ struct my_aligned_storage
 
 #ifdef __GNUC__
 # define ATTRIBUTE_NORETURN __attribute__((noreturn))
+# define ATTRIBUTE_NOINLINE __attribute__((noinline))
 # if MY_GNUC_PREREQ(4,3)
 /** Starting with GCC 4.3, the "cold" attribute is used to inform the
 compiler that a function is unlikely executed.  The function is
@@ -161,8 +163,10 @@ rarely invoked function for size instead for speed. */
 # endif
 #elif defined _MSC_VER
 # define ATTRIBUTE_NORETURN __declspec(noreturn)
+# define ATTRIBUTE_NOINLINE __declspec(noinline)
 #else
 # define ATTRIBUTE_NORETURN /* empty */
+# define ATTRIBUTE_NOINLINE /* empty */
 #endif
 
 #ifndef ATTRIBUTE_COLD

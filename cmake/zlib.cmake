@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 MACRO (MYSQL_USE_BUNDLED_ZLIB)
   SET(ZLIB_INCLUDE_DIR  ${CMAKE_SOURCE_DIR}/zlib ${CMAKE_BINARY_DIR}/zlib)
@@ -34,11 +34,6 @@ ENDMACRO()
 
 MACRO (MYSQL_CHECK_ZLIB_WITH_COMPRESS)
 
-    # For NDBCLUSTER: Use bundled zlib by default
-    IF (NOT WITH_ZLIB)
-      SET(WITH_ZLIB "bundled"  CACHE STRING "By default use bundled zlib on this platform")
-    ENDIF()
-  
   IF(WITH_ZLIB STREQUAL "bundled")
     MYSQL_USE_BUNDLED_ZLIB()
   ELSE()

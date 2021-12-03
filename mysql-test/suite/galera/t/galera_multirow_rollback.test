@@ -1,0 +1,89 @@
+#
+# Test multirow insert rollback
+#
+
+--source include/galera_cluster.inc
+
+#
+# Case 1: error on multirow insert results in empty transaction
+#
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY DEFAULT 0, f2 char(12));
+
+--connection node_1
+START TRANSACTION;
+--error ER_DUP_ENTRY
+INSERT INTO t1 (f2) VALUES ('a'), ('b');
+COMMIT;
+
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Case 2: error on multirow insert does not affect previous statements
+#
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY DEFAULT 0, f2 char(12));
+
+--connection node_1
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, 'a');
+INSERT INTO t1 VALUES (2, 'b');
+--error ER_DUP_ENTRY
+INSERT INTO t1 (f2) VALUES ('c'), ('d');
+COMMIT;
+
+--echo expect (1,'a'), (2, 'b')
+SELECT * FROM t1;
+
+--connection node_2
+--echo expect (1,'a'), (2, 'b')
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Case 3: error on autocommit multirow insert
+#
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY DEFAULT 0, f2 char(12));
+
+--connection node_1
+--error ER_DUP_ENTRY
+INSERT INTO t1 (f2) VALUES ('a'),('b');
+
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Case 4: FK constraint violation on multirow insert
+#
+--connection node_1
+CREATE TABLE p(id int primary key, j int) ENGINE=InnoDB;
+CREATE TABLE c(id int primary key, fk1 int) ENGINE=InnoDB;
+ALTER TABLE c ADD FOREIGN KEY (fk1) references p(id);
+INSERT INTO p VALUES(1, 0);
+
+START TRANSACTION;
+INSERT INTO c VALUES (3,1);
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO c VALUES (1,1), (2,2);
+COMMIT;
+
+SELECT * FROM p;
+SELECT * FROM c;
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
