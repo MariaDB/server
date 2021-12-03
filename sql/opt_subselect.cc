@@ -717,6 +717,15 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         if (arena)
           thd->restore_active_arena(arena, &backup);
         in_subs->is_registered_semijoin= TRUE;
+      }
+
+      /*
+        Print the transformation into trace. Do it when we've just set
+        is_registered_semijoin=TRUE above, and also do it when we've already
+        had it set.
+      */
+      if (in_subs->is_registered_semijoin)
+      {
         OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
                             select_lex->select_number,
                             "IN (SELECT)", "semijoin");
