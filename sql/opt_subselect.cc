@@ -693,6 +693,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         !join->having && !select_lex->with_sum_func &&                // 4
         in_subs->emb_on_expr_nest &&                                  // 5
         select_lex->outer_select()->join &&                           // 6
+        (!thd->lex->m_sql_cmd ||
+	 thd->lex->m_sql_cmd->sql_command_code() == SQLCOM_UPDATE_MULTI) &&
         parent_unit->first_select()->leaf_tables.elements &&          // 7
         !in_subs->has_strategy() &&                                   // 8
         select_lex->outer_select()->table_list.first &&               // 9
@@ -717,6 +719,15 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         if (arena)
           thd->restore_active_arena(arena, &backup);
         in_subs->is_registered_semijoin= TRUE;
+      }
+
+      /*
+        Print the transformation into trace. Do it when we've just set
+        is_registered_semijoin=TRUE above, and also do it when we've already
+        had it set.
+      */
+      if (in_subs->is_registered_semijoin)
+      {
         OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
                             select_lex->select_number,
                             "IN (SELECT)", "semijoin");

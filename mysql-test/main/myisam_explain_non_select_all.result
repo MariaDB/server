@@ -19,7 +19,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	2
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1     WHERE a < 10;
@@ -38,7 +37,6 @@ Handler_read_key	2
 Handler_read_rnd_next	4
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	2
 Handler_read_rnd_next	4
 Handler_update	3
 
@@ -152,7 +150,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1, t2               WHERE t1.a = 1;
@@ -172,7 +169,6 @@ Handler_read_key	4
 Handler_read_rnd_next	8
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
 Handler_read_rnd_next	8
 Handler_update	1
 
@@ -202,7 +198,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1 t11, (SELECT * FROM t2) t12                WHERE t11.a = 1;
@@ -222,7 +217,6 @@ Handler_read_key	4
 Handler_read_rnd_next	8
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
 Handler_read_rnd_next	12
 Handler_update	1
 
@@ -240,18 +234,16 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1 SET a = 10 WHERE 1 IN (SELECT 1 FROM t2 WHERE t2.b < 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1 SET a = 10 WHERE 1 IN (SELECT 1 FROM t2 WHERE t2.b < 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
-Handler_read_rnd_next	1
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1            WHERE 1 IN (SELECT 1 FROM t2 WHERE t2.b < 3);
@@ -272,7 +264,6 @@ Handler_read_key	5
 Handler_read_rnd_next	8
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
 Handler_read_rnd_next	5
 Handler_update	3
 
@@ -302,7 +293,6 @@ Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1            WHERE a IN (SELECT b FROM t2 WHERE t1.a < 3);
@@ -323,7 +313,6 @@ Handler_read_key	4
 Handler_read_rnd_next	8
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
 Handler_read_rnd_next	7
 Handler_update	2
 
@@ -355,7 +344,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1, t2            WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3);
@@ -377,7 +365,7 @@ Handler_read_key	7
 Handler_read_rnd_next	12
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	7
+Handler_read_key	3
 Handler_read_rnd_next	16
 Handler_update	2
 
@@ -407,7 +395,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1 t11, (SELECT * FROM t2) t12;
@@ -427,7 +414,6 @@ Handler_read_key	4
 Handler_read_rnd_next	8
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
 Handler_read_rnd	3
 Handler_read_rnd_deleted	1
 Handler_read_rnd_next	24
@@ -459,7 +445,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	2
 Handler_read_rnd_next	1
 FLUSH STATUS;
 FLUSH TABLES;
@@ -482,7 +467,6 @@ Handler_read_key	2
 Handler_read_rnd_next	5
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	2
 Handler_read_rnd	3
 Handler_read_rnd_next	9
 Handler_update	3
@@ -513,7 +497,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1 t11, (SELECT * FROM t2) t12                WHERE t11.a > 1;
@@ -533,7 +516,6 @@ Handler_read_key	4
 Handler_read_rnd_next	8
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
 Handler_read_rnd_next	16
 Handler_update	2
 
@@ -995,7 +977,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1     WHERE a IN (SELECT a FROM t2);
@@ -1016,7 +997,6 @@ Handler_read_key	7
 Handler_read_rnd_next	8
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
 Handler_read_rnd_next	10
 Handler_update	3
 
@@ -1134,7 +1114,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	3
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1;
@@ -1153,7 +1132,6 @@ Handler_read_key	3
 Handler_read_rnd_next	6
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	3
 Handler_read_rnd_next	6
 Handler_update	5
 
@@ -1917,7 +1895,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	range	PRIMARY	PRIMARY	4	NULL	5	100.00	Using where; Using buffer
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM  t2    WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
@@ -1936,7 +1913,7 @@ Handler_read_key	5
 Handler_read_next	4
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	5
+Handler_read_key	1
 Handler_read_next	4
 Handler_read_rnd	5
 Handler_update	5
@@ -1965,7 +1942,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t2     WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
@@ -1987,7 +1963,6 @@ Sort_rows	5
 Sort_scan	1
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
 Handler_read_rnd	5
 Handler_read_rnd_next	27
 Handler_update	5
@@ -2019,7 +1994,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	8
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t2     WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -2041,7 +2015,6 @@ Sort_rows	1
 Sort_scan	1
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	8
 Handler_read_rnd	1
 Handler_read_rnd_next	27
 Handler_update	1
@@ -2074,7 +2047,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	index	NULL	a	15	NULL	5	100.00	Using where; Using buffer
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	8
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t2     WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -2095,7 +2067,6 @@ Handler_read_next	4
 # Status of testing query execution:
 Variable_name	Value
 Handler_read_first	1
-Handler_read_key	8
 Handler_read_next	4
 Handler_read_rnd	5
 Handler_update	5
@@ -2124,7 +2095,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	8
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t2     WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -2146,7 +2116,6 @@ Sort_rows	1
 Sort_scan	1
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	8
 Handler_read_rnd	1
 Handler_read_rnd_next	27
 Sort_priority_queue_sorts	1
@@ -2178,7 +2147,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	8
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t2     WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -2201,7 +2169,6 @@ Sort_rows	1
 Sort_scan	1
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	8
 Handler_read_rnd	1
 Handler_read_rnd_next	27
 Sort_priority_queue_sorts	1
@@ -2233,7 +2200,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	index_merge	key1,key2	key1,key2	5,5	NULL	7	100.00	Using sort_union(key1,key2); Using where; Using filesort
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	6
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t2      WHERE key1 < 13 or key2 < 14 ORDER BY key1;
@@ -2255,7 +2221,7 @@ Sort_range	1
 Sort_rows	4
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	8
+Handler_read_key	2
 Handler_read_next	7
 Handler_read_rnd	8
 Handler_update	4
@@ -2286,7 +2252,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	range	PRIMARY	PRIMARY	4	NULL	5	100.00	Using where; Using buffer
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t2     WHERE i > 10 AND i <= 18 ORDER BY i DESC LIMIT 5;
@@ -2305,7 +2270,7 @@ Handler_read_key	5
 Handler_read_prev	4
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	5
+Handler_read_key	1
 Handler_read_prev	4
 Handler_read_rnd	5
 Handler_update	5
@@ -2334,7 +2299,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	26	100.00	Using filesort
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	6
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t2     ORDER BY a, b DESC LIMIT 5;
@@ -2356,7 +2320,6 @@ Sort_rows	5
 Sort_scan	1
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	6
 Handler_read_rnd	5
 Handler_read_rnd_next	27
 Handler_update	4
@@ -2389,7 +2352,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	index	NULL	a	6	NULL	5	100.00	Using buffer
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	6
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t2     ORDER BY a DESC, b DESC LIMIT 5;
@@ -2409,7 +2371,6 @@ Handler_read_last	1
 Handler_read_prev	4
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	6
 Handler_read_last	1
 Handler_read_prev	4
 Handler_read_rnd	5
@@ -2441,7 +2402,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	c1_idx	c1_idx	2	NULL	2	100.00	Using where; Using filesort
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	6
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1     WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
@@ -2463,7 +2423,7 @@ Sort_range	1
 Sort_rows	2
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	7
+Handler_read_key	1
 Handler_read_next	2
 Handler_read_rnd	2
 Handler_update	2
@@ -2536,7 +2496,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	100.00	Using where; Using buffer
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	3
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1     WHERE a > 34;
@@ -2555,7 +2514,7 @@ Handler_read_key	4
 Handler_read_next	2
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
+Handler_read_key	1
 Handler_read_next	2
 Handler_read_rnd	2
 Handler_update	2
@@ -2583,7 +2542,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	7
 Handler_read_rnd_next	1
 FLUSH STATUS;
 FLUSH TABLES;
@@ -2605,7 +2563,6 @@ Handler_read_key	7
 Handler_read_rnd_next	4
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	7
 Handler_read_rnd_next	4
 
 #
@@ -2626,7 +2583,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	7
 Handler_read_rnd_next	1
 FLUSH STATUS;
 FLUSH TABLES;
@@ -2648,7 +2604,6 @@ Handler_read_key	7
 Handler_read_rnd_next	4
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	7
 Handler_read_rnd_next	4
 
 DROP TABLE t1, t2;
@@ -2678,7 +2633,6 @@ Warnings:
 Note	1276	Field or reference 'test.t1.f1' of SELECT #2 was resolved in SELECT #1
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	7
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT              (SELECT MAX(t2.f4) FROM t2 WHERE t2.f3=t1.f1) FROM t1;
@@ -2699,7 +2653,6 @@ Handler_read_key	9
 Handler_read_rnd_next	9
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	7
 Handler_read_rnd_next	9
 Handler_update	2
 
@@ -2723,9 +2676,9 @@ DROP TABLE t1;
 #57
 CREATE TABLE t1(f1 INT);
 EXPLAIN EXTENDED UPDATE t1 SET f2=1 ORDER BY f2;
-ERROR 42S22: Unknown column 'f2' in 'order clause'
+ERROR 42S22: Unknown column 'f2' in 'field list'
 UPDATE t1 SET f2=1 ORDER BY f2;
-ERROR 42S22: Unknown column 'f2' in 'order clause'
+ERROR 42S22: Unknown column 'f2' in 'field list'
 DROP TABLE t1;
 #62
 CREATE TABLE t1 (a INT);
@@ -2749,7 +2702,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	2	100.00	
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	2
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM v1           WHERE a > 0;
@@ -2769,7 +2721,6 @@ Handler_read_key	2
 Handler_read_rnd_next	6
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	2
 Handler_read_rnd	1
 Handler_read_rnd_deleted	1
 Handler_read_rnd_next	8
@@ -2794,7 +2745,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	2	100.00	
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	2
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1, v1              WHERE t1.a = v1.a;
@@ -2815,7 +2765,6 @@ Handler_read_key	2
 Handler_read_rnd_next	9
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	2
 Handler_read_rnd	2
 Handler_read_rnd_deleted	1
 Handler_read_rnd_next	18
@@ -3086,7 +3035,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1            WHERE a IN (SELECT * FROM (SELECT b FROM t2 ORDER BY b LIMIT 2,2) x);
@@ -3110,7 +3058,7 @@ Sort_rows	3
 Sort_scan	1
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	7
+Handler_read_key	3
 Handler_read_rnd_next	8
 Handler_update	1
 Sort_priority_queue_sorts	1
@@ -3139,7 +3087,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1, t2            WHERE a IN (SELECT * FROM (SELECT b FROM t2 ORDER BY b LIMIT 2,2) x);
@@ -3164,7 +3111,7 @@ Sort_rows	3
 Sort_scan	1
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	7
+Handler_read_key	3
 Handler_read_rnd_next	8
 Sort_priority_queue_sorts	1
 Sort_rows	3
@@ -3194,7 +3141,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	4
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1, (SELECT * FROM t2) y            WHERE a IN (SELECT * FROM (SELECT b FROM t2 ORDER BY b LIMIT 2,2) x);
@@ -3219,7 +3165,7 @@ Sort_rows	3
 Sort_scan	1
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	7
+Handler_read_key	3
 Handler_read_rnd_next	8
 Sort_priority_queue_sorts	1
 Sort_rows	3
@@ -3271,7 +3217,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using where; Using buffer
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	3
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT a t1 FROM t1 WHERE a>10;
@@ -3289,7 +3234,7 @@ Variable_name	Value
 Handler_read_key	4
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
+Handler_read_key	1
 
 # used key is modified & Using filesort
 #
@@ -3308,7 +3253,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using where; Using filesort
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
-Handler_read_key	3
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT a t1 FROM t1 WHERE a>10 ORDER BY a+20;
@@ -3327,7 +3271,7 @@ Handler_read_key	4
 Sort_range	1
 # Status of testing query execution:
 Variable_name	Value
-Handler_read_key	4
+Handler_read_key	1
 Sort_range	1
 
 DROP TABLE t1;

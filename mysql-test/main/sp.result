@@ -7731,7 +7731,7 @@ UPDATE t1 SET a = '+' WHERE daynum=tdn();
 SHOW STATUS LIKE '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	9
+Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	4097
 Handler_read_prev	0
