@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -214,8 +214,8 @@ struct recv_sys_t
   /** whether recv_recover_page(), invoked from buf_page_read_complete(),
   should apply log records*/
   bool apply_log_recs;
-	/** whether recv_apply_hashed_log_recs() is running */
-	bool		apply_batch_on;
+  /** whether apply() is running */
+  bool apply_batch_on;
 	byte*		buf;	/*!< buffer for parsing log records */
 	ulint		len;	/*!< amount of data in buf */
 	lsn_t		parse_start_lsn;
