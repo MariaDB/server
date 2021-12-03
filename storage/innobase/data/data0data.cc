@@ -466,8 +466,10 @@ dfield_print_raw(
 		ulint	print_len = ut_min(len, static_cast<ulint>(1000));
 		ut_print_buf(f, dfield_get_data(dfield), print_len);
 		if (len != print_len) {
-			fprintf(f, "(total %lu bytes%s)",
-				(ulong) len,
+			std::ostringstream str_bytes;
+			str_bytes << ib::bytes_iec{len};
+			fprintf(f, "(total %s%s)",
+				str_bytes.str().c_str(),
 				dfield_is_ext(dfield) ? ", external" : "");
 		}
 	} else {
@@ -600,7 +602,7 @@ dtuple_convert_big_rec(
 	size = rec_get_converted_size(index, entry, *n_ext);
 
 	if (UNIV_UNLIKELY(size > 1000000000)) {
-		ib::warn() << "Tuple size is very big: " << size;
+		ib::warn() << "Tuple size is very big: " << ib::bytes_iec{size};
 		fputs("InnoDB: Tuple contents: ", stderr);
 		dtuple_print(stderr, entry);
 		putc('\n', stderr);
