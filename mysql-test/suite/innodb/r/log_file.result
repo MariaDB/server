@@ -289,7 +289,6 @@ WHERE engine='innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 1
 1
-NOT FOUND /Resizing redo log from 1\*\d+ to 3\*\d+ bytes; LSN=\d+/ in mysqld.1.err
 # restart
 # Cleanup
 bak_ib_logfile0

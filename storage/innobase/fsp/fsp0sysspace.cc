@@ -396,8 +396,8 @@ SysTablespace::set_size(
 
 	/* We created the data file and now write it full of zeros */
 	ib::info() << "Setting file '" << file.filepath() << "' size to "
-		<< (file.m_size >> (20U - srv_page_size_shift)) << " MB."
-		" Physically writing the file full; Please wait ...";
+		<< ib::bytes_iec{file.m_size << srv_page_size_shift} <<
+		". Physically writing the file full; Please wait ...";
 
 	bool	success = os_file_set_size(
 		file.m_filepath, file.m_handle,
@@ -405,8 +405,8 @@ SysTablespace::set_size(
 
 	if (success) {
 		ib::info() << "File '" << file.filepath() << "' size is now "
-			<< (file.m_size >> (20U - srv_page_size_shift))
-			<< " MB.";
+			<< ib::bytes_iec{file.m_size << srv_page_size_shift}
+			<< ".";
 	} else {
 		ib::error() << "Could not set the file size of '"
 			<< file.filepath() << "'. Probably out of disk space";

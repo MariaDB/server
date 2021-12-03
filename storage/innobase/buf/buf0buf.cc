@@ -1641,11 +1641,15 @@ inline void buf_pool_t::resize()
 	ut_ad(srv_buf_pool_chunk_unit > 0);
 
 	ulint new_instance_size = srv_buf_pool_size >> srv_page_size_shift;
+	std::ostringstream str_old_size, str_new_size, str_chunk_size;
+	str_old_size << ib::bytes_iec{srv_buf_pool_old_size};
+	str_new_size << ib::bytes_iec{srv_buf_pool_size};
+	str_chunk_size << ib::bytes_iec{srv_buf_pool_chunk_unit};
 
-	buf_resize_status("Resizing buffer pool from " ULINTPF " to "
-			  ULINTPF " (unit=" ULINTPF ").",
-			  srv_buf_pool_old_size, srv_buf_pool_size,
-			  srv_buf_pool_chunk_unit);
+	buf_resize_status("Resizing buffer pool from %s to %s (unit=%s).",
+			  str_old_size.str().c_str(),
+			  str_new_size.str().c_str(),
+			  str_chunk_size.str().c_str());
 
 #ifdef BTR_CUR_HASH_ADAPT
 	/* disable AHI if needed */

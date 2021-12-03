@@ -112,14 +112,13 @@ let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
-let SEARCH_PATTERN= redo log from [0-9]+ to [0-9]+ bytes;
+let SEARCH_PATTERN= redo log from [1-9][0-9.]+[KMGT]iB to [1-9][0-9.]+[KMGT]iB;
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --debug=d,innodb_log_abort_5
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
-let SEARCH_PATTERN= redo log from [0-9]+ to [0-9]+ bytes;
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --innodb-read-only
@@ -134,7 +133,7 @@ let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
 
-let SEARCH_PATTERN= redo log from [0-9]+ to [0-9]+ bytes;
+let SEARCH_PATTERN= redo log from [1-9][0-9.]+[KMGT]iB to [1-9][0-9.]+[KMGT]iB;
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --debug=d,innodb_log_abort_7

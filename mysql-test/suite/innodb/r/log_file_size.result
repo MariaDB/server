@@ -45,11 +45,11 @@ FOUND 1 /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
 # restart: --debug=d,innodb_log_abort_4
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 5 /redo log from [0-9]+ to [0-9]+ bytes/ in mysqld.1.err
+FOUND 5 /redo log from [1-9][0-9.]+[KMGT]iB to [1-9][0-9.]+[KMGT]iB/ in mysqld.1.err
 # restart: --debug=d,innodb_log_abort_5
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 6 /redo log from [0-9]+ to [0-9]+ bytes/ in mysqld.1.err
+FOUND 6 /redo log from [1-9][0-9.]+[KMGT]iB to [1-9][0-9.]+[KMGT]iB/ in mysqld.1.err
 # restart: --innodb-read-only
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
@@ -57,7 +57,7 @@ FOUND 2 /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
 # restart: --debug=d,innodb_log_abort_6
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 7 /redo log from [0-9]+ to [0-9]+ bytes/ in mysqld.1.err
+FOUND 7 /redo log from [1-9][0-9.]+[KMGT]iB to [1-9][0-9.]+[KMGT]iB/ in mysqld.1.err
 # restart: --debug=d,innodb_log_abort_7
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'

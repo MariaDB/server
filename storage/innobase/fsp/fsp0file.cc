@@ -790,7 +790,7 @@ Datafile::restore_from_doublewrite()
 	ib::info() << "Restoring page " << page_id
 		<< " of datafile '" << m_filepath
 		<< "' from the doublewrite buffer. Writing "
-		<< physical_size << " bytes into file '"
+		<< ib::bytes_iec{physical_size} << " into file '"
 		<< m_filepath << "'";
 
 	return(os_file_write(
