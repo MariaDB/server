@@ -99,4 +99,3 @@ FLUSH BINARY LOGS;
 --exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog --start-position=$binlog_pos --stop-position=$binlog_end
 
 DROP TABLE t1,t2;
-

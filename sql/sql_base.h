@@ -28,6 +28,7 @@ struct Name_resolution_context;
 class Open_table_context;
 class Open_tables_state;
 class Prelocking_strategy;
+class DML_prelocking_strategy;
 struct TABLE_LIST;
 class THD;
 struct handlerton;
@@ -287,6 +288,9 @@ bool open_normal_and_derived_tables(THD *thd, TABLE_LIST *tables, uint flags,
 bool open_tables_only_view_structure(THD *thd, TABLE_LIST *tables,
                                      bool can_deadlock);
 bool open_and_lock_internal_tables(TABLE *table, bool lock);
+bool open_tables_for_query(THD *thd, TABLE_LIST *tables,
+                           uint *table_count, uint flags,
+                           DML_prelocking_strategy *prelocking_strategy);
 bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
 void close_thread_table(THD *thd, TABLE **table_ptr);
@@ -426,6 +430,17 @@ public:
                             TABLE_LIST *table_list, bool *need_prelocking);
   virtual bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
                            TABLE_LIST *table_list, bool *need_prelocking);
+};
+
+
+
+class Multiupdate_prelocking_strategy : public DML_prelocking_strategy
+{
+  bool done;
+  bool has_prelocking_list;
+public:
+  void reset(THD *thd);
+  bool handle_end(THD *thd);
 };
 
 

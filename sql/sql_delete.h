@@ -32,4 +32,28 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
                   SQL_I_List<ORDER> *order, ha_rows rows, 
                   ulonglong options, select_result *result);
 
+class Sql_cmd_delete final : public Sql_cmd_dml
+{
+public:
+  Sql_cmd_delete(bool multitable_arg)
+    :  multitable(multitable_arg) {}
+
+  enum_sql_command sql_command_code() const override
+  {
+    return multitable ? SQLCOM_DELETE_MULTI : SQLCOM_DELETE;
+  }
+
+protected:
+  bool precheck(THD *thd) override;
+
+  bool prepare_inner(THD *thd) override;
+
+  bool execute_inner(THD *thd) override;
+
+ private:
+  bool delete_from_single_table(THD *thd);
+
+  bool multitable;
+
+};
 #endif /* SQL_DELETE_INCLUDED */

@@ -98,7 +98,6 @@ When one supplies long data for a placeholder:
 #include "sql_delete.h"                        // mysql_prepare_delete
 #include "sql_select.h" // for JOIN
 #include "sql_insert.h" // upgrade_lock_type_for_insert, mysql_prepare_insert
-#include "sql_update.h" // mysql_prepare_update
 #include "sql_db.h"     // mysql_opt_change_db, mysql_change_db
 #include "sql_derived.h" // mysql_derived_prepare,
                          // mysql_handle_derived
@@ -1400,110 +1399,6 @@ static bool mysql_test_insert(Prepared_statement *stmt,
 
 
 /**
-  Validate UPDATE statement.
-
-  @param stmt               prepared statement
-  @param tables             list of tables used in this query
-
-  @todo
-    - here we should send types of placeholders to the client.
-
-  @retval
-    0                 success
-  @retval
-    1                 error, error message is set in THD
-  @retval
-    2                 convert to multi_update
-*/
-
-static int mysql_test_update(Prepared_statement *stmt,
-                              TABLE_LIST *table_list)
-{
-  int res;
-  THD *thd= stmt->thd;
-  uint table_count= 0;
-  TABLE_LIST *update_source_table;
-  SELECT_LEX *select= stmt->lex->first_select_lex();
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  privilege_t want_privilege(NO_ACL);
-#endif
-  DBUG_ENTER("mysql_test_update");
-
-  if (update_precheck(thd, table_list) ||
-      open_tables(thd, &table_list, &table_count, MYSQL_OPEN_FORCE_SHARED_MDL))
-    goto error;
-
-  if (mysql_handle_derived(thd->lex, DT_INIT))
-    goto error;
-
-  if (((update_source_table= unique_table(thd, table_list,
-                                          table_list->next_global, 0)) ||
-        table_list->is_multitable()))
-  {
-    DBUG_ASSERT(update_source_table || table_list->view != 0);
-    DBUG_PRINT("info", ("Switch to multi-update"));
-    /* pass counter value */
-    thd->lex->table_count= table_count;
-    /* convert to multiupdate */
-    DBUG_RETURN(2);
-  }
-
-  /*
-    thd->fill_derived_tables() is false here for sure (because it is
-    preparation of PS, so we even do not check it).
-  */
-  if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
-    goto error;
-  if (table_list->handle_derived(thd->lex, DT_PREPARE))
-    goto error;
-
-  if (!table_list->single_table_updatable())
-  {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
-    goto error;
-  }
-
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  /* Force privilege re-checking for views after they have been opened. */
-  want_privilege= (table_list->view ? UPDATE_ACL :
-                   table_list->grant.want_privilege);
-#endif
-
-  if (mysql_prepare_update(thd, table_list, &select->where,
-                           select->order_list.elements,
-                           select->order_list.first))
-    goto error;
-
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  table_list->grant.want_privilege= want_privilege;
-  table_list->table->grant.want_privilege= want_privilege;
-  table_list->register_want_access(want_privilege);
-#endif
-  thd->lex->first_select_lex()->no_wrap_view_item= TRUE;
-  res= setup_fields(thd, Ref_ptr_array(),
-                    select->item_list, MARK_COLUMNS_READ, 0, NULL, 0);
-  thd->lex->first_select_lex()->no_wrap_view_item= FALSE;
-  if (res)
-    goto error;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  /* Check values */
-  table_list->grant.want_privilege=
-  table_list->table->grant.want_privilege=
-    (SELECT_ACL & ~table_list->table->grant.privilege);
-  table_list->register_want_access(SELECT_ACL);
-#endif
-  if (setup_fields(thd, Ref_ptr_array(),
-                   stmt->lex->value_list, COLUMNS_READ, 0, NULL, 0) ||
-      check_unique_table(thd, table_list))
-    goto error;
-  /* TODO: here we should send types of placeholders to the client. */
-  DBUG_RETURN(0);
-error:
-  DBUG_RETURN(1);
-}
-
-
-/**
   Validate DELETE statement.
 
   @param stmt               prepared statement
@@ -2135,32 +2030,6 @@ err:
 }
 
 
-/*
-  Validate and prepare for execution a multi update statement.
-
-  @param stmt               prepared statement
-  @param tables             list of tables used in this query
-  @param converted          converted to multi-update from usual update
-
-  @retval
-    FALSE             success
-  @retval
-    TRUE              error, error message is set in THD
-*/
-
-static bool mysql_test_multiupdate(Prepared_statement *stmt,
-                                  TABLE_LIST *tables,
-                                  bool converted)
-{
-  /* if we switched from normal update, rights are checked */
-  if (!converted && multi_update_precheck(stmt->thd, tables))
-    return TRUE;
-
-  return select_like_stmt_test(stmt, &mysql_multi_update_prepare,
-                               OPTION_SETUP_TABLES_DONE);
-}
-
-
 /**
   Validate and prepare for execution a multi delete statement.
 
@@ -2484,13 +2353,10 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
 
   case SQLCOM_UPDATE:
-    res= mysql_test_update(stmt, tables);
-    /* mysql_test_update returns 2 if we need to switch to multi-update */
-    if (res != 2)
-      break;
-    /* fall through */
   case SQLCOM_UPDATE_MULTI:
-    res= mysql_test_multiupdate(stmt, tables, res == 2);
+    res = lex->m_sql_cmd->prepare(thd);
+    if (!res)
+      lex->m_sql_cmd->unprepare(thd);
     break;
 
   case SQLCOM_DELETE:
@@ -4372,6 +4238,9 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   error= (parse_sql(thd, & parser_state, NULL) ||
           thd->is_error() ||
           init_param_array(this));
+
+  if (lex->m_sql_cmd)
+    lex->m_sql_cmd->set_owner(this);
 
   if (thd->security_ctx->password_expired &&
       lex->sql_command != SQLCOM_SET_OPTION &&

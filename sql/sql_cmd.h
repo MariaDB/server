@@ -117,6 +117,7 @@ enum enum_sql_command {
   SQLCOM_END
 };
 
+class TABLE_LIST;
 
 class Storage_engine_name
 {
@@ -142,6 +143,8 @@ public:
   bool is_set() { return m_storage_engine_name.str != NULL; }
 };
 
+
+class Prepared_statement;
 
 /**
   @class Sql_cmd - Representation of an SQL command.
@@ -178,6 +181,25 @@ public:
   */
   virtual enum_sql_command sql_command_code() const = 0;
 
+  /// @return true if this statement is prepared
+  bool is_prepared() const { return m_prepared; }
+
+  /**
+    Prepare this SQL statement.
+    @param thd the current thread
+    @returns false if success, true if error
+    @retval false on success.
+    @retval true on error
+  */
+
+  virtual bool prepare(THD *thd)
+  {
+    /* Default behavior for a statement is to have no preparation code. */
+    DBUG_ASSERT(!is_prepared());
+    set_prepared();
+    return false;
+  }
+
   /**
     Execute this SQL statement.
     @param thd the current thread.
@@ -191,8 +213,28 @@ public:
     return NULL;
   }
 
+  /// Set the owning prepared statement
+  void set_owner(Prepared_statement *stmt) { m_owner = stmt; }
+
+  /// Get the owning prepared statement
+  Prepared_statement *get_owner() { return m_owner; }
+
+  /// @return true if SQL command is a DML statement
+  virtual bool is_dml() const { return false; }
+
+  /**
+    Temporary function used to "unprepare" a prepared statement after
+    preparation, so that a subsequent execute statement will reprepare it.
+    This is done because UNIT::cleanup() will un-resolve all resolved QBs.
+  */
+  virtual void unprepare(THD *thd)
+  {
+    DBUG_ASSERT(is_prepared());
+    m_prepared = false;
+  }
+
 protected:
-  Sql_cmd()
+ Sql_cmd() :  m_prepared(false)
   {}
 
   virtual ~Sql_cmd()
@@ -205,7 +247,114 @@ protected:
     */
     DBUG_ASSERT(FALSE);
   }
+
+  /// Set this statement as prepared
+  void set_prepared() { m_prepared = true; }
+
+ private:
+  Prepared_statement
+      *m_owner;     /// Owning prepared statement, nullptr if non-prep.
+  bool m_prepared;  /// True when statement has been prepared
+
 };
+
+class LEX;
+class select_result;
+class Prelocking_strategy;
+class DML_prelocking_strategy;
+
+class Sql_cmd_dml : public Sql_cmd
+{
+public:
+  /// @return true if data change statement, false if not (SELECT statement)
+  virtual bool is_data_change_stmt() const { return true; }
+
+  /**
+    Command-specific resolving (doesn't include LEX::prepare())
+
+    @param thd  Current THD.
+    @returns false on success, true on error
+  */
+  virtual bool prepare(THD *thd);
+
+  /**
+    Execute this query once
+
+    @param thd Thread handler
+    @returns false on success, true on error
+  */
+  virtual bool execute(THD *thd);
+
+  virtual bool is_dml() const { return true; }
+
+protected:
+  Sql_cmd_dml()
+      : Sql_cmd(), lex(nullptr), result(nullptr), m_empty_query(false) {}
+
+  /// @return true if query is guaranteed to return no data
+  /**
+    @todo Also check this for the following cases:
+          - Empty source for multi-table UPDATE and DELETE.
+          - Check empty query expression for INSERT
+  */
+  bool is_empty_query() const
+  {
+    DBUG_ASSERT(is_prepared());
+    return m_empty_query;
+  }
+
+  /// Set statement as returning no data
+  void set_empty_query() { m_empty_query = true; }
+
+  /**
+    Perform a precheck of table privileges for the specific operation.
+
+    @details
+    Check that user has some relevant privileges for all tables involved in
+    the statement, e.g. SELECT privileges for tables selected from, INSERT
+    privileges for tables inserted into, etc. This function will also populate
+    TABLE_LIST::grant with all privileges the user has for each table, which
+    is later used during checking of column privileges.
+    Note that at preparation time, views are not expanded yet. Privilege
+    checking is thus rudimentary and must be complemented with later calls to
+    SELECT_LEX::check_view_privileges().
+    The reason to call this function at such an early stage is to be able to
+    quickly reject statements for which the user obviously has insufficient
+    privileges.
+
+    @param thd thread handler
+    @returns false if success, true if false
+  */
+  virtual bool precheck(THD *thd) = 0;
+
+  /**
+    Perform the command-specific parts of DML command preparation,
+    to be called from prepare()
+
+    @param thd the current thread
+    @returns false if success, true if error
+  */
+  virtual bool prepare_inner(THD *thd) = 0;
+
+  /**
+    The inner parts of query optimization and execution.
+    Single-table DML operations needs to reimplement this.
+
+    @param thd Thread handler
+    @returns false on success, true on error
+  */
+  virtual bool execute_inner(THD *thd);
+
+  virtual DML_prelocking_strategy *get_dml_prelocking_strategy() = 0;
+
+   uint table_count;
+
+ protected:
+  LEX *lex;              ///< Pointer to LEX for this statement
+  select_result *result; ///< Pointer to object for handling of the result
+  bool m_empty_query;    ///< True if query will produce no rows
+};
+
 
 class Sql_cmd_show_slave_status: public Sql_cmd
 {

@@ -69,6 +69,7 @@
 #include "my_base.h"
 #include "sql_type_json.h"
 #include "json_table.h"
+#include "sql_update.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -13224,9 +13225,14 @@ update:
           opt_low_priority opt_ignore update_table_list
           SET update_list
           {
+            bool is_multiupdate= false;
+            LEX *lex= Lex;
             SELECT_LEX *slex= Lex->first_select_lex();
             if (slex->table_list.elements > 1)
+            {
               Lex->sql_command= SQLCOM_UPDATE_MULTI;
+              is_multiupdate= true;
+            }
             else if (slex->get_table_list()->derived)
             {
               /* it is single table update and it is update of derived table */
@@ -13234,6 +13240,9 @@ update:
                        slex->get_table_list()->alias.str, "UPDATE");
               MYSQL_YYABORT;
             }
+            if (!(lex->m_sql_cmd=
+                  new (thd->mem_root) Sql_cmd_update(is_multiupdate)))
+              MYSQL_YYABORT;
             /*
               In case of multi-update setting write lock for all tables may
               be too pessimistic. We will decrease lock level if possible in

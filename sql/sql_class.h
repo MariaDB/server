@@ -6989,6 +6989,7 @@ public:
 	       enum_duplicates handle_duplicates, bool ignore);
   ~multi_update();
   bool init(THD *thd);
+  bool init_for_single_table(THD *thd);
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);

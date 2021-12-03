@@ -1328,6 +1328,8 @@ void LEX::start(THD *thd_arg)
   wild= 0;
   exchange= 0;
 
+  table_count= 0;
+
   DBUG_VOID_RETURN;
 }
 
@@ -3055,6 +3057,7 @@ void st_select_lex::init_select()
   curr_tvc_name= 0;
   versioned_tables= 0;
   nest_flags= 0;
+  item_list_usage= MARK_COLUMNS_READ;
 }
 
 /*
@@ -4119,6 +4122,12 @@ bool LEX::can_not_use_merged(bool no_update_or_delete)
     if (no_update_or_delete)
       return TRUE;
     /* Fall through */
+
+  case SQLCOM_UPDATE:
+    if (no_update_or_delete && m_sql_cmd &&
+        (m_sql_cmd->sql_command_code() == SQLCOM_UPDATE_MULTI ||
+         query_tables->is_multitable()))
+      return TRUE;
 
   default:
     return FALSE;
