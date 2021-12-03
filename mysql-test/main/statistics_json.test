@@ -8,7 +8,6 @@ let $histogram_type_override='JSON_HB';
 --source include/have_innodb.inc
 --source include/have_stat_tables.inc
 --source include/have_sequence.inc
---source include/analyze-format.inc
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
@@ -33,6 +32,7 @@ set histogram_type=json_hb;
 create table t1_json (a varchar(255));
 insert into t1_json select concat('a-', a) from ten;
 analyze table t1_json persistent for all;
+--source include/json_hb_histogram.inc
 select * from mysql.column_stats where table_name='t1_json';
 explain extended select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
 analyze select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
@@ -134,6 +134,7 @@ set histogram_size=50;
 ANALYZE TABLE Country, City, CountryLanguage persistent for all;
 --enable_result_log
 
+--source include/histogram_replaces.inc
 SELECT column_name, min_value, max_value, hist_size, hist_type, histogram FROM mysql.column_stats;
 analyze select * from Country use index () where Code between 'BBC' and 'GGG';
 analyze select * from Country use index () where Code < 'BBC';
@@ -161,6 +162,7 @@ from mysql.column_stats where table_name='t10' and db_name=database();
 insert into t10 values ('Berlin'),('Paris'),('Rome');
 set histogram_size=10, histogram_type='json_hb';
 analyze table t10 persistent for all;
+--source include/histogram_replaces.inc
 select histogram
 from mysql.column_stats where table_name='t10' and db_name=database();
 drop table t10;
@@ -184,6 +186,7 @@ CREATE TABLE t1 (a INT, b INT);
 INSERT INTO t1 VALUES (NULL,1), (NULL,2);
 SET histogram_type = JSON_HB;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
+--source include/histogram_replaces.inc
 SELECT DECODE_HISTOGRAM(hist_type, histogram) from mysql.column_stats;
 drop table t1;
 
@@ -214,6 +217,7 @@ select hex(a) from t1;
 set histogram_type='json_hb';
 analyze table t1 persistent for all;
 
+--source include/histogram_replaces.inc
 select decode_histogram(hist_type, histogram)
 from mysql.column_stats
 where db_name=database() and table_name='t1';
@@ -228,6 +232,7 @@ create table t1 ( a varchar(100) character set cp1251);
 insert into t1 values ( _cp1251 x'88'),( _cp1251 x'98');
 analyze table t1 persistent for all;
 
+--source include/histogram_replaces.inc
 select hist_type, histogram
 from mysql.column_stats
 where db_name=database() and table_name='t1';
@@ -265,6 +270,7 @@ insert into t1 select 6 from seq_1_to_25;
 set histogram_size=4, histogram_type=JSON_HB;
 analyze table t1 persistent for all;
 
+--source include/json_hb_histogram.inc
 select histogram from mysql.column_stats where table_name = 't1';
 
 drop table t1;
@@ -299,6 +305,7 @@ insert into t1 select 100*A.a from t0 A, t0 B, t0 C;
 select a, count(*) from t1 group by a order by a;
 set histogram_type=json_hb, histogram_size=default;
 analyze table t1 persistent for all;
+--source include/json_hb_histogram.inc
 select * from mysql.column_stats where table_name='t1';
 analyze select * from t1 where a=0;
 analyze select * from t1 where a=50;

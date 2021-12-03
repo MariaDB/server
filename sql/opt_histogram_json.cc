@@ -22,7 +22,13 @@
 
 
 /*
-  Un-escape a JSON string and save it into *out.
+  @brief
+    Un-escape a JSON string and save it into *out.
+
+  @detail
+    There's no way to tell how much space is needed for the output.
+    Start with a small string and increase its size until json_unescape()
+    succeeds.
 */
 
 static bool json_unescape_to_string(const char *val, int val_len, String* out)
@@ -55,7 +61,13 @@ static bool json_unescape_to_string(const char *val, int val_len, String* out)
 
 
 /*
-  Escape a JSON string and save it into *out.
+  @brief
+    Escape a JSON string and save it into *out.
+
+  @detail
+    There's no way to tell how much space is needed for the output.
+    Start with a small string and increase its size until json_escape()
+    succeeds.
 */
 
 static bool json_escape_to_string(const String *str, String* out)
@@ -145,6 +157,8 @@ public:
     bucket.size= 0;
 
     writer.start_object();
+    append_histogram_params();
+
     writer.add_member(Histogram_json_hb::JSON_NAME).start_array();
   }
 
@@ -153,6 +167,27 @@ public:
 private:
   bool bucket_is_empty() { return bucket.ndv == 0; }
 
+  void append_histogram_params()
+  {
+    char buf[128];
+
+    time_t cur_time_t= my_time(0);
+    struct tm curtime;
+    localtime_r(&cur_time_t, &curtime);
+
+    my_snprintf(buf, sizeof(buf), "%d-%02d-%02d %2d:%02d:%02d %s",
+                curtime.tm_year + 1900,
+                curtime.tm_mon+1,
+                curtime.tm_mday,
+                curtime.tm_hour,
+                curtime.tm_min,
+                curtime.tm_sec,
+                system_time_zone);
+
+    writer.add_member("target_histogram_size").add_ull(hist_width);
+    writer.add_member("collected_at").add_str(buf);
+    writer.add_member("collected_by").add_str(server_version);
+  }
   /*
     Flush the current bucket out (to JSON output), and set it to be empty.
   */
@@ -423,6 +458,15 @@ public:
 };
 
 
+/*
+  @brief
+    Read a constant from JSON document and save it in *out.
+
+  @detail
+    The JSON document stores constant in text form, we need to save it in
+    KeyTupleFormat. String constants in JSON may be escaped.
+*/
+
 bool read_bucket_endpoint(json_engine_t *je, Field *field, String *out,
                           const char **err)
 {
@@ -508,8 +552,9 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
   double size_d;
   longlong ndv_ll;
   StringBuffer<128> value_buf;
+  int rc;
 
-  while (!json_scan_next(je) && je->state != JST_OBJ_END)
+  while (!(rc= json_scan_next(je)) && je->state != JST_OBJ_END)
   {
     Json_saved_parser_state save1(je);
     Json_string start_str("start");
@@ -579,6 +624,9 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
       return 1;
   }
 
+  if (rc)
+    return 1;
+
   if (!have_start)
   {
     *err= "\"start\" element not present";
@@ -625,13 +673,12 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
   json_engine_t je;
   int rc;
   const char *err= "JSON parse error";
-  double total_size= 0.0;
-  int end_element= -1;
+  double total_size;
+  int end_element;
   bool end_assigned;
   DBUG_ENTER("Histogram_json_hb::parse");
   DBUG_ASSERT(type_arg == JSON_HB);
 
-  Json_string hist_key_name(JSON_NAME);
   json_scan_start(&je, &my_charset_utf8mb4_bin,
                   (const uchar*)hist_data,
                   (const uchar*)hist_data+hist_data_len);
@@ -645,32 +692,45 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
     goto err;
   }
 
-  if (json_scan_next(&je))
-    goto err;
-
-  if (je.state != JST_KEY || !json_key_matches(&je, hist_key_name.get()))
+  while (1)
   {
-    err= "Root element must be histogram_hb";
-    goto err;
+    if (json_scan_next(&je))
+      goto err;
+    if (je.state == JST_OBJ_END)
+      break; // End of object
+
+    if (je.state != JST_KEY)
+      goto err; // Can' really have this: JSON object has keys in it
+
+    Json_string hist_key_name(JSON_NAME);
+    if (json_key_matches(&je, hist_key_name.get()))
+    {
+      total_size= 0.0;
+      end_element= -1;
+      if (json_scan_next(&je))
+        goto err;
+
+      if (je.state != JST_ARRAY_START)
+      {
+        err= "histogram_hb must contain an array";
+        goto err;
+      }
+
+      while (!(rc= parse_bucket(&je, field, &total_size, &end_assigned, &err)))
+      {
+        if (end_assigned && end_element != -1)
+          end_element= (int)buckets.size();
+      }
+      if (rc > 0)  // Got error other than EOF
+        goto err;
+    }
+    else
+    {
+      // Some unknown member. Skip it.
+      if (json_skip_key(&je))
+        return 1;
+    }
   }
-
-  if (json_scan_next(&je))
-    goto err;
-
-  if (je.state != JST_ARRAY_START)
-  {
-    err= "histogram_hb must contain an array";
-    goto err;
-  }
-
-  while (!(rc= parse_bucket(&je, field, &total_size, &end_assigned, &err)))
-  {
-    if (end_assigned && end_element != -1)
-      end_element= (int)buckets.size();
-  }
-
-  if (rc > 0)  // Got error other than EOF
-    goto err;
 
   if (buckets.size() < 1)
   {

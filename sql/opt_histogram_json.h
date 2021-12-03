@@ -24,6 +24,11 @@
   Histogram format in JSON:
 
   {
+    // The next three are saved but not currently analyzed:
+    "target_histogram_size": nnn,
+    "collected_at": "(date and time)",
+    "collected_by": "(server version)",
+
     "histogram_hb": [
       { "start": "value", "size":nnn.nn, "ndv": nnn },
       ...
