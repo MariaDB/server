@@ -113,9 +113,10 @@ struct page_zip_des_t
 #endif /* UNIV_DEBUG */
 
 	void clear() {
-		memset((void*) this, 0, sizeof(data) + sizeof(uint32_t));
-		ut_d(m_start = 0);
-		ut_d(m_external = false);
+		/* Clear everything except the member "fix". */
+		memset((void*) this, 0,
+		       reinterpret_cast<char*>(&fix)
+		       - reinterpret_cast<char*>(this));
 	}
 
 private:

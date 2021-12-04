@@ -206,7 +206,7 @@ enum mrec_type_t
   /** Zero-initialize a page. The current byte offset (for subsequent
   records) will be reset to FIL_PAGE_TYPE. */
   INIT_PAGE= 0x10,
-  /** Insert a record into a page. FIXME: implement this! */
+  /** Extended record; @see mrec_ext_t */
   EXTENDED= 0x20,
   /** Write a string of bytes. Followed by the byte offset (unsigned,
   relative to the current byte offset, encoded in 1 to 3 bytes) and
