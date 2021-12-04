@@ -1026,12 +1026,6 @@ size_t resize_pagecache(PAGECACHE *pagecache,
   if (!pagecache->inited)
     DBUG_RETURN(pagecache->disk_blocks);
 
-  if(use_mem == pagecache->mem_size)
-  {
-    change_pagecache_param(pagecache, division_limit, age_threshold);
-    DBUG_RETURN(pagecache->disk_blocks);
-  }
-
   pagecache_pthread_mutex_lock(&pagecache->cache_lock);
 
   wqueue= &pagecache->resize_queue;

@@ -3970,6 +3970,9 @@ static void update_pagecache_buffer_size(MYSQL_THD thd,
           *(ulonglong *)var_ptr, *(ulonglong const *)save));
   fprintf(stderr, "old value: %llu  new value %llu\n",
           *(ulonglong *)var_ptr, *(ulonglong const *)save);
+  if (pagecache_buffer_size == *(ulonglong const *)save) {
+    DBUG_VOID_RETURN;
+  }
   pagecache_buffer_size = *(ulonglong const *)save;
   size_t const blocks = resize_pagecache(maria_pagecache, pagecache_buffer_size,
                                          pagecache_division_limit,
