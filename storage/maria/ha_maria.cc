@@ -3965,21 +3965,19 @@ static void update_pagecache_buffer_size(MYSQL_THD thd,
                                         void *var_ptr, const void *save)
 {
   DBUG_ASSERT(&pagecache_buffer_size == var_ptr);
+  pagecache_buffer_size = *(ulonglong const *)save;
   DBUG_ENTER("update_pagecache_buffer_size");
   DBUG_PRINT("enter", ("old value: %llu  new value %llu",
-          *(ulonglong *)var_ptr, *(ulonglong const *)save));
-  fprintf(stderr, "old value: %llu  new value %llu",
-          *(ulonglong *)var_ptr, *(ulonglong const *)save);
+          *(ulonglong *)var_ptr, pagecache_buffer_size));
+  fprintf(stderr, "old value: %llu  new value %llu\n",
+          *(ulonglong *)var_ptr, pagecache_buffer_size);
   *(ulonglong *)var_ptr = *(ulonglong *)save;
-  size_t const blocks = resize_pagecache(maria_pagecache, *(ulonglong *)save,
+  size_t const blocks = resize_pagecache(maria_pagecache, pagecache_buffer_size,
                                          pagecache_division_limit,
                                          pagecache_age_threshold,
                                          pagecache_file_hash_size);
-  pagecache_buffer_size = blocks*maria_block_size;
-  if (pagecache_buffer_size < MARIA_MIN_PAGE_CACHE_SIZE) {
-    //memory allocation error etc.
-    DBUG_ASSERT(0);
-  }
+  DBUG_ASSERT(blocks*maria_block_size >= MARIA_MIN_PAGE_CACHE_SIZE);
+  DBUG_ASSERT(blocks*maria_block_size <= pagecache_buffer_size);
   DBUG_VOID_RETURN;
 }
 
