@@ -613,9 +613,7 @@ loop:
 		log_block_store_checksum(buf + i * OS_FILE_LOG_BLOCK_SIZE);
 	}
 
-	ut_a((next_offset >> srv_page_size_shift) <= ULINT_MAX);
-
-	log_sys.log.write(static_cast<size_t>(next_offset), {buf, write_len});
+	log_sys.log.write(next_offset, {buf, write_len});
 
 	if (write_len < len) {
 		start_lsn += write_len;

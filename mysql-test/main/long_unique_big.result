@@ -1,0 +1,38 @@
+set @allowed_packet= @@max_allowed_packet;
+SET GLOBAL max_allowed_packet=67108864;
+connect  con1, localhost, root,,;
+create table t1(a longblob unique, b longblob , c longblob , unique(b,c));
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	longblob	YES	UNI	NULL	
+b	longblob	YES	MUL	NULL	
+c	longblob	YES		NULL	
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longblob DEFAULT NULL,
+  `b` longblob DEFAULT NULL,
+  `c` longblob DEFAULT NULL,
+  UNIQUE KEY `a` (`a`) USING HASH,
+  UNIQUE KEY `b` (`b`,`c`) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	2	c	A	NULL	NULL	NULL	YES	HASH			NO
+insert into t1 values(concat(repeat('sachin',10000000),'1'),concat(repeat('sachin',10000000),'1'),
+concat(repeat('sachin',10000000),'1'));
+insert into t1 values(concat(repeat('sachin',10000000),'2'),concat(repeat('sachin',10000000),'2'),
+concat(repeat('sachin',10000000),'1'));
+insert into t1 values(concat(repeat('sachin',10000000),'2'),concat(repeat('sachin',10000000),'2'),
+concat(repeat('sachin',10000000),'4'));
+ERROR 23000: Duplicate entry 'sachinsachinsachinsachinsachinsachinsachinsachinsachinsachins...' for key 'a'
+insert into t1 values(concat(repeat('sachin',10000000),'3'),concat(repeat('sachin',10000000),'1'),
+concat(repeat('sachin',10000000),'1'));
+ERROR 23000: Duplicate entry 'sachinsachinsachinsachinsachinsachinsachinsachinsachinsachins...' for key 'b'
+drop table t1;
+disconnect con1;
+connection default;
+set @@GLOBAL.max_allowed_packet= @allowed_packet;
+# End of 10.4 tests
