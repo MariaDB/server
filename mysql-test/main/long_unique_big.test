@@ -1,0 +1,26 @@
+# This test may run out of memory in some environments.
+--source include/big_test.inc
+
+set @allowed_packet= @@max_allowed_packet;
+SET GLOBAL max_allowed_packet=67108864;
+
+connect (con1, localhost, root,,);
+create table t1(a longblob unique, b longblob , c longblob , unique(b,c));
+desc t1;
+show create table t1;
+show keys from t1;
+insert into t1 values(concat(repeat('sachin',10000000),'1'),concat(repeat('sachin',10000000),'1'),
+concat(repeat('sachin',10000000),'1'));
+insert into t1 values(concat(repeat('sachin',10000000),'2'),concat(repeat('sachin',10000000),'2'),
+concat(repeat('sachin',10000000),'1'));
+--error ER_DUP_ENTRY
+insert into t1 values(concat(repeat('sachin',10000000),'2'),concat(repeat('sachin',10000000),'2'),
+concat(repeat('sachin',10000000),'4'));
+--error ER_DUP_ENTRY
+insert into t1 values(concat(repeat('sachin',10000000),'3'),concat(repeat('sachin',10000000),'1'),
+concat(repeat('sachin',10000000),'1'));
+drop table t1;
+disconnect con1;
+connection default;
+set @@GLOBAL.max_allowed_packet= @allowed_packet;
+--echo # End of 10.4 tests

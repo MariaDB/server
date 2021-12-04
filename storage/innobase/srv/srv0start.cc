@@ -1457,8 +1457,7 @@ file_checked:
 			}
 			/* fall through */
 		case SRV_OPERATION_RESTORE:
-			/* This must precede
-			recv_apply_hashed_log_recs(true). */
+			/* This must precede recv_sys.apply(true). */
 			srv_undo_tablespaces_active
 				= trx_rseg_get_n_undo_tablespaces();
 			err = srv_validate_undo_tablespaces();
