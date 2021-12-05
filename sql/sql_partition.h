@@ -23,6 +23,7 @@
 
 #include "sql_list.h"                           /* List */
 #include "table.h"                              /* TABLE_LIST */
+#include "ddl_log.h"
 
 class Alter_info;
 class Alter_table_ctx;
@@ -46,6 +47,7 @@ typedef struct st_key_range key_range;
 #define NORMAL_PART_NAME 0
 #define TEMP_PART_NAME 1
 #define RENAMED_PART_NAME 2
+#define SKIP_PART_NAME 255
 
 typedef struct st_lock_param_type
 {
@@ -65,8 +67,16 @@ typedef struct st_lock_param_type
   uint key_count;
   uint db_options;
   size_t pack_frm_len;
+  DDL_LOG_MEMORY_ENTRY *drop_shadow_frm;
   // TODO: remove duplicate data: part_info can be accessed via table->part_info
   partition_info *part_info;
+  DDL_LOG_STATE rollback_chain;
+  DDL_LOG_STATE cleanup_chain;
+
+  st_lock_param_type()
+  {
+    bzero(this, sizeof(*this));
+  }
 } ALTER_PARTITION_PARAM_TYPE;
 
 typedef struct {
@@ -285,7 +295,6 @@ bool compare_table_with_partition(THD *thd, TABLE *table,
                                   uint part_id);
 bool partition_key_modified(TABLE *table, const MY_BITMAP *fields);
 bool write_log_replace_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
-                            uint next_entry,
                             const char *from_path,
                             const char *to_path);
 

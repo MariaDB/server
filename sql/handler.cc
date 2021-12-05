@@ -5479,68 +5479,6 @@ handler::ha_create_partitioning_metadata(const char *name,
 
 
 /**
-  Change partitions: public interface.
-
-  @sa handler::change_partitions()
-*/
-
-int
-handler::ha_change_partitions(HA_CREATE_INFO *create_info,
-                              const char *path,
-                              ulonglong * const copied,
-                              ulonglong * const deleted,
-                              const uchar *pack_frm_data,
-                              size_t pack_frm_len)
-{
-  /*
-    Must have at least RDLCK or be a TMP table. Read lock is needed to read
-    from current partitions and write lock will be taken on new partitions.
-  */
-  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
-
-  mark_trx_read_write();
-
-  return change_partitions(create_info, path, copied, deleted,
-                           pack_frm_data, pack_frm_len);
-}
-
-
-/**
-  Drop partitions: public interface.
-
-  @sa handler::drop_partitions()
-*/
-
-int
-handler::ha_drop_partitions(const char *path)
-{
-  DBUG_ASSERT(!table->db_stat);
-
-  mark_trx_read_write();
-
-  return drop_partitions(path);
-}
-
-
-/**
-  Rename partitions: public interface.
-
-  @sa handler::rename_partitions()
-*/
-
-int
-handler::ha_rename_partitions(const char *path)
-{
-  DBUG_ASSERT(!table->db_stat);
-
-  mark_trx_read_write();
-
-  return rename_partitions(path);
-}
-
-
-/**
   Tell the storage engine that it is allowed to "disable transaction" in the
   handler. It is a hint that ACID is not required - it was used in NDB for
   ALTER TABLE, for example, when data are copied to temporary table.
