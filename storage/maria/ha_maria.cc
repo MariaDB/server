@@ -3968,8 +3968,6 @@ static void update_pagecache_buffer_size(MYSQL_THD thd,
   DBUG_ENTER("update_pagecache_buffer_size");
   DBUG_PRINT("enter", ("old value: %llu  new value %llu",
           *(ulonglong *)var_ptr, *(ulonglong const *)save));
-  fprintf(stderr, "old value: %llu  new value %llu\n",
-          *(ulonglong *)var_ptr, *(ulonglong const *)save);
   if (pagecache_buffer_size == *(ulonglong const *)save) {
     DBUG_VOID_RETURN;
   }
