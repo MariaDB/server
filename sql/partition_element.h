@@ -32,15 +32,13 @@ enum partition_type {
 
 enum partition_state {
   PART_NORMAL= 0,
-  PART_IS_DROPPED= 1,
-  PART_TO_BE_DROPPED= 2,
-  PART_TO_BE_ADDED= 3,
-  PART_TO_BE_REORGED= 4,
-  PART_REORGED_DROPPED= 5,
-  PART_CHANGED= 6,
-  PART_IS_CHANGED= 7,
-  PART_IS_ADDED= 8,
-  PART_ADMIN= 9
+  PART_IS_DROPPED= 2,
+  PART_TO_BE_DROPPED= 4,
+  PART_TO_BE_ADDED= 8,
+  PART_TO_BE_REORGED= 16,
+  PART_REORGED_DROPPED= 32,
+  PART_CHANGED= 64,
+  PART_ADMIN= 128
 };
 
 /*
@@ -111,7 +109,6 @@ public:
   ha_rows part_min_rows;
   longlong range_value;
   const char *partition_name;
-  struct st_ddl_log_memory_entry *log_entry;
   const char* part_comment;
   const char* data_file_name;
   const char* index_file_name;
@@ -130,7 +127,7 @@ public:
   partition_element()
   : part_max_rows(0), part_min_rows(0), range_value(0),
     partition_name(NULL),
-    log_entry(NULL), part_comment(NULL),
+    part_comment(NULL),
     data_file_name(NULL), index_file_name(NULL),
     engine_type(NULL), connect_string(null_clex_str), part_state(PART_NORMAL),
     nodegroup_id(UNDEF_NODEGROUP), has_null_value(FALSE),
@@ -143,7 +140,6 @@ public:
   : part_max_rows(part_elem->part_max_rows),
     part_min_rows(part_elem->part_min_rows),
     range_value(0), partition_name(NULL),
-    log_entry(NULL),
     part_comment(part_elem->part_comment),
     data_file_name(part_elem->data_file_name),
     index_file_name(part_elem->index_file_name),
@@ -173,6 +169,11 @@ public:
     DBUG_ASSERT(num_subparts || !parent_part);
     DBUG_ASSERT(!num_subparts || parent_part);
     return num_subparts ? parent_part->id * num_subparts + id : id;
+  }
+
+  uint32 serial_id(partition_element *sub_elem, uint num_subparts) const
+  {
+    return sub_elem ? sub_elem->serial_id(num_subparts) : serial_id(num_subparts);
   }
 };
 

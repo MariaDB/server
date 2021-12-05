@@ -199,7 +199,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
   else
   {
     /* Revert the renames of normal tables with the help of the ddl log */
-    error|= ddl_log_revert(thd, &ddl_log_state);
+    error|= ddl_log_revert(thd, &ddl_log_state, false);
   }
 
 err:

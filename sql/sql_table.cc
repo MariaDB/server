@@ -730,6 +730,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
   uint syntax_len;
   partition_info *part_info= lpt->part_info;
 #endif
+  DDL_LOG_STATE *rollback_chain= &lpt->rollback_chain;
   DBUG_ENTER("mysql_write_frm");
 
   /*
@@ -808,7 +809,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     create_info->db_type= work_part_info->default_engine_type;
     /* NOTE: partitioned temporary tables are not supported. */
     DBUG_ASSERT(!create_info->tmp_table());
-    if (ddl_log_create_table(part_info, create_info->db_type, &new_path,
+    if (ddl_log_create_table(rollback_chain, create_info->db_type, &new_path,
                              &alter_ctx->new_db, &alter_ctx->new_name, true) ||
         ERROR_INJECT("create_before_create_frm"))
       DBUG_RETURN(TRUE);
@@ -828,15 +829,20 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     if (unlikely(!frm.str))
       DBUG_RETURN(TRUE);
 
+    if (ERROR_INJECT("alter_partition_after_create_frm"))
+    {
+      my_free((void *) frm.str);
+      DBUG_RETURN(true);
+    }
+
     thd->work_part_info= work_part_info;
     create_info->db_type= db_type;
-
-    ERROR_INJECT("alter_partition_after_create_frm");
 
     error= writefile(frm_name, alter_ctx->new_db.str, alter_ctx->new_name.str,
                      create_info->tmp_table(), frm.str, frm.length);
     my_free((void *) frm.str);
-    if (unlikely(error) || ERROR_INJECT("alter_partition_after_write_frm"))
+    if (unlikely(error) ||
+        ERROR_INJECT("alter_partition_after_write_frm"))
     {
       mysql_file_delete(key_file_frm, frm_name, MYF(0));
       DBUG_RETURN(TRUE);
@@ -844,7 +850,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 
     DBUG_RETURN(false);
   }
-  if (flags & WFRM_BACKUP_ORIGINAL)
+  if (flags == WFRM_BACKUP_ORIGINAL)
   {
     build_table_filename(path, sizeof(path) - 1, lpt->db.str,
                          lpt->table_name.str, "", 0);
@@ -853,19 +859,18 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     build_table_shadow_filename(bak_path, sizeof(bak_path) - 1, lpt, true);
     strxmov(bak_frm_name, bak_path, reg_ext, NullS);
 
-    DDL_LOG_MEMORY_ENTRY *main_entry= part_info->main_entry;
+    DDL_LOG_MEMORY_ENTRY *main_entry= rollback_chain->main_entry;
     mysql_mutex_lock(&LOCK_gdl);
-    if (write_log_replace_frm(lpt, part_info->list->entry_pos,
-                              (const char*) bak_path,
-                              (const char*) path) ||
-        ddl_log_write_execute_entry(part_info->list->entry_pos, 0,
-                                    &part_info->execute_entry))
+    if (ddl_log_rename_frm(&lpt->rollback_chain,
+                           (const char*) bak_path, (const char*) path) ||
+        ddl_log_write_execute_entry(rollback_chain->list->entry_pos, 0,
+                                    &rollback_chain->execute_entry))
     {
       mysql_mutex_unlock(&LOCK_gdl);
       DBUG_RETURN(TRUE);
     }
     mysql_mutex_unlock(&LOCK_gdl);
-    part_info->main_entry= main_entry;
+    rollback_chain->main_entry= main_entry;
     if (mysql_file_rename(key_file_frm, frm_name, bak_frm_name, MYF(MY_WME)))
       DBUG_RETURN(TRUE);
     if (lpt->table->file->ha_create_partitioning_metadata(bak_path, path,
@@ -877,9 +882,6 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 #endif /* !WITH_PARTITION_STORAGE_ENGINE */
   if (flags & WFRM_INSTALL_SHADOW)
   {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    partition_info *part_info= lpt->part_info;
-#endif
     /*
       Build frm file name
     */
@@ -901,7 +903,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         || lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
                                                           CHF_DELETE_FLAG) ||
-        ddl_log_increment_phase(part_info->main_entry->entry_pos) ||
+        ddl_log_increment_phase(rollback_chain->main_entry->entry_pos) ||
         (ddl_log_sync(), FALSE)
 #endif
       ))
@@ -953,8 +955,8 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 
 err:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    ddl_log_increment_phase(part_info->main_entry->entry_pos);
-    part_info->main_entry= NULL;
+    ddl_log_increment_phase(lpt->drop_shadow_frm->entry_pos);
+    lpt->drop_shadow_frm= NULL;
     (void) ddl_log_sync();
 #endif
     ;
@@ -4465,7 +4467,7 @@ void HA_CREATE_INFO::finalize_ddl(THD *thd, bool roll_back)
     debug_crash_here("ddl_log_create_fk_fail");
     ddl_log_complete(ddl_log_state_rm);
     debug_crash_here("ddl_log_create_fk_fail2");
-    (void) ddl_log_revert(thd, ddl_log_state_create);
+    (void) ddl_log_revert(thd, ddl_log_state_create, true);
     debug_crash_here("ddl_log_create_fk_fail3");
   }
   else
@@ -4479,7 +4481,7 @@ void HA_CREATE_INFO::finalize_ddl(THD *thd, bool roll_back)
     ddl_log_complete(ddl_log_state_create);
     debug_crash_here("ddl_log_create_log_complete2");
     if (is_atomic_replace())
-      (void) ddl_log_revert(thd, ddl_log_state_rm);
+      (void) ddl_log_revert(thd, ddl_log_state_rm, true);
     else
       ddl_log_complete(ddl_log_state_rm);
     debug_crash_here("ddl_log_create_log_complete3");
@@ -11389,7 +11391,7 @@ err_with_mdl:
   Prepare the transaction for the alter table's copy phase.
 */
 
-bool mysql_trans_prepare_alter_copy_data(THD *thd)
+int mysql_trans_prepare_alter_copy_data(THD *thd)
 {
   DBUG_ENTER("mysql_trans_prepare_alter_copy_data");
   /*
@@ -11406,9 +11408,9 @@ bool mysql_trans_prepare_alter_copy_data(THD *thd)
   Commit the copy phase of the alter table.
 */
 
-bool mysql_trans_commit_alter_copy_data(THD *thd)
+int mysql_trans_commit_alter_copy_data(THD *thd, bool rollback)
 {
-  bool error= FALSE;
+  int error= 0;
   uint save_unsafe_rollback_flags;
   DBUG_ENTER("mysql_trans_commit_alter_copy_data");
 
@@ -11417,19 +11419,29 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
 
   DEBUG_SYNC(thd, "alter_table_copy_trans_commit");
 
-  if (ha_enable_transaction(thd, TRUE))
-    DBUG_RETURN(TRUE);
+  if ((error= ha_enable_transaction(thd, TRUE)))
+    DBUG_RETURN(error);
 
-  /*
-    Ensure that the new table is saved properly to disk before installing
-    the new .frm.
-    And that InnoDB's internal latches are released, to avoid deadlock
-    when waiting on other instances of the table before rename (Bug#54747).
-  */
-  if (trans_commit_stmt(thd))
-    error= TRUE;
-  if (trans_commit_implicit(thd))
-    error= TRUE;
+  if (!rollback)
+  {
+    /*
+      Ensure that the new table is saved properly to disk before installing
+      the new .frm.
+      And that InnoDB's internal latches are released, to avoid deadlock
+      when waiting on other instances of the table before rename (Bug#54747).
+    */
+    if (trans_commit_stmt(thd))
+      error= HA_ERR_COMMIT_ERROR;
+    if (trans_commit_implicit(thd))
+      error= HA_ERR_COMMIT_ERROR;
+  }
+  else
+  {
+    if (trans_rollback_stmt(thd))
+      error= HA_ERR_COMMIT_ERROR;
+    if (trans_rollback_implicit(thd))
+      error= HA_ERR_COMMIT_ERROR;
+  }
 
   thd->transaction->stmt.m_unsafe_rollback_flags= save_unsafe_rollback_flags;
   DBUG_RETURN(error);
@@ -11784,7 +11796,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   if (backup_reset_alter_copy_lock(thd))
     error= 1;
 
-  if (unlikely(mysql_trans_commit_alter_copy_data(thd)))
+  if (unlikely(mysql_trans_commit_alter_copy_data(thd, false)))
     error= 1;
 
  err:

@@ -704,7 +704,7 @@ end:
   ddl_log_complete(&ddl_log_state);
   debug_crash_here("ddl_log_drop_before_delete_tmp");
   /* delete any created log files */
-  result|= ddl_log_revert(thd, &ddl_log_state_tmp_file);
+  result|= ddl_log_revert(thd, &ddl_log_state_tmp_file, true);
 
   if (mdl_request_for_trn.ticket)
     thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
@@ -1118,7 +1118,7 @@ err:
   }
 
   /* Recover the old .TRN and .TRG files & delete backup files */
-  ddl_log_revert(thd, ddl_log_state);
+  ddl_log_revert(thd, ddl_log_state, true);
   /* All backup files are now deleted */
   ddl_log_complete(ddl_log_state_tmp_file);
   DBUG_RETURN(true);
