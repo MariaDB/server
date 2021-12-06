@@ -4,6 +4,10 @@
 # Check that `wsrep_allowlist` variable is loaded
 SELECT COUNT(*) = 3 FROM mysql.wsrep_allowlist;
 
+--connection node_2
+# Check that non-bootstrap nodes doesn't populate `mysql.wsrep_allowlist`
+SELECT COUNT(*) = 3 FROM mysql.wsrep_allowlist;
+
 --let $galera_connection_name = node_3
 --let $galera_server_number = 3
 --source include/galera_connect.inc
