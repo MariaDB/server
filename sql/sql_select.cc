@@ -5070,6 +5070,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       if (!s->const_keys.is_clear_all())
       {
         sargable_cond= get_sargable_cond(join, s->table);
+        bool is_sargable_cond_of_where= sargable_cond == &join->conds;
 
         select= make_select(s->table, found_const_table_map,
 			    found_const_table_map,
@@ -5086,6 +5087,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           condition to where we got it from.
         */
         *sargable_cond= select->cond;
+
+        if (is_sargable_cond_of_where &&
+            join->conds && join->conds->type() == Item::COND_ITEM &&
+            ((Item_cond*) (join->conds))->functype() ==
+            Item_func::COND_AND_FUNC)
+          join->cond_equal= &((Item_cond_and*) (join->conds))->m_cond_equal;
 
         s->quick=select->quick;
         s->needed_reg=select->needed_reg;
