@@ -2576,8 +2576,7 @@ fil_ibd_load(
 
 	/* Read and validate the first page of the tablespace.
 	Assign a tablespace name based on the tablespace type. */
-	switch (file.validate_for_recovery(
-			static_cast<uint32_t>(space_id))) {
+	switch (file.validate_for_recovery()) {
 		os_offset_t	minimum_size;
 	case DB_SUCCESS:
 		deferred_space = file.m_defer;
