@@ -206,7 +206,7 @@ RECOMPILE_FOR_EMBEDDED)
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 MAYBE_DISABLE_IPO(sql)
 DTRACE_INSTRUMENT(sql)
-TARGET_LINK_LIBRARIES(sql PUBLIC
+TARGET_LINK_LIBRARIES(sql
   mysys mysys_ssl dbug strings vio pcre2-8
   tpool
   ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
@@ -220,7 +220,7 @@ ENDIF()
 FOREACH(se aria partition perfschema sql_sequence wsrep)
   # These engines are used directly in sql sources.
   IF(TARGET ${se})
-    TARGET_LINK_LIBRARIES(sql PUBLIC ${se})
+    TARGET_LINK_LIBRARIES(sql ${se})
   ENDIF()
 ENDFOREACH()
 

@@ -54,8 +54,6 @@ it into the slow query log.
 #ifndef SQL_EXPLAIN_INCLUDED
 #define SQL_EXPLAIN_INCLUDED
 
-class select_result_sink;
-
 class String_list: public List<char>
 {
 public:

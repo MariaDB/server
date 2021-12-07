@@ -13,14 +13,10 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#include "my_json_writer.h"
-
-#include "sql_class.h"
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_string.h"
-#include "log.h"
-
+#include "my_json_writer.h"
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
 #include <iostream>
@@ -332,7 +328,6 @@ Json_writer_temp_disable::Json_writer_temp_disable(THD *thd_arg)
   thd= thd_arg;
   thd->opt_trace.disable_tracing_if_required();
 }
-
 Json_writer_temp_disable::~Json_writer_temp_disable()
 {
   thd->opt_trace.enable_tracing_if_required();
@@ -502,18 +497,3 @@ void Single_line_formatting_helper::disable_and_flush()
   state= INACTIVE;
 }
 
-
-Json_writer_struct::Json_writer_struct(THD *thd)
-    : Json_writer_struct(thd->opt_trace.get_current_json())
-{
-}
-
-Json_writer_object::Json_writer_object(THD *thd, const char *str)
-    : Json_writer_object(thd->opt_trace.get_current_json(), str)
-{
-}
-
-Json_writer_array::Json_writer_array(THD *thd, const char *str)
-    : Json_writer_array(thd->opt_trace.get_current_json(), str)
-{
-}

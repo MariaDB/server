@@ -1254,14 +1254,6 @@ void SQL_SELECT::cleanup()
   close_cached_file(&file);
 }
 
-int SQL_SELECT::skip_record(THD *thd)
-{
-    int rc= MY_TEST(!cond || cond->val_int());
-    if (thd->is_error())
-        rc= -1;
-    return rc;
-}
-
 
 SQL_SELECT::~SQL_SELECT()
 {
@@ -1879,20 +1871,6 @@ QUICK_RANGE::QUICK_RANGE()
    flag(NO_MIN_RANGE | NO_MAX_RANGE),
   min_keypart_map(0), max_keypart_map(0)
 {}
-
-QUICK_RANGE::QUICK_RANGE(THD *thd, const uchar *min_key_arg, uint min_length_arg, key_part_map min_keypart_map_arg, const uchar *max_key_arg, uint max_length_arg, key_part_map max_keypart_map_arg, uint flag_arg)
-: min_key((uchar*) thd->memdup(min_key_arg, min_length_arg + 1)),
-  max_key((uchar*) thd->memdup(max_key_arg, max_length_arg + 1)),
-  min_length((uint16) min_length_arg),
-  max_length((uint16) max_length_arg),
-  flag((uint16) flag_arg),
-  min_keypart_map(min_keypart_map_arg),
-  max_keypart_map(max_keypart_map_arg)
-{
-#ifdef HAVE_valgrind
-  dummy=0;
-#endif
-}
 
 SEL_ARG::SEL_ARG(SEL_ARG &arg) :Sql_alloc()
 {
@@ -10870,31 +10848,6 @@ uint SEL_ARG::get_max_key_part() const
   return max_part;
 }
 
-SEL_ARG *SEL_ARG::clone_and(THD *thd, SEL_ARG *arg)
-{						// Get overlapping range
-  uchar *new_min,*new_max;
-  uint8 flag_min,flag_max;
-  if (cmp_min_to_min(arg) >= 0)
-  {
-    new_min=min_value; flag_min=min_flag;
-  }
-  else
-  {
-    new_min=arg->min_value; flag_min=arg->min_flag; /* purecov: deadcode */
-  }
-  if (cmp_max_to_max(arg) <= 0)
-  {
-    new_max=max_value; flag_max=max_flag;
-  }
-  else
-  {
-    new_max=arg->max_value; flag_max=arg->max_flag;
-  }
-  return new (thd->mem_root) SEL_ARG(field, part, new_min, new_max, flag_min,
-                                     flag_max,
-                                     MY_TEST(maybe_flag && arg->maybe_flag));
-}
-
 
 /*
   Remove the SEL_ARG graph elements which have part > max_part.
@@ -16614,12 +16567,4 @@ void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
       break;
   }
   out->append(STRING_WITH_LEN(")"));
-}
-
-bool RANGE_OPT_PARAM::statement_should_be_aborted() const
-{
-  return thd->killed
-      || thd->is_fatal_error
-      || thd->is_error()
-      || alloced_sel_args > SEL_ARG::MAX_SEL_ARGS;
 }

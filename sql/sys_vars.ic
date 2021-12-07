@@ -460,7 +460,11 @@ public:
     SYSVAR_ASSERT(getopt.arg_type == OPT_ARG || getopt.id < 0);
     SYSVAR_ASSERT(size == sizeof(my_bool));
   }
-  bool session_update(THD *thd, set_var *var);
+  bool session_update(THD *thd, set_var *var)
+  {
+    session_var(thd, my_bool)= var->save_result.ulonglong_value != 0;
+    return false;
+  }
   bool global_update(THD *thd, set_var *var)
   {
     global_var(my_bool)= var->save_result.ulonglong_value != 0;
