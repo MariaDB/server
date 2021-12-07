@@ -1971,20 +1971,17 @@ inline void page_recv_t::will_not_read()
 
 
 /** Register a redo log snippet for a page.
-@param page_id  page identifier
+@param it       page iterator
 @param start_lsn start LSN of the mini-transaction
 @param lsn      @see mtr_t::commit_lsn()
 @param recs     redo log snippet @see log_t::FORMAT_10_5
 @param len      length of l, in bytes */
-inline void recv_sys_t::add(const page_id_t page_id,
-                            lsn_t start_lsn, lsn_t lsn, const byte *l,
-                            size_t len)
+inline void recv_sys_t::add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
+                            const byte *l, size_t len)
 {
   mysql_mutex_assert_owner(&mutex);
-  std::pair<map::iterator, bool> p= pages.emplace(map::value_type
-                                                  (page_id, page_recv_t()));
-  page_recv_t& recs= p.first->second;
-  ut_ad(p.second == recs.log.empty());
+  page_id_t page_id = it->first;
+  page_recv_t& recs= it->second;
 
   switch (*l & 0x70) {
   case FREE_PAGE: case INIT_PAGE:
@@ -2078,6 +2075,7 @@ bool recv_sys_t::parse(lsn_t checkpoint_lsn, store_t *store, bool apply)
 loop:
   const byte *const log= buf + recovered_offset;
   const lsn_t start_lsn= recovered_lsn;
+  map::iterator cached_pages_it = pages.end();
 
   /* Check that the entire mini-transaction is included within the buffer */
   const byte *l;
@@ -2401,8 +2399,12 @@ same_page:
         /* fall through */
       case STORE_YES:
         if (!mlog_init.will_avoid_read(id, start_lsn))
-          add(id, start_lsn, end_lsn, recs,
+        {
+          if (cached_pages_it == pages.end() || cached_pages_it->first != id)
+            cached_pages_it= pages.emplace(id, page_recv_t()).first;
+          add(cached_pages_it, start_lsn, end_lsn, recs,
               static_cast<size_t>(l + rlen - recs));
+        }
         continue;
       case STORE_NO:
         if (!is_init)
