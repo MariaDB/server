@@ -332,12 +332,12 @@ public:
   bool is_initialised() const { return last_stored_lsn != 0; }
 
   /** Register a redo log snippet for a page.
-  @param page_id  page identifier
+  @param it       page iterator
   @param start_lsn start LSN of the mini-transaction
   @param lsn      @see mtr_t::commit_lsn()
   @param l        redo log snippet @see log_t::FORMAT_10_5
   @param len      length of l, in bytes */
-  inline void add(const page_id_t page_id, lsn_t start_lsn, lsn_t lsn,
+  inline void add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
                   const byte *l, size_t len);
 
   /** Parse and register one mini-transaction in log_t::FORMAT_10_5.
