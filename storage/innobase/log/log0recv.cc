@@ -3661,7 +3661,9 @@ completed:
 
 	log_sys.last_checkpoint_lsn = checkpoint_lsn;
 
-	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL) {
+	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
+	    && (~log_t::FORMAT_ENCRYPTED & log_sys.log.format)
+	    == log_t::FORMAT_10_5) {
 		/* Write a FILE_CHECKPOINT marker as the first thing,
 		before generating any other redo log. This ensures
 		that subsequent crash recovery will be possible even
