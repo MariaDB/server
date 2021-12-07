@@ -65,8 +65,19 @@ public:
   bool report_error(THD *thd);
   bool is_invalidated() const { return m_invalidated; }
   void reset_reprepare_observer() { m_invalidated= FALSE; }
+
+  bool can_retry() const
+  {
+    // The method must be called only for a statement that is invalidated
+    assert(is_invalidated());
+    return m_attempt <= MAX_REPREPARE_ATTEMPTS;
+  }
+
 private:
-  bool m_invalidated;
+  bool m_invalidated{false};
+  int m_attempt{0};
+
+  static const int MAX_REPREPARE_ATTEMPTS= 3;
 };
 
 
