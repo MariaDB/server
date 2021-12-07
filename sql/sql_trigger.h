@@ -145,7 +145,6 @@ public:
   trg_action_time_type action_time;
   uint action_order;
 
-  bool is_fields_updated_in_trigger(MY_BITMAP *used_fields);
   void get_trigger_info(LEX_CSTRING *stmt, LEX_CSTRING *body,
                         LEX_STRING *definer);
   /* Functions executed over each active trigger */

@@ -323,15 +323,6 @@ public:
   */
   Security_context m_security_ctx;
 
-  /**
-    List of all items (Item_trigger_field objects) representing fields in
-    old/new version of row in trigger. We use this list for checking whenever
-    all such fields are valid at trigger creation time and for binding these
-    fields to TABLE object at table open (although for latter pointer to table
-    being opened is probably enough).
-  */
-  SQL_I_List<Item_trigger_field> m_trg_table_fields;
-
 protected:
   sp_head(MEM_ROOT *mem_root, sp_package *parent, const Sp_handler *handler,
           enum_sp_aggregate_type agg_type);
