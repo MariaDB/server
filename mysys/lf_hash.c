@@ -112,13 +112,16 @@ retry:
 
     cur_hashnr= cursor->curr->hashnr;
     cur_keylen= cursor->curr->keylen;
-    cur_key= cursor->curr->key;
+    cur_key= my_atomic_loadptr_explicit((void **) &cursor->curr->key,
+                                        MY_MEMORY_ORDER_ACQUIRE);
 
     do {
-      link= cursor->curr->link;
+      link= (intptr) my_atomic_loadptr_explicit((void **) &cursor->curr->link,
+                                                MY_MEMORY_ORDER_RELAXED);
       cursor->next= PTR(link);
       lf_pin(pins, 0, cursor->next);
-    } while (link != cursor->curr->link && LF_BACKOFF());
+    } while (link != (intptr) my_atomic_loadptr((void **) &cursor->curr->link)
+             && LF_BACKOFF());
 
     if (!DELETED(link))
     {

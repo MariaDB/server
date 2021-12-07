@@ -3269,6 +3269,30 @@ pk	i	v	a	b
 2	2	4	2	4
 drop table t1, t2;
 #
+# MDEV-26553: Always FALSE/NULL disjunct on top level of WHERE is removed
+#
+create table t1 (a int, b int, index idx(a,b));
+insert into t1 values (1,1), (1,2), (2,1), (2,2), (3,3);
+create table t2 (c int);
+insert into t2 values (5), (2), (3), (4);
+select 1 from t1 s1
+where 1 not in (select 1 from t1
+where ((a = 1 or a = 2) and b = 1) or (b > 5 and b < 1));
+1
+select 1 from t1 s1
+where 1 not in (select 1 from t1
+where ((a = 1 or a = 2) and b = 1) or b = NULL);
+1
+select c from t2
+where 2 not in (select 1 from t1
+where ((a=1 or a=2) and b = 1) or (b > 5 and b < 1));
+c
+5
+2
+3
+4
+drop table t1,t2;
+#
 # End of 10.2 tests
 #
 #

@@ -5026,7 +5026,7 @@ sub mysqld_start ($$) {
   $mysqld->{'started_opts'}= $extra_opts;
 
   my $expect_file= "$opt_vardir/tmp/".$mysqld->name().".expect";
-  return $oldexe eq $exe ||
+  return $oldexe eq ($exe || '') ||
          sleep_until_file_created($mysqld->value('pid-file'), $expect_file,
                      $opt_start_timeout, $mysqld->{'proc'}, $warn_seconds);
 }

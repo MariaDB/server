@@ -59,7 +59,7 @@ int main(int argc __attribute__((unused)), char **argv)
 
   pthread_mutex_init(&mutex, 0);
 
-#define CYCLES 3000
+#define CYCLES 30000
 #define THREADS 30
 
   diag("N CPUs: %d", my_getncpus());
