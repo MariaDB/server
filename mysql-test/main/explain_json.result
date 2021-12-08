@@ -842,20 +842,22 @@ EXPLAIN
         }
       },
       {
-        "duplicates_removal": {
-          "block-nl-join": {
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 100
-            },
-            "buffer_type": "flat",
-            "buffer_size": "206",
-            "join_type": "BNL",
-            "attached_condition": "t1.b = t2.b and t1.a = t2.a"
+        "duplicates_removal": [
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100
+              },
+              "buffer_type": "flat",
+              "buffer_size": "206",
+              "join_type": "BNL",
+              "attached_condition": "t1.b = t2.b and t1.a = t2.a"
+            }
           }
-        }
+        ]
       }
     ]
   }
@@ -1941,3 +1943,77 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-27204: [ERROR] Json_writer: a member name was expected, Assertion `got_name == named_item_expected()' failed
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+ANALYZE FORMAT=JSON SELECT * FROM t t1 WHERE t1.a IN (SELECT t2.a FROM t t2 WHERE t1.a IN (SELECT t3.a FROM t t3));
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": 0.232912336,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "r_table_time_ms": 0.006411025,
+          "r_other_time_ms": 0.008193918,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "duplicates_removal": [
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "rows": 2,
+                "r_rows": 2,
+                "r_table_time_ms": 0.002642007,
+                "r_other_time_ms": 0.008905227,
+                "filtered": 100,
+                "r_filtered": 100
+              },
+              "buffer_type": "flat",
+              "buffer_size": "152",
+              "join_type": "BNL",
+              "attached_condition": "t2.a = t1.a",
+              "r_filtered": 50
+            }
+          },
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t3",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "rows": 2,
+                "r_rows": 2,
+                "r_table_time_ms": 0.001986124,
+                "r_other_time_ms": 0.027962783,
+                "filtered": 100,
+                "r_filtered": 100
+              },
+              "buffer_type": "incremental",
+              "buffer_size": "109",
+              "join_type": "BNL",
+              "attached_condition": "t3.a = t1.a",
+              "r_filtered": 50
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+DROP TABLE t;
