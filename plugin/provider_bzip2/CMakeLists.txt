@@ -1,5 +1,8 @@
 FIND_PACKAGE(BZip2)
 
+SET(CPACK_RPM_provider-bzip2_PACKAGE_SUMMARY "BZip2 compression support in the server and storage engines" PARENT_SCOPE)
+SET(CPACK_RPM_provider-bzip2_PACKAGE_DESCRIPTION "BZip2 compression support in the server and storage engines" PARENT_SCOPE)
+
 IF (BZIP2_FOUND)
   GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
   LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)

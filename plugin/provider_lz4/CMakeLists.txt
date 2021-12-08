@@ -1,5 +1,8 @@
 FIND_PACKAGE(LZ4 1.6)
 
+SET(CPACK_RPM_provider-lz4_PACKAGE_SUMMARY "LZ4 compression support in the server and storage engines" PARENT_SCOPE)
+SET(CPACK_RPM_provider-lz4_PACKAGE_DESCRIPTION "LZ4 compression support in the server and storage engines" PARENT_SCOPE)
+
 IF (LZ4_FOUND)
   GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
   LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
