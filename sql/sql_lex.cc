@@ -28,6 +28,7 @@
 #include <hash.h>
 #include "sp_head.h"
 #include "sp.h"
+#include "sp_instr.h"                          // class sp_instr, ...
 #include "sql_select.h"
 #include "sql_cte.h"
 #include "sql_signal.h"
