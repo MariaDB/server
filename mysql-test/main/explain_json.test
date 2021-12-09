@@ -419,3 +419,13 @@ explain format=json select * from t1 order by a desc, b desc;
 explain format=json select * from t1 order by a desc, b ;
 drop table t1;
 
+--echo #
+--echo # MDEV-27204: [ERROR] Json_writer: a member name was expected, Assertion `got_name == named_item_expected()' failed
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2); 
+explain FORMAT=JSON 
+SELECT * FROM t1 t0 
+WHERE t0.a IN (SELECT t2.a FROM t1 t2 WHERE t0.a IN (SELECT t3.a FROM t1 t3));
+DROP TABLE t1;

@@ -1100,12 +1100,16 @@ print_explain_json_interns(Explain_query *query,
       {
         writer->start_object();
         writer->add_member("duplicates_removal");
+        writer->start_array();
       }
 
       join_tabs[i]->print_explain_json(query, writer, is_analyze);
 
       if (join_tabs[i]->end_dups_weedout)
+      {
+        writer->end_array();
         writer->end_object();
+      }
     }
   } // "nested_loop"
   print_explain_json_for_children(query, writer, is_analyze);

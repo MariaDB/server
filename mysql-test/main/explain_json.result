@@ -842,20 +842,22 @@ EXPLAIN
         }
       },
       {
-        "duplicates_removal": {
-          "block-nl-join": {
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 100
-            },
-            "buffer_type": "flat",
-            "buffer_size": "206",
-            "join_type": "BNL",
-            "attached_condition": "t1.b = t2.b and t1.a = t2.a"
+        "duplicates_removal": [
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100
+              },
+              "buffer_type": "flat",
+              "buffer_size": "206",
+              "join_type": "BNL",
+              "attached_condition": "t1.b = t2.b and t1.a = t2.a"
+            }
           }
-        }
+        ]
       }
     ]
   }
@@ -1941,3 +1943,60 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-27204: [ERROR] Json_writer: a member name was expected, Assertion `got_name == named_item_expected()' failed
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+explain FORMAT=JSON 
+SELECT * FROM t1 t0 
+WHERE t0.a IN (SELECT t2.a FROM t1 t2 WHERE t0.a IN (SELECT t3.a FROM t1 t3));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100
+        }
+      },
+      {
+        "duplicates_removal": [
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 2,
+                "filtered": 100
+              },
+              "buffer_type": "flat",
+              "buffer_size": "152",
+              "join_type": "BNL",
+              "attached_condition": "t2.a = t0.a"
+            }
+          },
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t3",
+                "access_type": "ALL",
+                "rows": 2,
+                "filtered": 100
+              },
+              "buffer_type": "incremental",
+              "buffer_size": "109",
+              "join_type": "BNL",
+              "attached_condition": "t3.a = t0.a"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+DROP TABLE t1;
