@@ -1328,6 +1328,8 @@ row_ins_foreign_check_on_constraint(
 		ib::info() << "WSREP: foreign key append failed: " <<  err;
 		goto nonstandard_exit_func;
 	}
+
+	wsrep_thd_set_PA_unsafe(trx->mysql_thd);
 #endif /* WITH_WSREP */
 	mtr_commit(mtr);
 
