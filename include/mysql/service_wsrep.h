@@ -88,6 +88,7 @@ extern struct wsrep_service_st {
                                                                 unsigned long long trx_id);
   void                        (*wsrep_thd_kill_LOCK_func)(const MYSQL_THD thd);
   void                        (*wsrep_thd_kill_UNLOCK_func)(const MYSQL_THD thd);
+  void                        (*wsrep_thd_set_wsrep_PA_unsafe_func)(MYSQL_THD thd);
 } *wsrep_service;
 
 #define MYSQL_SERVICE_WSREP_INCLUDED
@@ -131,6 +132,7 @@ extern struct wsrep_service_st {
 #define wsrep_thd_is_applying(T) wsrep_service->wsrep_thd_is_applying_func(T)
 #define wsrep_thd_set_wsrep_aborter(T) wsrep_service->wsrep_thd_set_wsrep_aborter_func(T1, T2)
 #define wsrep_report_bf_lock_wait(T,I) wsrep_service->wsrep_report_bf_lock_wait(T,I)
+#define wsrep_thd_set_PA_unsafe(T) wsrep_service->wsrep_thd_set_PA_unsafe_func(T)
 #else
 
 #define MYSQL_SERVICE_WSREP_STATIC_INCLUDED
@@ -229,5 +231,7 @@ extern "C" my_bool wsrep_thd_is_applying(const MYSQL_THD thd);
 extern "C" bool wsrep_thd_set_wsrep_aborter(MYSQL_THD bf_thd, MYSQL_THD victim_thd);
 extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
                                           unsigned long long trx_id);
+/* declare parallel applying unsafety for the THD */
+extern "C" void wsrep_thd_set_PA_unsafe(MYSQL_THD thd);
 #endif
 #endif /* MYSQL_SERVICE_WSREP_INCLUDED */
