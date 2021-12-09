@@ -7891,7 +7891,7 @@ best_access_path(JOIN      *join,
                 /* quick_range couldn't use key! */
                 records= (double) s->records/rec;
                 trace_access_idx.add("used_range_estimates", false)
-                                .add("cause", "not available");
+                                .add("reason", "not available");
               }
             }
             else
