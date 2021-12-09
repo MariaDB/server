@@ -703,7 +703,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
-      (void)subquery_types_allow_materialization(thd, in_subs);
+      //(void)subquery_types_allow_materialization(thd, in_subs);
 
       in_subs->is_flattenable_semijoin= TRUE;
 
@@ -1271,6 +1271,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
   while ((in_subq= li++))
   {
     bool remove_item= TRUE;
+    subquery_types_allow_materialization(thd, in_subq);
 
     /* Stop processing if we've reached a subquery that's attached to the ON clause */
     if (in_subq->do_not_convert_to_sj)

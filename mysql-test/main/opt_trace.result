@@ -2826,15 +2826,6 @@ explain extended select * from t1 where a in (select pk from t10)	{
                   "transformation": {
                     "select_id": 2,
                     "from": "IN (SELECT)",
-                    "to": "materialization",
-                    "sjm_scan_allowed": true,
-                    "possible": true
-                  }
-                },
-                {
-                  "transformation": {
-                    "select_id": 2,
-                    "from": "IN (SELECT)",
                     "to": "semijoin",
                     "chosen": true
                   }
@@ -2855,6 +2846,15 @@ explain extended select * from t1 where a in (select pk from t10)	{
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "transformation": {
+              "select_id": 2,
+              "from": "IN (SELECT)",
+              "to": "materialization",
+              "sjm_scan_allowed": true,
+              "possible": true
+            }
+          },
           {
             "transformation": {
               "select_id": 2,
@@ -4400,15 +4400,6 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                   "transformation": {
                     "select_id": 2,
                     "from": "IN (SELECT)",
-                    "to": "materialization",
-                    "sjm_scan_allowed": true,
-                    "possible": true
-                  }
-                },
-                {
-                  "transformation": {
-                    "select_id": 2,
-                    "from": "IN (SELECT)",
                     "to": "semijoin",
                     "chosen": true
                   }
@@ -4429,6 +4420,15 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "transformation": {
+              "select_id": 2,
+              "from": "IN (SELECT)",
+              "to": "materialization",
+              "sjm_scan_allowed": true,
+              "possible": true
+            }
+          },
           {
             "transformation": {
               "select_id": 2,
@@ -4851,15 +4851,6 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   "transformation": {
                     "select_id": 2,
                     "from": "IN (SELECT)",
-                    "to": "materialization",
-                    "sjm_scan_allowed": true,
-                    "possible": true
-                  }
-                },
-                {
-                  "transformation": {
-                    "select_id": 2,
-                    "from": "IN (SELECT)",
                     "to": "semijoin",
                     "chosen": true
                   }
@@ -4874,15 +4865,6 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             "join_preparation": {
               "select_id": 3,
               "steps": [
-                {
-                  "transformation": {
-                    "select_id": 3,
-                    "from": "IN (SELECT)",
-                    "to": "materialization",
-                    "sjm_scan_allowed": true,
-                    "possible": true
-                  }
-                },
                 {
                   "transformation": {
                     "select_id": 3,
@@ -4911,8 +4893,26 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             "transformation": {
               "select_id": 2,
               "from": "IN (SELECT)",
+              "to": "materialization",
+              "sjm_scan_allowed": true,
+              "possible": true
+            }
+          },
+          {
+            "transformation": {
+              "select_id": 2,
+              "from": "IN (SELECT)",
               "to": "semijoin",
               "converted_to_semi_join": true
+            }
+          },
+          {
+            "transformation": {
+              "select_id": 3,
+              "from": "IN (SELECT)",
+              "to": "materialization",
+              "sjm_scan_allowed": true,
+              "possible": true
             }
           },
           {
@@ -6431,15 +6431,6 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   "transformation": {
                     "select_id": 2,
                     "from": "IN (SELECT)",
-                    "to": "materialization",
-                    "sjm_scan_allowed": true,
-                    "possible": true
-                  }
-                },
-                {
-                  "transformation": {
-                    "select_id": 2,
-                    "from": "IN (SELECT)",
                     "to": "semijoin",
                     "chosen": true
                   }
@@ -6454,15 +6445,6 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             "join_preparation": {
               "select_id": 3,
               "steps": [
-                {
-                  "transformation": {
-                    "select_id": 3,
-                    "from": "IN (SELECT)",
-                    "to": "materialization",
-                    "sjm_scan_allowed": true,
-                    "possible": true
-                  }
-                },
                 {
                   "transformation": {
                     "select_id": 3,
@@ -6491,8 +6473,26 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             "transformation": {
               "select_id": 2,
               "from": "IN (SELECT)",
+              "to": "materialization",
+              "sjm_scan_allowed": true,
+              "possible": true
+            }
+          },
+          {
+            "transformation": {
+              "select_id": 2,
+              "from": "IN (SELECT)",
               "to": "semijoin",
               "converted_to_semi_join": true
+            }
+          },
+          {
+            "transformation": {
+              "select_id": 3,
+              "from": "IN (SELECT)",
+              "to": "materialization",
+              "sjm_scan_allowed": true,
+              "possible": true
             }
           },
           {
@@ -8888,17 +8888,6 @@ json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
                                 "table": "tvc_0",
                                 "select_id": 3,
                                 "algorithm": "materialized"
-                            }
-                        },
-                        
-                        {
-                            "transformation": 
-                            {
-                                "select_id": 2,
-                                "from": "IN (SELECT)",
-                                "to": "materialization",
-                                "sjm_scan_allowed": true,
-                                "possible": true
                             }
                         },
                         
