@@ -2000,3 +2000,16 @@ EXPLAIN
   }
 }
 DROP TABLE t1;
+#
+# MDEV-27206: [ERROR] Duplicated key: cause, Assertion `is_uniq_key' failed with optimizer trace
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (pk TIME, b INT, primary key (pk), key (b)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+('00:13:33',0),('00:13:34',1),('00:13:35',2),('00:13:36',3),
+('00:13:37',4),('00:13:38',5),('00:13:39',6),('00:13:40',7),
+('00:13:41',8),('00:13:42',9);
+SET optimizer_trace = 'enabled=on';
+SELECT * FROM t1 WHERE a IN ( SELECT b FROM t2 INNER JOIN t1 ON (a = pk) );
+a
+DROP TABLE t1, t2;
