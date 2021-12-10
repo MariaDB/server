@@ -1196,7 +1196,6 @@ DROP TABLE t;
 --disable_query_log
 
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*t[12].ibd.");
-call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");

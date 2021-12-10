@@ -55,6 +55,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "fil0pagecompress.h"
+#include "log.h"
 
 /** Read-ahead area in applying log records to file pages */
 #define RECV_READ_AHEAD_AREA	32U
@@ -311,7 +312,8 @@ public:
           if (undo_append(block, ++l, --rlen) && !srv_force_recovery)
           {
 page_corrupted:
-            ib::error() << "Set innodb_force_recovery=1 to ignore corruption.";
+            sql_print_error("InnoDB: Set innodb_force_recovery=1"
+                            " to ignore corruption.");
             recv_sys.set_corrupt_log();
             return applied;
           }
@@ -1147,10 +1149,15 @@ same_space:
 				f.name = fname.name;
 				f.status = file_name_t::NORMAL;
 			} else {
-				ib::error() << "Tablespace " << space_id
-					<< " has been found in two places: '"
-					<< f.name << "' and '" << name << "'."
-					" You must delete one of them.";
+				sql_print_error("InnoDB: Tablespace " UINT32PF
+						" has been found"
+						" in two places:"
+						" '%.*s' and '%s'."
+						" You must delete"
+						" one of them.",
+						space_id,
+						int(f.name.size()),
+						f.name.data(), name);
 				recv_sys.set_corrupt_fs();
 			}
 			break;
@@ -1173,10 +1180,12 @@ same_space:
 				Enable some more diagnostics when
 				forcing recovery. */
 
-				ib::info()
-					<< "At LSN: " << recv_sys.recovered_lsn
-					<< ": unable to open file " << name
-					<< " for tablespace " << space_id;
+				sql_print_information(
+					"InnoDB: At LSN: " LSN_PF
+					": unable to open file %s"
+					" for tablespace " UINT32PF,
+					recv_sys.recovered_lsn,
+					name, space_id);
 			}
 			break;
 
@@ -1192,34 +1201,39 @@ same_space:
 		case FIL_LOAD_INVALID:
 			ut_ad(space == NULL);
 			if (srv_force_recovery == 0) {
-				ib::warn() << "We do not continue the crash"
+				sql_print_warning(
+					"InnoDB: We do not continue the crash"
 					" recovery, because the table may"
 					" become corrupt if we cannot apply"
 					" the log records in the InnoDB log to"
 					" it. To fix the problem and start"
-					" mysqld:";
-				ib::info() << "1) If there is a permission"
+					" mariadbd:");
+				sql_print_information(
+					"InnoDB: 1) If there is a permission"
 					" problem in the file and mysqld"
 					" cannot open the file, you should"
-					" modify the permissions.";
-				ib::info() << "2) If the tablespace is not"
+					" modify the permissions.");
+				sql_print_information(
+					"InnoDB: 2) If the tablespace is not"
 					" needed, or you can restore an older"
 					" version from a backup, then you can"
 					" remove the .ibd file, and use"
 					" --innodb_force_recovery=1 to force"
-					" startup without this file.";
-				ib::info() << "3) If the file system or the"
+					" startup without this file.");
+				sql_print_information(
+					"InnoDB: 3) If the file system or the"
 					" disk is broken, and you cannot"
 					" remove the .ibd file, you can set"
-					" --innodb_force_recovery.";
+					" --innodb_force_recovery.");
 				recv_sys.set_corrupt_fs();
 				break;
 			}
 
-			ib::info() << "innodb_force_recovery was set to "
-				<< srv_force_recovery << ". Continuing crash"
-				" recovery even though we cannot access the"
-				" files for tablespace " << space_id << ".";
+			sql_print_information(
+				"InnoDB: innodb_force_recovery was set to %lu."
+				" Continuing crash recovery even though"
+				" we cannot access the files for tablespace "
+				UINT32PF ".", srv_force_recovery, space_id);
 			break;
 		}
 	}
@@ -1494,10 +1508,11 @@ fail:
 	}
 
 	if (recv_sys.report(time(NULL))) {
-		ib::info() << "Read redo log up to LSN=" << *start_lsn;
-		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-			"Read redo log up to LSN=" LSN_PF,
-			*start_lsn);
+		sql_print_information("InnoDB: Read redo log up to LSN="
+				      LSN_PF, *start_lsn);
+		service_manager_extend_timeout(
+			INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"Read redo log up to LSN=" LSN_PF, *start_lsn);
 	}
 
 	if (*start_lsn != end_lsn) {
@@ -1568,9 +1583,9 @@ static bool redo_file_sizes_are_correct()
   if (it == paths.end())
     return true;
 
-  ib::error() << "Log file " << *it << " is of different size "
-              << get_size(*it) << " bytes than other log files " << size
-              << " bytes!";
+  sql_print_error("InnoDB: Log file %.*s is of different size " UINT64PF
+                  " bytes than other log files " UINT64PF " bytes!",
+                  int(it->size()), it->data(), get_size(*it), size);
   return false;
 }
 
@@ -1637,7 +1652,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
 
     if (!log_crypt_101_read_checkpoint(buf))
     {
-      ib::error() << "Decrypting checkpoint failed";
+      sql_print_error("InnoDB: Decrypting checkpoint failed");
       continue;
     }
 
@@ -1659,11 +1674,11 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
 
   if (!lsn)
   {
-    ib::error() << "Upgrade after a crash is not supported."
-            " This redo log was created before MariaDB 10.2.2,"
-            " and we did not find a valid checkpoint."
-            " Please follow the instructions at"
-            " https://mariadb.com/kb/en/library/upgrading/";
+    sql_print_error("InnoDB: Upgrade after a crash is not supported."
+                    " This redo log was created before MariaDB 10.2.2,"
+                    " and we did not find a valid checkpoint."
+                    " Please follow the instructions at"
+                    " https://mariadb.com/kb/en/library/upgrading/");
     return DB_ERROR;
   }
 
@@ -1671,7 +1686,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
   log_sys.set_flushed_lsn(lsn);
   const lsn_t source_offset= log_sys.log.calc_lsn_offset_old(lsn);
 
-  static constexpr char NO_UPGRADE_RECOVERY_MSG[]=
+  static const char NO_UPGRADE_RECOVERY_MSG[]=
     "Upgrade after a crash is not supported."
     " This redo log was created before MariaDB 10.2.2";
 
@@ -1680,7 +1695,8 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
   if (log_block_calc_checksum_format_0(buf) != log_block_get_checksum(buf) &&
       !log_crypt_101_read_block(buf, lsn))
   {
-    ib::error() << NO_UPGRADE_RECOVERY_MSG << ", and it appears corrupted.";
+    sql_print_error("InnoDB: %s, and it appears corrupted.",
+                    NO_UPGRADE_RECOVERY_MSG);
     return DB_CORRUPTION;
   }
 
@@ -1697,10 +1713,10 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
   }
 
   if (buf[20 + 32 * 9] == 2)
-    ib::error() << "Cannot decrypt log for upgrading."
-                   " The encrypted log was created before MariaDB 10.2.2.";
+    sql_print_error("InnoDB: Cannot decrypt log for upgrading."
+                    " The encrypted log was created before MariaDB 10.2.2.");
   else
-    ib::error() << NO_UPGRADE_RECOVERY_MSG << ".";
+    sql_print_error("InnoDB: %s.", NO_UPGRADE_RECOVERY_MSG);
 
   return DB_ERROR;
 }
@@ -1746,13 +1762,11 @@ static dberr_t recv_log_recover_10_4()
 	ulint cksum = log_block_get_checksum(buf);
 
 	if (UNIV_UNLIKELY(crc != cksum)) {
-		ib::error() << "Invalid log block checksum."
-			    << " block: "
-			    << log_block_get_hdr_no(buf)
-			    << " checkpoint no: "
-			    << log_block_get_checkpoint_no(buf)
-			    << " expected: " << crc
-			    << " found: " << cksum;
+		sql_print_error("InnoDB: Invalid log block checksum."
+				" block: " ULINTPF " checkpoint no: " ULINTPF
+				" expected: " ULINTPF " found: " ULINTPF,
+				log_block_get_hdr_no(buf),
+				log_block_get_checkpoint_no(buf), crc, cksum);
 		return DB_CORRUPTION;
 	}
 
@@ -1807,7 +1821,7 @@ recv_find_max_checkpoint(ulint* max_field)
 		: 0;
 	if (log_sys.log.format != log_t::FORMAT_3_23
 	    && !recv_check_log_header_checksum(buf)) {
-		ib::error() << "Invalid redo log header checksum.";
+		sql_print_error("InnoDB: Invalid redo log header checksum.");
 		return(DB_CORRUPTION);
 	}
 
@@ -1830,8 +1844,8 @@ recv_find_max_checkpoint(ulint* max_field)
 	case log_t::FORMAT_10_5 | log_t::FORMAT_ENCRYPTED:
 		break;
 	default:
-		ib::error() << "Unsupported redo log format."
-			" The redo log was created with " << creator << ".";
+		sql_print_error("InnoDB: Unsupported redo log format."
+				" The redo log was created with %s.", creator);
 		return(DB_ERROR);
 	}
 
@@ -1854,8 +1868,8 @@ recv_find_max_checkpoint(ulint* max_field)
 
 		if (log_sys.is_encrypted()
 		    && !log_crypt_read_checkpoint_buf(buf)) {
-			ib::error() << "Reading checkpoint"
-				" encryption info failed.";
+			sql_print_error("InnoDB: Reading checkpoint"
+					" encryption info failed.");
 			continue;
 		}
 
@@ -1880,14 +1894,14 @@ recv_find_max_checkpoint(ulint* max_field)
 
 	if (*max_field == 0) {
 		/* Before 10.2.2, we could get here during database
-		initialization if we created an LOG_FILE_NAME file that
+		initialization if we created an ib_logfile0 file that
 		was filled with zeroes, and were killed. After
 		10.2.2, we would reject such a file already earlier,
 		when checking the file header. */
-		ib::error() << "No valid checkpoint found"
-			" (corrupted redo log)."
-			" You can try --innodb-force-recovery=6"
-			" as a last resort.";
+		sql_print_error("InnoDB: No valid checkpoint found"
+				" (corrupted redo log)."
+				" You can try --innodb-force-recovery=6"
+				" as a last resort.");
 		return(DB_ERROR);
 	}
 
@@ -1897,11 +1911,12 @@ recv_find_max_checkpoint(ulint* max_field)
 		break;
 	default:
 		if (dberr_t err = recv_log_recover_10_4()) {
-			ib::error()
-				<< "Upgrade after a crash is not supported."
-				" The redo log was created with " << creator
-				<< (err == DB_ERROR
-				    ? "." : ", and it appears corrupted.");
+			sql_print_error("InnoDB: Upgrade after a crash"
+					" is not supported."
+					" The redo log was created with %s%s.",
+					creator,
+					(err == DB_ERROR
+					 ? "" : ", and it appears corrupted"));
 			return err;
 		}
 	}
@@ -2086,17 +2101,19 @@ loop:
       goto eom_found;
     if (UNIV_LIKELY((*l & 0x70) != RESERVED));
     else if (srv_force_recovery)
-      ib::warn() << "Ignoring unknown log record at LSN " << recovered_lsn;
+      sql_print_warning("InnoDB: Ignoring unknown log record at LSN " LSN_PF,
+                        recovered_lsn);
     else
     {
 malformed:
-      ib::error() << "Malformed log record;"
-                     " set innodb_force_recovery=1 to ignore.";
+      sql_print_error("InnoDB: Malformed log record;"
+                     " set innodb_force_recovery=1 to ignore.");
 corrupted:
       const size_t trailing_bytes= std::min<size_t>(100, size_t(end - l));
-      ib::info() << "Dump from the start of the mini-transaction (LSN="
-                 << start_lsn << ") to "
-                 << trailing_bytes << " bytes after the record:";
+      sql_print_information("InnoDB: Dump from the start of the"
+                            " mini-transaction (LSN=" LSN_PF ") to %zu"
+                            " bytes after the record:",
+                            start_lsn, trailing_bytes);
       ut_print_buf(stderr, log, l - log + trailing_bytes);
       putc('\n', stderr);
       found_corrupt_log= true;
@@ -2113,7 +2130,7 @@ corrupted:
       const uint32_t addlen= mlog_decode_varint(l);
       if (UNIV_UNLIKELY(addlen == MLOG_DECODE_ERROR))
       {
-        ib::error() << "Corrupted record length";
+        sql_print_error("InnoDB: Corrupted record length");
         goto corrupted;
       }
       rlen= addlen + 15;
@@ -2179,7 +2196,8 @@ record_corrupted:
         /* FREE_PAGE,INIT_PAGE cannot be with same_page flag */
         if (!srv_force_recovery)
           goto malformed;
-        ib::warn() << "Ignoring malformed log record at LSN " << recovered_lsn;
+        sql_print_warning("InnoDB: Ignoring malformed log record at LSN "
+                          LSN_PF, recovered_lsn);
         last_offset= 1; /* the next record must not be same_page  */
         continue;
       }
@@ -2192,12 +2210,13 @@ record_corrupted:
 page_id_corrupted:
       if (!srv_force_recovery)
       {
-        ib::error() << "Corrupted page identifier at " << recovered_lsn
-                    << "; set innodb_force_recovery=1 to ignore the record.";
+        sql_print_error("InnoDB: Corrupted page identifier at " LSN_PF
+                        "; set innodb_force_recovery=1 to ignore the record.",
+                        recovered_lsn);
         goto corrupted;
       }
-      ib::warn() << "Ignoring corrupted page identifier at LSN "
-                 << recovered_lsn;
+      sql_print_warning("InnoDB: Ignoring corrupted page identifier at LSN "
+                        LSN_PF, recovered_lsn);
       continue;
     }
     space_id= mlog_decode_varint(l);
@@ -2457,7 +2476,8 @@ same_page:
       default:
         if (!srv_force_recovery)
           goto malformed;
-        ib::warn() << "Ignoring malformed log record at LSN " << recovered_lsn;
+        sql_print_warning("InnoDB: Ignoring malformed log record at LSN "
+                          LSN_PF, recovered_lsn);
         continue;
       case FILE_DELETE:
       case FILE_MODIFY:
@@ -2467,13 +2487,13 @@ same_page:
         file_rec_error:
           if (!srv_force_recovery)
           {
-            ib::error() << "Corrupted file-level record;"
-                           " set innodb_force_recovery=1 to ignore.";
+            sql_print_error("InnoDB: Corrupted file-level record;"
+                            " set innodb_force_recovery=1 to ignore.");
             goto corrupted;
           }
 
-          ib::warn() << "Ignoring corrupted file-level record at LSN "
-                     << recovered_lsn;
+          sql_print_warning("InnoDB: Ignoring corrupted file-level record"
+                            " at LSN " LSN_PF, recovered_lsn);
           continue;
         }
         /* fall through */
@@ -2628,12 +2648,13 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 		if (skipped_after_init) {
 			skipped_after_init = false;
 			ut_ad(end_lsn == page_lsn);
-			if (end_lsn != page_lsn)
-				ib::warn()
-					<< "The last skipped log record LSN "
-					<< end_lsn
-					<< " is not equal to page LSN "
-					<< page_lsn;
+			if (end_lsn != page_lsn) {
+				sql_print_warning(
+					"InnoDB: The last skipped log record"
+					" LSN " LSN_PF
+					" is not equal to page LSN " LSN_PF,
+					end_lsn, page_lsn);
+			}
 		}
 
 		end_lsn = l->lsn;
@@ -2763,10 +2784,12 @@ set_start_lsn:
 	ut_ad(!recv_sys.pages.empty());
 
 	if (recv_sys.report(now)) {
-		const ulint n = recv_sys.pages.size();
-		ib::info() << "To recover: " << n << " pages from log";
-		service_manager_extend_timeout(
-			INNODB_EXTEND_TIMEOUT_INTERVAL, "To recover: " ULINTPF " pages from log", n);
+		const size_t n = recv_sys.pages.size();
+		sql_print_information("InnoDB: To recover: %zu pages from log",
+				      n);
+		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+					       "To recover: %zu pages"
+					       " from log", n);
 	}
 }
 
@@ -3040,8 +3063,8 @@ void recv_sys_t::apply(bool last_batch)
     const char *msg= last_batch
       ? "Starting final batch to recover "
       : "Starting a batch to recover ";
-    const ulint n= pages.size();
-    ib::info() << msg << n << " pages from redo log.";
+    const size_t n= pages.size();
+    sql_print_information("InnoDB: %s %zu pages from redo log.", msg, n);
     sd_notifyf(0, "STATUS=%s" ULINTPF " pages from redo log", msg, n);
 
     apply_log_recs= true;
@@ -3170,7 +3193,8 @@ next_page:
         continue;
       }
       if (is_corrupt_fs() && !srv_force_recovery)
-        ib::info() << "Set innodb_force_recovery=1 to ignore corrupted pages.";
+        sql_print_information("InnoDB: Set innodb_force_recovery=1"
+                              " to ignore corrupted pages.");
       mysql_mutex_unlock(&mutex);
       return;
     }
@@ -3409,14 +3433,18 @@ static bool recv_scan_log_recs(
 				recv_needed_recovery = true;
 
 				if (srv_read_only_mode) {
-					ib::warn() << "innodb_read_only"
-						" prevents crash recovery";
+					sql_print_warning(
+						"InnoDB: innodb_read_only"
+						" prevents crash recovery");
 					return(true);
 				}
 
-				ib::info() << "Starting crash recovery from"
-					" checkpoint LSN=" << checkpoint_lsn
-					   << "," << recv_sys.scanned_lsn;
+				sql_print_information("InnoDB: Starting"
+						      " crash recovery from"
+						      " checkpoint LSN=" LSN_PF
+						      "," LSN_PF,
+						      checkpoint_lsn,
+						      recv_sys.scanned_lsn);
 			}
 
 			/* We were able to find more log data: add it to the
@@ -3430,15 +3458,17 @@ static bool recv_scan_log_recs(
 
 			if (recv_sys.len + 4 * OS_FILE_LOG_BLOCK_SIZE
 			    >= recv_parsing_buf_size) {
-				ib::error() << "Log parsing buffer overflow."
-					" Recovery may have failed!";
+				sql_print_error("InnoDB: Log parsing buffer"
+						" overflow."
+						" Recovery may have failed!");
 
 				recv_sys.set_corrupt_log();
 
 				if (!srv_force_recovery) {
-					ib::error()
-						<< "Set innodb_force_recovery"
-						" to ignore this error.";
+					sql_print_information(
+						"InnoDB: Set"
+                                                " innodb_force_recovery"
+						" to ignore this error.");
 					return(true);
 				}
 			} else if (!recv_sys.is_corrupt_log()) {
@@ -3585,29 +3615,38 @@ recv_init_missing_space(dberr_t err, const recv_spaces_t::const_iterator& i)
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_EXPORT:
 		if (i->second.name.find("/#sql") != std::string::npos) {
-			ib::warn() << "Tablespace " << i->first << " was not"
-				" found at " << i->second.name << " when"
-				" restoring a (partial?) backup. All redo log"
-				" for this file will be ignored!";
+			sql_print_warning("InnoDB: Tablespace " UINT32PF
+					  " was not found at %.*s when"
+					  " restoring a (partial?) backup."
+					  " All redo log"
+					  " for this file will be ignored!",
+					  i->first, int(i->second.name.size()),
+					  i->second.name.data());
 		}
 		return(err);
 	}
 
 	if (srv_force_recovery == 0) {
-		ib::error() << "Tablespace " << i->first << " was not"
-			" found at " << i->second.name << ".";
+		sql_print_error("InnoDB: Tablespace " UINT32PF " was not"
+				" found at %.*s.", i->first,
+				int(i->second.name.size()),
+				i->second.name.data());
 
 		if (err == DB_SUCCESS) {
-			ib::error() << "Set innodb_force_recovery=1 to"
+			sql_print_information(
+				"InnoDB: Set innodb_force_recovery=1 to"
 				" ignore this and to permanently lose"
-				" all changes to the tablespace.";
+				" all changes to the tablespace.");
 			err = DB_TABLESPACE_NOT_FOUND;
 		}
 	} else {
-		ib::warn() << "Tablespace " << i->first << " was not"
-			" found at " << i->second.name << ", and"
-			" innodb_force_recovery was set. All redo log"
-			" for this tablespace will be ignored!";
+		sql_print_warning("InnoDB: Tablespace " UINT32PF
+				  " was not found at %.*s"
+				  ", and innodb_force_recovery was set."
+				  " All redo log for this tablespace"
+				  " will be ignored!",
+				  i->first, int(i->second.name.size()),
+				  i->second.name.data());
 	}
 
 	return(err);
@@ -3682,20 +3721,25 @@ func_exit:
 
 		missing_tablespace = true;
 
-		if (srv_force_recovery > 0) {
-			ib::warn() << "Tablespace " << rs.first
-				<<" was not found at " << rs.second.name
-				<<", and innodb_force_recovery was set."
-				<<" All redo log for this tablespace"
-				<<" will be ignored!";
+		if (srv_force_recovery) {
+			sql_print_warning("InnoDB: Tablespace " UINT32PF
+					  " was not found at %.*s,"
+					  " and innodb_force_recovery was set."
+					  " All redo log for this tablespace"
+					  " will be ignored!",
+					  rs.first, int(rs.second.name.size()),
+					  rs.second.name.data());
 			continue;
 		}
 
 		if (!rescan) {
-			ib::info() << "Tablespace " << rs.first
-				<< " was not found at '"
-				<< rs.second.name << "', but there"
-				<<" were no modifications either.";
+			sql_print_information("InnoDB: Tablespace " UINT32PF
+					      " was not found at '%.*s',"
+					      " but there were"
+					      " no modifications either.",
+					      rs.first,
+					      int(rs.second.name.size()),
+					      rs.second.name.data());
 		}
 	}
 
@@ -3744,9 +3788,10 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 					std::move(rs.second.freed_ranges));
 			}
 		} else if (rs.second.name == "") {
-			ib::error() << "Missing FILE_CREATE, FILE_DELETE"
-				" or FILE_MODIFY before FILE_CHECKPOINT"
-				" for tablespace " << rs.first;
+			sql_print_error("InnoDB: Missing FILE_CREATE,"
+					" FILE_DELETE or FILE_MODIFY"
+					" before FILE_CHECKPOINT"
+					" for tablespace " UINT32PF, rs.first);
 			recv_sys.set_corrupt_log();
 			return(DB_CORRUPTION);
 		} else {
@@ -3803,18 +3848,19 @@ static dberr_t recv_rename_files()
         only be possible if the recovery of both files was deferred
         (no valid page 0 is contained in either file). We shall not
         rename the file, just rename the metadata. */
-        ib::info() << "Renaming tablespace metadata " << id
-                   << " from '" << old << "' to '" << r.second
-                   << "' that is also associated with tablespace "
-                   << other->id;
+        sql_print_information("InnoDB: Renaming tablespace metadata " UINT32PF
+                              " from '%s' to '%s' that is also associated"
+                              " with tablespace " UINT32PF,
+                              id, old, new_name, other->id);
         space->chain.start->name= mem_strdup(new_name);
         ut_free(old);
       }
       else if (!os_file_status(new_name, &exists, &ftype) || exists)
       {
-        ib::error() << "Cannot replay rename of tablespace " << id
-                    << " from '" << old << "' to '" << r.second <<
-                    (exists ? "' because the target file exists" : "'");
+        sql_print_error("InnoDB: Cannot replay rename of tablespace " UINT32PF
+                        " from '%s' to '%s'%s",
+                        id, old, new_name, exists ?
+                        " because the target file exists" : "");
         err= DB_TABLESPACE_EXISTS;
       }
       else
@@ -3822,8 +3868,8 @@ static dberr_t recv_rename_files()
         mysql_mutex_unlock(&fil_system.mutex);
         err= space->rename(new_name, false);
         if (err != DB_SUCCESS)
-          ib::error() << "Cannot replay rename of tablespace " << id
-                      << " to '" << r.second << "': " << err;
+          sql_print_error("InnoDB: Cannot replay rename of tablespace "
+                          UINT32PF " to '%s: %s", new_name, ut_strerr(err));
         goto done;
       }
       mysql_mutex_unlock(&fil_system.mutex);
@@ -3864,9 +3910,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
 
 	if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO) {
-
-		ib::info() << "innodb_force_recovery=6 skips redo log apply";
-
+		sql_print_information("InnoDB: innodb_force_recovery=6"
+				      " skips redo log apply");
 		return(DB_SUCCESS);
 	}
 
@@ -3877,7 +3922,6 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	err = recv_find_max_checkpoint(&max_cp_field);
 
 	if (err != DB_SUCCESS) {
-
 		recv_sys.recovered_lsn = log_sys.get_lsn();
 		mysql_mutex_unlock(&log_sys.mutex);
 		return(err);
@@ -3938,7 +3982,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	if (recv_sys.is_corrupt_log() && !srv_force_recovery) {
 		mysql_mutex_unlock(&log_sys.mutex);
-		ib::warn() << "Log scan aborted at LSN " << contiguous_lsn;
+		sql_print_warning("InnoDB: Log scan aborted at LSN " LSN_PF,
+				  contiguous_lsn);
 		return(DB_ERROR);
 	}
 
@@ -3946,13 +3991,11 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		lsn_t scan_lsn = log_sys.log.scanned_lsn;
 		if (!srv_read_only_mode && scan_lsn != checkpoint_lsn) {
 			mysql_mutex_unlock(&log_sys.mutex);
-			ib::error err;
-			err << "Missing FILE_CHECKPOINT";
-			if (end_lsn) {
-				err << " at " << end_lsn;
-			}
-			err << " between the checkpoint " << checkpoint_lsn
-			    << " and the end " << scan_lsn << ".";
+			sql_print_error("InnoDB: Missing FILE_CHECKPOINT"
+					" at " LSN_PF
+					" between the checkpoint " LSN_PF
+					" and the end " LSN_PF ".",
+					end_lsn, checkpoint_lsn, scan_lsn);
 			return(DB_ERROR);
 		}
 
@@ -3982,29 +4025,25 @@ completed:
 		ut_ad(!srv_log_file_created);
 
 		if (checkpoint_lsn + sizeof_checkpoint < flush_lsn) {
-			ib::warn()
-				<< "Are you sure you are using the right "
-				<< LOG_FILE_NAME
-				<< " to start up the database? Log sequence "
-				   "number in the "
-				<< LOG_FILE_NAME << " is " << checkpoint_lsn
-				<< ", less than the log sequence number in "
-				   "the first system tablespace file header, "
-				<< flush_lsn << ".";
+			sql_print_warning("InnoDB: Are you sure you are using"
+					  " the right ib_logfile0"
+					  " to start up the database?"
+					  " The checkpoint is " LSN_PF
+					  ", less than the log sequence number"
+					  LSN_PF " in the system tablespace.",
+					  checkpoint_lsn, flush_lsn);
 		}
 
 		if (!recv_needed_recovery) {
-
-			ib::info()
-				<< "The log sequence number " << flush_lsn
-				<< " in the system tablespace does not match"
-				   " the log sequence number "
-				<< checkpoint_lsn << " in the "
-				<< LOG_FILE_NAME << "!";
+			sql_print_information(
+				"InnoDB: The log sequence number " LSN_PF
+				" in the system tablespace does not match"
+				" the log checkpoint " LSN_PF
+				" in ib_logfile0!", flush_lsn, checkpoint_lsn);
 
 			if (srv_read_only_mode) {
-				ib::error() << "innodb_read_only"
-					" prevents crash recovery";
+				sql_print_error("InnoDB: innodb_read_only"
+						" prevents crash recovery");
 				mysql_mutex_unlock(&log_sys.mutex);
 				return(DB_READ_ONLY);
 			}
@@ -4093,21 +4132,20 @@ completed:
 	    && (log_sys.log.scanned_lsn < checkpoint_lsn
 		|| log_sys.log.scanned_lsn < recv_max_page_lsn)) {
 
-		ib::error() << "We scanned the log up to "
-			<< log_sys.log.scanned_lsn
-			<< ". A checkpoint was at " << checkpoint_lsn << " and"
-			" the maximum LSN on a database page was "
-			<< recv_max_page_lsn << ". It is possible that the"
-			" database is now corrupt!";
+		sql_print_error("InnoDB: We scanned the log up to " LSN_PF "."
+				" A checkpoint was at " LSN_PF
+				" and the maximum LSN on a database page was "
+				LSN_PF ". It is possible that the"
+				" database is now corrupt!",
+				log_sys.log.scanned_lsn, checkpoint_lsn,
+				recv_max_page_lsn);
 	}
 
 	if (recv_sys.recovered_lsn < checkpoint_lsn) {
 		mysql_mutex_unlock(&log_sys.mutex);
-
-		ib::error() << "Recovered only to lsn:"
-			    << recv_sys.recovered_lsn
-			    << " checkpoint_lsn: " << checkpoint_lsn;
-
+		sql_print_error("InnoDB: Recovered only to lsn: " LSN_PF
+				" checkpoint_lsn: " LSN_PF,
+				recv_sys.recovered_lsn, checkpoint_lsn);
 		return(DB_ERROR);
 	}
 
