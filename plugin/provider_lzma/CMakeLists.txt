@@ -1,5 +1,8 @@
 FIND_PACKAGE(LibLZMA)
 
+SET(CPACK_RPM_provider-lzma_PACKAGE_SUMMARY "LZMA compression support in the server and storage engines" PARENT_SCOPE)
+SET(CPACK_RPM_provider-lzma_PACKAGE_DESCRIPTION "LZMA compression support in the server and storage engines" PARENT_SCOPE)
+
 IF (LIBLZMA_FOUND)
   GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
   LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)

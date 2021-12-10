@@ -15,7 +15,6 @@ call mtr.add_suppression("InnoDB: Operating system error.*in a file operation");
 call mtr.add_suppression("InnoDB: \(The error means\|If you are\)");
 call mtr.add_suppression("InnoDB: Ignoring tablespace `test/bug16720368` because it could not be opened");
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at.*bug16735660");
-call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace.");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted*");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");

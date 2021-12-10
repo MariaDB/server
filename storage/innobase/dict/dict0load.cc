@@ -767,7 +767,7 @@ dict_sys_tables_rec_read(
 				" data dictionary contains invalid flags."
 				" SYS_TABLES.TYPE=" UINT32PF
 				" SYS_TABLES.N_COLS=" UINT32PF,
-				name.size(), name.data(), type, *n_cols);
+				int(name.size()), name.data(), type, *n_cols);
 		return(false);
 	}
 
@@ -792,7 +792,7 @@ dict_sys_tables_rec_read(
 					" contains invalid flags."
 					" SYS_TABLES.TYPE=" UINT32PF
 					" SYS_TABLES.MIX_LEN=" UINT32PF,
-					name.size(), name.data(),
+					int(name.size()), name.data(),
 					type, *flags2);
 			return(false);
 		}
@@ -2246,7 +2246,7 @@ static dict_table_t *dict_load_table_one(const span<const char> &name,
 
 	DBUG_ENTER("dict_load_table_one");
 	DBUG_PRINT("dict_load_table_one",
-		   ("table: %.*s", name.size(), name.data()));
+		   ("table: %.*s", int(name.size()), name.data()));
 
 	ut_ad(dict_sys.locked());
 

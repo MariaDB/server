@@ -1,5 +1,8 @@
 FIND_PACKAGE(LZO)
 
+SET(CPACK_RPM_provider-lzo_PACKAGE_SUMMARY "LZO compression support in the server and storage engines" PARENT_SCOPE)
+SET(CPACK_RPM_provider-lzo_PACKAGE_DESCRIPTION "LZO compression support in the server and storage engines" PARENT_SCOPE)
+
 IF (LZO_FOUND)
   GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
   LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
