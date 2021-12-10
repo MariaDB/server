@@ -4029,8 +4029,9 @@ completed:
 					  " the right ib_logfile0"
 					  " to start up the database?"
 					  " The checkpoint is " LSN_PF
-					  ", less than the log sequence number"
-					  LSN_PF " in the system tablespace.",
+					  ", less than the"
+					  " log sequence number " LSN_PF
+					  " in the system tablespace.",
 					  checkpoint_lsn, flush_lsn);
 		}
 
