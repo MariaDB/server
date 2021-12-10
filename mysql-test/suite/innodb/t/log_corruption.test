@@ -16,7 +16,7 @@ call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
 call mtr.add_suppression("InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42\\r?$");
 call mtr.add_suppression("InnoDB: Obtaining redo log encryption key version 1 failed");
 call mtr.add_suppression("InnoDB: Decrypting checkpoint failed");
-call mtr.add_suppression("InnoDB: Are you sure you are using the right ib_logfile0 to start up the database\\? Log sequence number in the ib_logfile0 is 1213964,");
+call mtr.add_suppression("InnoDB: Are you sure you are using the right ib_logfile0 to start up the database\\? The checkpoint is 1213964,");
 call mtr.add_suppression("InnoDB: Log file .*ib_logfile1 is of different size 1048576 bytes than other log files 2097152 bytes!");
 --enable_query_log
 
