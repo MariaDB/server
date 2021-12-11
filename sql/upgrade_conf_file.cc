@@ -25,6 +25,8 @@
   Note : the list below only includes the default-compiled server and none of the
   loadable plugins.
 */
+#include <my_global.h>
+#include <my_sys.h>
 #include <windows.h>
 #include <initializer_list>
 #include <stdlib.h>
@@ -161,11 +163,52 @@ static int cmp_strings(const void* a, const void *b)
 
 #define MY_INI_SECTION_SIZE 32 * 1024 + 3
 
+static bool is_utf8_str(const char *s)
+{
+  MY_STRCOPY_STATUS status;
+  const struct charset_info_st *cs= &my_charset_utf8mb4_bin;
+  size_t len= strlen(s);
+  if (!len)
+    return true;
+  cs->cset->well_formed_char_length(cs, s, s + len, len, &status);
+  return status.m_well_formed_error_pos == nullptr;
+}
+
+
+static UINT get_system_acp()
+{
+  static DWORD system_acp;
+  if (system_acp)
+    return system_acp;
+
+  char str_cp[10];
+  int cch= GetLocaleInfo(GetSystemDefaultLCID(), LOCALE_IDEFAULTANSICODEPAGE,
+                         str_cp, sizeof(str_cp));
+
+  system_acp= cch > 0 ? atoi(str_cp) : 1252;
+
+  return system_acp;
+}
+
+
+static char *ansi_to_utf8(const char *s)
+{
+#define MAX_STR_LEN MY_INI_SECTION_SIZE
+  static wchar_t utf16_buf[MAX_STR_LEN];
+  static char utf8_buf[MAX_STR_LEN];
+  if (MultiByteToWideChar(get_system_acp(), 0, s, -1, utf16_buf, MAX_STR_LEN))
+  {
+    if (WideCharToMultiByte(CP_UTF8, 0, utf16_buf, -1, utf8_buf, MAX_STR_LEN,
+                            0, 0))
+      return utf8_buf;
+  }
+  return 0;
+}
 
 int fix_section(const char *myini_path, const char *section_name,
                 bool is_server)
 {
-  if (!is_server)
+  if (!is_server && GetACP() != CP_UTF8)
     return 0;
 
   static char section_data[MY_INI_SECTION_SIZE];
@@ -188,6 +231,21 @@ int fix_section(const char *myini_path, const char *section_name,
       continue;
 
     value= key_end + 1;
+    if (GetACP() == CP_UTF8 && !is_utf8_str(value))
+    {
+      /*Convert a value, if it is not already UTF-8*/
+      char *new_val= ansi_to_utf8(value);
+      if (new_val)
+      {
+        *key_end= 0;
+        fprintf(stdout, "Fixing variable '%s' charset, value=%s\n", keyval,
+                new_val);
+        WritePrivateProfileString(section_name, keyval, new_val, myini_path);
+        *key_end= '=';
+      }
+    }
+    if (!is_server)
+      continue;
 
     // Check if variable should be removed from config.
     // First, copy and normalize (convert dash to underscore) to  variable
