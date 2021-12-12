@@ -6954,7 +6954,7 @@ CPP_UNNAMED_NS_START
 
 CPP_UNNAMED_NS_END
 
-int THD::binlog_write_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
+int THD::binlog_write_row(TABLE* table, Event_log *bin_log,
                           binlog_cache_data *cache_data, bool is_trans,
                           uchar const *record)
 {
@@ -6985,7 +6985,7 @@ int THD::binlog_write_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
   return ev->add_row_data(row_data, len);
 }
 
-int THD::binlog_update_row(TABLE* table,  MYSQL_BIN_LOG *bin_log,
+int THD::binlog_update_row(TABLE* table,  Event_log *bin_log,
                            binlog_cache_data *cache_data, bool is_trans,
                            const uchar *before_record,
                            const uchar *after_record)
@@ -7054,7 +7054,7 @@ int THD::binlog_update_row(TABLE* table,  MYSQL_BIN_LOG *bin_log,
 
 }
 
-int THD::binlog_delete_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
+int THD::binlog_delete_row(TABLE* table, Event_log *bin_log,
                            binlog_cache_data *cache_data, bool is_trans,
                            uchar const *record)
 {
@@ -7091,7 +7091,7 @@ int THD::binlog_delete_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
   auto creator= binlog_should_compress(len) ?
                 Rows_event_factory::get<Delete_rows_compressed_log_event>() :
                 Rows_event_factory::get<Delete_rows_log_event>();
-  auto *ev= mysql_bin_log.prepare_pending_rows_event(this, table, cache_data,
+  auto *ev= bin_log->prepare_pending_rows_event(this, table, cache_data,
                                                      variables.server_id,
                                                      len, is_trans, creator);
 
@@ -7196,7 +7196,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 
   int error=
     ::binlog_flush_pending_rows_event(this, stmt_end, is_transactional,
-                                      &mysql_bin_log, cache);
+                                      mysql_bin_log.as_event_log(), cache);
   DBUG_RETURN(error);
 }
 

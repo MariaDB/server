@@ -327,6 +327,7 @@ public:
                             bool strip_ext, char *buff);
   virtual int generate_new_name(char *new_name, const char *log_name,
                                 ulong next_log_number);
+  inline mysql_mutex_t* get_log_lock() { return &LOCK_log; }
  protected:
   /* LOCK_log is inited by init_pthread_objects() */
   mysql_mutex_t LOCK_log;
@@ -374,6 +375,63 @@ struct Rows_event_factory
              }
     };
   }
+};
+
+class Event_log: public MYSQL_LOG
+{
+protected:
+  /* binlog encryption data */
+  struct Binlog_crypt_data crypto;
+
+  mysql_mutex_t LOCK_binlog_end_pos;
+
+  /** The instrumentation key to use for LOCK_binlog_end_pos. */
+  PSI_mutex_key m_key_LOCK_binlog_end_pos;
+  /** The instrumentation key to use for opening the log file. */
+  PSI_file_key m_key_file_log, m_key_file_log_cache;
+public:
+#if !defined(MYSQL_CLIENT)
+  Rows_log_event*
+  prepare_pending_rows_event(THD *thd, TABLE* table,
+                             binlog_cache_data *cache_data,
+                             uint32 serv_id, size_t needed,
+                             bool is_transactional,
+                             Rows_event_factory event_factory);
+#endif
+  int flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
+                                       binlog_cache_data *cache_data,
+                                       bool is_transactional);
+  void set_write_error(THD *thd, bool is_transactional);
+  static bool check_write_error(THD *thd);
+  int write_cache(THD *thd, IO_CACHE *cache);
+  char* get_name() { return name; }
+  void cleanup()
+  {
+    if (inited)
+      mysql_mutex_destroy(&LOCK_binlog_end_pos);
+
+    MYSQL_LOG::cleanup();
+  }
+  void init_pthread_objects()
+  {
+    MYSQL_LOG::init_pthread_objects();
+
+    mysql_mutex_init(m_key_LOCK_binlog_end_pos, &LOCK_binlog_end_pos,
+                     MY_MUTEX_INIT_SLOW);
+  }
+
+  bool open(
+          const char *log_name,
+          enum_log_type log_type,
+          const char *new_name, ulong next_file_number,
+          enum cache_type io_cache_type_arg);
+  IO_CACHE *get_log_file() { return &log_file; }
+
+  int write_description_event(enum_binlog_checksum_alg checksum_alg,
+                              bool encrypt, bool dont_set_created,
+                              bool is_relay_log);
+
+  bool write_event(Log_event *ev, binlog_cache_data *data, IO_CACHE *file);
 };
 
 /* Tell the io thread if we can delay the master info sync. */
@@ -451,7 +509,7 @@ class binlog_cache_data;
 struct rpl_gtid;
 struct wait_for_commit;
 
-class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
+class MYSQL_BIN_LOG: public TC_LOG, private Event_log
 {
   /** The instrumentation key to use for @ LOCK_index. */
   PSI_mutex_key m_key_LOCK_index;
@@ -459,14 +517,10 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   PSI_cond_key m_key_relay_log_update;
   /** The instrumentation key to use for @ COND_bin_log_updated */
   PSI_cond_key m_key_bin_log_update;
-  /** The instrumentation key to use for opening the log file. */
-  PSI_file_key m_key_file_log, m_key_file_log_cache;
   /** The instrumentation key to use for opening the log index file. */
   PSI_file_key m_key_file_log_index, m_key_file_log_index_cache;
 
   PSI_cond_key m_key_COND_queue_busy;
-  /** The instrumentation key to use for LOCK_binlog_end_pos. */
-  PSI_mutex_key m_key_LOCK_binlog_end_pos;
 
   struct group_commit_entry
   {
@@ -519,7 +573,6 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 
   /* LOCK_log and LOCK_index are inited by init_pthread_objects() */
   mysql_mutex_t LOCK_index;
-  mysql_mutex_t LOCK_binlog_end_pos;
   mysql_mutex_t LOCK_xid_list;
   mysql_cond_t  COND_xid_list;
   mysql_cond_t  COND_relay_log_updated, COND_bin_log_updated;
@@ -568,9 +621,6 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   /* The reason why the group commit was grouped */
   ulonglong group_commit_trigger_count, group_commit_trigger_timeout;
   ulonglong group_commit_trigger_lock_wait;
-
-  /* binlog encryption data */
-  struct Binlog_crypt_data crypto;
 
   /* pointer to the sync period variable, for binlog this will be
      sync_binlog_period, for relay log this will be
@@ -737,6 +787,11 @@ public:
   }
 #endif
 
+  Event_log *as_event_log()
+  {
+    return this;
+  }
+
   int open(const char *opt_name);
   void close();
   virtual int generate_new_name(char *new_name, const char *log_name,
@@ -750,17 +805,6 @@ public:
               Format_description_log_event *fdle, bool do_xa);
   int do_binlog_recovery(const char *opt_name, bool do_xa_recovery);
 #if !defined(MYSQL_CLIENT)
-  Rows_log_event*
-  prepare_pending_rows_event(THD *thd, TABLE* table,
-                             binlog_cache_data *cache_data,
-                             uint32 serv_id, size_t needed,
-                             bool is_transactional,
-                             Rows_event_factory event_factory);
-
-  int flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
-                                       binlog_cache_data *cache_data,
-                                       bool is_transactional);
-
   static int remove_pending_rows_event(THD *thd, binlog_cache_data *cache_data);
 
 #endif /* !defined(MYSQL_CLIENT) */
@@ -856,15 +900,13 @@ public:
   bool write_incident_already_locked(THD *thd);
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
-  int  write_cache(THD *thd, IO_CACHE *cache);
-  void set_write_error(THD *thd, bool is_transactional);
-  static bool check_write_error(THD *thd);
 
   void start_union_events(THD *thd, query_id_t query_id_param);
   void stop_union_events(THD *thd);
   bool is_query_in_union(THD *thd, query_id_t query_id_param);
 
-  bool write_event(Log_event *ev, binlog_cache_data *data, IO_CACHE *file);
+  using Event_log::write_event;
+
   bool write_event(Log_event *ev) { return write_event(ev, 0, &log_file); }
 
   bool write_event_buffer(uchar* buf,uint len);
@@ -928,8 +970,7 @@ public:
   uint next_file_id();
   inline char* get_index_fname() { return index_file_name;}
   inline char* get_log_fname() { return log_file_name; }
-  inline char* get_name() { return name; }
-  inline mysql_mutex_t* get_log_lock() { return &LOCK_log; }
+  using MYSQL_LOG::get_log_lock;
   inline mysql_cond_t* get_bin_log_cond() { return &COND_bin_log_updated; }
   inline IO_CACHE* get_log_file() { return &log_file; }
   inline uint64 get_reset_master_count() { return reset_master_count; }
@@ -1212,7 +1253,7 @@ void binlog_reset_cache(THD *thd);
 bool write_annotated_row(THD *thd);
 int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     bool is_transactional,
-                                    MYSQL_BIN_LOG *bin_log,
+                                    Event_log *bin_log,
                                     binlog_cache_data *cache_data);
 Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
                                               bool use_trans_cache);
