@@ -650,9 +650,9 @@ given at all. */
 
 typedef ulonglong alter_table_operations;
 
-class MYSQL_BIN_LOG;
+class Event_log;
 class binlog_cache_data;
-typedef bool Log_func(THD*, TABLE*, MYSQL_BIN_LOG *, binlog_cache_data *, bool,
+typedef bool Log_func(THD*, TABLE*, Event_log *, binlog_cache_data *, bool,
                       const uchar*, const uchar*);
 
 /*

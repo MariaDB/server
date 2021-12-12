@@ -373,7 +373,7 @@ public:
                                           __attribute__((unused)),
                                           const uchar *after_record)
   {
-    return thd->binlog_write_row(table, &mysql_bin_log,
+    return thd->binlog_write_row(table, mysql_bin_log.as_event_log(),
                                  binlog_get_cache_data(thd->binlog_get_cache_mngr(),
                                                        is_transactional),
                                  is_transactional,
@@ -452,7 +452,7 @@ public:
                                           const uchar *before_record,
                                           const uchar *after_record)
   {
-    return thd->binlog_update_row(table, &mysql_bin_log,
+    return thd->binlog_update_row(table, mysql_bin_log.as_event_log(),
                                   binlog_get_cache_data(thd->binlog_get_cache_mngr(),
                                                         is_transactional),
                                   is_transactional,
@@ -530,7 +530,7 @@ public:
                                           const uchar *after_record
                                           __attribute__((unused)))
   {
-    return thd->binlog_delete_row(table, &mysql_bin_log,
+    return thd->binlog_delete_row(table, mysql_bin_log.as_event_log(),
                                   binlog_get_cache_data(thd->binlog_get_cache_mngr(),
                                                         is_transactional),
                                   is_transactional, before_record);
