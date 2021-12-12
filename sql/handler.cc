@@ -7261,7 +7261,7 @@ int handler::binlog_log_row(TABLE *table,
 
   auto *cache= binlog_get_cache_data(cache_mngr, use_trans_cache(thd, is_trans));
 
-  bool error= (*log_func)(thd, table, &mysql_bin_log, cache,
+  bool error= (*log_func)(thd, table, mysql_bin_log.as_event_log(), cache,
                           is_trans, before_record, after_record);
   DBUG_RETURN(error ? HA_ERR_RBR_LOGGING_FAILED : 0);
 }
