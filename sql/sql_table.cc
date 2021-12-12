@@ -11014,7 +11014,7 @@ do_continue:;
       binlog_as_create_select= 1;
       DBUG_ASSERT(new_table->file->row_logging);
       new_table->mark_columns_needed_for_insert();
-      thd->binlog_write_table_map(new_table, 1);
+      mysql_bin_log.write_table_map(thd, new_table, 1);
     }
     if (copy_data_between_tables(thd, table, new_table,
                                  alter_info->create_list, ignore,
