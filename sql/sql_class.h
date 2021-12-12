@@ -2946,20 +2946,19 @@ public:
   */
   void binlog_start_trans_and_stmt();
   void binlog_set_stmt_begin();
-  int binlog_write_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
+  int binlog_write_row(TABLE* table, Event_log *bin_log,
                        binlog_cache_data *cache_data, bool is_transactional,
                        const uchar *buf);
-  int binlog_delete_row(TABLE* table,  MYSQL_BIN_LOG *bin_log,
+  int binlog_delete_row(TABLE* table,  Event_log *bin_log,
                         binlog_cache_data *cache_data, bool is_transactional,
                         const uchar *buf);
-  int binlog_update_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
+  int binlog_update_row(TABLE* table, Event_log *bin_log,
                         binlog_cache_data *cache_data, bool is_transactional,
                         const uchar *old_data, const uchar *new_data);
   bool prepare_handlers_for_update(uint flag);
   bool binlog_write_annotated_row(Log_event_writer *writer);
   void binlog_prepare_for_row_logging();
   bool binlog_write_table_maps();
-  bool binlog_write_table_map(TABLE *table, bool with_annotate);
   static void binlog_prepare_row_images(TABLE* table);
 
   void set_server_id(uint32 sid) { variables.server_id = sid; }

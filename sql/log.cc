@@ -2408,7 +2408,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
     thd->reset_binlog_for_next_statement();
     DBUG_RETURN(error);
   }
-  if (!wsrep_emulate_bin_log && MYSQL_BIN_LOG::check_write_error(thd))
+  if (!wsrep_emulate_bin_log && Event_log::check_write_error(thd))
   {
     /*
       "all == true" means that a "rollback statement" triggered the error and
@@ -2473,7 +2473,7 @@ void binlog_reset_cache(THD *thd)
 }
 
 
-void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
+void Event_log::set_write_error(THD *thd, bool is_transactional)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::set_write_error");
 
@@ -2513,7 +2513,7 @@ void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
   DBUG_VOID_RETURN;
 }
 
-bool MYSQL_BIN_LOG::check_write_error(THD *thd)
+bool Event_log::check_write_error(THD *thd)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::check_write_error");
 
@@ -3666,7 +3666,7 @@ void MYSQL_BIN_LOG::init(ulong max_size_arg)
 
 void MYSQL_BIN_LOG::init_pthread_objects()
 {
-  MYSQL_LOG::init_pthread_objects();
+  Event_log::init_pthread_objects();
   mysql_mutex_init(m_key_LOCK_index, &LOCK_index, MY_MUTEX_INIT_SLOW);
   mysql_mutex_setflags(&LOCK_index, MYF_NO_DEADLOCK_DETECTION);
   mysql_mutex_init(key_BINLOG_LOCK_xid_list,
@@ -3682,9 +3682,6 @@ void MYSQL_BIN_LOG::init_pthread_objects()
                   &COND_binlog_background_thread, 0);
   mysql_cond_init(key_BINLOG_COND_binlog_background_thread_end,
                   &COND_binlog_background_thread_end, 0);
-
-  mysql_mutex_init(m_key_LOCK_binlog_end_pos, &LOCK_binlog_end_pos,
-                   MY_MUTEX_INIT_SLOW);
 }
 
 
@@ -3752,6 +3749,76 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
 #endif
 
   return FALSE;
+}
+
+
+bool Event_log::open(const char *log_name, enum_log_type log_type,
+                     const char *new_name, ulong next_file_number,
+                     enum cache_type io_cache_type_arg)
+{
+  bool error= MYSQL_LOG::open(
+#ifdef HAVE_PSI_INTERFACE
+          0,
+#endif
+          log_name, log_type, new_name, next_file_number, io_cache_type_arg);
+  if (error)
+    return error;
+
+  int bytes_written= write_description_event(
+                              (enum_binlog_checksum_alg)binlog_checksum_options,
+                              encrypt_binlog, false, false);
+  error= bytes_written < 0;
+  return error;
+}
+
+int Event_log::write_description_event(enum_binlog_checksum_alg checksum_alg,
+                                       bool encrypt, bool dont_set_created,
+                                       bool is_relay_log)
+{
+  Format_description_log_event s(BINLOG_VERSION);
+  /*
+    don't set LOG_EVENT_BINLOG_IN_USE_F for SEQ_READ_APPEND io_cache
+    as we won't be able to reset it later
+  */
+  if (io_cache_type == WRITE_CACHE)
+    s.flags |= LOG_EVENT_BINLOG_IN_USE_F;
+  s.checksum_alg= checksum_alg;
+  if (is_relay_log)
+    s.set_relay_log_event();
+
+  crypto.scheme = 0;
+  DBUG_ASSERT(s.checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
+  if (!s.is_valid())
+    return -1;
+  s.dont_set_created= dont_set_created;
+  if (write_event(&s, 0, &log_file))
+    return -1;
+
+  if (encrypt)
+  {
+    uint key_version= encryption_key_get_latest_version(ENCRYPTION_KEY_SYSTEM_DATA);
+    if (key_version == ENCRYPTION_KEY_VERSION_INVALID)
+    {
+      sql_print_error("Failed to enable encryption of binary logs");
+      return -1;
+    }
+
+    if (key_version != ENCRYPTION_KEY_NOT_ENCRYPTED)
+    {
+      if (my_random_bytes(crypto.nonce, sizeof(crypto.nonce)))
+        return -1;
+
+      Start_encryption_log_event sele(1, key_version, crypto.nonce);
+      sele.checksum_alg= s.checksum_alg;
+      if (write_event(&sele, 0, &log_file))
+        return -1;
+
+      // Start_encryption_log_event is written, enable the encryption
+      if (crypto.init(sele.crypto_scheme, key_version))
+        return -1;
+    }
+  }
+  return s.data_written;
 }
 
 
@@ -3881,17 +3948,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
     }
 
     {
-      /*
-        In 4.x we put Start event only in the first binlog. But from 5.0 we
-        want a Start event even if this is not the very first binlog.
-      */
-      Format_description_log_event s(BINLOG_VERSION);
-      /*
-        don't set LOG_EVENT_BINLOG_IN_USE_F for SEQ_READ_APPEND io_cache
-        as we won't be able to reset it later
-      */
-      if (io_cache_type == WRITE_CACHE)
-        s.flags |= LOG_EVENT_BINLOG_IN_USE_F;
+      enum_binlog_checksum_alg alg;
 
       if (is_relay_log)
       {
@@ -3899,45 +3956,16 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           relay_log_checksum_alg=
             opt_slave_sql_verify_checksum ? (enum_binlog_checksum_alg) binlog_checksum_options
                                           : BINLOG_CHECKSUM_ALG_OFF;
-        s.checksum_alg= relay_log_checksum_alg;
-        s.set_relay_log_event();
+        alg= relay_log_checksum_alg;
       }
       else
-        s.checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
+        alg= (enum_binlog_checksum_alg)binlog_checksum_options;
 
-      crypto.scheme = 0;
-      DBUG_ASSERT(s.checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
-      if (!s.is_valid())
+      longlong written= write_description_event(alg, encrypt_binlog,
+                                                null_created_arg, is_relay_log);
+      if (written == -1)
         goto err;
-      s.dont_set_created= null_created_arg;
-      if (write_event(&s))
-        goto err;
-      bytes_written+= s.data_written;
-
-      if (encrypt_binlog)
-      {
-        uint key_version= encryption_key_get_latest_version(ENCRYPTION_KEY_SYSTEM_DATA);
-        if (key_version == ENCRYPTION_KEY_VERSION_INVALID)
-        {
-          sql_print_error("Failed to enable encryption of binary logs");
-          goto err;
-        }
-
-        if (key_version != ENCRYPTION_KEY_NOT_ENCRYPTED)
-        {
-          if (my_random_bytes(crypto.nonce, sizeof(crypto.nonce)))
-            goto err;
-
-          Start_encryption_log_event sele(1, key_version, crypto.nonce);
-          sele.checksum_alg= s.checksum_alg;
-          if (write_event(&sele))
-            goto err;
-
-          // Start_encryption_log_event is written, enable the encryption
-          if (crypto.init(sele.crypto_scheme, key_version))
-            goto err;
-        }
-      }
+      bytes_written+= written;
 
       if (!is_relay_log)
       {
@@ -5626,7 +5654,7 @@ end2:
   DBUG_RETURN(error);
 }
 
-bool MYSQL_BIN_LOG::write_event(Log_event *ev, binlog_cache_data *cache_data,
+bool Event_log::write_event(Log_event *ev, binlog_cache_data *cache_data,
                                 IO_CACHE *file)
 {
   Log_event_writer writer(file, 0, &crypto);
@@ -6209,7 +6237,7 @@ bool THD::binlog_write_table_maps()
       }
       if (table->file->row_logging)
       {
-        if (binlog_write_table_map(table, with_annotate))
+        if (mysql_bin_log.write_table_map(this, table, with_annotate))
           DBUG_RETURN(1);
         with_annotate= 0;
       }
@@ -6242,7 +6270,7 @@ bool THD::binlog_write_table_maps()
     nonzero if an error pops up when writing the table map event.
 */
 
-bool THD::binlog_write_table_map(TABLE *table, bool with_annotate)
+bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table, bool with_annotate)
 {
   int error= 1;
   bool is_transactional= table->file->row_logging_has_trans;
@@ -6255,20 +6283,20 @@ bool THD::binlog_write_table_map(TABLE *table, bool with_annotate)
   DBUG_ASSERT(table->s->table_map_id != ULONG_MAX);
 
   /* Ensure that all events in a GTID group are in the same cache */
-  if (variables.option_bits & OPTION_GTID_BEGIN)
+  if (thd->variables.option_bits & OPTION_GTID_BEGIN)
     is_transactional= 1;
 
   Table_map_log_event
-    the_event(this, table, table->s->table_map_id, is_transactional);
+    the_event(thd, table, table->s->table_map_id, is_transactional);
 
-  binlog_cache_mngr *const cache_mngr= binlog_get_cache_mngr();
+  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
   binlog_cache_data *cache_data= (cache_mngr->
                                   get_binlog_cache_data(is_transactional));
   IO_CACHE *file= &cache_data->cache_log;
   Log_event_writer writer(file, cache_data);
 
   if (with_annotate)
-    if (binlog_write_annotated_row(&writer))
+    if (thd->binlog_write_annotated_row(&writer))
       goto write_err;
 
   DBUG_EXECUTE_IF("table_map_write_error",
@@ -6286,14 +6314,14 @@ bool THD::binlog_write_table_map(TABLE *table, bool with_annotate)
   DBUG_RETURN(0);
 
 write_err:
-  mysql_bin_log.set_write_error(this, is_transactional);
+  set_write_error(thd, is_transactional);
   /*
     For non-transactional engine or multi statement transaction with mixed
     engines, data is written to table but writing to binary log failed. In
     these scenarios rollback is not possible. Hence report an incident.
   */
-  if (mysql_bin_log.check_write_error(this) && cache_data &&
-      lex->stmt_accessed_table(LEX::STMT_WRITES_NON_TRANS_TABLE) &&
+  if (check_write_error(thd) && cache_data &&
+      thd->lex->stmt_accessed_table(LEX::STMT_WRITES_NON_TRANS_TABLE) &&
       table->current_lock == F_WRLCK)
     cache_data->set_incident();
   DBUG_RETURN(error);
@@ -6337,7 +6365,7 @@ binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
 
 int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     bool is_transactional,
-                                    MYSQL_BIN_LOG *bin_log,
+                                    Event_log *bin_log,
                                     binlog_cache_data *cache_data)
 {
   /*
@@ -6395,7 +6423,7 @@ MYSQL_BIN_LOG::remove_pending_rows_event(THD *thd, binlog_cache_data *cache_data
                            otherwise @c false a non-transactional.
 */
 int
-MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
+Event_log::flush_and_set_pending_rows_event(THD *thd,
                                                 Rows_log_event* event,
                                                 binlog_cache_data *cache_data,
                                                 bool is_transactional)
@@ -6455,7 +6483,7 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
  */
 
 Rows_log_event*
-MYSQL_BIN_LOG::prepare_pending_rows_event(THD *thd, TABLE* table,
+Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
                                           binlog_cache_data *cache_data,
                                           uint32 serv_id, size_t needed,
                                           bool is_transactional,
@@ -7578,9 +7606,9 @@ private:
     events prior to fill in the binlog cache.
 */
 
-int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
+int Event_log::write_cache(THD *thd, IO_CACHE *cache)
 {
-  DBUG_ENTER("MYSQL_BIN_LOG::write_cache");
+  DBUG_ENTER("Event_log::write_cache");
 
   mysql_mutex_assert_owner(&LOCK_log);
   if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
