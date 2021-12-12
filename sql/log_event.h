@@ -4917,7 +4917,7 @@ public:
 #endif
 #if defined(MYSQL_SERVER) 
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
-                                          MYSQL_BIN_LOG *bin_log,
+                                          Event_log *bin_log,
                                           binlog_cache_data *cache_data,
                                           bool is_transactional,
                                           const uchar *before_record
@@ -5003,7 +5003,7 @@ public:
 
 #ifdef MYSQL_SERVER
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
-                                          MYSQL_BIN_LOG *bin_log,
+                                          Event_log *bin_log,
                                           binlog_cache_data *cache_data,
                                           bool is_transactional,
                                           const uchar *before_record,
@@ -5094,7 +5094,7 @@ public:
 #endif
 #ifdef MYSQL_SERVER
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
-                                          MYSQL_BIN_LOG *bin_log,
+                                          Event_log *bin_log,
                                           binlog_cache_data *cache_data,
                                           bool is_transactional,
                                           const uchar *before_record,
