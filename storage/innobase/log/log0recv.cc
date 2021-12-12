@@ -659,7 +659,14 @@ static struct
         return;
       }
       else if (d->second.lsn < lsn)
+      {
+        /* Reset the old tablespace name in recovered spaces list */
+        recv_spaces_t::iterator it{recv_spaces.find(d->first)};
+        if (it != recv_spaces.end() &&
+            it->second.name == d->second.file_name)
+          it->second.name = "";
         defers.erase(d++);
+      }
       else
       {
         ut_ad(d->second.lsn != lsn);
@@ -673,6 +680,10 @@ static struct
       p.first->second.lsn= lsn;
       p.first->second.file_name= defer.file_name;
     }
+    /* Add the newly added defered space and change the file name */
+    recv_spaces_t::iterator it{recv_spaces.find(space)};
+    if (it != recv_spaces.end())
+      it->second.name = defer.file_name;
   }
 
   void remove(uint32_t space)
@@ -911,6 +922,7 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
       }
       node->deferred= false;
       space->release();
+      it->second.space= space;
       return false;
     }
 
