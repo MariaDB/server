@@ -797,7 +797,10 @@ processed:
     return space;
   }
 
-  /* Recover the page0 of deferred tablespace from doublewrite buffer.*/
+  /** Attempt to recover pages from the doublewrite buffer.
+  This is invoked if we found neither a valid first page in the
+  data file nor redo log records that would initialize the first
+  page. */
   void deferred_dblwr()
   {
     for (auto d= defers.begin(); d != defers.end(); )
@@ -832,10 +835,10 @@ processed:
         space->free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
         space->free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
         fil_node_t *node= UT_LIST_GET_FIRST(space->chain);
-	if (!space->acquire())
+        if (!space->acquire())
           goto next_item;
         if (os_file_write(IORequestWrite, node->name, node->handle,
-                      page, 0, fil_space_t::physical_size(flags) !=
+                          page, 0, fil_space_t::physical_size(flags) !=
             DB_SUCCESS))
         {
           space->release();
