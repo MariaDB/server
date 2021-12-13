@@ -445,22 +445,18 @@ public:
   the continuation destination, we put them both here for simplicity.
 */
 
-class sp_instr_opt_meta : public sp_instr
+class sp_instr_opt_meta
 {
 public:
 
   uint m_dest;                  ///< Where we will go
   uint m_cont_dest;             ///< Where continue handlers will go
 
-  sp_instr_opt_meta(uint ip, sp_pcontext *ctx)
-    : sp_instr(ip, ctx),
-      m_dest(0), m_cont_dest(0), m_optdest(0), m_cont_optdest(0)
+  explicit sp_instr_opt_meta(uint dest)
+    : m_dest(dest), m_cont_dest(0), m_optdest(0), m_cont_optdest(0)
   {}
 
-  sp_instr_opt_meta(uint ip, sp_pcontext *ctx, uint dest)
-    : sp_instr(ip, ctx),
-      m_dest(dest), m_cont_dest(0), m_optdest(0), m_cont_optdest(0)
-  {}
+  virtual ~sp_instr_opt_meta() {}
 
   virtual void set_destination(uint old_dest, uint new_dest)
     = 0;
@@ -475,7 +471,7 @@ protected:
 }; // class sp_instr_opt_meta : public sp_instr
 
 
-class sp_instr_jump : public sp_instr_opt_meta
+class sp_instr_jump : public sp_instr_opt_meta, public sp_instr
 {
   sp_instr_jump(const sp_instr_jump &); /**< Prevent use of these */
   void operator=(sp_instr_jump &);
@@ -483,11 +479,11 @@ class sp_instr_jump : public sp_instr_opt_meta
 public:
 
   sp_instr_jump(uint ip, sp_pcontext *ctx)
-    : sp_instr_opt_meta(ip, ctx)
+    : sp_instr_opt_meta(0), sp_instr(ip, ctx)
   {}
 
   sp_instr_jump(uint ip, sp_pcontext *ctx, uint dest)
-    : sp_instr_opt_meta(ip, ctx, dest)
+    : sp_instr_opt_meta(dest), sp_instr(ip, ctx)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -522,7 +518,7 @@ public:
 };
 
 
-class sp_instr_jump_if_not : public sp_instr_jump
+class sp_instr_jump_if_not : public sp_instr_opt_meta, public sp_lex_instr
 {
   sp_instr_jump_if_not(const sp_instr_jump_if_not &); /**< Prevent use of these */
   void operator=(sp_instr_jump_if_not &);
@@ -530,13 +526,15 @@ class sp_instr_jump_if_not : public sp_instr_jump
 public:
 
   sp_instr_jump_if_not(uint ip, sp_pcontext *ctx, Item *i, LEX *lex)
-    : sp_instr_jump(ip, ctx), m_expr(i),
-      m_lex_keeper(lex, true)
+    : sp_instr_opt_meta(0),
+      sp_lex_instr(ip, ctx, lex, true),
+      m_expr(i)
   {}
 
   sp_instr_jump_if_not(uint ip, sp_pcontext *ctx, Item *i, uint dest, LEX *lex)
-    : sp_instr_jump(ip, ctx, dest), m_expr(i),
-      m_lex_keeper(lex, true)
+    : sp_instr_opt_meta(dest),
+      sp_lex_instr(ip, ctx, lex, true),
+      m_expr(i)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -557,15 +555,32 @@ public:
 
   void set_destination(uint old_dest, uint new_dest) override
   {
-    sp_instr_jump::set_destination(old_dest, new_dest);
+    if (m_dest == old_dest)
+      m_dest= new_dest;
     if (m_cont_dest == old_dest)
       m_cont_dest= new_dest;
+  }
+
+  void backpatch(uint dest, sp_pcontext *dst_ctx) override
+  {
+    /* Calling backpatch twice is a logic flaw in jump resolution. */
+    DBUG_ASSERT(m_dest == 0);
+    m_dest= dest;
+  }
+
+  bool is_invalid() const override
+  {
+    return m_expr == nullptr;
+  }
+
+  void invalidate() override
+  {
+    m_expr= nullptr;
   }
 
 private:
 
   Item *m_expr;                 ///< The condition
-  sp_lex_keeper m_lex_keeper;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -1063,15 +1078,14 @@ public:
 }; // class sp_instr_error : public sp_instr
 
 
-class sp_instr_set_case_expr : public sp_instr_opt_meta
+class sp_instr_set_case_expr : public sp_instr_opt_meta, public sp_lex_instr
 {
 public:
 
   sp_instr_set_case_expr(uint ip, sp_pcontext *ctx, uint case_expr_id,
                          Item *case_expr, LEX *lex)
-    : sp_instr_opt_meta(ip, ctx),
-      m_case_expr_id(case_expr_id), m_case_expr(case_expr),
-      m_lex_keeper(lex, true)
+    : sp_instr_opt_meta(0), sp_lex_instr(ip, ctx, lex, true),
+      m_case_expr_id(case_expr_id), m_case_expr(case_expr)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -1090,11 +1104,20 @@ public:
       m_cont_dest= new_dest;
   }
 
+  bool is_invalid() const override
+  {
+    return m_case_expr == nullptr;
+  }
+
+  void invalidate() override
+  {
+    m_case_expr= nullptr;
+  }
+
 private:
 
   uint m_case_expr_id;
   Item *m_case_expr;
-  sp_lex_keeper m_lex_keeper;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
