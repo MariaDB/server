@@ -8,9 +8,6 @@
 --let $node_2=node_2
 --source include/auto_increment_offset_save.inc
 
---connection node_2
-CALL mtr.add_suppression("\\[ERROR\\] .*ib_buffer_pool' for reading: No such file or directory");
-
 --connection node_1
 --source suite/galera/include/galera_st_shutdown_slave.inc
 --source suite/galera/include/galera_st_clean_slave.inc

@@ -17,7 +17,7 @@
 # MA  02110-1335  USA.
 
 # Optional dependencies and options documented here:
-# http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
+# https://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
 # Make sure to read that before proceeding!
 
 . $(dirname "$0")/wsrep_sst_common
@@ -63,9 +63,6 @@ DATA="${WSREP_SST_OPT_DATA}"
 INFO_FILE="xtrabackup_galera_info"
 IST_FILE="xtrabackup_ist"
 MAGIC_FILE="${DATA}/${INFO_FILE}"
-
-# Setting the path for ss and ip
-export PATH="/usr/sbin:/sbin:$PATH"
 
 timeit(){
     local stage="$1"
