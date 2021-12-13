@@ -1,0 +1,94 @@
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+# it is not PUBLIC but an user
+# (this should work as it allowed for roles for example)
+create user PUBLIC;
+create user PUBLIC@localhost;
+GRANT SELECT on test.* to PUBLIC@localhost;
+drop user PUBLIC@localhost;
+drop user PUBLIC;
+# preinstalled PUBLIC
+GRANT SELECT on test.* to PUBLIC;
+GRANT SELECT on mysql.db to PUBLIC;
+select * from mysql.global_priv where user="PUBLIC" ;
+Host	User	Priv
+	PUBLIC	{"access":0,"version_id":VERSION,"is_role":true}
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+GRANT SELECT ON `test`.* TO `PUBLIC`
+GRANT SELECT ON `mysql`.`db` TO `PUBLIC`
+GRANT UPDATE on test.* to PUBLIC;
+GRANT UPDATE on mysql.db to PUBLIC;
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+GRANT SELECT, UPDATE ON `test`.* TO `PUBLIC`
+GRANT SELECT, UPDATE ON `mysql`.`db` TO `PUBLIC`
+REVOKE SELECT on test.* from PUBLIC;
+REVOKE SELECT on mysql.db from PUBLIC;
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+GRANT UPDATE ON `test`.* TO `PUBLIC`
+GRANT UPDATE ON `mysql`.`db` TO `PUBLIC`
+REVOKE UPDATE on test.* from PUBLIC;
+REVOKE UPDATE on mysql.db from PUBLIC;
+REVOKE UPDATE on test.* from PUBLIC;
+ERROR 42000: There is no such grant defined for user 'PUBLIC' on host ''
+REVOKE UPDATE on mysql.db from PUBLIC;
+ERROR 42000: There is no such grant defined for user 'PUBLIC' on host '' on table 'db'
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+# automaticly added PUBLIC
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+select * from mysql.global_priv where user="PUBLIC" ;
+Host	User	Priv
+GRANT SELECT on test.* to PUBLIC;
+GRANT SELECT on mysql.db to PUBLIC;
+select * from mysql.global_priv where user="PUBLIC" ;
+Host	User	Priv
+	PUBLIC	{"access":0,"version_id":VERSION,"is_role":true}
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+GRANT SELECT ON `test`.* TO `PUBLIC`
+GRANT SELECT ON `mysql`.`db` TO `PUBLIC`
+GRANT UPDATE on test.* to PUBLIC;
+GRANT UPDATE on mysql.db to PUBLIC;
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+GRANT SELECT, UPDATE ON `test`.* TO `PUBLIC`
+GRANT SELECT, UPDATE ON `mysql`.`db` TO `PUBLIC`
+REVOKE SELECT on test.* from PUBLIC;
+REVOKE SELECT on mysql.db from PUBLIC;
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+GRANT UPDATE ON `test`.* TO `PUBLIC`
+GRANT UPDATE ON `mysql`.`db` TO `PUBLIC`
+REVOKE UPDATE on test.* from PUBLIC;
+REVOKE UPDATE on mysql.db from PUBLIC;
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+GRANT XXXXXX TO CURRENT_USER;
+ERROR OP000: Invalid role specification `XXXXXX`
+# following should fail with the same error as above
+GRANT PUBLIC TO CURRENT_USER;
+ERROR OP000: Invalid role specification `PUBLIC`
+REVOKE XXXXXX FROM CURRENT_USER;
+ERROR OP000: Invalid role specification `XXXXXX`
+# following should fail with the same error as above
+REVOKE PUBLIC FROM CURRENT_USER;
+ERROR OP000: Invalid role specification `PUBLIC`
+drop role XXXXXX;
+ERROR HY000: Operation DROP ROLE failed for 'XXXXXX'
+# following should fail with the same error as above
+drop role PUBLIC;
+ERROR HY000: Operation DROP ROLE failed for PUBLIC
+SET ROLE XXXXXX;
+ERROR OP000: Invalid role specification `XXXXXX`
+# following should fail with the same error as above
+SET ROLE PUBLIC;
+ERROR OP000: Invalid role specification `PUBLIC`
+SET DEFAULT ROLE XXXXXX;
+ERROR OP000: Invalid role specification `XXXXXX`
+# following should fail with the same error as above
+SET DEFAULT ROLE PUBLIC;
+ERROR OP000: Invalid role specification `PUBLIC`

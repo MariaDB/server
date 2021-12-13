@@ -345,7 +345,6 @@ show grants;
 Grants for foo1@localhost
 GRANT USAGE ON *.* TO `foo1`@`localhost` IDENTIFIED BY PASSWORD '-F3A2A51A9B0F2BE2468926B4132313728C250DBF'
 GRANT CREATE ROUTINE ON `test`.* TO `foo1`@`localhost`
-GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`spfoo` TO `foo1`@`localhost`
 connection default;
 disconnect foo;
 drop procedure spfoo;

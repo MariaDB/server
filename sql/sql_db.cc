@@ -1779,16 +1779,13 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (test_all_bits(sctx->master_access, DB_ACLS))
+  {
     db_access= DB_ACLS;
+  }
   else
   {
-    db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user,
-                        new_db_file_name.str, FALSE) | sctx->master_access;
-    if (sctx->priv_role[0])
-    {
-      /* include a possible currently set role for access */
-      db_access|= acl_get("", "", sctx->priv_role, new_db_file_name.str, FALSE);
-    }
+    db_access= acl_get_all3(sctx, new_db_file_name.str, FALSE);
+    db_access|= sctx->master_access;
   }
 
   if (!force_switch &&
