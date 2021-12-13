@@ -28,7 +28,7 @@ size_t pack_row(TABLE* table, MY_BITMAP const* cols,
                 uchar *row_data, const uchar *data);
 #endif
 
-#if !defined(MYSQL_CLIENT)
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int unpack_row(rpl_group_info *rgi,
                TABLE *table, uint const colcnt,
                uchar const *const row_data, MY_BITMAP const *cols,

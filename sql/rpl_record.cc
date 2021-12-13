@@ -188,6 +188,7 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
    @retval HA_ERR_CORRUPT_EVENT
    Found error when trying to unpack fields.
  */
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int
 unpack_row(rpl_group_info *rgi,
            TABLE *table, uint const colcnt,
@@ -519,3 +520,4 @@ int fill_extra_persistent_columns(TABLE *table, int master_cols)
   }
   return error;
 }
+#endif // HAVE_REPLICATION
