@@ -9453,7 +9453,11 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   MDL_request target_mdl_request;
   MDL_ticket *mdl_ticket= 0;
   Alter_table_prelocking_strategy alter_prelocking_strategy;
+#ifdef HAVE_REPLICATION
   bool online= order == NULL && !opt_bootstrap;
+#else
+  bool online= false;
+#endif
   TRIGGER_RENAME_PARAM trigger_param;
 
   /*
@@ -10979,7 +10983,7 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
   DBUG_RETURN(error);
 }
 
-
+#ifdef HAVE_REPLICATION
 static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
                                          Cache_flip_event_log *log)
 {
@@ -11018,15 +11022,18 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
 
   return error;
 }
+#endif // HAVE_REPLICATION
 
 static void online_alter_cleanup_binlog(THD *thd, TABLE_SHARE *s)
 {
+#ifdef HAVE_REPLICATION
   if (!s->online_alter_binlog)
     return;
   // s->online_alter_binlog->reset_logs(thd, false, NULL, 0, 0);
   s->online_alter_binlog->cleanup();
   s->online_alter_binlog->~Cache_flip_event_log();
   s->online_alter_binlog= NULL;
+#endif
 }
 
 static int
@@ -11068,6 +11075,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   */
   thd_progress_init(thd, MY_TEST(order) + 2 + 2 * MY_TEST(online));
 
+#ifdef HAVE_REPLICATION
   if (online)
   {
     void *buf= alloc_root(thd->mem_root, sizeof (Cache_flip_event_log));
@@ -11107,6 +11115,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     from->mdl_ticket->downgrade_lock(MDL_SHARED_UPGRADABLE);
     DEBUG_SYNC(thd, "alter_table_online_downgraded");
   }
+#else
+  DBUG_ASSERT(!online);
+#endif // HAVE_REPLICATION
 
   if (!(copy= new (thd->mem_root) Copy_field[to->s->fields]))
     DBUG_RETURN(-1);
@@ -11420,6 +11431,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
+#ifdef HAVE_REPLICATION
   if (likely(online && error < 0))
   {
     Ha_trx_info *trx_info_save= thd->transaction->all.ha_list;
@@ -11481,6 +11493,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
                                          MDL_SHARED_NO_WRITE,
                                          thd->variables.lock_wait_timeout);
   }
+#endif
 
   if (error > 0 && !from->s->tmp_table)
   {

@@ -5202,6 +5202,7 @@ protected:
 
   /* helper functions */
 
+
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   const uchar *m_curr_row;     /* Start of the row being processed */
   const uchar *m_curr_row_end; /* One-after the end of the current row */

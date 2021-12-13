@@ -6985,6 +6985,7 @@ bool handler::check_table_binlog_row_based_internal()
 }
 
 
+#ifdef HAVE_REPLICATION
 static int binlog_log_row_online_alter(TABLE* table,
                                        const uchar *before_record,
                                        const uchar *after_record,
@@ -7015,7 +7016,7 @@ static int binlog_log_row_online_alter(TABLE* table,
 
   return unlikely(error) ? HA_ERR_RBR_LOGGING_FAILED : 0;
 }
-
+#endif // HAVE_REPLICATION
 
 
 static int binlog_log_row_to_binlog(TABLE* table,
@@ -7063,9 +7064,13 @@ int handler::binlog_log_row(const uchar *before_record,
   if (row_logging)
     error= binlog_log_row_to_binlog(table, before_record, after_record,
                                     log_func, row_logging_has_trans);
+
+#ifdef HAVE_REPLICATION
   if (unlikely(!error && table->s->online_alter_binlog))
     error= binlog_log_row_online_alter(table, before_record, after_record,
                                        log_func, row_logging_has_trans);
+#endif // HAVE_REPLICATION
+
   DBUG_RETURN(error);
 }
 

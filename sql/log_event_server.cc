@@ -7040,6 +7040,7 @@ bool Write_rows_compressed_log_event::write()
 }
 
 
+
 #if defined(HAVE_REPLICATION)
 int 
 Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability *const)

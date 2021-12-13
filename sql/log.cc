@@ -2106,6 +2106,7 @@ static int binlog_commit_flush_xa_prepare(THD *thd, bool all,
   return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE));
 }
 
+#ifdef HAVE_REPLICATION
 static void
 binlog_online_alter_cleanup(ilist<binlog_cache_mngr> &list,
                             bool ending_trans)
@@ -2128,6 +2129,7 @@ binlog_online_alter_cleanup(ilist<binlog_cache_mngr> &list,
     DBUG_ASSERT(list.empty());
   }
 }
+#endif // HAVE_REPLICATION
 
 /**
   This function is called once after each statement.
@@ -2303,7 +2305,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   }
   else if (likely(!error))
   {  
-    if (ending_trans(thd, all) && trans_cannot_safely_rollback(thd, all))
+    if (is_ending_trans && trans_cannot_safely_rollback(thd, all))
       error= binlog_rollback_flush_trx_cache(thd, all, cache_mngr);
     /*
       Truncate the cache if:
@@ -2315,7 +2317,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
         . the format is not MIXED or no temporary non-trans table
           was updated.
     */
-    else if (ending_trans(thd, all) ||
+    else if (is_ending_trans ||
              (!(thd->transaction->stmt.has_created_dropped_temp_table() &&
                 !thd->is_current_stmt_binlog_format_row()) &&
               (!stmt_has_updated_non_trans_table(thd) ||
@@ -7495,11 +7497,12 @@ int cache_copy(IO_CACHE *to, IO_CACHE *from)
 int binlog_online_alter_commit(THD *thd, bool all)
 {
   DBUG_ENTER("online_alter_commit");
+  int error= 0;
+#ifdef HAVE_REPLICATION
 
   if (thd->online_alter_cache_list.empty())
     DBUG_RETURN(0);
 
-  int error= 0;
   bool is_ending_transaction= ending_trans(thd, all);
 
   for (auto &cache_mngr: thd->online_alter_cache_list)
@@ -7548,11 +7551,13 @@ int binlog_online_alter_commit(THD *thd, bool all)
   {
     table->online_alter_cache= NULL;
   }
+#endif // HAVE_REPLICATION
   DBUG_RETURN(error);
 }
 
 void binlog_online_alter_rollback(THD *thd, bool all)
 {
+#ifdef HAVE_REPLICATION
   bool is_ending_trans= ending_trans(thd, all);
 
   /*
@@ -7565,6 +7570,7 @@ void binlog_online_alter_rollback(THD *thd, bool all)
     Still in case if tables are left opened
    */
   binlog_online_alter_cleanup(thd->online_alter_cache_list, is_ending_trans);
+#endif // HAVE_REPLICATION
 }
 
 /*

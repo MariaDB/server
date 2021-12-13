@@ -889,7 +889,9 @@ struct TABLE_SHARE
   plugin_ref default_part_plugin;
 #endif
 
+#ifdef HAVE_REPLICATION
   Cache_flip_event_log *online_alter_binlog;
+#endif
 
   /**
     System versioning and application-time periods support.
