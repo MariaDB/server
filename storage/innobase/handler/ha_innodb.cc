@@ -21202,3 +21202,14 @@ void ins_node_t::vers_update_end(row_prebuilt_t *prebuilt, bool history_row)
   if (UNIV_LIKELY_NULL(local_heap))
     mem_heap_free(local_heap);
 }
+
+void ha_innobase::open_read_view()
+{
+  trx_t *trx= m_prebuilt->trx;
+  auto thd_iso= thd_get_trx_isolation(m_user_thd);
+
+  trx->isolation_level= innobase_map_isolation_level(thd_iso);
+  ut_ad(trx->isolation_level == TRX_ISO_REPEATABLE_READ);
+
+  trx->read_view.open(m_prebuilt->trx);
+}

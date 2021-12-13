@@ -11093,16 +11093,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (!error)
     {
       /*
-        Some engines (for example, InnoDB) might not create a consistent view
-        snapshot until the first row is read. We need to be sure that we won't
-        see any table changes after we enable replication and downgrade the MDL.
+        Some engines (for example, InnoDB) might not create a read view
+        until the first row is read. We need to be sure that we won't see any
+        table changes after we enable replication and downgrade the MDL.
         So, we force the consistent snapshot to be created now.
       */
       handlerton *ht= from->s->db_type();
       if (ht->start_consistent_snapshot)
       {
         thd->tx_isolation= ISO_REPEATABLE_READ;
-        error= ht->start_consistent_snapshot(ht, thd);
+        from->file->open_read_view();
       }
     }
 
