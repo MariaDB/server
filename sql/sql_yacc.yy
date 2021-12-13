@@ -17156,6 +17156,7 @@ grant_role:
             $$->user= $1;
             $$->host= empty_clex_str;
             $$->auth= NULL;
+            $$->is_public= false;
 
             if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
                                                   username_char_length,

@@ -254,6 +254,7 @@ struct AUTHID
 struct LEX_USER: public AUTHID
 {
   USER_AUTH *auth;
+  bool is_public;
   bool has_auth()
   {
     return auth && (auth->plugin.length || auth->auth_str.length || auth->pwtext.length);

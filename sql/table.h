@@ -301,6 +301,7 @@ typedef struct st_grant_info
    */
   GRANT_TABLE *grant_table_user;
   GRANT_TABLE *grant_table_role;
+  GRANT_TABLE *grant_public;
   /**
      @brief Used for cache invalidation when caching privilege information.
 
@@ -347,6 +348,14 @@ typedef struct st_grant_info
     want_privilege(NO_ACL),
     orig_want_privilege(NO_ACL)
   { }
+
+  void read(const Security_context *sctx, const char *db,
+            const char *table);
+
+  inline void refresh(const Security_context *sctx, const char *db,
+                     const char *table);
+  inline privilege_t aggregate_privs();
+  inline privilege_t aggregate_cols();
 } GRANT_INFO;
 
 enum tmp_table_type
