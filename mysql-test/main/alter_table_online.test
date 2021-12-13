@@ -76,6 +76,8 @@ alter online table t1 modify c varchar(50);
 alter online table t1 modify c varchar(100);
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 add f int;
+--error 0,ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter online table t1 engine=memory;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 rename to t2;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
@@ -83,7 +85,6 @@ alter online table t1 checksum=1;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter online table t1 add constraint check (b > 0);
 
-alter online table t1 engine=memory;
 alter table t1 engine=innodb;
 alter table t1 add index (b);
 alter online table t1 add index c (c);
