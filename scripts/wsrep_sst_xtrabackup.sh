@@ -64,9 +64,6 @@ INFO_FILE="xtrabackup_galera_info"
 IST_FILE="xtrabackup_ist"
 MAGIC_FILE="${DATA}/${INFO_FILE}"
 
-# Setting the path for ss and ip
-export PATH="/usr/sbin:/sbin:$PATH"
-
 timeit(){
     local stage="$1"
     shift
