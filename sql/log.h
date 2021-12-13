@@ -426,8 +426,8 @@ public:
           enum cache_type io_cache_type_arg);
   virtual IO_CACHE *get_log_file() { return &log_file; }
 
-  int write_description_event(enum_binlog_checksum_alg checksum_alg,
-                              bool encrypt, bool dont_set_created);
+  longlong write_description_event(enum_binlog_checksum_alg checksum_alg,
+                                   bool encrypt, bool dont_set_created);
 
   bool write_event(Log_event *ev, binlog_cache_data *data, IO_CACHE *file);
 };

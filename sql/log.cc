@@ -3637,15 +3637,16 @@ bool Event_log::open(const char *log_name,
   if (error)
     return error;
 
-  int bytes_written= write_description_event(
+  longlong bytes_written= write_description_event(
                               (enum_binlog_checksum_alg)binlog_checksum_options,
                               encrypt_binlog, false);
   error= bytes_written < 0;
   return error;
 }
 
-int Event_log::write_description_event(enum_binlog_checksum_alg checksum_alg,
-                                       bool encrypt, bool dont_set_created)
+longlong
+Event_log::write_description_event(enum_binlog_checksum_alg checksum_alg,
+                                   bool encrypt, bool dont_set_created)
 {
   Format_description_log_event s(BINLOG_VERSION);
   /*
@@ -3688,7 +3689,7 @@ int Event_log::write_description_event(enum_binlog_checksum_alg checksum_alg,
         return -1;
     }
   }
-  return s.data_written;
+  return (longlong)s.data_written;
 }
 
 
