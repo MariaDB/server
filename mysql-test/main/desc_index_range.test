@@ -1,0 +1,77 @@
+#
+# Tests for range access and descending indexes
+#
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+# The test uses optimizer trace:
+--source include/not_embedded.inc
+
+create table t1 (
+  a int,
+  key (a desc)
+);
+insert into t1 select seq from seq_1_to_1000;
+
+set optimizer_trace=1;
+explain select * from t1 force index(a) where a in (2, 4, 6);
+
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+from information_schema.optimizer_trace;
+set optimizer_trace=default;
+
+--echo # These should go in reverse order:
+select * from t1 force index(a) where a in (2, 4, 6);
+drop table t1;
+
+--echo #
+--echo # Multi-part key tests
+--echo #
+create table t1 (
+  a int not null,
+  b int not null,
+  key ab(a, b desc)
+);
+
+insert into t1 select A.seq, B.seq*10 from seq_1_to_10 A, seq_1_to_10 B;
+
+set optimizer_trace=1;
+explain select * from t1 force index(ab) where a>=8 and b>=50;
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+from information_schema.optimizer_trace;
+
+explain select * from t1 force index(ab) where a>=8 and b<=50;
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+from information_schema.optimizer_trace;
+
+select * from t1 force index(ab) where a>=8 and b<=50;
+select * from t1 ignore index(ab) where a>=8 and b<=50 order by a, b desc;
+
+explain
+select * from t1 where a between 2 and 4 and b between 50 and 80;
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+from information_schema.optimizer_trace;
+
+select * from t1 where a between 2 and 4 and b between 50 and 80;
+
+drop table t1;
+
+create table t2 (
+  a int not null,
+  b int not null,
+  key ab(a desc, b desc)
+);
+insert into t2 select A.seq, B.seq*10 from seq_1_to_10 A, seq_1_to_10 B;
+
+explain
+select * from t2 where a between 2 and 4;
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+from information_schema.optimizer_trace;
+
+explain
+select * from t2 where a between 2 and 4 and b between 50 and 80;
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges'))
+from information_schema.optimizer_trace;
+
+set optimizer_trace=default;
+drop table t2;
