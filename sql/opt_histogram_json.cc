@@ -480,6 +480,13 @@ bool read_bucket_endpoint(json_engine_t *je, Field *field, String *out,
   if (json_read_value(je))
     return true;
 
+  if (je->value_type != JSON_VALUE_STRING &&
+      je->value_type != JSON_VALUE_NUMBER)
+  {
+    *err= "String or number expected";
+    return true;
+  }
+
   const char* je_value= (const char*)je->value;
   if (je->value_type == JSON_VALUE_STRING && je->value_escaped)
   {

@@ -4688,7 +4688,7 @@ explain select * from t1_json limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
-Warning	4186	Failed to parse histogram for table test.t1_json: "size" element not present at offset 28.
+Warning	4186	Failed to parse histogram for table test.t1_json: String or number expected at offset 27.
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb":[{"start":"aaa", "size":"not-an-integer"}]}'
 WHERE table_name='t1_json';
