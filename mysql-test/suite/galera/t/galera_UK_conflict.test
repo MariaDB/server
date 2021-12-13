@@ -207,13 +207,15 @@ INSERT INTO t1 VALUES (5, 5, 2);
 --source include/galera_set_sync_point.inc
 
 --connection node_1
---let $wait_condition = SELECT COUNT(*) = 7 FROM t1
---source include/wait_condition.inc
-SELECT COUNT(*) FROM t1;
+--send COMMIT
+
+--connection node_1a
 # wait for the local commit to enter in commit monitor wait state
 --let $galera_sync_point = apply_monitor_slave_enter_sync commit_monitor_master_enter_sync
 --source include/galera_wait_sync_point.inc
 --source include/galera_clear_sync_point.inc
+
+# first applier is now  waiting in before commit, and local trx in commit monitor
 
 # set sync point before replaying
 SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_replay_cb";
