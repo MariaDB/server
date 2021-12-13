@@ -63,7 +63,7 @@ public:
 
     @return The number of fields that there is type data for.
    */
-  ulong size() const { return m_size; }
+  uint size() const { return m_size; }
 
 
   /**
@@ -221,12 +221,12 @@ public:
 
 
 private:
-  ulong m_size;           // Number of elements in the types array
   unsigned char *m_type;  // Array of type descriptors
+  uint m_size;           // Number of elements in the types array
   uint m_field_metadata_size;
   uint16 *m_field_metadata;
-  uchar *m_null_bits;
   uint16 m_flags;         // Table flags
+  uchar *m_null_bits;
   uchar *m_memory;
 };
 
