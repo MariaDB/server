@@ -77,8 +77,6 @@
 #define DDL_LOG_MAGIC_LENGTH 4
 /* How many times to try to execute a ddl log entry that causes crashes */
 #define DDL_LOG_MAX_RETRY 3
-#define DDL_LOG_RETRY_MASK 0xFF
-#define DDL_LOG_RETRY_BITS 8
 
 uchar ddl_log_file_magic[]=
 { (uchar) 254, (uchar) 254, (uchar) 11, (uchar) 2 };
@@ -166,7 +164,8 @@ mysql_mutex_t LOCK_gdl;
 #define DDL_LOG_UUID_POS 18
 /* ID_POS can be used to store something unique, like file size (8 bytes) */
 #define DDL_LOG_ID_POS DDL_LOG_UUID_POS + MY_UUID_SIZE
-#define DDL_LOG_END_POS DDL_LOG_ID_POS + 8
+#define DDL_LOG_MASTER_ENTRY_POS DDL_LOG_ID_POS + 8
+#define DDL_LOG_END_POS DDL_LOG_MASTER_ENTRY_POS + 4
 
 /*
   Position to where names are stored in the ddl log blocks. The current
@@ -405,7 +404,7 @@ static bool update_xid(uint entry_pos, ulonglong xid)
 static bool update_unique_id(uint entry_pos, ulonglong id)
 {
   uchar buff[8];
-  DBUG_ENTER("update_unique_xid");
+  DBUG_ENTER("update_unique_id");
 
   int8store(buff, id);
   DBUG_RETURN(mysql_file_pwrite(global_ddl_log.file_id, buff, sizeof(buff),
@@ -415,6 +414,19 @@ static bool update_unique_id(uint entry_pos, ulonglong id)
               ddl_log_sync_file());
 }
 
+
+static bool update_master_entry(uint entry_pos, uint master_entry)
+{
+  uchar buff[4];
+  DBUG_ENTER("update_master_entry");
+
+  int4store(buff, master_entry);
+  DBUG_RETURN(mysql_file_pwrite(global_ddl_log.file_id, buff, sizeof(buff),
+                                global_ddl_log.io_size * entry_pos +
+                                DDL_LOG_MASTER_ENTRY_POS,
+                                MYF(MY_WME | MY_NABP)) ||
+              ddl_log_sync_file());
+}
 
 /*
   Disable an execute entry
@@ -620,6 +632,7 @@ static void set_global_from_ddl_log_entry(const DDL_LOG_ENTRY *ddl_log_entry)
   int8store(file_entry_buf+DDL_LOG_XID_POS,  ddl_log_entry->xid);
   memcpy(file_entry_buf+DDL_LOG_UUID_POS,   ddl_log_entry->uuid, MY_UUID_SIZE);
   int8store(file_entry_buf+DDL_LOG_ID_POS,  ddl_log_entry->unique_id);
+  int4store(file_entry_buf+DDL_LOG_MASTER_ENTRY_POS,  ddl_log_entry->master_entry);
   bzero(file_entry_buf+DDL_LOG_END_POS,
         global_ddl_log.name_pos - DDL_LOG_END_POS);
 
@@ -687,6 +700,7 @@ static void set_ddl_log_entry_from_global(DDL_LOG_ENTRY *ddl_log_entry,
   ddl_log_entry->flags= uint2korr(file_entry_buf + DDL_LOG_FLAG_POS);
   ddl_log_entry->xid=   uint8korr(file_entry_buf + DDL_LOG_XID_POS);
   ddl_log_entry->unique_id=  uint8korr(file_entry_buf + DDL_LOG_ID_POS);
+  ddl_log_entry->master_entry= uint4korr(&file_entry_buf[DDL_LOG_MASTER_ENTRY_POS]);
   memcpy(ddl_log_entry->uuid, file_entry_buf+ DDL_LOG_UUID_POS, MY_UUID_SIZE);
 
   pos= file_entry_buf + global_ddl_log.name_pos;
@@ -2615,7 +2629,7 @@ bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
 
   @param first_entry               First entry in linked list of entries
                                    to execute.
-  @param cond_entry                Check and don't execute if cond_entry is active
+  @param master_entry              Check and don't execute if master_entry is active
   @param[in,out] active_entry      Entry to execute, 0 = NULL if the entry
                                    is written first time and needs to be
                                    returned. In this case the entry written
@@ -2626,7 +2640,7 @@ bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
 */
 
 bool ddl_log_write_execute_entry(uint first_entry,
-                                 uint cond_entry,
+                                 uint master_entry,
                                  DDL_LOG_MEMORY_ENTRY **active_entry)
 {
   uchar *file_entry_buf= global_ddl_log.file_entry_buf;
@@ -2643,7 +2657,7 @@ bool ddl_log_write_execute_entry(uint first_entry,
 
   file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= (uchar)DDL_LOG_EXECUTE_CODE;
   int4store(file_entry_buf + DDL_LOG_NEXT_ENTRY_POS, first_entry);
-  int8store(file_entry_buf + DDL_LOG_ID_POS, ((ulonglong)cond_entry << DDL_LOG_RETRY_BITS));
+  int4store(file_entry_buf + DDL_LOG_MASTER_ENTRY_POS, master_entry);
 
   if (!(*active_entry))
   {
@@ -2866,13 +2880,13 @@ int ddl_log_execute_recovery()
       recovery_state.xid= ddl_log_entry.xid;
 
       /* purecov: begin tested */
-      if ((ddl_log_entry.unique_id & DDL_LOG_RETRY_MASK) > DDL_LOG_MAX_RETRY)
+      if (ddl_log_entry.unique_id > DDL_LOG_MAX_RETRY)
       {
         error= -1;
         continue;
       }
       update_unique_id(i, ++ddl_log_entry.unique_id);
-      if ((ddl_log_entry.unique_id & DDL_LOG_RETRY_MASK) > DDL_LOG_MAX_RETRY)
+      if (ddl_log_entry.unique_id > DDL_LOG_MAX_RETRY)
       {
         sql_print_error("DDL_LOG: Aborting executing entry %u after %llu "
                         "retries", i, ddl_log_entry.unique_id);
@@ -2881,9 +2895,7 @@ int ddl_log_execute_recovery()
       }
       /* purecov: end tested */
 
-      uint cond_entry= (uint)(ddl_log_entry.unique_id >> DDL_LOG_RETRY_BITS);
-
-      if (cond_entry && is_execute_entry_active(cond_entry))
+      if (ddl_log_entry.master_entry && is_execute_entry_active(ddl_log_entry.master_entry))
       {
         if (disable_execute_entry(i))
           error= -1;
@@ -3094,6 +3106,20 @@ bool ddl_log_update_unique_id(DDL_LOG_STATE *state, ulonglong id)
   /* The following may not be true in case of temporary tables */
   if (likely(state->list))
     DBUG_RETURN(update_unique_id(state->main_entry->entry_pos, id));
+  DBUG_RETURN(0);
+}
+
+
+bool ddl_log_update_master_entry(DDL_LOG_STATE *state, uint master_entry)
+{
+  DBUG_ENTER("ddl_log_update_master_entry");
+  DBUG_PRINT("enter", ("id: %llu", master_entry));
+  /* The following may not be true in case of temporary tables */
+  if (likely(state->list))
+  {
+    DBUG_ASSERT(state->execute_entry);
+    DBUG_RETURN(update_master_entry(state->execute_entry->entry_pos, master_entry));
+  }
   DBUG_RETURN(0);
 }
 
