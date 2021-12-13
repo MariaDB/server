@@ -63,7 +63,6 @@
 #define log_cs  &my_charset_latin1
 
 
-#if defined(HAVE_REPLICATION)
 static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD* thd);
 
 static const char *HA_ERR(int i)
@@ -127,7 +126,6 @@ static const char *HA_ERR(int i)
   }
   return "No Error!";
 }
-
 
 /*
   Return true if an error caught during event execution is a temporary error
@@ -213,7 +211,6 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
                 type, table->s->db.str, table->s->table_name.str,
                 buff, log_name, pos);
 }
-#endif
 
 #if defined(HAVE_REPLICATION)
 static void set_thd_db(THD *thd, Rpl_filter *rpl_filter,
@@ -237,8 +234,6 @@ static void set_thd_db(THD *thd, Rpl_filter *rpl_filter,
 }
 #endif
 
-
-#if defined(HAVE_REPLICATION)
 
 inline int idempotent_error_code(int err_code)
 {
@@ -288,13 +283,16 @@ inline int idempotent_error_code(int err_code)
 
 inline int ignored_error_code(int err_code)
 {
+#if defined(HAVE_REPLICATION)
   if (use_slave_mask && bitmap_is_set(&slave_error_mask, err_code))
   {
     statistic_increment(slave_skipped_errors, LOCK_status);
     return 1;
   }
+#endif
   return err_code == ER_SLAVE_IGNORED_TABLE;
 }
+
 
 /*
   This function converts an engine's error to a server error.
@@ -321,6 +319,8 @@ int convert_handler_error(int error, THD* thd, TABLE *table)
 
   return (actual_error);
 }
+
+#if defined(HAVE_REPLICATION)
 
 inline bool concurrency_error_code(int error)
 {
@@ -5334,7 +5334,6 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
 }
 
 
-#if defined(HAVE_REPLICATION)
 
 /**
   Restores empty table list as it was before trigger processing.
@@ -5352,6 +5351,12 @@ inline void restore_empty_query_table_list(LEX *lex)
 }
 
 
+#ifdef HAVE_REPLICATION
+#define IF_REPLICATION(X, Y) X
+#else
+#define IF_REPLICATION(X, Y) Y
+#endif
+
 int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Relay_log_info const *rli= rgi->rli;
@@ -5359,7 +5364,10 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
   int error= 0;
   LEX *lex= thd->lex;
+
+#ifdef HAVE_REPLICATION
   uint8 new_trg_event_map= get_trg_event_map();
+#endif
   /*
     If m_table_id == ~0ULL, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
@@ -5466,12 +5474,16 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     {
       if (slave_run_triggers_for_rbr)
       {
+#ifdef HAVE_REPLICATION
         tables->trg_event_map= new_trg_event_map;
+#endif
         lex->query_tables_last= &tables->next_global;
       }
       else
       {
+#ifdef HAVE_REPLICATION
         tables->slave_fk_event_map= new_trg_event_map;
+#endif
         lex->query_tables_last= &tables->next_global;
       }
     }
@@ -5608,6 +5620,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       if (ptr->parent_l)
         continue;
       rgi->m_table_map.set_table(ptr->table_id, ptr->table);
+#ifdef HAVE_REPLICATION
       /*
         Following is passing flag about triggers on the server. The problem was
         to pass it between table map event and row event. I do it via extended
@@ -5619,6 +5632,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         ptr->table->master_had_triggers=
           ((RPL_TABLE_LIST*)ptr)->master_had_triggers;
       }
+#endif
     }
 
 #ifdef HAVE_QUERY_CACHE
@@ -5637,11 +5651,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
   DBUG_PRINT("debug", ("m_table:%p, m_table_id: %llu%s",
                        m_table, m_table_id,
-                       table && master_had_triggers ?
-                       " (master had triggers)" : ""));
+                       IF_REPLICATION(table && master_had_triggers ?
+                                      " (master had triggers)" : "", "")));
   if (table)
   {
+#ifdef HAVE_REPLICATION
     master_had_triggers= table->master_had_triggers;
+#endif
     bool transactional_table= table->file->has_transactions_and_rollback();
     table->file->prepare_for_insert(get_general_type_code() != WRITE_ROWS_EVENT);
 
@@ -5747,10 +5763,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 #endif /* WITH_WSREP */
         if (idempotent_error || ignored_error)
         {
+#ifdef HAVE_REPLICATION
           if (global_system_variables.log_warnings)
             slave_rows_error_report(WARNING_LEVEL, error, rgi, thd, table,
                                     get_type_str(),
                                     RPL_LOG_NAME, log_pos);
+#endif // HAVE_REPLICATION
           thd->clear_error(1);
           error= 0;
           if (idempotent_error == 0)
@@ -5854,6 +5872,7 @@ err:
   DBUG_RETURN(error);
 }
 
+#if defined(HAVE_REPLICATION)
 Log_event::enum_skip_reason
 Rows_log_event::do_shall_skip(rpl_group_info *rgi)
 {
@@ -5867,6 +5886,7 @@ Rows_log_event::do_shall_skip(rpl_group_info *rgi)
   else
     return Log_event::do_shall_skip(rgi);
 }
+#endif
 
 /**
    The function is called at Rows_log_event statement commit time,
@@ -5953,6 +5973,7 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
   DBUG_RETURN(error);
 }
 
+#if defined(HAVE_REPLICATION)
 /**
    The method either increments the relay log position or
    commits the current statement and increments the master group 
@@ -7040,8 +7061,7 @@ bool Write_rows_compressed_log_event::write()
 }
 
 
-#if defined(HAVE_REPLICATION)
-int 
+int
 Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability *const)
 {
   int error= 0;
@@ -7082,8 +7102,11 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
     m_table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
     m_table->file->extra(HA_EXTRA_IGNORE_NO_KEY);
   }
+
+#ifdef HAVE_REPLICATION
   if (m_table->triggers && do_invoke_trigger())
     m_table->prepare_triggers_for_insert_stmt_or_event();
+#endif
 
   /* Honor next number column if present */
   m_table->next_number_field= m_table->found_next_number_field;
@@ -7180,6 +7203,7 @@ bool Rows_log_event::process_triggers(trg_event_type event,
 
   DBUG_RETURN(result);
 }
+
 /*
   Check if there are more UNIQUE keys after the given key.
 */
@@ -7262,7 +7286,8 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   TABLE *table= m_table;  // pointer to event's table
   int error;
   int UNINIT_VAR(keynum);
-  const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
+  const bool invoke_triggers= IF_REPLICATION(m_table->triggers && do_invoke_trigger(),
+                                             false);
   auto_afree_ptr<char> key(NULL);
 
   prepare_record(table, m_width, true);
@@ -7307,11 +7332,14 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   DBUG_PRINT_BITSET("debug", "rpl_write_set: %s", table->rpl_write_set);
   DBUG_PRINT_BITSET("debug", "read_set:      %s", table->read_set);
 
+
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   if (invoke_triggers &&
       unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, TRUE)))
   {
     DBUG_RETURN(HA_ERR_GENERIC); // in case if error is not set yet
   }
+#endif
 
   // Handle INSERT.
   if (table->versioned(VERS_TIMESTAMP))
@@ -7478,11 +7506,14 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     else
     {
       DBUG_PRINT("info",("Deleting offending row and trying to write new one again"));
+
+#ifdef HAVE_REPLICATION
       if (invoke_triggers &&
           unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE,
                                     TRUE)))
         error= HA_ERR_GENERIC; // in case if error is not set yet
       else
+#endif
       {
         if (unlikely((error= table->file->ha_delete_row(table->record[1]))))
         {
@@ -7490,18 +7521,23 @@ Rows_log_event::write_row(rpl_group_info *rgi,
           table->file->print_error(error, MYF(0));
           DBUG_RETURN(error);
         }
+
+#ifdef HAVE_REPLICATION
         if (invoke_triggers &&
             unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER,
                                       TRUE)))
           DBUG_RETURN(HA_ERR_GENERIC); // in case if error is not set yet
+#endif
       }
       /* Will retry ha_write_row() with the offending row removed. */
     }
   }
 
+#ifdef HAVE_REPLICATION
   if (invoke_triggers &&
       unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_AFTER, TRUE)))
     error= HA_ERR_GENERIC; // in case if error is not set yet
+#endif
 
   DBUG_RETURN(error);
 }
@@ -7533,10 +7569,6 @@ int Rows_log_event::update_sequence()
 }
 
 
-#endif
-
-
-#if defined(HAVE_REPLICATION)
 
 int
 Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
@@ -7575,8 +7607,6 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
   return error;
 }
 
-#endif /* defined(HAVE_REPLICATION) */
-
 
 #if defined(HAVE_REPLICATION)
 uint8 Write_rows_log_event::get_trg_event_map()
@@ -7590,7 +7620,6 @@ uint8 Write_rows_log_event::get_trg_event_map()
 	Delete_rows_log_event member functions
 **************************************************************************/
 
-#if defined(HAVE_REPLICATION)
 /*
   Compares table->record[0] and table->record[1]
 
@@ -8099,8 +8128,6 @@ end:
   DBUG_RETURN(error);
 }
 
-#endif
-
 /*
   Constructor used to build an event for writing to the binary log.
  */
@@ -8127,8 +8154,6 @@ bool Delete_rows_compressed_log_event::write()
 }
 
 
-#if defined(HAVE_REPLICATION)
-
 int 
 Delete_rows_log_event::do_before_row_operations(const Slave_reporting_capability *const)
 {
@@ -8146,8 +8171,11 @@ Delete_rows_log_event::do_before_row_operations(const Slave_reporting_capability
     */
     return 0;
   }
+
+#if defined(HAVE_REPLICATION)
   if (do_invoke_trigger())
     m_table->prepare_triggers_for_delete_stmt_or_event();
+#endif
 
   return find_key();
 }
@@ -8164,6 +8192,7 @@ Delete_rows_log_event::do_after_row_operations(const Slave_reporting_capability 
   return error;
 }
 
+
 int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
   int error;
@@ -8176,7 +8205,10 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
                    quote_char, table_name, quote_char);
   thd->reset_db(&m_table->s->db);
   message= msg;
+
+#ifdef HAVE_REPLICATION
   const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
+#endif
   DBUG_ASSERT(m_table != NULL);
 
 #ifdef WSREP_PROC_INFO
@@ -8205,9 +8237,11 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif
     thd_proc_info(thd, message);
 
+#ifdef HAVE_REPLICATION
     if (invoke_triggers &&
         unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE, FALSE)))
       error= HA_ERR_GENERIC; // in case if error is not set yet
+#endif
     if (likely(!error))
     {
       m_table->mark_columns_per_binlog_row_image();
@@ -8226,17 +8260,17 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
       }
       m_table->default_column_bitmaps();
     }
+#ifdef HAVE_REPLICATION
     if (invoke_triggers && likely(!error) &&
         unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER, FALSE)))
       error= HA_ERR_GENERIC; // in case if error is not set yet
+#endif
     m_table->file->ha_index_or_rnd_end();
   }
   thd->reset_db(&tmp_db);
   thd_proc_info(thd, tmp);
   return error;
 }
-
-#endif /* defined(HAVE_REPLICATION) */
 
 #if defined(HAVE_REPLICATION)
 uint8 Delete_rows_log_event::get_trg_event_map()
@@ -8312,15 +8346,20 @@ Update_rows_log_event::do_before_row_operations(const Slave_reporting_capability
   return 0;
 }
 
+#endif /* defined(HAVE_REPLICATION) */
+
 int 
 Update_rows_log_event::do_after_row_operations(const Slave_reporting_capability *const, 
                                                int error)
 {
   /*error= ToDo:find out what this should really be, this triggers close_scan in nbd, returning error?*/
   m_table->file->ha_index_or_rnd_end();
+
+#ifdef HAVE_REPLICATION
   my_free(m_key); // Free for multi_malloc
   m_key= NULL;
   m_key_info= NULL;
+#endif
 
   return error;
 }
@@ -8328,7 +8367,9 @@ Update_rows_log_event::do_after_row_operations(const Slave_reporting_capability 
 int
 Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
+#ifdef HAVE_REPLICATION
   const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
+#endif
   const char *tmp= thd->get_proc_info();
   DBUG_ASSERT(m_table != NULL);
   LEX_CSTRING tmp_db= thd->db;
@@ -8424,12 +8465,14 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
+#ifdef HAVE_REPLICATION
   if (invoke_triggers &&
       unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE, TRUE)))
   {
     error= HA_ERR_GENERIC; // in case if error is not set yet
     goto err;
   }
+#endif // HAVE_REPLICATION
 
   if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
     m_table->vers_update_fields();
@@ -8444,10 +8487,11 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   }
   m_table->default_column_bitmaps();
 
+#ifdef HAVE_REPLICATION
   if (invoke_triggers && likely(!error) &&
       unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER, TRUE)))
     error= HA_ERR_GENERIC; // in case if error is not set yet
-
+#endif // HAVE_REPLICATION
 
 err:
   thd_proc_info(thd, tmp);
@@ -8456,7 +8500,6 @@ err:
   return error;
 }
 
-#endif /* defined(HAVE_REPLICATION) */
 
 
 #if defined(HAVE_REPLICATION)

@@ -1499,7 +1499,7 @@ public:
   */
   const char* get_type_str();
 
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+#if defined(MYSQL_SERVER)
 
   /**
      Apply the event to the database.
@@ -1518,6 +1518,9 @@ public:
     return res;
   }
 
+#endif // MYSQL_SERVER
+
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 
   /**
      Update the relay log position.
@@ -1620,6 +1623,8 @@ protected:
    */
   enum_skip_reason continue_group(rpl_group_info *rgi);
 
+#endif
+
   /**
     Primitive to apply an event to the database.
 
@@ -1640,6 +1645,7 @@ protected:
     return 0;                /* Default implementation does nothing */
   }
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 
   /**
      Advance relay log coordinates.
@@ -5202,15 +5208,21 @@ protected:
 
   /* helper functions */
 
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   const uchar *m_curr_row;     /* Start of the row being processed */
   const uchar *m_curr_row_end; /* One-after the end of the current row */
+
+#if defined(MYSQL_SERVER)
   uchar    *m_key;      /* Buffer to keep key value during searches */
   KEY      *m_key_info; /* Pointer to KEY info for m_key_nr */
   uint      m_key_nr;   /* Key number */
+#endif
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   bool master_had_triggers;     /* set after tables opening */
 
+#endif
+#if defined(MYSQL_SERVER)
   int find_key(); // Find a best key to use in find_row()
+
   int find_row(rpl_group_info *);
   int write_row(rpl_group_info *, const bool);
   int update_sequence();
@@ -5235,10 +5247,15 @@ protected:
     return ::unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
                                    &m_curr_row_end, &m_master_reclength, m_rows_end);
   }
+#endif
+#if defined(MYSQL_SERVER)
   bool process_triggers(trg_event_type event,
                         trg_action_time_type time_type,
                         bool old_row_is_record1);
 
+#endif
+
+#if defined(MYSQL_SERVER)
   /**
     Helper function to check whether there is an auto increment
     column on the table where the event is to be applied.
@@ -5253,13 +5270,17 @@ protected:
             m_table->next_number_field->field_index >= m_width);
   }
 #endif
-
 private:
 
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+#if defined(MYSQL_SERVER)
   virtual int do_apply_event(rpl_group_info *rgi);
+#endif
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual int do_update_pos(rpl_group_info *rgi);
   virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
+#endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
+
+#if defined(MYSQL_SERVER)
 
   /*
     Primitive to prepare for a sequence of row executions.
@@ -5311,8 +5332,7 @@ private:
       
   */
   virtual int do_exec_row(rpl_group_info *rli) = 0;
-#endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
-
+#endif
   friend class Old_rows_log_event;
 };
 
@@ -5368,7 +5388,7 @@ private:
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+#if defined(MYSQL_SERVER)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
   virtual int do_exec_row(rpl_group_info *);
@@ -5458,11 +5478,11 @@ protected:
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+#if defined(MYSQL_SERVER)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
   virtual int do_exec_row(rpl_group_info *);
-#endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
+#endif
 };
 
 class Update_rows_compressed_log_event : public Update_rows_log_event
@@ -5545,7 +5565,7 @@ protected:
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+#if defined(MYSQL_SERVER)
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
   virtual int do_exec_row(rpl_group_info *);

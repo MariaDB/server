@@ -295,6 +295,8 @@ extern I_List<THD> threads;
 
 #else
 #define close_active_mi() /* no-op */
+#define RPL_LOG_NAME "FIRST"
+static inline int has_temporary_error(THD *thd){ return 0; }
 #endif /* HAVE_REPLICATION */
 
 /* masks for start/stop operations on io and sql slave threads */
