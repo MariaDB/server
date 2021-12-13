@@ -450,7 +450,7 @@ set debug_sync= 'now SIGNAL end';
 connection default;
 select * from t1;
 a	b
-123	NULL
+1	NULL
 2	NULL
 select * from t2;
 a
