@@ -218,42 +218,74 @@ public:
 
 
 /**
+  The base class for any stored program instruction that does need to
+  get access to the LEX object on execution.
+*/
+
+class sp_lex_instr : public sp_instr
+{
+public:
+  sp_lex_instr(uint ip, sp_pcontext *ctx, LEX *lex, bool is_lex_owner)
+  : sp_instr(ip, ctx), m_lex_keeper(lex, is_lex_owner)
+  {}
+
+  virtual bool is_invalid() const = 0;
+
+  virtual void invalidate() = 0;
+
+protected:
+  sp_lex_keeper m_lex_keeper;
+};
+
+
+/**
   Call out to some prepared SQL statement.
 */
-class sp_instr_stmt : public sp_instr
+class sp_instr_stmt : public sp_lex_instr
 {
   sp_instr_stmt(const sp_instr_stmt &); /**< Prevent use of these */
   void operator=(sp_instr_stmt &);
+
+  /**
+    Flag to tell whether metadata this instruction depends on has been changed
+    and a LEX object should be reinitialized.
+  */
+  bool m_valid;
 
 public:
 
   LEX_STRING m_query;           ///< For thd->query
 
   sp_instr_stmt(uint ip, sp_pcontext *ctx, LEX *lex)
-    : sp_instr(ip, ctx), m_lex_keeper(lex, true)
+    : sp_lex_instr(ip, ctx, lex, true),
+      m_valid{true}
   {
     m_query.str= 0;
     m_query.length= 0;
   }
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual int exec_core(THD *thd, uint *nextp);
+  int exec_core(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
-private:
+  bool is_invalid() const override
+  {
+    return !m_valid;
+  }
 
-  sp_lex_keeper m_lex_keeper;
+  void invalidate() override
+  {
+    m_valid= false;
+  }
 
-public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
-
 };
 
 
-class sp_instr_set : public sp_instr
+class sp_instr_set : public sp_lex_instr
 {
   sp_instr_set(const sp_instr_set &);   /**< Prevent use of these */
   void operator=(sp_instr_set &);
@@ -264,9 +296,8 @@ public:
                const Sp_rcontext_handler *rh,
                uint offset, Item *val,
                LEX *lex, bool lex_resp)
-    : sp_instr(ip, ctx),
-      m_rcontext_handler(rh), m_offset(offset), m_value(val),
-      m_lex_keeper(lex, lex_resp)
+    : sp_lex_instr(ip, ctx, lex, lex_resp),
+      m_rcontext_handler(rh), m_offset(offset), m_value(val)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -275,12 +306,15 @@ public:
 
   void print(String *str) override;
 
+  bool is_invalid() const override { return m_value == nullptr; }
+
+  void invalidate() override { m_value= nullptr; }
+
 protected:
   sp_rcontext *get_rcontext(THD *thd) const;
   const Sp_rcontext_handler *m_rcontext_handler;
   uint m_offset;                ///< Frame offset
   Item *m_value;
-  sp_lex_keeper m_lex_keeper;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -362,7 +396,7 @@ public:
   Set NEW/OLD row field value instruction. Used in triggers.
 */
 
-class sp_instr_set_trigger_field : public sp_instr
+class sp_instr_set_trigger_field : public sp_lex_instr
 {
   sp_instr_set_trigger_field(const sp_instr_set_trigger_field &);
   void operator=(sp_instr_set_trigger_field &);
@@ -372,9 +406,9 @@ public:
   sp_instr_set_trigger_field(uint ip, sp_pcontext *ctx,
                              Item_trigger_field *trg_fld,
                              Item *val, LEX *lex)
-    : sp_instr(ip, ctx),
+    : sp_lex_instr(ip, ctx, lex, true),
       trigger_field(trg_fld),
-      value(val), m_lex_keeper(lex, true)
+      value(val)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -383,10 +417,19 @@ public:
 
   void print(String *str) override;
 
+  bool is_invalid() const override
+  {
+    return value == nullptr;
+  }
+
+  void invalidate() override
+  {
+    value= nullptr;
+  }
+
 private:
   Item_trigger_field *trigger_field;
   Item *value;
-  sp_lex_keeper m_lex_keeper;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -557,7 +600,7 @@ public:
 };
 
 
-class sp_instr_freturn : public sp_instr
+class sp_instr_freturn : public sp_lex_instr
 {
   sp_instr_freturn(const sp_instr_freturn &);   /**< Prevent use of these */
   void operator=(sp_instr_freturn &);
@@ -566,8 +609,8 @@ public:
 
   sp_instr_freturn(uint ip, sp_pcontext *ctx,
                    Item *val, const Type_handler *handler, LEX *lex)
-    : sp_instr(ip, ctx), m_value(val), m_type_handler(handler),
-      m_lex_keeper(lex, true)
+    : sp_lex_instr(ip, ctx, lex, true),
+      m_value(val), m_type_handler(handler)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -582,11 +625,18 @@ public:
     return UINT_MAX;
   }
 
+  bool is_invalid() const override { return m_value == nullptr; }
+
+  void invalidate() override {
+    /* TODO: be careful and check that the object referenced by m_value
+       is not leaked */
+    m_value= nullptr;
+  }
+
 protected:
 
   Item *m_value;
   const Type_handler *m_type_handler;
-  sp_lex_keeper m_lex_keeper;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -855,25 +905,41 @@ public:
   from the LEX containing the cursor SELECT statement.
 */
 
-class sp_instr_cursor_copy_struct : public sp_instr
+class sp_instr_cursor_copy_struct : public sp_lex_instr
 {
   /**< Prevent use of these */
   sp_instr_cursor_copy_struct(const sp_instr_cursor_copy_struct &);
   void operator=(sp_instr_cursor_copy_struct &);
-  sp_lex_keeper m_lex_keeper;
   uint m_cursor;
   uint m_var;
+  /**
+   * Flag to tell whether metadata has been changed and the LEX object should
+   * be reinitialized.
+   */
+  bool m_valid;
+
 public:
   sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx, uint coffs,
                               sp_lex_cursor *lex, uint voffs)
-    : sp_instr(ip, ctx), m_lex_keeper(lex, false),
+    : sp_lex_instr(ip, ctx, lex, false),
       m_cursor(coffs),
-      m_var(voffs)
+      m_var(voffs),
+      m_valid{true}
   {}
 
   int execute(THD *thd, uint *nextp) override;
   int exec_core(THD *thd, uint *nextp) override;
   void print(String *str) override;
+
+  bool is_invalid() const override
+  {
+    return !m_valid;
+  }
+
+  void invalidate() override
+  {
+    m_valid= true;
+  }
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
