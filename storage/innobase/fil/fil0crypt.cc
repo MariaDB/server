@@ -2470,6 +2470,10 @@ void
 fil_crypt_set_encrypt_tables(
 	uint val)
 {
+	if (!fil_crypt_threads_inited) {
+		return;
+	}
+
 	mutex_enter(&fil_system->mutex);
 
 	srv_encrypt_tables = val;
