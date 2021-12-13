@@ -495,6 +495,7 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
   {
     int cmp;
     store_length= key_part->store_length;
+    int sort_order = (key_part->key_part_flag & HA_REVERSE_SORT) ? -1 : 1;
     if (key_part->null_bit)
     {
       /* This key part allows null values; NULL is lower than everything */
@@ -503,19 +504,19 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
       {
 	/* the range is expecting a null value */
 	if (!field_is_null)
-	  return 1;                             // Found key is > range
+	  return sort_order;                         // Found key is > range
         /* null -- exact match, go to next key part */
 	continue;
       }
       else if (field_is_null)
-	return -1;                              // NULL is less than any value
+	return -sort_order;                     // NULL is less than any value
       key++;					// Skip null byte
       store_length--;
     }
     if ((cmp=key_part->field->key_cmp(key, key_part->length)) < 0)
-      return -1;
+      return -sort_order;
     if (cmp > 0)
-      return 1;
+      return sort_order;
   }
   return 0;                                     // Keys are equal
 }
