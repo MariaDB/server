@@ -380,3 +380,13 @@ analyze select * from t2 where a =100;
 
 drop table t0,t1,t2;
 
+--echo #
+--echo # MDEV-27230: Estimation for filtered rows less precise ...
+--echo #
+create table t1 (a char(1));
+insert into t1 select chr(seq%26+97) from seq_1_to_50;
+insert into t1 select ':' from t1;
+analyze table t1 persistent for all;
+analyze select COUNT(*) FROM t1 WHERE a <> 'a';
+analyze select COUNT(*) FROM t1 WHERE a < 'a';
+drop table t1;

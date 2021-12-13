@@ -1022,6 +1022,7 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
         $CONST. Move to the previous bucket.
       */
       idx--;
+      equal= false;
     }
     double left_fract= get_left_fract(idx);
 

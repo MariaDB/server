@@ -8194,3 +8194,20 @@ analyze select * from t2 where a =100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1011	1011.00	0.10	0.10	Using where
 drop table t0,t1,t2;
+#
+# MDEV-27230: Estimation for filtered rows less precise ...
+#
+create table t1 (a char(1));
+insert into t1 select chr(seq%26+97) from seq_1_to_50;
+insert into t1 select ':' from t1;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze select COUNT(*) FROM t1 WHERE a <> 'a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	99.00	99.00	Using where
+analyze select COUNT(*) FROM t1 WHERE a < 'a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	50.00	50.00	Using where
+drop table t1;
