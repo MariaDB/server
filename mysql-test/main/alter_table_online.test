@@ -1,335 +1,535 @@
-#
-# Test of ALTER ONLINE TABLE syntax
-#
+-- source include/have_innodb.inc
+-- source include/have_debug_sync.inc
+-- source include/not_embedded.inc
 
---source include/have_innodb.inc
---source include/have_partition.inc
-#
-# Test of things that can be done online
-#
+--connect (con2, localhost, root,,)
+--connection default
 
-create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=myisam;
-insert into t1 (a) values (1),(2),(3);
 
-alter online table t1 modify b int default 5, alter c set default 'X';
-alter online table t1 change b new_name int;
-alter online table t1 modify e enum('a','b','c');
-alter online table t1 comment "new comment";
-alter table t1 add constraint q check (a > 0);
-alter online table t1 drop constraint q;
+--echo #
+--echo # Test insert
+--echo #
 
-# No OPs
+--echo # Insert and add column
+create or replace table t1 (a int) engine=innodb;
+insert t1 values (5);
 
-alter online table t1 algorithm=INPLACE, lock=NONE;
-alter online table t1;
-alter table t1 algorithm=INPLACE;
-alter table t1 lock=NONE;
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Insert and add NOT NULL column without default value
+create or replace table t1 (a int) engine=innodb;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NOT NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Insert and add a column with a default value
+create or replace table t1 (a int) engine=innodb;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NOT NULL default (222), algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Test update
+--echo #
+
+--echo # Update and add a column
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add c int default(1),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 55 where a = 1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Test primary key change
+--echo #
+
+--echo # Drop key, add key
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 55 where a = 1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Drop key, add key. Two updates
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 33 where a = 1;
+update t1 set b= 44 where a = 2;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Various tests, see below
+--echo #
+
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+insert t1 values (3, 33);
+insert t1 values (4, 44);
+insert t1 values (5, 55);
+insert t1 values (6, 66);
+insert t1 values (7, 77);
+insert t1 values (8, 88);
+insert t1 values (9, 99);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+
+--echo # Two updates
+update t1 set b= 1001 where a = 1;
+update t1 set b= 2002 where a = 2;
+
+--echo # Two updates in transaction
+set autocommit = 0;
+start transaction;
+update t1 set b= 3003 where a = 3;
+update t1 set b= 4004 where a = 4;
+commit;
+set autocommit = 1;
+
+--echo # Second update is rolled back
+update t1 set b= 5005 where a = 5;
+
+set autocommit = 0;
+start transaction;
+update t1 set b= 6006 where a = 6;
+rollback;
+set autocommit = 1;
+
+--echo # Second execution in transaction fails
+
+set autocommit = 0;
+start transaction;
+update t1 set b= 7007 where a = 7;
+--error ER_DUP_ENTRY
+update t1 set a= 8, b= 8008 where a = 8 or a = 9 order by a;
+commit;
+set autocommit = 1;
+
+select * from t1;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+--sorted_result
+select * from t1;
+
+--echo #
+--echo # MYISAM. Only Inserts can be tested.
+--echo #
+
+create or replace table t1 (a int) engine=myisam;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Test incompatible changes
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 44 where a = 1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--error ER_DUP_ENTRY
+--reap
+select * from t1;
+
+
+--echo # Test log read after EXCLUSIVE lock
+--echo # Transaction is started before ALTER, and UPDATE is made.
+--echo # Then more UPDATEs.
+
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+insert t1 values (3, 33);
+insert t1 values (4, 44);
+insert t1 values (5, 55);
+
+set debug_sync= 'alter_table_online_before_lock SIGNAL locking WAIT_FOR end';
+set debug_sync= 'alter_table_online_downgraded SIGNAL downgraded';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+begin;
+
+set debug_sync= 'now WAIT_FOR downgraded';
+update t1 set b= 111 where a = 1;
+
+set debug_sync= 'now WAIT_FOR locking';
+set debug_sync= 'now SIGNAL end';
+
+update t1 set b= 222 where a = 2;
+update t1 set b= 333 where a = 3;
+update t1 set b= 444 where a = 4;
+
+commit;
+
+update t1 set b= 555 where a = 5;
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Test progress report.
+--echo #
+
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+insert t1 values (3, 33);
+insert t1 values (4, 44);
+
+set debug_sync= 'alter_table_online_before_lock SIGNAL locking WAIT_FOR end';
+set debug_sync= 'alter_table_online_downgraded SIGNAL downgraded'
+                                             ' WAIT_FOR start_replication';
+set debug_sync= 'alter_table_online_progress SIGNAL applied WAIT_FOR proceed'
+                                           ' EXECUTE 9';
+--let $con= `select connection_id()`
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+
+set debug_sync= 'now WAIT_FOR downgraded';
+
+update t1 set b= 111 where a = 1;
+insert t1 values (5, 55);
+update t1 set b= 555 where a = 5;
+insert t1 values (6, 66);
+update t1 set b= 666 where a = 6;
+set debug_sync= 'now SIGNAL start_replication';
+
+--disable_query_log
+eval set @con= $con;
+--enable_query_log
+
+--echo # First signal is for log description event.
+set debug_sync= 'now WAIT_FOR applied';
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR locking';
+
+begin;
+
+update t1 set b= 222 where a = 2;
+update t1 set b= 333 where a = 3;
+update t1 set b= 444 where a = 4;
+
+commit;
+set debug_sync= 'now SIGNAL end WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed';
+
+--connection default
+--reap
+select * from t1;
+
+
+--echo #
+--echo # Test system versioning
+--echo #
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+set timestamp = 1;
+
+--send
+alter table t1 add system versioning,
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+set timestamp = 2;
+update t1 set b= 55 where a = 1;
+set timestamp = 3;
+insert into t1 values (6, 77);
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
 show create table t1;
+select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop system versioning,
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 88 where a = 1;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--echo # Can't UPDATE versioned -> plain (and can't DELETE)
+--error ER_DUP_ENTRY
+--reap
+show create table t1;
+select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop system versioning,
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (8, 99);
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--echo # INSERT versioned -> plain works fine since it is a single versioned op.
+--reap
+show create table t1;
+select * from t1;
+
+--echo #
+--echo # Test ROLLBACK TO SAVEPOINT
+--echo #
+
+create or replace table t1 (a int) engine=innodb;
+insert t1 values (1), (2);
+
+create or replace table t2 (a int) engine=innodb;
+insert t2 values (1), (2);
+
+--connection con2
+begin;
+update t2 set a= 222 where a = 2;
+savepoint savie;
+update t2 set a= 111 where a = 1;
+
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set a= 123 where a = 1;
+
+--error ER_NOT_SUPPORTED_YET
+savepoint whoopsie;
+show warnings;
+
+rollback to savepoint savie;
+commit;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+
+select * from t1;
+select * from t2;
+
+--echo # Cleanup
+set debug_sync= 'reset';
 drop table t1;
-
-#
-# everything with temporary tables is "online", i.e. without locks
-#
-create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
-insert into t1 (a) values (1),(2),(3);
-
-alter online table t1 modify b int default 5, alter c set default 'X';
-alter online table t1 change b new_name int;
-alter online table t1 modify e enum('a','b','c');
-alter online table t1 comment "new comment";
-alter online table t1 rename to t2;
-show create table t2;
 drop table t2;
-
-#
-# Test also with Aria
-#
-
-create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=aria;
-insert into t1 (a) values (1),(2),(3);
-alter online table t1 modify b int default 5;
-alter online table t1 change b new_name int;
-alter online table t1 modify e enum('a','b','c');
-alter online table t1 comment "new comment";
-show create table t1;
-alter online table t1 page_checksum=1;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 page_checksum=0;
-drop table t1;
-
-#
-# Test of things that is not possible to do online
-#
-
-create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
-insert into t1 (a) values (1),(2),(3);
-
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 drop column b, add b int;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 modify b bigint;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 modify e enum('c','a','b');
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 modify c varchar(50);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 modify c varchar(100);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 add f int;
---error 0,ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter online table t1 engine=memory;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 rename to t2;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 checksum=1;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t1 add constraint check (b > 0);
-
-alter table t1 engine=innodb;
-alter table t1 add index (b);
-alter online table t1 add index c (c);
-alter online table t1 drop index b;
-alter online table t1 comment "new comment";
-show create table t1;
-drop table t1;
-
-create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
-insert into t1 (a) values (1),(2),(3);
-
-#
-# everything with temporary tables is "online", i.e. without locks
-#
-alter online table t1 drop column b, add b int;
-alter online table t1 modify b bigint;
-alter online table t1 modify e enum('c','a','b');
-alter online table t1 modify c varchar(50);
-alter online table t1 modify c varchar(100);
-alter online table t1 add f int;
-alter online table t1 engine=memory;
-
-alter table t1 engine=innodb;
-alter table t1 add index (b);
-alter online table t1 add index c (c);
-alter online table t1 drop index b;
-drop table t1;
-
-#
-# Test merge tables
-#
-create table t1 (a int not null primary key, b int, c varchar(80));
-create table t2 (a int not null primary key, b int, c varchar(80));
-create table t3 (a int not null primary key, b int, c varchar(80)) engine=merge UNION=(t1);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter online table t3 union=(t1,t2);
-drop table t1,t2,t3;
-
-#
-# MDEV-9868 Altering a partitioned table comment does a full copy
-#
-create table t1 (i int) partition by hash(i) partitions 2;
-alter online table t1 comment 'test';
-drop table t1;
-
-#
-# MDEV-9168 altering a column comment does a full copy
-#
-create table t1 (a int);
-alter online table t1 modify a int comment 'test';
-drop table t1;
-
-create table t1 (a int) engine=innodb;
-alter online table t1 modify a int comment 'test';
-drop table t1;
-
-create table t1 (a int) partition by hash(a) partitions 2;
-alter online table t1 modify a int comment 'test';
-drop table t1;
-
---echo #
---echo # MDEV-8948 ALTER ... INPLACE does work for BINARY, BLOB
---echo #
-#
-# ALTER to the same [VAR]BINARY type
-#
-CREATE TABLE t1 (a BINARY(10));
-ALTER TABLE t1 MODIFY a BINARY(10), ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a VARBINARY(10));
-ALTER TABLE t1 MODIFY a VARBINARY(10), ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-#
-# ALTER to the same BLOB variant
-#
-CREATE TABLE t1 (a TINYBLOB);
-ALTER TABLE t1 MODIFY a TINYBLOB, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a MEDIUMBLOB);
-ALTER TABLE t1 MODIFY a MEDIUMBLOB, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a BLOB);
-ALTER TABLE t1 MODIFY a BLOB, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a LONGBLOB);
-ALTER TABLE t1 MODIFY a LONGBLOB, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-#
-# ALTER to the same [VAR]CHAR type
-#
-CREATE TABLE t1 (a CHAR(10));
-ALTER TABLE t1 MODIFY a CHAR(10), ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a VARCHAR(10));
-ALTER TABLE t1 MODIFY a VARCHAR(10), ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-
-#
-# ALTER to the same TEXT variant
-#
-CREATE TABLE t1 (a TINYTEXT);
-ALTER TABLE t1 MODIFY a TINYTEXT, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a MEDIUMTEXT);
-ALTER TABLE t1 MODIFY a MEDIUMTEXT, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a TEXT);
-ALTER TABLE t1 MODIFY a TEXT, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a LONGTEXT);
-ALTER TABLE t1 MODIFY a LONGTEXT, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-#
-# ALTER from a non-binary to a binary collation
-#
-CREATE TABLE t1 (a CHAR(10));
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_bin, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a VARCHAR(10));
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_bin, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a TINYTEXT);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a MEDIUMTEXT);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a TEXT);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a LONGTEXT);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-#
-# ALTER from a binary to a non-binary collation
-#
-CREATE TABLE t1 (a CHAR(10) COLLATE latin1_bin);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_bin);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a TINYTEXT COLLATE latin1_bin);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a MEDIUMTEXT COLLATE latin1_bin);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a TEXT COLLATE latin1_bin);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a LONGTEXT COLLATE latin1_bin);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-#
-# ALTER from a non-binary collation to another non-binary collation
-#
-CREATE TABLE t1 (a CHAR(10) COLLATE latin1_general_ci);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_general_ci);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a TINYTEXT COLLATE latin1_general_ci);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a MEDIUMTEXT COLLATE latin1_general_ci);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a TEXT COLLATE latin1_general_ci);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a LONGTEXT COLLATE latin1_general_ci);
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-DROP TABLE t1;
-
-# End of 10.0 tests
-
-#
-# MDEV-11335 Changing delay_key_write option for MyISAM table should not copy rows
-#
-select @@global.delay_key_write;
-create table t1 (a int, b int, key(b));
-flush tables;
-flush status;
-show status like 'Feature_delay_key_write';
-insert t1 values (1,2),(2,3),(3,4);
-show status like 'Feature_delay_key_write';
-alter online table t1 delay_key_write=1;
-show status like 'Feature_delay_key_write';
-flush tables;
-insert t1 values (1,2),(2,3),(3,4);
-show status like 'Feature_delay_key_write';
-alter online table t1 delay_key_write=0;
-show status like 'Feature_delay_key_write';
-flush tables;
-insert t1 values (1,2),(2,3),(3,4);
-show status like 'Feature_delay_key_write';
-drop table t1;
-
-# End of 10.1 tests
