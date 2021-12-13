@@ -176,8 +176,8 @@ PSI_memory_key key_memory_table_def_memory;
 table_def::table_def(unsigned char *types, ulong size,
                      uchar *field_metadata, int metadata_size,
                      uchar *null_bitmap, uint16 flags)
-  : m_size(size), m_type(0), m_field_metadata_size(metadata_size),
-    m_field_metadata(0), m_null_bits(0), m_flags(flags),
+  : m_type(0), m_size(size), m_field_metadata_size(metadata_size),
+    m_field_metadata(0), m_flags(flags), m_null_bits(0),
     m_memory(NULL)
 {
   m_memory= (uchar *)my_multi_malloc(key_memory_table_def_memory, MYF(MY_WME),
