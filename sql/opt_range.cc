@@ -2809,12 +2809,11 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         trace_idx_details.add("usable", false).add("cause", "fulltext");
         continue;    // ToDo: ft-keys in non-ft ranges, if possible   SerG
       }
-
+      trace_idx_details.add("usable", true);
       param.key[param.keys]=key_parts;
       key_part_info= key_info->key_part;
       uint cur_key_len= 0;
       Json_writer_array trace_keypart(thd, "key_parts");
-      bool unusable_has_desc_keyparts= false;
       for (uint part= 0 ; part < n_key_parts ; 
            part++, key_parts++, key_part_info++)
       {
@@ -2829,18 +2828,9 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
           (key_info->flags & HA_SPATIAL) ? Field::itMBR : Field::itRAW;
         /* Only HA_PART_KEY_SEG is used */
         key_parts->flag=         (uint8) key_part_info->key_part_flag;
-        if (key_part_info->key_part_flag & HA_REVERSE_SORT)
-          unusable_has_desc_keyparts= true;
         trace_keypart.add(key_parts->field->field_name);
       }
       trace_keypart.end();
-      trace_idx_details.add("usable", !unusable_has_desc_keyparts);
-      unusable_has_desc_keyparts= false;
-      if (unusable_has_desc_keyparts) // TODO MDEV-13756
-      {
-        key_parts= param.key[param.keys];
-        continue;
-      }
       param.real_keynr[param.keys++]=idx;
       if (cur_key_len > max_key_len)
         max_key_len= cur_key_len;
@@ -13835,6 +13825,17 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     {
       cause= "not covering";
       goto next_index;
+    }
+
+    {
+      for (uint i= 0; i < table->actual_n_key_parts(cur_index_info); i++)
+      {
+        if (cur_index_info->key_part[i].key_part_flag & HA_REVERSE_SORT)
+        {
+          cause="Reverse-ordered (not supported yet)";
+          goto next_index;
+        }
+      }
     }
     
     /*
