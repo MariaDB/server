@@ -386,11 +386,10 @@ exist and be successfully opened. We initially open it in read-only mode
 because we just want to read the SpaceID.  However, if the first page is
 corrupt and needs to be restored from the doublewrite buffer, we will
 reopen it in write mode and ry to restore that page.
-@param	space_id	space id to validate for recovery
 @retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 m_is_valid is also set true on success, else false. */
 dberr_t
-Datafile::validate_for_recovery(uint32_t space_id)
+Datafile::validate_for_recovery()
 {
 	dberr_t err;
 
@@ -433,23 +432,12 @@ Datafile::validate_for_recovery(uint32_t space_id)
 			}
 		}
 
-		const bool empty_tablespace = (m_space_id == UINT32_MAX);
-		if (empty_tablespace && space_id) {
-			/* Set space id to find out whether
-			the page exist in double write buffer */
-			m_space_id = space_id;
+		if (m_space_id == UINT32_MAX) {
+			return DB_SUCCESS; /* empty file */
 		}
 
 		if (restore_from_doublewrite()) {
-			if (!m_defer) {
-				return DB_CORRUPTION;
-			}
-			if (!empty_tablespace) {
-				return err;
-			}
-			/* InnoDB may rebuild the file from redo log */
-			m_space_id = UINT32_MAX;
-			return DB_SUCCESS; /* empty file */
+			return m_defer ? err : DB_CORRUPTION;
 		}
 
 		/* Free the previously read first page and then re-validate. */
@@ -777,14 +765,10 @@ Datafile::restore_from_doublewrite()
 		in the doublewrite buffer, then the recovery is going to fail
 		now. Hence this is treated as an error. */
 
-		if (!m_defer) {
-			ib::error()
-				<< "Corrupted page " << page_id
-				<< " of datafile '" << m_filepath
-				<< "' could not be found in the "
-				<< "doublewrite buffer.";
-		}
-
+		ib::error()
+			<< "Corrupted page " << page_id
+			<< " of datafile '" << m_filepath
+			<< "' could not be found in the doublewrite buffer.";
 		return(true);
 	}
 

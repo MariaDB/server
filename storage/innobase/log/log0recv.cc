@@ -661,7 +661,14 @@ static struct
         return;
       }
       else if (d->second.lsn < lsn)
+      {
+        /* Reset the old tablespace name in recovered spaces list */
+        recv_spaces_t::iterator it{recv_spaces.find(d->first)};
+        if (it != recv_spaces.end() &&
+            it->second.name == d->second.file_name)
+          it->second.name = "";
         defers.erase(d++);
+      }
       else
       {
         ut_ad(d->second.lsn != lsn);
@@ -675,6 +682,10 @@ static struct
       p.first->second.lsn= lsn;
       p.first->second.file_name= defer.file_name;
     }
+    /* Add the newly added defered space and change the file name */
+    recv_spaces_t::iterator it{recv_spaces.find(space)};
+    if (it != recv_spaces.end())
+      it->second.name = defer.file_name;
   }
 
   void remove(uint32_t space)
@@ -787,6 +798,62 @@ processed:
     space->size_in_header= size;
     return space;
   }
+
+  /** Attempt to recover pages from the doublewrite buffer.
+  This is invoked if we found neither a valid first page in the
+  data file nor redo log records that would initialize the first
+  page. */
+  void deferred_dblwr()
+  {
+    for (auto d= defers.begin(); d != defers.end(); )
+    {
+      if (d->second.deleted)
+      {
+      next_item:
+        d++;
+        continue;
+      }
+      const page_id_t page_id{d->first, 0};
+      const byte *page= recv_sys.dblwr.find_page(page_id);
+      if (!page)
+        goto next_item;
+      const uint32_t space_id= mach_read_from_4(page + FIL_PAGE_SPACE_ID);
+      const uint32_t flags= fsp_header_get_flags(page);
+      const uint32_t page_no= mach_read_from_4(page + FIL_PAGE_OFFSET);
+      const uint32_t size= fsp_header_get_field(page, FSP_SIZE);
+
+      if (page_no == 0 && space_id == d->first && size >= 4 &&
+          fil_space_t::is_valid_flags(flags, space_id) &&
+          fil_space_t::logical_size(flags) == srv_page_size)
+      {
+        recv_spaces_t::iterator it {recv_spaces.find(d->first)};
+        ut_ad(it != recv_spaces.end());
+
+        fil_space_t *space= create(
+          it, d->second.file_name.c_str(), flags,
+          fil_space_read_crypt_data(fil_space_t::zip_size(flags), page),
+          size);
+
+        space->free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
+        space->free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
+        fil_node_t *node= UT_LIST_GET_FIRST(space->chain);
+        if (!space->acquire())
+          goto next_item;
+        if (os_file_write(IORequestWrite, node->name, node->handle,
+                          page, 0, fil_space_t::physical_size(flags) !=
+            DB_SUCCESS))
+        {
+          space->release();
+          goto next_item;
+        }
+        space->release();
+        it->second.space= space;
+        defers.erase(d++);
+        continue;
+      }
+      goto next_item;
+    }
+  }
 }
 deferred_spaces;
 
@@ -860,6 +927,7 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
       }
       node->deferred= false;
       space->release();
+      it->second.space= space;
       return false;
     }
 
@@ -4107,6 +4175,7 @@ completed:
 		recv_sys.parse_start_lsn = checkpoint_lsn;
 
 		if (srv_operation == SRV_OPERATION_NORMAL) {
+			deferred_spaces.deferred_dblwr();
 			buf_dblwr.recover();
 		}
 
