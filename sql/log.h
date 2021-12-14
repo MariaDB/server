@@ -1416,4 +1416,7 @@ int binlog_rollback_by_xid(handlerton *hton, XID *xid);
 bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                                uint64 start_alter_id, bool log_if_exists);
 
+int online_alter_savepoint_set(THD *thd, LEX_CSTRING name);
+int online_alter_savepoint_rollback(THD *thd, LEX_CSTRING name);
+
 #endif /* LOG_H */
