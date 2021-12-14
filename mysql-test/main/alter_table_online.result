@@ -459,10 +459,6 @@ alter table t1 add b int NULL, algorithm= copy, lock= none;
 connection con2;
 update t1 set a= 123 where a = 1;
 savepoint whoopsie;
-ERROR 42000: Cannot set up a savepoint while online ALTER TABLE is in progress
-show warnings;
-Level	Code	Message
-Error	1235	Cannot set up a savepoint while online ALTER TABLE is in progress
 rollback to savepoint savie;
 commit;
 set debug_sync= 'now SIGNAL end';
@@ -475,7 +471,58 @@ select * from t2;
 a
 1
 222
+create or replace table t1 (a int);
+insert t1 values (1), (2);
+create or replace table t2 (a int);
+insert t2 values (1), (2);
+create or replace table t3 (a int) engine=myisam;
+insert t3 values (1);
+connection con2;
+begin;
+update t2 set a= 222 where a = 2;
+savepoint savie;
+update t2 set a= 111 where a = 1;
+set debug_sync= 'now WAIT_FOR ended';
+connection default;
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+connection con2;
+update t1 set a= 222 where a = 2;
+savepoint whoopsie;
+update t1 set a= 123 where a = 1;
+insert t3 values (2);
+select * from t1;
+a
+123
+222
+rollback to savepoint whoopsie;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+select * from t1;
+a
+1
+222
+select * from t3;
+a
+1
+2
+commit;
+set debug_sync= 'now SIGNAL end';
+connection default;
+select * from t1;
+a	b
+1	NULL
+222	NULL
+select * from t2;
+a
+111
+222
+select * from t3;
+a
+1
+2
 # Cleanup
 set debug_sync= 'reset';
 drop table t1;
 drop table t2;
+drop table t3;
