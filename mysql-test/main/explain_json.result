@@ -962,20 +962,18 @@ EXPLAIN
           "having_condition": "trigcond(t1.a is null)",
           "nested_loop": [
             {
-              "full-scan-on-null_key": {
-                "table": {
-                  "table_name": "t1",
-                  "access_type": "ref_or_null",
-                  "possible_keys": ["a"],
-                  "key": "a",
-                  "key_length": "5",
-                  "used_key_parts": ["a"],
-                  "ref": ["func"],
-                  "rows": 2,
-                  "filtered": 100,
-                  "attached_condition": "trigcond(<cache>(outer_t1.a) = t1.a or t1.a is null)",
-                  "using_index": true
-                }
+              "table": {
+                "table_name": "t1",
+                "access_type": "ref_or_null",
+                "possible_keys": ["a"],
+                "key": "a",
+                "key_length": "5",
+                "used_key_parts": ["a"],
+                "ref": ["func"],
+                "rows": 2,
+                "filtered": 100,
+                "attached_condition": "trigcond(<cache>(outer_t1.a) = t1.a or t1.a is null)",
+                "using_index": true
               }
             },
             {
