@@ -550,17 +550,17 @@ bool trans_rollback_stmt(THD *thd)
   DBUG_RETURN(FALSE);
 }
 
-/* Find a named savepoint in the current transaction. */
-static SAVEPOINT **
-find_savepoint(THD *thd, LEX_CSTRING name)
+/** Find a savepoint by name in a savepoint list */
+SAVEPOINT** find_savepoint_in_list(THD *thd, LEX_CSTRING name,
+                                   SAVEPOINT ** const list)
 {
-  SAVEPOINT **sv= &thd->transaction->savepoints;
+  SAVEPOINT **sv= list;
 
   while (*sv)
   {
     if (system_charset_info->strnncoll(
-                     (uchar *) name.str, name.length,
-                     (uchar *) (*sv)->name, (*sv)->length) == 0)
+            (uchar *) name.str, name.length,
+            (uchar *) (*sv)->name, (*sv)->length) == 0)
       break;
     sv= &(*sv)->prev;
   }
@@ -568,6 +568,43 @@ find_savepoint(THD *thd, LEX_CSTRING name)
   return sv;
 }
 
+/* Find a named savepoint in the current transaction. */
+static SAVEPOINT **
+find_savepoint(THD *thd, LEX_CSTRING name)
+{
+  return find_savepoint_in_list(thd, name, &thd->transaction->savepoints);
+}
+
+SAVEPOINT* savepoint_add(THD *thd, LEX_CSTRING name, SAVEPOINT **list,
+                         int (*release_old)(THD*, SAVEPOINT*))
+{
+  DBUG_ENTER("savepoint_add");
+
+  SAVEPOINT **sv= find_savepoint_in_list(thd, name, list);
+
+  SAVEPOINT *newsv;
+
+  if (*sv) /* old savepoint of the same name exists */
+  {
+    newsv= *sv;
+    if (release_old){
+      int error= release_old(thd, *sv);
+      if (error)
+        DBUG_RETURN(NULL);
+    }
+    *sv= (*sv)->prev;
+  }
+  else if ((newsv= (SAVEPOINT *) alloc_root(&thd->transaction->mem_root,
+                                            savepoint_alloc_size)) == NULL)
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    DBUG_RETURN(NULL);
+  }
+
+  newsv->name= strmake_root(&thd->transaction->mem_root, name.str, name.length);
+  newsv->length= (uint)name.length;
+  DBUG_RETURN(newsv);
+}
 
 /**
   Set a named transaction savepoint.
@@ -581,7 +618,6 @@ find_savepoint(THD *thd, LEX_CSTRING name)
 
 bool trans_savepoint(THD *thd, LEX_CSTRING name)
 {
-  SAVEPOINT **sv, *newsv;
   DBUG_ENTER("trans_savepoint");
 
   if (!(thd->in_multi_stmt_transaction_mode() || thd->in_sub_stmt) ||
@@ -591,23 +627,11 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   if (thd->transaction->xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
 
-  sv= find_savepoint(thd, name);
+  SAVEPOINT *newsv= savepoint_add(thd, name, &thd->transaction->savepoints,
+                                  ha_release_savepoint);
 
-  if (*sv) /* old savepoint of the same name exists */
-  {
-    newsv= *sv;
-    ha_release_savepoint(thd, *sv);
-    *sv= (*sv)->prev;
-  }
-  else if ((newsv= (SAVEPOINT *) alloc_root(&thd->transaction->mem_root,
-                                            savepoint_alloc_size)) == NULL)
-  {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+  if (newsv == NULL)
     DBUG_RETURN(TRUE);
-  }
-
-  newsv->name= strmake_root(&thd->transaction->mem_root, name.str, name.length);
-  newsv->length= (uint)name.length;
 
   /*
     if we'll get an error here, don't add new savepoint to the list.
@@ -616,6 +640,10 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   */
   if (unlikely(ha_savepoint(thd, newsv)))
     DBUG_RETURN(TRUE);
+
+  int error= online_alter_savepoint_set(thd, name);
+  if (unlikely(error))
+    DBUG_RETURN(error);
 
   newsv->prev= thd->transaction->savepoints;
   thd->transaction->savepoints= newsv;
@@ -675,6 +703,8 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
                  ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
+
+  res= res || online_alter_savepoint_rollback(thd, name);
 
   thd->transaction->savepoints= sv;
 
