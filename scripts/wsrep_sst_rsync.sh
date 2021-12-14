@@ -34,7 +34,7 @@ cleanup_joiner()
 {
     local failure=0
 
-    wsrep_log_info "Joiner cleanup: rsync PID=$RSYNC_REAL_PID, " \
+    wsrep_log_info "Joiner cleanup: rsync PID=$RSYNC_REAL_PID," \
                    "stunnel PID=$STUNNEL_REAL_PID"
 
     if [ -n "$STUNNEL" ]; then
@@ -122,7 +122,7 @@ check_pid_and_port()
         fi
 
         if ! check_port "$pid" "$port" "$utils"; then
-            wsrep_log_error "rsync or stunnel daemon port '$port' " \
+            wsrep_log_error "rsync or stunnel daemon port '$port'" \
                             "has been taken by another program"
             exit 16 # EBUSY
         fi
@@ -240,21 +240,22 @@ if [ -z "$SSTKEY" -a -z "$SSTCERT" -a -z "$SSTCA" -a -z "$SSTCAP" ]; then
     check_server_ssl_config
 fi
 
-SSTPATH=0
 if [ -n "$SSTCA" ]; then
     SSTCA=$(trim_string "$SSTCA")
-    if [ "${SSTCA%/}" != "$SSTCA" ]; then
-        SSTPATH=1
+    if [ "${SSTCA%/}" != "$SSTCA" ] || [ -d "$SSTCA" ]; then
+        SSTCAP="$SSTCA"
+        SSTCA=""
     fi
-elif [ -n "$SSTCAP" ]; then
-    SSTCA=$(trim_string "$SSTCAP")
-    SSTPATH=1
+fi
+
+if [ -n "$SSTCAP" ]; then
+    SSTCAP=$(trim_string "$SSTCAP")
 fi
 
 if [ -z "$SSLMODE" ]; then
     # Implicit verification if CA is set and the SSL mode
     # is not specified by user:
-    if [ -n "$SSTCA" ]; then
+    if [ -n "$SSTCA$SSTCAP" ]; then
         STUNNEL_BIN=$(commandex 'stunnel')
         if [ -n "$STUNNEL_BIN" ]; then
             SSLMODE='VERIFY_CA'
@@ -269,17 +270,18 @@ if [ -n "$SSTCERT" -a -n "$SSTKEY" ]; then
     verify_cert_matches_key "$SSTCERT" "$SSTKEY"
 fi
 
-if [ -n "$SSTCA" ]; then
-    if [ $SSTPATH -eq 0 ]; then
+CAFILE_OPT=""
+CAPATH_OPT=""
+if [ -n "$SSTCA$SSTCAP" ]; then
+    if [ -n "$SSTCA" ]; then
         CAFILE_OPT="CAfile = $SSTCA"
-    else
-        CAFILE_OPT="CApath = $SSTCA"
+    fi
+    if [ -n "$SSTCAP" ]; then
+        CAPATH_OPT="CApath = $SSTCAP"
     fi
     if [ -n "$SSTCERT" ]; then
-        verify_ca_matches_cert "$SSTCA" "$SSTCERT" $SSTPATH
+        verify_ca_matches_cert "$SSTCERT" "$SSTCA" "$SSTCAP"
     fi
-else
-    CAFILE_OPT=""
 fi
 
 VERIFY_OPT=""
@@ -299,7 +301,7 @@ then
         exit 22 # EINVAL
         ;;
     esac
-    if [ -z "$SSTCA" ]; then
+    if [ -z "$SSTCA$SSTCAP" ]; then
         wsrep_log_error "Can't have ssl-mode='$SSLMODE' without CA file or path"
         exit 22 # EINVAL
     fi
@@ -326,8 +328,8 @@ if [ -n "$SSLMODE" -a "$SSLMODE" != 'DISABLED' ]; then
         STUNNEL_BIN=$(commandex 'stunnel')
     fi
     if [ -n "$STUNNEL_BIN" ]; then
-        wsrep_log_info "Using stunnel for SSL encryption: CA: '$SSTCA', " \
-                       "ssl-path=$SSTPATH, ssl-mode='$SSLMODE'"
+        wsrep_log_info "Using stunnel for SSL encryption: CA: '$SSTCA'," \
+                       "CAPATH='$SSTCAP', ssl-mode='$SSLMODE'"
         STUNNEL="$STUNNEL_BIN $STUNNEL_CONF"
     fi
 fi
@@ -347,6 +349,7 @@ then
 key = $SSTKEY
 cert = $SSTCERT
 ${CAFILE_OPT}
+${CAPATH_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning
@@ -438,8 +441,8 @@ EOF
             case $RC in
             12) RC=71  # EPROTO
                 wsrep_log_error \
-                    "rsync server on the other end has incompatible " \
-                    "protocol. Make sure you have the same version of " \
+                    "rsync server on the other end has incompatible" \
+                    "protocol. Make sure you have the same version of" \
                     "rsync on all nodes."
                 ;;
             22) RC=12  # ENOMEM
@@ -556,7 +559,7 @@ then
     check_round=0
     while check_pid "$STUNNEL_PID" 1
     do
-        wsrep_log_info "lingering stunnel daemon found at startup, " \
+        wsrep_log_info "Lingering stunnel daemon found at startup," \
                        "waiting for it to exit"
         check_round=$(( check_round + 1 ))
         if [ $check_round -eq 10 ]; then
@@ -574,7 +577,7 @@ then
     check_round=0
     while check_pid "$RSYNC_PID" 1
     do
-        wsrep_log_info "lingering rsync daemon found at startup, " \
+        wsrep_log_info "Lingering rsync daemon found at startup," \
                        "waiting for it to exit"
         check_round=$(( check_round + 1 ))
         if [ $check_round -eq 10 ]; then
@@ -652,6 +655,7 @@ EOF
 key = $SSTKEY
 cert = $SSTCERT
 ${CAFILE_OPT}
+${CAPATH_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning
@@ -672,6 +676,7 @@ EOF
 key = $SSTKEY
 cert = $SSTCERT
 ${CAFILE_OPT}
+${CAPATH_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning

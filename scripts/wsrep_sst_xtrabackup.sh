@@ -17,7 +17,7 @@
 # MA  02110-1335  USA.
 
 # Optional dependencies and options documented here:
-# http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
+# https://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
 # Make sure to read that before proceeding!
 
 . $(dirname "$0")/wsrep_sst_common

@@ -36,7 +36,7 @@ ssyslog=""
 ssystag=""
 BACKUP_PID=""
 tcert=""
-tpath=0
+tcap=""
 tpem=""
 tkey=""
 tmode="DISABLED"
@@ -147,14 +147,14 @@ get_keys()
 
     if [ $encrypt -eq 0 ]; then
         if [ -n "$ealgo" -o -n "$ekey" -o -n "$ekeyfile" ]; then
-            wsrep_log_error "Options for encryption are specified, " \
+            wsrep_log_error "Options for encryption are specified," \
                             "but encryption itself is disabled. SST may fail."
         fi
         return
     fi
 
     if [ $sfmt = 'tar' ]; then
-        wsrep_log_info "NOTE: key-based encryption (encrypt=1) " \
+        wsrep_log_info "NOTE: key-based encryption (encrypt=1)" \
                        "cannot be enabled with tar format"
         encrypt=-1
         return
@@ -167,16 +167,18 @@ get_keys()
         exit 3
     fi
 
-    if [ -z "$ekey" -a ! -r "$ekeyfile" ]; then
-        wsrep_log_error "FATAL: Either key must be specified " \
-                        "or keyfile must be readable"
-        exit 3
+    if [ -z "$ekey" ]; then
+        if [ ! -r "$ekeyfile" ]; then
+            wsrep_log_error "FATAL: Either key must be specified" \
+                            "or keyfile must be readable"
+            exit 3
+        fi
     fi
 
     if [ "$eformat" = 'openssl' ]; then
         get_openssl
         if [ -z "$OPENSSL_BINARY" ]; then
-            wsrep_log_error "If encryption using the openssl is enabled, " \
+            wsrep_log_error "If encryption using the openssl is enabled," \
                             "then you need to install openssl"
             exit 2
         fi
@@ -195,18 +197,18 @@ get_keys()
         fi
     elif [ "$eformat" = 'xbcrypt' ]; then
         if [ -z "$(commandex xbcrypt)" ]; then
-            wsrep_log_error "If encryption using the xbcrypt is enabled, " \
+            wsrep_log_error "If encryption using the xbcrypt is enabled," \
                             "then you need to install xbcrypt"
             exit 2
         fi
-        wsrep_log_info "NOTE: xbcrypt-based encryption, " \
+        wsrep_log_info "NOTE: xbcrypt-based encryption," \
                        "supported only from Xtrabackup 2.1.4"
         if [ -z "$ekey" ]; then
             ecmd="xbcrypt --encrypt-algo='$ealgo' --encrypt-key-file='$ekeyfile'"
         else
-            wsrep_log_warning \
-                "Using the 'encrypt-key' option causes the encryption key " \
-                "to be set via the command-line and is considered insecure. " \
+            wsrep_log_info \
+                "Using the 'encrypt-key' option causes the encryption key" \
+                "to be set via the command-line and is considered insecure." \
                 "It is recommended to use the 'encrypt-key-file' option instead."
             ecmd="xbcrypt --encrypt-algo='$ealgo' --encrypt-key='$ekey'"
         fi
@@ -350,40 +352,32 @@ get_transfer()
         if [ $encrypt -eq 2 ]; then
             wsrep_log_info \
                 "Using openssl based encryption with socat: with crt and pem"
-            if [ -z "$tpem" -o -z "$tcert" ]; then
+            if [ -z "$tpem" -o -z "$tcert$tcap" ]; then
                 wsrep_log_error \
                     "Both PEM file and CRT file (or path) are required"
                 exit 22
             fi
-            if [ ! -r "$tpem" -o ! -r "$tcert" ]; then
-                wsrep_log_error \
-                    "Both PEM file and CRT file (or path) must be readable"
-                exit 22
+            verify_ca_matches_cert "$tpem" "$tcert" "$tcap"
+            tcmd="$tcmd,cert='$tpem'"
+            if [ -n "$tcert" ]; then
+                tcmd="$tcmd,cafile='$tcert'"
             fi
-            verify_ca_matches_cert "$tcert" "$tpem" $tpath
-            if [ $tpath -eq 0 ]; then
-                tcmd="$tcmd,cert='$tpem',cafile='$tcert'"
-            else
-                tcmd="$tcmd,cert='$tpem',capath='$tcert'"
+            if [ -n "$tcap" ]; then
+                tcmd="$tcmd,capath='$tcap'"
             fi
             stagemsg="$stagemsg-OpenSSL-Encrypted-2"
-            wsrep_log_info "$action with cert=$tpem, ca=$tcert"
+            wsrep_log_info "$action with cert='$tpem', ca='$tcert', capath='$tcap'"
         elif [ $encrypt -eq 3 -o $encrypt -eq 4 ]; then
             wsrep_log_info \
                 "Using openssl based encryption with socat: with key and crt"
             if [ -z "$tpem" -o -z "$tkey" ]; then
-                wsrep_log_error "Both certificate file (or path) " \
-                                "and key file are required"
-                exit 22
-            fi
-            if [ ! -r "$tpem" -o ! -r "$tkey" ]; then
-                wsrep_log_error "Both certificate file (or path) " \
-                                "and key file must be readable"
+                wsrep_log_error "Both the certificate file (or path) and" \
+                                "the key file are required"
                 exit 22
             fi
             verify_cert_matches_key "$tpem" "$tkey"
             stagemsg="$stagemsg-OpenSSL-Encrypted-3"
-            if [ -z "$tcert" ]; then
+            if [ -z "$tcert$tcap" ]; then
                 if [ $encrypt -eq 4 ]; then
                     wsrep_log_error \
                         "Peer certificate file (or path) required if encrypt=4"
@@ -392,14 +386,11 @@ get_transfer()
                 # no verification
                 CN_option=""
                 tcmd="$tcmd,cert='$tpem',key='$tkey',verify=0"
-                wsrep_log_info "$action with cert=$tpem, key=$tkey, verify=0"
+                wsrep_log_info \
+                    "$action with cert='$tpem', key='$tkey', verify=0"
             else
                 # CA verification
-                if [ ! -r "$tcert" ]; then
-                    wsrep_log_error "Certificate file or path must be readable"
-                    exit 22
-                fi
-                verify_ca_matches_cert "$tcert" "$tpem" $tpath
+                verify_ca_matches_cert "$tpem" "$tcert" "$tcap"
                 if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
                     CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
                 elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' -o $encrypt -eq 4 ]
@@ -410,12 +401,15 @@ get_transfer()
                 else
                     CN_option=",commonname='$WSREP_SST_OPT_HOST_UNESCAPED'"
                 fi
-                if [ $tpath -eq 0 ]; then
-                    tcmd="$tcmd,cert='$tpem',key='$tkey',cafile='$tcert'"
-                else
-                    tcmd="$tcmd,cert='$tpem',key='$tkey',capath='$tcert'"
+                tcmd="$tcmd,cert='$tpem',key='$tkey'"
+                if [ -n "$tcert" ]; then
+                    tcmd="$tcmd,cafile='$tcert'"
                 fi
-                wsrep_log_info "$action with cert=$tpem, key=$tkey, ca=$tcert"
+                if [ -n "$tcap" ]; then
+                    tcmd="$tcmd,capath='$tcap'"
+                fi
+                wsrep_log_info "$action with cert='$tpem', key='$tkey'," \
+                               "ca='$tcert', capath='$tcap'"
             fi
         else
             wsrep_log_info "Unknown encryption mode: encrypt=$encrypt"
@@ -502,19 +496,20 @@ check_server_ssl_config()
              "$tkey"  != "$tkey2" ]
         then
             wsrep_log_info \
-               "new ssl configuration options (ssl-ca[path], ssl-cert " \
-               "and ssl-key) are ignored by SST due to presence " \
+               "new ssl configuration options (ssl-ca[path], ssl-cert" \
+               "and ssl-key) are ignored by SST due to presence" \
                "of the tca[path], tcert and/or tkey in the [sst] section"
         fi
     fi
     if [ -n "$tcert" ]; then
         tcert=$(trim_string "$tcert")
-        if [ "${tcert%/}" != "$tcert" ]; then
-            tpath=1
+        if [ "${tcert%/}" != "$tcert" ] || [ -d "$tcert" ]; then
+            tcap="$tcert"
+            tcert=""
         fi
-    elif [ -n "$tcap" ]; then
-        tcert=$(trim_string "$tcap")
-        tpath=1
+    fi
+    if [ -n "$tcap" ]; then
+        tcap=$(trim_string "$tcap")
     fi
 }
 
@@ -535,11 +530,13 @@ read_cnf()
             if [ 0 -eq $encrypt -a -n "$tpem" -a -n "$tkey" ]
             then
                 encrypt=3 # enable cert/key SSL encyption
-
                 # avoid CA verification if not set explicitly:
-                # nodes may happen to have different CA if self-generated
-                # zeroing up tcert does the trick
-                [ "${tmode#VERIFY}" != "$tmode" ] || tcert=""
+                # nodes may happen to have different CA if self-generated,
+                # zeroing up tcert and tcap does the trick:
+                if [ "${tmode#VERIFY}" = "$tmode" ]; then
+                    tcert=""
+                    tcap=""
+                fi
             fi
         fi
     elif [ $encrypt -eq 1 ]; then
@@ -553,8 +550,9 @@ read_cnf()
         fi
     fi
 
-    wsrep_log_info "SSL configuration: CA='$tcert', CERT='$tpem'," \
-                   "KEY='$tkey', MODE='$tmode', encrypt='$encrypt'"
+    wsrep_log_info "SSL configuration: CA='$tcert', CAPATH='$tcap'," \
+                   "CERT='$tpem', KEY='$tkey', MODE='$tmode'," \
+                   "encrypt='$encrypt'"
 
     sockopt=$(parse_cnf sst sockopt "")
     progress=$(parse_cnf sst progress "")
@@ -787,14 +785,14 @@ recv_joiner()
     popd 1>/dev/null
 
     if [ ${RC[0]} -eq 124 ]; then
-        wsrep_log_error "Possible timeout in receiving first data from " \
+        wsrep_log_error "Possible timeout in receiving first data from" \
                         "donor in gtid stage: exit codes: ${RC[@]}"
         exit 32
     fi
 
     for ecode in "${RC[@]}"; do
         if [ $ecode -ne 0 ]; then
-            wsrep_log_error "Error while getting data from donor node: " \
+            wsrep_log_error "Error while getting data from donor node:" \
                             "exit codes: ${RC[@]}"
             exit 32
         fi
@@ -803,7 +801,7 @@ recv_joiner()
     if [ $checkf -eq 1 ]; then
         if [ ! -r "$MAGIC_FILE" ]; then
             # this message should cause joiner to abort
-            wsrep_log_error "receiving process ended without creating " \
+            wsrep_log_error "receiving process ended without creating" \
                             "'$MAGIC_FILE'"
             wsrep_log_info "Contents of datadir"
             wsrep_log_info $(ls -l "$dir/"*)
@@ -838,7 +836,7 @@ send_donor()
 
     for ecode in "${RC[@]}"; do
         if [ $ecode -ne 0 ]; then
-            wsrep_log_error "Error while sending data to joiner node: " \
+            wsrep_log_error "Error while sending data to joiner node:" \
                             "exit codes: ${RC[@]}"
             exit 32
         fi
@@ -852,7 +850,7 @@ monitor_process()
     while true ; do
         if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1; then
             wsrep_log_error \
-                "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT) " \
+                "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
                 "terminated unexpectedly."
             kill -- -"$WSREP_SST_OPT_PARENT"
             exit 32
@@ -870,15 +868,15 @@ XB_REQUIRED_VERSION="2.3.5"
 
 XB_VERSION=`$BACKUP_BIN --version 2>&1 | grep -oe '[0-9]\.[0-9][\.0-9]*' | head -n1`
 if [ -z "$XB_VERSION" ]; then
-    wsrep_log_error "FATAL: Cannot determine the $BACKUP_BIN version. " \
-                    "Needs xtrabackup-$XB_REQUIRED_VERSION or higher to " \
+    wsrep_log_error "FATAL: Cannot determine the $BACKUP_BIN version." \
+                    "Needs xtrabackup-$XB_REQUIRED_VERSION or higher to" \
                     "perform SST"
     exit 2
 fi
 
 if ! check_for_version "$XB_VERSION" "$XB_REQUIRED_VERSION"; then
-    wsrep_log_error "FATAL: The $BACKUP_BIN version is $XB_VERSION. " \
-                    "Needs xtrabackup-$XB_REQUIRED_VERSION or higher to " \
+    wsrep_log_error "FATAL: The $BACKUP_BIN version is $XB_VERSION." \
+                    "Needs xtrabackup-$XB_REQUIRED_VERSION or higher to" \
                     "perform SST"
     exit 2
 fi
@@ -1101,7 +1099,7 @@ then
         iopts="--databases-exclude='lost+found'${iopts:+ }$iopts"
 
         if [ ${FORCE_FTWRL:-0} -eq 1 ]; then
-            wsrep_log_info "Forcing FTWRL due to environment variable " \
+            wsrep_log_info "Forcing FTWRL due to environment variable" \
                            "FORCE_FTWRL equal to $FORCE_FTWRL"
             iopts="--no-backup-locks${iopts:+ }$iopts"
         fi
@@ -1128,7 +1126,7 @@ then
         set -e
 
         if [ ${RC[0]} -ne 0 ]; then
-            wsrep_log_error "innobackupex finished with error: ${RC[0]}. " \
+            wsrep_log_error "innobackupex finished with error: ${RC[0]}." \
                             "Check syslog or '$INNOBACKUPLOG' for details"
             exit 22
         elif [ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]; then
@@ -1258,7 +1256,7 @@ then
 
     if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1
     then
-        wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT) " \
+        wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
                         "terminated unexpectedly."
         exit 32
     fi
@@ -1267,7 +1265,7 @@ then
 
         if [ -d "$DATA/.sst" ]; then
             wsrep_log_info \
-                "WARNING: Stale temporary SST directory: " \
+                "WARNING: Stale temporary SST directory:" \
                 "'$DATA/.sst' from previous state transfer, removing..."
             rm -rf "$DATA/.sst"
         fi
@@ -1312,7 +1310,7 @@ then
         monitor_process $jpid
 
         if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then
-            wsrep_log_error "xtrabackup_checkpoints missing, " \
+            wsrep_log_error "xtrabackup_checkpoints missing," \
                             "failed xtrabackup/SST on donor"
             exit 2
         fi
@@ -1362,7 +1360,7 @@ then
                 find "$DATA" -type f -name '*.qp' -delete
                 if [ $? -ne 0 ]; then
                     wsrep_log_error \
-                        "Something went wrong with deletion of qpress files. " \
+                        "Something went wrong with deletion of qpress files." \
                         "Investigate"
                 fi
             else
@@ -1392,12 +1390,10 @@ then
         timeit "Xtrabackup prepare stage" "$INNOAPPLY"
 
         if [ $? -ne 0 ]; then
-            wsrep_log_error "xtrabackup apply finished with errors. " \
+            wsrep_log_error "xtrabackup apply finished with errors." \
                             "Check syslog or '$INNOAPPLYLOG' for details."
             exit 22
         fi
-
-        # [ -f "$INNOAPPLYLOG" ] && rm "$INNOAPPLYLOG"
 
         MAGIC_FILE="$TDATA/$INFO_FILE"
 

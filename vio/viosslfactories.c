@@ -178,6 +178,12 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   struct st_VioSSLFd *ssl_fd;
   long ssl_ctx_options= SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
   DBUG_ENTER("new_VioSSLFd");
+
+  if (ca_file  && ! ca_file[0])  ca_file  = NULL;
+  if (ca_path  && ! ca_path[0])  ca_path  = NULL;
+  if (crl_file && ! crl_file[0]) crl_file = NULL;
+  if (crl_path && ! crl_path[0]) crl_path = NULL;
+
   DBUG_PRINT("enter",
              ("key_file: '%s'  cert_file: '%s'  ca_file: '%s'  ca_path: '%s'  "
               "cipher: '%s' crl_file: '%s' crl_path: '%s' ",
@@ -308,6 +314,11 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER;
 
+  if (ca_file  && ! ca_file[0])  ca_file  = NULL;
+  if (ca_path  && ! ca_path[0])  ca_path  = NULL;
+  if (crl_file && ! crl_file[0]) crl_file = NULL;
+  if (crl_path && ! crl_path[0]) crl_path = NULL;
+
   /*
     Turn off verification of servers certificate if both
     ca_file and ca_path is set to NULL
@@ -339,6 +350,12 @@ new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
 {
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE;
+
+  if (ca_file  && ! ca_file[0])  ca_file  = NULL;
+  if (ca_path  && ! ca_path[0])  ca_path  = NULL;
+  if (crl_file && ! crl_file[0]) crl_file = NULL;
+  if (crl_path && ! crl_path[0]) crl_path = NULL;
+
   if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file,
                              ca_path, cipher, FALSE, error,
                              crl_file, crl_path)))

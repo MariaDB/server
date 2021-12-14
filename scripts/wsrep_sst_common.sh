@@ -585,7 +585,7 @@ get_binlog()
 if [ -n "$WSREP_SST_OPT_ADDR_PORT" ]; then
     if [ -n "$WSREP_SST_OPT_PORT" ]; then
         if [ "$WSREP_SST_OPT_PORT" != "$WSREP_SST_OPT_ADDR_PORT" ]; then
-            echo "WSREP_SST: [ERROR] port in --port=$WSREP_SST_OPT_PORT " \
+            echo "WSREP_SST: [ERROR] port in --port=$WSREP_SST_OPT_PORT" \
                  "differs from port in --address=$WSREP_SST_OPT_ADDR" >&2
             exit 2
         fi
@@ -1010,7 +1010,7 @@ check_sockets_utils()
          $sockstat_available -eq 0 -a \
          $ss_available -eq 0 ]
     then
-        wsrep_log_error "Neither lsof, nor sockstat or ss tool was found in " \
+        wsrep_log_error "Neither lsof, nor sockstat or ss tool was found in" \
                         "the PATH. Make sure you have it installed."
         exit 2 # ENOENT
     fi
@@ -1095,9 +1095,9 @@ check_for_dhparams()
 #
 verify_ca_matches_cert()
 {
-    local ca="$1"
-    local cert="$2"
-    local path=${3:-0}
+    local cert="$1"
+    local ca="$2"
+    local cap="$3"
 
     # If the openssl utility is not installed, then
     # we will not do this certificate check:
@@ -1107,19 +1107,25 @@ verify_ca_matches_cert()
         return
     fi
 
-    local not_match=0
-    local opt="-CAfile"
+    local readable=1; [ ! -r "$cert" ] && readable=0
+    [ -n "$ca"  ] &&  [ ! -r "$ca"   ] && readable=0
+    [ -n "$cap" ] &&  [ ! -r "$cap"  ] && readable=0
 
-    if [ $path -ne 0 ]; then
-        opt="-CApath"
+    if [ readable -eq 0 ]; then
+        wsrep_log_error \
+            "Both PEM file and CA file (or path) must be readable"
+        exit 22
     fi
 
+    local not_match=0
     local errmsg
-    local cmd="\"$OPENSSL_BINARY\" verify -verbose $opt \"$ca\" \"$cert\""
-    errmsg=$("$OPENSSL_BINARY" verify -verbose $opt "$ca" "$cert" 2>&1) || not_match=1
+    errmsg=$("$OPENSSL_BINARY" verify -verbose \
+                               ${ca:+ -CAfile} ${ca:+ "$ca"} \
+                               ${cap:+ -CApath} ${cap:+ "$cap"} \
+                               "$cert" 2>&1) || not_match=1
 
     if [ $not_match -eq 1 ]; then
-        wsrep_log_info "run: $cmd"
+        wsrep_log_info "run: \"$OPENSSL_BINARY\" verify -verbose${ca:+ -CAfile \"$ca\"}${cap:+ -CApath \"$cap\"} \"$cert\""
         wsrep_log_info "output: $errmsg"
         wsrep_log_error "******** FATAL ERROR ********************************************"
         wsrep_log_error "* The certifcate and CA (certificate authority) do not match.   *"
@@ -1140,8 +1146,14 @@ verify_ca_matches_cert()
 #
 verify_cert_matches_key()
 {
-    local cert_path="$1"
-    local key_path="$2"
+    local cert="$1"
+    local key="$2"
+
+    if [ ! -r "$key" -o ! -r "$cert" ]; then
+        wsrep_log_error "Both the certificate file and the key file" \
+                        "must be readable"
+        exit 22
+    fi
 
     # If the diff utility is not installed, then
     # we will not do this certificate check:
@@ -1158,8 +1170,8 @@ verify_cert_matches_key()
 
     # Generate the public key from the cert and the key.
     # They should match (otherwise we can't create an SSL connection).
-    if ! diff <("$OPENSSL_BINARY" x509 -in "$cert_path" -pubkey -noout 2>/dev/null) \
-              <("$OPENSSL_BINARY" pkey -in "$key_path" -pubout 2>/dev/null) >/dev/null 2>&1
+    if ! diff <("$OPENSSL_BINARY" x509 -in "$cert" -pubkey -noout 2>/dev/null) \
+              <("$OPENSSL_BINARY" pkey -in "$key" -pubout 2>/dev/null) >/dev/null 2>&1
     then
         wsrep_log_error "******************* FATAL ERROR *****************"
         wsrep_log_error "* The certificate and private key do not match. *"
