@@ -1417,4 +1417,7 @@ int binlog_commit(THD *thd, bool all, bool is_ro_1pc= false);
 int binlog_commit_by_xid(handlerton *hton, XID *xid);
 int binlog_rollback_by_xid(handlerton *hton, XID *xid);
 
+int online_alter_savepoint_set(THD *thd, LEX_CSTRING name);
+int online_alter_savepoint_rollback(THD *thd, LEX_CSTRING name);
+
 #endif /* LOG_H */
