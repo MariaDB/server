@@ -78,13 +78,13 @@ explain select * from t1 where a=1 or b=1	{
                   "potential_range_indexes": [
                     {
                       "index": "a",
-                      "key_parts": ["a"],
-                      "usable": true
+                      "usable": true,
+                      "key_parts": ["a"]
                     },
                     {
                       "index": "b",
-                      "key_parts": ["b"],
-                      "usable": true
+                      "usable": true,
+                      "key_parts": ["b"]
                     },
                     {
                       "index": "c",
