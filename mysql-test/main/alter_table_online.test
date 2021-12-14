@@ -601,9 +601,7 @@ alter table t1 add b int NULL, algorithm= copy, lock= none;
 --reap
 update t1 set a= 123 where a = 1;
 
---error ER_NOT_SUPPORTED_YET
 savepoint whoopsie;
-show warnings;
 
 rollback to savepoint savie;
 commit;
@@ -616,7 +614,55 @@ set debug_sync= 'now SIGNAL end';
 select * from t1;
 select * from t2;
 
+
+create or replace table t1 (a int);
+insert t1 values (1), (2);
+
+create or replace table t2 (a int);
+insert t2 values (1), (2);
+
+create or replace table t3 (a int) engine=myisam;
+insert t3 values (1);
+
+--connection con2
+begin;
+update t2 set a= 222 where a = 2;
+savepoint savie;
+update t2 set a= 111 where a = 1;
+
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set a= 222 where a = 2;
+savepoint whoopsie;
+update t1 set a= 123 where a = 1;
+insert t3 values (2);
+
+select * from t1;
+rollback to savepoint whoopsie;
+select * from t1;
+select * from t3;
+commit;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+
+select * from t1;
+select * from t2;
+select * from t3;
+
 --echo # Cleanup
 set debug_sync= 'reset';
 drop table t1;
 drop table t2;
+drop table t3;
