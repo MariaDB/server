@@ -279,7 +279,7 @@ void make_default_log_name(char **out, const char* log_ext, bool once)
 class binlog_cache_data: public ilist_node<>
 {
 public:
-  binlog_cache_data(): share(0), m_pending(0), status(0),
+  binlog_cache_data(): share(0), sv_list(0), m_pending(0), status(0),
   before_stmt_pos(MY_OFF_T_UNDEF),
   incident(FALSE),
   saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
@@ -420,6 +420,7 @@ public:
   IO_CACHE cache_log;
 
   TABLE_SHARE *share; // for online alter table
+  SAVEPOINT *sv_list;
 private:
   /*
     Pending binrows event. This event is the event where the rows are currently
@@ -2571,6 +2572,9 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
   int error= 1;
   DBUG_ENTER("binlog_savepoint_set");
 
+  if (!mysql_bin_log.is_open() && !thd->online_alter_cache_list.empty())
+    DBUG_RETURN(0);
+
   char buf[1024];
 
   String log_query(buf, sizeof(buf), &my_charset_bin);
@@ -2603,8 +2607,8 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("binlog_savepoint_rollback");
 
-  if (!thd->online_alter_cache_list.empty())
-    binlog_online_alter_rollback(thd, !thd->in_sub_stmt);
+  if (!mysql_bin_log.is_open() && !thd->online_alter_cache_list.empty())
+    DBUG_RETURN(0);
 
   /*
     Write ROLLBACK TO SAVEPOINT to the binlog cache if we have updated some
@@ -7653,6 +7657,61 @@ static void binlog_online_alter_rollback(THD *thd, bool all)
    */
   binlog_online_alter_cleanup(thd->online_alter_cache_list, is_ending_trans);
 #endif // HAVE_REPLICATION
+}
+
+SAVEPOINT** find_savepoint_in_list(THD *thd, LEX_CSTRING name,
+                                   SAVEPOINT ** const list);
+
+SAVEPOINT* savepoint_add(THD *thd, LEX_CSTRING name, SAVEPOINT **list,
+                         int (*release_old)(THD*, SAVEPOINT*));
+
+int online_alter_savepoint_set(THD *thd, LEX_CSTRING name)
+{
+
+  DBUG_ENTER("binlog_online_alter_savepoint");
+#ifdef HAVE_REPLICATION
+  if (thd->online_alter_cache_list.empty())
+    DBUG_RETURN(0);
+
+  if (savepoint_alloc_size < sizeof (SAVEPOINT) + sizeof(my_off_t))
+    savepoint_alloc_size= sizeof (SAVEPOINT) + sizeof(my_off_t);
+
+  for (auto &cache: thd->online_alter_cache_list)
+  {
+    if (cache.share->db_type()->savepoint_set == NULL)
+      continue;
+
+    SAVEPOINT *sv= savepoint_add(thd, name, &cache.sv_list, NULL);
+    if(unlikely(sv == NULL))
+      DBUG_RETURN(1);
+    my_off_t *pos= (my_off_t*)(sv+1);
+    *pos= cache.get_byte_position();
+
+    sv->prev= cache.sv_list;
+    cache.sv_list= sv;
+  }
+#endif
+  DBUG_RETURN(0);
+}
+
+int online_alter_savepoint_rollback(THD *thd, LEX_CSTRING name)
+{
+  DBUG_ENTER("online_alter_savepoint_rollback");
+#ifdef HAVE_REPLICATION
+  for (auto &cache: thd->online_alter_cache_list)
+  {
+    if (cache.share->db_type()->savepoint_set == NULL)
+      continue;
+
+    SAVEPOINT **sv= find_savepoint_in_list(thd, name, &cache.sv_list);
+    // sv is null if savepoint was set up before online table was modified
+    my_off_t pos= *sv ? *(my_off_t*)(*sv+1) : 0;
+
+    cache.restore_savepoint(pos);
+  }
+
+#endif
+  DBUG_RETURN(0);
 }
 
 /*
