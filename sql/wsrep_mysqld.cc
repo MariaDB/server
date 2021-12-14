@@ -1603,10 +1603,17 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
 {
     bool fail= false;
     TABLE_LIST *table;
+    TABLE_LIST *table_last_in_list;
 
     thd->release_transactional_locks();
     uint counter;
     MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
+
+    for (table_last_in_list= tables;;table_last_in_list= table_last_in_list->next_local) {
+      if (!table_last_in_list->next_local) {
+        break;
+      }
+    }
 
     if (thd->open_temporary_tables(tables) ||
          open_tables(thd, &tables, &counter, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL))
@@ -1639,11 +1646,19 @@ exit:
     /* close the table and release MDL locks */
     close_thread_tables(thd);
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+    bool invalidate_next_global= false;
     for (table= tables; table; table= table->next_local)
     {
       table->table= NULL;
-      table->next_global= NULL;
       table->mdl_request.ticket= NULL;
+      // We should invalidate `next_global` only for entries that are added 
+      // in this function
+      if (table == table_last_in_list) {
+        invalidate_next_global= true;
+      }
+      if (invalidate_next_global) {
+        table->next_global= NULL;
+      }
     }
 
     return fail;
