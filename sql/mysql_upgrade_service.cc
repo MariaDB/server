@@ -366,8 +366,6 @@ static void get_service_config()
 */
 static void change_service_config()
 {
-  char defaults_file[MAX_PATH];
-  char default_character_set[64];
   char buf[MAX_PATH];
   char commandline[3 * MAX_PATH + 19];
   int i;
@@ -389,22 +387,6 @@ static void change_service_config()
     the new version, and will complain about mismatched message file.
   */
   WritePrivateProfileString("mysqld", "basedir",NULL, service_properties.inifile);
-
-  /* 
-    Replace default-character-set  with character-set-server, to avoid 
-    "default-character-set is deprecated and will be replaced ..."
-    message.
-  */
-  default_character_set[0]= 0;
-  GetPrivateProfileString("mysqld", "default-character-set", NULL,
-    default_character_set, sizeof(default_character_set), defaults_file);
-  if (default_character_set[0])
-  {
-    WritePrivateProfileString("mysqld", "default-character-set", NULL, 
-      defaults_file);
-    WritePrivateProfileString("mysqld", "character-set-server",
-      default_character_set, defaults_file);
-  }
 
   sprintf(defaults_file_param,"--defaults-file=%s", service_properties.inifile);
   sprintf_s(commandline, "\"%s\" \"%s\" \"%s\"", mysqld_path, 

@@ -25,9 +25,6 @@ STUNNEL_REAL_PID=0 # stunnel process id
 OS="$(uname)"
 [ "$OS" = 'Darwin' ] && export -n LD_LIBRARY_PATH
 
-# Setting the path for lsof on CentOS
-export PATH="/usr/sbin:/sbin:$PATH"
-
 . $(dirname "$0")/wsrep_sst_common
 wsrep_check_datadir
 
@@ -37,7 +34,8 @@ cleanup_joiner()
 {
     local failure=0
 
-    wsrep_log_info "Joiner cleanup: rsync PID=$RSYNC_REAL_PID, stunnel PID=$STUNNEL_REAL_PID"
+    wsrep_log_info "Joiner cleanup: rsync PID=$RSYNC_REAL_PID," \
+                   "stunnel PID=$STUNNEL_REAL_PID"
 
     if [ -n "$STUNNEL" ]; then
         if cleanup_pid $STUNNEL_REAL_PID "$STUNNEL_PID" "$STUNNEL_CONF"; then
@@ -87,7 +85,7 @@ check_pid_and_port()
 
         if [ $lsof_available -ne 0 ]; then
             port_info=$(lsof -Pnl -i ":$port" 2>/dev/null | \
-                grep -F '(LISTEN)')
+                        grep -F '(LISTEN)')
             echo "$port_info" | \
             grep -q -E "[[:space:]](\\*|\\[?::\\]?):$port[[:space:]]" && busy=1
         else
@@ -124,7 +122,7 @@ check_pid_and_port()
         fi
 
         if ! check_port "$pid" "$port" "$utils"; then
-            wsrep_log_error "rsync or stunnel daemon port '$port' " \
+            wsrep_log_error "rsync or stunnel daemon port '$port'" \
                             "has been taken by another program"
             exit 16 # EBUSY
         fi
@@ -223,6 +221,7 @@ FILTER="-f '- /lost+found'
 SSTKEY=$(parse_cnf 'sst' 'tkey')
 SSTCERT=$(parse_cnf 'sst' 'tcert')
 SSTCA=$(parse_cnf 'sst' 'tca')
+SSTCAP=$(parse_cnf 'sst' 'tcapath')
 
 SST_SECTIONS="--mysqld|sst"
 
@@ -231,28 +230,34 @@ check_server_ssl_config()
     SSTKEY=$(parse_cnf "$SST_SECTIONS" 'ssl-key')
     SSTCERT=$(parse_cnf "$SST_SECTIONS" 'ssl-cert')
     SSTCA=$(parse_cnf "$SST_SECTIONS" 'ssl-ca')
+    SSTCAP=$(parse_cnf "$SST_SECTIONS" 'ssl-capath')
 }
 
 SSLMODE=$(parse_cnf "$SST_SECTIONS" 'ssl-mode' | tr [:lower:] [:upper:])
 
 # no old-style SSL config in [sst], check for new one:
-if [ -z "$SSTKEY" -a -z "$SSTCERT" -a -z "$SSTCA" ]; then
+if [ -z "$SSTKEY" -a -z "$SSTCERT" -a -z "$SSTCA" -a -z "$SSTCAP" ]; then
     check_server_ssl_config
 fi
 
-SSTPATH=0
 if [ -n "$SSTCA" ]; then
-   SSTCA=$(trim_string "$SSTCA")
-   if [ "${SSTCA%/}" != "$SSTCA" ]; then
-       SSTPATH=1
-   fi
+    SSTCA=$(trim_string "$SSTCA")
+    if [ "${SSTCA%/}" != "$SSTCA" ] || [ -d "$SSTCA" ]; then
+        SSTCAP="$SSTCA"
+        SSTCA=""
+    fi
+fi
+
+if [ -n "$SSTCAP" ]; then
+    SSTCAP=$(trim_string "$SSTCAP")
 fi
 
 if [ -z "$SSLMODE" ]; then
     # Implicit verification if CA is set and the SSL mode
     # is not specified by user:
-    if [ -n "$SSTCA" ]; then
-        if [ -n "$(command -v stunnel)" ]; then
+    if [ -n "$SSTCA$SSTCAP" ]; then
+        STUNNEL_BIN=$(commandex 'stunnel')
+        if [ -n "$STUNNEL_BIN" ]; then
             SSLMODE='VERIFY_CA'
         fi
     # Require SSL by default if SSL key and cert are present:
@@ -265,17 +270,18 @@ if [ -n "$SSTCERT" -a -n "$SSTKEY" ]; then
     verify_cert_matches_key "$SSTCERT" "$SSTKEY"
 fi
 
-if [ -n "$SSTCA" ]; then
-    if [ $SSTPATH -eq 0 ]; then
+CAFILE_OPT=""
+CAPATH_OPT=""
+if [ -n "$SSTCA$SSTCAP" ]; then
+    if [ -n "$SSTCA" ]; then
         CAFILE_OPT="CAfile = $SSTCA"
-    else
-        CAFILE_OPT="CApath = $SSTCA"
+    fi
+    if [ -n "$SSTCAP" ]; then
+        CAPATH_OPT="CApath = $SSTCAP"
     fi
     if [ -n "$SSTCERT" ]; then
-        verify_ca_matches_cert "$SSTCA" "$SSTCERT" $SSTPATH
+        verify_ca_matches_cert "$SSTCERT" "$SSTCA" "$SSTCAP"
     fi
-else
-    CAFILE_OPT=""
 fi
 
 VERIFY_OPT=""
@@ -295,7 +301,7 @@ then
         exit 22 # EINVAL
         ;;
     esac
-    if [ -z "$SSTCA" ]; then
+    if [ -z "$SSTCA$SSTCAP" ]; then
         wsrep_log_error "Can't have ssl-mode='$SSLMODE' without CA file or path"
         exit 22 # EINVAL
     fi
@@ -318,9 +324,12 @@ fi
 
 STUNNEL=""
 if [ -n "$SSLMODE" -a "$SSLMODE" != 'DISABLED' ]; then
-    STUNNEL_BIN="$(command -v stunnel)"
+    if [ -z "${STUNNEL_BIN+x}" ]; then
+        STUNNEL_BIN=$(commandex 'stunnel')
+    fi
     if [ -n "$STUNNEL_BIN" ]; then
-        wsrep_log_info "Using stunnel for SSL encryption: CA: '$SSTCA', ssl-mode='$SSLMODE'"
+        wsrep_log_info "Using stunnel for SSL encryption: CA: '$SSTCA'," \
+                       "CAPATH='$SSTCAP', ssl-mode='$SSLMODE'"
         STUNNEL="$STUNNEL_BIN $STUNNEL_CONF"
     fi
 fi
@@ -340,6 +349,7 @@ then
 key = $SSTKEY
 cert = $SSTCERT
 ${CAFILE_OPT}
+${CAPATH_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning
@@ -392,8 +402,8 @@ EOF
             # Prepare binlog files
             cd "$BINLOG_DIRNAME"
 
-            binlog_files_full=$(tail -n $BINLOG_N_FILES "$WSREP_SST_OPT_BINLOG_INDEX")
-
+            binlog_files_full=$(tail -n $BINLOG_N_FILES \
+                                "$WSREP_SST_OPT_BINLOG_INDEX")
             binlog_files=""
             for ii in $binlog_files_full
             do
@@ -417,9 +427,10 @@ EOF
             WHOLE_FILE_OPT="--whole-file"
         fi
 
-        # first, the normal directories, so that we can detect incompatible protocol
+        # first, the normal directories, so that we can detect
+        # incompatible protocol:
         RC=0
-        eval rsync ${STUNNEL:+"'--rsh=$STUNNEL'"} \
+        eval rsync ${STUNNEL:+"--rsh='$STUNNEL'"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT $FILTER "'$WSREP_SST_OPT_DATA/'" \
@@ -430,8 +441,9 @@ EOF
             case $RC in
             12) RC=71  # EPROTO
                 wsrep_log_error \
-                "rsync server on the other end has incompatible protocol. " \
-                "Make sure you have the same version of rsync on all nodes."
+                    "rsync server on the other end has incompatible" \
+                    "protocol. Make sure you have the same version of" \
+                    "rsync on all nodes."
                 ;;
             22) RC=12  # ENOMEM
                 ;;
@@ -481,9 +493,9 @@ EOF
         find . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
              -not -name '.zfs' -print0 | xargs -I{} -0 -P $backup_threads \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-             --owner --group --perms --links --specials \
-             --ignore-times --inplace --recursive --delete --quiet \
-             $WHOLE_FILE_OPT --exclude '*/ib_logfile*' --exclude '*/aria_log.*' \
+             --owner --group --perms --links --specials --ignore-times \
+             --inplace --recursive --delete --quiet $WHOLE_FILE_OPT \
+             --exclude '*/ib_logfile*' --exclude '*/aria_log.*' \
              --exclude '*/aria_log_control' "$WSREP_SST_OPT_DATA/{}/" \
              "rsync://$WSREP_SST_OPT_ADDR/{}" >&2 || RC=$?
 
@@ -514,7 +526,8 @@ EOF
     fi
 
     rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-          --archive --quiet --checksum "$MAGIC_FILE" "rsync://$WSREP_SST_OPT_ADDR"
+          --archive --quiet --checksum "$MAGIC_FILE" \
+          "rsync://$WSREP_SST_OPT_ADDR"
 
     echo "done $STATE"
 
@@ -546,7 +559,8 @@ then
     check_round=0
     while check_pid "$STUNNEL_PID" 1
     do
-        wsrep_log_info "lingering stunnel daemon found at startup, waiting for it to exit"
+        wsrep_log_info "Lingering stunnel daemon found at startup," \
+                       "waiting for it to exit"
         check_round=$(( check_round + 1 ))
         if [ $check_round -eq 10 ]; then
             wsrep_log_error "stunnel daemon already running."
@@ -563,7 +577,8 @@ then
     check_round=0
     while check_pid "$RSYNC_PID" 1
     do
-        wsrep_log_info "lingering rsync daemon found at startup, waiting for it to exit"
+        wsrep_log_info "Lingering rsync daemon found at startup," \
+                       "waiting for it to exit"
         check_round=$(( check_round + 1 ))
         if [ $check_round -eq 10 ]; then
             wsrep_log_error "rsync daemon already running."
@@ -575,9 +590,7 @@ then
     [ -f "$MAGIC_FILE"      ] && rm -f "$MAGIC_FILE"
     [ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE"
 
-    if [ -z "$STUNNEL" ]; then
-        [ -f "$STUNNEL_CONF" ] && rm -f "$STUNNEL_CONF"
-    fi
+    [ -z "$STUNNEL" ] && [ -f "$STUNNEL_CONF" ] && rm -f "$STUNNEL_CONF"
 
     ADDR="$WSREP_SST_OPT_ADDR"
     RSYNC_PORT="$WSREP_SST_OPT_PORT"
@@ -628,19 +641,21 @@ EOF
 
     echo $$ > "$SST_PID"
 
-    if [ -z "$STUNNEL" ]
-    then
-        rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" $RSYNC_EXTRA_ARGS &
+    if [ -z "$STUNNEL" ]; then
+        rsync --daemon --no-detach --port "$RSYNC_PORT" \
+              --config "$RSYNC_CONF" $RSYNC_EXTRA_ARGS &
         RSYNC_REAL_PID=$!
         TRANSFER_REAL_PID=$RSYNC_REAL_PID
         TRANSFER_PID="$RSYNC_PID"
     else
         # Let's check if the path to the config file contains a space?
+        RSYNC_BIN=$(commandex 'rsync')
         if [ "${RSYNC_CONF#* }" = "$RSYNC_CONF" ]; then
             cat << EOF > "$STUNNEL_CONF"
 key = $SSTKEY
 cert = $SSTCERT
 ${CAFILE_OPT}
+${CAPATH_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning
@@ -650,17 +665,18 @@ ${CHECK_OPT}
 ${CHECK_OPT_LOCAL}
 [rsync]
 accept = $STUNNEL_ACCEPT
-exec = $(command -v rsync)
+exec = $RSYNC_BIN
 execargs = rsync --server --daemon --config=$RSYNC_CONF .
 EOF
         else
             # The path contains a space, so we will run it via
             # shell with "eval" command:
-            export RSYNC_CMD="eval $(command -v rsync) --server --daemon --config='$RSYNC_CONF' ."
+            export RSYNC_CMD="eval '$RSYNC_BIN' --server --daemon --config='$RSYNC_CONF' ."
             cat << EOF > "$STUNNEL_CONF"
 key = $SSTKEY
 cert = $SSTCERT
 ${CAFILE_OPT}
+${CAPATH_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning
@@ -688,7 +704,8 @@ EOF
             # find out my Common Name
             get_openssl
             if [ -z "$OPENSSL_BINARY" ]; then
-                wsrep_log_error 'openssl not found but it is required for authentication'
+                wsrep_log_error \
+                    'openssl not found but it is required for authentication'
                 exit 42
             fi
             CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$SSTCERT" | \
@@ -703,7 +720,8 @@ EOF
         ADDR="$WSREP_SST_OPT_HOST"
     fi
 
-    until check_pid_and_port "$TRANSFER_PID" $TRANSFER_REAL_PID "$RSYNC_ADDR_UNESCAPED" "$RSYNC_PORT"
+    until check_pid_and_port "$TRANSFER_PID" $TRANSFER_REAL_PID \
+          "$RSYNC_ADDR_UNESCAPED" "$RSYNC_PORT"
     do
         sleep 0.2
     done
@@ -722,7 +740,7 @@ EOF
     if ! ps -p $MYSQLD_PID >/dev/null 2>&1
     then
         wsrep_log_error \
-        "Parent mysqld process (PID: $MYSQLD_PID) terminated unexpectedly."
+            "Parent mysqld process (PID: $MYSQLD_PID) terminated unexpectedly."
         kill -- -$MYSQLD_PID
         sleep 1
         exit 32
@@ -768,10 +786,11 @@ EOF
     if [ -r "$MAGIC_FILE" ]; then
         if [ -n "$MY_SECRET" ]; then
             # check donor supplied secret
-            SECRET=$(grep -F -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
+            SECRET=$(grep -F -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | \
+                     cut -d ' ' -f 2)
             if [ "$SECRET" != "$MY_SECRET" ]; then
                 wsrep_log_error "Donor does not know my secret!"
-                wsrep_log_info "Donor:'$SECRET', my:'$MY_SECRET'"
+                wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
                 exit 32
             fi
             # remove secret from the magic file, and output

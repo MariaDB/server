@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -209,7 +209,7 @@ enum mrec_type_t
   /** Zero-initialize a page. The current byte offset (for subsequent
   records) will be reset to FIL_PAGE_TYPE. */
   INIT_PAGE= 0x10,
-  /** Insert a record into a page. FIXME: implement this! */
+  /** Extended record; @see mrec_ext_t */
   EXTENDED= 0x20,
   /** Write a string of bytes. Followed by the byte offset (unsigned,
   relative to the current byte offset, encoded in 1 to 3 bytes) and

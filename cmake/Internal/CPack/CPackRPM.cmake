@@ -22,6 +22,13 @@ macro(restore WHAT)
   set(CPACK_RPM_PACKAGE_${WHAT} ${orig_CPACK_RPM_PACKAGE_${WHAT}})
 endmacro()
 
+foreach (WHAT SUMMARY DESCRIPTION)
+  if(CPACK_RPM_PACKAGE_COMPONENT AND
+     NOT CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_PACKAGE_${WHAT})
+    message(FATAL_ERROR "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_PACKAGE_${WHAT} is not defined")
+  endif()
+endforeach()
+
 set_from_component(LICENSE)
 set_from_component(VENDOR)
 set_from_component(VERSION)

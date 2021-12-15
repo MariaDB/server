@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -214,8 +214,8 @@ struct recv_sys_t
   /** whether recv_recover_page(), invoked from buf_page_read_complete(),
   should apply log records*/
   bool apply_log_recs;
-	/** whether recv_apply_hashed_log_recs() is running */
-	bool		apply_batch_on;
+  /** whether apply() is running */
+  bool apply_batch_on;
 	byte*		buf;	/*!< buffer for parsing log records */
 	ulint		len;	/*!< amount of data in buf */
 	lsn_t		parse_start_lsn;
@@ -332,12 +332,12 @@ public:
   bool is_initialised() const { return last_stored_lsn != 0; }
 
   /** Register a redo log snippet for a page.
-  @param page_id  page identifier
+  @param it       page iterator
   @param start_lsn start LSN of the mini-transaction
   @param lsn      @see mtr_t::commit_lsn()
   @param l        redo log snippet @see log_t::FORMAT_10_5
   @param len      length of l, in bytes */
-  inline void add(const page_id_t page_id, lsn_t start_lsn, lsn_t lsn,
+  inline void add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
                   const byte *l, size_t len);
 
   /** Parse and register one mini-transaction in log_t::FORMAT_10_5.

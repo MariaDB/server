@@ -1720,6 +1720,11 @@ SELECT STRAIGHT_JOIN * FROM t1, t2 AS t2_1, t2 AS t2_2
 
 DROP TABLE t1,t2;
 
+#
+# MDEV-20330 Combination of "," (comma), cross join and left join fails to parse
+#
+select a.a from (select 1 as a) a, (select 2 as b) b cross join (select 3 as c) c left join (select 4 as d) d on 1;
+
 --echo #
 --echo # MDEV-19600: The optimizer should be able to produce rows=1 estimate for unique index with NULLable columns
 --echo #
@@ -1814,3 +1819,4 @@ WHERE
 drop table t1,t2,t3;
 drop table t1000,t10,t03;
 
+--echo # End of 10.3 tests

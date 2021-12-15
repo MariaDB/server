@@ -346,26 +346,6 @@ or the MySQL version that created the redo log file. */
 					header */
 #define LOG_FILE_HDR_SIZE	(4 * OS_FILE_LOG_BLOCK_SIZE)
 
-/** Memory mapped file */
-class mapped_file_t
-{
-public:
-  mapped_file_t()= default;
-  mapped_file_t(const mapped_file_t &)= delete;
-  mapped_file_t &operator=(const mapped_file_t &)= delete;
-  mapped_file_t(mapped_file_t &&)= delete;
-  mapped_file_t &operator=(mapped_file_t &&)= delete;
-  ~mapped_file_t() noexcept;
-
-  dberr_t map(const char *path, bool read_only= false,
-              bool nvme= false) noexcept;
-  dberr_t unmap() noexcept;
-  byte *data() noexcept { return m_area.data(); }
-
-private:
-  span<byte> m_area;
-};
-
 /** Abstraction for reading, writing and flushing file cache to disk */
 class file_io
 {

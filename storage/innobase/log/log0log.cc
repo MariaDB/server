@@ -221,47 +221,6 @@ void log_t::create()
     (aligned_malloc(OS_FILE_LOG_BLOCK_SIZE, OS_FILE_LOG_BLOCK_SIZE));
 }
 
-mapped_file_t::~mapped_file_t() noexcept
-{
-  if (!m_area.empty())
-    unmap();
-}
-
-dberr_t mapped_file_t::map(const char *path, bool read_only,
-                           bool nvme) noexcept
-{
-  auto fd= mysql_file_open(innodb_log_file_key, path,
-                           read_only ? O_RDONLY : O_RDWR, MYF(MY_WME));
-  if (fd == -1)
-    return DB_ERROR;
-
-  const auto file_size= os_file_get_size(path).m_total_size;
-
-  const int nvme_flag= nvme ? MAP_SYNC : 0;
-  void *ptr= my_mmap(0, static_cast<size_t>(file_size),
-                     read_only ? PROT_READ : PROT_READ | PROT_WRITE,
-                     MAP_SHARED_VALIDATE | nvme_flag, fd, 0);
-  mysql_file_close(fd, MYF(MY_WME));
-
-  if (ptr == MAP_FAILED)
-    return DB_ERROR;
-
-  m_area= {static_cast<byte *>(ptr),
-           static_cast<span<byte>::size_type>(file_size)};
-  return DB_SUCCESS;
-}
-
-dberr_t mapped_file_t::unmap() noexcept
-{
-  ut_ad(!m_area.empty());
-
-  if (my_munmap(m_area.data(), m_area.size()))
-    return DB_ERROR;
-
-  m_area= {};
-  return DB_SUCCESS;
-}
-
 file_os_io::file_os_io(file_os_io &&rhs) : m_fd(rhs.m_fd)
 {
   rhs.m_fd= OS_FILE_CLOSED;
@@ -330,6 +289,66 @@ dberr_t file_os_io::flush() noexcept
 #ifdef HAVE_PMEM
 
 #include <libpmem.h>
+
+/** Memory mapped file */
+class mapped_file_t
+{
+public:
+  mapped_file_t()= default;
+  mapped_file_t(const mapped_file_t &)= delete;
+  mapped_file_t &operator=(const mapped_file_t &)= delete;
+  mapped_file_t(mapped_file_t &&)= delete;
+  mapped_file_t &operator=(mapped_file_t &&)= delete;
+  ~mapped_file_t() noexcept;
+
+  dberr_t map(const char *path, bool read_only= false,
+              bool nvme= false) noexcept;
+  dberr_t unmap() noexcept;
+  byte *data() noexcept { return m_area.data(); }
+
+private:
+  span<byte> m_area;
+};
+
+mapped_file_t::~mapped_file_t() noexcept
+{
+  if (!m_area.empty())
+    unmap();
+}
+
+dberr_t mapped_file_t::map(const char *path, bool read_only,
+                           bool nvme) noexcept
+{
+  auto fd= mysql_file_open(innodb_log_file_key, path,
+                           read_only ? O_RDONLY : O_RDWR, MYF(MY_WME));
+  if (fd == -1)
+    return DB_ERROR;
+
+  const auto file_size= size_t{os_file_get_size(path).m_total_size};
+
+  const int nvme_flag= nvme ? MAP_SYNC : 0;
+  void *ptr=
+      my_mmap(0, file_size, read_only ? PROT_READ : PROT_READ | PROT_WRITE,
+              MAP_SHARED_VALIDATE | nvme_flag, fd, 0);
+  mysql_file_close(fd, MYF(MY_WME));
+
+  if (ptr == MAP_FAILED)
+    return DB_ERROR;
+
+  m_area= {static_cast<byte *>(ptr), file_size};
+  return DB_SUCCESS;
+}
+
+dberr_t mapped_file_t::unmap() noexcept
+{
+  ut_ad(!m_area.empty());
+
+  if (my_munmap(m_area.data(), m_area.size()))
+    return DB_ERROR;
+
+  m_area= {};
+  return DB_SUCCESS;
+}
 
 static bool is_pmem(const char *path) noexcept
 {
@@ -610,9 +629,7 @@ loop:
 		log_block_store_checksum(buf + i * OS_FILE_LOG_BLOCK_SIZE);
 	}
 
-	ut_a((next_offset >> srv_page_size_shift) <= ULINT_MAX);
-
-	log_sys.log.write(static_cast<size_t>(next_offset), {buf, write_len});
+	log_sys.log.write(next_offset, {buf, write_len});
 
 	if (write_len < len) {
 		start_lsn += write_len;

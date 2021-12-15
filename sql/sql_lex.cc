@@ -2253,10 +2253,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         if (c == '-' || c == '+')
           c= yyGet();                           // Skip sign
         if (!my_isdigit(cs, c))
-        {                                       // No digit after sign
-          state= MY_LEX_CHAR;
-          break;
-        }
+	  return ABORT_SYM; // No digit after sign
         while (my_isdigit(cs, yyGet())) ;
         yylval->lex_str= get_token(0, yyLength());
         return(FLOAT_NUM);
